@@ -1,26 +1,41 @@
+import torch
+
 class Well:
     """
     Класс для представления одной скважины.
     """
-    def __init__(self, name, location, well_type, rate):
+    def __init__(self, name, well_type, coordinates, reservoir_dimensions, rate):
         """
         Инициализация скважины.
 
         :param name: Имя скважины (str).
-        :param location: Кортеж (i, j, k) - координаты ячейки в сетке.
-        :param well_type: Тип скважины ('producer' или 'injector').
-        :param rate: Дебит (для producer - положительное число, для injector - отрицательное), м^3/сутки.
+        :param well_type: Тип скважины ('producer' или 'injector') (str).
+        :param coordinates: Кортеж (i, j, k) с индексами ячейки скважины.
+        :param reservoir_dimensions: Кортеж (nx, ny, nz) с размерами пласта.
+        :param rate: Дебит в м^3/сутки (float). Положительный для нагнетания, конвенция сделает его отрицательным для добычи.
         """
         self.name = name
-        self.i, self.j, self.k = location
-        self.type = well_type
-        self.rate = rate # м^3/сутки
+        self.well_type = well_type
+        
+        assert len(coordinates) == 3, "Координаты должны быть в формате (i, j, k)"
+        self.i, self.j, self.k = coordinates
+        
+        nx, ny, nz = reservoir_dimensions
+        
+        assert 0 <= self.i < nx and 0 <= self.j < ny and 0 <= self.k < nz, f"Координаты скважины {name} выходят за пределы пласта."
 
-        # Конвертируем расход в м^3/секунду для расчетов
-        self.rate_si = rate / (24 * 3600)
+        # Конвертируем дебит в м^3/с и устанавливаем знак
+        # Добыча < 0, Нагнетание > 0
+        if self.well_type == 'producer':
+            self.rate_si = -rate / 86400.0
+        else: # injector
+            self.rate_si = rate / 86400.0
+
+        # Рассчитываем одномерный индекс ячейки
+        self.cell_idx = self.i * ny * nz + self.j * nz + self.k
 
         print(f"  Создана скважина '{self.name}':")
-        print(f"    Тип: {self.type}, Расположение: ({self.i}, {self.j}, {self.k}), Дебит: {self.rate} м^3/сутки")
+        print(f"    Тип: {self.well_type}, Расположение: ({self.i}, {self.j}, {self.k}), Дебит: {rate} м^3/сутки")
 
 
 class WellManager:
