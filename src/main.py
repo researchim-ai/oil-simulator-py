@@ -109,9 +109,9 @@ def main():
     results_txt_path = os.path.join(results_dir, f"{output_filename}.txt")
     with open(results_txt_path, 'w') as f:
         f.write("Final Pressure (MPa):\n")
-        f.write(np.array2string(p_final/1e6, formatter={'float_kind':lambda x: "%.2f" % x}))
+        f.write(np.array2string(p_final/1e6, threshold=np.inf, formatter={'float_kind':lambda x: "%.2f" % x}))
         f.write("\n\nFinal Water Saturation:\n")
-        f.write(np.array2string(sw_final, formatter={'float_kind':lambda x: "%.4f" % x}))
+        f.write(np.array2string(sw_final, threshold=np.inf, formatter={'float_kind':lambda x: "%.4f" % x}))
     print(f"Числовые результаты сохранены в файл {results_txt_path}")
 
     # Сохранение графиков
