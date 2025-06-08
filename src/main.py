@@ -1,167 +1,124 @@
 import torch
-from tqdm import tqdm
-import matplotlib.pyplot as plt
 import numpy as np
+import matplotlib.pyplot as plt
 import os
+from tqdm import tqdm
+import argparse
+import json
+
 from simulator.reservoir import Reservoir
 from simulator.fluid import Fluid
 from simulator.well import Well, WellManager
 from simulator.simulation import Simulator
-
-def save_results_to_txt(pressure, saturation, filename):
-    """
-    Сохраняет 2D-срезы данных в текстовый файл.
-    """
-    p_slice = pressure[:, :, int(pressure.shape[2] / 2)] / 1e6 # МПа
-    s_slice = saturation[:, :, int(saturation.shape[2] / 2)]
-
-    with open(filename, 'w') as f:
-        f.write("# Pressure (MPa) slice\n")
-        np.savetxt(f, p_slice, fmt='%.4f', delimiter='\t')
-        f.write("\n# Water Saturation slice\n")
-        np.savetxt(f, s_slice, fmt='%.4f', delimiter='\t')
-    print(f"Числовые результаты сохранены в файл {filename}")
-
-def plot_results(pressure, saturation, filename):
-    """
-    Сохраняет 2D-карты давления и насыщенности в файлы.
-    """
-    # Мы будем визуализировать центральный слой по оси Z
-    p_slice = pressure[:, :, int(pressure.shape[2] / 2)]
-    s_slice = saturation[:, :, int(saturation.shape[2] / 2)]
-
-    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 5))
-
-    im1 = ax1.imshow(p_slice / 1e6, cmap='jet', origin='lower')
-    ax1.set_title('Давление (МПа)')
-    ax1.set_xlabel('Ячейка X')
-    ax1.set_ylabel('Ячейка Y')
-    fig.colorbar(im1, ax=ax1)
-
-    im2 = ax2.imshow(s_slice, cmap='viridis', origin='lower', vmin=0, vmax=1)
-    ax2.set_title('Насыщенность водой')
-    ax2.set_xlabel('Ячейка X')
-    ax2.set_ylabel('Ячейка Y')
-    fig.colorbar(im2, ax=ax2)
-
-    plt.tight_layout()
-    plt.savefig(filename)
-    print(f"Графики сохранены в файл {filename}")
+from plotting.plotter import Plotter
 
 def main():
     """
-    Главная функция для запуска симулятора.
+    Основная функция для запуска симулятора нефтяного пласта.
     """
-    print("Запуск симулятора нефтяного месторождения...")
+    parser = argparse.ArgumentParser(description="Запуск симулятора нефтяного пласта")
+    parser.add_argument('--config', type=str, required=True, help='Путь к файлу конфигурации .json')
+    args = parser.parse_args()
 
-    # Проверка доступности GPU
-    if torch.cuda.is_available():
-        device = torch.device("cuda")
-        print(f"PyTorch будет использовать GPU: {torch.cuda.get_device_name(0)}")
-    else:
-        device = torch.device("cpu")
-        print("PyTorch будет использовать CPU.")
-
-    # --- Параметры модели ---
+    # --- 1. Загрузка конфигурации ---
+    with open(args.config, 'r') as f:
+        config = json.load(f)
     
-    # УМЕНЬШЕННЫЕ ПАРАМЕТРЫ ДЛЯ БЫСТРОГО ТЕСТА
-    grid_dimensions = (20, 20, 1)    # Уменьшенный 2D грид для скорости
-    grid_size = (25.0, 25.0, 10.0)   # Размеры ячейки в метрах (dx, dy, dz)
-    porosity = 0.2
-    permeability = 100 # мД
+    print(f"Загружена конфигурация: {config['description']}")
+    
+    # Извлечение параметров из конфига
+    res_params = config['reservoir']
+    sim_params = config['simulation']
+    fluid_params = config['fluid']
+    well_params = config['wells']
+    output_filename = config['output_filename']
+    
+    # --- 2. Настройка окружения ---
+    use_gpu = torch.cuda.is_available()
+    device = torch.device("cuda:0" if use_gpu else "cpu")
+    print(f"PyTorch будет использовать {'GPU: ' + torch.cuda.get_device_name(0) if use_gpu else 'CPU'}.")
 
-    # Создаем экземпляр пласта
+    # --- 3. Создание компонентов модели ---
+    print("\nСоздание модели пласта...")
     reservoir = Reservoir(
-        dimensions=grid_dimensions,
-        grid_size=grid_size,
-        porosity=porosity,
-        permeability=permeability,
+        dimensions=tuple(res_params['dimensions']),
+        grid_size=tuple(res_params['grid_size']),
+        porosity=res_params['porosity'],
+        permeability=res_params['permeability'],
         device=device
     )
 
-    print("Создан менеджер скважин.")
+    print("Создание менеджера скважин...")
     well_manager = WellManager()
-    
-    # Координаты скважин, адаптированные под новый грид
-    prod_coords = (5, 5, 0)
-    inj_coords = (15, 15, 0)
-
-    # Добывающая скважина
-    well_manager.add_well(
-        Well(
-            name="PROD-1",
-            well_type="producer",
-            coordinates=prod_coords,
-            reservoir_dimensions=grid_dimensions,
-            rate=15.0  # м^3/сутки
+    for well_info in well_params:
+        well_manager.add_well(
+            Well(
+                name=well_info['name'],
+                well_type=well_info['type'],
+                coordinates=tuple(well_info['coordinates']),
+                reservoir_dimensions=tuple(res_params['dimensions']),
+                rate=well_info['rate']
+            )
         )
-    )
-    # Нагнетательная скважина
-    well_manager.add_well(
-        Well(
-            name="INJ-1",
-            well_type="injector",
-            coordinates=inj_coords,
-            reservoir_dimensions=grid_dimensions,
-            rate=15.0  # м^3/сутки
-        )
-    )
-
-    # Инициализация флюидной системы
-    fluid_system = Fluid(
-        reservoir=reservoir,
-        mu_oil=1.0, mu_water=0.5,
-        rho_oil=850.0, rho_water=1000.0,
-        initial_pressure=200e5,
-        initial_sw=0.1,
-        cf=4e-10, # 4e-5 1/бар -> 4e-10 1/Па
-        sw_cr=0.1,
-        so_r=0.2,
-        nw=2.0,
-        no=2.0,
-        krw_end=0.8,
-        kro_end=0.9
-    )
-
-    # Инициализация симулятора
-    sim = Simulator(
-        reservoir=reservoir,
-        fluid_system=fluid_system,
-        well_manager=well_manager
-    )
-
-    # Параметры симуляции
-    total_time_days = 30  # Уменьшенное время симуляции
-    time_step_days = 1    # Увеличенный шаг, должно быть стабильно на малом гриде
     
-    # Конвертация времени в секунды для расчетов
-    total_time_sec = total_time_days * 86400
+    print("\nИнициализация флюидов и начальных условий...")
+    fluid = Fluid(
+        p_init=fluid_params['pressure'],
+        s_w_init=fluid_params['s_w'],
+        mu_oil=fluid_params['mu_oil'],
+        mu_water=fluid_params['mu_water'],
+        rho_oil=fluid_params['rho_oil'],
+        rho_water=fluid_params['rho_water'],
+        c_oil=fluid_params['compressibility'],
+        c_water=fluid_params['compressibility'],
+        c_rock=fluid_params['compressibility'],
+        sw_cr=fluid_params['sw_cr'],
+        so_r=fluid_params['so_r'],
+        nw=fluid_params['nw'],
+        no=fluid_params['no'],
+        reservoir=reservoir,
+        device=device
+    )
+
+    # --- 4. Запуск симуляции ---
+    sim = Simulator(reservoir, fluid, well_manager)
+    
+    total_time_days = sim_params['total_time_days']
+    time_step_days = sim_params['time_step_days']
     time_step_sec = time_step_days * 86400
     num_steps = int(total_time_days / time_step_days)
 
-    # Создаем директорию для результатов, если ее нет
     results_dir = "results"
     os.makedirs(results_dir, exist_ok=True)
-
+    
     print(f"\nЗапуск симуляции на {num_steps} шагов по {time_step_days} дней...")
 
-    # Запускаем цикл симуляции
     for i in tqdm(range(num_steps), desc="Симуляция"):
         sim.run_step(dt=time_step_sec)
-
-    print("\nСимуляция завершена.")
-    final_pressure = sim.fluid.pressure.cpu().numpy()
-    final_sw = sim.fluid.s_w.cpu().numpy()
-    print(f"Итоговое давление: Мин={final_pressure.min()/1e6:.2f} МПа, Макс={final_pressure.max()/1e6:.2f} МПа")
-    print(f"Итоговая водонасыщенность: Мин={final_sw.min():.4f}, Макс={final_sw.max():.4f}")
-
-    # Сохранение и визуализация результатов
-    txt_filename = os.path.join(results_dir, "final_results.txt")
-    png_filename = os.path.join(results_dir, "final_results.png")
     
-    save_results_to_txt(final_pressure, final_sw, txt_filename)
-    plot_results(final_pressure, final_sw, png_filename)
+    print("\nСимуляция завершена.")
+
+    # --- 5. Сохранение и визуализация результатов ---
+    p_final = fluid.pressure.cpu().numpy()
+    sw_final = fluid.s_w.cpu().numpy()
+    
+    print(f"Итоговое давление: Мин={p_final.min()/1e6:.2f} МПа, Макс={p_final.max()/1e6:.2f} МПа")
+    print(f"Итоговая водонасыщенность: Мин={sw_final.min():.4f}, Макс={sw_final.max():.4f}")
+
+    # Сохранение числовых данных
+    results_txt_path = os.path.join(results_dir, f"{output_filename}.txt")
+    with open(results_txt_path, 'w') as f:
+        f.write("Final Pressure (MPa):\n")
+        f.write(np.array2string(p_final/1e6, formatter={'float_kind':lambda x: "%.2f" % x}))
+        f.write("\n\nFinal Water Saturation:\n")
+        f.write(np.array2string(sw_final, formatter={'float_kind':lambda x: "%.4f" % x}))
+    print(f"Числовые результаты сохранены в файл {results_txt_path}")
+
+    # Сохранение графиков
+    plotter = Plotter(reservoir)
+    plotter.save_plots(p_final, sw_final, os.path.join(results_dir, f"{output_filename}.png"))
+    print(f"Графики сохранены в файл {os.path.join(results_dir, f'{output_filename}.png')}")
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     main()

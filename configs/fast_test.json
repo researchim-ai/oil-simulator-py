@@ -1,0 +1,41 @@
+{
+    "description": "A small 2D test case for quick debugging and validation.",
+    "output_filename": "fast_test_final",
+    "simulation": {
+        "total_time_days": 30,
+        "time_step_days": 1
+    },
+    "reservoir": {
+        "dimensions": [20, 20, 1],
+        "grid_size": [25.0, 25.0, 10.0],
+        "porosity": 0.2,
+        "permeability": 100
+    },
+    "fluid": {
+        "pressure": 20.0,
+        "s_w": 0.1,
+        "mu_oil": 1.0,
+        "mu_water": 0.5,
+        "rho_oil": 850.0,
+        "rho_water": 1000.0,
+        "compressibility": 4e-5,
+        "sw_cr": 0.1,
+        "so_r": 0.2,
+        "nw": 2.0,
+        "no": 2.0
+    },
+    "wells": [
+        {
+            "name": "PROD-1",
+            "type": "producer",
+            "coordinates": [5, 5, 0],
+            "rate": 15.0
+        },
+        {
+            "name": "INJ-1",
+            "type": "injector",
+            "coordinates": [15, 15, 0],
+            "rate": 15.0
+        }
+    ]
+} 

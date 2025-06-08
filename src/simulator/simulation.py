@@ -161,7 +161,7 @@ class Simulator:
 
         # --- Собираем диагональные элементы ---
         # Член накопления C = Vp*c/dt
-        acc_term = (self.porous_volume.view(-1) * self.fluid.cf / dt)
+        acc_term = (self.porous_volume.view(-1) * self.fluid.cf.view(-1) / dt)
         
         # Собираем диагональ
         diag_vals = torch.zeros(N, device=self.device)
@@ -183,7 +183,7 @@ class Simulator:
         N = nx * ny * nz
 
         # 1. Член сжимаемости (теперь использует тензор пористого объема)
-        compressibility_term = (self.porous_volume.view(-1) * self.fluid.cf / dt) * P_prev.view(-1)
+        compressibility_term = (self.porous_volume.view(-1) * self.fluid.cf.view(-1) / dt) * P_prev.view(-1)
 
         # 2. Член скважин
         q_wells = torch.zeros(N, device=self.device)
