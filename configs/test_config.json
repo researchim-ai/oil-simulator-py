@@ -1,6 +1,7 @@
 {
     "description": "A small 2D case for regression testing.",
-    "output_filename": "test_2d_output",
+    "output_filename": "test_run_results",
+    "save_vtk": true,
     "simulation": {
         "total_time_days": 2,
         "time_step_days": 1

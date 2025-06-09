@@ -12,6 +12,7 @@ from simulator.well import Well, WellManager
 from simulator.simulation import Simulator
 from plotting.plotter import Plotter
 from utils import create_animation
+from output.vtk_writer import save_to_vtk
 
 def main():
     """
@@ -125,7 +126,11 @@ def main():
     plotter.save_plots(p_final, sw_final, final_plot_path, time_info=f"День {total_time_days} (Final)")
     print(f"Финальные графики сохранены в файл {final_plot_path}")
 
-    # --- 6. Создание анимации (если нужно) ---
+    # --- 6. Сохранение результатов в VTK (если указано) ---
+    if config.get("save_vtk", False):
+        save_to_vtk(reservoir, fluid, output_filename)
+
+    # --- 7. Создание анимации (если нужно) ---
     if save_interval < num_steps:
         animation_fps = sim_params.get("animation_fps", 5)
         if animation_fps > 0:

@@ -6,3 +6,4 @@ torch==2.7.0
 tqdm==4.67.1
 imageio==2.34.2
 imageio-ffmpeg==0.5.1
+pyevtk

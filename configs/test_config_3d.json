@@ -1,6 +1,7 @@
 {
     "description": "A small 3D case for regression testing with gravity.",
-    "output_filename": "test_3d_output",
+    "output_filename": "test_3d_results",
+    "save_vtk": true,
     "simulation": {
         "total_time_days": 2,
         "time_step_days": 1
