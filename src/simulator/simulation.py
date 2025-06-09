@@ -34,13 +34,28 @@ class Simulator:
         self.porous_volume = reservoir.porous_volume
         self.g = 9.81 # Ускорение свободного падения
 
-    def run_step(self, dt):
-        """ Выполняет один временной шаг симуляции """
-        P_new, converged = self._implicit_pressure_step(dt)
-        assert converged, "Решатель давления не сошелся!"
-        self._explicit_saturation_step(P_new, dt)
+    def run_step(self, dt, min_dt=0.01, dt_reduction_factor=0.5, max_retries=3, solver_tol=1e-6, solver_max_iter=500):
+        """
+        Выполняет один временной шаг симуляции с адаптивным уменьшением шага.
+        """
+        current_dt = dt
+        for i in range(max_retries):
+            P_new, converged = self._implicit_pressure_step(current_dt, solver_tol=solver_tol, solver_max_iter=solver_max_iter)
+            if converged:
+                self._explicit_saturation_step(P_new, current_dt)
+                if current_dt < dt:
+                    print(f"  Шаг по времени успешно выполнен с уменьшенным dt = {current_dt:.2f} c")
+                return # Успех, выходим из функции
+            
+            print(f"  Решатель давления не сошелся. Попытка {i+1}/{max_retries}. Уменьшаем шаг времени...")
+            current_dt *= dt_reduction_factor
+            
+            if current_dt < min_dt:
+                raise RuntimeError(f"Симуляция остановлена: временной шаг слишком мал ({current_dt:.4f} c).")
 
-    def _implicit_pressure_step(self, dt):
+        raise RuntimeError(f"Решатель давления не сошелся после {max_retries} попыток.")
+
+    def _implicit_pressure_step(self, dt, solver_tol=1e-6, solver_max_iter=500):
         """ Неявный шаг для расчета давления """
         P_prev = self.fluid.pressure
         S_w = self.fluid.s_w
@@ -69,7 +84,7 @@ class Simulator:
         Q = self._build_pressure_rhs(dt, P_prev)
         
         # 4. Решаем СЛАУ
-        P_new_flat, converged = self._solve_pressure_cg_pytorch(A, Q, M_diag=A_diag)
+        P_new_flat, converged = self._solve_pressure_cg_pytorch(A, Q, M_diag=A_diag, tol=solver_tol, max_iter=solver_max_iter)
         P_new = P_new_flat.view(self.reservoir.dimensions)
         self.fluid.pressure = P_new
         return P_new, converged

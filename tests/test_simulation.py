@@ -52,9 +52,9 @@ def run_simulation_for_test(config_path):
         mu_water=fluid_params['mu_water'],
         rho_oil=fluid_params['rho_oil'],
         rho_water=fluid_params['rho_water'],
-        c_oil=fluid_params['compressibility'],
-        c_water=fluid_params['compressibility'],
-        c_rock=fluid_params['compressibility'],
+        c_oil=fluid_params['c_oil'],
+        c_water=fluid_params['c_water'],
+        c_rock=fluid_params['c_rock'],
         sw_cr=fluid_params['sw_cr'],
         so_r=fluid_params['so_r'],
         nw=fluid_params['nw'],
@@ -104,4 +104,88 @@ def test_simulation_results(pytestconfig):
         golden_saturation = np.load(golden_saturation_path)
 
         assert np.allclose(pressure, golden_pressure, rtol=1e-5, atol=1e-5), "Pressure does not match golden file."
-        assert np.allclose(saturation, golden_saturation, rtol=1e-5, atol=1e-5), "Saturation does not match golden file." 
+        assert np.allclose(saturation, golden_saturation, rtol=1e-5, atol=1e-5), "Saturation does not match golden file."
+
+def test_adaptive_timestep_triggered(capsys):
+    """
+    Tests that the adaptive timestep mechanism is triggered when the solver fails to converge.
+    This is forced by providing a very low max_iter count to the solver.
+    """
+    config_path = "configs/test_config.json"
+    with open(config_path, 'r') as f:
+        config = json.load(f)
+
+    # Запускаем симуляцию с очень малым числом итераций, чтобы вызвать несходимость
+    try:
+        run_simulation_with_config_obj(config, solver_max_iter=1)
+    except RuntimeError as e:
+        print(f"Симуляция завершилась с ошибкой (это может быть нормально для теста): {e}")
+
+    # Проверяем, что в логах была попытка уменьшения шага
+    captured = capsys.readouterr()
+    assert "Решатель давления не сошелся" in captured.out
+    assert "Уменьшаем шаг времени" in captured.out
+
+def run_simulation_with_config_obj(config, solver_tol=1e-6, solver_max_iter=500):
+    """Helper function to run simulation from a config dictionary instead of a file."""
+    res_params = config['reservoir']
+    sim_params = config['simulation']
+    fluid_params = config['fluid']
+    well_params = config['wells']
+
+    device = torch.device("cpu")
+
+    reservoir = Reservoir(
+        dimensions=tuple(res_params['dimensions']),
+        grid_size=tuple(res_params['grid_size']),
+        porosity=res_params['porosity'],
+        permeability=res_params['permeability'],
+        device=device
+    )
+
+    well_manager = WellManager()
+    for well_info in well_params:
+        well_manager.add_well(
+            Well(
+                name=well_info['name'],
+                well_type=well_info['type'],
+                coordinates=tuple(well_info['coordinates']),
+                reservoir_dimensions=tuple(res_params['dimensions']),
+                rate=well_info['rate']
+            )
+        )
+
+    fluid = Fluid(
+        p_init=fluid_params['pressure'],
+        s_w_init=fluid_params['s_w'],
+        mu_oil=fluid_params['mu_oil'],
+        mu_water=fluid_params['mu_water'],
+        rho_oil=fluid_params['rho_oil'],
+        rho_water=fluid_params['rho_water'],
+        c_oil=fluid_params['c_oil'],
+        c_water=fluid_params['c_water'],
+        c_rock=fluid_params['c_rock'],
+        sw_cr=fluid_params['sw_cr'],
+        so_r=fluid_params['so_r'],
+        nw=fluid_params['nw'],
+        no=fluid_params['no'],
+        reservoir=reservoir,
+        device=device
+    )
+
+    sim = Simulator(reservoir, fluid, well_manager)
+
+    total_time_days = sim_params['total_time_days']
+    time_step_days = sim_params['time_step_days']
+    time_step_sec = time_step_days * 86400
+    num_steps = int(total_time_days / time_step_days)
+    
+    # In this test, we might not have any steps if total_time < time_step
+    # Let's run at least one step.
+    if num_steps == 0:
+        num_steps = 1
+
+    for _ in range(num_steps):
+        sim.run_step(dt=time_step_sec, solver_tol=solver_tol, solver_max_iter=solver_max_iter)
+        
+    return fluid.pressure.cpu().numpy(), fluid.s_w.cpu().numpy() 
