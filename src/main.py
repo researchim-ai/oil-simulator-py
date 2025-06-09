@@ -11,6 +11,7 @@ from simulator.fluid import Fluid
 from simulator.well import Well, WellManager
 from simulator.simulation import Simulator
 from plotting.plotter import Plotter
+from utils import create_animation
 
 def main():
     """
@@ -138,6 +139,14 @@ def main():
     final_plot_path = os.path.join(results_dir, f"{output_filename}_final.png")
     plotter.save_plots(p_final, sw_final, final_plot_path, time_info=f"День {total_time_days} (Final)")
     print(f"Финальные графики сохранены в файл {final_plot_path}")
+
+    # --- 6. Создание анимации (если нужно) ---
+    if save_interval < num_steps:
+        animation_fps = sim_params.get("animation_fps", 5)
+        if animation_fps > 0:
+            gif_path = os.path.join(results_dir, f"{output_filename}.gif")
+            print(f"\nСоздание анимации с {animation_fps} FPS...")
+            create_animation(intermediate_results_dir, gif_path, fps=animation_fps)
 
 
 if __name__ == '__main__':
