@@ -2,4 +2,5 @@ torch
 numpy
 matplotlib
 tqdm
-scipy 
+scipy
+pytest 

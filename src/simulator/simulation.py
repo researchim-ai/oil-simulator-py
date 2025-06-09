@@ -69,7 +69,7 @@ class Simulator:
         Q = self._build_pressure_rhs(dt, P_prev)
         
         # 4. Решаем СЛАУ
-        P_new_flat, converged = self._solve_pressure_pcg(A, A_diag, Q)
+        P_new_flat, converged = self._solve_pressure_cg_pytorch(A, Q, M_diag=A_diag)
         P_new = P_new_flat.view(self.reservoir.dimensions)
         self.fluid.pressure = P_new
         return P_new, converged
@@ -174,8 +174,10 @@ class Simulator:
         final_rows = torch.cat([rows, torch.arange(N, device=self.device)])
         final_cols = torch.cat([cols, torch.arange(N, device=self.device)])
         final_vals = torch.cat([vals, diag_vals])
+        
+        A = torch.sparse_coo_tensor(torch.stack([final_rows, final_cols]), final_vals, (N, N))
 
-        return torch.sparse_coo_tensor(torch.stack([final_rows, final_cols]), final_vals, (N, N)), diag_vals
+        return A.coalesce(), diag_vals
 
     def _build_pressure_rhs(self, dt, P_prev):
         """ Собирает правую часть Q для СЛАУ A*P_new = Q """
@@ -192,6 +194,60 @@ class Simulator:
         
         # Правая часть Q = q_wells + acc_term * P_old
         return q_wells + compressibility_term
+
+    def _solve_pressure_cg_pytorch(self, A, b, x0=None, max_iter=500, tol=1e-6, M_diag=None):
+        """
+        Решает СЛАУ Ax=b с помощью метода сопряженных градиентов на PyTorch.
+        A: разряженная матрица (N, N)
+        b: правая часть (N)
+        x0: начальное приближение (N)
+        max_iter: максимальное число итераций
+        tol: допуск для остановки
+        M_diag: диагональ предобуславливателя (Якоби)
+        """
+        n = A.shape[0]
+        if x0 is None:
+            x = torch.zeros_like(b)
+        else:
+            x = x0.clone()
+        
+        r = b - torch.sparse.mm(A, x.unsqueeze(1)).squeeze(1)
+        
+        if M_diag is not None:
+            z = r / M_diag
+        else:
+            z = r.clone()
+            
+        p = z.clone()
+        rs_old = torch.dot(r, z)
+
+        if rs_old < 1e-10:
+            print("  PyTorch CG: Решение найдено, невязка изначально мала.")
+            return x, True
+
+        for i in range(max_iter):
+            Ap = torch.sparse.mm(A, p.unsqueeze(1)).squeeze(1)
+            alpha = rs_old / torch.dot(p, Ap)
+            
+            x += alpha * p
+            r -= alpha * Ap
+            
+            if M_diag is not None:
+                z = r / M_diag
+            else:
+                z = r.clone()
+            
+            rs_new = torch.dot(r, z)
+            
+            if torch.sqrt(rs_new) < tol:
+                print(f"  PyTorch CG решатель сошелся на итерации {i+1}.")
+                return x, True
+            
+            p = z + (rs_new / rs_old) * p
+            rs_old = rs_new
+            
+        print(f"  PyTorch CG решатель не сошелся после {max_iter} итераций.")
+        return x, False
 
     def _solve_pressure_pcg(self, A, A_diag, b, max_iter=1000, tol=1e-5):
         """
