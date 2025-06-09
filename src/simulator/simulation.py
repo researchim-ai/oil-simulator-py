@@ -14,16 +14,17 @@ class Simulator:
         self.well_manager = well_manager
         self.device = reservoir.device
 
-        # Конвертируем проницаемость из мД в м^2 (1 мД = 1e-15 м^2)
-        perm_m2 = reservoir.permeability * 1e-15
-        
+        # Конвертируем проницаемость из мД в м^2 (1 мД ~ 1e-15 м^2)
+        perm_h_m2 = reservoir.perm_h * 1e-15
+        perm_v_m2 = reservoir.perm_v * 1e-15
+
         # Рассчитываем геометрический фактор и гармоническое среднее проницаемости
         dx, dy, dz = reservoir.grid_size
         ax, ay, az = dy*dz, dx*dz, dx*dy
         
-        k_x_h = 2 * perm_m2[1:,:,:] * perm_m2[:-1,:,:] / (perm_m2[1:,:,:] + perm_m2[:-1,:,:] + 1e-20)
-        k_y_h = 2 * perm_m2[:,1:,:] * perm_m2[:,:-1,:] / (perm_m2[:,1:,:] + perm_m2[:,:-1,:] + 1e-20)
-        k_z_h = 2 * perm_m2[:,:,1:] * perm_m2[:,:,:-1] / (perm_m2[:,:,1:] + perm_m2[:,:,:-1] + 1e-20)
+        k_x_h = 2 * perm_h_m2[1:,:,:] * perm_h_m2[:-1,:,:] / (perm_h_m2[1:,:,:] + perm_h_m2[:-1,:,:] + 1e-20)
+        k_y_h = 2 * perm_h_m2[:,1:,:] * perm_h_m2[:,:-1,:] / (perm_h_m2[:,1:,:] + perm_h_m2[:,:-1,:] + 1e-20)
+        k_z_h = 2 * perm_v_m2[:,:,1:] * perm_v_m2[:,:,:-1] / (perm_v_m2[:,:,1:] + perm_v_m2[:,:,:-1] + 1e-20)
 
         # Рассчитываем проводимость (трансмиссивность) по осям
         self.T_x = (ax / dx) * k_x_h
@@ -81,7 +82,7 @@ class Simulator:
         
         # 3. Собираем матрицу A и правую часть Q
         A, A_diag = self._build_pressure_matrix_vectorized(Tx_t, Ty_t, Tz_t, dt)
-        Q = self._build_pressure_rhs(dt, P_prev, mob_w, mob_o, dp_z_prev)
+        Q = self._build_pressure_rhs(dt, P_prev, mob_w, mob_o, dp_x_prev, dp_y_prev, dp_z_prev)
         
         # 4. Решаем СЛАУ
         P_new_flat, converged = self._solve_pressure_cg_pytorch(A, Q, M_diag=A_diag, tol=solver_tol, max_iter=solver_max_iter)
@@ -199,7 +200,7 @@ class Simulator:
 
         return A.coalesce(), diag_vals
 
-    def _build_pressure_rhs(self, dt, P_prev, mob_w, mob_o, dp_z_prev):
+    def _build_pressure_rhs(self, dt, P_prev, mob_w, mob_o, dp_x_prev, dp_y_prev, dp_z_prev):
         """ Собирает правую часть Q для СЛАУ A*P_new = Q """
         nx, ny, nz = self.reservoir.dimensions
         N = nx * ny * nz
@@ -227,9 +228,32 @@ class Simulator:
             # Дивергенция гравитационного потока
             Q_g[:,:,:-1] -= grav_flow
             Q_g[:,:,1:]  += grav_flow
-        
-        # Правая часть Q = q_wells + acc_term * P_old + grav_term
-        return q_wells + compressibility_term + Q_g.view(-1)
+
+        # 4. Капиллярный член
+        Q_pc = torch.zeros_like(P_prev)
+        if self.fluid.pc_scale > 0:
+            pc = self.fluid.get_capillary_pressure(self.fluid.s_w)
+            
+            # Upwind для подвижности нефти
+            mob_o_x = torch.where(dp_x_prev > 0, mob_o[:-1,:,:], mob_o[1:,:,:])
+            mob_o_y = torch.where(dp_y_prev > 0, mob_o[:,:-1,:], mob_o[:,1:,:])
+            mob_o_z = torch.where(dp_z_prev > 0, mob_o[:,:,:-1], mob_o[:,:,1:])
+            
+            # Капиллярный поток
+            pc_flow_x = self.T_x * mob_o_x * (pc[1:,:,:] - pc[:-1,:,:])
+            pc_flow_y = self.T_y * mob_o_y * (pc[:,1:,:] - pc[:,:-1,:])
+            pc_flow_z = self.T_z * mob_o_z * (pc[:,:,1:] - pc[:,:,:-1])
+
+            # Дивергенция капиллярного потока
+            Q_pc[1:,:,:]   += pc_flow_x
+            Q_pc[:-1,:,:]  -= pc_flow_x
+            Q_pc[:,1:,:]   += pc_flow_y
+            Q_pc[:,:-1,:]  -= pc_flow_y
+            Q_pc[:,:,1:]   += pc_flow_z
+            Q_pc[:,:,:-1]  -= pc_flow_z
+
+        # Правая часть Q = q_wells + acc_term * P_old + grav_term + pc_term
+        return q_wells + compressibility_term + Q_g.view(-1) + Q_pc.view(-1)
 
     def _solve_pressure_cg_pytorch(self, A, b, x0=None, max_iter=500, tol=1e-6, M_diag=None):
         """

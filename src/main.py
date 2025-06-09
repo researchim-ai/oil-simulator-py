@@ -42,10 +42,7 @@ def main():
     # --- 3. Создание компонентов модели ---
     print("\nСоздание модели пласта...")
     reservoir = Reservoir(
-        dimensions=tuple(res_params['dimensions']),
-        grid_size=tuple(res_params['grid_size']),
-        porosity=res_params['porosity'],
-        permeability=res_params['permeability'],
+        config=res_params,
         device=device
     )
 
@@ -64,20 +61,8 @@ def main():
     
     print("\nИнициализация флюидов и начальных условий...")
     fluid = Fluid(
-        p_init=fluid_params['pressure'],
-        s_w_init=fluid_params['s_w'],
-        mu_oil=fluid_params['mu_oil'],
-        mu_water=fluid_params['mu_water'],
-        rho_oil=fluid_params['rho_oil'],
-        rho_water=fluid_params['rho_water'],
-        c_oil=fluid_params['c_oil'],
-        c_water=fluid_params['c_water'],
-        c_rock=fluid_params['c_rock'],
-        sw_cr=fluid_params['sw_cr'],
-        so_r=fluid_params['so_r'],
-        nw=fluid_params['nw'],
-        no=fluid_params['no'],
         reservoir=reservoir,
+        config=fluid_params,
         device=device
     )
 
