@@ -3,7 +3,8 @@
     "output_filename": "medium_2d_final",
     "simulation": {
         "total_time_days": 180,
-        "time_step_days": 0.5
+        "time_step_days": 0.5,
+        "save_interval": 60
     },
     "reservoir": {
         "dimensions": [100, 100, 1],

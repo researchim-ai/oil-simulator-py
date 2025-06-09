@@ -87,18 +87,38 @@ def main():
     time_step_days = sim_params['time_step_days']
     time_step_sec = time_step_days * 86400
     num_steps = int(total_time_days / time_step_days)
+    save_interval = sim_params.get("save_interval", num_steps) # Сохранять каждые N шагов
 
     results_dir = "results"
     os.makedirs(results_dir, exist_ok=True)
     
+    # Создаем папку для промежуточных результатов, если нужно
+    intermediate_results_dir = os.path.join(results_dir, "intermediate")
+    if save_interval < num_steps:
+        os.makedirs(intermediate_results_dir, exist_ok=True)
+    
     print(f"\nЗапуск симуляции на {num_steps} шагов по {time_step_days} дней...")
+    print(f"Результаты будут сохраняться каждые {save_interval} шагов.")
+
+    plotter = Plotter(reservoir)
 
     for i in tqdm(range(num_steps), desc="Симуляция"):
         sim.run_step(dt=time_step_sec)
+        
+        # Сохранение промежуточных результатов
+        if (i + 1) % save_interval == 0 and save_interval < num_steps:
+            p_current = fluid.pressure.cpu().numpy()
+            sw_current = fluid.s_w.cpu().numpy()
+            
+            time_info = f"День {int((i + 1) * time_step_days)}"
+            filename = f"{output_filename}_step_{i+1}.png"
+            filepath = os.path.join(intermediate_results_dir, filename)
+            
+            plotter.save_plots(p_current, sw_current, filepath, time_info=time_info)
     
     print("\nСимуляция завершена.")
 
-    # --- 5. Сохранение и визуализация результатов ---
+    # --- 5. Сохранение и визуализация финальных результатов ---
     p_final = fluid.pressure.cpu().numpy()
     sw_final = fluid.s_w.cpu().numpy()
     
@@ -114,10 +134,10 @@ def main():
         f.write(np.array2string(sw_final, threshold=np.inf, formatter={'float_kind':lambda x: "%.4f" % x}))
     print(f"Числовые результаты сохранены в файл {results_txt_path}")
 
-    # Сохранение графиков
-    plotter = Plotter(reservoir)
-    plotter.save_plots(p_final, sw_final, os.path.join(results_dir, f"{output_filename}.png"))
-    print(f"Графики сохранены в файл {os.path.join(results_dir, f'{output_filename}.png')}")
+    # Сохранение финальных графиков
+    final_plot_path = os.path.join(results_dir, f"{output_filename}_final.png")
+    plotter.save_plots(p_final, sw_final, final_plot_path, time_info=f"День {total_time_days} (Final)")
+    print(f"Финальные графики сохранены в файл {final_plot_path}")
 
 
 if __name__ == '__main__':
