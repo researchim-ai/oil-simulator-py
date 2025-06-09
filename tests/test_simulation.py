@@ -106,6 +106,34 @@ def test_simulation_results(pytestconfig):
         assert np.allclose(pressure, golden_pressure, rtol=1e-5, atol=1e-5), "Pressure does not match golden file."
         assert np.allclose(saturation, golden_saturation, rtol=1e-5, atol=1e-5), "Saturation does not match golden file."
 
+def test_simulation_results_3d_gravity(pytestconfig):
+    """
+    Tests if the 3D simulation with gravity matches the golden reference files.
+    """
+    config_path = "configs/test_config_3d.json"
+    test_data_dir = os.path.join(os.path.dirname(__file__), 'test_data')
+    os.makedirs(test_data_dir, exist_ok=True)
+    
+    golden_pressure_path = os.path.join(test_data_dir, 'golden_pressure_3d.npy')
+    golden_saturation_path = os.path.join(test_data_dir, 'golden_saturation_3d.npy')
+
+    # Run the simulation
+    pressure, saturation = run_simulation_for_test(config_path)
+
+    if not os.path.exists(golden_pressure_path) or not os.path.exists(golden_saturation_path):
+        print("3D Golden files not found. Creating them now.")
+        np.save(golden_pressure_path, pressure)
+        np.save(golden_saturation_path, saturation)
+        pytest.fail(
+            "3D Golden files were created. Please review them and run the tests again."
+        )
+    else:
+        golden_pressure = np.load(golden_pressure_path)
+        golden_saturation = np.load(golden_saturation_path)
+
+        assert np.allclose(pressure, golden_pressure, rtol=1e-5, atol=1e-5), "3D Pressure does not match golden file."
+        assert np.allclose(saturation, golden_saturation, rtol=1e-5, atol=1e-5), "3D Saturation does not match golden file."
+
 def test_adaptive_timestep_triggered(capsys):
     """
     Tests that the adaptive timestep mechanism is triggered when the solver fails to converge.

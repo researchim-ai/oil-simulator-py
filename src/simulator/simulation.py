@@ -81,7 +81,7 @@ class Simulator:
         
         # 3. Собираем матрицу A и правую часть Q
         A, A_diag = self._build_pressure_matrix_vectorized(Tx_t, Ty_t, Tz_t, dt)
-        Q = self._build_pressure_rhs(dt, P_prev)
+        Q = self._build_pressure_rhs(dt, P_prev, mob_w, mob_o, dp_z_prev)
         
         # 4. Решаем СЛАУ
         P_new_flat, converged = self._solve_pressure_cg_pytorch(A, Q, M_diag=A_diag, tol=solver_tol, max_iter=solver_max_iter)
@@ -109,9 +109,14 @@ class Simulator:
         mob_w_x = torch.where(dp_x > 0, mob_w[:-1,:,:], mob_w[1:,:,:])
         mob_w_y = torch.where(dp_y > 0, mob_w[:,:-1,:], mob_w[:,1:,:])
         mob_w_z = torch.where(dp_z > 0, mob_w[:,:,:-1], mob_w[:,:,1:])
+
+        # Учитываем гравитацию в потоке по Z
+        _, _, dz = self.reservoir.grid_size
+        pot_z = dp_z + self.g * self.fluid.rho_w * dz if dz > 0 and self.reservoir.nz > 1 else dp_z
+
         flow_w_x = self.T_x * mob_w_x * dp_x
         flow_w_y = self.T_y * mob_w_y * dp_y
-        flow_w_z = self.T_z * mob_w_z * dp_z
+        flow_w_z = self.T_z * mob_w_z * pot_z # Используем полный потенциал
 
         # Рассчитываем дивергенцию
         div_flow = torch.zeros_like(S_w)
@@ -194,7 +199,7 @@ class Simulator:
 
         return A.coalesce(), diag_vals
 
-    def _build_pressure_rhs(self, dt, P_prev):
+    def _build_pressure_rhs(self, dt, P_prev, mob_w, mob_o, dp_z_prev):
         """ Собирает правую часть Q для СЛАУ A*P_new = Q """
         nx, ny, nz = self.reservoir.dimensions
         N = nx * ny * nz
@@ -207,8 +212,24 @@ class Simulator:
         for well in self.well_manager.get_wells():
             q_wells[well.cell_idx] += well.rate_si # Просто прибавляем дебит (он уже со знаком)
         
-        # Правая часть Q = q_wells + acc_term * P_old
-        return q_wells + compressibility_term
+        # 3. Гравитационный член
+        Q_g = torch.zeros_like(P_prev)
+        _, _, dz = self.reservoir.grid_size
+        
+        if dz > 0 and self.reservoir.nz > 1:
+            # Подвижности уже посчитаны и переданы, используем их
+            mob_w_z = torch.where(dp_z_prev > 0, mob_w[:,:,:-1], mob_w[:,:,1:])
+            mob_o_z = torch.where(dp_z_prev > 0, mob_o[:,:,:-1], mob_o[:,:,1:])
+
+            # Потенциал потока за счет гравитации
+            grav_flow = self.T_z * self.g * dz * (mob_w_z * self.fluid.rho_w + mob_o_z * self.fluid.rho_o)
+
+            # Дивергенция гравитационного потока
+            Q_g[:,:,:-1] -= grav_flow
+            Q_g[:,:,1:]  += grav_flow
+        
+        # Правая часть Q = q_wells + acc_term * P_old + grav_term
+        return q_wells + compressibility_term + Q_g.view(-1)
 
     def _solve_pressure_cg_pytorch(self, A, b, x0=None, max_iter=500, tol=1e-6, M_diag=None):
         """
