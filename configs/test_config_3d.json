@@ -37,14 +37,22 @@
         {
             "name": "P1",
             "type": "producer",
-            "coordinates": [1, 1, 2],
-            "rate": 20.0
+            "coordinates": [1, 1, 1],
+            "radius": 0.1,
+            "control": {
+                "type": "rate",
+                "value": 30.0
+            }
         },
         {
             "name": "I1",
             "type": "injector",
-            "coordinates": [3, 3, 0],
-            "rate": 20.0
+            "coordinates": [3, 3, 1],
+            "radius": 0.1,
+            "control": {
+                "type": "rate",
+                "value": 30.0
+            }
         }
     ]
 } 

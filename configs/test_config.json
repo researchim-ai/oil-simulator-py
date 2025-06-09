@@ -39,13 +39,21 @@
             "name": "P1",
             "type": "producer",
             "coordinates": [2, 2, 0],
-            "rate": 20.0
+            "radius": 0.1,
+            "control": {
+                "type": "rate",
+                "value": 20.0
+            }
         },
         {
             "name": "I1",
             "type": "injector",
             "coordinates": [7, 7, 0],
-            "rate": 20.0
+            "radius": 0.1,
+            "control": {
+                "type": "bhp",
+                "value": 17.0
+            }
         }
     ]
 } 

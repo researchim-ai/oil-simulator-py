@@ -81,8 +81,9 @@ class Simulator:
         Tz_t = self.T_z * mob_t_z
         
         # 3. Собираем матрицу A и правую часть Q
-        A, A_diag = self._build_pressure_matrix_vectorized(Tx_t, Ty_t, Tz_t, dt)
-        Q = self._build_pressure_rhs(dt, P_prev, mob_w, mob_o, dp_x_prev, dp_y_prev, dp_z_prev)
+        q_wells, well_bhp_terms = self._calculate_well_terms(mob_t, P_prev)
+        A, A_diag = self._build_pressure_matrix_vectorized(Tx_t, Ty_t, Tz_t, dt, well_bhp_terms)
+        Q = self._build_pressure_rhs(dt, P_prev, mob_w, mob_o, q_wells, dp_x_prev, dp_y_prev, dp_z_prev)
         
         # 4. Решаем СЛАУ
         P_new_flat, converged = self._solve_pressure_cg_pytorch(A, Q, M_diag=A_diag, tol=solver_tol, max_iter=solver_max_iter)
@@ -131,12 +132,36 @@ class Simulator:
         # Учет скважин
         q_w = torch.zeros_like(S_w)
         fw = mob_w / (mob_t + 1e-10)
+        
         for well in self.well_manager.get_wells():
             i, j, k = well.i, well.j, well.k
-            if well.well_type == 'injector':
-                q_w[i,j,k] += well.rate_si
-            elif well.well_type == 'producer':
-                q_w[i,j,k] += well.rate_si * fw[i, j, k]
+            
+            if well.control_type == 'rate':
+                # Дебит уже в СИ и со знаком
+                q_total = well.control_value / 86400.0 * (-1 if well.well_type == 'producer' else 1)
+                
+                if well.well_type == 'injector':
+                    q_w[i, j, k] += q_total # Нагнетаем только воду
+                elif well.well_type == 'producer':
+                    # Для добычи дебит воды - это доля от общего дебита
+                    q_w[i, j, k] += q_total * fw[i, j, k]
+
+            elif well.control_type == 'bhp':
+                # Дебит считается через модель Писмена
+                p_bhp = well.control_value * 1e6 # в Паскали
+                p_block = P_new[i,j,k]
+                
+                # Общий дебит по скважине (положительный для отбора, отрицательный для нагнетания)
+                q_total = well.well_index * mob_t[i,j,k] * (p_block - p_bhp)
+
+                if well.well_type == 'injector':
+                     # Если давление в блоке ниже забойного, нагнетаем (q_total < 0)
+                     # Мы нагнетаем только воду
+                    q_w[i,j,k] -= q_total
+                elif well.well_type == 'producer':
+                    # Если давление в блоке выше забойного, добываем (q_total > 0)
+                    # Дебит воды - это доля от общего дебита
+                    q_w[i,j,k] -= q_total * fw[i,j,k]
 
         # Обновление
         S_w_new = S_w + (dt / self.porous_volume) * (q_w - div_flow)
@@ -147,7 +172,7 @@ class Simulator:
         affected_cells = torch.sum(self.fluid.s_w > self.fluid.sw_cr + 1e-5).item()
         print(f"Давление (ср): {P_new.mean()/1e6:.2f} МПа. Насыщенность (мин/макс): {self.fluid.s_w.min():.3f}/{self.fluid.s_w.max():.3f}. Ячеек затронуто: {affected_cells}")
 
-    def _build_pressure_matrix_vectorized(self, Tx, Ty, Tz, dt):
+    def _build_pressure_matrix_vectorized(self, Tx, Ty, Tz, dt, well_bhp_terms):
         """ Векторизованная сборка матрицы давления """
         nx, ny, nz = self.reservoir.dimensions
         N = nx * ny * nz
@@ -188,6 +213,7 @@ class Simulator:
         diag_vals = torch.zeros(N, device=self.device)
         diag_vals.scatter_add_(0, rows, -vals) # Сумма проводимостей от соседей
         diag_vals += acc_term # Добавляем член накопления
+        diag_vals += well_bhp_terms # Добавляем член от скважин с контролем по давлению
 
         # --- Собираем итоговую матрицу ---
         
@@ -200,7 +226,7 @@ class Simulator:
 
         return A.coalesce(), diag_vals
 
-    def _build_pressure_rhs(self, dt, P_prev, mob_w, mob_o, dp_x_prev, dp_y_prev, dp_z_prev):
+    def _build_pressure_rhs(self, dt, P_prev, mob_w, mob_o, q_wells, dp_x_prev, dp_y_prev, dp_z_prev):
         """ Собирает правую часть Q для СЛАУ A*P_new = Q """
         nx, ny, nz = self.reservoir.dimensions
         N = nx * ny * nz
@@ -208,10 +234,7 @@ class Simulator:
         # 1. Член сжимаемости (теперь использует тензор пористого объема)
         compressibility_term = (self.porous_volume.view(-1) * self.fluid.cf.view(-1) / dt) * P_prev.view(-1)
 
-        # 2. Член скважин
-        q_wells = torch.zeros(N, device=self.device)
-        for well in self.well_manager.get_wells():
-            q_wells[well.cell_idx] += well.rate_si # Просто прибавляем дебит (он уже со знаком)
+        # 2. Член скважин (уже рассчитан)
         
         # 3. Гравитационный член
         Q_g = torch.zeros_like(P_prev)
@@ -252,8 +275,39 @@ class Simulator:
             Q_pc[:,:,1:]   += pc_flow_z
             Q_pc[:,:,:-1]  -= pc_flow_z
 
-        # Правая часть Q = q_wells + acc_term * P_old + grav_term + pc_term
-        return q_wells + compressibility_term + Q_g.view(-1) + Q_pc.view(-1)
+        # Собираем все члены
+        Q_total = compressibility_term + q_wells + Q_g.view(-1) + Q_pc.view(-1)
+        return Q_total
+
+    def _calculate_well_terms(self, mob_t, P_prev):
+        """
+        Рассчитывает источниковые члены от скважин для матрицы и правой части.
+        """
+        N = self.reservoir.nx * self.reservoir.ny * self.reservoir.nz
+        q_wells = torch.zeros(N, device=self.device)
+        well_bhp_terms = torch.zeros(N, device=self.device)
+
+        for well in self.well_manager.get_wells():
+            idx = well.cell_idx
+            
+            if well.control_type == 'rate':
+                # Дебит в м^3/сутки. Конвертируем в м^3/с.
+                # Знак: добыча < 0, нагнетание > 0
+                rate_si = well.control_value / 86400.0 * (-1 if well.well_type == 'producer' else 1)
+                q_wells[idx] += rate_si
+
+            elif well.control_type == 'bhp':
+                # Давление в МПа. Конвертируем в Па.
+                p_bhp = well.control_value * 1e6
+                
+                # Член для диагонали матрицы
+                bhp_term = well.well_index * mob_t.view(-1)[idx]
+                well_bhp_terms[idx] += bhp_term
+                
+                # Член для правой части
+                q_wells[idx] += bhp_term * p_bhp
+        
+        return q_wells, well_bhp_terms
 
     def _solve_pressure_cg_pytorch(self, A, b, x0=None, max_iter=500, tol=1e-6, M_diag=None):
         """

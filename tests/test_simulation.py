@@ -30,17 +30,7 @@ def run_simulation_for_test(config_path):
         device=device
     )
 
-    well_manager = WellManager()
-    for well_info in well_params:
-        well_manager.add_well(
-            Well(
-                name=well_info['name'],
-                well_type=well_info['type'],
-                coordinates=tuple(well_info['coordinates']),
-                reservoir_dimensions=tuple(res_params['dimensions']),
-                rate=well_info['rate']
-            )
-        )
+    well_manager = WellManager(well_params, reservoir)
 
     fluid = Fluid(
         reservoir=reservoir,
@@ -153,17 +143,7 @@ def run_simulation_with_config_obj(config, solver_tol=1e-6, solver_max_iter=500)
         device=device
     )
 
-    well_manager = WellManager()
-    for well_info in well_params:
-        well_manager.add_well(
-            Well(
-                name=well_info['name'],
-                well_type=well_info['type'],
-                coordinates=tuple(well_info['coordinates']),
-                reservoir_dimensions=tuple(res_params['dimensions']),
-                rate=well_info['rate']
-            )
-        )
+    well_manager = WellManager(well_params, reservoir)
 
     fluid = Fluid(
         reservoir=reservoir,

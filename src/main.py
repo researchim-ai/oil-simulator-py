@@ -48,17 +48,7 @@ def main():
     )
 
     print("Создание менеджера скважин...")
-    well_manager = WellManager()
-    for well_info in well_params:
-        well_manager.add_well(
-            Well(
-                name=well_info['name'],
-                well_type=well_info['type'],
-                coordinates=tuple(well_info['coordinates']),
-                reservoir_dimensions=tuple(res_params['dimensions']),
-                rate=well_info['rate']
-            )
-        )
+    well_manager = WellManager(config['wells'], reservoir)
     
     print("\nИнициализация флюидов и начальных условий...")
     fluid = Fluid(

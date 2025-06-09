@@ -38,13 +38,21 @@
             "name": "PROD-1",
             "type": "producer",
             "coordinates": [25, 25, 5],
-            "rate": 100.0
+            "radius": 0.1,
+            "control": {
+                "type": "rate",
+                "value": 100.0
+            }
         },
         {
             "name": "INJ-1",
             "type": "injector",
             "coordinates": [75, 75, 5],
-            "rate": 100.0
+            "radius": 0.1,
+            "control": {
+                "type": "rate",
+                "value": 100.0
+            }
         }
     ]
 } 
