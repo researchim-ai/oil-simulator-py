@@ -17,9 +17,10 @@ class Well:
         :param reservoir_dimensions: Кортеж (nx, ny, nz) с размерами пласта.
         """
         self.name = name
-        self.well_type = well_type
+        self.type = well_type
+        self.coordinates = coordinates
         self.radius = radius
-        self.control_type = control_type.lower()
+        self.control_type = control_type
         self.control_value = control_value
         
         assert len(coordinates) == 3, "Координаты должны быть в формате (i, j, k)"
@@ -29,21 +30,23 @@ class Well:
         assert 0 <= self.i < nx and 0 <= self.j < ny and 0 <= self.k < nz, f"Координаты скважины {name} выходят за пределы пласта."
 
         # Рассчитываем одномерный индекс ячейки
-        self.cell_idx = self.i * ny * nz + self.j * nz + self.k
+        self.cell_index_flat = self.i * ny * nz + self.j * nz + self.k
         
         self.well_index = None # Будет рассчитан позже
 
         print(f"  Создана скважина '{self.name}':")
-        print(f"    Тип: {self.well_type}, Расположение: ({self.i}, {self.j}, {self.k})")
+        print(f"    Тип: {self.type}, Расположение: ({self.i}, {self.j}, {self.k})")
         print(f"    Контроль: {self.control_type}, Значение: {self.control_value}")
+        print(f"    Индекс скважины '{self.name}': {self.cell_index_flat:.4e}")
 
     def calculate_well_index(self, reservoir):
         """
         Рассчитывает индекс скважины по модели Писмена.
         """
-        kx = reservoir.perm_h[self.i, self.j, self.k].item()
-        ky = reservoir.perm_h[self.i, self.j, self.k].item() # Изотропия в плоскости xy
-        kv = reservoir.perm_v[self.i, self.j, self.k].item()
+        perm = reservoir.perm_h # Используем горизонтальную проницаемость
+        kx = perm[self.i, self.j, self.k].item()
+        ky = perm[self.i, self.j, self.k].item() # Изотропия в плоскости xy
+        kv = perm[self.i, self.j, self.k].item()
 
         dx = reservoir.dx
         dy = reservoir.dy
@@ -68,15 +71,24 @@ class WellManager:
         Инициализация и создание скважин из конфигурации.
         """
         self.wells = []
+        self.num_wells = len(well_configs)
+        self._well_indices_flat = torch.tensor([
+            w['coordinates'][0] * reservoir.ny * reservoir.nz + 
+            w['coordinates'][1] * reservoir.nz + 
+            w['coordinates'][2] 
+            for w in well_configs
+        ], dtype=torch.long)
+
         print("Создание менеджера скважин...")
         for well_info in well_configs:
+            control = well_info.get('control', {})
             well = Well(
                 name=well_info['name'],
                 well_type=well_info['type'],
                 coordinates=tuple(well_info['coordinates']),
                 radius=well_info['radius'],
-                control_type=well_info['control']['type'],
-                control_value=well_info['control']['value'],
+                control_type=control.get('type'),
+                control_value=control.get('value'),
                 reservoir_dimensions=reservoir.dimensions
             )
             well.calculate_well_index(reservoir)
@@ -84,5 +96,12 @@ class WellManager:
             print(f"  > Скважина '{well.name}' добавлена в менеджер.")
         print("Менеджер скважин успешно создан.")
 
+    def add_well(self, well):
+        # Этот метод больше не нужен, так как вся логика в __init__
+        pass
+
     def get_wells(self):
         return self.wells
+
+    def get_well_indices_flat(self):
+        return self._well_indices_flat.to(self.wells[0].well_index.device if self.wells else 'cpu')

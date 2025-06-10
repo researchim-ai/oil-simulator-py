@@ -75,11 +75,35 @@ class Fluid:
         :return: (krw, kro) - кортеж с тензорами ОФП.
         """
         s_norm = self._get_normalized_saturation(s_w)
-        # Рассчитываем ОФП по модели Кори
+        
+        # Рассчитываем ОФП по модели Кори (без JIT-компиляции)
         krw = s_norm ** self.nw
         kro = (1 - s_norm) ** self.no
         
         return kro, krw
+
+    def get_rel_perms_derivatives(self, s_w):
+        """
+        Вычисляет производные ОФП по водонасыщенности.
+        :param s_w: Тензор текущей водонасыщенности.
+        :return: (dkrw_dsw, dkro_dsw) - кортеж с производными.
+        """
+        s_norm = self._get_normalized_saturation(s_w)
+        dsw_norm_dsw = 1 / (1 - self.sw_cr - self.so_r)
+        
+        # d(krw)/d(sw) = d(krw)/d(s_norm) * d(s_norm)/d(sw)
+        # d(krw)/d(s_norm) = nw * s_norm^(nw-1)
+        dkrw_dsw = self.nw * (s_norm ** (self.nw - 1)) * dsw_norm_dsw
+        
+        # d(kro)/d(sw) = d(kro)/d(s_norm) * d(s_norm)/d(sw)
+        # d(kro)/d(s_norm) = -no * (1-s_norm)^(no-1)
+        dkro_dsw = -self.no * ((1 - s_norm) ** (self.no - 1)) * dsw_norm_dsw
+        
+        # Обработка особых случаев на границах
+        dkrw_dsw = torch.where(s_norm <= 0, torch.zeros_like(dkrw_dsw), dkrw_dsw)
+        dkro_dsw = torch.where(s_norm >= 1, torch.zeros_like(dkro_dsw), dkro_dsw)
+        
+        return dkro_dsw, dkrw_dsw
 
     def get_capillary_pressure(self, s_w):
         """
@@ -91,7 +115,28 @@ class Fluid:
             return torch.zeros_like(s_w)
             
         s_norm = self._get_normalized_saturation(s_w)
-        # Простоая степенная модель Pc = scale * s_norm^exponent
-        # Добавляем эпсилон для стабильности, если s_norm = 0
-        pc = self.pc_scale * (s_norm + 1e-6) ** self.pc_exponent
+        
+        # Простая степенная модель Pc = scale * (1-s_norm)^-exponent
+        # Добавляем эпсилон для стабильности, если s_norm = 1
+        pc = self.pc_scale * (1.0 - s_norm + 1e-6) ** (-self.pc_exponent)
         return pc
+
+    def get_capillary_pressure_derivative(self, s_w):
+        """
+        Вычисляет производную капиллярного давления по водонасыщенности.
+        :param s_w: Тензор текущей водонасыщенности.
+        :return: Тензор d(Pc)/d(Sw).
+        """
+        if self.pc_scale == 0.0:
+            return torch.zeros_like(s_w)
+            
+        s_norm = self._get_normalized_saturation(s_w)
+        dsw_norm_dsw = 1 / (1 - self.sw_cr - self.so_r)
+
+        # d(Pc)/d(sw) = d(Pc)/d(s_norm) * d(s_norm)/d(sw)
+        # d(Pc)/d(s_norm) = pc_scale * (-exponent) * (1-s_norm)^(-exponent-1) * (-1)
+        dpc_dsn = self.pc_scale * self.pc_exponent * (1.0 - s_norm + 1e-6) ** (-self.pc_exponent - 1)
+        
+        dpc_dsw = dpc_dsn * dsw_norm_dsw
+        dpc_dsw = torch.where(s_norm >= 1, torch.zeros_like(dpc_dsw), dpc_dsw)
+        return dpc_dsw

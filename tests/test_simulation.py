@@ -38,7 +38,7 @@ def run_simulation_for_test(config_path):
         device=device
     )
 
-    sim = Simulator(reservoir, fluid, well_manager)
+    sim = Simulator(reservoir, fluid, well_manager, sim_params)
 
     total_time_days = sim_params['total_time_days']
     time_step_days = sim_params['time_step_days']
@@ -114,22 +114,25 @@ def test_adaptive_timestep_triggered(capsys):
     Tests that the adaptive timestep mechanism is triggered when the solver fails to converge.
     This is forced by providing a very low max_iter count to the solver.
     """
-    config_path = "configs/test_config.json"
+    config_path = "configs/fully_implicit_2d.json" # Используем неявный решатель
     with open(config_path, 'r') as f:
         config = json.load(f)
+        
+        # Уменьшаем макс. кол-во итераций, чтобы гарантированно вызвать несходимость
+        config['simulation']['newton_max_iter'] = 1
 
-    # Запускаем симуляцию с очень малым числом итераций, чтобы вызвать несходимость
-    try:
-        run_simulation_with_config_obj(config, solver_max_iter=1)
-    except RuntimeError as e:
-        print(f"Симуляция завершилась с ошибкой (это может быть нормально для теста): {e}")
+        # Запускаем симуляцию с очень малым числом итераций, чтобы вызвать несходимость
+        try:
+            run_simulation_with_config_obj(config)
+        except RuntimeError as e:
+            # Ожидаем, что симуляция упадет, но после попыток уменьшить шаг
+            print(f"Симуляция предсказуемо упала: {e}")
+        
+        captured = capsys.readouterr()
+        # Проверяем, что в выводе есть сообщение о сокращении шага
+        assert "Уменьшаем шаг времени" in captured.out
 
-    # Проверяем, что в логах была попытка уменьшения шага
-    captured = capsys.readouterr()
-    assert "Решатель давления не сошелся" in captured.out
-    assert "Уменьшаем шаг времени" in captured.out
-
-def run_simulation_with_config_obj(config, solver_tol=1e-6, solver_max_iter=500):
+def run_simulation_with_config_obj(config):
     """Helper function to run simulation from a config dictionary instead of a file."""
     res_params = config['reservoir']
     sim_params = config['simulation']
@@ -151,19 +154,18 @@ def run_simulation_with_config_obj(config, solver_tol=1e-6, solver_max_iter=500)
         device=device
     )
 
-    sim = Simulator(reservoir, fluid, well_manager)
+    sim = Simulator(reservoir, fluid, well_manager, sim_params)
 
     total_time_days = sim_params['total_time_days']
     time_step_days = sim_params['time_step_days']
     time_step_sec = time_step_days * 86400
     num_steps = int(total_time_days / time_step_days)
     
-    # In this test, we might not have any steps if total_time < time_step
     # Let's run at least one step.
     if num_steps == 0:
         num_steps = 1
 
     for _ in range(num_steps):
-        sim.run_step(dt=time_step_sec, solver_tol=solver_tol, solver_max_iter=solver_max_iter)
+        sim.run_step(dt=time_step_sec)
         
     return fluid.pressure.cpu().numpy(), fluid.s_w.cpu().numpy() 

@@ -58,7 +58,7 @@ def main():
     )
 
     # --- 4. Запуск симуляции ---
-    sim = Simulator(reservoir, fluid, well_manager)
+    sim = Simulator(reservoir, fluid, well_manager, sim_params)
     
     total_time_days = sim_params['total_time_days']
     time_step_days = sim_params['time_step_days']
