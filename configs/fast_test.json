@@ -1,17 +1,24 @@
 {
-    "description": "A small 2D test case for quick debugging and validation.",
-    "output_filename": "fast_test_final",
+    "description": "Быстрый тестовый пример для отладки",
+    "output_filename": "fast_test_impes",
+    "save_vtk": true,
+    
     "simulation": {
-        "total_time_days": 30,
-        "time_step_days": 1
+        "solver_type": "impes",
+        "total_time_days": 20,
+        "time_step_days": 0.1,
+        "save_interval": 10,
+        "animation_fps": 10
     },
+    
     "reservoir": {
         "dimensions": [20, 20, 1],
-        "grid_size": [25.0, 25.0, 10.0],
+        "grid_size": [10.0, 10.0, 5.0],
         "porosity": 0.2,
         "permeability": 100,
         "k_vertical_fraction": 1.0
     },
+    
     "fluid": {
         "pressure": 20.0,
         "s_w": 0.1,
@@ -29,29 +36,30 @@
             "no": 2.0
         },
         "capillary_pressure": {
-            "pc_scale": 0.0,
-            "pc_exponent": 1.0
+            "pc_scale": 0.01e6,
+            "pc_exponent": 1.5
         }
     },
+    
     "wells": [
         {
-            "name": "P1",
+            "name": "PROD-1",
             "type": "producer",
             "coordinates": [5, 5, 0],
             "radius": 0.1,
             "control": {
                 "type": "rate",
-                "value": 50.0
+                "value": 20.0
             }
         },
         {
-            "name": "I1",
+            "name": "INJ-1",
             "type": "injector",
-            "coordinates": [14, 14, 0],
+            "coordinates": [15, 15, 0],
             "radius": 0.1,
             "control": {
                 "type": "rate",
-                "value": 50.0
+                "value": 20.0
             }
         }
     ]

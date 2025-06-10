@@ -5,6 +5,7 @@ import os
 import sys
 import pytest
 import time
+import copy
 
 # Добавляем src в путь для импорта компонентов симулятора
 sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'src'))
@@ -150,4 +151,68 @@ def test_performance_comparison():
     
     # Проверяем, что оба решателя завершили хотя бы несколько шагов
     assert impes_results['steps_completed'] > 0, "IMPES схема не смогла выполнить ни одного шага"
-    assert fully_implicit_results['steps_completed'] > 0, "Полностью неявная схема не смогла выполнить ни одного шага" 
+    assert fully_implicit_results['steps_completed'] > 0, "Полностью неявная схема не смогла выполнить ни одного шага"
+
+def test_capillary_pressure_stability():
+    """
+    Тест на устойчивость схемы при наличии капиллярного давления
+    """
+    print("\n\n=== ТЕСТ УСТОЙЧИВОСТИ С КАПИЛЛЯРНЫМ ДАВЛЕНИЕМ ===")
+    
+    # Загружаем конфигурацию
+    with open("configs/fully_implicit_2d.json", 'r') as f:
+        config = json.load(f)
+    
+    # Создаем две версии конфигурации: IMPES и полностью неявную
+    impes_config = copy.deepcopy(config)
+    impes_config['simulation']['solver_type'] = 'impes'
+    
+    # Увеличиваем капиллярное давление для обоих конфигураций
+    config['fluid']['capillary_pressure']['pc_scale'] = 0.5e6  # 500 кПа
+    config['fluid']['capillary_pressure']['pc_exponent'] = 2.0
+    
+    impes_config['fluid']['capillary_pressure']['pc_scale'] = 0.5e6  # 500 кПа
+    impes_config['fluid']['capillary_pressure']['pc_exponent'] = 2.0
+    
+    # Устанавливаем одинаковый временной шаг для справедливого сравнения
+    config['simulation']['time_step_days'] = 5.0
+    impes_config['simulation']['time_step_days'] = 5.0
+    
+    # Сохраняем временные конфигурации
+    with open("configs/temp_fi_capillary.json", 'w') as f:
+        json.dump(config, f, indent=4)
+        
+    with open("configs/temp_impes_capillary.json", 'w') as f:
+        json.dump(impes_config, f, indent=4)
+    
+    # Запускаем тесты
+    num_steps = 5
+    print("\nТестирование полностью неявной схемы с высоким капиллярным давлением:")
+    fi_stable = True
+    try:
+        fi_results = run_simulation_benchmark("configs/temp_fi_capillary.json", 'fully_implicit', num_steps)
+        print(f"Полностью неявная схема: {fi_results['steps_completed']}/{num_steps} шагов")
+    except Exception as e:
+        print(f"Ошибка в полностью неявной схеме: {e}")
+        fi_stable = False
+    
+    print("\nТестирование IMPES схемы с высоким капиллярным давлением:")
+    impes_stable = True
+    try:
+        impes_results = run_simulation_benchmark("configs/temp_impes_capillary.json", 'impes', num_steps)
+        print(f"IMPES схема: {impes_results['steps_completed']}/{num_steps} шагов")
+    except Exception as e:
+        print(f"Ошибка в IMPES схеме: {e}")
+        impes_stable = False
+    
+    # Удаляем временные файлы
+    os.remove("configs/temp_fi_capillary.json")
+    os.remove("configs/temp_impes_capillary.json")
+    
+    # Выводим результаты
+    print("\n=== РЕЗУЛЬТАТЫ ТЕСТА УСТОЙЧИВОСТИ ===")
+    print(f"Полностью неявная схема стабильна: {fi_stable}")
+    print(f"IMPES схема стабильна: {impes_stable}")
+    
+    # Проверяем устойчивость полностью неявной схемы
+    assert fi_stable, "Полностью неявная схема нестабильна с высоким капиллярным давлением" 
