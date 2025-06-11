@@ -4,7 +4,7 @@
     "save_vtk": true,
     
     "simulation": {
-        "solver_type": "fully_implicit",
+        "solver_type": "impes",
         "total_time_days": 360,
         "time_step_days": 5.0,
         "save_interval": 20,

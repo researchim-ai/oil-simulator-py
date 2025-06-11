@@ -1,66 +1,50 @@
 import torch
 import numpy as np
+import math
 
 class Well:
     """
-    Класс для представления одной скважины с учетом модели Писмена.
+    Класс для представления скважины в резервуаре.
     """
-    def __init__(self, name, well_type, coordinates, radius, control_type, control_value, reservoir_dimensions):
+    
+    def __init__(self, name, well_type, i, j, k, radius, control_type, control_value, reservoir_dimensions):
         """
-        Инициализация скважины.
-        :param name: Имя скважины (str).
-        :param well_type: Тип скважины ('producer' или 'injector') (str).
-        :param coordinates: Кортеж (i, j, k) с индексами ячейки скважины.
-        :param radius: Радиус скважины в метрах (float).
-        :param control_type: Тип контроля ('rate' или 'bhp') (str).
-        :param control_value: Значение контроля (дебит в м^3/сутки или давление в МПа).
-        :param reservoir_dimensions: Кортеж (nx, ny, nz) с размерами пласта.
+        Инициализирует скважину.
+        
+        Args:
+            name: Имя скважины
+            well_type: Тип скважины ('injector' или 'producer')
+            i, j, k: Координаты скважины в сетке
+            radius: Радиус скважины в метрах
+            control_type: Тип контроля ('rate' или 'bhp')
+            control_value: Значение контроля (дебит в м³/день или забойное давление в МПа)
+            reservoir_dimensions: Размеры резервуара (nx, ny, nz)
         """
         self.name = name
         self.type = well_type
-        self.coordinates = coordinates
+        self.i = i
+        self.j = j
+        self.k = k
         self.radius = radius
         self.control_type = control_type
         self.control_value = control_value
         
-        assert len(coordinates) == 3, "Координаты должны быть в формате (i, j, k)"
-        self.i, self.j, self.k = coordinates
-        
         nx, ny, nz = reservoir_dimensions
-        assert 0 <= self.i < nx and 0 <= self.j < ny and 0 <= self.k < nz, f"Координаты скважины {name} выходят за пределы пласта."
-
-        # Рассчитываем одномерный индекс ячейки
-        self.cell_index_flat = self.i * ny * nz + self.j * nz + self.k
+        self.cell_index = (i, j, k)
+        self.cell_index_flat = i + j * nx + k * nx * ny
         
-        self.well_index = None # Будет рассчитан позже
-
-        print(f"  Создана скважина '{self.name}':")
-        print(f"    Тип: {self.type}, Расположение: ({self.i}, {self.j}, {self.k})")
-        print(f"    Контроль: {self.control_type}, Значение: {self.control_value}")
-        print(f"    Индекс скважины '{self.name}': {self.cell_index_flat:.4e}")
-
-    def calculate_well_index(self, reservoir):
-        """
-        Рассчитывает индекс скважины по модели Писмена.
-        """
-        perm = reservoir.perm_h # Используем горизонтальную проницаемость
-        kx = perm[self.i, self.j, self.k].item()
-        ky = perm[self.i, self.j, self.k].item() # Изотропия в плоскости xy
-        kv = perm[self.i, self.j, self.k].item()
-
-        dx = reservoir.dx
-        dy = reservoir.dy
-        dz = reservoir.dz
-
-        # Формула эквивалентного радиуса Писмена для анизотропного случая
-        term_x = (ky / kx)**0.25
-        term_y = (kx / ky)**0.25
-        req = 0.28 * np.sqrt( (dx**2 * term_x**2) + (dy**2 * term_y**2) ) / (term_x + term_y)
-
-        # Индекс скважины. Skin-фактор S принимается равным 0.
-        self.well_index = (2 * np.pi * np.sqrt(kx * ky) * dz) / np.log(req / self.radius)
-        print(f"    Индекс скважины '{self.name}': {self.well_index:.4e}")
-
+        # Вычисляем индекс скважины (well index)
+        # Предполагаем, что размер ячейки 10x10x10 метров
+        dx = dy = dz = 10.0
+        
+        # Эффективный радиус ячейки для модели Писмана
+        ro = 0.28 * ((dx**2 + dy**2)**0.5) / 2
+        
+        # Индекс скважины по модели Писмана
+        self.well_index = 2 * math.pi * 100.0 / (math.log(ro / radius))  # 100.0 - предполагаемая проницаемость
+        
+    def __str__(self):
+        return f"Well(name={self.name}, type={self.type}, pos=({self.i},{self.j},{self.k}), control={self.control_type}:{self.control_value})"
 
 class WellManager:
     """
@@ -68,39 +52,60 @@ class WellManager:
     """
     def __init__(self, well_configs, reservoir):
         """
-        Инициализация и создание скважин из конфигурации.
+        Инициализирует менеджер скважин.
+        
+        Args:
+            well_configs: Список конфигураций скважин
+            reservoir: Объект пласта
         """
         self.wells = []
-        self.num_wells = len(well_configs)
-        self._well_indices_flat = torch.tensor([
-            w['coordinates'][0] * reservoir.ny * reservoir.nz + 
-            w['coordinates'][1] * reservoir.nz + 
-            w['coordinates'][2] 
-            for w in well_configs
-        ], dtype=torch.long)
-
+        
         print("Создание менеджера скважин...")
-        for well_info in well_configs:
-            control = well_info.get('control', {})
+        for w in well_configs:
+            # Поддержка как старого формата (coordinates), так и нового формата (i,j,k)
+            if 'coordinates' in w:
+                i, j, k = w['coordinates']
+            elif 'i' in w and 'j' in w and 'k' in w:
+                i, j, k = w['i'], w['j'], w['k']
+            else:
+                raise ValueError(f"Неверный формат координат скважины: {w}")
+            
+            # Поддержка как старого формата (control), так и нового формата (control_type, control_value)
+            if 'control' in w:
+                control_type = w['control']['type']
+                control_value = w['control']['value']
+            elif 'control_type' in w and 'control_value' in w:
+                control_type = w['control_type']
+                control_value = w['control_value']
+            else:
+                raise ValueError(f"Неверный формат управления скважиной: {w}")
+            
+            # Создаем и добавляем скважину
             well = Well(
-                name=well_info['name'],
-                well_type=well_info['type'],
-                coordinates=tuple(well_info['coordinates']),
-                radius=well_info['radius'],
-                control_type=control.get('type'),
-                control_value=control.get('value'),
+                name=w['name'],
+                well_type=w['type'],
+                i=i, j=j, k=k,
+                radius=w['radius'],
+                control_type=control_type,
+                control_value=control_value,
                 reservoir_dimensions=reservoir.dimensions
             )
-            well.calculate_well_index(reservoir)
             self.wells.append(well)
             print(f"  > Скважина '{well.name}' добавлена в менеджер.")
-        print("Менеджер скважин успешно создан.")
+        
+        print(f"Менеджер скважин успешно создан. Всего скважин: {len(self.wells)}")
 
     def add_well(self, well):
         # Этот метод больше не нужен, так как вся логика в __init__
         pass
 
     def get_wells(self):
+        """
+        Возвращает список всех скважин.
+        
+        Returns:
+            Список объектов Well
+        """
         return self.wells
 
     def get_well_indices_flat(self):

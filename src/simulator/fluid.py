@@ -1,65 +1,105 @@
 import torch
+import numpy as np
 
 class Fluid:
     """
-    Класс для хранения свойств флюидов (нефть, вода) и начальных условий в пласте.
+    Класс для моделирования свойств флюидов (нефть и вода).
     """
-    def __init__(self, reservoir, config, device):
+    def __init__(self, config, reservoir, device=None):
         """
-        Инициализация свойств флюида.
-
-        :param reservoir: Экземпляр класса Reservoir.
-        :param config: Словарь с параметрами флюидов и начальными условиями.
-        :param device: Устройство для хранения тензоров.
+        Инициализация флюидов по конфигурации.
+        
+        Args:
+            config: Словарь с параметрами флюидов
+            reservoir: Объект пласта
+            device: Устройство для вычислений (CPU/GPU)
         """
-        self.device = device
-        self.nx, self.ny, self.nz = reservoir.dimensions
+        self.device = device if device is not None else torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         
-        p_init = config['pressure']
-        s_w_init = config['s_w']
+        # Размеры и форма тензоров
+        self.dimensions = reservoir.dimensions
+        nx, ny, nz = self.dimensions
         
-        # Давление (Па)
-        self.pressure = torch.full(reservoir.dimensions, p_init * 1e6, device=self.device)
-        print(f"  Начальное давление: {p_init:.2f} МПа")
-
-        # Насыщенность
-        self.s_w = torch.full(reservoir.dimensions, s_w_init, device=self.device)
-        self.s_o = torch.full(reservoir.dimensions, 1.0 - s_w_init, device=self.device)
-        print(f"  Начальная водонасыщенность: {s_w_init}")
-
-        # Вязкость (сП)
-        self.mu_o = config['mu_oil']
-        self.mu_w = config['mu_water']
-        print(f"  Вязкость нефти/воды: {self.mu_o}/{self.mu_w} сП")
-
-        # Плотность (кг/м^3)
-        self.rho_o = config['rho_oil']
-        self.rho_w = config['rho_water']
-        print(f"  Плотность нефти/воды: {self.rho_o}/{self.rho_w} кг/м^3")
+        # Начальные значения
+        initial_pressure = config.get('pressure', 20.0) * 1e6  # МПа -> Па
+        initial_sw = config.get('s_w', 0.2)
+        
+        # Свойства флюидов
+        self.mu_oil = config.get('mu_oil', 1.0) * 1e-3  # сП -> Па*с
+        self.mu_water = config.get('mu_water', 0.5) * 1e-3  # сП -> Па*с
+        
+        # Плотности
+        self.rho_oil_ref = config.get('rho_oil', 850.0)  # кг/м^3
+        self.rho_water_ref = config.get('rho_water', 1000.0)  # кг/м^3
         
         # Сжимаемость (1/Па)
-        self.c_o = config['c_oil']
-        self.c_w = config['c_water']
-        self.c_r = config['c_rock']
-        self.cf = self.s_w * self.c_w + self.s_o * self.c_o + self.c_r
-        print(f"  Сжимаемость: {self.cf.mean().item():.1e} 1/Па")
-
-        # Параметры ОФП (модель Кори)
-        rel_perm_params = config['relative_permeability']
-        self.sw_cr = rel_perm_params['sw_cr']  # Критическая водонасыщенность
-        self.so_r = rel_perm_params['so_r']    # Остаточная нефтенасыщенность
-        self.nw = rel_perm_params['nw']        # Степень для воды
-        self.no = rel_perm_params['no']        # Степень для нефти
-        print(f"  Параметры ОФП: sw_cr={self.sw_cr}, so_r={self.so_r}, nw={self.nw}, no={self.no}")
-
-        # Параметры капиллярного давления
-        cap_params = config.get('capillary_pressure', {'pc_scale': 0.0, 'pc_exponent': 1.0})
-        self.pc_scale = cap_params.get('pc_scale', 0.0)
-        self.pc_exponent = cap_params.get('pc_exponent', 1.0)
-        if self.pc_scale > 0:
-            print(f"  Параметры капиллярного давления: pc_scale={self.pc_scale}, pc_exponent={self.pc_exponent}")
+        self.oil_compressibility = config.get('c_oil', 1e-5) / 1e6  # 1/МПа -> 1/Па
+        self.water_compressibility = config.get('c_water', 1e-5) / 1e6  # 1/МПа -> 1/Па
+        self.rock_compressibility = config.get('c_rock', 1e-5) / 1e6  # 1/МПа -> 1/Па
         
-        print(f"  Тензоры размещены на: {self.pressure.device}")
+        # Совокупная сжимаемость флюида (используется в IMPES)
+        total_c = (self.oil_compressibility + self.water_compressibility + self.rock_compressibility) / 2
+        self.cf = torch.full(self.dimensions, total_c, device=self.device)
+        
+        # Параметры модели относительной проницаемости
+        self.nw = config.get('nw', 2)  # Показатель Кори для воды
+        self.no = config.get('no', 2)  # Показатель Кори для нефти
+        self.sw_cr = config.get('s_wr', 0.2)  # Связанная водонасыщенность
+        self.so_r = config.get('s_or', 0.2)  # Остаточная нефтенасыщенность
+        
+        # Инициализация полей
+        self.pressure = torch.full(self.dimensions, initial_pressure, device=self.device)
+        self.s_w = torch.full(self.dimensions, initial_sw, device=self.device)
+        self.s_o = 1.0 - self.s_w
+        self.prev_pressure = self.pressure.clone()
+        self.prev_sw = self.s_w.clone()
+        
+        # Сохраняем предыдущее состояние для неявных расчетов
+        self.prev_water_mass = None
+        self.prev_oil_mass = None
+        
+        # Поддержка как старого, так и нового формата
+        if 'capillary_pressure' in config:
+            pc_params = config['capillary_pressure']
+            self.pc_scale = pc_params.get('pc_scale', 0.0)
+            self.pc_exponent = pc_params.get('pc_exponent', 1.5)
+            self.pc_threshold = pc_params.get('pc_threshold', 0.01)
+        else:
+            self.pc_scale = config.get('pc_scale', 0.0)
+            self.pc_exponent = config.get('pc_exponent', 1.5)
+            self.pc_threshold = config.get('pc_threshold', 0.01)
+        
+        # Выводим информацию об инициализации
+        print("Инициализация флюидов и начальных условий...")
+        print(f"  Начальное давление: {initial_pressure/1e6:.2f} МПа")
+        print(f"  Начальная водонасыщенность: {initial_sw}")
+        print(f"  Вязкость нефти/воды: {self.mu_oil*1e3:.1f}/{self.mu_water*1e3:.1f} сП")
+        print(f"  Плотность нефти/воды: {self.rho_oil_ref}/{self.rho_water_ref} кг/м^3")
+        print(f"  Сжимаемость: {self.oil_compressibility*1e6:.1e} 1/Па")
+        print(f"  Капиллярное давление: {self.pc_scale/1e6:.2e} МПа, показатель {self.pc_exponent}")
+        print(f"  Связанная водонасыщенность: {self.sw_cr}, остаточная нефтенасыщенность: {self.so_r}")
+        print(f"  Тензоры флюидов размещены на: {self.device}")
+
+    # Свойства для совместимости со старым кодом IMPES
+    @property
+    def rho_w(self):
+        """Плотность воды при текущем давлении"""
+        return self.calc_water_density(self.pressure)
+        
+    @property
+    def rho_o(self):
+        """Плотность нефти при текущем давлении"""
+        return self.calc_oil_density(self.pressure)
+        
+    @property
+    def mu_w(self):
+        """Вязкость воды (альтернативное имя)"""
+        return self.mu_water
+        
+    @property
+    def mu_o(self):
+        """Вязкость нефти (альтернативное имя)"""
+        return self.mu_oil
 
     def _get_normalized_saturation(self, s_w):
         """
@@ -72,13 +112,10 @@ class Fluid:
         """
         Вычисляет относительные фазовые проницаемости для воды и нефти по модели Кори.
         :param s_w: Тензор текущей водонасыщенности.
-        :return: (krw, kro) - кортеж с тензорами ОФП.
+        :return: (kro, krw) - кортеж с тензорами ОФП.
         """
-        s_norm = self._get_normalized_saturation(s_w)
-        
-        # Рассчитываем ОФП по модели Кори (без JIT-компиляции)
-        krw = s_norm ** self.nw
-        kro = (1 - s_norm) ** self.no
+        kro = self.calc_oil_kr(s_w)
+        krw = self.calc_water_kr(s_w)
         
         return kro, krw
 
@@ -140,3 +177,97 @@ class Fluid:
         dpc_dsw = dpc_dsn * dsw_norm_dsw
         dpc_dsw = torch.where(s_norm >= 1, torch.zeros_like(dpc_dsw), dpc_dsw)
         return dpc_dsw
+
+    def calc_water_density(self, pressure):
+        """
+        Вычисляет плотность воды при заданном давлении.
+        
+        Args:
+            pressure: Тензор давления
+            
+        Returns:
+            Тензор плотности воды
+        """
+        return self.rho_water_ref * (1.0 + self.water_compressibility * (pressure - 1e5))
+
+    def calc_oil_density(self, pressure):
+        """
+        Вычисляет плотность нефти при заданном давлении.
+        
+        Args:
+            pressure: Тензор давления
+            
+        Returns:
+            Тензор плотности нефти
+        """
+        return self.rho_oil_ref * (1.0 + self.oil_compressibility * (pressure - 1e5))
+
+    def calc_water_kr(self, s_w):
+        """
+        Вычисляет относительную проницаемость воды по модели Кори.
+        
+        Args:
+            s_w: Тензор водонасыщенности
+            
+        Returns:
+            Тензор относительной проницаемости воды
+        """
+        s_norm = self._get_normalized_saturation(s_w)
+        return s_norm**self.nw
+
+    def calc_oil_kr(self, s_w):
+        """
+        Вычисляет относительную проницаемость нефти по модели Кори.
+        
+        Args:
+            s_w: Тензор водонасыщенности
+            
+        Returns:
+            Тензор относительной проницаемости нефти
+        """
+        s_norm = self._get_normalized_saturation(s_w)
+        return (1 - s_norm)**self.no
+
+    def calc_dkrw_dsw(self, s_w):
+        """
+        Вычисляет производную относительной проницаемости воды по водонасыщенности.
+        
+        Args:
+            s_w: Тензор водонасыщенности
+            
+        Returns:
+            Тензор производной относительной проницаемости воды
+        """
+        s_norm = self._get_normalized_saturation(s_w)
+        normalized_range = 1.0 - self.sw_cr - self.so_r
+        
+        # Проверяем, находится ли насыщенность в допустимом диапазоне
+        mask = (s_w > self.sw_cr) & (s_w < 1.0 - self.so_r)
+        
+        # Производная dkrw/dsw = dkrw/ds_norm * ds_norm/dsw
+        result = torch.zeros_like(s_w)
+        result[mask] = self.nw * s_norm[mask]**(self.nw - 1) / normalized_range
+        
+        return result
+
+    def calc_dkro_dsw(self, s_w):
+        """
+        Вычисляет производную относительной проницаемости нефти по водонасыщенности.
+        
+        Args:
+            s_w: Тензор водонасыщенности
+            
+        Returns:
+            Тензор производной относительной проницаемости нефти
+        """
+        s_norm = self._get_normalized_saturation(s_w)
+        normalized_range = 1.0 - self.sw_cr - self.so_r
+        
+        # Проверяем, находится ли насыщенность в допустимом диапазоне
+        mask = (s_w > self.sw_cr) & (s_w < 1.0 - self.so_r)
+        
+        # Производная dkro/dsw = dkro/ds_norm * ds_norm/dsw
+        result = torch.zeros_like(s_w)
+        result[mask] = -self.no * (1 - s_norm[mask])**(self.no - 1) / normalized_range
+        
+        return result

@@ -16,118 +16,59 @@ from output.vtk_writer import save_to_vtk
 
 def main():
     """
-    Основная функция для запуска симулятора нефтяного пласта.
+    Основная функция для запуска симуляции.
     """
+    # Загрузка конфигурации
+    args = parse_args()
+    config = load_config(args.config)
+    
+    print(f"Загружена конфигурация: {config.get('description', 'Без описания')}.")
+    
+    # Инициализация устройства для тензоров
+    device = initialize_device()
+
+    # Создаем объекты для моделирования
+    reservoir = Reservoir(config['reservoir'], device)
+    well_manager = WellManager(config['wells'], reservoir)
+    
+    # Создаем объект флюидов
+    fluid = Fluid(
+        config=config['fluid'],
+        reservoir=reservoir,
+        device=device
+    )
+
+    # Создаем симулятор
+    sim_params = config.get('simulation', {})
+    solver_type = sim_params.get('solver_type', 'impes')
+    
+    simulator = Simulator(
+        reservoir=reservoir,
+        fluid=fluid,
+        well_manager=well_manager,
+        sim_params=sim_params,
+        device=device
+    )
+    
+    # Запускаем симуляцию
+    output_filename = config.get('output_filename', 'simulation_output')
+    save_vtk = config.get('save_vtk', False)
+    simulator.run(output_filename, save_vtk)
+
+def parse_args():
     parser = argparse.ArgumentParser(description="Запуск симулятора нефтяного пласта")
     parser.add_argument('--config', type=str, required=True, help='Путь к файлу конфигурации .json')
-    args = parser.parse_args()
+    return parser.parse_args()
 
-    # --- 1. Загрузка конфигурации ---
-    with open(args.config, 'r') as f:
-        config = json.load(f)
-    
-    print(f"Загружена конфигурация: {config['description']}")
-    
-    # Извлечение параметров из конфига
-    res_params = config['reservoir']
-    sim_params = config['simulation']
-    fluid_params = config['fluid']
-    well_params = config['wells']
-    output_filename = config['output_filename']
-    
-    # --- 2. Настройка окружения ---
+def load_config(config_path):
+    with open(config_path, 'r') as f:
+        return json.load(f)
+
+def initialize_device():
     use_gpu = torch.cuda.is_available()
     device = torch.device("cuda:0" if use_gpu else "cpu")
     print(f"PyTorch будет использовать {'GPU: ' + torch.cuda.get_device_name(0) if use_gpu else 'CPU'}.")
-
-    # --- 3. Создание компонентов модели ---
-    print("\nСоздание модели пласта...")
-    reservoir = Reservoir(
-        config=res_params,
-        device=device
-    )
-
-    print("Создание менеджера скважин...")
-    well_manager = WellManager(config['wells'], reservoir)
-    
-    print("\nИнициализация флюидов и начальных условий...")
-    fluid = Fluid(
-        reservoir=reservoir,
-        config=fluid_params,
-        device=device
-    )
-
-    # --- 4. Запуск симуляции ---
-    sim = Simulator(reservoir, fluid, well_manager, sim_params)
-    
-    total_time_days = sim_params['total_time_days']
-    time_step_days = sim_params['time_step_days']
-    time_step_sec = time_step_days * 86400
-    num_steps = int(total_time_days / time_step_days)
-    save_interval = sim_params.get("save_interval", num_steps) # Сохранять каждые N шагов
-
-    results_dir = "results"
-    os.makedirs(results_dir, exist_ok=True)
-    
-    # Создаем папку для промежуточных результатов, если нужно
-    intermediate_results_dir = os.path.join(results_dir, "intermediate")
-    if save_interval < num_steps:
-        os.makedirs(intermediate_results_dir, exist_ok=True)
-    
-    print(f"\nЗапуск симуляции на {num_steps} шагов по {time_step_days} дней...")
-    print(f"Результаты будут сохраняться каждые {save_interval} шагов.")
-
-    plotter = Plotter(reservoir)
-
-    for i in tqdm(range(num_steps), desc="Симуляция"):
-        sim.run_step(dt=time_step_sec)
-        
-        # Сохранение промежуточных результатов
-        if (i + 1) % save_interval == 0 and save_interval < num_steps:
-            p_current = fluid.pressure.cpu().numpy()
-            sw_current = fluid.s_w.cpu().numpy()
-            
-            time_info = f"День {int((i + 1) * time_step_days)}"
-            filename = f"{output_filename}_step_{i+1}.png"
-            filepath = os.path.join(intermediate_results_dir, filename)
-            
-            plotter.save_plots(p_current, sw_current, filepath, time_info=time_info)
-    
-    print("\nСимуляция завершена.")
-
-    # --- 5. Сохранение и визуализация финальных результатов ---
-    p_final = fluid.pressure.cpu().numpy()
-    sw_final = fluid.s_w.cpu().numpy()
-    
-    print(f"Итоговое давление: Мин={p_final.min()/1e6:.2f} МПа, Макс={p_final.max()/1e6:.2f} МПа")
-    print(f"Итоговая водонасыщенность: Мин={sw_final.min():.4f}, Макс={sw_final.max():.4f}")
-
-    # Сохранение числовых данных
-    results_txt_path = os.path.join(results_dir, f"{output_filename}.txt")
-    with open(results_txt_path, 'w') as f:
-        f.write("Final Pressure (MPa):\n")
-        f.write(np.array2string(p_final/1e6, threshold=np.inf, formatter={'float_kind':lambda x: "%.2f" % x}))
-        f.write("\n\nFinal Water Saturation:\n")
-        f.write(np.array2string(sw_final, threshold=np.inf, formatter={'float_kind':lambda x: "%.4f" % x}))
-    print(f"Числовые результаты сохранены в файл {results_txt_path}")
-
-    # Сохранение финальных графиков
-    final_plot_path = os.path.join(results_dir, f"{output_filename}_final.png")
-    plotter.save_plots(p_final, sw_final, final_plot_path, time_info=f"День {total_time_days} (Final)")
-    print(f"Финальные графики сохранены в файл {final_plot_path}")
-
-    # --- 6. Сохранение результатов в VTK (если указано) ---
-    if config.get("save_vtk", False):
-        save_to_vtk(reservoir, fluid, output_filename)
-
-    # --- 7. Создание анимации (если нужно) ---
-    if save_interval < num_steps:
-        animation_fps = sim_params.get("animation_fps", 5)
-        if animation_fps > 0:
-            gif_path = os.path.join(results_dir, f"{output_filename}.gif")
-            print(f"\nСоздание анимации с {animation_fps} FPS...")
-            create_animation(intermediate_results_dir, gif_path, fps=animation_fps)
-
+    return device
 
 if __name__ == '__main__':
     main()

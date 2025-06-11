@@ -121,16 +121,16 @@ def test_adaptive_timestep_triggered(capsys):
         # Уменьшаем макс. кол-во итераций, чтобы гарантированно вызвать несходимость
         config['simulation']['newton_max_iter'] = 1
 
-        # Запускаем симуляцию с очень малым числом итераций, чтобы вызвать несходимость
-        try:
+    # Запускаем симуляцию с очень малым числом итераций, чтобы вызвать несходимость
+    try:
             run_simulation_with_config_obj(config)
-        except RuntimeError as e:
+    except RuntimeError as e:
             # Ожидаем, что симуляция упадет, но после попыток уменьшить шаг
             print(f"Симуляция предсказуемо упала: {e}")
-        
-        captured = capsys.readouterr()
+
+    captured = capsys.readouterr()
         # Проверяем, что в выводе есть сообщение о сокращении шага
-        assert "Уменьшаем шаг времени" in captured.out
+    assert "Уменьшаем шаг времени" in captured.out
 
 def run_simulation_with_config_obj(config):
     """Helper function to run simulation from a config dictionary instead of a file."""
