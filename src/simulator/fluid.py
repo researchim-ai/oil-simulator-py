@@ -42,10 +42,11 @@ class Fluid:
         self.cf = torch.full(self.dimensions, total_c, device=self.device)
         
         # Параметры модели относительной проницаемости
-        self.nw = config.get('nw', 2)  # Показатель Кори для воды
-        self.no = config.get('no', 2)  # Показатель Кори для нефти
-        self.sw_cr = config.get('s_wr', 0.2)  # Связанная водонасыщенность
-        self.so_r = config.get('s_or', 0.2)  # Остаточная нефтенасыщенность
+        rp_cfg = config.get('relative_permeability', {})
+        self.nw    = rp_cfg.get('nw', 2)           # Показатель Кори для воды
+        self.no    = rp_cfg.get('no', 2)           # Показатель Кори для нефти
+        self.sw_cr = rp_cfg.get('sw_cr', 0.2)      # Связанная водонасыщенность
+        self.so_r  = rp_cfg.get('so_r', 0.2)       # Остаточная нефтенасыщенность
         
         # Инициализация полей
         self.pressure = torch.full(self.dimensions, initial_pressure, device=self.device)
@@ -271,3 +272,8 @@ class Fluid:
         result[mask] = -self.no * (1 - s_norm[mask])**(self.no - 1) / normalized_range
         
         return result
+
+    # ---- Алиасы для обратной совместимости со старым кодом ----
+    # (симулятор обращается к этим именам)
+    calc_capillary_pressure = get_capillary_pressure
+    calc_dpc_dsw            = get_capillary_pressure_derivative

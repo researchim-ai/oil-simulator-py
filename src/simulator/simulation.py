@@ -605,7 +605,7 @@ class Simulator:
                     residual[2*idx2+1] += oil_flux
         
         # Z-направление (с гравитацией)
-        gravity = 9.81  # м/с²
+        gravity = torch.tensor([0.0, 0.0, -9.81], device=perm_z_vec.device)
         for k in range(nz-1):
             for i in range(nx):
                 for j in range(ny):

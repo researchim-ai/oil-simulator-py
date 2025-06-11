@@ -123,13 +123,13 @@ def test_adaptive_timestep_triggered(capsys):
 
     # Запускаем симуляцию с очень малым числом итераций, чтобы вызвать несходимость
     try:
-            run_simulation_with_config_obj(config)
+        run_simulation_with_config_obj(config)
     except RuntimeError as e:
-            # Ожидаем, что симуляция упадет, но после попыток уменьшить шаг
-            print(f"Симуляция предсказуемо упала: {e}")
+        # Ожидаем, что симуляция упадет, но после попыток уменьшить шаг
+        print(f"Симуляция предсказуемо упала: {e}")
 
     captured = capsys.readouterr()
-        # Проверяем, что в выводе есть сообщение о сокращении шага
+    # Проверяем, что в выводе есть сообщение о сокращении шага
     assert "Уменьшаем шаг времени" in captured.out
 
 def run_simulation_with_config_obj(config):

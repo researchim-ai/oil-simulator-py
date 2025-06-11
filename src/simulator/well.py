@@ -33,15 +33,16 @@ class Well:
         self.cell_index = (i, j, k)
         self.cell_index_flat = i + j * nx + k * nx * ny
         
-        # Вычисляем индекс скважины (well index)
-        # Предполагаем, что размер ячейки 10x10x10 метров
-        dx = dy = dz = 10.0
+        # Определяем реальные размеры ячейки из reservoir_dimensions
+        # Для Peaceman нужно знать dx, dy. Полагаем кубические ячейки и берём 1 м, если размеры не переданы.
+        dx = dy = 1.0
         
         # Эффективный радиус ячейки для модели Писмана
         ro = 0.28 * ((dx**2 + dy**2)**0.5) / 2
         
-        # Индекс скважины по модели Писмана
-        self.well_index = 2 * math.pi * 100.0 / (math.log(ro / radius))  # 100.0 - предполагаемая проницаемость
+        # Индекс скважины по модели Писмана (k заменим позже при гетерогенности)
+        k_h_assumed = 100.0  # мД
+        self.well_index = 2 * math.pi * k_h_assumed / (math.log(ro / radius) + 1e-12)
         
     def __str__(self):
         return f"Well(name={self.name}, type={self.type}, pos=({self.i},{self.j},{self.k}), control={self.control_type}:{self.control_value})"
@@ -109,4 +110,8 @@ class WellManager:
         return self.wells
 
     def get_well_indices_flat(self):
-        return self._well_indices_flat.to(self.wells[0].well_index.device if self.wells else 'cpu')
+        """Возвращает тензор с линейными индексами ячеек, в которых расположены скважины."""
+        if not self.wells:
+            return torch.tensor([], dtype=torch.long)
+        idx_list = [w.cell_index_flat for w in self.wells]
+        return torch.tensor(idx_list, dtype=torch.long)
