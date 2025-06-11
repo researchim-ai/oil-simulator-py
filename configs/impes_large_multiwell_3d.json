@@ -1,0 +1,73 @@
+{
+  "description": "Большая 3D-симуляция IMPES (100×100×5) с 16 скважинами и адаптивным CG.",
+  "output_filename": "impes_large_multiwell_3d",
+  "save_vtk": false,
+
+  "simulation": {
+    "solver_type": "impes",
+    "total_time_days": 365,
+    "time_step_days": 0.5,
+    "save_interval": 30,
+    "animation_fps": 5,
+
+    "cg_tolerance": 1e-4,
+    "cg_max_iter": 1500,
+
+    "dt_increase_factor": 1.25,
+    "dt_reduction_factor": 2.0,
+    "max_time_step_attempts": 6,
+
+    "max_saturation_change": 0.05,
+    "use_cuda": true
+  },
+
+  "reservoir": {
+    "dimensions": [100, 100, 5],
+    "grid_size": [20.0, 20.0, 10.0],
+    "porosity": 0.22,
+    "permeability": 150,
+    "k_vertical_fraction": 0.1
+  },
+
+  "fluid": {
+    "pressure": 20.0,
+    "s_w": 0.2,
+    "mu_oil": 1.5,
+    "mu_water": 0.6,
+    "rho_oil": 850,
+    "rho_water": 997,
+
+    "relative_permeability": {
+      "nw": 2.0,
+      "no": 2.0,
+      "sw_cr": 0.2,
+      "so_r": 0.15
+    },
+
+    "capillary_pressure": {
+      "pc_scale": 0.0
+    }
+  },
+
+  "wells": [
+    {"name": "INJ1", "type": "injector",  "i": 5,  "j": 5,  "k": 0, "radius": 0.15, "control_type": "rate", "control_value": 1500},
+    {"name": "INJ2", "type": "injector",  "i": 5,  "j": 95, "k": 0, "radius": 0.15, "control_type": "rate", "control_value": 1500},
+    {"name": "INJ3", "type": "injector",  "i": 95, "j": 5,  "k": 0, "radius": 0.15, "control_type": "rate", "control_value": 1500},
+    {"name": "INJ4", "type": "injector",  "i": 95, "j": 95, "k": 0, "radius": 0.15, "control_type": "rate", "control_value": 1500},
+
+    {"name": "INJ5", "type": "injector",  "i": 50, "j": 5,  "k": 0, "radius": 0.15, "control_type": "rate", "control_value": 1200},
+    {"name": "INJ6", "type": "injector",  "i": 50, "j": 95, "k": 0, "radius": 0.15, "control_type": "rate", "control_value": 1200},
+    {"name": "INJ7", "type": "injector",  "i": 5,  "j": 50, "k": 0, "radius": 0.15, "control_type": "rate", "control_value": 1200},
+    {"name": "INJ8", "type": "injector",  "i": 95, "j": 50, "k": 0, "radius": 0.15, "control_type": "rate", "control_value": 1200},
+
+    {"name": "PROD1", "type": "producer",  "i": 30, "j": 30, "k": 0, "radius": 0.15, "control_type": "rate", "control_value": 1000},
+    {"name": "PROD2", "type": "producer",  "i": 30, "j": 70, "k": 0, "radius": 0.15, "control_type": "rate", "control_value": 1000},
+    {"name": "PROD3", "type": "producer",  "i": 70, "j": 30, "k": 0, "radius": 0.15, "control_type": "rate", "control_value": 1000},
+    {"name": "PROD4", "type": "producer",  "i": 70, "j": 70, "k": 0, "radius": 0.15, "control_type": "rate", "control_value": 1000},
+
+    {"name": "PROD5", "type": "producer",  "i": 50, "j": 30, "k": 0, "radius": 0.15, "control_type": "rate", "control_value": 800},
+    {"name": "PROD6", "type": "producer",  "i": 50, "j": 70, "k": 0, "radius": 0.15, "control_type": "rate", "control_value": 800},
+    {"name": "PROD7", "type": "producer",  "i": 30, "j": 50, "k": 0, "radius": 0.15, "control_type": "rate", "control_value": 800},
+    {"name": "PROD8", "type": "producer",  "i": 70, "j": 50, "k": 0, "radius": 0.15, "control_type": "rate", "control_value": 800}
+  ]
+} 
