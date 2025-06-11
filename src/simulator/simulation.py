@@ -766,11 +766,13 @@ class Simulator:
         Returns:
             Кортеж (i, j, k) - индексы в трехмерной сетке
         """
-        # Для повышения производительности используем целочисленное деление
-        k = idx // (nx * ny)
-        remainder = idx % (nx * ny)
-        j = remainder // nx
-        i = remainder % nx
+        # Предполагаем тот же порядок, что используется PyTorch при flatten():
+        # idx = i * (ny * nz) + j * nz + k, где z-координата самая «быстрая».
+        ny_nz = ny * self.reservoir.nz
+        i = idx // ny_nz
+        remainder = idx % ny_nz
+        j = remainder // self.reservoir.nz
+        k = remainder % self.reservoir.nz
         return i, j, k
 
     def _ijk_to_idx(self, i, j, k, nx, ny):
@@ -784,7 +786,8 @@ class Simulator:
         Returns:
             Линейный индекс
         """
-        return i + j * nx + k * nx * ny
+        # Используем тот же порядок, что и при flatten(): z – самая быстрая координата
+        return (i * ny + j) * self.reservoir.nz + k
 
     # ==================================================================
     # ==                        СХЕМА IMPES                         ==
