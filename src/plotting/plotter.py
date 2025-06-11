@@ -18,8 +18,11 @@ class Plotter:
         Визуализируется центральный срез по оси Z.
         :param time_info: (Опционально) Строка с информацией о времени (например, "День 50").
         """
+        # Выбираем Z-срез с максимальной дисперсией насыщенности,
+        # чтобы на графике было видно изменения.
         if self.reservoir.nz > 1:
-            z_slice_idx = self.reservoir.nz // 2
+            stds = [float(np.std(saturation[:, :, k])) for k in range(self.reservoir.nz)]
+            z_slice_idx = int(np.argmax(stds))
         else:
             z_slice_idx = 0
             
@@ -38,7 +41,13 @@ class Plotter:
         ax1.set_ylabel('Ячейка Y')
         fig.colorbar(im1, ax=ax1)
 
-        im2 = ax2.imshow(s_slice, cmap='viridis', origin='lower', vmin=0.1, vmax=0.8, aspect='auto')
+        vmin = float(s_slice.min())
+        vmax = float(s_slice.max())
+        if abs(vmax - vmin) < 1e-4:
+            # если изменений почти нет, задаём небольшой диапазон вокруг значения
+            vmin = max(0.0, vmin - 0.05)
+            vmax = min(1.0, vmax + 0.05)
+        im2 = ax2.imshow(s_slice, cmap='viridis', origin='lower', vmin=vmin, vmax=vmax, aspect='auto')
         ax2.set_title(f'Насыщенность водой{title_suffix}')
         ax2.set_xlabel('Ячейка X')
         ax2.set_ylabel('Ячейка Y')

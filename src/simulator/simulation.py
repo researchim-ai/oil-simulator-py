@@ -5,6 +5,7 @@ from scipy.sparse import csc_matrix, diags, bmat
 from scipy.sparse.linalg import cg, LinearOperator, bicgstab, spsolve
 import time
 import os
+import datetime
 
 class Simulator:
     """
@@ -1536,8 +1537,9 @@ class Simulator:
         # Рассчитываем количество шагов
         num_steps = int(total_time_days / time_step_days)
         
-        # Создаем директории для результатов
-        results_dir = "results"
+        # Создаем уникальную директорию для данного запуска
+        timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+        results_dir = os.path.join("results", f"{output_filename}_{timestamp}")
         os.makedirs(results_dir, exist_ok=True)
         
         intermediate_results_dir = os.path.join(results_dir, "intermediate")
@@ -1654,7 +1656,7 @@ class Simulator:
             
             # Записываем в файл
             writer = vtk.vtkXMLStructuredGridWriter()
-            writer.SetFileName(f"results/{output_filename}.vts")
+            writer.SetFileName(os.path.join(results_dir, f"{output_filename}.vts"))
             writer.SetInputData(grid)
             writer.Write()
             
@@ -1676,6 +1678,10 @@ class Simulator:
         
         # Получаем список файлов изображений
         images = sorted(glob.glob(os.path.join(images_dir, f"*_step_*.png")))
+        # Добавляем финальный кадр, если существует (лежит в родительской директории)
+        final_candidates = glob.glob(os.path.join(os.path.dirname(images_dir), f"{os.path.basename(images_dir).split(os.sep)[-1].replace('intermediate','')}*_final.png"))
+        if final_candidates:
+            images.append(final_candidates[0])
         
         # Создаем анимацию
         with imageio.get_writer(output_path, mode='I', fps=fps) as writer:
