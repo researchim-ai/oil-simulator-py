@@ -1676,11 +1676,23 @@ class Simulator:
             output_path: Путь для сохранения анимации
             fps: Кадров в секунду
         """
+        # Локальные импорты, чтобы не создавать зависимость при импорте модуля
         import glob
         import imageio
+        import re
+        # Получаем список файлов изображений и сортируем их по номеру шага,
+        # а не лексикографически, чтобы кадры шли в правильном хронологическом порядке
+        regex = re.compile(r'_step_(\d+)\.png$')
+        step_files = []
+        for path in glob.glob(os.path.join(images_dir, "*_step_*.png")):
+            m = regex.search(os.path.basename(path))
+            if m:
+                step_files.append((int(m.group(1)), path))
+
+        # Сортируем по номеру шага
+        step_files.sort(key=lambda t: t[0])
+        images = [p for _, p in step_files]
         
-        # Получаем список файлов изображений
-        images = sorted(glob.glob(os.path.join(images_dir, f"*_step_*.png")))
         # Добавляем финальный кадр, если существует (лежит в родительской директории)
         final_candidates = glob.glob(os.path.join(os.path.dirname(images_dir), f"{os.path.basename(images_dir).split(os.sep)[-1].replace('intermediate','')}*_final.png"))
         if final_candidates:
