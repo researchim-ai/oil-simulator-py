@@ -1,0 +1,42 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "oil-simulator-py"
+version = "0.0.1"
+description = "Открытый симулятор нефтяного месторождения на Python/PyTorch"
+authors = [
+    { name = "Open Source Team", email = "opensource@example.com" },
+]
+license = { text = "MIT" }
+readme = "README.md"
+requires-python = ">=3.9"
+dependencies = [
+    "torch",
+    "numpy",
+    "matplotlib",
+    "tqdm",
+    "scipy",
+    "pyevtk",
+    "pytest",
+]
+
+[project.optional-dependencies]
+dev = [
+    "ruff",
+    "black",
+]
+
+[tool.black]
+line-length = 100
+skip-string-normalization = true
+
+[tool.ruff]
+line-length = 100
+exclude = [
+    ".git",
+    "__pycache__",
+    "build",
+    "dist",
+] 
