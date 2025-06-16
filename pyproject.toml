@@ -20,6 +20,7 @@ dependencies = [
     "scipy",
     "pyevtk",
     "pytest",
+    "gymnasium",
 ]
 
 [project.optional-dependencies]
