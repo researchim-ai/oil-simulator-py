@@ -6,6 +6,7 @@ from scipy.sparse.linalg import cg, LinearOperator, bicgstab, spsolve
 import time
 import os
 import datetime
+import builtins
 
 class Simulator:
     """
@@ -79,6 +80,20 @@ class Simulator:
         # Гравитационная постоянная для IMPES
         self.g = 9.81
         
+        # Управление подробностью вывода. По умолчанию вывод подавляется, его можно включить
+        # через field "verbose" в блоке simulation конфигурационного файла.
+        self.verbose = self.sim_params.get('verbose', False)
+        
+        # Вспомогательная функция для «тихого» логирования. Используйте self._log() вместо print().
+        # Это минимальное изменение, не затрагивающее существующую логику, но позволяющее в один
+        # момент отключить избыточный вывод (что в тестах и профилировании экономит заметное время).
+        def _log(*args, **kwargs):
+            if self.verbose:
+                print(*args, **kwargs)
+        
+        # Сохраняем как bound-method, чтобы можно было вызывать из других методов класса.
+        self._log = _log
+
     def _move_data_to_device(self):
         """Переносит данные на текущее устройство (CPU или GPU)"""
         # Переносим данные из резервуара
@@ -171,8 +186,8 @@ class Simulator:
         return False
         
     def _fully_implicit_newton_step(self, dt, max_iter=20, tol=1e-3, 
-                                    damping_factor=0.7, jac_reg=1e-7, 
-                                    line_search_factors=None, use_cuda=False):
+                                     damping_factor=0.7, jac_reg=1e-7, 
+                                     line_search_factors=None, use_cuda=False):
         """
         Выполняет один шаг метода Ньютона для полностью неявной схемы.
         Максимально оптимизированная реализация с улучшенным методом line search.
@@ -189,287 +204,299 @@ class Simulator:
         Returns:
             Успешность решения (True/False) и число выполненных итераций Ньютона
         """
-        # Получаем настройки из параметров симуляции, если не указаны явно
-        if max_iter is None:
-            max_iter = self.sim_params.get("newton_max_iter", 20)
-        if tol is None:
-            tol = self.sim_params.get("newton_tolerance", 1e-3)
-        if damping_factor is None:
-            damping_factor = self.sim_params.get("damping_factor", 0.7)
-        if jac_reg is None:
-            jac_reg = self.sim_params.get("jacobian_regularization", 1e-7)
-        if use_cuda is None:
-            use_cuda = self.sim_params.get("use_cuda", False)
-        
-        # Сохраняем текущее состояние для возможного отката
-        current_p = self.fluid.pressure.clone()
-        current_sw = self.fluid.s_w.clone()
-        
-        # Инициализация параметров для оптимизации
-        nx, ny, nz = self.reservoir.dimensions
-        num_cells = nx * ny * nz
-        
-        # Устанавливаем устройство в зависимости от доступности CUDA
-        if use_cuda and torch.cuda.is_available() and self.fluid.device.type == 'cuda':
-            device = self.fluid.device
-            device_cpu = torch.device('cpu')
-            using_cuda = True
-        else:
-            device = self.fluid.device
-            device_cpu = device
-            using_cuda = False
-        
-        # Инициализация факторов для line search с более плавным убыванием для улучшения сходимости
-        if line_search_factors is None:
-            line_search_factors = [1.0, 0.8, 0.6, 0.4, 0.2, 0.1, 0.05, 0.01]
-        
-        # Предварительно вычисляем параметры сетки
-        dx, dy, dz = self.reservoir.grid_size
-        
-        # Флаг для отслеживания предыдущей невязки для адаптивной сходимости
-        prev_residual_norm = float('inf')
-        
-        # Основной цикл метода Ньютона
-        for iter_idx in range(max_iter):
-            # Время начала итерации для профилирования
-            start_time = time.time()
+        # ------------------------------------------------------------------
+        # При выключенном verbose перенаправляем print в no-op для ускорения.
+        # Делается через builtins, чтобы затронуть все вложенные вызовы.
+        # Будем восстанавливать в конце функции (в блоке finally).
+        import builtins
+        _orig_print = builtins.print
+        if not getattr(self, 'verbose', False):
+            builtins.print = lambda *args, **kwargs: None
+        try:
+            # Получаем настройки из параметров симуляции, если не указаны явно
+            if max_iter is None:
+                max_iter = self.sim_params.get("newton_max_iter", 20)
+            if tol is None:
+                tol = self.sim_params.get("newton_tolerance", 1e-3)
+            if damping_factor is None:
+                damping_factor = self.sim_params.get("damping_factor", 0.7)
+            if jac_reg is None:
+                jac_reg = self.sim_params.get("jacobian_regularization", 1e-7)
+            if use_cuda is None:
+                use_cuda = self.sim_params.get("use_cuda", False)
             
-            # Расчет остаточной невязки и якобиана
-            if using_cuda:
-                # Для CUDA: создаем тензоры на CPU для Якобиана (более эффективное решение СЛАУ)
-                residual = torch.zeros(2 * num_cells, device=device_cpu)
-                jacobian = torch.zeros(2 * num_cells, 2 * num_cells, device=device_cpu)
+            # Сохраняем текущее состояние для возможного отката
+            current_p = self.fluid.pressure.clone()
+            current_sw = self.fluid.s_w.clone()
+            
+            # Инициализация параметров для оптимизации
+            nx, ny, nz = self.reservoir.dimensions
+            num_cells = nx * ny * nz
+            
+            # Устанавливаем устройство в зависимости от доступности CUDA
+            if use_cuda and torch.cuda.is_available() and self.fluid.device.type == 'cuda':
+                device = self.fluid.device
+                device_cpu = torch.device('cpu')
+                using_cuda = True
             else:
-                # Для CPU: создаем тензоры на том же устройстве
-                residual = torch.zeros(2 * num_cells, device=device)
-                jacobian = torch.zeros(2 * num_cells, 2 * num_cells, device=device)
+                device = self.fluid.device
+                device_cpu = device
+                using_cuda = False
             
-            # Векторизованный расчет базовых величин
-            p_vec = self.fluid.pressure.reshape(-1)
-            sw_vec = self.fluid.s_w.reshape(-1)
-            phi_vec = self.reservoir.porosity.reshape(-1)
-            perm_x_vec = self.reservoir.permeability_x.reshape(-1)
-            perm_y_vec = self.reservoir.permeability_y.reshape(-1)
-            perm_z_vec = self.reservoir.permeability_z.reshape(-1)
+            # Инициализация факторов для line search с более плавным убыванием для улучшения сходимости
+            if line_search_factors is None:
+                line_search_factors = [1.0, 0.8, 0.6, 0.4, 0.2, 0.1, 0.05, 0.01]
             
-            # Используем JIT-компиляцию для расчета плотностей и вязкостей, если доступно
-            if hasattr(torch, 'jit') and not using_cuda:
-                try:
-                    # Определение JIT-функций (только если они еще не определены)
-                    if not hasattr(self, '_jit_rho_w'):
-                        @torch.jit.script
-                        def calc_rho_w(p, rho_w_ref, c_w):
-                            return rho_w_ref * (1.0 + c_w * (p - 1e5))
+            # Предварительно вычисляем параметры сетки
+            dx, dy, dz = self.reservoir.grid_size
+            
+            # Флаг для отслеживания предыдущей невязки для адаптивной сходимости
+            prev_residual_norm = float('inf')
+            
+            # Основной цикл метода Ньютона
+            for iter_idx in range(max_iter):
+                # Время начала итерации для профилирования
+                start_time = time.time()
+                
+                # Расчет остаточной невязки и якобиана
+                if using_cuda:
+                    # Для CUDA: создаем тензоры на CPU для Якобиана (более эффективное решение СЛАУ)
+                    residual = torch.zeros(2 * num_cells, device=device_cpu)
+                    jacobian = torch.zeros(2 * num_cells, 2 * num_cells, device=device_cpu)
+                else:
+                    # Для CPU: создаем тензоры на том же устройстве
+                    residual = torch.zeros(2 * num_cells, device=device)
+                    jacobian = torch.zeros(2 * num_cells, 2 * num_cells, device=device)
+                
+                # Векторизованный расчет базовых величин
+                p_vec = self.fluid.pressure.reshape(-1)
+                sw_vec = self.fluid.s_w.reshape(-1)
+                phi_vec = self.reservoir.porosity.reshape(-1)
+                perm_x_vec = self.reservoir.permeability_x.reshape(-1)
+                perm_y_vec = self.reservoir.permeability_y.reshape(-1)
+                perm_z_vec = self.reservoir.permeability_z.reshape(-1)
+                
+                # Используем JIT-компиляцию для расчета плотностей и вязкостей, если доступно
+                if hasattr(torch, 'jit') and not using_cuda:
+                    try:
+                        # Определение JIT-функций (только если они еще не определены)
+                        if not hasattr(self, '_jit_rho_w'):
+                            @torch.jit.script
+                            def calc_rho_w(p, rho_w_ref, c_w):
+                                return rho_w_ref * (1.0 + c_w * (p - 1e5))
+                            
+                            @torch.jit.script
+                            def calc_rho_o(p, rho_o_ref, c_o):
+                                return rho_o_ref * (1.0 + c_o * (p - 1e5))
+                            
+                            self._jit_rho_w = calc_rho_w
+                            self._jit_rho_o = calc_rho_o
                         
-                        @torch.jit.script
-                        def calc_rho_o(p, rho_o_ref, c_o):
-                            return rho_o_ref * (1.0 + c_o * (p - 1e5))
-                        
-                        self._jit_rho_w = calc_rho_w
-                        self._jit_rho_o = calc_rho_o
-                    
-                    # Использование JIT-функций
-                    rho_w = self._jit_rho_w(p_vec, self.fluid.rho_water_ref, self.fluid.water_compressibility)
-                    rho_o = self._jit_rho_o(p_vec, self.fluid.rho_oil_ref, self.fluid.oil_compressibility)
-                except Exception:
-                    # Если JIT не работает, используем обычный расчет
+                        # Использование JIT-функций
+                        rho_w = self._jit_rho_w(p_vec, self.fluid.rho_water_ref, self.fluid.water_compressibility)
+                        rho_o = self._jit_rho_o(p_vec, self.fluid.rho_oil_ref, self.fluid.oil_compressibility)
+                    except Exception:
+                        # Если JIT не работает, используем обычный расчет
+                        rho_w = self.fluid.calc_water_density(p_vec)
+                        rho_o = self.fluid.calc_oil_density(p_vec)
+                else:
+                    # Стандартный расчет плотностей
                     rho_w = self.fluid.calc_water_density(p_vec)
                     rho_o = self.fluid.calc_oil_density(p_vec)
-            else:
-                # Стандартный расчет плотностей
-                rho_w = self.fluid.calc_water_density(p_vec)
-                rho_o = self.fluid.calc_oil_density(p_vec)
-            
-            # Вязкости (константы)
-            mu_w = self.fluid.mu_water * torch.ones_like(p_vec)
-            mu_o = self.fluid.mu_oil * torch.ones_like(p_vec)
-            
-            # Расчет относительных проницаемостей и их производных
-            kr_w = self.fluid.calc_water_kr(sw_vec)
-            kr_o = self.fluid.calc_oil_kr(sw_vec)
-            
-            # Расчет мобильностей для векторизации
-            lambda_w = kr_w / mu_w
-            lambda_o = kr_o / mu_o
-            lambda_t = lambda_w + lambda_o
-            fw = lambda_w / (lambda_w + lambda_o + 1e-10)
-            fo = lambda_o / (lambda_w + lambda_o + 1e-10)
-            
-            # Расчет капиллярного давления и его производной
-            if self.fluid.pc_scale > 0:
-                pc = self.fluid.calc_capillary_pressure(sw_vec)
-                dpc_dsw = self.fluid.calc_dpc_dsw(sw_vec)
-            else:
-                pc = torch.zeros_like(p_vec)
-                dpc_dsw = torch.zeros_like(p_vec)
-            
-            # Сохраняем предыдущие массы флюидов, если еще не сохранены
-            if iter_idx == 0:
-                cell_volume = dx * dy * dz
-                self.fluid.prev_water_mass = phi_vec * self.fluid.prev_sw.reshape(-1) * \
-                                            self.fluid.calc_water_density(self.fluid.prev_pressure.reshape(-1)) * \
-                                            cell_volume
-                self.fluid.prev_oil_mass = phi_vec * (1 - self.fluid.prev_sw.reshape(-1)) * \
-                                          self.fluid.calc_oil_density(self.fluid.prev_pressure.reshape(-1)) * \
-                                          cell_volume
-            
-            # Векторизованная сборка невязки и якобиана
-            self._assemble_residual_and_jacobian_batch(
-                residual, jacobian, dt,
-                p_vec, sw_vec, phi_vec, 
-                perm_x_vec, perm_y_vec, perm_z_vec,
-                lambda_w, lambda_o, lambda_t, fw, fo,
-                rho_w, rho_o, mu_w, mu_o, 
-                pc, dpc_dsw, nx, ny, nz, dx, dy, dz
-            )
-            
-            # Добавляем регуляризацию к диагональным элементам якобиана
-            for i in range(jacobian.shape[0]):
-                jacobian[i, i] += jac_reg
-            
-            # Решаем систему для получения шага Ньютона
-            try:
-                # Используем оптимизированный солвер для разреженных матриц
-                if jacobian.shape[0] > 1000:  # Для больших систем используем итеративные методы
-                    from scipy.sparse import csr_matrix
-                    from scipy.sparse.linalg import spsolve, bicgstab
-                    
-                    # Преобразуем в разреженный формат для быстрого решения
-                    jacobian_np = jacobian.cpu().numpy()
-                    residual_np = residual.cpu().numpy()
-                    jacobian_sparse = csr_matrix(jacobian_np)
-                    
-                    # Пробуем решить с помощью прямого метода
-                    try:
-                        delta_np = spsolve(jacobian_sparse, -residual_np)
-                        delta = torch.from_numpy(delta_np).to(device)
-                    except Exception:
-                        # Если прямой метод не работает, используем итеративный
-                        delta_np, info = bicgstab(jacobian_sparse, -residual_np, tol=1e-6, maxiter=1000)
-                        if info != 0:
-                            print(f"  Предупреждение: Итеративный решатель не сошелся (код {info})")
-                        delta = torch.from_numpy(delta_np).to(device)
+                
+                # Вязкости (константы)
+                mu_w = self.fluid.mu_water * torch.ones_like(p_vec)
+                mu_o = self.fluid.mu_oil * torch.ones_like(p_vec)
+                
+                # Расчет относительных проницаемостей и их производных
+                kr_w = self.fluid.calc_water_kr(sw_vec)
+                kr_o = self.fluid.calc_oil_kr(sw_vec)
+                
+                # Расчет мобильностей для векторизации
+                lambda_w = kr_w / mu_w
+                lambda_o = kr_o / mu_o
+                lambda_t = lambda_w + lambda_o
+                fw = lambda_w / (lambda_w + lambda_o + 1e-10)
+                fo = lambda_o / (lambda_w + lambda_o + 1e-10)
+                
+                # Расчет капиллярного давления и его производной
+                if self.fluid.pc_scale > 0:
+                    pc = self.fluid.calc_capillary_pressure(sw_vec)
+                    dpc_dsw = self.fluid.calc_dpc_dsw(sw_vec)
                 else:
-                    # Для небольших систем используем прямой решатель
-                    delta = torch.linalg.solve(jacobian, -residual)
-            except RuntimeError as e:
-                print(f"  Ошибка решения системы: {e}")
+                    pc = torch.zeros_like(p_vec)
+                    dpc_dsw = torch.zeros_like(p_vec)
+                
+                # Сохраняем предыдущие массы флюидов, если еще не сохранены
+                if iter_idx == 0:
+                    cell_volume = dx * dy * dz
+                    self.fluid.prev_water_mass = phi_vec * self.fluid.prev_sw.reshape(-1) * \
+                                                self.fluid.calc_water_density(self.fluid.prev_pressure.reshape(-1)) * \
+                                                cell_volume
+                    self.fluid.prev_oil_mass = phi_vec * (1 - self.fluid.prev_sw.reshape(-1)) * \
+                                              self.fluid.calc_oil_density(self.fluid.prev_pressure.reshape(-1)) * \
+                                              cell_volume
+                
+                # Векторизованная сборка невязки и якобиана
+                self._assemble_residual_and_jacobian_batch(
+                    residual, jacobian, dt,
+                    p_vec, sw_vec, phi_vec, 
+                    perm_x_vec, perm_y_vec, perm_z_vec,
+                    lambda_w, lambda_o, lambda_t, fw, fo,
+                    rho_w, rho_o, mu_w, mu_o, 
+                    pc, dpc_dsw, nx, ny, nz, dx, dy, dz
+                )
+                
+                # Добавляем регуляризацию к диагональным элементам якобиана
+                for i in range(jacobian.shape[0]):
+                    jacobian[i, i] += jac_reg
+                
+                # Решаем систему для получения шага Ньютона
+                try:
+                    # Используем оптимизированный солвер для разреженных матриц
+                    if jacobian.shape[0] > 1000:  # Для больших систем используем итеративные методы
+                        from scipy.sparse import csr_matrix
+                        from scipy.sparse.linalg import spsolve, bicgstab
+                        
+                        # Преобразуем в разреженный формат для быстрого решения
+                        jacobian_np = jacobian.cpu().numpy()
+                        residual_np = residual.cpu().numpy()
+                        jacobian_sparse = csr_matrix(jacobian_np)
+                        
+                        # Пробуем решить с помощью прямого метода
+                        try:
+                            delta_np = spsolve(jacobian_sparse, -residual_np)
+                            delta = torch.from_numpy(delta_np).to(device)
+                        except Exception:
+                            # Если прямой метод не работает, используем итеративный
+                            delta_np, info = bicgstab(jacobian_sparse, -residual_np, tol=1e-6, maxiter=1000)
+                            if info != 0:
+                                print(f"  Предупреждение: Итеративный решатель не сошелся (код {info})")
+                            delta = torch.from_numpy(delta_np).to(device)
+                    else:
+                        # Для небольших систем используем прямой решатель
+                        delta = torch.linalg.solve(jacobian, -residual)
+                except RuntimeError as e:
+                    print(f"  Ошибка решения системы: {e}")
+                    # Восстанавливаем исходное состояние
+                    self.fluid.pressure = current_p.clone()
+                    self.fluid.s_w = current_sw.clone()
+                    return False, iter_idx
+                
+                # Нормализуем невязку
+                if iter_idx == 0:
+                    initial_residual_norm = torch.norm(residual).item()
+                    residual_norm = initial_residual_norm
+                    relative_residual = 1.0
+                else:
+                    residual_norm = torch.norm(residual).item()
+                    relative_residual = residual_norm / initial_residual_norm
+                
+                print(f"  Итерация Ньютона {iter_idx+1}: Невязка = {residual_norm:.4e}, Отн. невязка = {relative_residual:.4e}")
+                
+                # Проверка на сходимость
+                if residual_norm < tol:
+                    print(f"  Метод Ньютона сошелся за {iter_idx+1} итераций")
+                    return True, iter_idx + 1
+                
+                # Проверка на стагнацию с более гибкими условиями
+                residual_improvement = prev_residual_norm / (residual_norm + 1e-15)
+                if iter_idx > 3:
+                    if residual_improvement < 1.05:
+                        print(f"  Сходимость замедлилась (улучшение только в {residual_improvement:.2f} раз)")
+                        if residual_norm < 20 * tol:
+                            print(f"  Принимаем результат, так как невязка близка к допустимой")
+                            return True, iter_idx + 1
+                    elif residual_norm < 5 * tol:
+                        print(f"  Невязка достаточно мала для принятия результата")
+                        return True, iter_idx + 1
+                
+                prev_residual_norm = residual_norm
+                
+                # Line search для улучшения сходимости
+                best_factor = None
+                best_residual_norm = float('inf')
+                
+                # Применяем демпфирование перед line search для стабильности
+                if damping_factor < 1.0:
+                    delta = damping_factor * delta
+                    print(f"  Применено демпфирование с коэффициентом {damping_factor}")
+                
+                # Быстрый line search с использованием предварительно определенных факторов
+                for factor in line_search_factors:
+                    # Временно применяем шаг
+                    self._apply_newton_step(delta, factor)
+                    
+                    # Быстрый расчет невязки без сборки полного якобиана
+                    new_residual = self._compute_residual_fast(dt, nx, ny, nz, dx, dy, dz)
+                    new_residual_norm = torch.norm(new_residual).item()
+                    
+                    # Откатываем изменения
+                    self.fluid.pressure = current_p.clone()
+                    self.fluid.s_w = current_sw.clone()
+                    
+                    # Проверяем, улучшает ли этот фактор сходимость
+                    if new_residual_norm < best_residual_norm:
+                        best_residual_norm = new_residual_norm
+                        best_factor = factor
+                        
+                        # Если улучшение значительное, прекращаем поиск
+                        if new_residual_norm < 0.7 * residual_norm:
+                            break
+                
+                # Улучшенная обработка случая, когда line search не помог
+                if best_factor is None or best_residual_norm >= residual_norm:
+                    # Используем самый маленький фактор для предотвращения дивергенции
+                    best_factor = min(line_search_factors)
+                    print(f"  Внимание: Line search не смог уменьшить невязку. Используем минимальный шаг {best_factor}.")
+                    
+                    # Если невязка достаточно мала или это одна из начальных итераций, продолжаем
+                    if residual_norm < 15 * tol or iter_idx < 3:
+                        print(f"  Продолжаем итерации с минимальным шагом")
+                    else:
+                        # Проверяем, была ли сходимость на предыдущих итерациях
+                        stagnation_count = getattr(self, '_stagnation_count', 0) + 1
+                        setattr(self, '_stagnation_count', stagnation_count)
+                        
+                        if stagnation_count > 2:
+                            print(f"  Невязка слишком велика, итерации Ньютона не сходятся после нескольких попыток")
+                            # Восстанавливаем исходное состояние
+                            self.fluid.pressure = current_p.clone()
+                            self.fluid.s_w = current_sw.clone()
+                            setattr(self, '_stagnation_count', 0)
+                            return False, iter_idx + 1
+                        else:
+                            print(f"  Попытка продолжить с минимальным шагом (попытка {stagnation_count})")
+                else:
+                    # Сбрасываем счетчик стагнаций при успешном шаге
+                    setattr(self, '_stagnation_count', 0)
+                
+                # Применяем найденный оптимальный шаг
+                self._apply_newton_step(delta, best_factor)
+                
+                # Ограничиваем значения физическими пределами
+                self.fluid.s_w.clamp_(self.fluid.sw_cr, 1.0 - self.fluid.so_r)
+                self.fluid.pressure.clamp_(1e5, 100e6)  # От 0.1 МПа до 100 МПа
+                self.fluid.s_o = 1.0 - self.fluid.s_w  # Обновляем нефтенасыщенность
+                
+                # Вычисляем время, затраченное на итерацию
+                iter_time = time.time() - start_time
+                if iter_time > 1.0:  # Если итерация заняла больше 1 секунды
+                    print(f"  Время итерации: {iter_time:.2f} сек.")
+            
+            # Если достигнуто максимальное число итераций
+            print(f"  Метод Ньютона не сошелся за {max_iter} итераций")
+            if residual_norm < 20 * tol:
+                print(f"  Невязка достаточно близка к допустимой, принимаем результат")
+                return True, max_iter
+            else:
                 # Восстанавливаем исходное состояние
                 self.fluid.pressure = current_p.clone()
                 self.fluid.s_w = current_sw.clone()
-                return False, iter_idx
-            
-            # Нормализуем невязку
-            if iter_idx == 0:
-                initial_residual_norm = torch.norm(residual).item()
-                residual_norm = initial_residual_norm
-                relative_residual = 1.0
-            else:
-                residual_norm = torch.norm(residual).item()
-                relative_residual = residual_norm / initial_residual_norm
-            
-            print(f"  Итерация Ньютона {iter_idx+1}: Невязка = {residual_norm:.4e}, Отн. невязка = {relative_residual:.4e}")
-            
-            # Проверка на сходимость
-            if residual_norm < tol:
-                print(f"  Метод Ньютона сошелся за {iter_idx+1} итераций")
-                return True, iter_idx + 1
-            
-            # Проверка на стагнацию с более гибкими условиями
-            residual_improvement = prev_residual_norm / (residual_norm + 1e-15)
-            if iter_idx > 3:
-                if residual_improvement < 1.05:
-                    print(f"  Сходимость замедлилась (улучшение только в {residual_improvement:.2f} раз)")
-                    if residual_norm < 20 * tol:
-                        print(f"  Принимаем результат, так как невязка близка к допустимой")
-                        return True, iter_idx + 1
-                elif residual_norm < 5 * tol:
-                    print(f"  Невязка достаточно мала для принятия результата")
-                    return True, iter_idx + 1
-            
-            prev_residual_norm = residual_norm
-            
-            # Line search для улучшения сходимости
-            best_factor = None
-            best_residual_norm = float('inf')
-            
-            # Применяем демпфирование перед line search для стабильности
-            if damping_factor < 1.0:
-                delta = damping_factor * delta
-                print(f"  Применено демпфирование с коэффициентом {damping_factor}")
-            
-            # Быстрый line search с использованием предварительно определенных факторов
-            for factor in line_search_factors:
-                # Временно применяем шаг
-                self._apply_newton_step(delta, factor)
-                
-                # Быстрый расчет невязки без сборки полного якобиана
-                new_residual = self._compute_residual_fast(dt, nx, ny, nz, dx, dy, dz)
-                new_residual_norm = torch.norm(new_residual).item()
-                
-                # Откатываем изменения
-                self.fluid.pressure = current_p.clone()
-                self.fluid.s_w = current_sw.clone()
-                
-                # Проверяем, улучшает ли этот фактор сходимость
-                if new_residual_norm < best_residual_norm:
-                    best_residual_norm = new_residual_norm
-                    best_factor = factor
-                    
-                    # Если улучшение значительное, прекращаем поиск
-                    if new_residual_norm < 0.7 * residual_norm:
-                        break
-            
-            # Улучшенная обработка случая, когда line search не помог
-            if best_factor is None or best_residual_norm >= residual_norm:
-                # Используем самый маленький фактор для предотвращения дивергенции
-                best_factor = min(line_search_factors)
-                print(f"  Внимание: Line search не смог уменьшить невязку. Используем минимальный шаг {best_factor}.")
-                
-                # Если невязка достаточно мала или это одна из начальных итераций, продолжаем
-                if residual_norm < 15 * tol or iter_idx < 3:
-                    print(f"  Продолжаем итерации с минимальным шагом")
-                else:
-                    # Проверяем, была ли сходимость на предыдущих итерациях
-                    stagnation_count = getattr(self, '_stagnation_count', 0) + 1
-                    setattr(self, '_stagnation_count', stagnation_count)
-                    
-                    if stagnation_count > 2:
-                        print(f"  Невязка слишком велика, итерации Ньютона не сходятся после нескольких попыток")
-                        # Восстанавливаем исходное состояние
-                        self.fluid.pressure = current_p.clone()
-                        self.fluid.s_w = current_sw.clone()
-                        setattr(self, '_stagnation_count', 0)
-                        return False, iter_idx + 1
-                    else:
-                        print(f"  Попытка продолжить с минимальным шагом (попытка {stagnation_count})")
-            else:
-                # Сбрасываем счетчик стагнаций при успешном шаге
-                setattr(self, '_stagnation_count', 0)
-            
-            # Применяем найденный оптимальный шаг
-            self._apply_newton_step(delta, best_factor)
-            
-            # Ограничиваем значения физическими пределами
-            self.fluid.s_w.clamp_(self.fluid.sw_cr, 1.0 - self.fluid.so_r)
-            self.fluid.pressure.clamp_(1e5, 100e6)  # От 0.1 МПа до 100 МПа
-            self.fluid.s_o = 1.0 - self.fluid.s_w  # Обновляем нефтенасыщенность
-            
-            # Вычисляем время, затраченное на итерацию
-            iter_time = time.time() - start_time
-            if iter_time > 1.0:  # Если итерация заняла больше 1 секунды
-                print(f"  Время итерации: {iter_time:.2f} сек.")
-        
-        # Если достигнуто максимальное число итераций
-        print(f"  Метод Ньютона не сошелся за {max_iter} итераций")
-        if residual_norm < 20 * tol:
-            print(f"  Невязка достаточно близка к допустимой, принимаем результат")
-            return True, max_iter
-        else:
-            # Восстанавливаем исходное состояние
-            self.fluid.pressure = current_p.clone()
-            self.fluid.s_w = current_sw.clone()
-            return False, max_iter
+                return False, max_iter
+        finally:
+            # Гарантируем восстановление print даже при исключениях
+            builtins.print = _orig_print
 
     def _compute_residual_fast(self, dt, nx, ny, nz, dx, dy, dz):
         """
