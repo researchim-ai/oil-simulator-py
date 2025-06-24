@@ -1,0 +1,72 @@
+{
+    "description": "A fully implicit scheme for 2D simulation with performance optimizations.",
+    "output_filename": "fully_implicit_2d_optimized",
+    "save_vtk": true,
+    "simulation": {
+        "solver_type": "impes",
+        "total_time_days": 100,
+        "time_step_days": 1,
+        "save_interval": 10,
+        "animation_fps": 5,
+        "newton_max_iter": 20,
+        "newton_tolerance": 0.01,
+        "jacobian_regularization": 0.0001,
+        "damping_factor": 0.5,
+        "max_time_step_attempts": 4,
+        "dt_increase_factor": 1.25,
+        "dt_reduction_factor": 2.0,
+        "use_cuda": true
+    },
+    "reservoir": {
+        "dimensions": [
+            50,
+            50,
+            1
+        ],
+        "grid_size": [
+            10.0,
+            10.0,
+            5.0
+        ],
+        "porosity": 0.2,
+        "permeability": 100,
+        "k_vertical_fraction": 0.1
+    },
+    "fluid": {
+        "pressure": 20.0,
+        "s_w": 0.2,
+        "mu_oil": 1.0,
+        "mu_water": 0.5,
+        "rho_oil": 850.0,
+        "rho_water": 1000.0,
+        "c_oil": 1e-05,
+        "c_water": 1e-05,
+        "c_rock": 1e-05,
+        "s_wr": 0.2,
+        "s_or": 0.2,
+        "pc_scale": 0.0,
+        "pc_threshold": 0.01
+    },
+    "wells": [
+        {
+            "name": "Injector-1",
+            "type": "injector",
+            "i": 5,
+            "j": 25,
+            "k": 0,
+            "radius": 0.1,
+            "control_type": "rate",
+            "control_value": 25.0
+        },
+        {
+            "name": "Producer-1",
+            "type": "producer",
+            "i": 45,
+            "j": 25,
+            "k": 0,
+            "radius": 0.1,
+            "control_type": "bhp",
+            "control_value": 15.0
+        }
+    ]
+}

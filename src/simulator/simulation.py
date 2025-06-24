@@ -94,6 +94,34 @@ class Simulator:
         # Сохраняем как bound-method, чтобы можно было вызывать из других методов класса.
         self._log = _log
 
+        # --------------------------------------------------------------
+        # Предвычисляем индексы соседних ячеек (edges) для X-,Y-,Z-направлений.
+        # Это позволит векторизовать расчёт потоков без Python-циклов.
+        nx, ny, nz = self.reservoir.dimensions
+        idx = torch.arange(nx * ny * nz)
+        idx_3d = idx.reshape(nx, ny, nz)
+
+        # X-рёбра: все, кроме последней колонки по X
+        if nx > 1:
+            self.edge_x_i = idx_3d[:-1, :, :].reshape(-1).to(torch.long)
+            self.edge_x_j = idx_3d[1:, :, :].reshape(-1).to(torch.long)
+        else:
+            self.edge_x_i = self.edge_x_j = torch.tensor([], dtype=torch.long)
+
+        # Y-рёбра: все, кроме последней строки по Y
+        if ny > 1:
+            self.edge_y_i = idx_3d[:, :-1, :].reshape(-1).to(torch.long)
+            self.edge_y_j = idx_3d[:, 1:, :].reshape(-1).to(torch.long)
+        else:
+            self.edge_y_i = self.edge_y_j = torch.tensor([], dtype=torch.long)
+
+        # Z-рёбра: все, кроме последнего слоя по Z
+        if nz > 1:
+            self.edge_z_i = idx_3d[:, :, :-1].reshape(-1).to(torch.long)
+            self.edge_z_j = idx_3d[:, :, 1:].reshape(-1).to(torch.long)
+        else:
+            self.edge_z_i = self.edge_z_j = torch.tensor([], dtype=torch.long)
+
     def _move_data_to_device(self):
         """Переносит данные на текущее устройство (CPU или GPU)"""
         # Переносим данные из резервуара
@@ -564,105 +592,91 @@ class Simulator:
         perm_y_vec = self.reservoir.permeability_y.reshape(-1)
         perm_z_vec = self.reservoir.permeability_z.reshape(-1)
         
-        # Векторизованный расчет потоков для X-направления
-        for i in range(nx-1):
-            for j in range(ny):
-                for k in range(nz):
-                    idx1 = i + j * nx + k * nx * ny
-                    idx2 = (i+1) + j * nx + k * nx * ny
-                    
-                    # Средние значения
-                    avg_perm = 2 * perm_x_vec[idx1] * perm_x_vec[idx2] / (perm_x_vec[idx1] + perm_x_vec[idx2] + 1e-10)
-                    avg_rho_w = 0.5 * (rho_w[idx1] + rho_w[idx2])
-                    avg_rho_o = 0.5 * (rho_o[idx1] + rho_o[idx2])
-                    
-                    # Градиенты давления
-                    dp = p_vec[idx2] - p_vec[idx1]
-                    dp_cap = pc[idx2] - pc[idx1] if self.fluid.pc_scale > 0 else 0.0
-                    
-                    # Гравитационный член (нет для X)
-                    gravity_term_w = 0.0
-                    gravity_term_o = 0.0
-                    
-                    # Восходящие мобильности
-                    lambda_w_up = lambda_w[idx1] if dp >= 0 else lambda_w[idx2]
-                    lambda_o_up = lambda_o[idx1] if dp >= 0 else lambda_o[idx2]
-                    
-                    # Проводимость
-                    trans = tx_const * avg_perm
-                    
-                    # Потоки
-                    water_flux = trans * lambda_w_up * (dp - dp_cap + gravity_term_w)
-                    oil_flux = trans * lambda_o_up * (dp + gravity_term_o)
-                    
-                    # Невязка
-                    residual[2*idx1] -= water_flux
-                    residual[2*idx1+1] -= oil_flux
-                    residual[2*idx2] += water_flux
-                    residual[2*idx2+1] += oil_flux
-        
-        # Аналогично для Y-направления
-        for j in range(ny-1):
-            for i in range(nx):
-                for k in range(nz):
-                    idx1 = i + j * nx + k * nx * ny
-                    idx2 = i + (j+1) * nx + k * nx * ny
-                    
-                    avg_perm = 2 * perm_y_vec[idx1] * perm_y_vec[idx2] / (perm_y_vec[idx1] + perm_y_vec[idx2] + 1e-10)
-                    avg_rho_w = 0.5 * (rho_w[idx1] + rho_w[idx2])
-                    avg_rho_o = 0.5 * (rho_o[idx1] + rho_o[idx2])
-                    
-                    dp = p_vec[idx2] - p_vec[idx1]
-                    dp_cap = pc[idx2] - pc[idx1] if self.fluid.pc_scale > 0 else 0.0
-                    
-                    # Гравитационный член (нет для Y)
-                    gravity_term_w = 0.0
-                    gravity_term_o = 0.0
-                    
-                    lambda_w_up = lambda_w[idx1] if dp >= 0 else lambda_w[idx2]
-                    lambda_o_up = lambda_o[idx1] if dp >= 0 else lambda_o[idx2]
-                    
-                    trans = ty_const * avg_perm
-                    
-                    water_flux = trans * lambda_w_up * (dp - dp_cap + gravity_term_w)
-                    oil_flux = trans * lambda_o_up * (dp + gravity_term_o)
-                    
-                    residual[2*idx1] -= water_flux
-                    residual[2*idx1+1] -= oil_flux
-                    residual[2*idx2] += water_flux
-                    residual[2*idx2+1] += oil_flux
-        
-        # Z-направление (с гравитацией)
-        gravity = torch.tensor([0.0, 0.0, -9.81], device=perm_z_vec.device)
-        for k in range(nz-1):
-            for i in range(nx):
-                for j in range(ny):
-                    idx1 = i + j * nx + k * nx * ny
-                    idx2 = i + j * nx + (k+1) * nx * ny
-                    
-                    avg_perm = 2 * perm_z_vec[idx1] * perm_z_vec[idx2] / (perm_z_vec[idx1] + perm_z_vec[idx2] + 1e-10)
-                    avg_rho_w = 0.5 * (rho_w[idx1] + rho_w[idx2])
-                    avg_rho_o = 0.5 * (rho_o[idx1] + rho_o[idx2])
-                    
-                    dp = p_vec[idx2] - p_vec[idx1]
-                    dp_cap = pc[idx2] - pc[idx1] if self.fluid.pc_scale > 0 else 0.0
-                    
-                    # Гравитационные члены для Z-направления
-                    gravity_term_w = avg_rho_w * gravity[2] * dz
-                    gravity_term_o = avg_rho_o * gravity[2] * dz
-                    
-                    lambda_w_up = lambda_w[idx1] if dp >= 0 else lambda_w[idx2]
-                    lambda_o_up = lambda_o[idx1] if dp >= 0 else lambda_o[idx2]
-                    
-                    trans = tz_const * avg_perm
-                    
-                    water_flux = trans * lambda_w_up * (dp - dp_cap + gravity_term_w)
-                    oil_flux = trans * lambda_o_up * (dp + gravity_term_o)
-                    
-                    residual[2*idx1] -= water_flux
-                    residual[2*idx1+1] -= oil_flux
-                    residual[2*idx2] += water_flux
-                    residual[2*idx2+1] += oil_flux
+        # ---------------- Векторизованные потоки X --------------------
+        if self.edge_x_i.numel() > 0:
+            idx1_x = self.edge_x_i.to(device)
+            idx2_x = self.edge_x_j.to(device)
+
+            avg_perm_x = 2 * perm_x_vec[idx1_x] * perm_x_vec[idx2_x] / (
+                perm_x_vec[idx1_x] + perm_x_vec[idx2_x] + 1e-10)
+
+            dp_x = p_vec[idx2_x] - p_vec[idx1_x]
+            if self.fluid.pc_scale > 0:
+                dp_cap_x = pc[idx2_x] - pc[idx1_x]
+            else:
+                dp_cap_x = 0.0
+
+            lambda_w_up_x = torch.where(dp_x >= 0, lambda_w[idx1_x], lambda_w[idx2_x])
+            lambda_o_up_x = torch.where(dp_x >= 0, lambda_o[idx1_x], lambda_o[idx2_x])
+
+            trans_x = tx_const * avg_perm_x
+
+            water_flux_x = trans_x * lambda_w_up_x * (dp_x - dp_cap_x)
+            oil_flux_x = trans_x * lambda_o_up_x * dp_x
+
+            residual.index_add_(0, 2*idx1_x, -water_flux_x)
+            residual.index_add_(0, 2*idx1_x+1, -oil_flux_x)
+            residual.index_add_(0, 2*idx2_x, water_flux_x)
+            residual.index_add_(0, 2*idx2_x+1, oil_flux_x)
+
+        # ---------------- Векторизованные потоки Y --------------------
+        if self.edge_y_i.numel() > 0:
+            idx1_y = self.edge_y_i.to(device)
+            idx2_y = self.edge_y_j.to(device)
+
+            avg_perm_y = 2 * perm_y_vec[idx1_y] * perm_y_vec[idx2_y] / (
+                perm_y_vec[idx1_y] + perm_y_vec[idx2_y] + 1e-10)
+
+            dp_y = p_vec[idx2_y] - p_vec[idx1_y]
+            if self.fluid.pc_scale > 0:
+                dp_cap_y = pc[idx2_y] - pc[idx1_y]
+            else:
+                dp_cap_y = 0.0
+
+            lambda_w_up_y = torch.where(dp_y >= 0, lambda_w[idx1_y], lambda_w[idx2_y])
+            lambda_o_up_y = torch.where(dp_y >= 0, lambda_o[idx1_y], lambda_o[idx2_y])
+
+            trans_y = ty_const * avg_perm_y
+
+            water_flux_y = trans_y * lambda_w_up_y * (dp_y - dp_cap_y)
+            oil_flux_y = trans_y * lambda_o_up_y * dp_y
+
+            residual.index_add_(0, 2*idx1_y, -water_flux_y)
+            residual.index_add_(0, 2*idx1_y+1, -oil_flux_y)
+            residual.index_add_(0, 2*idx2_y, water_flux_y)
+            residual.index_add_(0, 2*idx2_y+1, oil_flux_y)
+
+        # ---------------- Векторизованные потоки Z --------------------
+        if self.edge_z_i.numel() > 0:
+            idx1_z = self.edge_z_i.to(device)
+            idx2_z = self.edge_z_j.to(device)
+
+            avg_perm_z = 2 * perm_z_vec[idx1_z] * perm_z_vec[idx2_z] / (
+                perm_z_vec[idx1_z] + perm_z_vec[idx2_z] + 1e-10)
+
+            dp_z = p_vec[idx2_z] - p_vec[idx1_z]
+            if self.fluid.pc_scale > 0:
+                dp_cap_z = pc[idx2_z] - pc[idx1_z]
+            else:
+                dp_cap_z = 0.0
+
+            # Гравитация по Z (вниз положительное dz)
+            dz_val = dz  # константа
+            gravity_term_w = self.g * dz_val * (rho_w[idx2_z] - rho_w[idx1_z])
+            gravity_term_o = self.g * dz_val * (rho_o[idx2_z] - rho_o[idx1_z])
+
+            lambda_w_up_z = torch.where(dp_z >= 0, lambda_w[idx1_z], lambda_w[idx2_z])
+            lambda_o_up_z = torch.where(dp_z >= 0, lambda_o[idx1_z], lambda_o[idx2_z])
+
+            trans_z = tz_const * avg_perm_z
+
+            water_flux_z = trans_z * lambda_w_up_z * (dp_z - dp_cap_z + gravity_term_w)
+            oil_flux_z = trans_z * lambda_o_up_z * (dp_z + gravity_term_o)
+
+            residual.index_add_(0, 2*idx1_z, -water_flux_z)
+            residual.index_add_(0, 2*idx1_z+1, -oil_flux_z)
+            residual.index_add_(0, 2*idx2_z, water_flux_z)
+            residual.index_add_(0, 2*idx2_z+1, oil_flux_z)
         
         # Учитываем скважины
         self._add_wells_to_residual_fast(residual, dt)
