@@ -40,9 +40,14 @@ class Well:
         # Эффективный радиус ячейки для модели Писмана
         ro = 0.28 * ((dx**2 + dy**2)**0.5) / 2
         
-        # Индекс скважины по модели Писмана (k заменим позже при гетерогенности)
-        k_h_assumed = 100.0  # мД
-        self.well_index = 2 * math.pi * k_h_assumed / (math.log(ro / radius) + 1e-12)
+        # Индекс скважины по модели Писмана
+        md_to_m2 = 9.869233e-16  # коэффициент перевода мД -> м^2
+        k_h_assumed_md = 100.0  # мД (по умолчанию)
+        k_h_si = k_h_assumed_md * md_to_m2  # в м^2
+
+        # Формула Писмана: WI = 2π k_h / ln(r_o / r_w)
+        # Получаем WI в единицах м^3/(Па·с)
+        self.well_index = 2 * math.pi * k_h_si / (math.log(ro / radius) + 1e-12)
         
     def __str__(self):
         return f"Well(name={self.name}, type={self.type}, pos=({self.i},{self.j},{self.k}), control={self.control_type}:{self.control_value})"

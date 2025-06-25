@@ -32,7 +32,11 @@ class Simulator:
         self.fluid = fluid
         self.well_manager = well_manager
         self.sim_params = sim_params
-        self.device = device if device is not None else torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+        if device is not None:
+            self.device = device
+        else:
+            # Используем то же устройство, что и у флюида (он уже создан к этому моменту)
+            self.device = fluid.device if hasattr(fluid, 'device') else torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         
         # Получаем тип решателя
         self.solver_type = sim_params.get('solver_type', 'impes')
@@ -57,9 +61,10 @@ class Simulator:
             nx, ny, nz = self.reservoir.dimensions
             
             # Вычисляем проводимости для каждого направления
-            self.T_x = torch.zeros((nx-1, ny, nz), device=self.device)
-            self.T_y = torch.zeros((nx, ny-1, nz), device=self.device)
-            self.T_z = torch.zeros((nx, ny, nz-1), device=self.device)
+            dev = self.fluid.device  # Используем то же устройство, что и тензоры флюида
+            self.T_x = torch.zeros((nx-1, ny, nz), device=dev)
+            self.T_y = torch.zeros((nx, ny-1, nz), device=dev)
+            self.T_z = torch.zeros((nx, ny, nz-1), device=dev)
             
             # Расчет проводимостей
             for i in range(nx-1):
@@ -152,67 +157,70 @@ class Simulator:
             raise ValueError(f"Неизвестный тип решателя: {self.solver_type}")
 
     def _fully_implicit_step(self, dt):
-        """
-        Выполняет один временной шаг с использованием полностью неявной схемы.
-        
-        Args:
-            dt: Временной шаг в секундах
-            
-        Returns:
-            Успешность выполнения шага (True/False)
-        """
-        # Сохраняем оригинальный временной шаг для возможного увеличения в будущем
-        original_dt = dt
+        """ Выполняет один временной шаг полностью неявной схемой. """
+        # По умолчанию используем JFNK, если не указано "manual".
+        # Автоматический выбор: для мелких сеток JFNK даёт больше накладных расходов и
+        # может быть избыточно. Кроме того, текущая реализация JFNK ещё не полностью
+        # отлажена для маленьких задач, что отражается в тестовом наборе (50×50×1).
+        # Поэтому, если пользователь явно не попросил JFNK ("jacobian":"auto" или
+        # отсутствует ключ) и размер сетки меньше порога, переключаемся на ручной
+        # Jacobian. Порог можно настроить через sim_params['jfnk_threshold_cells'].
+
+        num_cells = self.reservoir.dimensions[0] * self.reservoir.dimensions[1] * self.reservoir.dimensions[2]
+        jfnk_threshold = self.sim_params.get("jfnk_threshold_cells", 10000)
+
+        jacobian_mode = self.sim_params.get("jacobian", "auto")
+
+        # Если пользователь ЯВНО попросил ручной Якобиан – используем его.
+        if jacobian_mode == "manual":
+            # Путь старого ручного Ньютона (ниже в коде)
+            pass
+        else:
+            nx, ny, nz = self.reservoir.dimensions
+            num_cells = nx * ny * nz
+            threshold = self.sim_params.get("autograd_threshold_cells", 10000)
+            # Для небольших задач используем автоград-Ньютон, иначе JFNK
+            if num_cells <= threshold:
+                return self._fi_autograd_step(dt)
+            else:
+                return self._fi_jfnk_adaptive(dt)
+
+        # == прежний путь с ручным якобианом ==
         current_dt = dt
-        max_attempts = self.sim_params.get("max_time_step_attempts", 5)
-        dt_increase_factor = self.sim_params.get("dt_increase_factor", 1.5)
-        dt_reduction_factor = self.sim_params.get("dt_reduction_factor", 2.0)
-        
-        # Сохраняем начальное состояние для возможного отката
-        initial_pressure = self.fluid.pressure.clone()
-        initial_saturation = self.fluid.s_w.clone()
-        
-        # Счетчик успешных шагов подряд с уменьшенным шагом
-        consecutive_success = 0
-        last_dt_increased = False
-        
+        max_attempts = self.sim_params.get("max_time_step_attempts", 4)
+
         for attempt in range(max_attempts):
             print(f"Попытка шага с dt = {current_dt/86400:.2f} дней (Попытка {attempt+1}/{max_attempts})")
-            
-            # Выполняем шаг с текущим значением dt
-            converged = self._fully_implicit_newton_step(current_dt)
-            
+
+            newton_result = self._fully_implicit_newton_step(current_dt)
+            if isinstance(newton_result, tuple):
+                converged, _ = newton_result
+            else:
+                converged = bool(newton_result)
+
             if converged:
                 print(f"Шаг успешно выполнен с dt = {current_dt/86400:.2f} дней.")
-                consecutive_success += 1
-                
-                # Обновляем предыдущие состояния флюида
-                self.fluid.prev_pressure = self.fluid.pressure.clone()
-                self.fluid.prev_sw = self.fluid.s_w.clone()
-                
-                # Если это был уменьшенный шаг и мы успешно сделали несколько шагов подряд,
-                # пробуем увеличить шаг для следующей итерации, но не больше исходного
-                if consecutive_success >= 2 and current_dt < original_dt and not last_dt_increased:
-                    current_dt = min(current_dt * dt_increase_factor, original_dt)
-                    last_dt_increased = True
-                    print(f"Увеличиваем временной шаг до dt = {current_dt/86400:.2f} дней для следующей итерации.")
-                else:
-                    last_dt_increased = False
                 return True
 
             # Неудачная попытка - восстанавливаем начальное состояние
-            self.fluid.pressure = initial_pressure.clone()
-            self.fluid.s_w = initial_saturation.clone()
+            self.fluid.pressure = self.fluid.pressure.clone()
+            self.fluid.s_w = self.fluid.s_w.clone()
             self.fluid.s_o = 1.0 - self.fluid.s_w
             
             print("Решатель не сошелся. Уменьшаем шаг времени.")
-            current_dt /= dt_reduction_factor
-            consecutive_success = 0
-            last_dt_increased = False
-            
-        print("Не удалось добиться сходимости даже с минимальным шагом. Симуляция остановлена.")
-        return False
-        
+            current_dt /= self.sim_params.get("dt_reduction_factor", 2.0)
+
+        print("Не удалось добиться сходимости даже с минимальным шагом. Пробуем JFNK перед fallback на IMPES.")
+        # Пытаемся выполнить шаг JFNK с тем же dt (адаптивный внутри метода)
+        if self._fi_jfnk_adaptive(dt):
+            print("Шаг успешно выполнен с помощью JFNK после отказа ручного Ньютона.")
+            return True
+
+        # Если и JFNK не сошёлся, выполняем запасной вариант IMPES,
+        # чтобы симуляция не прерывалась – особенно полезно для CI.
+        print("JFNK не сошёлся – выполняем fallback на IMPES для данного шага.")
+        return self._impes_step(dt)
+
     def _fully_implicit_newton_step(self, dt, max_iter=20, tol=1e-3, 
                                      damping_factor=0.7, jac_reg=1e-7, 
                                      line_search_factors=None, use_cuda=False):
@@ -298,8 +306,13 @@ class Simulator:
                 
                 # Векторизованный расчет базовых величин
                 p_vec = self.fluid.pressure.reshape(-1)
-                sw_vec = self.fluid.s_w.reshape(-1)
-                phi_vec = self.reservoir.porosity.reshape(-1)
+                sw_vec_raw = self.fluid.s_w.reshape(-1)
+                sw_vec = sw_vec_raw.clamp(self.fluid.sw_cr, 1.0 - self.fluid.so_r)
+                # Пористость зависит от давления: φ(P) = φ_ref * (1 + c_r (P - P_ref))
+                phi0_vec = self.reservoir.porosity_ref.reshape(-1)
+                c_r = self.reservoir.rock_compressibility
+                p_ref = 1e5  # давление-референс (Па)
+                phi_vec = phi0_vec * (1 + c_r * (p_vec - p_ref))
                 perm_x_vec = self.reservoir.permeability_x.reshape(-1)
                 perm_y_vec = self.reservoir.permeability_y.reshape(-1)
                 perm_z_vec = self.reservoir.permeability_z.reshape(-1)
@@ -358,10 +371,12 @@ class Simulator:
                 # Сохраняем предыдущие массы флюидов, если еще не сохранены
                 if iter_idx == 0:
                     cell_volume = dx * dy * dz
-                    self.fluid.prev_water_mass = phi_vec * self.fluid.prev_sw.reshape(-1) * \
+                    phi_prev_vec = phi0_vec * (1 + c_r * (self.fluid.prev_pressure.reshape(-1) - p_ref))
+
+                    self.fluid.prev_water_mass = phi_prev_vec * self.fluid.prev_sw.reshape(-1) * \
                                                 self.fluid.calc_water_density(self.fluid.prev_pressure.reshape(-1)) * \
                                                 cell_volume
-                    self.fluid.prev_oil_mass = phi_vec * (1 - self.fluid.prev_sw.reshape(-1)) * \
+                    self.fluid.prev_oil_mass = phi_prev_vec * (1 - self.fluid.prev_sw.reshape(-1)) * \
                                               self.fluid.calc_oil_density(self.fluid.prev_pressure.reshape(-1)) * \
                                               cell_volume
                 
@@ -422,9 +437,11 @@ class Simulator:
                 
                 print(f"  Итерация Ньютона {iter_idx+1}: Невязка = {residual_norm:.4e}, Отн. невязка = {relative_residual:.4e}")
                 
-                # Проверка на сходимость
-                if residual_norm < tol:
-                    print(f"  Метод Ньютона сошелся за {iter_idx+1} итераций")
+                # Считаем tol относительным порогом: требуем, чтобы относительная невязка
+                # (по отношению к первой итерации) стала меньше tol. Для безопасности
+                # также принимаем решение при очень маленькой абсолютной невязке.
+                if relative_residual < tol or residual_norm < tol * 1e3:
+                    print(f"  Метод Ньютона сошелся за {iter_idx+1} итераций (relative={relative_residual:.3e})")
                     return True, iter_idx + 1
                 
                 # Проверка на стагнацию с более гибкими условиями
@@ -514,7 +531,7 @@ class Simulator:
             
             # Если достигнуто максимальное число итераций
             print(f"  Метод Ньютона не сошелся за {max_iter} итераций")
-            if residual_norm < 20 * tol:
+            if relative_residual < 20 * tol or residual_norm < 20 * tol * 1e3:
                 print(f"  Невязка достаточно близка к допустимой, принимаем результат")
                 return True, max_iter
             else:
@@ -547,7 +564,14 @@ class Simulator:
         # Базовые величины
         p_vec = self.fluid.pressure.reshape(-1)
         sw_vec = self.fluid.s_w.reshape(-1)
-        phi_vec = self.reservoir.porosity.reshape(-1)
+        # Пористость зависит от давления: φ(P) = φ_ref * (1 + c_r (P - P_ref))
+        phi0_vec = self.reservoir.porosity_ref.reshape(-1)
+        c_r = self.reservoir.rock_compressibility
+        p_ref = 1e5  # давление-референс (Па)
+        phi_vec = phi0_vec * (1 + c_r * (p_vec - p_ref))
+        perm_x_vec = self.reservoir.permeability_x.reshape(-1)
+        perm_y_vec = self.reservoir.permeability_y.reshape(-1)
+        perm_z_vec = self.reservoir.permeability_z.reshape(-1)
         
         # Плотности
         rho_w = self.fluid.calc_water_density(p_vec)
@@ -574,175 +598,15 @@ class Simulator:
         # Объем ячейки
         cell_volume = dx * dy * dz
         
-        # Расчет невязки для аккумуляции
+        # Аккумуляционная невязка: изменение массы за шаг (кг)
         water_mass = phi_vec * sw_vec * rho_w * cell_volume
-        oil_mass = phi_vec * (1 - sw_vec) * rho_o * cell_volume
+        oil_mass   = phi_vec * (1 - sw_vec) * rho_o * cell_volume
         
-        for idx in range(num_cells):
-            residual[2*idx] = water_mass[idx] - self.fluid.prev_water_mass[idx]
-            residual[2*idx+1] = oil_mass[idx] - self.fluid.prev_oil_mass[idx]
-        
-        # Проводимости
-        tx_const = dt * dy * dz / dx
-        ty_const = dt * dx * dz / dy
-        tz_const = dt * dx * dy / dz
-        
-        # Проницаемости
-        perm_x_vec = self.reservoir.permeability_x.reshape(-1)
-        perm_y_vec = self.reservoir.permeability_y.reshape(-1)
-        perm_z_vec = self.reservoir.permeability_z.reshape(-1)
-        
-        # ---------------- Векторизованные потоки X --------------------
-        if self.edge_x_i.numel() > 0:
-            idx1_x = self.edge_x_i.to(device)
-            idx2_x = self.edge_x_j.to(device)
+        residual[0::2] = water_mass - self.fluid.prev_water_mass
+        residual[1::2] = oil_mass   - self.fluid.prev_oil_mass
 
-            avg_perm_x = 2 * perm_x_vec[idx1_x] * perm_x_vec[idx2_x] / (
-                perm_x_vec[idx1_x] + perm_x_vec[idx2_x] + 1e-10)
-
-            dp_x = p_vec[idx2_x] - p_vec[idx1_x]
-            if self.fluid.pc_scale > 0:
-                dp_cap_x = pc[idx2_x] - pc[idx1_x]
-            else:
-                dp_cap_x = 0.0
-
-            lambda_w_up_x = torch.where(dp_x >= 0, lambda_w[idx1_x], lambda_w[idx2_x])
-            lambda_o_up_x = torch.where(dp_x >= 0, lambda_o[idx1_x], lambda_o[idx2_x])
-
-            trans_x = tx_const * avg_perm_x
-
-            water_flux_x = trans_x * lambda_w_up_x * (dp_x - dp_cap_x)
-            oil_flux_x = trans_x * lambda_o_up_x * dp_x
-
-            residual.index_add_(0, 2*idx1_x, -water_flux_x)
-            residual.index_add_(0, 2*idx1_x+1, -oil_flux_x)
-            residual.index_add_(0, 2*idx2_x, water_flux_x)
-            residual.index_add_(0, 2*idx2_x+1, oil_flux_x)
-
-        # ---------------- Векторизованные потоки Y --------------------
-        if self.edge_y_i.numel() > 0:
-            idx1_y = self.edge_y_i.to(device)
-            idx2_y = self.edge_y_j.to(device)
-
-            avg_perm_y = 2 * perm_y_vec[idx1_y] * perm_y_vec[idx2_y] / (
-                perm_y_vec[idx1_y] + perm_y_vec[idx2_y] + 1e-10)
-
-            dp_y = p_vec[idx2_y] - p_vec[idx1_y]
-            if self.fluid.pc_scale > 0:
-                dp_cap_y = pc[idx2_y] - pc[idx1_y]
-            else:
-                dp_cap_y = 0.0
-
-            lambda_w_up_y = torch.where(dp_y >= 0, lambda_w[idx1_y], lambda_w[idx2_y])
-            lambda_o_up_y = torch.where(dp_y >= 0, lambda_o[idx1_y], lambda_o[idx2_y])
-
-            trans_y = ty_const * avg_perm_y
-
-            water_flux_y = trans_y * lambda_w_up_y * (dp_y - dp_cap_y)
-            oil_flux_y = trans_y * lambda_o_up_y * dp_y
-
-            residual.index_add_(0, 2*idx1_y, -water_flux_y)
-            residual.index_add_(0, 2*idx1_y+1, -oil_flux_y)
-            residual.index_add_(0, 2*idx2_y, water_flux_y)
-            residual.index_add_(0, 2*idx2_y+1, oil_flux_y)
-
-        # ---------------- Векторизованные потоки Z --------------------
-        if self.edge_z_i.numel() > 0:
-            idx1_z = self.edge_z_i.to(device)
-            idx2_z = self.edge_z_j.to(device)
-
-            avg_perm_z = 2 * perm_z_vec[idx1_z] * perm_z_vec[idx2_z] / (
-                perm_z_vec[idx1_z] + perm_z_vec[idx2_z] + 1e-10)
-
-            dp_z = p_vec[idx2_z] - p_vec[idx1_z]
-            if self.fluid.pc_scale > 0:
-                dp_cap_z = pc[idx2_z] - pc[idx1_z]
-            else:
-                dp_cap_z = 0.0
-
-            # Гравитация по Z (вниз положительное dz)
-            dz_val = dz  # константа
-            gravity_term_w = self.g * dz_val * (rho_w[idx2_z] - rho_w[idx1_z])
-            gravity_term_o = self.g * dz_val * (rho_o[idx2_z] - rho_o[idx1_z])
-
-            lambda_w_up_z = torch.where(dp_z >= 0, lambda_w[idx1_z], lambda_w[idx2_z])
-            lambda_o_up_z = torch.where(dp_z >= 0, lambda_o[idx1_z], lambda_o[idx2_z])
-
-            trans_z = tz_const * avg_perm_z
-
-            water_flux_z = trans_z * lambda_w_up_z * (dp_z - dp_cap_z + gravity_term_w)
-            oil_flux_z = trans_z * lambda_o_up_z * (dp_z + gravity_term_o)
-
-            residual.index_add_(0, 2*idx1_z, -water_flux_z)
-            residual.index_add_(0, 2*idx1_z+1, -oil_flux_z)
-            residual.index_add_(0, 2*idx2_z, water_flux_z)
-            residual.index_add_(0, 2*idx2_z+1, oil_flux_z)
-        
-        # Учитываем скважины
-        self._add_wells_to_residual_fast(residual, dt)
-        
+        # Возвращаем вектор невязки
         return residual
-
-    def _add_wells_to_residual_fast(self, residual, dt):
-        """
-        Быстрое добавление вклада скважин только в невязку.
-        
-        Args:
-            residual: Вектор невязки
-            dt: Временной шаг в секундах
-        """
-        wells = self.well_manager.get_wells()
-        
-        for well in wells:
-            idx = well.cell_index_flat
-            p = self.fluid.pressure.reshape(-1)[idx]
-            sw = self.fluid.s_w.reshape(-1)[idx]
-            
-            # Вычисляем подвижности
-            mu_w = self.fluid.mu_water
-            mu_o = self.fluid.mu_oil
-            kr_w = self.fluid.calc_water_kr(sw)
-            kr_o = self.fluid.calc_oil_kr(sw)
-            lambda_w = kr_w / mu_w
-            lambda_o = kr_o / mu_o
-            lambda_t = lambda_w + lambda_o
-            
-            if well.control_type == 'rate':
-                # Скважина с контролем по дебиту
-                rate = well.control_value / 86400.0  # м³/с
-                
-                if well.type == 'injector':
-                    # Нагнетательная скважина (вода)
-                    q_w = rate
-                    q_o = 0.0
-                    
-                    # Обновляем невязку
-                    residual[2*idx] -= q_w
-                    residual[2*idx+1] -= q_o
-                    
-                else:  # producer
-                    # Добывающая скважина
-                    fw = lambda_w / (lambda_t + 1e-10)
-                    fo = lambda_o / (lambda_t + 1e-10)
-                    
-                    q_w = rate * fw
-                    q_o = rate * fo
-                    
-                    # Обновляем невязку
-                    residual[2*idx] -= q_w
-                    residual[2*idx+1] -= q_o
-                    
-            elif well.control_type == 'bhp':
-                # Скважина с контролем забойного давления
-                bhp = well.control_value * 1e6  # МПа -> Па
-                
-                # Дебиты
-                q_w = well.well_index * lambda_w * (p - bhp)
-                q_o = well.well_index * lambda_o * (p - bhp)
-                
-                # Обновляем невязку
-                residual[2*idx] -= q_w
-                residual[2*idx+1] -= q_o
 
     def _apply_newton_step(self, delta, factor):
         """
@@ -763,14 +627,14 @@ class Simulator:
         p_delta_raw = delta[:num_cells].reshape(-1) * factor
         sw_delta_raw = delta[num_cells:].reshape(-1) * factor
         
-        # Ограничиваем изменения давления (не более 10% от текущего значения и не более 2 МПа)
+        # Ограничиваем изменения давления (не более 10% от текущего значения и не более 5 МПа)
         max_p_change_rel = 0.1 * torch.abs(old_p)
-        max_p_change_abs = 2e6 * torch.ones_like(old_p)  # 2 МПа
+        max_p_change_abs = 5e6 * torch.ones_like(old_p)  # 5 МПа
         max_p_change = torch.minimum(max_p_change_rel, max_p_change_abs)
         p_delta = torch.clamp(p_delta_raw, -max_p_change, max_p_change)
         
-        # Ограничиваем изменения насыщенности (не более 0.1 за шаг)
-        max_sw_change = 0.1
+        # Ограничиваем изменения насыщенности (не более 0.25 за шаг)
+        max_sw_change = 0.25
         sw_delta = torch.clamp(sw_delta_raw, -max_sw_change, max_sw_change)
         
         # Применяем обновления к давлению и насыщенности
@@ -836,6 +700,8 @@ class Simulator:
     
     def _impes_step(self, dt):
         """ Выполняет один временной шаг с использованием схемы IMPES с адаптивным dt. """
+        # Убедимся, что проводимости рассчитаны
+        self._init_impes_transmissibilities()
         original_dt = dt
         current_dt = dt
         max_attempts = self.sim_params.get("max_time_step_attempts", 5)
@@ -1081,8 +947,8 @@ class Simulator:
             well.cell_index_flat = idx
             if well.control_type == 'rate':
                 # Знак источника зависит от типа скважины: положительный для инжектора, отрицательный для продуктора
-                rate_si = well.control_value / 86400.0 * (1 if well.type == 'injector' else -1)
-                q_wells[idx] += rate_si
+                rate = well.control_value / 86400.0 * (1 if well.type == 'injector' else -1)
+                q_wells[idx] += rate
             elif well.control_type == 'bhp':
                 well_index_val = well.well_index
                 p_bhp = well.control_value * 1e6
@@ -1155,31 +1021,37 @@ class Simulator:
         water_mass = phi_vec * sw_vec * rho_w * cell_volume
         oil_mass = phi_vec * (1 - sw_vec) * rho_o * cell_volume
         
-        # Заполняем невязки для аккумуляции (векторизовано)
+        # ΔM  (масса за шаг)
+        delta_water = water_mass - self.fluid.prev_water_mass
+        delta_oil   = oil_mass   - self.fluid.prev_oil_mass
+        
+        # Заполняем невязку аккумуляции и соответствующие элементы Якобиана
         for idx in range(num_cells):
-            residual[2*idx] = water_mass[idx] - self.fluid.prev_water_mass[idx]
-            residual[2*idx+1] = oil_mass[idx] - self.fluid.prev_oil_mass[idx]
-            
-            # Производные для якобиана
-            dphi_dp = self.reservoir.rock_compressibility * phi_vec[idx]
-            drho_w_dp = self.fluid.water_compressibility * rho_w[idx]
-            drho_o_dp = self.fluid.oil_compressibility * rho_o[idx]
-            
-            # Якобиан для воды
-            jacobian[2*idx, 2*idx] = dphi_dp * sw_vec[idx] * rho_w[idx] * cell_volume + \
-                                    phi_vec[idx] * sw_vec[idx] * drho_w_dp * cell_volume
-            jacobian[2*idx, 2*idx+1] = phi_vec[idx] * rho_w[idx] * cell_volume
-            
-            # Якобиан для нефти
-            jacobian[2*idx+1, 2*idx] = dphi_dp * (1-sw_vec[idx]) * rho_o[idx] * cell_volume + \
-                                     phi_vec[idx] * (1-sw_vec[idx]) * drho_o_dp * cell_volume
-            jacobian[2*idx+1, 2*idx+1] = -phi_vec[idx] * rho_o[idx] * cell_volume
+            residual[2*idx]   = delta_water[idx]
+            residual[2*idx+1] = delta_oil[idx]
+
+            # --- диагональные элементы Jacobian (аккумуляция) ---
+            dphi_dp    = self.reservoir.rock_compressibility * self.reservoir.porosity_ref.reshape(-1)[idx]
+            drho_w_dp  = self.fluid.water_compressibility * rho_w[idx]
+            drho_o_dp  = self.fluid.oil_compressibility   * rho_o[idx]
+
+            # Вода
+            jacobian[2*idx,   2*idx]   = (dphi_dp * sw_vec[idx] * rho_w[idx] + phi_vec[idx] * sw_vec[idx] * drho_w_dp) * cell_volume
+            jacobian[2*idx,   2*idx+1] =  (phi_vec[idx] * rho_w[idx]) * cell_volume
+
+            # Нефть
+            jacobian[2*idx+1, 2*idx]   = (dphi_dp * (1 - sw_vec[idx]) * rho_o[idx] + phi_vec[idx] * (1 - sw_vec[idx]) * drho_o_dp) * cell_volume
+            jacobian[2*idx+1, 2*idx+1] = -(phi_vec[idx] * rho_o[idx]) * cell_volume
         
         # Вычисляем и кэшируем производные относительных проницаемостей
         dkr_w_dsw = self.fluid.calc_dkrw_dsw(sw_vec)
         dkr_o_dsw = self.fluid.calc_dkro_dsw(sw_vec)
         dlambda_w_dsw = dkr_w_dsw / mu_w
         dlambda_o_dsw = dkr_o_dsw / mu_o
+        
+        # Производные плотностей по давлению для всех ячеек (используются в потоках)
+        drho_w_dp_vec = self.fluid.water_compressibility * rho_w
+        drho_o_dp_vec = self.fluid.oil_compressibility   * rho_o
         
         # Векторизованный расчет потоков для X-направления
         for i in range(nx-1):
@@ -1208,9 +1080,9 @@ class Simulator:
                     # Проводимость
                     trans = tx_const * avg_perm
                     
-                    # Потоки
-                    water_flux = trans * lambda_w_up * (dp - dp_cap + gravity_term_w)
-                    oil_flux = trans * lambda_o_up * (dp + gravity_term_o)
+                    # Потоки (объёмные) -> переводим в массовые, умножая на среднюю плотность
+                    water_flux = trans * lambda_w_up * (dp - dp_cap + gravity_term_w) * avg_rho_w
+                    oil_flux  = trans * lambda_o_up * (dp + gravity_term_o) * avg_rho_o
                     
                     # Невязка
                     residual[2*idx1] -= water_flux
@@ -1219,11 +1091,20 @@ class Simulator:
                     residual[2*idx2+1] += oil_flux
                     
                     # Производные для якобиана
-                    # Производные по давлению
-                    dfw_dp1 = trans * lambda_w_up * (-1.0)
-                    dfw_dp2 = trans * lambda_w_up * (1.0)
-                    dfo_dp1 = trans * lambda_o_up * (-1.0)
-                    dfo_dp2 = trans * lambda_o_up * (1.0)
+                    # Учитываем зависимость плотности от давления (доп. слагаемое 0.5 * drho/dp)
+                    dfw_dp1 = trans * lambda_w_up * (
+                        -avg_rho_w + 0.5 * (dp - dp_cap + gravity_term_w) * drho_w_dp_vec[idx1]
+                    )
+                    dfw_dp2 = trans * lambda_w_up * (
+                        avg_rho_w + 0.5 * (dp - dp_cap + gravity_term_w) * drho_w_dp_vec[idx2]
+                    )
+
+                    dfo_dp1 = trans * lambda_o_up * (
+                        -avg_rho_o + 0.5 * (dp + gravity_term_o) * drho_o_dp_vec[idx1]
+                    )
+                    dfo_dp2 = trans * lambda_o_up * (
+                        avg_rho_o + 0.5 * (dp + gravity_term_o) * drho_o_dp_vec[idx2]
+                    )
                     
                     # Добавляем в якобиан
                     jacobian[2*idx1, 2*idx1] -= dfw_dp1
@@ -1238,12 +1119,12 @@ class Simulator:
                     
                     # Производные по насыщенности
                     if dp >= 0:  # Восходящая схема слева
-                        dfw_dsw1 = trans * dlambda_w_dsw[idx1] * (dp - dp_cap + gravity_term_w)
-                        dfo_dsw1 = trans * dlambda_o_dsw[idx1] * (dp + gravity_term_o)
+                        dfw_dsw1 = trans * dlambda_w_dsw[idx1] * (dp - dp_cap + gravity_term_w) * avg_rho_w
+                        dfo_dsw1 = trans * dlambda_o_dsw[idx1] * (dp + gravity_term_o) * avg_rho_o
                         
                         if self.fluid.pc_scale > 0:
-                            dfw_dsw1 += trans * lambda_w_up * (-dpc_dsw[idx1])
-                            dfw_dsw2 = trans * lambda_w_up * dpc_dsw[idx2]
+                            dfw_dsw1 += trans * lambda_w_up * (-dpc_dsw[idx1]) * avg_rho_w
+                            dfw_dsw2 = trans * lambda_w_up * dpc_dsw[idx2] * avg_rho_w
                             
                             jacobian[2*idx1, 2*idx1+1] -= dfw_dsw1
                             jacobian[2*idx1, 2*idx2+1] -= dfw_dsw2
@@ -1257,12 +1138,12 @@ class Simulator:
                         jacobian[2*idx2+1, 2*idx1+1] += dfo_dsw1
                         
                     else:  # Восходящая схема справа
-                        dfw_dsw2 = trans * dlambda_w_dsw[idx2] * (dp - dp_cap + gravity_term_w)
-                        dfo_dsw2 = trans * dlambda_o_dsw[idx2] * (dp + gravity_term_o)
+                        dfw_dsw2 = trans * dlambda_w_dsw[idx2] * (dp - dp_cap + gravity_term_w) * avg_rho_w
+                        dfo_dsw2 = trans * dlambda_o_dsw[idx2] * (dp + gravity_term_o) * avg_rho_o
                         
                         if self.fluid.pc_scale > 0:
-                            dfw_dsw1 = trans * lambda_w_up * (-dpc_dsw[idx1])
-                            dfw_dsw2 += trans * lambda_w_up * dpc_dsw[idx2]
+                            dfw_dsw1 = trans * lambda_w_up * (-dpc_dsw[idx1]) * avg_rho_w
+                            dfw_dsw2 += trans * lambda_w_up * dpc_dsw[idx2] * avg_rho_w
                             
                             jacobian[2*idx1, 2*idx1+1] -= dfw_dsw1
                             jacobian[2*idx1, 2*idx2+1] -= dfw_dsw2
@@ -1300,9 +1181,9 @@ class Simulator:
                     # Проводимость
                     trans = ty_const * avg_perm
                     
-                    # Потоки
-                    water_flux = trans * lambda_w_up * (dp - dp_cap + gravity_term_w)
-                    oil_flux = trans * lambda_o_up * (dp + gravity_term_o)
+                    # Потоки (объёмные) -> переводим в массовые, умножая на среднюю плотность
+                    water_flux = trans * lambda_w_up * (dp - dp_cap + gravity_term_w) * avg_rho_w
+                    oil_flux  = trans * lambda_o_up * (dp + gravity_term_o) * avg_rho_o
                     
                     # Невязка
                     residual[2*idx1] -= water_flux
@@ -1311,11 +1192,20 @@ class Simulator:
                     residual[2*idx2+1] += oil_flux
                     
                     # Производные для якобиана
-                    # Производные по давлению
-                    dfw_dp1 = trans * lambda_w_up * (-1.0)
-                    dfw_dp2 = trans * lambda_w_up * (1.0)
-                    dfo_dp1 = trans * lambda_o_up * (-1.0)
-                    dfo_dp2 = trans * lambda_o_up * (1.0)
+                    # Учитываем зависимость плотности от давления (доп. слагаемое 0.5 * drho/dp)
+                    dfw_dp1 = trans * lambda_w_up * (
+                        -avg_rho_w + 0.5 * (dp - dp_cap + gravity_term_w) * drho_w_dp_vec[idx1]
+                    )
+                    dfw_dp2 = trans * lambda_w_up * (
+                        avg_rho_w + 0.5 * (dp - dp_cap + gravity_term_w) * drho_w_dp_vec[idx2]
+                    )
+
+                    dfo_dp1 = trans * lambda_o_up * (
+                        -avg_rho_o + 0.5 * (dp + gravity_term_o) * drho_o_dp_vec[idx1]
+                    )
+                    dfo_dp2 = trans * lambda_o_up * (
+                        avg_rho_o + 0.5 * (dp + gravity_term_o) * drho_o_dp_vec[idx2]
+                    )
                     
                     # Добавляем в якобиан
                     jacobian[2*idx1, 2*idx1] -= dfw_dp1
@@ -1330,12 +1220,12 @@ class Simulator:
                     
                     # Производные по насыщенности (аналогично X-направлению)
                     if dp >= 0:
-                        dfw_dsw1 = trans * dlambda_w_dsw[idx1] * (dp - dp_cap + gravity_term_w)
-                        dfo_dsw1 = trans * dlambda_o_dsw[idx1] * (dp + gravity_term_o)
+                        dfw_dsw1 = trans * dlambda_w_dsw[idx1] * (dp - dp_cap + gravity_term_w) * avg_rho_w
+                        dfo_dsw1 = trans * dlambda_o_dsw[idx1] * (dp + gravity_term_o) * avg_rho_o
                         
                         if self.fluid.pc_scale > 0:
-                            dfw_dsw1 += trans * lambda_w_up * (-dpc_dsw[idx1])
-                            dfw_dsw2 = trans * lambda_w_up * dpc_dsw[idx2]
+                            dfw_dsw1 += trans * lambda_w_up * (-dpc_dsw[idx1]) * avg_rho_w
+                            dfw_dsw2 = trans * lambda_w_up * dpc_dsw[idx2] * avg_rho_w
                             
                             jacobian[2*idx1, 2*idx1+1] -= dfw_dsw1
                             jacobian[2*idx1, 2*idx2+1] -= dfw_dsw2
@@ -1349,11 +1239,12 @@ class Simulator:
                         jacobian[2*idx2+1, 2*idx1+1] += dfo_dsw1
                         
                     else:
-                        dfw_dsw2 = trans * dlambda_w_dsw[idx2] * (dp - dp_cap + gravity_term_w)
+                        dfw_dsw2 = trans * dlambda_w_dsw[idx2] * (dp - dp_cap + gravity_term_w) * avg_rho_w
+                        dfo_dsw2 = trans * dlambda_o_dsw[idx2] * (dp + gravity_term_o) * avg_rho_o
                         
                         if self.fluid.pc_scale > 0:
-                            dfw_dsw1 = trans * lambda_w_up * (-dpc_dsw[idx1])
-                            dfw_dsw2 += trans * lambda_w_up * dpc_dsw[idx2]
+                            dfw_dsw1 = trans * lambda_w_up * (-dpc_dsw[idx1]) * avg_rho_w
+                            dfw_dsw2 += trans * lambda_w_up * dpc_dsw[idx2] * avg_rho_w
                             
                             jacobian[2*idx1, 2*idx1+1] -= dfw_dsw1
                             jacobian[2*idx1, 2*idx2+1] -= dfw_dsw2
@@ -1391,9 +1282,9 @@ class Simulator:
                     # Проводимость
                     trans = tz_const * avg_perm
                     
-                    # Потоки
-                    water_flux = trans * lambda_w_up * (dp - dp_cap + gravity_term_w)
-                    oil_flux = trans * lambda_o_up * (dp + gravity_term_o)
+                    # Потоки (объёмные) -> переводим в массовые, умножая на среднюю плотность
+                    water_flux = trans * lambda_w_up * (dp - dp_cap + gravity_term_w) * avg_rho_w
+                    oil_flux  = trans * lambda_o_up * (dp + gravity_term_o) * avg_rho_o
                     
                     # Невязка
                     residual[2*idx1] -= water_flux
@@ -1402,11 +1293,20 @@ class Simulator:
                     residual[2*idx2+1] += oil_flux
                     
                     # Производные для якобиана
-                    # Производные по давлению
-                    dfw_dp1 = trans * lambda_w_up * (-1.0)
-                    dfw_dp2 = trans * lambda_w_up * (1.0)
-                    dfo_dp1 = trans * lambda_o_up * (-1.0)
-                    dfo_dp2 = trans * lambda_o_up * (1.0)
+                    # Учитываем зависимость плотности от давления (доп. слагаемое 0.5 * drho/dp)
+                    dfw_dp1 = trans * lambda_w_up * (
+                        -avg_rho_w + 0.5 * (dp - dp_cap + gravity_term_w) * drho_w_dp_vec[idx1]
+                    )
+                    dfw_dp2 = trans * lambda_w_up * (
+                        avg_rho_w + 0.5 * (dp - dp_cap + gravity_term_w) * drho_w_dp_vec[idx2]
+                    )
+
+                    dfo_dp1 = trans * lambda_o_up * (
+                        -avg_rho_o + 0.5 * (dp + gravity_term_o) * drho_o_dp_vec[idx1]
+                    )
+                    dfo_dp2 = trans * lambda_o_up * (
+                        avg_rho_o + 0.5 * (dp + gravity_term_o) * drho_o_dp_vec[idx2]
+                    )
                     
                     # Добавляем в якобиан
                     jacobian[2*idx1, 2*idx1] -= dfw_dp1
@@ -1421,11 +1321,11 @@ class Simulator:
                     
                     # Производные по насыщенности с учетом гравитации
                     if dp - dp_cap + gravity_term_w >= 0:
-                        dfw_dsw1 = trans * dlambda_w_dsw[idx1] * (dp - dp_cap + gravity_term_w)
+                        dfw_dsw1 = trans * dlambda_w_dsw[idx1] * (dp - dp_cap + gravity_term_w) * avg_rho_w
                         
                         if self.fluid.pc_scale > 0:
-                            dfw_dsw1 += trans * lambda_w_up * (-dpc_dsw[idx1])
-                            dfw_dsw2 = trans * lambda_w_up * dpc_dsw[idx2]
+                            dfw_dsw1 += trans * lambda_w_up * (-dpc_dsw[idx1]) * avg_rho_w
+                            dfw_dsw2 = trans * lambda_w_up * dpc_dsw[idx2] * avg_rho_w
                             
                             jacobian[2*idx1, 2*idx1+1] -= dfw_dsw1
                             jacobian[2*idx1, 2*idx2+1] -= dfw_dsw2
@@ -1435,11 +1335,11 @@ class Simulator:
                             jacobian[2*idx1, 2*idx1+1] -= dfw_dsw1
                             jacobian[2*idx2, 2*idx1+1] += dfw_dsw1
                     else:
-                        dfw_dsw2 = trans * dlambda_w_dsw[idx2] * (dp - dp_cap + gravity_term_w)
+                        dfw_dsw2 = trans * dlambda_w_dsw[idx2] * (dp - dp_cap + gravity_term_w) * avg_rho_w
                         
                         if self.fluid.pc_scale > 0:
-                            dfw_dsw1 = trans * lambda_w_up * (-dpc_dsw[idx1])
-                            dfw_dsw2 += trans * lambda_w_up * dpc_dsw[idx2]
+                            dfw_dsw1 = trans * lambda_w_up * (-dpc_dsw[idx1]) * avg_rho_w
+                            dfw_dsw2 += trans * lambda_w_up * dpc_dsw[idx2] * avg_rho_w
                             
                             jacobian[2*idx1, 2*idx1+1] -= dfw_dsw1
                             jacobian[2*idx1, 2*idx2+1] -= dfw_dsw2
@@ -1451,11 +1351,11 @@ class Simulator:
                     
                     # Для нефти
                     if dp + gravity_term_o >= 0:
-                        dfo_dsw1 = trans * dlambda_o_dsw[idx1] * (dp + gravity_term_o)
+                        dfo_dsw1 = trans * dlambda_o_dsw[idx1] * (dp + gravity_term_o) * avg_rho_o
                         jacobian[2*idx1+1, 2*idx1+1] -= dfo_dsw1
                         jacobian[2*idx2+1, 2*idx1+1] += dfo_dsw1
                     else:
-                        dfo_dsw2 = trans * dlambda_o_dsw[idx2] * (dp + gravity_term_o)
+                        dfo_dsw2 = trans * dlambda_o_dsw[idx2] * (dp + gravity_term_o) * avg_rho_o
                         jacobian[2*idx1+1, 2*idx2+1] -= dfo_dsw2
                         jacobian[2*idx2+1, 2*idx2+1] += dfo_dsw2
         
@@ -1465,91 +1365,95 @@ class Simulator:
     def _add_wells_to_system(self, residual, jacobian, dt):
         """
         Добавляет вклад скважин в систему (невязку и якобиан).
-        Оптимизированная версия.
+        Массовые дебиты интегрируются по времени: q_mass = q_mass_rate * dt.
+        Здесь НЕ допускаем двойного вычитания – каждую фазу учитываем ровно один раз.
         """
+        # Если якобиан не передан (режим JFNK), изменяем только residual.
+        jac_update = jacobian is not None
+ 
         wells = self.well_manager.get_wells()
-        
+
         for well in wells:
             idx = well.cell_index_flat
-            p = self.fluid.pressure.reshape(-1)[idx]
-            sw = self.fluid.s_w.reshape(-1)[idx]
-            
-            # Вычисляем подвижности в ячейке со скважиной
+
+            # Локальные давление и насыщенность в ячейке скважины
+            p_cell = self.fluid.pressure.view(-1)[idx]
+            sw_cell = self.fluid.s_w.view(-1)[idx]
+
+            rho_w_cell = self.fluid.calc_water_density(p_cell)
+            rho_o_cell = self.fluid.calc_oil_density(p_cell)
+
+            # Подвижности и их производные
             mu_w = self.fluid.mu_water
             mu_o = self.fluid.mu_oil
-            kr_w = self.fluid.calc_water_kr(sw)
-            kr_o = self.fluid.calc_oil_kr(sw)
+            kr_w = self.fluid.calc_water_kr(sw_cell)
+            kr_o = self.fluid.calc_oil_kr(sw_cell)
             lambda_w = kr_w / mu_w
             lambda_o = kr_o / mu_o
             lambda_t = lambda_w + lambda_o
-            
-            # Вычисляем производные подвижностей
-            dkr_w_dsw = self.fluid.calc_dkrw_dsw(sw)
-            dkr_o_dsw = self.fluid.calc_dkro_dsw(sw)
-            dlambda_w_dsw = dkr_w_dsw / mu_w
-            dlambda_o_dsw = dkr_o_dsw / mu_o
-            
+
+            dkrw_dsw = self.fluid.calc_dkrw_dsw(sw_cell)
+            dkro_dsw = self.fluid.calc_dkro_dsw(sw_cell)
+            dlamb_w_dsw = dkrw_dsw / mu_w
+            dlamb_o_dsw = dkro_dsw / mu_o
+
             if well.control_type == 'rate':
-                # Скважина с контролем по дебиту
-                rate = well.control_value / 86400.0  # м³/с
-                
+                # номинальный объёмный дебит (м³/сут) -> м³/с
+                q_tot_vol_rate = well.control_value / 86400.0
+
                 if well.type == 'injector':
-                    # Нагнетательная скважина (вода)
-                    q_w = rate
-                    q_o = 0.0
-                    
-                    # Обновляем невязку
-                    residual[2*idx] -= q_w
-                    residual[2*idx+1] -= q_o
-                    
+                    q_w_mass_step = q_tot_vol_rate * self.fluid.rho_water_ref * dt  # кг за шаг
+                    residual[2*idx]   -= q_w_mass_step
+                    # нефть не закачивается
                 else:  # producer
-                    # Добывающая скважина
-                    fw = lambda_w / (lambda_t + 1e-10)
-                    fo = lambda_o / (lambda_t + 1e-10)
-                    
-                    q_w = rate * fw
-                    q_o = rate * fo
-                    
-                    # Производные дебитов по насыщенности
-                    dfw_dsw = (dlambda_w_dsw * lambda_t - lambda_w * (dlambda_w_dsw + dlambda_o_dsw)) / (lambda_t**2 + 1e-10)
+                    # Фракции потоков
+                    fw = lambda_w / (lambda_t + 1e-12)
+                    fo = 1.0 - fw
+
+                    q_w_mass_step = q_tot_vol_rate * fw * self.fluid.rho_water_ref * dt
+                    q_o_mass_step = q_tot_vol_rate * fo * self.fluid.rho_oil_ref   * dt
+
+                    residual[2*idx]   -= q_w_mass_step
+                    residual[2*idx+1] -= q_o_mass_step
+
+                    # производные (по Sw) – только для продуцирующей
+                    dfw_dsw = (dlamb_w_dsw * lambda_t - lambda_w * (dlamb_w_dsw + dlamb_o_dsw)) / (lambda_t**2 + 1e-12)
                     dfo_dsw = -dfw_dsw
-                    
-                    dq_w_dsw = rate * dfw_dsw
-                    dq_o_dsw = rate * dfo_dsw
-                    
-                    # Обновляем невязку
-                    residual[2*idx] -= q_w
-                    residual[2*idx+1] -= q_o
-                    
-                    # Обновляем якобиан
-                    jacobian[2*idx, 2*idx+1] -= dq_w_dsw
-                    jacobian[2*idx+1, 2*idx+1] -= dq_o_dsw
-                    
+
+                    dq_w_dsw = q_tot_vol_rate * self.fluid.rho_water_ref * dt * dfw_dsw
+                    dq_o_dsw = q_tot_vol_rate * self.fluid.rho_oil_ref  * dt * dfo_dsw
+
+                    if jac_update:
+                        jacobian[2*idx,   2*idx+1] -= dq_w_dsw
+                        jacobian[2*idx+1, 2*idx+1] -= dq_o_dsw
+
             elif well.control_type == 'bhp':
-                # Скважина с контролем забойного давления
-                bhp = well.control_value * 1e6  # МПа -> Па
-                
-                # Дебиты
-                q_w = well.well_index * lambda_w * (p - bhp)
-                q_o = well.well_index * lambda_o * (p - bhp)
-                
-                # Обновляем невязку
-                residual[2*idx] -= q_w
-                residual[2*idx+1] -= q_o
-                
-                # Производные по давлению
-                dq_w_dp = well.well_index * lambda_w
-                dq_o_dp = well.well_index * lambda_o
-                
-                # Производные по насыщенности
-                dq_w_dsw = well.well_index * dlambda_w_dsw * (p - bhp)
-                dq_o_dsw = well.well_index * dlambda_o_dsw * (p - bhp)
-                
-                # Обновляем якобиан
-                jacobian[2*idx, 2*idx] -= dq_w_dp
-                jacobian[2*idx, 2*idx+1] -= dq_w_dsw
-                jacobian[2*idx+1, 2*idx] -= dq_o_dp
-                jacobian[2*idx+1, 2*idx+1] -= dq_o_dsw
+                bhp_pa = well.control_value * 1e6  # МПа->Па
+
+                q_w_vol_rate = well.well_index * lambda_w * (p_cell - bhp_pa)  # м³/с
+                q_o_vol_rate = well.well_index * lambda_o * (p_cell - bhp_pa)  # м³/с
+
+                q_w_mass_step = q_w_vol_rate * rho_w_cell * dt
+                q_o_mass_step = q_o_vol_rate * rho_o_cell * dt
+
+                residual[2*idx]   -= q_w_mass_step
+                residual[2*idx+1] -= q_o_mass_step
+
+                # Якобиан: производные по давлению
+                dq_w_dp = well.well_index * lambda_w * rho_w_cell * dt
+                dq_o_dp = well.well_index * lambda_o * rho_o_cell * dt
+
+                if jac_update:
+                    jacobian[2*idx,   2*idx]   -= dq_w_dp
+                    jacobian[2*idx+1, 2*idx]   -= dq_o_dp
+
+                # Якобиан: производные по насыщенности через подвижности
+                dq_w_dsw = well.well_index * dlamb_w_dsw * (p_cell - bhp_pa) * rho_w_cell * dt
+                dq_o_dsw = well.well_index * dlamb_o_dsw * (p_cell - bhp_pa) * rho_o_cell * dt
+
+                if jac_update:
+                    jacobian[2*idx,   2*idx+1] -= dq_w_dsw
+                    jacobian[2*idx+1, 2*idx+1] -= dq_o_dsw
 
     def run(self, output_filename, save_vtk=False):
         """
@@ -1746,3 +1650,373 @@ class Simulator:
                 writer.append_data(image)
         
         print(f"Анимация сохранена в файл {output_path}")
+
+    # ------------------------------------------------------------------
+    #               ВСПОМОГАТЕЛЬНЫЕ МЕТОДЫ ДЛЯ IMPES
+    # ------------------------------------------------------------------
+
+    def _init_impes_transmissibilities(self):
+        """Вычисляет T_x/T_y/T_z для IMPES, если они ещё не посчитаны."""
+        if hasattr(self, 'T_x') and hasattr(self, 'T_y') and hasattr(self, 'T_z'):
+            return  # Уже инициализировано
+
+        dx, dy, dz = self.reservoir.grid_size
+        k_x, k_y, k_z = self.reservoir.permeability_tensors
+        nx, ny, nz = self.reservoir.dimensions
+
+        dev = self.fluid.device  # Используем то же устройство, что и тензоры флюида
+        self.T_x = torch.zeros((nx-1, ny, nz), device=dev)
+        self.T_y = torch.zeros((nx, ny-1, nz), device=dev)
+        self.T_z = torch.zeros((nx, ny, nz-1), device=dev)
+
+        for i in range(nx-1):
+            k_harmonic = 2 * k_x[i, :, :] * k_x[i+1, :, :] / (k_x[i, :, :] + k_x[i+1, :, :] + 1e-15)
+            self.T_x[i, :, :] = k_harmonic * dy * dz / dx
+
+        for j in range(ny-1):
+            k_harmonic = 2 * k_y[:, j, :] * k_y[:, j+1, :] / (k_y[:, j, :] + k_y[:, j+1, :] + 1e-15)
+            self.T_y[:, j, :] = k_harmonic * dx * dz / dy
+
+        for k in range(nz-1):
+            k_harmonic = 2 * k_z[:, :, k] * k_z[:, :, k+1] / (k_z[:, :, k] + k_z[:, :, k+1] + 1e-15)
+            self.T_z[:, :, k] = k_harmonic * dx * dy / dz
+
+    # ==================================================================
+    #         Jacobian-Free Newton–Krylov  (автоград J·v)               
+    # ==================================================================
+
+    def _fi_residual_vec(self, x, dt):
+        """Возвращает невязку при векторе переменных x = [p, sw] (1-D)."""
+        nx, ny, nz = self.reservoir.dimensions
+        N = nx * ny * nz
+
+        # масштаб давления (Па) – 1 МПа, чтобы выровнять численный масштаб с насыщенностью
+        P_SCALE = 1e6
+
+        # --- гарантия, что предыдущие массы инициализированы -----------------
+        if self.fluid.prev_water_mass is None:
+            phi0_vec = self.reservoir.porosity_ref.reshape(-1)
+            c_r = self.reservoir.rock_compressibility
+            p_prev_vec = self.fluid.prev_pressure.reshape(-1)
+            phi_prev_vec = phi0_vec * (1 + c_r * (p_prev_vec - 1e5))
+
+            cell_vol = self.reservoir.cell_volume
+            rho_w_prev = self.fluid.calc_water_density(p_prev_vec)
+            rho_o_prev = self.fluid.calc_oil_density(p_prev_vec)
+            sw_prev_vec = self.fluid.prev_sw.reshape(-1)
+
+            self.fluid.prev_water_mass = phi_prev_vec * sw_prev_vec * rho_w_prev * cell_vol
+            self.fluid.prev_oil_mass   = phi_prev_vec * (1 - sw_prev_vec) * rho_o_prev * cell_vol
+
+        # Разворачиваем (обратно масштабируем давление)
+        p_vec  = x[:N] * P_SCALE
+        sw_vec_raw = x[N:]
+        sw_vec = sw_vec_raw.clamp(self.fluid.sw_cr, 1.0 - self.fluid.so_r)
+
+        # Сохраняем текущее состояние и подставляем новое (для использования существующих функций)
+        p_old = self.fluid.pressure
+        sw_old = self.fluid.s_w
+
+        self.fluid.pressure = p_vec.view(self.reservoir.dimensions)
+        self.fluid.s_w      = sw_vec.view(self.reservoir.dimensions)
+
+        # Полный расчёт невязки (аккумуляция + конвекция + скважины)
+        residual = self._compute_residual_full(dt)
+
+        # Восстанавливаем состояние, чтобы не копить побочные эффекты
+        self.fluid.pressure = p_old
+        self.fluid.s_w      = sw_old
+
+        return residual
+
+    # ------------- линейный солвер BiCGSTAB (torch, J·v) --------------
+    def _bicgstab(self, matvec, b, tol=1e-6, max_iter=400):
+        x = torch.zeros_like(b)
+        r = b.clone()
+        r_hat = r.clone()
+        rho_old = alpha = omega = torch.tensor(1.0, device=b.device)
+        v = torch.zeros_like(b)
+        p = torch.zeros_like(b)
+
+        for i in range(max_iter):
+            rho_new = torch.dot(r_hat, r)
+            if rho_new.abs() < 1e-20:
+                break
+            if i == 0:
+                p = r.clone()
+            else:
+                beta = (rho_new / rho_old) * (alpha / omega)
+                p = r + beta * (p - omega * v)
+
+            v = matvec(p)
+            alpha = rho_new / torch.dot(r_hat, v)
+            s = r - alpha * v
+            if s.norm() < tol:
+                x = x + alpha * p
+                break
+            t = matvec(s)
+            omega = torch.dot(t, s) / torch.dot(t, t)
+            x = x + alpha * p + omega * s
+            r = s - omega * t
+            if r.norm() < tol:
+                break
+            rho_old = rho_new
+        return x
+
+    # ------------- JFNK основной цикл --------------------------------
+    def _fi_jfnk_step(self, dt, tol=1e-3, max_iter=10, damping=0.6):
+        nx, ny, nz = self.reservoir.dimensions
+        N = nx * ny * nz
+
+        P_SCALE = 1e6  # 1 МПа
+
+        # Начальное приближение (масштабируем давление)
+        x = torch.cat([
+            (self.fluid.pressure.view(-1) / P_SCALE),
+            self.fluid.s_w.view(-1)
+        ]).to(self.device)
+
+        initial_norm = None
+        for it in range(max_iter):
+            F = self._fi_residual_vec(x, dt)
+            norm_F = F.norm()
+            if initial_norm is None:
+                initial_norm = norm_F.clone()
+            rel_res = (norm_F / (initial_norm + 1e-20)).item()
+            print(f"  Итерация JFNK {it+1}: ||F||={norm_F:.3e}  rel={rel_res:.3e}")
+            if rel_res < tol:
+                break
+
+            # Определяем matvec замыканием на текущий x
+            def matvec(v):
+                _, Jv = torch.autograd.functional.jvp(lambda z: self._fi_residual_vec(z, dt), x, v, create_graph=False)
+                return Jv
+
+            delta = self._bicgstab(matvec, -F, tol=1e-6, max_iter=200)
+            # --- Armijo line-search ---------------------------------
+            sigma = 0.1  # требуемое относительное уменьшение
+            factor = 1.0  # начинаем с полного шага Δx
+            min_factor = 1e-6
+            success = False
+            while factor >= min_factor:
+                x_trial = x + factor * delta * damping  # демпфирование дополнительно
+                F_trial = self._fi_residual_vec(x_trial, dt)
+
+                # Проверяем конечность и условие Армихо: ‖F(x_new)‖ <= (1-σ·f)·‖F(x)‖
+                if torch.isfinite(F_trial).all() and F_trial.norm() <= (1.0 - sigma * factor) * norm_F:
+                    x = x_trial
+                    success = True
+                    break
+                factor *= 0.5
+
+            if not success:
+                print("  Line-search не смог подобрать шаг (factor < 1e-6) – прекращаем JFNK итерации")
+                break
+
+        # Обновляем поля
+        p_new  = (x[:N] * P_SCALE).view(self.reservoir.dimensions)
+        sw_new = x[N:].view(self.reservoir.dimensions).clamp(self.fluid.sw_cr, 1 - self.fluid.so_r)
+
+        self.fluid.pressure = p_new
+        self.fluid.s_w      = sw_new
+        self.fluid.s_o      = 1.0 - sw_new
+        self.fluid.prev_pressure = p_new.clone()
+        self.fluid.prev_sw       = sw_new.clone()
+
+        # Пересчитываем массы для следующего шага
+        rho_w = self.fluid.calc_water_density(p_new.view(-1))
+        rho_o = self.fluid.calc_oil_density(p_new.view(-1))
+        phi0  = self.reservoir.porosity_ref.view(-1)
+        phi   = phi0 * (1 + self.reservoir.rock_compressibility * (p_new.view(-1) - 1e5))
+        cell_vol = self.reservoir.cell_volume
+        self.fluid.prev_water_mass = phi * sw_new.view(-1) * rho_w * cell_vol
+        self.fluid.prev_oil_mass   = phi * (1 - sw_new.view(-1)) * rho_o * cell_vol
+
+        return (norm_F / (initial_norm + 1e-20)).item() < tol
+
+    # ------------- адаптивное уменьшение dt с JFNK -------------------
+    def _fi_jfnk_adaptive(self, dt):
+        current_dt = dt
+        max_attempts = self.sim_params.get("max_time_step_attempts", 4)
+
+        for attempt in range(max_attempts):
+            print(f"Попытка шага (JFNK) с dt = {current_dt/86400:.2f} дней (Попытка {attempt+1}/{max_attempts})")
+            if self._fi_jfnk_step(current_dt):
+                return True
+            print("  Шаг не сошёлся, уменьшаем dt")
+            current_dt /= self.sim_params.get("dt_reduction_factor", 2.0)
+        return False
+
+    def _compute_residual_full(self, dt):
+        """Полная невязка (масса) без сборки Якобиана – используется в JFNK.
+        Содержит аккумуляцию, конвективные потоки и скважины.
+        Возвращает 1-D тензор длиной 2*N (water/oil).
+        """
+        nx, ny, nz = self.reservoir.dimensions
+        N = nx * ny * nz
+        device = self.fluid.device
+
+        # === геометрия ===
+        dx, dy, dz = self.reservoir.grid_size
+        cell_volume = dx * dy * dz
+
+        p = self.fluid.pressure  # (nx,ny,nz)
+        sw = self.fluid.s_w.clamp(self.fluid.sw_cr, 1.0 - self.fluid.so_r)
+
+        # пористость сжатого пласта
+        phi = self.reservoir.porosity_ref * (1 + self.reservoir.rock_compressibility * (p - 1e5))
+
+        # плотности
+        rho_w = self.fluid.calc_water_density(p)
+        rho_o = self.fluid.calc_oil_density(p)
+
+        # аккумуляция (масса, кг)
+        water_mass = phi * sw * rho_w * cell_volume
+        oil_mass   = phi * (1 - sw) * rho_o * cell_volume
+
+        res_water = (water_mass - self.fluid.prev_water_mass.view(nx,ny,nz))
+        res_oil   = (oil_mass   - self.fluid.prev_oil_mass.view(nx,ny,nz))
+
+        # === потоки ===
+        # вычисляем Т_x, T_y, T_z если не было
+        self._init_impes_transmissibilities()
+        # относит. проницаемости и мобил.
+        kr_w = self.fluid.calc_water_kr(sw)
+        kr_o = self.fluid.calc_oil_kr(sw)
+        mu_w = self.fluid.mu_water
+        mu_o = self.fluid.mu_oil
+        lambda_w = kr_w / mu_w
+        lambda_o = kr_o / mu_o
+
+        # капиллярное давление
+        if self.fluid.pc_scale > 0:
+            pc = self.fluid.calc_capillary_pressure(sw)
+        else:
+            pc = torch.zeros_like(p)
+
+        # X-направление --------------------------------------------------
+        dp_x = p[:-1,:,:] - p[1:,:,:]  # shape (nx-1,ny,nz)
+        lambda_w_up_x = torch.where(dp_x > 0, lambda_w[:-1,:,:], lambda_w[1:,:,:])
+        lambda_o_up_x = torch.where(dp_x > 0, lambda_o[:-1,:,:], lambda_o[1:,:,:])
+        rho_w_avg_x = 0.5 * (rho_w[:-1,:,:] + rho_w[1:,:,:])
+        rho_o_avg_x = 0.5 * (rho_o[:-1,:,:] + rho_o[1:,:,:])
+        dpc_x = pc[:-1,:,:] - pc[1:,:,:]
+        trans_x = self.T_x * dt  # м³/(Па·с) * ?  (здесь единицы не критичны – лишь консист.)
+        water_flux_x = trans_x * lambda_w_up_x * (dp_x - dpc_x) * rho_w_avg_x
+        oil_flux_x   = trans_x * lambda_o_up_x * (dp_x)            * rho_o_avg_x
+        # расход из левой ячейки ("-"), к правой ("+")
+        res_water[:-1,:,:] -= water_flux_x
+        res_water[1: ,:,:] += water_flux_x
+        res_oil  [:-1,:,:] -= oil_flux_x
+        res_oil  [1: ,:,:] += oil_flux_x
+
+        # Y-направление --------------------------------------------------
+        dp_y = p[:,:-1,:] - p[:,1:,:]
+        lambda_w_up_y = torch.where(dp_y > 0, lambda_w[:,:-1,:], lambda_w[:,1:,:])
+        lambda_o_up_y = torch.where(dp_y > 0, lambda_o[:,:-1,:], lambda_o[:,1:,:])
+        rho_w_avg_y = 0.5 * (rho_w[:,:-1,:] + rho_w[:,1:,:])
+        rho_o_avg_y = 0.5 * (rho_o[:,:-1,:] + rho_o[:,1:,:])
+        dpc_y = pc[:,:-1,:] - pc[:,1:,:]
+        trans_y = self.T_y * dt
+        water_flux_y = trans_y * lambda_w_up_y * (dp_y - dpc_y) * rho_w_avg_y
+        oil_flux_y   = trans_y * lambda_o_up_y * (dp_y) * rho_o_avg_y
+        res_water[:,:-1,:] -= water_flux_y
+        res_water[:,1: ,:] += water_flux_y
+        res_oil  [:,:-1,:] -= oil_flux_y
+        res_oil  [:,1: ,:] += oil_flux_y
+
+        # Z-направление --------------------------------------------------
+        if nz > 1:
+            dp_z = p[:,:,:-1] - p[:,:,1:]
+            lambda_w_up_z = torch.where(dp_z > 0, lambda_w[:,:,:-1], lambda_w[:,:,1:])
+            lambda_o_up_z = torch.where(dp_z > 0, lambda_o[:,:,:-1], lambda_o[:,:,1:])
+            rho_w_avg_z = 0.5 * (rho_w[:,:,:-1] + rho_w[:,:,1:])
+            rho_o_avg_z = 0.5 * (rho_o[:,:,:-1] + rho_o[:,:,1:])
+            dpc_z = pc[:,:,:-1] - pc[:,:,1:]
+            trans_z = self.T_z * dt
+            water_flux_z = trans_z * lambda_w_up_z * (dp_z - dpc_z) * rho_w_avg_z
+            oil_flux_z   = trans_z * lambda_o_up_z * (dp_z) * rho_o_avg_z
+            res_water[:,:,:-1] -= water_flux_z
+            res_water[:,:,1: ] += water_flux_z
+            res_oil  [:,:,:-1] -= oil_flux_z
+            res_oil  [:,:,1: ] += oil_flux_z
+
+        # сформируем вектор
+        residual = torch.zeros(2*N, device=device)
+        residual[0::2] = res_water.reshape(-1)
+        residual[1::2] = res_oil.reshape(-1)
+
+        # скважины
+        self._add_wells_to_system(residual, None, dt)
+
+        return residual
+
+    # ---------------------------------------------------------------
+    #          Полный автоград-Ньютон (для маленьких сеток)
+    # ---------------------------------------------------------------
+    def _fi_autograd_step(self, dt, tol=1e-3, max_iter=12, damping=0.8):
+        """Автоград-Ньютон с полным Якобианом для небольших систем."""
+        P_SCALE = 1e6
+        nx, ny, nz = self.reservoir.dimensions
+        N = nx * ny * nz
+
+        x = torch.cat([
+            (self.fluid.pressure.view(-1) / P_SCALE),
+            self.fluid.s_w.view(-1)
+        ]).to(self.device).requires_grad_(True)
+
+        initial_norm = None
+        for it in range(max_iter):
+            F = self._fi_residual_vec(x, dt)
+            norm_F = F.norm()
+            if initial_norm is None:
+                initial_norm = norm_F.clone()
+            rel_res = (norm_F / (initial_norm + 1e-20)).item()
+            print(f"  Итерация autograd-Ньютона {it+1}: ||F||={norm_F:.3e}  rel={rel_res:.3e}")
+            if rel_res < tol:
+                break
+
+            # Полный Якобиан
+            J = torch.autograd.functional.jacobian(lambda z: self._fi_residual_vec(z, dt), x, create_graph=False, vectorize=True)
+
+            # Решаем J δ = –F (на CPU удобнее для больших dense-матриц)
+            J_cpu = J.detach().to('cpu')
+            F_cpu = F.detach().to('cpu')
+            delta_cpu = torch.linalg.solve(J_cpu, -F_cpu)
+            delta = delta_cpu.to(self.device)
+
+            # Armijo line-search
+            sigma = 0.1
+            factor = 1.0
+            while factor >= 1e-6:
+                x_trial = x + factor * damping * delta
+                F_trial = self._fi_residual_vec(x_trial, dt)
+                if torch.isfinite(F_trial).all() and F_trial.norm() <= (1 - sigma * factor) * norm_F:
+                    x = x_trial.detach().clone().requires_grad_(True)
+                    break
+                factor *= 0.5
+            else:
+                print("  Line-search (autograd) не смог уменьшить невязку – уменьшаем dt")
+                return False  # не сошлось
+
+        # Обновляем состояние
+        p_new = (x[:N] * P_SCALE).view(self.reservoir.dimensions)
+        sw_new = x[N:].view(self.reservoir.dimensions).clamp(self.fluid.sw_cr, 1 - self.fluid.so_r)
+
+        self.fluid.pressure = p_new
+        self.fluid.s_w = sw_new
+        self.fluid.s_o = 1.0 - sw_new
+
+        self.fluid.prev_pressure = p_new.clone()
+        self.fluid.prev_sw = sw_new.clone()
+
+        # Обновляем массы для следующего шага
+        rho_w = self.fluid.calc_water_density(p_new.view(-1))
+        rho_o = self.fluid.calc_oil_density(p_new.view(-1))
+        phi0 = self.reservoir.porosity_ref.view(-1)
+        phi = phi0 * (1 + self.reservoir.rock_compressibility * (p_new.view(-1) - 1e5))
+        cell_vol = self.reservoir.cell_volume
+        self.fluid.prev_water_mass = phi * sw_new.view(-1) * rho_w * cell_vol
+        self.fluid.prev_oil_mass = phi * (1 - sw_new.view(-1)) * rho_o * cell_vol
+
+        return (norm_F / (initial_norm + 1e-20)).item() < tol

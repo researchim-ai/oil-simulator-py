@@ -16,7 +16,8 @@
         "max_time_step_attempts": 4,
         "dt_increase_factor": 1.25,
         "dt_reduction_factor": 2.0,
-        "use_cuda": true
+        "use_cuda": true,
+        "verbose": true
     },
     
     "reservoir": {

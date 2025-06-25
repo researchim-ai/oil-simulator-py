@@ -25,6 +25,9 @@ class Reservoir:
         # Пористость (может быть скаляром или массивом)
         porosity_value = config.get('porosity', 0.2)
         self.porosity = torch.full(self.dimensions, porosity_value, device=self.device)
+        # Сохраняем исходную (референсную) пористость для расчёта phi(P)
+        # Она соответствует пористости при референсном давлении P_ref = 1 атм (≈ 1e5 Па).
+        self.porosity_ref = self.porosity.clone()
         
         # Проницаемость
         k_h = config.get('permeability', 100.0)  # мД, горизонтальная проницаемость
