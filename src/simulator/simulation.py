@@ -181,8 +181,16 @@ class Simulator:
             threshold = self.sim_params.get("autograd_threshold_cells", 10000)
             # Для небольших задач используем автоград-Ньютон, иначе JFNK
             if num_cells <= threshold:
-                return self._fi_autograd_step(dt)
+                success = self._fi_autograd_step(dt)
+                if success:
+                    return True
+                print("Autograd-Ньютон не сошёлся – пробуем JFNK fallback")
+                if self._fi_jfnk_adaptive(dt):
+                    return True
+                print("JFNK также не сошёлся – выполняем fallback на IMPES")
+                return self._impes_step(dt)
             else:
+                # Для крупных задач сразу используем JFNK с адаптацией dt
                 return self._fi_jfnk_adaptive(dt)
 
         # == прежний путь с ручным якобианом ==
@@ -418,7 +426,7 @@ class Simulator:
                             delta = torch.from_numpy(delta_np).to(device)
                     else:
                         # Для небольших систем используем прямой решатель
-                        delta = torch.linalg.solve(jacobian, -residual)
+                        delta = self._robust_solve(jacobian, -residual)
                 except RuntimeError as e:
                     print(f"  Ошибка решения системы: {e}")
                     # Восстанавливаем исходное состояние
@@ -1982,7 +1990,7 @@ class Simulator:
             # Решаем J δ = –F (на CPU удобнее для больших dense-матриц)
             J_cpu = J.detach().to('cpu')
             F_cpu = F.detach().to('cpu')
-            delta_cpu = torch.linalg.solve(J_cpu, -F_cpu)
+            delta_cpu = self._robust_solve(J_cpu, -F_cpu)
             delta = delta_cpu.to(self.device)
 
             # Armijo line-search
@@ -2020,3 +2028,22 @@ class Simulator:
         self.fluid.prev_oil_mass = phi * (1 - sw_new.view(-1)) * rho_o * cell_vol
 
         return (norm_F / (initial_norm + 1e-20)).item() < tol
+
+    # -------------------------------------------------------------
+    #      Универсальное решение A x = b с регуляризацией
+    # -------------------------------------------------------------
+    def _robust_solve(self, A: torch.Tensor, b: torch.Tensor, lam: float = 1e-8):
+        """Возвращает решение x для A x = b, автоматически добавляя
+        Tikhonov-регуляризацию при вырожденном/плохо обусловленном A и
+        переходя к псевдообратной, если прямой solve терпит неудачу."""
+        try:
+            return torch.linalg.solve(A, b)
+        except (RuntimeError, torch._C._LinAlgError):
+            eps = lam * torch.linalg.norm(A, ord=float("inf"))
+            if not torch.isfinite(eps):
+                eps = lam
+            I = torch.eye(A.shape[0], dtype=A.dtype, device=A.device)
+            try:
+                return torch.linalg.solve(A + eps * I, b)
+            except (RuntimeError, torch._C._LinAlgError):
+                return A.pinverse() @ b
