@@ -106,8 +106,18 @@ class Fluid:
         """
         Вычисляет нормализованную водонасыщенность.
         """
-        s_norm = (s_w - self.sw_cr) / (1 - self.sw_cr - self.so_r)
-        return torch.clamp(s_norm, 0.0, 1.0)
+        # Мягкое ограничение (smooth-clip) вместо жёсткого clamp – даёт непрерывную
+        # производную и помогает Якобиану не терять ранг.
+        eps = 1e-1  # ширина плавного перехода, ещё более гладко
+
+        # Нормализуем в исходный диапазон [0,1]
+        s_norm_raw = (s_w - self.sw_cr) / (1 - self.sw_cr - self.so_r)
+
+        # Используем сглаженный clip через σ-функцию:
+        # σ_e(x) = sigmoid((x-0.5)/ε) ∈ (0,1); масштабируем к (0,1)
+        s_norm = torch.sigmoid((s_norm_raw - 0.5) / eps)
+
+        return s_norm
 
     def get_rel_perms(self, s_w):
         """

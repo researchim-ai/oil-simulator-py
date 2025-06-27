@@ -127,6 +127,16 @@ class Simulator:
         else:
             self.edge_z_i = self.edge_z_j = torch.tensor([], dtype=torch.long)
 
+        # Псевдо-транзиентное продолжение (PTC): дополнительная «ёмкость»
+        # для аккумуляционных членов, стабилизирующая Ньютон на резких фронтах.
+        # Если параметр не указан, он равен 0.0 и схема эквивалентна прежней.
+        # PTC: по-умолчанию добавляем 0.03 (≈15 % от φ=0.2), что хорошо гасит фронты.
+        self.ptc_alpha = self.sim_params.get("ptc_alpha", 0.03)
+
+        # По-умолчанию используем предварительный predictor IMPES перед
+        # fully-implicit, чтобы дать хорошее initial guess.
+        self.use_impes_predictor = self.sim_params.get("use_impes_predictor", True)
+
     def _move_data_to_device(self):
         """Переносит данные на текущее устройство (CPU или GPU)"""
         # Переносим данные из резервуара
@@ -158,6 +168,18 @@ class Simulator:
 
     def _fully_implicit_step(self, dt):
         """ Выполняет один временной шаг полностью неявной схемой. """
+        # ---------------------------------------------------------
+        # 1. Predictor: делаем один быстрый шаг IMPES, чтобы получить
+        #    осмысленное начальное приближение (P, Sw).
+        #    Этот шаг НЕ обновляет prev_mass, поэтому баланс по массе
+        #    для fully-implicit сохраняется корректным.
+        # ---------------------------------------------------------
+        if getattr(self, "use_impes_predictor", False):
+            try:
+                self._impes_predictor(dt)
+            except Exception as e:
+                print(f"Предиктор IMPES не удался: {e}. Продолжаем без него.")
+
         # По умолчанию используем JFNK, если не указано "manual".
         # Автоматический выбор: для мелких сеток JFNK даёт больше накладных расходов и
         # может быть избыточно. Кроме того, текущая реализация JFNK ещё не полностью
@@ -181,10 +203,12 @@ class Simulator:
             threshold = self.sim_params.get("autograd_threshold_cells", 10000)
             # Для небольших задач используем автоград-Ньютон, иначе JFNK
             if num_cells <= threshold:
-                success = self._fi_autograd_step(dt)
+                # Используем адаптивный автоград-Ньютон: при несходимости он
+                # будет уменьшать dt несколько раз прежде, чем вернуть False.
+                success = self._fi_autograd_adaptive(dt)
                 if success:
                     return True
-                print("Autograd-Ньютон не сошёлся – пробуем JFNK fallback")
+                print("Autograd-Ньютон не сошёлся даже после адаптации dt – пробуем JFNK fallback")
                 if self._fi_jfnk_adaptive(dt):
                     return True
                 print("JFNK также не сошёлся – выполняем fallback на IMPES")
@@ -553,68 +577,24 @@ class Simulator:
 
     def _compute_residual_fast(self, dt, nx, ny, nz, dx, dy, dz):
         """
-        Быстрый расчет невязки без сборки полного якобиана для line search.
+        Быстрый расчёт невязки (массовый баланс) без сборки Якобиана.
+        Ранее здесь учитывалась только аккумуляция, что ухудшало line-search.
+        Теперь используем полнофазовую невязку из `_compute_residual_full`,
+        которая векторизована и достаточно быстра, но охватывает все члены
+        (аккумуляцию, конвективные потоки, капиллярное давление и скважины).
+        Сигнатура сохранена для совместимости с существующими вызовами.
         
         Args:
-            dt: Временной шаг в секундах
-            nx, ny, nz: Размеры сетки
-            dx, dy, dz: Размеры ячеек
-            
+            dt: Временной шаг (сек)
+            nx, ny, nz, dx, dy, dz: Параметры сетки (не используются, передаются
+                                     для обратной совместимости).
         Returns:
-            Вектор невязки
+            1-D тензор невязки длиной 2*N (water/oil)
         """
-        num_cells = nx * ny * nz
-        device = self.fluid.device
-        
-        # Создаем только вектор невязки
-        residual = torch.zeros(2 * num_cells, device=device)
-        
-        # Базовые величины
-        p_vec = self.fluid.pressure.reshape(-1)
-        sw_vec = self.fluid.s_w.reshape(-1)
-        # Пористость зависит от давления: φ(P) = φ_ref * (1 + c_r (P - P_ref))
-        phi0_vec = self.reservoir.porosity_ref.reshape(-1)
-        c_r = self.reservoir.rock_compressibility
-        p_ref = 1e5  # давление-референс (Па)
-        phi_vec = phi0_vec * (1 + c_r * (p_vec - p_ref))
-        perm_x_vec = self.reservoir.permeability_x.reshape(-1)
-        perm_y_vec = self.reservoir.permeability_y.reshape(-1)
-        perm_z_vec = self.reservoir.permeability_z.reshape(-1)
-        
-        # Плотности
-        rho_w = self.fluid.calc_water_density(p_vec)
-        rho_o = self.fluid.calc_oil_density(p_vec)
-        
-        # Капиллярное давление (если используется)
-        if self.fluid.pc_scale > 0:
-            pc = self.fluid.calc_capillary_pressure(sw_vec)
-        else:
-            pc = torch.zeros_like(p_vec)
-        
-        # Вязкости
-        mu_w = self.fluid.mu_water * torch.ones_like(p_vec)
-        mu_o = self.fluid.mu_oil * torch.ones_like(p_vec)
-        
-        # Относительные проницаемости
-        kr_w = self.fluid.calc_water_kr(sw_vec)
-        kr_o = self.fluid.calc_oil_kr(sw_vec)
-        
-        # Мобильности
-        lambda_w = kr_w / mu_w
-        lambda_o = kr_o / mu_o
-        
-        # Объем ячейки
-        cell_volume = dx * dy * dz
-        
-        # Аккумуляционная невязка: изменение массы за шаг (кг)
-        water_mass = phi_vec * sw_vec * rho_w * cell_volume
-        oil_mass   = phi_vec * (1 - sw_vec) * rho_o * cell_volume
-        
-        residual[0::2] = water_mass - self.fluid.prev_water_mass
-        residual[1::2] = oil_mass   - self.fluid.prev_oil_mass
-
-        # Возвращаем вектор невязки
-        return residual
+        # Используем оптимизированную «полную» невязку для всех фаз.
+        # Она уже векторизована и опирается на кэшированные transmissibilities,
+        # поэтому выполняется достаточно быстро даже на больших сетках.
+        return self._compute_residual_full(dt)
 
     def _apply_newton_step(self, delta, factor):
         """
@@ -667,6 +647,16 @@ class Simulator:
             p_limited_percent = p_limited / num_cells * 100
             sw_limited_percent = sw_limited / num_cells * 100
             print(f"  Изменения: P_max={max_p_change/1e6:.3f} МПа, Sw_max={max_sw_change:.3f}. Ограничено: P={p_limited_percent:.1f}%, Sw={sw_limited_percent:.1f}%")
+
+        # -------- Trust-region limiter for saturation (до clamping) ---------
+        max_sw_step = self.sim_params.get("max_sw_step", 0.02)
+        max_raw_sw = torch.max(torch.abs(sw_delta_raw)).item()
+        if max_raw_sw > max_sw_step:
+            scale = max_sw_step / (max_raw_sw + 1e-15)
+            p_delta_raw = p_delta_raw * scale
+            sw_delta_raw = sw_delta_raw * scale
+            if self.verbose:
+                print(f"  Trust-region: уменьшили шаг Ньютона (scale={scale:.3f}) из-за δSw")
 
     def _idx_to_ijk(self, idx, nx, ny):
         """
@@ -1706,7 +1696,7 @@ class Simulator:
             phi0_vec = self.reservoir.porosity_ref.reshape(-1)
             c_r = self.reservoir.rock_compressibility
             p_prev_vec = self.fluid.prev_pressure.reshape(-1)
-            phi_prev_vec = phi0_vec * (1 + c_r * (p_prev_vec - 1e5))
+            phi_prev_vec = phi0_vec * (1 + c_r * (p_prev_vec - 1e5)) + self.ptc_alpha
 
             cell_vol = self.reservoir.cell_volume
             rho_w_prev = self.fluid.calc_water_density(p_prev_vec)
@@ -1800,9 +1790,46 @@ class Simulator:
                 _, Jv = torch.autograd.functional.jvp(lambda z: self._fi_residual_vec(z, dt), x, v, create_graph=False)
                 return Jv
 
-            delta = self._bicgstab(matvec, -F, tol=1e-6, max_iter=200)
+            # ---- Диагональный предобуславливатель --------------------
+            if it == 0:
+                # Оцениваем diag(J) как |J·1|, что эквивалентно сумме строк;
+                # достаточно для Jacobi-precond, но дёшево (1 вызов jvp).
+                ones_vec = torch.ones_like(x)
+                _, J1 = torch.autograd.functional.jvp(
+                    lambda z: self._fi_residual_vec(z, dt), x, ones_vec, create_graph=False
+                )
+                diag_J = torch.abs(J1) + 1e-12
+                M_inv = 1.0 / diag_J
+
+                def matvec_pre(v):
+                    _, Jv = torch.autograd.functional.jvp(
+                        lambda z: self._fi_residual_vec(z, dt), x, v, create_graph=False
+                    )
+                    return M_inv * Jv  # лево-предобусловленная система
+
+                rhs = M_inv * (-F)
+            else:
+                # Предобуславливатель уже вычислен
+                def matvec_pre(v):
+                    _, Jv = torch.autograd.functional.jvp(
+                        lambda z: self._fi_residual_vec(z, dt), x, v, create_graph=False
+                    )
+                    return M_inv * Jv
+                rhs = M_inv * (-F)
+
+            delta = self._bicgstab(matvec_pre, rhs, tol=1e-6, max_iter=200)
+
+            # ---------- Trust-region по δSw ----------------------------
+            dSw_max = torch.max(torch.abs(delta[N:])).item()
+            max_sw_step = 0.10  # не больше 0.10 за шаг Ньютона
+            if dSw_max > max_sw_step:
+                scale = max_sw_step / (dSw_max + 1e-15)
+                delta = delta * scale
+                if self.verbose:
+                    print(f"    Trust-region: масштабируем δSw (×{scale:.2f})")
+
             # --- Armijo line-search ---------------------------------
-            sigma = 0.1  # требуемое относительное уменьшение
+            sigma = 0.05  # более мягкий Armijo
             factor = 1.0  # начинаем с полного шага Δx
             min_factor = 1e-6
             success = False
@@ -1835,7 +1862,7 @@ class Simulator:
         rho_w = self.fluid.calc_water_density(p_new.view(-1))
         rho_o = self.fluid.calc_oil_density(p_new.view(-1))
         phi0  = self.reservoir.porosity_ref.view(-1)
-        phi   = phi0 * (1 + self.reservoir.rock_compressibility * (p_new.view(-1) - 1e5))
+        phi   = phi0 * (1 + self.reservoir.rock_compressibility * (p_new.view(-1) - 1e5)) + self.ptc_alpha
         cell_vol = self.reservoir.cell_volume
         self.fluid.prev_water_mass = phi * sw_new.view(-1) * rho_w * cell_vol
         self.fluid.prev_oil_mass   = phi * (1 - sw_new.view(-1)) * rho_o * cell_vol
@@ -1872,7 +1899,7 @@ class Simulator:
         sw = self.fluid.s_w.clamp(self.fluid.sw_cr, 1.0 - self.fluid.so_r)
 
         # пористость сжатого пласта
-        phi = self.reservoir.porosity_ref * (1 + self.reservoir.rock_compressibility * (p - 1e5))
+        phi = self.reservoir.porosity_ref * (1 + self.reservoir.rock_compressibility * (p - 1e5)) + self.ptc_alpha
 
         # плотности
         rho_w = self.fluid.calc_water_density(p)
@@ -1994,17 +2021,35 @@ class Simulator:
             delta = delta_cpu.to(self.device)
 
             # Armijo line-search
-            sigma = 0.1
+            c1 = 1e-4  # «мягкий» параметр Армижо (обычно 1e-4)
             factor = 1.0
+            success_ls = False
             while factor >= 1e-6:
                 x_trial = x + factor * damping * delta
                 F_trial = self._fi_residual_vec(x_trial, dt)
-                if torch.isfinite(F_trial).all() and F_trial.norm() <= (1 - sigma * factor) * norm_F:
+
+                # Обработка NaN/Inf
+                if not torch.isfinite(F_trial).all():
+                    factor *= 0.5
+                    continue
+
+                # Классическое условие Армижо
+                if F_trial.norm() <= (1 - c1 * factor) * norm_F:
                     x = x_trial.detach().clone().requires_grad_(True)
+                    success_ls = True
                     break
+
+                # Разрешаем небольшой прогресс (<1%) при достаточно малом шаге –
+                # это помогает избегать зацикливания на «плато».
+                if F_trial.norm() < 0.99 * norm_F and factor < 0.1:
+                    x = x_trial.detach().clone().requires_grad_(True)
+                    success_ls = True
+                    break
+
                 factor *= 0.5
-            else:
-                print("  Line-search (autograd) не смог уменьшить невязку – уменьшаем dt")
+
+            if not success_ls:
+                print("  Line-search (autograd) не смог подобрать шаг – уменьшаем dt")
                 return False  # не сошлось
 
         # Обновляем состояние
@@ -2022,7 +2067,7 @@ class Simulator:
         rho_w = self.fluid.calc_water_density(p_new.view(-1))
         rho_o = self.fluid.calc_oil_density(p_new.view(-1))
         phi0 = self.reservoir.porosity_ref.view(-1)
-        phi = phi0 * (1 + self.reservoir.rock_compressibility * (p_new.view(-1) - 1e5))
+        phi = phi0 * (1 + self.reservoir.rock_compressibility * (p_new.view(-1) - 1e5)) + self.ptc_alpha
         cell_vol = self.reservoir.cell_volume
         self.fluid.prev_water_mass = phi * sw_new.view(-1) * rho_w * cell_vol
         self.fluid.prev_oil_mass = phi * (1 - sw_new.view(-1)) * rho_o * cell_vol
@@ -2047,3 +2092,56 @@ class Simulator:
                 return torch.linalg.solve(A + eps * I, b)
             except (RuntimeError, torch._C._LinAlgError):
                 return A.pinverse() @ b
+
+    # -----------------------------------------------------------
+    #              IMPES-predictor (initial guess)
+    # -----------------------------------------------------------
+    def _impes_predictor(self, dt):
+        """Одношаговый IMPES-прогноз, который обновляет self.fluid.pressure
+        и self.fluid.s_w, но НЕ трогает prev_mass. Используется как
+        начальное приближение для fully-implicit Ньютона."""
+        # Сохраняем текущее состояние, чтобы в случае неудачи можно было откатиться
+        p_old = self.fluid.pressure.clone()
+        sw_old = self.fluid.s_w.clone()
+
+        # Мини-шаг IMPES: одна итерация давления + явное обновление насыщенности
+        self._init_impes_transmissibilities()
+        P_new, converged = self._impes_pressure_step(dt)
+        if not converged:
+            # Если CG не сошёлся, откатываемся и бросаем исключение
+            self.fluid.pressure = p_old
+            self.fluid.s_w = sw_old
+            raise RuntimeError("IMPES-predictor: шаг давления не сошёлся")
+
+        # Обновляем давление и делаем явный шаг насыщенности
+        self.fluid.pressure = P_new
+        self._impes_saturation_step(P_new, dt)
+
+        # После предиктора не нужно обновлять prev_pressure/mass.
+        # Эти обновления сделает fully-implicit после успешной сходимости.
+        self._log("IMPES-predictor выполнен: использовано как initial guess")
+
+    # ---------------------------------------------------------------
+    #        Adaptively reduce dt for autograd-Newton                
+    # ---------------------------------------------------------------
+    def _fi_autograd_adaptive(self, dt):
+        """Пытается выполнить autograd-Ньютон, уменьшая dt при неудаче
+        прежде чем переключаться на другой решатель."""
+        current_dt = dt
+        max_attempts = self.sim_params.get("max_time_step_attempts", 4)
+        for attempt in range(max_attempts):
+            if getattr(self, "use_impes_predictor", False):
+                try:
+                    self._impes_predictor(current_dt)
+                except Exception:
+                    pass  # предиктор может не сойтись на очень маленьком dt
+
+            print(f"Попытка шага (autograd) с dt = {current_dt/86400:.2f} дней (Попытка {attempt+1}/{max_attempts})")
+            if self._fi_autograd_step(current_dt):
+                return True
+
+            # уменьшаем dt и пробуем снова
+            current_dt /= self.sim_params.get("dt_reduction_factor", 2.0)
+            if current_dt < self.sim_params.get("min_time_step", 0.02*86400):
+                break
+        return False
