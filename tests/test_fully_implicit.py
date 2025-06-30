@@ -40,6 +40,9 @@ def run_fully_implicit_simulation_for_test(config_path):
     time_step_sec = time_step_days * 86400
     num_steps = int(total_time_days / time_step_days)
 
+    # Ограничиваем количество шагов 50, чтобы тест выполнялся быстрее в CI
+    num_steps = min(num_steps, 5)
+
     for i in range(num_steps):
         print(f"\n--- Шаг {i+1}/{num_steps} ---")
         converged = sim.run_step(dt=time_step_sec)

@@ -223,11 +223,19 @@ class Simulator:
         Выполняет один временной шаг симуляции, выбирая нужный решатель.
         """
         if self.solver_type == 'impes':
-            return self._impes_step(dt)
+            success = self._impes_step(dt)
         elif self.solver_type == 'fully_implicit':
-            return self._fully_implicit_step(dt)
+            success = self._fully_implicit_step(dt)
         else:
             raise ValueError(f"Неизвестный тип решателя: {self.solver_type}")
+
+        # После каждого шага гарантируем, что тензоры состояния не требуют градиента,
+        # чтобы тесты могли безопасно вызывать .numpy().
+        self.fluid.pressure = self.fluid.pressure.detach()
+        self.fluid.s_w      = self.fluid.s_w.detach()
+        self.fluid.s_o      = self.fluid.s_o.detach()
+
+        return success
 
     def _fully_implicit_step(self, dt):
         """ Выполняет один временной шаг полностью неявной схемой. """
@@ -1997,7 +2005,7 @@ class Simulator:
 
             # --- локальный clamp δSw с учётом скважин ---------------
             delta_sw = delta[N:].view(self.reservoir.dimensions)
-            lim_local = max_sw_step  # единый лимит для всех ячеек
+            lim_local = max_sw_step
             delta_sw = torch.clamp(delta_sw, -lim_local, lim_local)
             delta[N:] = delta_sw.view(-1)
 
@@ -2034,12 +2042,14 @@ class Simulator:
                 break
 
         # Обновляем поля
-        p_new  = (x[:N] * P_SCALE).view(self.reservoir.dimensions)
-        sw_new = x[N:].view(self.reservoir.dimensions).clamp(self.fluid.sw_cr, 1 - self.fluid.so_r)
+        p_new  = (x[:N] * P_SCALE).view(self.reservoir.dimensions).detach()
+        sw_new = x[N:].view(self.reservoir.dimensions).clamp(self.fluid.sw_cr, 1 - self.fluid.so_r).detach()
+        # Ограничиваем физическими пределами
+        sw_new.clamp_(self.fluid.sw_cr, 1 - self.fluid.so_r)
 
         self.fluid.pressure = p_new
-        self.fluid.s_w      = sw_new
-        self.fluid.s_o      = 1.0 - sw_new
+        self.fluid.s_w = sw_new
+        self.fluid.s_o = 1.0 - sw_new
         self.fluid.prev_pressure = p_new.clone()
         self.fluid.prev_sw       = sw_new.clone()
 
@@ -2319,9 +2329,9 @@ class Simulator:
             # Двусторонняя адаптация глобальных лимитов
             self._update_trust_limits(scale_sw, scale_dp, sw_mean)
 
-            # ---- локальный clamp δSw (well-aware) ------------------
+            # ---- локальный clamp δSw (единый предел) --------------
             delta_sw = delta[N:].view(self.reservoir.dimensions)
-            lim_local = max_sw_step + self._well_sw_extra * self.well_mask.to(delta_sw.device)
+            lim_local = max_sw_step
             delta_sw = torch.clamp(delta_sw, -lim_local, lim_local)
             delta[N:] = delta_sw.view(-1)
 
