@@ -1,8 +1,8 @@
 import torch
 import numpy as np
 import matplotlib.pyplot as plt
-from scipy.sparse import csc_matrix, diags, bmat
-from scipy.sparse.linalg import cg, LinearOperator, bicgstab, spsolve
+from scipy.sparse import csc_matrix, diags, bmat, csr_matrix, identity
+from scipy.sparse.linalg import cg, LinearOperator, bicgstab, spsolve, gmres, spilu
 import time
 import os
 import datetime
@@ -100,6 +100,31 @@ class Simulator:
         self._log = _log
 
         # --------------------------------------------------------------
+        #  Линейный солвер: автоконфигурация
+        # --------------------------------------------------------------
+        # Если пользователь не указал блок "linear_solver", пытаемся
+        # автоматически выбрать наиболее продвинутый доступный backend.
+        # Предпочтение: (1) Hypre BoomerAMG через PETSc, (2) torch_gmres.
+        if 'linear_solver' not in self.sim_params:
+            self.sim_params['linear_solver'] = {}
+        lin_cfg = self.sim_params['linear_solver']
+        if 'backend' not in lin_cfg:
+            try:
+                import petsc4py  # noqa: F401
+                from petsc4py import PETSc as _P
+                _ = _P.Sys.getVersion()  # попытка загрузить libpetsc, может бросить
+                lin_cfg['backend'] = 'hypre'
+                lin_cfg.setdefault('tol', 1e-8)
+                lin_cfg.setdefault('max_iter', 400)
+                self._log("[auto] Выбран backend Hypre/BoomerAMG (petsc4py OK).")
+            except Exception as e:
+                lin_cfg['backend'] = 'torch_gmres'
+                lin_cfg.setdefault('tol', 1e-6)
+                lin_cfg.setdefault('restart', 50)
+                lin_cfg.setdefault('max_iter', 400)
+                self._log(f"[auto] petsc4py/Hypre не доступен: {e}. Переключаемся на torch_gmres.")
+
+        # --------------------------------------------------------------
         # Предвычисляем индексы соседних ячеек (edges) для X-,Y-,Z-направлений.
         # Это позволит векторизовать расчёт потоков без Python-циклов.
         nx, ny, nz = self.reservoir.dimensions
@@ -136,6 +161,44 @@ class Simulator:
         # По-умолчанию используем предварительный predictor IMPES перед
         # fully-implicit, чтобы дать хорошее initial guess.
         self.use_impes_predictor = self.sim_params.get("use_impes_predictor", True)
+
+        # По-умолчанию используем «ручной» Якобиан, чтобы полностью полагаться
+        # на классический метод Ньютона (собранная матрица) вместо autograd/JFNK.
+        # Это приближает нас к промышленным симуляторам и исключает дрейф
+        # производительности на крупных сетках, где autograd становится дорогим.
+        if 'jacobian' not in self.sim_params:
+            # По-умолчанию выбираем «auto»: для мелких задач (N<autograd_threshold_cells)
+            # будет использован автоград-Ньютон, для больших – JFNK, но всегда без
+            # ручного плотного Якобиана, который показал слабую устойчивость.
+            self.sim_params['jacobian'] = 'auto'
+
+        # --------------------------------------------------------------
+        #  Динамические лимиты trust-region (давление / насыщенность)
+        # --------------------------------------------------------------
+        self._sw_trust_limit_init = self.sim_params.get("max_saturation_change", 0.15)
+        self._p_trust_limit_init  = self.sim_params.get("max_pressure_change", 5.0)
+        self._sw_trust_limit = self._sw_trust_limit_init
+        self._p_trust_limit  = self._p_trust_limit_init
+        # Эти значения будут адаптивно увеличиваться, если алгоритму
+        # не удаётся сделать достаточно большой шаг (см. _fi_autograd_step
+        # и _fi_jfnk_step).
+
+        # --------------------------------------------------------------
+        #  Доп. лимиты для ячеек-скважин + CNV-критерий
+        # --------------------------------------------------------------
+        self._well_sw_extra   = self.sim_params.get("well_saturation_extra", 0.0)  # отключено: единый лимит для всех ячеек
+        self._cnv_threshold   = self.sim_params.get("cnv_threshold", 1.2)  # порог относит. изм. насыщенности
+
+        # Маска ячеек, в которых расположены скважины (True там, где есть хоть одна скважина)
+        nx, ny, nz = self.reservoir.dimensions
+        self.well_mask = torch.zeros((nx, ny, nz), dtype=torch.bool)
+        for w in self.well_manager.wells:
+            i, j, k = w.i, w.j, w.k
+            # проверка на диапазон сетки
+            if 0 <= i < nx and 0 <= j < ny and 0 <= k < nz:
+                self.well_mask[i, j, k] = True
+        # Плоская версия (1-D) для быстрого индексирования
+        self._well_mask_flat = self.well_mask.view(-1)
 
     def _move_data_to_device(self):
         """Переносит данные на текущее устройство (CPU или GPU)"""
@@ -200,7 +263,7 @@ class Simulator:
         else:
             nx, ny, nz = self.reservoir.dimensions
             num_cells = nx * ny * nz
-            threshold = self.sim_params.get("autograd_threshold_cells", 10000)
+            threshold = self.sim_params.get("autograd_threshold_cells", 5000)
             # Для небольших задач используем автоград-Ньютон, иначе JFNK
             if num_cells <= threshold:
                 # Используем адаптивный автоград-Ньютон: при несходимости он
@@ -211,7 +274,10 @@ class Simulator:
                 print("Autograd-Ньютон не сошёлся даже после адаптации dt – пробуем JFNK fallback")
                 if self._fi_jfnk_adaptive(dt):
                     return True
-                print("JFNK также не сошёлся – выполняем fallback на IMPES")
+                print("JFNK также не сошёлся – пробуем ещё раз autograd на более мелком dt")
+                if self._fi_autograd_adaptive(dt / 2):
+                    return True
+                print("Autograd после JFNK тоже не сошёлся – выполняем fallback на IMPES")
                 return self._impes_step(dt)
             else:
                 # Для крупных задач сразу используем JFNK с адаптацией dt
@@ -339,7 +405,7 @@ class Simulator:
                 # Векторизованный расчет базовых величин
                 p_vec = self.fluid.pressure.reshape(-1)
                 sw_vec_raw = self.fluid.s_w.reshape(-1)
-                sw_vec = sw_vec_raw.clamp(self.fluid.sw_cr, 1.0 - self.fluid.so_r)
+                sw_vec = self._soft_clamp(sw_vec_raw, self.fluid.sw_cr, 1.0 - self.fluid.so_r)
                 # Пористость зависит от давления: φ(P) = φ_ref * (1 + c_r (P - P_ref))
                 phi0_vec = self.reservoir.porosity_ref.reshape(-1)
                 c_r = self.reservoir.rock_compressibility
@@ -430,24 +496,48 @@ class Simulator:
                 try:
                     # Используем оптимизированный солвер для разреженных матриц
                     if jacobian.shape[0] > 1000:  # Для больших систем используем итеративные методы
-                        from scipy.sparse import csr_matrix
-                        from scipy.sparse.linalg import spsolve, bicgstab
-                        
-                        # Преобразуем в разреженный формат для быстрого решения
-                        jacobian_np = jacobian.cpu().numpy()
-                        residual_np = residual.cpu().numpy()
-                        jacobian_sparse = csr_matrix(jacobian_np)
-                        
-                        # Пробуем решить с помощью прямого метода
+                        import numpy as np
+                        from scipy.sparse import csr_matrix, identity
+                        from scipy.sparse.linalg import spilu, gmres, LinearOperator
+
+                        jacobian_np = jacobian.cpu().numpy().astype(np.float32)
+                        residual_np = residual.cpu().numpy().astype(np.float32)
+
+                        jacobian_csr = csr_matrix(jacobian_np)
+
+                        # Tikhonov-регуляризация, чтобы устранить возможные нули на диагонали
+                        lam_reg = self.sim_params.get("tikhonov_lambda", 1e-8)
+                        jacobian_csr = jacobian_csr + lam_reg * identity(jacobian_csr.shape[0], dtype=jacobian_csr.dtype)
+
+                        # ILU0 предобуславливатель
+                        fill_factor = self.sim_params.get("linear_solver", {})
                         try:
-                            delta_np = spsolve(jacobian_sparse, -residual_np)
-                            delta = torch.from_numpy(delta_np).to(device)
-                        except Exception:
-                            # Если прямой метод не работает, используем итеративный
-                            delta_np, info = bicgstab(jacobian_sparse, -residual_np, tol=1e-6, maxiter=1000)
+                            ilu = spilu(jacobian_csr.astype(np.float64), drop_tol=0.0, fill_factor=fill_factor)
+
+                            def Mx(x):
+                                return ilu.solve(x)
+
+                            M = LinearOperator(jacobian_csr.shape, Mx, dtype=np.float64)
+
+                            ls_cfg = self.sim_params.get("linear_solver", {})
+                            restart = ls_cfg.get("restart", 50)
+                            max_it  = ls_cfg.get("max_iter", 400)
+                            tol_lin = ls_cfg.get("tol", 1e-8)
+
+                            delta_np, info = gmres(
+                                jacobian_csr, -residual_np,
+                                M=M, restart=restart, maxiter=max_it, tol=tol_lin
+                            )
                             if info != 0:
-                                print(f"  Предупреждение: Итеративный решатель не сошелся (код {info})")
-                            delta = torch.from_numpy(delta_np).to(device)
+                                print(f"  Предупреждение: GMRES не сошёлся (info={info}) → fallback на bicgstab")
+                                from scipy.sparse.linalg import bicgstab
+                                delta_np, info2 = bicgstab(jacobian_csr, -residual_np, tol=1e-6, maxiter=1000, M=M)
+                                if info2 != 0:
+                                    raise RuntimeError("BiCGStab также не сошёлся")
+                        except Exception as e_ilu:
+                            print(f"  ILU0/GMRES не удалось: {e_ilu}. Переходим к spsolve")
+                            from scipy.sparse.linalg import spsolve
+                            delta_np = spsolve(jacobian_csr, -residual_np)
                     else:
                         # Для небольших систем используем прямой решатель
                         delta = self._robust_solve(jacobian, -residual)
@@ -458,6 +548,21 @@ class Simulator:
                     self.fluid.s_w = current_sw.clone()
                     return False, iter_idx
                 
+                # ---- Trust–region по полной норме шага ----------------------
+                if iter_idx == 0 and not hasattr(self, "_trust_radius"):
+                    # Инициализируем: 20 % нормы начального состояния – эвристика
+                    x0_norm = torch.norm(torch.cat([p_vec, sw_vec])).item()
+                    self._trust_radius = 0.2 * x0_norm
+
+                step_norm = torch.norm(delta).item()
+                if step_norm > self._trust_radius:
+                    scale_trust = self._trust_radius / (step_norm + 1e-15)
+                    delta = delta * scale_trust
+                    if self.verbose:
+                        print(f"  Trust-region: ||δ||={step_norm:.2e} > r={self._trust_radius:.2e} → масштаб x{scale_trust:.3f}")
+
+                # -------------------------------------------------------------
+
                 # Нормализуем невязку
                 if iter_idx == 0:
                     initial_residual_norm = torch.norm(residual).item()
@@ -489,6 +594,7 @@ class Simulator:
                         return True, iter_idx + 1
                 
                 prev_residual_norm = residual_norm
+                self._update_trust_limits(prev_residual_norm, residual_norm, jacobian, delta, p_vec, sw_vec)
                 
                 # Line search для улучшения сходимости
                 best_factor = None
@@ -621,9 +727,8 @@ class Simulator:
         max_p_change = torch.minimum(max_p_change_rel, max_p_change_abs)
         p_delta = torch.clamp(p_delta_raw, -max_p_change, max_p_change)
         
-        # Ограничиваем изменения насыщенности (не более 0.25 за шаг)
-        max_sw_change = 0.25
-        sw_delta = torch.clamp(sw_delta_raw, -max_sw_change, max_sw_change)
+        # Насыщенность не ограничиваем компонентно – доверяем глобальному trust-region
+        sw_delta = sw_delta_raw
         
         # Применяем обновления к давлению и насыщенности
         self.fluid.pressure = (old_p + p_delta).reshape(nx, ny, nz)
@@ -648,15 +753,7 @@ class Simulator:
             sw_limited_percent = sw_limited / num_cells * 100
             print(f"  Изменения: P_max={max_p_change/1e6:.3f} МПа, Sw_max={max_sw_change:.3f}. Ограничено: P={p_limited_percent:.1f}%, Sw={sw_limited_percent:.1f}%")
 
-        # -------- Trust-region limiter for saturation (до clamping) ---------
-        max_sw_step = self.sim_params.get("max_sw_step", 0.02)
-        max_raw_sw = torch.max(torch.abs(sw_delta_raw)).item()
-        if max_raw_sw > max_sw_step:
-            scale = max_sw_step / (max_raw_sw + 1e-15)
-            p_delta_raw = p_delta_raw * scale
-            sw_delta_raw = sw_delta_raw * scale
-            if self.verbose:
-                print(f"  Trust-region: уменьшили шаг Ньютона (scale={scale:.3f}) из-за δSw")
+        # -------- Локальный trust-region больше не нужен: глобальный ограничитель уже применён ---------
 
     def _idx_to_ijk(self, idx, nx, ny):
         """
@@ -858,8 +955,10 @@ class Simulator:
 
         # 6. Обновление насыщенности с ограничением максимального изменения
         dSw = (dt / self.porous_volume) * (q_w - div_flow)
-        max_dSw = self.sim_params.get("max_saturation_change", 0.05)
-        dSw_clamped = dSw.clamp(-max_dSw, max_dSw)
+        sw_mean = float(self.fluid.s_w.mean().item())
+        max_sw_cfg = self.sim_params.get("max_saturation_change", 0.05)
+        max_sw_step = max(max_sw_cfg, 0.3 * (1 - sw_mean), 0.15)
+        dSw_clamped = dSw.clamp(-max_sw_step, max_sw_step)
 
         S_w_new = (S_w_old + dSw_clamped).clamp(self.fluid.sw_cr, 1.0 - self.fluid.so_r)
 
@@ -868,7 +967,7 @@ class Simulator:
 
         affected_cells = torch.sum(torch.abs(dSw) > 1e-8).item()
         print(
-            f"P̄ = {P_new.mean()/1e6:.2f} МПа, Sw(min/max) = {self.fluid.s_w.min():.3f}/{self.fluid.s_w.max():.3f}, ΔSw ограничено до ±{max_dSw}, ячеек изм.: {affected_cells}"
+            f"P̄ = {P_new.mean()/1e6:.2f} МПа, Sw(min/max) = {self.fluid.s_w.min():.3f}/{self.fluid.s_w.max():.3f}, ΔSw ограничено до ±{max_sw_step}, ячеек изм.: {affected_cells}"
         )
 
     def _build_pressure_matrix_vectorized(self, Tx, Ty, Tz, dt, well_bhp_terms):
@@ -891,8 +990,10 @@ class Simulator:
         rows = torch.cat([row_x, col_x, row_y, col_y, row_z, col_z])
         cols = torch.cat([col_x, row_x, col_y, row_y, col_z, row_z])
         vals = torch.cat([-vals_x, -vals_x, -vals_y, -vals_y, -vals_z, -vals_z])
-        acc_term = (self.porous_volume.view(-1) * self.fluid.cf.view(-1) / dt)
-        diag_vals = torch.zeros(N, device=self.device)
+        # Гарантируем, что dtype совпадает с diag_vals (float32), чтобы scatter_add_ не падал
+        vals = vals.to(torch.float32)
+        acc_term = (self.porous_volume.view(-1) * self.fluid.cf.view(-1) / dt).to(torch.float32)
+        diag_vals = torch.zeros(N, device=self.device, dtype=torch.float32)
         diag_vals.scatter_add_(0, rows, -vals)
         diag_vals += acc_term
         diag_vals += well_bhp_terms
@@ -905,7 +1006,7 @@ class Simulator:
     def _build_pressure_rhs(self, dt, P_prev, mob_w, mob_o, q_wells, dp_x_prev, dp_y_prev, dp_z_prev):
         """ Собирает правую часть Q для СЛАУ IMPES. """
         N = self.reservoir.nx * self.reservoir.ny * self.reservoir.nz
-        compressibility_term = (self.porous_volume.view(-1) * self.fluid.cf.view(-1) / dt) * P_prev.view(-1)
+        compressibility_term = ((self.porous_volume.view(-1) * self.fluid.cf.view(-1) / dt).float() * P_prev.view(-1).float())
         Q_g = torch.zeros_like(P_prev)
         _, _, dz = self.reservoir.grid_size
         if dz > 0 and self.reservoir.nz > 1:
@@ -931,7 +1032,8 @@ class Simulator:
             Q_pc[:,:-1,:]  -= pc_flow_y
             Q_pc[:,:,1:]   += pc_flow_z
             Q_pc[:,:,:-1]  -= pc_flow_z
-        Q_total = compressibility_term + q_wells.flatten() + Q_g.view(-1) + Q_pc.view(-1)
+        Q_total = compressibility_term + q_wells.flatten().float() + Q_g.view(-1).float() + Q_pc.view(-1).float()
+        Q_total = Q_total.to(torch.float32)
         return Q_total
 
     def _calculate_well_terms(self, mob_t, P_prev):
@@ -961,6 +1063,12 @@ class Simulator:
         Решает СЛАУ Ax=b методом сопряженных градиентов (CG) с предобуславливателем.
         Использует самописную реализацию на PyTorch.
         """
+        # Приводим всё к одному dtype (float32)
+        b = b.to(torch.float32)
+        if x0 is not None:
+            x0 = x0.to(torch.float32)
+        if M_diag is not None:
+            M_diag = M_diag.to(torch.float32)
         if x0 is None:
             x = torch.zeros_like(b)
         else:
@@ -1709,7 +1817,7 @@ class Simulator:
         # Разворачиваем (обратно масштабируем давление)
         p_vec  = x[:N] * P_SCALE
         sw_vec_raw = x[N:]
-        sw_vec = sw_vec_raw.clamp(self.fluid.sw_cr, 1.0 - self.fluid.so_r)
+        sw_vec = self._soft_clamp(sw_vec_raw, self.fluid.sw_cr, 1.0 - self.fluid.so_r)
 
         # Сохраняем текущее состояние и подставляем новое (для использования существующих функций)
         p_old = self.fluid.pressure
@@ -1762,7 +1870,10 @@ class Simulator:
         return x
 
     # ------------- JFNK основной цикл --------------------------------
-    def _fi_jfnk_step(self, dt, tol=1e-3, max_iter=10, damping=0.6):
+    def _fi_jfnk_step(self, dt, tol=None, max_iter=10, damping=0.6):
+        if tol is None:
+            tol = self.sim_params.get("newton_tolerance", 1e-3)
+
         nx, ny, nz = self.reservoir.dimensions
         N = nx * ny * nz
 
@@ -1817,16 +1928,90 @@ class Simulator:
                     return M_inv * Jv
                 rhs = M_inv * (-F)
 
-            delta = self._bicgstab(matvec_pre, rhs, tol=1e-6, max_iter=200)
+            # ----------- Hypre BoomerAMG предобуславливатель -------------
+            lin_cfg = self.sim_params.get("linear_solver", {})
+            if lin_cfg.get("backend") == "hypre" and N > 5000:
+                # Инициализируем CPR-предобуславливатель один раз и переисп. дальше
+                if not hasattr(self, "_hypre_prec"):
+                    lambda_w = self.fluid.calc_water_kr(self.fluid.s_w) / self.fluid.mu_water
+                    lambda_o = self.fluid.calc_oil_kr(self.fluid.s_w) / self.fluid.mu_oil
+                    lambda_t = lambda_w + lambda_o
+                    indptr, indices_arr, data_arr = self._assemble_pressure_csr(lambda_t)
+                    self._hypre_prec = (indptr, indices_arr, data_arr)
+
+                from linear_gpu.petsc_boomeramg import solve_boomeramg
+
+                indptr, ind, dat = self._hypre_prec
+
+                def hypre_apply(vec):
+                    # CPR: BoomerAMG → δp, saturations → Jacobi (ω=0.8)
+                    b_p = vec[:N].cpu().numpy()
+                    sol_p, its, res = solve_boomeramg(indptr, ind, dat, b_p,
+                                                       tol=lin_cfg.get("tol", 1e-6),
+                                                       max_iter=lin_cfg.get("max_iter", 200))
+                    # --- Проверка устойчивости ---
+                    if not np.isfinite(res) or not np.all(np.isfinite(sol_p)):
+                        if self.verbose:
+                            print("      [BoomerAMG] res=NaN/Inf → fallback на Jacobi")
+                        return 0.8 * vec  # полный Jacobi
+                    if self.verbose:
+                        print(f"      [BoomerAMG] its={its}, res={res:.2e}")
+                    out = torch.zeros_like(vec)
+                    out[:N] = torch.from_numpy(sol_p).to(vec.device)
+                    out[N:] = 0.8 * vec[N:]
+                    return out
+
+                def matvec_pre(v):
+                    _, Jv = torch.autograd.functional.jvp(
+                        lambda z: self._fi_residual_vec(z, dt), x, v, create_graph=False)
+                    return hypre_apply(Jv)
+
+                rhs = hypre_apply(-F)
+                delta = self._bicgstab(matvec_pre, rhs, tol=1e-6, max_iter=200)
+            else:
+                # Либо backend не hypre, либо сетка маленькая – используем простой BiCGSTAB
+                delta = self._bicgstab(matvec_pre, rhs, tol=1e-6, max_iter=200)
 
             # ---------- Trust-region по δSw ----------------------------
-            dSw_max = torch.max(torch.abs(delta[N:])).item()
-            max_sw_step = 0.10  # не больше 0.10 за шаг Ньютона
-            if dSw_max > max_sw_step:
-                scale = max_sw_step / (dSw_max + 1e-15)
-                delta = delta * scale
+            # ---------- Расширенный trust-region (P, Sw) ----------
+            sw_mean = float(self.fluid.s_w.mean().item())
+            max_sw_step = max(self._sw_trust_limit, 0.3 * (1 - sw_mean), 0.15)
+
+            dSw_max = torch.max(torch.abs(delta[N:])).item() + 1e-15
+            dp_max  = torch.max(torch.abs(delta[:N])).item() * (P_SCALE * 1e-6)  # в МПа
+
+            scale_sw = max_sw_step / dSw_max
+            max_dp_step = self._p_trust_limit
+            p_mean_mpa = float(self.fluid.pressure.mean().item() * 1e-6) + 1e-6
+            max_dp_step = max(max_dp_step, 0.3 * p_mean_mpa)
+            scale_dp = float('inf') if max_dp_step<=0 else max_dp_step / dp_max
+            scale_trust = min(1.0, scale_sw, scale_dp)
+
+            if scale_trust < 1.0:
+                delta = delta * scale_trust
                 if self.verbose:
-                    print(f"    Trust-region: масштабируем δSw (×{scale:.2f})")
+                    print(f"    Trust-region: масштабируем δ (×{scale_trust:.3f})  dSw_max={dSw_max:.3e}, dP_max={dp_max:.2f} МПа")
+
+            # --- двусторонняя адаптация глобальных лимитов ----------
+            self._update_trust_limits(scale_sw, scale_dp, sw_mean)
+
+            # --- локальный clamp δSw с учётом скважин ---------------
+            delta_sw = delta[N:].view(self.reservoir.dimensions)
+            lim_local = max_sw_step  # единый лимит для всех ячеек
+            delta_sw = torch.clamp(delta_sw, -lim_local, lim_local)
+            delta[N:] = delta_sw.view(-1)
+
+            # CNV-контроль
+            cnv_val = torch.max(torch.abs(delta_sw) / (self.fluid.s_w + 1e-12)).item()
+            if cnv_val > self._cnv_threshold:
+                if self.verbose:
+                    print(f"      CNV={cnv_val:.2f} > {self._cnv_threshold} – уменьшить dt")
+                break  # прерываем итерации JFNK для уменьшения dt
+
+            # Если шаг стал почти нулевой – приём сразу без line-search
+            if torch.norm(delta) < 1e-10 * torch.norm(x):
+                x = x + damping * delta
+                continue
 
             # --- Armijo line-search ---------------------------------
             sigma = 0.05  # более мягкий Armijo
@@ -1989,8 +2174,10 @@ class Simulator:
     # ---------------------------------------------------------------
     #          Полный автоград-Ньютон (для маленьких сеток)
     # ---------------------------------------------------------------
-    def _fi_autograd_step(self, dt, tol=1e-3, max_iter=12, damping=0.8):
-        """Автоград-Ньютон с полным Якобианом для небольших систем."""
+    def _fi_autograd_step(self, dt, tol=None, max_iter=12, damping=0.8):
+        if tol is None:
+            tol = self.sim_params.get("newton_tolerance", 1e-3)
+
         P_SCALE = 1e6
         nx, ny, nz = self.reservoir.dimensions
         N = nx * ny * nz
@@ -2011,14 +2198,147 @@ class Simulator:
             if rel_res < tol:
                 break
 
+            # --- Инициализируем trust-radius при первой итерации ----
+            if not hasattr(self, "_trust_radius_auto"):
+                # стартовое значение = 10 % нормы текущего состояния x
+                self._trust_radius_auto = float(torch.norm(x).item() * 0.1 + 1e-15)
+
             # Полный Якобиан
             J = torch.autograd.functional.jacobian(lambda z: self._fi_residual_vec(z, dt), x, create_graph=False, vectorize=True)
 
-            # Решаем J δ = –F (на CPU удобнее для больших dense-матриц)
-            J_cpu = J.detach().to('cpu')
-            F_cpu = F.detach().to('cpu')
-            delta_cpu = self._robust_solve(J_cpu, -F_cpu)
-            delta = delta_cpu.to(self.device)
+            # ---- Решаем J δ = –F через GMRES + ILU0 (CPU) -------------
+            lin_cfg = self.sim_params.get("linear_solver", {})
+            if lin_cfg.get("backend") == "amgx":
+                from linear_gpu import dense_to_csr, solve_amgx_torch as solve_amgx, amgx_available
+                if not amgx_available():
+                    raise RuntimeError("backend='amgx', но pyamgx не доступен. Установите pyamgx или используйте другой backend.")
+                A_csr = dense_to_csr(J.detach()) if not J.is_sparse_csr else J.detach()
+                delta = solve_amgx(A_csr, -F.detach(), tol=lin_cfg.get("tol",1e-8))
+
+            elif lin_cfg.get("backend") == "torch_gmres":
+                from linear_gpu import gmres as _gmres, jacobi_precond, dense_to_csr
+                from linear_gpu.csr import dense_to_csr
+
+                A = dense_to_csr(J.detach()) if not J.is_sparse_csr else J.detach()
+                b_vec = -F.detach()
+                if lin_cfg.get("precond") == "ilu":
+                    from linear_gpu import ilu_precond
+                    drop = lin_cfg.get("drop_tol", 1e-4)
+                    fill = lin_cfg.get("fill_factor", 10)
+                    for attempt in range(4):
+                        try:
+                            M = ilu_precond(A, drop_tol=drop, fill_factor=fill)
+                            if self.verbose:
+                                print(f"  ILU built: drop_tol={drop:.1e}, fill_factor={fill}")
+                            break
+                        except RuntimeError as e:
+                            if self.verbose:
+                                print(f"  ILU build failed (attempt {attempt+1}): {e}")
+                            drop *= 0.1
+                            fill *= 2
+                    else:
+                        if self.verbose:
+                            print("  ILU failed after retries, fallback to Jacobi")
+                        M = jacobi_precond(A)
+                elif lin_cfg.get("precond", "jacobi") == "fsai":
+                    from linear_gpu import fsai_precond
+                    M = fsai_precond(A, k=lin_cfg.get("k", 1))
+                else:
+                    M = jacobi_precond(A, omega=lin_cfg.get("omega", 0.8))
+                delta_t, info = _gmres(A, b_vec, M=M,
+                                       tol=lin_cfg.get("tol", 1e-8),
+                                       restart=lin_cfg.get("restart", 50),
+                                       max_iter=lin_cfg.get("max_iter", 400))
+                if info == 0:
+                    delta = delta_t.to(self.device)
+                else:
+                    if self.verbose:
+                        print("  [torch_gmres] не сошёлся, используем robust_solve")
+                    J_dense = J.detach().to(self.device)
+                    b_dense = -F.detach().to(self.device)
+                    delta = self._robust_solve(J_dense, b_dense)
+            elif lin_cfg.get("backend") == "hypre":
+                # Для небольших задач (<= 12 тыс. неизвестных) надёжнее
+                # и зачастую быстре решить систему напрямую, чем строить CPR.
+                if J.shape[0] <= 12000:
+                    J_dense = J.detach().to(self.device)
+                    b_dense = -F.detach().to(self.device)
+                    delta = self._robust_solve(J_dense, b_dense)
+                else:
+                    # --- CPR через PETSc Hypre/BoomerAMG (только давление) ---
+                    from linear_gpu.petsc_boomeramg import solve_boomeramg
+
+                    if not hasattr(self, "_hypre_prec"):
+                        lambda_w = self.fluid.calc_water_kr(self.fluid.s_w) / self.fluid.mu_water
+                        lambda_o = self.fluid.calc_oil_kr(self.fluid.s_w) / self.fluid.mu_oil
+                        lambda_t = lambda_w + lambda_o
+                        indptr, indices_arr, data_arr = self._assemble_pressure_csr(lambda_t)
+                        self._hypre_prec = (indptr, indices_arr, data_arr)
+
+                    indptr, indices_arr, data_arr = self._hypre_prec
+
+                    b_vec = -F.detach().cpu().numpy()
+                    b_p = b_vec[:N]
+
+                    sol_p, its, res = solve_boomeramg(indptr, indices_arr, data_arr, b_p,
+                                                      tol=lin_cfg.get("tol", 1e-8),
+                                                      max_iter=lin_cfg.get("max_iter", 400))
+
+                    # Проверяем корректность результата; если res или sol_p не конечны → fallback
+                    if not np.isfinite(res) or not np.all(np.isfinite(sol_p)):
+                        if self.verbose:
+                            print("  [BoomerAMG] res=NaN/Inf → fallback на Jacobi")
+                        delta = torch.from_numpy(0.8 * b_vec).to(self.device)
+                    else:
+                        if self.verbose:
+                            print(f"  [BoomerAMG] итераций={its}, остаток={res:.2e}")
+                        sol_full = np.zeros_like(b_vec)
+                        sol_full[:N] = sol_p
+                        sol_full[N:] = 0.8 * b_vec[N:]
+                        delta = torch.from_numpy(sol_full).to(self.device)
+            else:
+                # Если указан другой backend – используем надёжный solve
+                J_dense = J.detach().to(self.device)
+                b_dense = -F.detach().to(self.device)
+                delta = self._robust_solve(J_dense, b_dense)
+
+            # ---------- Ограничение δSw (trust-region по насыщенности) ----------
+            sw_mean = float(self.fluid.s_w.mean().item())
+            max_sw_step = max(self._sw_trust_limit, 0.3 * (1 - sw_mean), 0.15)
+
+            dSw_max = torch.max(torch.abs(delta[N:])).item() + 1e-15
+            dp_max  = torch.max(torch.abs(delta[:N])).item() * (P_SCALE * 1e-6)  # в МПа
+
+            scale_sw = max_sw_step / dSw_max
+            max_dp_step = self._p_trust_limit
+            p_mean_mpa = float(self.fluid.pressure.mean().item() * 1e-6) + 1e-6
+            max_dp_step = max(max_dp_step, 0.3 * p_mean_mpa)
+            scale_dp = float('inf') if max_dp_step<=0 else max_dp_step / dp_max
+            scale_trust = min(1.0, scale_sw, scale_dp)
+
+            # Двусторонняя адаптация глобальных лимитов
+            self._update_trust_limits(scale_sw, scale_dp, sw_mean)
+
+            # ---- локальный clamp δSw (well-aware) ------------------
+            delta_sw = delta[N:].view(self.reservoir.dimensions)
+            lim_local = max_sw_step + self._well_sw_extra * self.well_mask.to(delta_sw.device)
+            delta_sw = torch.clamp(delta_sw, -lim_local, lim_local)
+            delta[N:] = delta_sw.view(-1)
+
+            # ---- CNV-критерий --------------------------------------
+            cnv_val = torch.max(torch.abs(delta_sw) / (self.fluid.s_w + 1e-12)).item()
+            if cnv_val > self._cnv_threshold:
+                if self.verbose:
+                    print(f"  CNV={cnv_val:.2f} > {self._cnv_threshold} — уменьшаем dt")
+                return False
+
+            # Если шаг стал почти нулевой – приём сразу без line-search
+            if torch.norm(delta) < 1e-10 * torch.norm(x):
+                x = x + damping * delta
+                continue
+
+            # --- вычисляем норму шага для адаптивного trust-radius ---
+            delta_norm = float(delta.norm().item())
 
             # Armijo line-search
             c1 = 1e-4  # «мягкий» параметр Армижо (обычно 1e-4)
@@ -2037,6 +2357,11 @@ class Simulator:
                 if F_trial.norm() <= (1 - c1 * factor) * norm_F:
                     x = x_trial.detach().clone().requires_grad_(True)
                     success_ls = True
+                    # ---- адаптивное обновление trust-radius ----------
+                    if factor > 0.8 and delta_norm > 0.9 * self._trust_radius_auto:
+                        self._trust_radius_auto *= 1.3  # расширяем радиус, если шаг был почти предельным
+                    elif factor < 0.2:
+                        self._trust_radius_auto *= 0.7  # если пришлось сильно уменьшать, сужаем
                     break
 
                 # Разрешаем небольшой прогресс (<1%) при достаточно малом шаге –
@@ -2044,6 +2369,11 @@ class Simulator:
                 if F_trial.norm() < 0.99 * norm_F and factor < 0.1:
                     x = x_trial.detach().clone().requires_grad_(True)
                     success_ls = True
+                    # ---- адаптивное обновление trust-radius ----------
+                    if factor > 0.8 and delta_norm > 0.9 * self._trust_radius_auto:
+                        self._trust_radius_auto *= 1.3  # расширяем радиус, если шаг был почти предельным
+                    elif factor < 0.2:
+                        self._trust_radius_auto *= 0.7  # если пришлось сильно уменьшать, сужаем
                     break
 
                 factor *= 0.5
@@ -2104,7 +2434,7 @@ class Simulator:
         p_old = self.fluid.pressure.clone()
         sw_old = self.fluid.s_w.clone()
 
-        # Мини-шаг IMPES: одна итерация давления + явное обновление насыщенности
+        # Мини-шаг IMPES: одна итерация давления + явный шаг насыщенности
         self._init_impes_transmissibilities()
         P_new, converged = self._impes_pressure_step(dt)
         if not converged:
@@ -2145,3 +2475,151 @@ class Simulator:
             if current_dt < self.sim_params.get("min_time_step", 0.02*86400):
                 break
         return False
+
+    def _update_trust_radius(self, prev_residual_norm, residual_norm, jacobian, delta, p_vec, sw_vec):
+        """Адаптивно обновляет глобальный радиус trust-region ``self._trust_radius``.
+
+        Используем классическую схему Powell-Dogleg: оцениваем прогнозируемое
+        уменьшение невязки через норму ``‖J δ‖`` и сравниваем с фактическим.
+        По коэффициенту ρ динамически расширяем/сужаем радиус.
+        """
+
+        if not hasattr(self, "_trust_radius"):
+            return  # Радиус ещё не инициализирован (будет на 1-й итерации)
+
+        # --- Предсказанное уменьшение невязки
+        try:
+            predicted_red = torch.norm(jacobian @ delta).item() + 1e-15
+        except Exception:
+            # Если ``jacobian`` – SciPy CSR или случился другой тип, берём грубую оценку
+            predicted_red = prev_residual_norm + 1e-15
+
+        rho = (prev_residual_norm - residual_norm) / predicted_red
+
+        # --- Обновление радиуса r ---
+        if rho < 0.25:
+            self._trust_radius *= 0.5
+        elif rho > 0.75:
+            self._trust_radius *= 1.3
+
+        # Предельные значения радиуса: 1e-4 ‖x‖ ≤ r ≤ 1.0 ‖x‖
+        x_norm = torch.norm(torch.cat([p_vec, sw_vec])).item() + 1e-15
+        self._trust_radius = max(1e-4 * x_norm, min(self._trust_radius, 1.0 * x_norm))
+
+        if getattr(self, "verbose", False):
+            print(f"  trust-radius update: ρ={rho:.3f}, r={self._trust_radius:.2e}")
+
+    # -------------------------------------------------------------
+    #          Плавный clamp для насыщенности (ненулевая производная)
+    # -------------------------------------------------------------
+    def _soft_clamp(self, x: torch.Tensor, low: float, high: float, slope: float = None):
+        """Плавная версия clamp, сохраняющая ненулевые производные у границ.
+
+        Используем сигмоидальную проекцию в диапазон [low, high].
+        slope определяет крутизну перехода: чем больше, тем ближе к жёсткому clamp."""
+        if slope is None:
+            # хотим ≈1% диапазона на переход → logit(0.99/0.01)=4.6 ⇒ slope≈4.6/(0.01Δ)=460
+            slope = 8.0 / (high - low + 1e-20)  # умеренно острый переход
+        center = 0.5 * (high + low)
+        scale = (high - low)
+        return low + scale * torch.sigmoid(slope * (x - center))
+
+    # -------------------------------------------------------------
+    #        Собрать 7-точечную CSR-матрицу для давления            
+    # -------------------------------------------------------------
+    def _assemble_pressure_csr(self, lambda_t: torch.Tensor):
+        """Возвращает (indptr, indices, data) numpy-массивы CSR для
+        7-точечного шаблона (давление-часть Якобиана). Используем
+        transmissibilities Tx,Ty,Tz (предвычислены)."""
+        nx, ny, nz = self.reservoir.dimensions
+        N = nx * ny * nz
+        Tx = self.T_x.cpu().numpy()  # shape (nx-1,ny,nz)
+        Ty = self.T_y.cpu().numpy()
+        if nz > 1:
+            Tz = self.T_z.cpu().numpy()
+        lam = lambda_t.cpu().numpy().reshape(nx, ny, nz)
+
+        indptr = np.zeros(N + 1, dtype=np.int64)
+        nnz_est = 7 * N
+        indices = np.empty(nnz_est, dtype=np.int32)
+        data    = np.empty(nnz_est, dtype=np.float64)
+
+        pos = 0
+        idx = 0
+        for k in range(nz):
+            for j in range(ny):
+                for i in range(nx):
+                    center = idx
+                    indptr[idx] = pos
+                    diag = 0.0
+                    # X-
+                    if i > 0:
+                        t = Tx[i-1, j, k] * lam[i-1, j, k]
+                        indices[pos] = center - 1
+                        data[pos] = -t
+                        pos += 1
+                        diag += t
+                    if i < nx - 1:
+                        t = Tx[i, j, k] * lam[i, j, k]
+                        indices[pos] = center + 1
+                        data[pos] = -t
+                        pos += 1
+                        diag += t
+                    # Y-
+                    if j > 0:
+                        t = Ty[i, j-1, k] * lam[i, j-1, k]
+                        indices[pos] = center - nx
+                        data[pos] = -t
+                        pos += 1
+                        diag += t
+                    if j < ny - 1:
+                        t = Ty[i, j, k] * lam[i, j, k]
+                        indices[pos] = center + nx
+                        data[pos] = -t
+                        pos += 1
+                        diag += t
+                    # Z-
+                    if nz > 1:
+                        if k > 0:
+                            t = Tz[i, j, k-1] * lam[i, j, k-1]
+                            indices[pos] = center - nx * ny
+                            data[pos] = -t
+                            pos += 1
+                            diag += t
+                        if k < nz - 1:
+                            t = Tz[i, j, k] * lam[i, j, k]
+                            indices[pos] = center + nx * ny
+                            data[pos] = -t
+                            pos += 1
+                            diag += t
+                    # диагональ
+                    indices[pos] = center
+                    data[pos] = diag + 1e-12  # маленькая стабилизация
+                    pos += 1
+                    idx += 1
+        indptr[N] = pos
+        return indptr[:N+1], indices[:pos], data[:pos]
+
+    def _update_trust_limits(self, scale_sw: float, scale_dp: float, sw_mean: float):
+        """Двусторонняя адаптация динамических лимитов trust-region.
+
+        Если шаг сильно урезан (scale<0.4) – лимит расширяется, если почти не урезан
+        несколько итераций подряд – лимит слегка сжимается, чтобы избежать слишком
+        больших шагов в спокойных зонах.
+        """
+        # --- расширение, когда слишком тесно ---
+        if scale_sw < 0.4:
+            self._sw_trust_limit = min(self._sw_trust_limit * 1.5,
+                                       0.9 * (1 - sw_mean))
+        elif scale_sw > 0.9 and self._sw_trust_limit > 0.2:
+            # лёгкое сужение, если запас слишком велик
+            self._sw_trust_limit *= 0.9
+
+        if scale_dp < 0.4:
+            self._p_trust_limit *= 1.5
+        elif scale_dp > 0.9 and self._p_trust_limit > self._p_trust_limit_init:
+            self._p_trust_limit *= 0.9
+
+        # Жёсткие глобальные пределы
+        self._sw_trust_limit = max(0.05, min(self._sw_trust_limit, 0.8))
+        self._p_trust_limit  = max(1.0, min(self._p_trust_limit, 30.0))

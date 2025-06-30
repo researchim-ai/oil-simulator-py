@@ -10,3 +10,5 @@ pyevtk
 black
 ruff
 gymnasium
+petsc4py
+mpi4py
