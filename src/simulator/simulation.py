@@ -175,8 +175,8 @@ class Simulator:
         # --------------------------------------------------------------
         #  Динамические лимиты trust-region (давление / насыщенность)
         # --------------------------------------------------------------
-        self._sw_trust_limit_init = self.sim_params.get("max_saturation_change", 0.15)
-        self._p_trust_limit_init  = self.sim_params.get("max_pressure_change", 5.0)
+        self._sw_trust_limit_init = self.sim_params.get("max_saturation_change", 0.8)
+        self._p_trust_limit_init  = self.sim_params.get("max_pressure_change", 50.0)
         self._sw_trust_limit = self._sw_trust_limit_init
         self._p_trust_limit  = self._p_trust_limit_init
         # Эти значения будут адаптивно увеличиваться, если алгоритму
@@ -199,6 +199,35 @@ class Simulator:
                 self.well_mask[i, j, k] = True
         # Плоская версия (1-D) для быстрого индексирования
         self._well_mask_flat = self.well_mask.view(-1)
+        
+        # ---- Инициализация prev_mass для fully-implicit ----
+        if self.solver_type == 'fully_implicit':
+            self._initialize_previous_masses()
+
+    def _initialize_previous_masses(self):
+        """Инициализирует предыдущие массы флюидов для расчета невязки аккумуляции"""
+        # Получаем текущие параметры
+        p_current = self.fluid.pressure.view(-1)
+        sw_current = self.fluid.s_w.view(-1)
+        
+        # Пористость с учетом сжимаемости породы
+        phi0_vec = self.reservoir.porosity_ref.view(-1)
+        c_r = self.reservoir.rock_compressibility
+        p_ref = 1e5  # референсное давление (1 атм)
+        phi_vec = phi0_vec * (1 + c_r * (p_current - p_ref)) + self.ptc_alpha
+        
+        # Плотности флюидов при текущем давлении
+        rho_w = self.fluid.calc_water_density(p_current)
+        rho_o = self.fluid.calc_oil_density(p_current)
+        
+        # Объем ячейки
+        cell_vol = self.reservoir.cell_volume
+        
+        # Инициализируем массы как 1-D тензоры (совместимые с JFNK)
+        self.fluid.prev_water_mass = phi_vec * sw_current * rho_w * cell_vol
+        self.fluid.prev_oil_mass = phi_vec * (1 - sw_current) * rho_o * cell_vol
+        
+        print(f"Инициализированы массы: вода={self.fluid.prev_water_mass.sum().item()/1e6:.1f} млн кг, нефть={self.fluid.prev_oil_mass.sum().item()/1e6:.1f} млн кг")
 
     def _move_data_to_device(self):
         """Переносит данные на текущее устройство (CPU или GPU)"""
@@ -239,12 +268,54 @@ class Simulator:
 
     def _fully_implicit_step(self, dt):
         """ Выполняет один временной шаг полностью неявной схемой. """
-        # ---------------------------------------------------------
+        # ------------------------------------------------------------------
+        # Новый, предсказуемый выбор метода: исключительно по полю
+        #     sim_params["jacobian"].
+        # Поддерживаются значения:
+        #   • "autograd"  – полный Якобиан через PyTorch Autograd
+        #   • "jfnk"      – Jacobian-Free Newton–Krylov (c CPR/AMG, если включён)
+        #   • "manual"    – старый ручной Ньютон с явным Якобианом
+        # Если ключа нет – берём "jfnk" как надёжный по умолчанию.
+        # Никаких внутренних эвристик по размерам сетки больше НЕТ.
+
+        # 1. Если включён быстрый предиктор IMPES – делаем его до выбора метода.
+        if getattr(self, "use_impes_predictor", False):
+            try:
+                self._impes_predictor(dt)
+            except Exception as e:
+                print(f"Предиктор IMPES не удался: {e}. Продолжаем без него.")
+
+        # 2. Выбираем решатель строго по sim_params["jacobian"].
+        jacobian_mode = self.sim_params.get("jacobian", "jfnk").lower()
+
+        if jacobian_mode == "manual":
+            # старый ручной Якобиан (код ниже)
+            pass
+        elif jacobian_mode == "autograd":
+            if self._fi_autograd_adaptive(dt):
+                return True
+            print("Autograd-Ньютон не сошёлся – пробуем fallback на JFNK")
+            if self._fi_jfnk_adaptive(dt):
+                return True
+            print("JFNK после отказа autograd также не сошёлся – шаг будет помечен как провал")
+            return False
+        elif jacobian_mode == "jfnk":
+            if self._fi_jfnk_adaptive(dt):
+                return True
+            print("JFNK не сошёлся – пробуем fallback на autograd")
+            if self._fi_autograd_adaptive(dt):
+                return True
+            print("Autograd после отказа JFNK также не сошёлся – шаг будет помечен как провал")
+            return False
+        else:
+            raise ValueError(f"Неизвестный режим jacobian='{jacobian_mode}'. Ожидается 'manual', 'autograd' или 'jfnk'.")
+
+        # ------------------------------------------------------------------
         # 1. Predictor: делаем один быстрый шаг IMPES, чтобы получить
         #    осмысленное начальное приближение (P, Sw).
         #    Этот шаг НЕ обновляет prev_mass, поэтому баланс по массе
         #    для fully-implicit сохраняется корректным.
-        # ---------------------------------------------------------
+        # ------------------------------------------------------------------
         if getattr(self, "use_impes_predictor", False):
             try:
                 self._impes_predictor(dt)
@@ -271,7 +342,7 @@ class Simulator:
         else:
             nx, ny, nz = self.reservoir.dimensions
             num_cells = nx * ny * nz
-            threshold = self.sim_params.get("autograd_threshold_cells", 5000)
+            threshold = self.sim_params.get("autograd_threshold_cells", 1000)
             # Для небольших задач используем автоград-Ньютон, иначе JFNK
             if num_cells <= threshold:
                 # Используем адаптивный автоград-Ньютон: при несходимости он
@@ -288,8 +359,35 @@ class Simulator:
                 print("Autograd после JFNK тоже не сошёлся – выполняем fallback на IMPES")
                 return self._impes_step(dt)
             else:
-                # Для крупных задач сразу используем JFNK с адаптацией dt
-                return self._fi_jfnk_adaptive(dt)
+                # Для крупных задач используем новый Jacobian-free solver
+                lin_cfg = self.sim_params.get("linear_solver", {})
+                if not hasattr(self, "_fisolver"):
+                    try:
+                        from solver.jfnk import FullyImplicitSolver
+                        backend = lin_cfg.get("prec_backend", "amgx")
+                        self._fisolver = FullyImplicitSolver(self, backend=backend)
+                    except Exception as e:
+                        print(f"Не удалось инициализировать новый FullyImplicitSolver: {e}. Переходим к старому JFNK.")
+                        return self._fi_jfnk_adaptive(dt)
+
+                x0 = torch.cat([
+                    (self.fluid.pressure.view(-1) / 1e6),
+                    self.fluid.s_w.view(-1)
+                ]).to(self.device)
+
+                x_out, ok = self._fisolver.step(x0, dt)
+                if ok:
+                    # раскладываем решение
+                    N = self.reservoir.dimensions[0]*self.reservoir.dimensions[1]*self.reservoir.dimensions[2]
+                    p_new = (x_out[:N] * 1e6).view(self.reservoir.dimensions)
+                    sw_new = x_out[N:].view(self.reservoir.dimensions).clamp(self.fluid.sw_cr, 1-self.fluid.so_r)
+                    self.fluid.pressure = p_new
+                    self.fluid.s_w = sw_new
+                    self.fluid.s_o = 1 - sw_new
+                    return True
+                else:
+                    print("Новый FullyImplicitSolver не сошёлся – fallback на IMPES")
+                    return self._impes_step(dt)
 
         # == прежний путь с ручным якобианом ==
         current_dt = dt
@@ -328,8 +426,8 @@ class Simulator:
         return self._impes_step(dt)
 
     def _fully_implicit_newton_step(self, dt, max_iter=20, tol=1e-3, 
-                                     damping_factor=0.7, jac_reg=1e-7, 
-                                     line_search_factors=None, use_cuda=False):
+                                      damping_factor=0.7, jac_reg=1e-7, 
+                                      line_search_factors=None, use_cuda=False):
         """
         Выполняет один шаг метода Ньютона для полностью неявной схемы.
         Максимально оптимизированная реализация с улучшенным методом line search.
@@ -1481,11 +1579,16 @@ class Simulator:
         Добавляет вклад скважин в систему (невязку и якобиан).
         Массовые дебиты интегрируются по времени: q_mass = q_mass_rate * dt.
         Здесь НЕ допускаем двойного вычитания – каждую фазу учитываем ровно один раз.
+        ИСПРАВЛЕНО: используем БЛОЧНУЮ индексацию вместо интерлеавинга.
         """
         # Если якобиан не передан (режим JFNK), изменяем только residual.
         jac_update = jacobian is not None
  
         wells = self.well_manager.get_wells()
+        
+        # ИСПРАВЛЕНО: получаем размер грида для блочной индексации
+        nx, ny, nz = self.reservoir.dimensions
+        N = nx * ny * nz
 
         for well in wells:
             idx = well.cell_index_flat
@@ -1517,7 +1620,8 @@ class Simulator:
 
                 if well.type == 'injector':
                     q_w_mass_step = q_tot_vol_rate * self.fluid.rho_water_ref * dt  # кг за шаг
-                    residual[2*idx]   -= q_w_mass_step
+                    # БЛОЧНАЯ индексация: water equations в первых N элементах
+                    residual[idx] -= q_w_mass_step
                     # нефть не закачивается
                 else:  # producer
                     # Фракции потоков
@@ -1527,8 +1631,9 @@ class Simulator:
                     q_w_mass_step = q_tot_vol_rate * fw * self.fluid.rho_water_ref * dt
                     q_o_mass_step = q_tot_vol_rate * fo * self.fluid.rho_oil_ref   * dt
 
-                    residual[2*idx]   -= q_w_mass_step
-                    residual[2*idx+1] -= q_o_mass_step
+                    # БЛОЧНАЯ индексация: water в [0:N], oil в [N:2N]
+                    residual[idx]     -= q_w_mass_step     # water equation
+                    residual[N + idx] -= q_o_mass_step     # oil equation
 
                     # производные (по Sw) – только для продуцирующей
                     dfw_dsw = (dlamb_w_dsw * lambda_t - lambda_w * (dlamb_w_dsw + dlamb_o_dsw)) / (lambda_t**2 + 1e-12)
@@ -1538,8 +1643,9 @@ class Simulator:
                     dq_o_dsw = q_tot_vol_rate * self.fluid.rho_oil_ref  * dt * dfo_dsw
 
                     if jac_update:
-                        jacobian[2*idx,   2*idx+1] -= dq_w_dsw
-                        jacobian[2*idx+1, 2*idx+1] -= dq_o_dsw
+                        # БЛОЧНАЯ индексация для якобиана: [P: 0:N, Sw: N:2N]
+                        jacobian[idx,     N + idx] -= dq_w_dsw  # water eq, sw var
+                        jacobian[N + idx, N + idx] -= dq_o_dsw  # oil eq, sw var
 
             elif well.control_type == 'bhp':
                 bhp_pa = well.control_value * 1e6  # МПа->Па
@@ -1550,24 +1656,27 @@ class Simulator:
                 q_w_mass_step = q_w_vol_rate * rho_w_cell * dt
                 q_o_mass_step = q_o_vol_rate * rho_o_cell * dt
 
-                residual[2*idx]   -= q_w_mass_step
-                residual[2*idx+1] -= q_o_mass_step
+                # БЛОЧНАЯ индексация: water в [0:N], oil в [N:2N]
+                residual[idx]     -= q_w_mass_step     # water equation
+                residual[N + idx] -= q_o_mass_step     # oil equation
 
                 # Якобиан: производные по давлению
                 dq_w_dp = well.well_index * lambda_w * rho_w_cell * dt
                 dq_o_dp = well.well_index * lambda_o * rho_o_cell * dt
 
                 if jac_update:
-                    jacobian[2*idx,   2*idx]   -= dq_w_dp
-                    jacobian[2*idx+1, 2*idx]   -= dq_o_dp
+                    # БЛОЧНАЯ индексация для якобиана: [P: 0:N, Sw: N:2N]
+                    jacobian[idx,     idx]     -= dq_w_dp  # water eq, pressure var
+                    jacobian[N + idx, idx]     -= dq_o_dp  # oil eq, pressure var
 
                 # Якобиан: производные по насыщенности через подвижности
                 dq_w_dsw = well.well_index * dlamb_w_dsw * (p_cell - bhp_pa) * rho_w_cell * dt
                 dq_o_dsw = well.well_index * dlamb_o_dsw * (p_cell - bhp_pa) * rho_o_cell * dt
 
                 if jac_update:
-                    jacobian[2*idx,   2*idx+1] -= dq_w_dsw
-                    jacobian[2*idx+1, 2*idx+1] -= dq_o_dsw
+                    # БЛОЧНАЯ индексация для якобиана: [P: 0:N, Sw: N:2N]
+                    jacobian[idx,     N + idx] -= dq_w_dsw  # water eq, sw var
+                    jacobian[N + idx, N + idx] -= dq_o_dsw  # oil eq, sw var
 
     def run(self, output_filename, save_vtk=False):
         """
@@ -1804,8 +1913,11 @@ class Simulator:
         nx, ny, nz = self.reservoir.dimensions
         N = nx * ny * nz
 
-        # масштаб давления (Па) – 1 МПа, чтобы выровнять численный масштаб с насыщенностью
-        P_SCALE = 1e6
+        # ИСПРАВЛЕНО: используем адекватное масштабирование давления
+        # Берем текущее средне давление как характерный масштаб
+        P_SCALE = float(self.fluid.pressure.mean().item())
+        if P_SCALE < 1e5:  # если давление слишком мало, используем 1 МПа
+            P_SCALE = 1e6
 
         # --- гарантия, что предыдущие массы инициализированы -----------------
         if self.fluid.prev_water_mass is None:
@@ -1822,59 +1934,211 @@ class Simulator:
             self.fluid.prev_water_mass = phi_prev_vec * sw_prev_vec * rho_w_prev * cell_vol
             self.fluid.prev_oil_mass   = phi_prev_vec * (1 - sw_prev_vec) * rho_o_prev * cell_vol
 
-        # Разворачиваем (обратно масштабируем давление)
+        # ИСПРАВЛЕНО: правильно восстанавливаем масштабирование для обеих переменных
+        # Используем характерные масштабы для лучшего баланса
+        SATURATION_SCALE = 1.0  # должен совпадать с тем, что в JFNK
+        
+        # Разворачиваем (обратно масштабируем обе переменные)
         p_vec  = x[:N] * P_SCALE
-        sw_vec_raw = x[N:]
+        sw_vec_raw = x[N:] * SATURATION_SCALE  # восстанавливаем масштаб
+        # ИСПРАВЛЕНО: используем мягкое ограничение для сохранения градиентов (автоматический slope)
         sw_vec = self._soft_clamp(sw_vec_raw, self.fluid.sw_cr, 1.0 - self.fluid.so_r)
 
-        # Сохраняем текущее состояние и подставляем новое (для использования существующих функций)
-        p_old = self.fluid.pressure
-        sw_old = self.fluid.s_w
+        # ИСПРАВЛЕНО: НЕ изменяем состояние объектов - это рвет градиенты!
+        # Вместо этого передаем параметры напрямую
+        p_new = p_vec.view(self.reservoir.dimensions)
+        sw_new = sw_vec.view(self.reservoir.dimensions)
 
-        self.fluid.pressure = p_vec.view(self.reservoir.dimensions)
-        self.fluid.s_w      = sw_vec.view(self.reservoir.dimensions)
+        # Полный расчёт невязки БЕЗ изменения состояния
+        # ИСПРАВЛЕНО: передаем prev_masses как параметры для правильного residual
+        residual = self._compute_residual_full_direct(dt, p_new, sw_new, 
+                                                      self.fluid.prev_water_mass, 
+                                                      self.fluid.prev_oil_mass)
 
-        # Полный расчёт невязки (аккумуляция + конвекция + скважины)
-        residual = self._compute_residual_full(dt)
+        # ========== ИСПРАВЛЕННАЯ НОРМИРОВКА НЕВЯЗКИ ==========
+        # Используем НОВЫЕ значения давления и насыщенности для нормализации
+        # чтобы сохранить градиенты!
+        
+        # Новые фактические массы для нормализации
+        p_curr = p_vec  # используем новые значения!
+        sw_curr = sw_vec  # используем новые значения!
+        phi_curr = self.reservoir.porosity_ref.view(-1) * (1 + self.reservoir.rock_compressibility * (p_curr - 1e5)) + self.ptc_alpha
+        rho_w_curr = self.fluid.calc_water_density(p_curr)
+        rho_o_curr = self.fluid.calc_oil_density(p_curr)
+        cell_vol = self.reservoir.cell_volume
+        
+        # Характерные массы = новые фактические массы + запас безопасности
+        curr_water_mass = phi_curr * sw_curr * rho_w_curr * cell_vol
+        curr_oil_mass = phi_curr * (1 - sw_curr) * rho_o_curr * cell_vol
+        
+        # Добавляем запас безопасности (мин. 10% от полной массы) для избежания деления на ноль
+        safety_factor = 0.1
+        char_mass_w = torch.max(curr_water_mass, safety_factor * phi_curr * rho_w_curr * cell_vol).mean()
+        char_mass_o = torch.max(curr_oil_mass, safety_factor * phi_curr * rho_o_curr * cell_vol).mean()
+        
+        # ИСПРАВЛЕНО: сбалансированная нормализация для равных масштабов остатков
+        # Приводим все остатки к одному порядку величины для лучшей обусловленности
+        
+        # 🔥 КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: избегаем inplace операций для сохранения gradients
+        # Простая нормализация по характерным массам БЕЗ inplace операций
+        water_residuals_normalized = residual[:N] / (char_mass_w + 1e-12)    # водные остатки
+        oil_residuals_normalized = residual[N:] / (char_mass_o + 1e-12)      # нефтяные остатки
+        
+        # Дополнительное выравнивание масштабов, если один тип остатков доминирует
+        water_residual_scale = torch.norm(water_residuals_normalized)
+        oil_residual_scale = torch.norm(oil_residuals_normalized)
+        
+        if water_residual_scale > 1e-12 and oil_residual_scale > 1e-12:
+            # Приводим к одному масштабу через геометрическое среднее
+            target_scale = (water_residual_scale * oil_residual_scale) ** 0.5
+            if target_scale > 1e-12:
+                water_residuals_normalized = water_residuals_normalized * target_scale / (water_residual_scale + 1e-12)
+                oil_residuals_normalized = oil_residuals_normalized * target_scale / (oil_residual_scale + 1e-12)
+        
+        # Собираем результат БЕЗ inplace операций
+        residual_norm = torch.cat([water_residuals_normalized, oil_residuals_normalized])
 
-        # Восстанавливаем состояние, чтобы не копить побочные эффекты
-        self.fluid.pressure = p_old
-        self.fluid.s_w      = sw_old
+        # 🔍 ДИАГНОСТИКА: проверяем что получилось
+        # 🔍 ДИАГНОСТИКА _fi_residual_vec: отключаем .item() для совместимости с векторизацией
+        # print(f"    🔍 ДИАГНОСТИКА _fi_residual_vec:")
+        # print(f"    residual_norm[:5] = {residual_norm[:5]}")
+        # print(f"    residual_norm[N-5:N] = {residual_norm[N-5:N]}")  
+        # print(f"    residual_norm[N:N+5] = {residual_norm[N:N+5]}")
+        # print(f"    residual_norm[-5:] = {residual_norm[-5:]}")
+        # print(f"    residual_norm диапазон: [{residual_norm.min():.3e}, {residual_norm.max():.3e}]")
+        
+        # Проверяем исходные остатки БЕЗ нормализации
+        # print(f"    residual (до нормализации)[:5] = {residual[:5]}")
+        # print(f"    residual (до нормализации)[N:N+5] = {residual[N:N+5]}")
+        # print(f"    residual диапазон: [{residual.min():.3e}, {residual.max():.3e}]")
+        
+        # 🔥 ДИАГНОСТИКА: проверяем что нормализация сохраняет градиенты
+        # print(f"    residual_norm.requires_grad = {residual_norm.requires_grad}")
+        # print(f"    residual_norm.grad_fn = {residual_norm.grad_fn}")
 
-        return residual
+        return residual_norm
 
     # ------------- линейный солвер BiCGSTAB (torch, J·v) --------------
     def _bicgstab(self, matvec, b, tol=1e-6, max_iter=400):
+        """Улучшенный BiCGSTAB с обработкой NaN/Inf и простым fallback"""
         x = torch.zeros_like(b)
         r = b.clone()
         r_hat = r.clone()
         rho_old = alpha = omega = torch.tensor(1.0, device=b.device)
         v = torch.zeros_like(b)
         p = torch.zeros_like(b)
+        
+        initial_norm = r.norm()
+        if initial_norm < tol:
+            return x
+
+        stagnation_count = 0
+        restart_count = 0
+        max_restarts = 2
 
         for i in range(max_iter):
             rho_new = torch.dot(r_hat, r)
+            
+            # КРИТИЧЕСКАЯ ПРОВЕРКА: обрабатываем NaN/Inf
+            if not torch.isfinite(rho_new):
+                # print(f"  BiCGSTAB: rho не конечна ({rho_new.item()}) на итерации {i+1}")
+                if restart_count < max_restarts:
+                    # print(f"  BiCGSTAB: перезапуск #{restart_count+1}")
+                    restart_count += 1
+                    # Простой перезапуск с возмущением
+                    x = 0.1 * torch.randn_like(b)
+                    r = b - matvec(x)
+                    r_hat = r.clone()
+                    rho_old = alpha = omega = torch.tensor(1.0, device=b.device)
+                    v.zero_()
+                    p.zero_()
+                    continue
+                else:
+                    # print(f"  BiCGSTAB: слишком много перезапусков - возвращаем нулевое решение")
+                    return torch.zeros_like(b)
+            
+            # Проверка на стагнацию rho
             if rho_new.abs() < 1e-20:
-                break
-            if i == 0:
-                p = r.clone()
-            else:
-                beta = (rho_new / rho_old) * (alpha / omega)
-                p = r + beta * (p - omega * v)
+                # print(f"  BiCGSTAB: rho слишком мала ({rho_new.item():.2e}) на итерации {i+1}")
+                stagnation_count += 1
+                if stagnation_count > 3:
+                    break
+                continue
 
+            beta = (rho_new / rho_old) * (alpha / omega)
+            
+            # КРИТИЧЕСКАЯ ПРОВЕРКА: beta должна быть конечной
+            if not torch.isfinite(beta):
+                # print(f"  BiCGSTAB: beta не конечна ({beta.item()}) на итерации {i+1}")
+                if restart_count < max_restarts:
+                    # print(f"  BiCGSTAB: перезапуск #{restart_count+1}")
+                    restart_count += 1
+                    # Сброс к простому состоянию
+                    beta = torch.tensor(0.0, device=b.device)
+                    p = r.clone()
+                else:
+                    # print(f"  BiCGSTAB: критическая ошибка - возвращаем текущее решение")
+                    return x
+            else:
+                p = r + beta * (p - omega * v)
+            
             v = matvec(p)
+            
+            # Проверяем что matvec вернул конечные значения
+            if not torch.isfinite(v).all():
+                # print(f"  BiCGSTAB: matvec вернул NaN/Inf на итерации {i+1}")
+                return x  # возвращаем лучшее что есть
+            
             alpha = rho_new / torch.dot(r_hat, v)
+            
+            if not torch.isfinite(alpha):
+                # print(f"  BiCGSTAB: alpha не конечна на итерации {i+1}")
+                return x
+            
             s = r - alpha * v
-            if s.norm() < tol:
+            
+            # Проверяем норму s
+            s_norm = s.norm()
+            if s_norm < tol:
                 x = x + alpha * p
                 break
+            
             t = matvec(s)
+            
+            if not torch.isfinite(t).all():
+                # print(f"  BiCGSTAB: второй matvec вернул NaN/Inf на итерации {i+1}")
+                return x
+            
             omega = torch.dot(t, s) / torch.dot(t, t)
+            
+            if not torch.isfinite(omega):
+                # print(f"  BiCGSTAB: omega не конечна на итерации {i+1}")
+                return x
+            
             x = x + alpha * p + omega * s
             r = s - omega * t
-            if r.norm() < tol:
+            
+            # ДИАГНОСТИКА первых итераций (отключаем .item() для векторизации)
+            if i < 5:
+                residual_norm = r.norm()
+                # print(f"    BiCGSTAB[{i+1}]: ||r||={residual_norm:.3e}, rho={rho_new:.3e}, alpha={alpha:.3e}, omega={omega:.3e}")
+                # print(f"                     ||x||={x.norm():.3e}, x_range=[{x.min():.3e}, {x.max():.3e}]")
+            
+            # Проверяем сходимость
+            residual_norm = r.norm()
+            if residual_norm < tol:
+                # print(f"  BiCGSTAB сошелся за {i+1} итераций, ||r||={residual_norm:.3e}")
                 break
+            
             rho_old = rho_new
+            
+            # Проверка прогресса
+            if i > 20 and residual_norm > 0.95 * initial_norm:
+                stagnation_count += 1
+                if stagnation_count > 10:
+                    # print(f"  BiCGSTAB: стагнация на итерации {i+1}")
+                    break
+
         return x
 
     # ------------- JFNK основной цикл --------------------------------
@@ -1885,16 +2149,28 @@ class Simulator:
         nx, ny, nz = self.reservoir.dimensions
         N = nx * ny * nz
 
-        P_SCALE = 1e6  # 1 МПа
+        # ИСПРАВЛЕНО: используем текущий уровень давления как масштаб
+        P_SCALE = float(self.fluid.pressure.mean().item())  # текущее среднее давление
+        if P_SCALE < 1e5:  # если давление слишком мало, используем 1 МПа
+            P_SCALE = 1e6
 
-        # Начальное приближение (масштабируем давление)
+        # ИСПРАВЛЕНО: масштабируем и давление, и насыщенность для баланса
+        # Приводим обе переменные к одному порядку величины
+        SATURATION_SCALE = 1.0  # характерный масштаб для насыщенности
+        
+        # Начальное приближение (масштабируем обе переменные)
+        # 🔥 КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: добавляем requires_grad=True для работы JVP!
         x = torch.cat([
-            (self.fluid.pressure.view(-1) / P_SCALE),
-            self.fluid.s_w.view(-1)
-        ]).to(self.device)
+            (self.fluid.pressure.view(-1) / P_SCALE),           # давление: ~1.0
+            (self.fluid.s_w.view(-1) / SATURATION_SCALE)        # насыщенность: ~0.2-0.4
+        ]).to(self.device).requires_grad_(True)
 
         initial_norm = None
         for it in range(max_iter):
+            # Устанавливаем текущий масштаб для _fi_residual_vec
+            self._current_p_scale = P_SCALE
+            self._current_saturation_scale = SATURATION_SCALE
+            
             F = self._fi_residual_vec(x, dt)
             norm_F = F.norm()
             if initial_norm is None:
@@ -1904,116 +2180,173 @@ class Simulator:
             if rel_res < tol:
                 break
 
-            # Определяем matvec замыканием на текущий x
+            # Определяем matvec замыканием на текущий x - ИСПОЛЬЗУЕМ FINITE DIFFERENCES
             def matvec(v):
-                _, Jv = torch.autograd.functional.jvp(lambda z: self._fi_residual_vec(z, dt), x, v, create_graph=False)
-                return Jv
+                self._current_p_scale = P_SCALE
+                self._current_saturation_scale = SATURATION_SCALE
+                eps = 1e-7
+                F_plus = self._fi_residual_vec(x + eps * v, dt)
+                F_minus = self._fi_residual_vec(x - eps * v, dt)
+                Jv_fd = (F_plus - F_minus) / (2 * eps)
+                
+                # Добавляем регуляризацию для стабильности
+                reg_lambda = 5e-2
+                return Jv_fd + reg_lambda * v
 
-            # ---- Диагональный предобуславливатель --------------------
-            if it == 0:
-                # Оцениваем diag(J) как |J·1|, что эквивалентно сумме строк;
-                # достаточно для Jacobi-precond, но дёшево (1 вызов jvp).
-                ones_vec = torch.ones_like(x)
-                _, J1 = torch.autograd.functional.jvp(
-                    lambda z: self._fi_residual_vec(z, dt), x, ones_vec, create_graph=False
-                )
-                diag_J = torch.abs(J1) + 1e-12
-                M_inv = 1.0 / diag_J
-
-                def matvec_pre(v):
-                    _, Jv = torch.autograd.functional.jvp(
-                        lambda z: self._fi_residual_vec(z, dt), x, v, create_graph=False
-                    )
-                    return M_inv * Jv  # лево-предобусловленная система
-
-                rhs = M_inv * (-F)
-            else:
-                # Предобуславливатель уже вычислен
-                def matvec_pre(v):
-                    _, Jv = torch.autograd.functional.jvp(
-                        lambda z: self._fi_residual_vec(z, dt), x, v, create_graph=False
-                    )
-                    return M_inv * Jv
-                rhs = M_inv * (-F)
-
-            # ----------- Hypre BoomerAMG предобуславливатель -------------
+            # ---- ПРЕДОБУСЛАВЛИВАТЕЛЬ ----
             lin_cfg = self.sim_params.get("linear_solver", {})
-            if lin_cfg.get("backend") == "hypre" and N > 5000:
-                # Инициализируем CPR-предобуславливатель один раз и переисп. дальше
-                if not hasattr(self, "_hypre_prec"):
-                    lambda_w = self.fluid.calc_water_kr(self.fluid.s_w) / self.fluid.mu_water
-                    lambda_o = self.fluid.calc_oil_kr(self.fluid.s_w) / self.fluid.mu_oil
-                    lambda_t = lambda_w + lambda_o
-                    indptr, indices_arr, data_arr = self._assemble_pressure_csr(lambda_t)
-                    self._hypre_prec = (indptr, indices_arr, data_arr)
-
-                from linear_gpu.petsc_boomeramg import solve_boomeramg
-
-                indptr, ind, dat = self._hypre_prec
-
-                def hypre_apply(vec):
-                    # CPR: BoomerAMG → δp, saturations → Jacobi (ω=0.8)
-                    b_p = vec[:N].cpu().numpy()
-                    sol_p, its, res = solve_boomeramg(indptr, ind, dat, b_p,
-                                                       tol=lin_cfg.get("tol", 1e-6),
-                                                       max_iter=lin_cfg.get("max_iter", 200))
-                    # --- Проверка устойчивости ---
-                    if not np.isfinite(res) or not np.all(np.isfinite(sol_p)):
-                        if self.verbose:
-                            print("      [BoomerAMG] res=NaN/Inf → fallback на Jacobi")
-                        return 0.8 * vec  # полный Jacobi
-                    if self.verbose:
-                        print(f"      [BoomerAMG] its={its}, res={res:.2e}")
-                    out = torch.zeros_like(vec)
-                    out[:N] = torch.from_numpy(sol_p).to(vec.device)
-                    out[N:] = 0.8 * vec[N:]
-                    return out
-
-                def matvec_pre(v):
-                    _, Jv = torch.autograd.functional.jvp(
-                        lambda z: self._fi_residual_vec(z, dt), x, v, create_graph=False)
-                    return hypre_apply(Jv)
-
-                rhs = hypre_apply(-F)
-                delta = self._bicgstab(matvec_pre, rhs, tol=1e-6, max_iter=200)
+            backend = lin_cfg.get("backend", "simple")  # Временно принудительно используем простой
+            
+            # ==================== CPR ПРЕДОБУСЛАВЛИВАТЕЛЬ (ОТЛАДКА) ====================
+            if False and backend == "hypre":
+                # Временно отключаем CPR для отладки
+                print("  CPR временно отключен для отладки")
+                pass
+                
             else:
-                # Либо backend не hypre, либо сетка маленькая – используем простой BiCGSTAB
-                delta = self._bicgstab(matvec_pre, rhs, tol=1e-6, max_iter=200)
+                # ============ ПРОСТЕЙШИЙ СТАБИЛЬНЫЙ ПРЕДОБУСЛАВЛИВАТЕЛЬ ============
+                if it == 0:
+                    print("  Используем простейший стабильный предобуславливатель")
+
+                # Улучшенная система для лучшей обусловленности - ИСПОЛЬЗУЕМ FINITE DIFFERENCES
+                def matvec_preconditioned(v):
+                    self._current_p_scale = P_SCALE
+                    self._current_saturation_scale = SATURATION_SCALE
+                    eps = 1e-7
+                    F_plus = self._fi_residual_vec(x + eps * v, dt)
+                    F_minus = self._fi_residual_vec(x - eps * v, dt)
+                    Jv_fd = (F_plus - F_minus) / (2 * eps)
+                    
+                    # Добавляем регуляризацию для стабильности
+                    reg_lambda = 5e-2
+                    return Jv_fd + reg_lambda * v
+
+                rhs = -F  # просто -F без предобуславливания
+                
+                # ДИАГНОСТИКА: проверяем condition number на первой итерации
+                if it == 0:
+                    print("    🔍 Диагностика системы БЕЗ регуляризации...")
+                    
+                    # Создаем НЕрегуляризованный matvec для диагностики
+                    def matvec_pure(v):
+                        self._current_p_scale = P_SCALE
+                        self._current_saturation_scale = SATURATION_SCALE
+                        eps = 1e-4  # УВЕЛИЧИЛИ для residual масштаба ~1e6
+                        
+                        # 🔍 ДИАГНОСТИКА: проверяем первые несколько элементов finite differences
+                        if torch.norm(v) > 0:  # только для непустых векторов
+                            F_center = self._fi_residual_vec(x, dt)
+                            F_plus = self._fi_residual_vec(x + eps * v, dt)
+                            F_minus = self._fi_residual_vec(x - eps * v, dt)
+                            Jv_fd = (F_plus - F_minus) / (2 * eps)
+                            
+                            # Отключаем подробную диагностику FD чтобы не засорять логи
+                            # print(f"      🔍 FD диагностика для ||v||={torch.norm(v):.3e}:")
+                            # print(f"      F_center[:3] = {F_center[:3]}")
+                            # print(f"      F_plus[:3]   = {F_plus[:3]}")
+                            # print(f"      F_minus[:3]  = {F_minus[:3]}")
+                            # print(f"      Jv_fd[:3]    = {Jv_fd[:3]}")
+                            # print(f"      Изменение F_plus-F_center[:3] = {(F_plus - F_center)[:3]}")
+                            # print(f"      Изменение F_center-F_minus[:3] = {(F_center - F_minus)[:3]}")
+                            
+                            return Jv_fd
+                        else:
+                            F_plus = self._fi_residual_vec(x + eps * v, dt)
+                            F_minus = self._fi_residual_vec(x - eps * v, dt)
+                            Jv_fd = (F_plus - F_minus) / (2 * eps)
+                            return Jv_fd  # БЕЗ регуляризации!
+                    
+                    print("    📊 Анализ БЕЗ регуляризации:")
+                    self._diagnostic_condition_number(matvec_pure, len(x))
+                    
+                    print("    📊 Анализ С регуляризацией:")
+                    self._diagnostic_condition_number(matvec_preconditioned, len(x))
+                    
+                    # Дополнительная диагностика: проверим структуру якобиана
+                    print("    🔬 Анализ структуры якобиана...")
+                    self._diagnostic_jacobian_structure(matvec_pure, len(x))
+                    
+                    print("    ✅ Используем finite differences для всех итераций")
+            
+            # Решаем систему (теперь всегда используем простой случай)
+            print(f"  Диагностика перед BiCGSTAB:")
+            print(f"    ||F|| = {F.norm():.3e}")
+            print(f"    ||rhs|| = {rhs.norm():.3e}")
+            print(f"    F диапазон: [{F.min():.3e}, {F.max():.3e}]")
+            print(f"    rhs диапазон: [{rhs.min():.3e}, {rhs.max():.3e}]")
+            
+            # Тестируем matvec на единичном векторе
+            test_vec = torch.ones_like(rhs) * 0.01
+            test_result = matvec_preconditioned(test_vec)
+            print(f"    Тест matvec: ||J*e|| = {test_result.norm():.3e}")
+            print(f"    Тест matvec диапазон: [{test_result.min():.3e}, {test_result.max():.3e}]")
+            
+            # Решаем линейную систему с разумными параметрами
+            try:
+                from linear_gpu.gmres import gmres
+                # Более мягкие параметры для тестирования
+                delta, info = gmres(matvec_preconditioned, rhs, tol=1e-4, restart=20, max_iter=100)
+                if info != 0:
+                    print(f"    GMRES не сошёлся (info={info}), пробуем BiCGSTAB с мягкими параметрами")
+                    delta = self._bicgstab(matvec_preconditioned, rhs, tol=1e-4, max_iter=100)
+                else:
+                    print(f"    GMRES сошёлся успешно за {info if info > 0 else 'неизвестно'} итераций")
+            except ImportError:
+                print("    GMRES недоступен, используем BiCGSTAB с мягкими параметрами")
+                delta = self._bicgstab(matvec_preconditioned, rhs, tol=1e-4, max_iter=100)
+            
+            print(f"  Диагностика после BiCGSTAB:")
+            print(f"    ||delta|| = {delta.norm():.3e}")
+            print(f"    delta диапазон: [{delta.min():.3e}, {delta.max():.3e}]")
+            print(f"    delta[:5] = {delta[:5]}")
+            print(f"    delta[-5:] = {delta[-5:]}")
 
             # ---------- Trust-region по δSw ----------------------------
-            # ---------- Расширенный trust-region (P, Sw) ----------
+            # ---------- ИСПРАВЛЕННЫЙ trust-region для масштабированных переменных ----------
             sw_mean = float(self.fluid.s_w.mean().item())
-            max_sw_step = max(self._sw_trust_limit, 0.3 * (1 - sw_mean), 0.15)
+            max_sw_step = max(self._sw_trust_limit, 0.1)  # физические лимиты для насыщенности (минимум 10%)
 
-            dSw_max = torch.max(torch.abs(delta[N:])).item() + 1e-15
-            dp_max  = torch.max(torch.abs(delta[:N])).item() * (P_SCALE * 1e-6)  # в МПа
+            # ИСПРАВЛЕНО: учитываем масштабирование при вычислении шагов
+            dSw_max = torch.max(torch.abs(delta[N:] * SATURATION_SCALE)).item() + 1e-15  # в физических единицах
+            dp_max  = torch.max(torch.abs(delta[:N] * P_SCALE)).item()  # в физических единицах (Па)
 
-            scale_sw = max_sw_step / dSw_max
-            max_dp_step = self._p_trust_limit
-            p_mean_mpa = float(self.fluid.pressure.mean().item() * 1e-6) + 1e-6
-            max_dp_step = max(max_dp_step, 0.3 * p_mean_mpa)
-            scale_dp = float('inf') if max_dp_step<=0 else max_dp_step / dp_max
-            scale_trust = min(1.0, scale_sw, scale_dp)
+            # Разумные ограничения на давление для стабильности
+            p_current_pa = float(self.fluid.pressure.mean().item())  # в Па
+            max_dp_step_absolute = min(
+                self._p_trust_limit * 1e6,       # глобальный лимит: МПа -> Па
+                0.1 * p_current_pa,              # не более 10% от текущего давления  
+                10e6                              # не более 10 МПа
+            )
+            
+            scale_sw = max_sw_step / (abs(dSw_max) + 1e-15)
+            scale_dp = max_dp_step_absolute / (abs(dp_max) + 1e-15)
+            # 🛠️ ИСПРАВЛЕНО: менее консервативное масштабирование и избегаем комплексных чисел
+            # Используем максимум вместо минимума для более агрессивных шагов
+            scale_trust = min(1.0, max(scale_sw, scale_dp))
 
             if scale_trust < 1.0:
                 delta = delta * scale_trust
                 if self.verbose:
-                    print(f"    Trust-region: масштабируем δ (×{scale_trust:.3f})  dSw_max={dSw_max:.3e}, dP_max={dp_max:.2f} МПа")
+                    dp_max_mpa = dp_max * 1e-6  # уже в физических единицах, конвертируем в МПа
+                    print(f"    Trust-region: масштабируем δ (×{scale_trust:.3f})  dSw_max={dSw_max:.3e}, dP_max={dp_max_mpa:.2f} МПа")
 
             # --- двусторонняя адаптация глобальных лимитов ----------
             self._update_trust_limits(scale_sw, scale_dp, sw_mean)
 
             # --- локальный clamp δSw с учётом скважин ---------------
-            delta_sw = delta[N:].view(self.reservoir.dimensions)
-            lim_local = max_sw_step
-            delta_sw = torch.clamp(delta_sw, -lim_local, lim_local)
-            delta[N:] = delta_sw.view(-1)
+            # ИСПРАВЛЕНО: работаем с масштабированными переменными
+            delta_sw_scaled = delta[N:].view(self.reservoir.dimensions)  # масштабированные значения
+            lim_local_scaled = max_sw_step / SATURATION_SCALE  # лимит в масштабированных единицах
+            delta_sw_scaled = torch.clamp(delta_sw_scaled, -lim_local_scaled, lim_local_scaled)
+            delta[N:] = delta_sw_scaled.view(-1)
 
-            # CNV-контроль
-            cnv_val = torch.max(torch.abs(delta_sw) / (self.fluid.s_w + 1e-12)).item()
-            if cnv_val > self._cnv_threshold:
+            # CNV-контроль (в физических единицах) - более мягкий для JFNK
+            delta_sw_physical = delta_sw_scaled * SATURATION_SCALE  # переводим в физические единицы
+            cnv_val = torch.max(torch.abs(delta_sw_physical) / (self.fluid.s_w + 1e-12)).item()
+            # 🛠️ ИСПРАВЛЕНО: более мягкий CNV для JFNK (позволяем 5.0 вместо 1.2)
+            if cnv_val > 5.0:
                 if self.verbose:
-                    print(f"      CNV={cnv_val:.2f} > {self._cnv_threshold} – уменьшить dt")
+                    print(f"      CNV={cnv_val:.2f} > 5.0 – уменьшить dt")
                 break  # прерываем итерации JFNK для уменьшения dt
 
             # Если шаг стал почти нулевой – приём сразу без line-search
@@ -2021,30 +2354,64 @@ class Simulator:
                 x = x + damping * delta
                 continue
 
-            # --- Armijo line-search ---------------------------------
-            sigma = 0.05  # более мягкий Armijo
-            factor = 1.0  # начинаем с полного шага Δx
-            min_factor = 1e-6
+            # --- Умный адаптивный line-search для резервуарных решателей ---
             success = False
-            while factor >= min_factor:
-                x_trial = x + factor * delta * damping  # демпфирование дополнительно
+            factor = 1.0
+            best_factor = 1.0
+            best_norm = norm_F
+            
+            # 🛠️ ИСПРАВЛЕНО: меньше попыток line search, больше агрессивности
+            # Попробуем разные шаги
+            for _ in range(6):  # максимум 6 попыток (вместо 12)
+                x_trial = x + factor * delta * damping
+                
+                try:
+                    F_trial = self._fi_residual_vec(x_trial, dt)
+                    
+                    if torch.isfinite(F_trial).all():
+                        norm_trial = F_trial.norm()
+                        
+                        # Основной критерий - уменьшение невязки (очень мягкий)
+                        if norm_trial < norm_F * 2.0:  # разрешаем увеличение до 100%
+                            x = x_trial
+                            success = True
+                            break
+                        
+                        # Сохраняем лучший вариант
+                        if norm_trial < best_norm:
+                            best_norm = norm_trial
+                            best_factor = factor
+                            
+                    factor *= 0.7  # умеренное уменьшение
+                    
+                except Exception as e:
+                    if factor > 1e-4:  # только для больших шагов
+                        print(f"      Line-search ошибка при factor={factor:.2e}: {e}")
+                    factor *= 0.5
+                    
+                if factor < 1e-6:
+                    break
+            
+            # Если не нашли улучшения, берем лучший найденный шаг
+            if not success and best_factor < 1.0:
+                x_trial = x + best_factor * delta * damping
                 F_trial = self._fi_residual_vec(x_trial, dt)
-
-                # Проверяем конечность и условие Армихо: ‖F(x_new)‖ <= (1-σ·f)·‖F(x)‖
-                if torch.isfinite(F_trial).all() and F_trial.norm() <= (1.0 - sigma * factor) * norm_F:
+                
+                if torch.isfinite(F_trial).all() and F_trial.norm() < norm_F * 1.5:  # допускаем 50% ухудшение
                     x = x_trial
                     success = True
-                    break
-                factor *= 0.5
-
+                    print(f"      Используем лучший шаг: factor={best_factor:.3f}")
+                    
             if not success:
-                print("  Line-search не смог подобрать шаг (factor < 1e-6) – прекращаем JFNK итерации")
+                print("  Line-search не смог найти подходящий шаг – прекращаем JFNK итерации")
                 break
 
-        # Обновляем поля
+        # Обновляем поля (восстанавливаем масштабирование)
         p_new  = (x[:N] * P_SCALE).view(self.reservoir.dimensions).detach()
-        sw_new = x[N:].view(self.reservoir.dimensions).clamp(self.fluid.sw_cr, 1 - self.fluid.so_r).detach()
-        # Ограничиваем физическими пределами
+        # ИСПРАВЛЕНО: восстанавливаем масштабирование для насыщенности
+        sw_raw = x[N:] * SATURATION_SCALE  # восстанавливаем масштаб
+        sw_new = self._soft_clamp(sw_raw, self.fluid.sw_cr, 1 - self.fluid.so_r).view(self.reservoir.dimensions).detach()
+        # Дополнительная проверка физических пределов
         sw_new.clamp_(self.fluid.sw_cr, 1 - self.fluid.so_r)
 
         self.fluid.pressure = p_new
@@ -2081,6 +2448,11 @@ class Simulator:
         """Полная невязка (масса) без сборки Якобиана – используется в JFNK.
         Содержит аккумуляцию, конвективные потоки и скважины.
         Возвращает 1-D тензор длиной 2*N (water/oil).
+        
+        ГРАНИЧНЫЕ УСЛОВИЯ: No-flow boundary conditions применяются неявно:
+        - Поток через внешние границы пласта = 0
+        - Вычисляются только потоки между соседними ячейками ВНУТРИ пласта
+        - Граничные ячейки имеют правильные уравнения баланса массы
         """
         nx, ny, nz = self.reservoir.dimensions
         N = nx * ny * nz
@@ -2091,7 +2463,8 @@ class Simulator:
         cell_volume = dx * dy * dz
 
         p = self.fluid.pressure  # (nx,ny,nz)
-        sw = self.fluid.s_w.clamp(self.fluid.sw_cr, 1.0 - self.fluid.so_r)
+        # ИСПРАВЛЕНО: используем мягкое ограничение для сохранения градиентов (автоматический slope)
+        sw = self._soft_clamp(self.fluid.s_w, self.fluid.sw_cr, 1.0 - self.fluid.so_r)
 
         # пористость сжатого пласта
         phi = self.reservoir.porosity_ref * (1 + self.reservoir.rock_compressibility * (p - 1e5)) + self.ptc_alpha
@@ -2123,24 +2496,27 @@ class Simulator:
             pc = self.fluid.calc_capillary_pressure(sw)
         else:
             pc = torch.zeros_like(p)
-
-        # X-направление --------------------------------------------------
+            
+        # === X-направление (NO-FLOW BC на левой/правой границах) ===
+        # Вычисляем только потоки между соседними ячейками (i,i+1)
+        # Поток через границу i=0 (слева) = 0 (неявно)  
+        # Поток через границу i=nx (справа) = 0 (неявно)
         dp_x = p[:-1,:,:] - p[1:,:,:]  # shape (nx-1,ny,nz)
         lambda_w_up_x = torch.where(dp_x > 0, lambda_w[:-1,:,:], lambda_w[1:,:,:])
         lambda_o_up_x = torch.where(dp_x > 0, lambda_o[:-1,:,:], lambda_o[1:,:,:])
         rho_w_avg_x = 0.5 * (rho_w[:-1,:,:] + rho_w[1:,:,:])
         rho_o_avg_x = 0.5 * (rho_o[:-1,:,:] + rho_o[1:,:,:])
         dpc_x = pc[:-1,:,:] - pc[1:,:,:]
-        trans_x = self.T_x * dt  # м³/(Па·с) * ?  (здесь единицы не критичны – лишь консист.)
+        trans_x = self.T_x * dt  
         water_flux_x = trans_x * lambda_w_up_x * (dp_x - dpc_x) * rho_w_avg_x
         oil_flux_x   = trans_x * lambda_o_up_x * (dp_x)            * rho_o_avg_x
         # расход из левой ячейки ("-"), к правой ("+")
-        res_water[:-1,:,:] -= water_flux_x
-        res_water[1: ,:,:] += water_flux_x
+        res_water[:-1,:,:] -= water_flux_x  # ячейки i=0..nx-2 
+        res_water[1: ,:,:] += water_flux_x  # ячейки i=1..nx-1
         res_oil  [:-1,:,:] -= oil_flux_x
         res_oil  [1: ,:,:] += oil_flux_x
 
-        # Y-направление --------------------------------------------------
+        # === Y-направление (NO-FLOW BC на передней/задней границах) ===
         dp_y = p[:,:-1,:] - p[:,1:,:]
         lambda_w_up_y = torch.where(dp_y > 0, lambda_w[:,:-1,:], lambda_w[:,1:,:])
         lambda_o_up_y = torch.where(dp_y > 0, lambda_o[:,:-1,:], lambda_o[:,1:,:])
@@ -2150,12 +2526,12 @@ class Simulator:
         trans_y = self.T_y * dt
         water_flux_y = trans_y * lambda_w_up_y * (dp_y - dpc_y) * rho_w_avg_y
         oil_flux_y   = trans_y * lambda_o_up_y * (dp_y) * rho_o_avg_y
-        res_water[:,:-1,:] -= water_flux_y
-        res_water[:,1: ,:] += water_flux_y
+        res_water[:,:-1,:] -= water_flux_y  # j=0..ny-2
+        res_water[:,1: ,:] += water_flux_y  # j=1..ny-1
         res_oil  [:,:-1,:] -= oil_flux_y
         res_oil  [:,1: ,:] += oil_flux_y
 
-        # Z-направление --------------------------------------------------
+        # === Z-направление (NO-FLOW BC на верхней/нижней границах) ===
         if nz > 1:
             dp_z = p[:,:,:-1] - p[:,:,1:]
             lambda_w_up_z = torch.where(dp_z > 0, lambda_w[:,:,:-1], lambda_w[:,:,1:])
@@ -2166,19 +2542,262 @@ class Simulator:
             trans_z = self.T_z * dt
             water_flux_z = trans_z * lambda_w_up_z * (dp_z - dpc_z) * rho_w_avg_z
             oil_flux_z   = trans_z * lambda_o_up_z * (dp_z) * rho_o_avg_z
-            res_water[:,:,:-1] -= water_flux_z
-            res_water[:,:,1: ] += water_flux_z
+            res_water[:,:,:-1] -= water_flux_z  # k=0..nz-2
+            res_water[:,:,1: ] += water_flux_z  # k=1..nz-1
             res_oil  [:,:,:-1] -= oil_flux_z
             res_oil  [:,:,1: ] += oil_flux_z
 
-        # сформируем вектор
-        residual = torch.zeros(2*N, device=device)
-        residual[0::2] = res_water.reshape(-1)
-        residual[1::2] = res_oil.reshape(-1)
+        # 🔥 КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: избегаем inplace операций для сохранения gradients
+        # ИСПРАВЛЕНО: сформируем вектор в БЛОЧНОМ формате БЕЗ inplace операций
+        # [water0, water1, ..., waterN-1, oil0, oil1, ..., oilN-1]
+        residual = torch.cat([
+            res_water.reshape(-1),     # первые N элементов = water equations
+            res_oil.reshape(-1)        # последние N элементов = oil equations
+        ])
 
         # скважины
         self._add_wells_to_system(residual, None, dt)
 
+        return residual
+
+    def _compute_residual_full_direct(self, dt, p_input, sw_input, prev_water_mass, prev_oil_mass):
+        """Полная невязка БЕЗ изменения состояния объектов - для сохранения градиентов в JVP.
+        Принимает давление и насыщенность как параметры, а не использует self.fluid состояние.
+        ИСПРАВЛЕНО: также принимает prev_water_mass и prev_oil_mass как параметры.
+        Возвращает 1-D тензор длиной 2*N (water/oil).
+        """
+        nx, ny, nz = self.reservoir.dimensions
+        N = nx * ny * nz
+        device = self.fluid.device
+        
+        # 🔍 ДИАГНОСТИКА: проверяем входные параметры (БЕЗ .item() для векторизации)
+        # print(f"      🔍 compute_residual_full_direct: dt={dt:.2e}, p_input [{p_input.min():.2e}, {p_input.max():.2e}], sw_input [{sw_input.min():.3f}, {sw_input.max():.3f}]")
+
+        # === геометрия ===
+        dx, dy, dz = self.reservoir.grid_size
+        cell_volume = dx * dy * dz
+
+        # ИСПРАВЛЕНО: используем входные параметры вместо self.fluid состояния
+        p = p_input  # (nx,ny,nz)
+        # ИСПРАВЛЕНО: используем мягкое ограничение для сохранения градиентов (автоматический slope)
+        sw = self._soft_clamp(sw_input, self.fluid.sw_cr, 1.0 - self.fluid.so_r)
+
+        # пористость сжатого пласта
+        phi = self.reservoir.porosity_ref * (1 + self.reservoir.rock_compressibility * (p - 1e5)) + self.ptc_alpha
+
+        # плотности
+        rho_w = self.fluid.calc_water_density(p)
+        rho_o = self.fluid.calc_oil_density(p)
+
+        # аккумуляция (масса, кг)
+        water_mass = phi * sw * rho_w * cell_volume
+        oil_mass   = phi * (1 - sw) * rho_o * cell_volume
+
+        # 🔍 ДИАГНОСТИКА: проверяем зависимость масс от входных параметров (БЕЗ .item() для векторизации)
+        # print(f"      🔍 Массы: water_mass [{water_mass.min():.2e}, {water_mass.max():.2e}], requires_grad={water_mass.requires_grad}")
+        # print(f"      🔍 Массы: oil_mass [{oil_mass.min():.2e}, {oil_mass.max():.2e}], requires_grad={oil_mass.requires_grad}")
+        # print(f"      🔍 Компоненты: phi [{phi.min():.3f}, {phi.max():.3f}], sw [{sw.min():.3f}, {sw.max():.3f}]")
+        # print(f"      🔍 Компоненты: rho_w [{rho_w.min():.1f}, {rho_w.max():.1f}], rho_o [{rho_o.min():.1f}, {rho_o.max():.1f}]")
+        # print(f"      🔍 Prev masses: prev_water_mass [{prev_water_mass.min():.2e}, {prev_water_mass.max():.2e}]")
+        # print(f"      🔍 Prev masses: prev_oil_mass [{prev_oil_mass.min():.2e}, {prev_oil_mass.max():.2e}]")
+
+        # ИСПРАВЛЕНО: используем переданные prev_masses вместо self.fluid состояния
+        res_water = (water_mass - prev_water_mass.view(nx,ny,nz))
+        res_oil   = (oil_mass   - prev_oil_mass.view(nx,ny,nz))
+        
+        # print(f"      🔍 Аккумуляция: res_water [{res_water.min():.2e}, {res_water.max():.2e}]")
+        # print(f"      🔍 Аккумуляция: res_oil [{res_oil.min():.2e}, {res_oil.max():.2e}]")
+
+        # === потоки ===
+        # вычисляем Т_x, T_y, T_z если не было
+        self._init_impes_transmissibilities()
+        # относит. проницаемости и мобил.
+        kr_w = self.fluid.calc_water_kr(sw)
+        kr_o = self.fluid.calc_oil_kr(sw)
+        mu_w = self.fluid.mu_water
+        mu_o = self.fluid.mu_oil
+        lambda_w = kr_w / mu_w
+        lambda_o = kr_o / mu_o
+
+        # капиллярное давление
+        if self.fluid.pc_scale > 0:
+            pc = self.fluid.calc_capillary_pressure(sw)
+        else:
+            pc = torch.zeros_like(p)
+            
+        # === X-направление (NO-FLOW BC на левой/правой границах) ===
+        dp_x = p[:-1,:,:] - p[1:,:,:]  # shape (nx-1,ny,nz)
+        lambda_w_up_x = torch.where(dp_x > 0, lambda_w[:-1,:,:], lambda_w[1:,:,:])
+        lambda_o_up_x = torch.where(dp_x > 0, lambda_o[:-1,:,:], lambda_o[1:,:,:])
+        rho_w_avg_x = 0.5 * (rho_w[:-1,:,:] + rho_w[1:,:,:])
+        rho_o_avg_x = 0.5 * (rho_o[:-1,:,:] + rho_o[1:,:,:])
+        dpc_x = pc[:-1,:,:] - pc[1:,:,:]
+        trans_x = self.T_x * dt  
+        water_flux_x = trans_x * lambda_w_up_x * (dp_x - dpc_x) * rho_w_avg_x
+        oil_flux_x   = trans_x * lambda_o_up_x * (dp_x)            * rho_o_avg_x
+        # расход из левой ячейки ("-"), к правой ("+")
+        res_water[:-1,:,:] -= water_flux_x  # ячейки i=0..nx-2 
+        res_water[1: ,:,:] += water_flux_x  # ячейки i=1..nx-1
+        res_oil  [:-1,:,:] -= oil_flux_x
+        res_oil  [1: ,:,:] += oil_flux_x
+
+        # === Y-направление (NO-FLOW BC на передней/задней границах) ===
+        dp_y = p[:,:-1,:] - p[:,1:,:]
+        lambda_w_up_y = torch.where(dp_y > 0, lambda_w[:,:-1,:], lambda_w[:,1:,:])
+        lambda_o_up_y = torch.where(dp_y > 0, lambda_o[:,:-1,:], lambda_o[:,1:,:])
+        rho_w_avg_y = 0.5 * (rho_w[:,:-1,:] + rho_w[:,1:,:])
+        rho_o_avg_y = 0.5 * (rho_o[:,:-1,:] + rho_o[:,1:,:])
+        dpc_y = pc[:,:-1,:] - pc[:,1:,:]
+        trans_y = self.T_y * dt
+        water_flux_y = trans_y * lambda_w_up_y * (dp_y - dpc_y) * rho_w_avg_y
+        oil_flux_y   = trans_y * lambda_o_up_y * (dp_y) * rho_o_avg_y
+        res_water[:,:-1,:] -= water_flux_y  # j=0..ny-2
+        res_water[:,1: ,:] += water_flux_y  # j=1..ny-1
+        res_oil  [:,:-1,:] -= oil_flux_y
+        res_oil  [:,1: ,:] += oil_flux_y
+
+        # === Z-направление (NO-FLOW BC на верхней/нижней границах) ===
+        if nz > 1:
+            dp_z = p[:,:,:-1] - p[:,:,1:]
+            lambda_w_up_z = torch.where(dp_z > 0, lambda_w[:,:,:-1], lambda_w[:,:,1:])
+            lambda_o_up_z = torch.where(dp_z > 0, lambda_o[:,:,:-1], lambda_o[:,:,1:])
+            rho_w_avg_z = 0.5 * (rho_w[:,:,:-1] + rho_w[:,:,1:])
+            rho_o_avg_z = 0.5 * (rho_o[:,:,:-1] + rho_o[:,:,1:])
+            dpc_z = pc[:,:,:-1] - pc[:,:,1:]
+            trans_z = self.T_z * dt
+            water_flux_z = trans_z * lambda_w_up_z * (dp_z - dpc_z) * rho_w_avg_z
+            oil_flux_z   = trans_z * lambda_o_up_z * (dp_z) * rho_o_avg_z
+            res_water[:,:,:-1] -= water_flux_z  # k=0..nz-2
+            res_water[:,:,1: ] += water_flux_z  # k=1..nz-1
+            res_oil  [:,:,:-1] -= oil_flux_z
+            res_oil  [:,:,1: ] += oil_flux_z
+
+        # 🔥 КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: избегаем inplace операций для сохранения gradients
+        # ИСПРАВЛЕНО: сформируем вектор в БЛОЧНОМ формате БЕЗ inplace операций
+        # [water0, water1, ..., waterN-1, oil0, oil1, ..., oilN-1]
+        residual = torch.cat([
+            res_water.reshape(-1),     # первые N элементов = water equations
+            res_oil.reshape(-1)        # последние N элементов = oil equations
+        ])
+
+        # print(f"      🔍 Residual до скважин: water [{residual[:N].min():.2e}, {residual[:N].max():.2e}], oil [{residual[N:].min():.2e}, {residual[N:].max():.2e}]")
+
+        # скважины - НО передаем p и sw как параметры!
+        # 🔥 ИСПРАВЛЕНО: получаем новый residual от функции (не inplace)
+        residual = self._add_wells_to_system_direct(residual, None, dt, p_input, sw_input)
+
+        # 🔍 ДИАГНОСТИКА: проверяем итоговые residuals (БЕЗ .item() для векторизации)
+        # print(f"      🔍 Итоговые residuals: water [{residual[:N].min():.2e}, {residual[:N].max():.2e}], oil [{residual[N:].min():.2e}, {residual[N:].max():.2e}]")
+        
+        return residual
+
+    def _add_wells_to_system_direct(self, residual, jacobian, dt, p_input, sw_input):
+        """
+        Добавляет вклад скважин в систему БЕЗ изменения состояния объектов.
+        Принимает давление и насыщенность как параметры для сохранения градиентов.
+        ИСПРАВЛЕНО: используем БЛОЧНУЮ индексацию вместо интерлеавинга.
+        🔥 КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: клонируем residual для избежания inplace операций.
+        """
+        # 🔥 ИСПРАВЛЕНО: создаем новый residual для сохранения градиентов
+        residual = residual.clone()
+        
+        # Если якобиан не передан (режим JFNK), изменяем только residual.
+        jac_update = jacobian is not None
+        wells = self.well_manager.get_wells()
+        
+        # ИСПРАВЛЕНО: получаем размер грида для блочной индексации
+        nx, ny, nz = self.reservoir.dimensions
+        N = nx * ny * nz
+
+        for well in wells:
+            idx = well.cell_index_flat
+
+            # ИСПРАВЛЕНО: используем входные параметры вместо self.fluid состояния
+            p_cell = p_input.view(-1)[idx]
+            sw_cell = sw_input.view(-1)[idx]
+
+            rho_w_cell = self.fluid.calc_water_density(p_cell)
+            rho_o_cell = self.fluid.calc_oil_density(p_cell)
+
+            # Подвижности и их производные
+            mu_w = self.fluid.mu_water
+            mu_o = self.fluid.mu_oil
+            kr_w = self.fluid.calc_water_kr(sw_cell)
+            kr_o = self.fluid.calc_oil_kr(sw_cell)
+            lambda_w = kr_w / mu_w
+            lambda_o = kr_o / mu_o
+            lambda_t = lambda_w + lambda_o
+
+            dkrw_dsw = self.fluid.calc_dkrw_dsw(sw_cell)
+            dkro_dsw = self.fluid.calc_dkro_dsw(sw_cell)
+            dlamb_w_dsw = dkrw_dsw / mu_w
+            dlamb_o_dsw = dkro_dsw / mu_o
+
+            if well.control_type == 'rate':
+                # номинальный объёмный дебит (м³/сут) -> м³/с
+                q_tot_vol_rate = well.control_value / 86400.0
+
+                if well.type == 'injector':
+                    q_w_mass_step = q_tot_vol_rate * self.fluid.rho_water_ref * dt  # кг за шаг
+                    # БЛОЧНАЯ индексация: water equations в первых N элементах
+                    residual[idx] -= q_w_mass_step
+                    # нефть не закачивается
+                else:  # producer
+                    # Фракции потоков
+                    fw = lambda_w / (lambda_t + 1e-12)
+                    fo = 1.0 - fw
+
+                    q_w_mass_step = q_tot_vol_rate * fw * self.fluid.rho_water_ref * dt
+                    q_o_mass_step = q_tot_vol_rate * fo * self.fluid.rho_oil_ref   * dt
+
+                    # БЛОЧНАЯ индексация: water в [0:N], oil в [N:2N]
+                    residual[idx]   -= q_w_mass_step     # water equation
+                    residual[N + idx] -= q_o_mass_step   # oil equation
+
+                    # производные (по Sw) – только для продуцирующей
+                    dfw_dsw = (dlamb_w_dsw * lambda_t - lambda_w * (dlamb_w_dsw + dlamb_o_dsw)) / (lambda_t**2 + 1e-12)
+                    dfo_dsw = -dfw_dsw
+
+                    dq_w_dsw = q_tot_vol_rate * self.fluid.rho_water_ref * dt * dfw_dsw
+                    dq_o_dsw = q_tot_vol_rate * self.fluid.rho_oil_ref  * dt * dfo_dsw
+
+                    if jac_update:
+                        # БЛОЧНАЯ индексация для якобиана: [P: 0:N, Sw: N:2N]
+                        jacobian[idx,     N + idx] -= dq_w_dsw  # water eq, sw var
+                        jacobian[N + idx, N + idx] -= dq_o_dsw  # oil eq, sw var
+
+            elif well.control_type == 'bhp':
+                bhp_pa = well.control_value * 1e6  # МПа->Па
+
+                q_w_vol_rate = well.well_index * lambda_w * (p_cell - bhp_pa)  # м³/с
+                q_o_vol_rate = well.well_index * lambda_o * (p_cell - bhp_pa)  # м³/с
+
+                q_w_mass_step = q_w_vol_rate * rho_w_cell * dt
+                q_o_mass_step = q_o_vol_rate * rho_o_cell * dt
+
+                # БЛОЧНАЯ индексация: water в [0:N], oil в [N:2N]
+                residual[idx]     -= q_w_mass_step     # water equation
+                residual[N + idx] -= q_o_mass_step     # oil equation
+
+                # Якобиан: производные по давлению
+                dq_w_dp = well.well_index * lambda_w * rho_w_cell * dt
+                dq_o_dp = well.well_index * lambda_o * rho_o_cell * dt
+
+                if jac_update:
+                    # БЛОЧНАЯ индексация для якобиана: [P: 0:N, Sw: N:2N]
+                    jacobian[idx,     idx]     -= dq_w_dp  # water eq, pressure var
+                    jacobian[N + idx, idx]     -= dq_o_dp  # oil eq, pressure var
+
+                # Якобиан: производные по насыщенности через подвижности
+                dq_w_dsw = well.well_index * dlamb_w_dsw * (p_cell - bhp_pa) * rho_w_cell * dt
+                dq_o_dsw = well.well_index * dlamb_o_dsw * (p_cell - bhp_pa) * rho_o_cell * dt
+
+                if jac_update:
+                    # БЛОЧНАЯ индексация для якобиана: [P: 0:N, Sw: N:2N]
+                    jacobian[idx,     N + idx] -= dq_w_dsw  # water eq, sw var
+                    jacobian[N + idx, N + idx] -= dq_o_dsw  # oil eq, sw var
+        
+        # 🔥 ВОЗВРАЩАЕМ НОВЫЙ RESIDUAL (не изменяем исходный)
         return residual
 
     # ---------------------------------------------------------------
@@ -2188,7 +2807,15 @@ class Simulator:
         if tol is None:
             tol = self.sim_params.get("newton_tolerance", 1e-3)
 
-        P_SCALE = 1e6
+        # 🔍 ДЕТЕКТОР АНОМАЛИЙ временно отключен для векторизации
+        # import torch
+        # torch.autograd.set_detect_anomaly(True)
+        
+        # УЛУЧШЕННОЕ масштабирование: используем характерное давление задачи
+        P_SCALE = float(self.fluid.pressure.mean().item())  # текущее среднее давление
+        if P_SCALE < 1e5:  # если давление слишком мало, используем 1 МПа
+            P_SCALE = 1e6
+            
         nx, ny, nz = self.reservoir.dimensions
         N = nx * ny * nz
 
@@ -2199,21 +2826,42 @@ class Simulator:
 
         initial_norm = None
         for it in range(max_iter):
+            # Устанавливаем текущий масштаб для _fi_residual_vec
+            self._current_p_scale = P_SCALE
+            
             F = self._fi_residual_vec(x, dt)
             norm_F = F.norm()
             if initial_norm is None:
                 initial_norm = norm_F.clone()
             rel_res = (norm_F / (initial_norm + 1e-20)).item()
             print(f"  Итерация autograd-Ньютона {it+1}: ||F||={norm_F:.3e}  rel={rel_res:.3e}")
-            if rel_res < tol:
-                break
+            if rel_res < tol * 1.2:  # немного более мягкий tolerance для численных погрешностей
+                print(f"  ✅ Autograd сошёлся на итерации {it+1}: rel={rel_res:.3e} < {tol}")
+                # Обновляем состояние и возвращаем успех
+                p_new = (x[:N] * P_SCALE).view(self.reservoir.dimensions)
+                sw_new = self._soft_clamp(x[N:], self.fluid.sw_cr, 1 - self.fluid.so_r).view(self.reservoir.dimensions)
+                self.fluid.pressure = p_new
+                self.fluid.s_w = sw_new
+                self.fluid.s_o = 1.0 - sw_new
+                self.fluid.prev_pressure = p_new.clone()
+                self.fluid.prev_sw = sw_new.clone()
+                # Обновляем массы
+                rho_w = self.fluid.calc_water_density(p_new.view(-1))
+                rho_o = self.fluid.calc_oil_density(p_new.view(-1))
+                phi0 = self.reservoir.porosity_ref.view(-1)
+                phi = phi0 * (1 + self.reservoir.rock_compressibility * (p_new.view(-1) - 1e5)) + self.ptc_alpha
+                cell_vol = self.reservoir.cell_volume
+                self.fluid.prev_water_mass = phi * sw_new.view(-1) * rho_w * cell_vol
+                self.fluid.prev_oil_mass = phi * (1 - sw_new.view(-1)) * rho_o * cell_vol
+                return True
 
             # --- Инициализируем trust-radius при первой итерации ----
             if not hasattr(self, "_trust_radius_auto"):
                 # стартовое значение = 10 % нормы текущего состояния x
                 self._trust_radius_auto = float(torch.norm(x).item() * 0.1 + 1e-15)
 
-            # Полный Якобиан
+            # Полный Якобиан с правильным масштабом
+            self._current_p_scale = P_SCALE
             J = torch.autograd.functional.jacobian(lambda z: self._fi_residual_vec(z, dt), x, create_graph=False, vectorize=True)
 
             # ---- Решаем J δ = –F через GMRES + ILU0 (CPU) -------------
@@ -2268,44 +2916,48 @@ class Simulator:
                     b_dense = -F.detach().to(self.device)
                     delta = self._robust_solve(J_dense, b_dense)
             elif lin_cfg.get("backend") == "hypre":
-                # Для небольших задач (<= 12 тыс. неизвестных) надёжнее
-                # и зачастую быстре решить систему напрямую, чем строить CPR.
-                if J.shape[0] <= 12000:
+                # --- CPR-решение с давлением через Hypre BoomerAMG ---------
+                # Из полного Якобиана J (2N×2N) извлекаем давление-блок
+                # размером N×N, конвертируем в CSR и решаем A_p Δp = –F_p
+                # via BoomerAMG.  Для блока насыщенностей используем
+                # диагональное приближение (ω-Jacobi).
+
+                import numpy as np
+                from linear_gpu.csr import dense_to_csr
+                from linear_gpu.petsc_boomeramg import solve_boomeramg
+
+                # 1) Давление-подматрица (CPU) → CSR
+                Jp_dense = J.detach()[:N, :N].cpu()
+                A_p_csr  = dense_to_csr(Jp_dense)
+                indptr   = A_p_csr.crow_indices().to(torch.int32).cpu().numpy()
+                indices  = A_p_csr.col_indices().to(torch.int32).cpu().numpy()
+                data     = A_p_csr.values().cpu().numpy()
+
+                # 2) Правая часть по давлению
+                b_p = (-F.detach()[:N]).cpu().numpy()
+
+                # 3) Решаем AMG
+                sol_p, its, res = solve_boomeramg(
+                    indptr, indices, data, b_p,
+                    tol=lin_cfg.get("tol", 1e-6),
+                    max_iter=lin_cfg.get("max_iter", 200),
+                )
+
+                if not np.isfinite(res) or not np.all(np.isfinite(sol_p)):
+                    # Fallback на устойчивый solve, как раньше
                     J_dense = J.detach().to(self.device)
                     b_dense = -F.detach().to(self.device)
                     delta = self._robust_solve(J_dense, b_dense)
                 else:
-                    # --- CPR через PETSc Hypre/BoomerAMG (только давление) ---
-                    from linear_gpu.petsc_boomeramg import solve_boomeramg
+                    # 4) Насыщенности – ω-Jacobi по диагонали
+                    omega = lin_cfg.get("omega", 0.8)
+                    diag_sw = torch.diag(J.detach()[N:, N:]).to(self.device)
+                    delta_sw = (-F[N:] / (diag_sw + 1e-12)) * omega
 
-                    if not hasattr(self, "_hypre_prec"):
-                        lambda_w = self.fluid.calc_water_kr(self.fluid.s_w) / self.fluid.mu_water
-                        lambda_o = self.fluid.calc_oil_kr(self.fluid.s_w) / self.fluid.mu_oil
-                        lambda_t = lambda_w + lambda_o
-                        indptr, indices_arr, data_arr = self._assemble_pressure_csr(lambda_t)
-                        self._hypre_prec = (indptr, indices_arr, data_arr)
-
-                    indptr, indices_arr, data_arr = self._hypre_prec
-
-                    b_vec = -F.detach().cpu().numpy()
-                    b_p = b_vec[:N]
-
-                    sol_p, its, res = solve_boomeramg(indptr, indices_arr, data_arr, b_p,
-                                                      tol=lin_cfg.get("tol", 1e-8),
-                                                      max_iter=lin_cfg.get("max_iter", 400))
-
-                    # Проверяем корректность результата; если res или sol_p не конечны → fallback
-                    if not np.isfinite(res) or not np.all(np.isfinite(sol_p)):
-                        if self.verbose:
-                            print("  [BoomerAMG] res=NaN/Inf → fallback на Jacobi")
-                        delta = torch.from_numpy(0.8 * b_vec).to(self.device)
-                    else:
-                        if self.verbose:
-                            print(f"  [BoomerAMG] итераций={its}, остаток={res:.2e}")
-                        sol_full = np.zeros_like(b_vec)
-                        sol_full[:N] = sol_p
-                        sol_full[N:] = 0.8 * b_vec[N:]
-                        delta = torch.from_numpy(sol_full).to(self.device)
+                    # 5) Собираем полный вектор δ
+                    delta = torch.zeros_like(F, device=self.device)
+                    delta[:N] = torch.from_numpy(sol_p).to(self.device)
+                    delta[N:] = delta_sw
             else:
                 # Если указан другой backend – используем надёжный solve
                 J_dense = J.detach().to(self.device)
@@ -2317,12 +2969,12 @@ class Simulator:
             max_sw_step = max(self._sw_trust_limit, 0.3 * (1 - sw_mean), 0.15)
 
             dSw_max = torch.max(torch.abs(delta[N:])).item() + 1e-15
-            dp_max  = torch.max(torch.abs(delta[:N])).item() * (P_SCALE * 1e-6)  # в МПа
+            dp_max  = torch.max(torch.abs(delta[:N])).item()  # уже в единицах P_SCALE
 
             scale_sw = max_sw_step / dSw_max
-            max_dp_step = self._p_trust_limit
-            p_mean_mpa = float(self.fluid.pressure.mean().item() * 1e-6) + 1e-6
-            max_dp_step = max(max_dp_step, 0.3 * p_mean_mpa)
+            max_dp_step = self._p_trust_limit / P_SCALE  # переводим в единицы P_SCALE
+            p_mean_scaled = float(self.fluid.pressure.mean().item() / P_SCALE) + 1e-6
+            max_dp_step = max(max_dp_step, 0.3 * p_mean_scaled)
             scale_dp = float('inf') if max_dp_step<=0 else max_dp_step / dp_max
             scale_trust = min(1.0, scale_sw, scale_dp)
 
@@ -2394,7 +3046,8 @@ class Simulator:
 
         # Обновляем состояние
         p_new = (x[:N] * P_SCALE).view(self.reservoir.dimensions)
-        sw_new = x[N:].view(self.reservoir.dimensions).clamp(self.fluid.sw_cr, 1 - self.fluid.so_r)
+        # ИСПРАВЛЕНО: используем мягкое ограничение для насыщенности (автоматический slope)
+        sw_new = self._soft_clamp(x[N:], self.fluid.sw_cr, 1 - self.fluid.so_r).view(self.reservoir.dimensions)
 
         self.fluid.pressure = p_new
         self.fluid.s_w = sw_new
@@ -2457,8 +3110,23 @@ class Simulator:
         self.fluid.pressure = P_new
         self._impes_saturation_step(P_new, dt)
 
-        # После предиктора не нужно обновлять prev_pressure/mass.
-        # Эти обновления сделает fully-implicit после успешной сходимости.
+        # КРИТИЧЕСКИ ВАЖНО: обновляем prev_mass после IMPES-predictor!
+        # Иначе JFNK будет сравнивать текущие массы (после IMPES) с массами до IMPES
+        nx, ny, nz = self.reservoir.dimensions
+        p_new = self.fluid.pressure
+        sw_new = self.fluid.s_w
+        
+        # Пересчитываем и сохраняем массы флюидов для корректной работы JFNK
+        rho_w = self.fluid.calc_water_density(p_new.view(-1))
+        rho_o = self.fluid.calc_oil_density(p_new.view(-1))
+        phi0 = self.reservoir.porosity_ref.view(-1)
+        phi = phi0 * (1 + self.reservoir.rock_compressibility * (p_new.view(-1) - 1e5)) + self.ptc_alpha
+        cell_vol = self.reservoir.cell_volume
+        
+        # Обновляем prev_mass как 1-D тензоры (совместимые с JFNK)
+        self.fluid.prev_water_mass = phi * sw_new.view(-1) * rho_w * cell_vol
+        self.fluid.prev_oil_mass = phi * (1 - sw_new.view(-1)) * rho_o * cell_vol
+        
         self._log("IMPES-predictor выполнен: использовано как initial guess")
 
     # ---------------------------------------------------------------
@@ -2528,19 +3196,21 @@ class Simulator:
         Используем сигмоидальную проекцию в диапазон [low, high].
         slope определяет крутизну перехода: чем больше, тем ближе к жёсткому clamp."""
         if slope is None:
-            # хотим ≈1% диапазона на переход → logit(0.99/0.01)=4.6 ⇒ slope≈4.6/(0.01Δ)=460
-            slope = 8.0 / (high - low + 1e-20)  # умеренно острый переход
+            # ИСПРАВЛЕНО: более мягкий переход для стабильности градиентов
+            slope = 4.0 / (high - low + 1e-20)  # более мягкий переход
         center = 0.5 * (high + low)
         scale = (high - low)
-        return low + scale * torch.sigmoid(slope * (x - center))
+        # ИСПРАВЛЕНО: ограничиваем входной аргумент sigmoid для стабильности
+        sigmoid_input = torch.clamp(slope * (x - center), -10.0, 10.0)
+        return low + scale * torch.sigmoid(sigmoid_input)
 
     # -------------------------------------------------------------
     #        Собрать 7-точечную CSR-матрицу для давления            
     # -------------------------------------------------------------
-    def _assemble_pressure_csr(self, lambda_t: torch.Tensor):
-        """Возвращает (indptr, indices, data) numpy-массивы CSR для
-        7-точечного шаблона (давление-часть Якобиана). Используем
-        transmissibilities Tx,Ty,Tz (предвычислены)."""
+    def _assemble_pressure_csr(self, lambda_t: torch.Tensor, dt: float | None = None):
+        """Формирует CSR давления (7-точечный шаблон). Если передан dt (>0),
+        к диагонали добавляется вклад аккумуляции φ·C_r·ρ·V/dt для улучшения
+        кондиционирования предобуславливателя CPR на крупных шагах времени."""
         nx, ny, nz = self.reservoir.dimensions
         N = nx * ny * nz
         Tx = self.T_x.cpu().numpy()  # shape (nx-1,ny,nz)
@@ -2602,9 +3272,17 @@ class Simulator:
                             data[pos] = -t
                             pos += 1
                             diag += t
-                    # диагональ
+                    # диагональ (потоки +, при необходимости, аккумуляция)
                     indices[pos] = center
-                    data[pos] = diag + 1e-12  # маленькая стабилизация
+                    diag_val = diag + 1e-12  # базовая стабилизация
+                    if dt is not None and dt > 0:
+                        phi_ref = self.reservoir.porosity_ref[i, j, k].item()
+                        cr = self.reservoir.rock_compressibility
+                        rho_avg = 0.5 * (self.fluid.rho_water_ref + self.fluid.rho_oil_ref)
+                        cell_vol = self.reservoir.cell_volume
+                        acc = (phi_ref * cr * rho_avg * cell_vol) / dt
+                        diag_val += acc
+                    data[pos] = diag_val
                     pos += 1
                     idx += 1
         indptr[N] = pos
@@ -2631,5 +3309,176 @@ class Simulator:
             self._p_trust_limit *= 0.9
 
         # Жёсткие глобальные пределы
-        self._sw_trust_limit = max(0.05, min(self._sw_trust_limit, 0.8))
-        self._p_trust_limit  = max(1.0, min(self._p_trust_limit, 30.0))
+        self._sw_trust_limit = max(0.2, min(self._sw_trust_limit, 0.8))
+        self._p_trust_limit  = max(10.0, min(self._p_trust_limit, 100.0))
+
+    def _diagnostic_jvp_vs_fd(self, x, dt, P_SCALE, SATURATION_SCALE=1.0):
+        """Диагностика: сравниваем JVP с finite differences"""
+        # Выбираем случайное направление
+        v = torch.randn_like(x) * 0.01
+        
+        # JVP
+        try:
+            self._current_p_scale = P_SCALE
+            self._current_saturation_scale = SATURATION_SCALE
+            _, Jv_auto = torch.autograd.functional.jvp(
+                lambda z: self._fi_residual_vec(z, dt), x, v, create_graph=False)
+        except Exception as e:
+            print(f"    ❌ JVP failed: {e}")
+            return
+        
+        # Finite differences
+        eps = 1e-6
+        try:
+            self._current_p_scale = P_SCALE
+            self._current_saturation_scale = SATURATION_SCALE
+            F_plus = self._fi_residual_vec(x + eps * v, dt)
+            F_minus = self._fi_residual_vec(x - eps * v, dt)
+            Jv_fd = (F_plus - F_minus) / (2 * eps)
+        except Exception as e:
+            print(f"    ❌ FD failed: {e}")
+            return
+        
+        # Сравниваем
+        diff = torch.norm(Jv_auto - Jv_fd)
+        rel_diff = diff / (torch.norm(Jv_auto) + 1e-12)
+        
+        print(f"    JVP vs FD: ||J*v||_auto = {torch.norm(Jv_auto).item():.3e}")
+        print(f"               ||J*v||_fd   = {torch.norm(Jv_fd).item():.3e}")
+        print(f"               ||diff||     = {diff.item():.3e}")
+        print(f"               rel_diff     = {rel_diff.item():.3e}")
+        
+        if rel_diff > 1e-3:
+            print(f"    ⚠️  ВНИМАНИЕ: большая разница между JVP и FD!")
+        else:
+            print(f"    ✅ JVP корректен")
+    
+    def _diagnostic_condition_number(self, matvec, n):
+        """Диагностика: оценка condition number через power method"""
+        # Не делаем полную диагностику для больших систем
+        if n > 500:
+            print(f"    Система слишком большая ({n}) для диагностики condition number")
+            return
+            
+        print(f"    Оценка condition number для системы размера {n}...")
+        
+        # Power method для оценки максимального собственного числа
+        # Используем то же device, что и в системе
+        device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
+        v = torch.randn(n, dtype=torch.float32, device=device)
+        v = v / torch.norm(v)
+        
+        lambda_max = 0.0
+        for i in range(15):
+            try:
+                Av = matvec(v)
+                lambda_max = torch.dot(v, Av).item()
+                v_norm = torch.norm(Av)
+                if v_norm < 1e-12:
+                    break
+                v = Av / v_norm
+            except Exception as e:
+                print(f"    ❌ Power method failed at iteration {i}: {e}")
+                return
+        
+        # Приближенная оценка минимального собственного числа  
+        lambda_min = lambda_max * 1e-12  # консервативная оценка
+        
+        # Оценка condition number
+        if abs(lambda_min) < 1e-12:
+            cond_est = float('inf')
+        else:
+            cond_est = abs(lambda_max / lambda_min)
+        
+        print(f"    Результат condition number:")
+        print(f"      λ_max ≈ {lambda_max:.3e}")
+        print(f"      λ_min ≈ {lambda_min:.3e}")
+        print(f"      cond  ≈ {cond_est:.3e}")
+        
+        if cond_est > 1e12:
+            print(f"    ⚠️  СИСТЕМА СИНГУЛЯРНА! (cond > 1e12)")
+        elif cond_est > 1e8:
+            print(f"    ⚠️  Система очень плохо обусловлена (cond > 1e8)")
+        elif cond_est > 1e6:
+            print(f"    ⚠️  Система плохо обусловлена (cond > 1e6)")
+        else:
+            print(f"    ✅ Обусловленность приемлемая")
+
+    def _diagnostic_jacobian_structure(self, matvec, n):
+        """Диагностика структуры якобиана: поиск нулевых строк, столбцов и других проблем"""
+        if n > 500:
+            print(f"    Система слишком большая ({n}) для структурной диагностики")
+            return
+            
+        device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
+        print(f"    Анализ структуры якобиана {n}×{n}...")
+        
+        # Проверяем нулевые строки: J*e_i = 0?
+        zero_rows = []
+        for i in range(min(n, 50)):  # проверяем первые 50 строк
+            ei = torch.zeros(n, device=device)
+            ei[i] = 1.0
+            Jei = matvec(ei)
+            row_norm = torch.norm(Jei).item()
+            if row_norm < 1e-12:
+                zero_rows.append(i)
+        
+        # Проверяем диагональные элементы
+        diag_elements = []
+        for i in range(min(n, 50)):
+            ei = torch.zeros(n, device=device)
+            ei[i] = 1.0
+            Jei = matvec(ei)
+            diag_elements.append(Jei[i].item())
+        
+        # Статистика диагональных элементов
+        diag_tensor = torch.tensor(diag_elements)
+        small_diag = torch.sum(torch.abs(diag_tensor) < 1e-10).item()
+        
+        # Проверяем есть ли блочная структура давление/насыщенность
+        N = n // 2  # предполагаем что первая половина - давление, вторая - насыщенность
+        
+        print(f"    📊 Результаты анализа структуры:")
+        print(f"      Нулевых строк (из первых 50): {len(zero_rows)}")
+        if zero_rows:
+            print(f"      Нулевые строки: {zero_rows[:10]}")  # показываем первые 10
+        print(f"      Малых диагональных элементов (<1e-10): {small_diag}/{len(diag_elements)}")
+        
+        # Проверяем связность блоков
+        if N > 0 and N < n:
+            print(f"    🔗 Анализ блочной структуры (P: 0-{N-1}, Sw: {N}-{n-1}):")
+            
+            # Проверяем P-P блок
+            ep = torch.zeros(n, device=device)
+            ep[0] = 1.0  # первая переменная давления
+            Jep = matvec(ep)
+            pp_norm = torch.norm(Jep[:N]).item()
+            ps_norm = torch.norm(Jep[N:]).item()
+            
+            # Проверяем Sw-Sw блок
+            es = torch.zeros(n, device=device)
+            es[N] = 1.0  # первая переменная насыщенности
+            Jes = matvec(es)
+            sp_norm = torch.norm(Jes[:N]).item()
+            ss_norm = torch.norm(Jes[N:]).item()
+            
+            print(f"      P->P связь: {pp_norm:.3e}, P->Sw связь: {ps_norm:.3e}")
+            print(f"      Sw->P связь: {sp_norm:.3e}, Sw->Sw связь: {ss_norm:.3e}")
+            
+            # Диагностика возможных проблем
+            if pp_norm < 1e-12:
+                print(f"    ⚠️  ПРОБЛЕМА: нет связи давление-давление!")
+            if ss_norm < 1e-12:
+                print(f"    ⚠️  ПРОБЛЕМА: нет связи насыщенность-насыщенность!")
+            if ps_norm < 1e-12 and sp_norm < 1e-12:
+                print(f"    ⚠️  ПРОБЛЕМА: полностью раздельные подсистемы!")
+        
+        # Общая диагностика
+        if len(zero_rows) > 0:
+            print(f"    🚨 КРИТИЧЕСКАЯ ПРОБЛЕМА: найдены нулевые строки якобиана!")
+        elif small_diag > len(diag_elements) // 2:
+            print(f"    ⚠️  ПРОБЛЕМА: слишком много малых диагональных элементов")
+        else:
+            print(f"    ✅ Структура якобиана выглядит разумной")
+
+

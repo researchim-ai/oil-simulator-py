@@ -1,0 +1,80 @@
+{
+    "description": "Fully implicit 3D без AMG (torch_gmres backend)",
+    "output_filename": "fi_3d_no_amg",
+    "save_vtk": false,
+
+    "simulation": {
+        "solver_type": "fully_implicit",
+        "total_time_days": 1.0,
+        "time_step_days": 0.2,
+        "newton_max_iter": 15,
+        "newton_tolerance": 1e-4,
+        "jacobian": "auto",
+        "autograd_threshold_cells": 10000,
+        "max_time_step_attempts": 4,
+        "dt_reduction_factor": 2.0,
+        "use_cuda": true,
+        "verbose": true,
+
+        "linear_solver": {
+            "backend": "torch_gmres",
+            "tol": 1e-6,
+            "max_iter": 400,
+            "restart": 100
+        }
+    },
+
+    "reservoir": {
+        "dimensions": [50, 50, 5],
+        "grid_size": [20.0, 20.0, 5.0],
+        "porosity": 0.22,
+        "permeability": 150,
+        "k_vertical_fraction": 0.2
+    },
+
+    "fluid": {
+        "pressure": 20.0,
+        "s_w": 0.2,
+        "mu_oil": 1.5,
+        "mu_water": 0.6,
+        "rho_oil": 850,
+        "rho_water": 997,
+        "c_oil": 4e-5,
+        "c_water": 4e-5,
+        "c_rock": 4e-5,
+
+        "relative_permeability": {
+            "sw_cr": 0.2,
+            "so_r": 0.15,
+            "nw": 2.0,
+            "no": 2.0
+        },
+
+        "capillary_pressure": {
+            "pc_scale": 0.0
+        }
+    },
+
+    "wells": [
+        {
+            "name": "INJ",
+            "type": "injector",
+            "coordinates": [5, 5, 2],
+            "radius": 0.15,
+            "control": {
+                "type": "rate",
+                "value": 500.0
+            }
+        },
+        {
+            "name": "PROD",
+            "type": "producer",
+            "coordinates": [45, 45, 2],
+            "radius": 0.15,
+            "control": {
+                "type": "rate",
+                "value": 500.0
+            }
+        }
+    ]
+} 

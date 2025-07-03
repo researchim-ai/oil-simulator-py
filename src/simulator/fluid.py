@@ -104,18 +104,18 @@ class Fluid:
 
     def _get_normalized_saturation(self, s_w):
         """
-        Вычисляет нормализованную водонасыщенность.
+        Вычисляет нормализованную водонасыщенность с мягкими градиентами.
         """
-        # Мягкое ограничение (smooth-clip) вместо жёсткого clamp – даёт непрерывную
-        # производную и помогает Якобиану не терять ранг.
-        eps = 1e-1  # ширина плавного перехода, ещё более гладко
+        # ИСПРАВЛЕНО: более мягкий переход для стабильных градиентов
+        eps = 0.02  # более мягкий переход чем 1e-1
 
         # Нормализуем в исходный диапазон [0,1]
-        s_norm_raw = (s_w - self.sw_cr) / (1 - self.sw_cr - self.so_r)
+        s_norm_raw = (s_w - self.sw_cr) / (1 - self.sw_cr - self.so_r + 1e-10)
 
-        # Используем сглаженный clip через σ-функцию:
-        # σ_e(x) = sigmoid((x-0.5)/ε) ∈ (0,1); масштабируем к (0,1)
-        s_norm = torch.sigmoid((s_norm_raw - 0.5) / eps)
+        # ИСПРАВЛЕНО: используем более стабильную сигмоидальную функцию
+        # Ограничиваем входные значения для избежания overflow
+        sigmoid_input = torch.clamp((s_norm_raw - 0.5) / eps, -10.0, 10.0)
+        s_norm = torch.sigmoid(sigmoid_input)
 
         return s_norm
 
@@ -250,14 +250,26 @@ class Fluid:
             Тензор производной относительной проницаемости воды
         """
         s_norm = self._get_normalized_saturation(s_w)
-        normalized_range = 1.0 - self.sw_cr - self.so_r
+        normalized_range = 1.0 - self.sw_cr - self.so_r + 1e-10
         
+        # ИСПРАВЛЕНО: используем torch.where вместо маскирования для сохранения градиентов
         # Проверяем, находится ли насыщенность в допустимом диапазоне
-        mask = (s_w > self.sw_cr) & (s_w < 1.0 - self.so_r)
+        in_range = (s_w >= self.sw_cr) & (s_w <= 1.0 - self.so_r)
         
         # Производная dkrw/dsw = dkrw/ds_norm * ds_norm/dsw
-        result = torch.zeros_like(s_w)
-        result[mask] = self.nw * s_norm[mask]**(self.nw - 1) / normalized_range
+        # Производная сигмоидальной нормализации
+        eps = 0.02  # должно совпадать с _get_normalized_saturation
+        s_norm_raw = (s_w - self.sw_cr) / normalized_range
+        sigmoid_input = torch.clamp((s_norm_raw - 0.5) / eps, -10.0, 10.0)
+        dsigmoid_dx = torch.sigmoid(sigmoid_input) * (1 - torch.sigmoid(sigmoid_input)) / eps
+        ds_norm_dsw = dsigmoid_dx / normalized_range
+        
+        # Полная производная
+        dkrw_ds_norm = self.nw * torch.clamp(s_norm, 1e-8, 1-1e-8)**(self.nw - 1)
+        result_full = dkrw_ds_norm * ds_norm_dsw
+        
+        # Применяем ограничение области без нарушения градиентов
+        result = torch.where(in_range, result_full, torch.zeros_like(result_full))
         
         return result
 
@@ -272,14 +284,26 @@ class Fluid:
             Тензор производной относительной проницаемости нефти
         """
         s_norm = self._get_normalized_saturation(s_w)
-        normalized_range = 1.0 - self.sw_cr - self.so_r
+        normalized_range = 1.0 - self.sw_cr - self.so_r + 1e-10
         
+        # ИСПРАВЛЕНО: используем torch.where вместо маскирования для сохранения градиентов
         # Проверяем, находится ли насыщенность в допустимом диапазоне
-        mask = (s_w > self.sw_cr) & (s_w < 1.0 - self.so_r)
+        in_range = (s_w >= self.sw_cr) & (s_w <= 1.0 - self.so_r)
         
         # Производная dkro/dsw = dkro/ds_norm * ds_norm/dsw
-        result = torch.zeros_like(s_w)
-        result[mask] = -self.no * (1 - s_norm[mask])**(self.no - 1) / normalized_range
+        # Производная сигмоидальной нормализации
+        eps = 0.02  # должно совпадать с _get_normalized_saturation
+        s_norm_raw = (s_w - self.sw_cr) / normalized_range
+        sigmoid_input = torch.clamp((s_norm_raw - 0.5) / eps, -10.0, 10.0)
+        dsigmoid_dx = torch.sigmoid(sigmoid_input) * (1 - torch.sigmoid(sigmoid_input)) / eps
+        ds_norm_dsw = dsigmoid_dx / normalized_range
+        
+        # Полная производная
+        dkro_ds_norm = -self.no * torch.clamp(1 - s_norm, 1e-8, 1-1e-8)**(self.no - 1)
+        result_full = dkro_ds_norm * ds_norm_dsw
+        
+        # Применяем ограничение области без нарушения градиентов
+        result = torch.where(in_range, result_full, torch.zeros_like(result_full))
         
         return result
 

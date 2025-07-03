@@ -1,12 +1,12 @@
 {
-  "description": "Fully implicit 3D, BoomerAMG preconditioned JFNK (30x30x5)",
-  "output_filename": "fi_mid_3d",
+  "description": "Debug small 2D test for JFNK diagnostics (10x10x1)",
+  "output_filename": "debug_small_2d",
   "save_vtk": false,
 
   "simulation": {
     "solver_type": "fully_implicit",
     "total_time_days": 1.0,
-    "time_step_days": 0.02,
+    "time_step_days": 0.1,
 
     "jacobian": "jfnk",
     "autograd_threshold_cells": 20000,
@@ -14,24 +14,24 @@
     "newton_tolerance": 1e-4,
 
     "linear_solver": {
-      "backend": "hypre",
+      "backend": "scipy",
       "tol": 1e-8,
       "max_iter": 400
     },
 
-    "max_pressure_change": 0.2,
-    "max_saturation_change": 0.05,
+    "max_pressure_change": 50.0,
+    "max_saturation_change": 0.5,
 
     "max_time_step_attempts": 4,
     "verbose": true,
-    "use_cuda": true
+    "use_cuda": false
   },
 
   "reservoir": {
-    "dimensions": [30, 30, 5],
-    "grid_size": [20.0, 20.0, 5.0],
-    "porosity": 0.22,
-    "permeability": 150,
+    "dimensions": [10, 10, 1],
+    "grid_size": [50.0, 50.0, 10.0],
+    "porosity": 0.3,
+    "permeability": 100,
     "k_vertical_fraction": 0.2
   },
 
@@ -42,9 +42,9 @@
     "mu_water": 0.6,
     "rho_oil": 850,
     "rho_water": 997,
-    "c_oil": 4e-5,
-    "c_water": 4e-5,
-    "c_rock": 4e-5,
+    "c_oil": 1e-2,
+    "c_water": 1e-2,
+    "c_rock": 1e-3,
 
     "relative_permeability": {
       "sw_cr": 0.2,
@@ -61,16 +61,16 @@
     {
       "name": "INJ",
       "type": "injector",
-      "coordinates": [5, 5, 2],
+      "coordinates": [2, 2, 0],
       "radius": 0.15,
-      "control": { "type": "rate", "value": 800 }
+      "control": { "type": "rate", "value": 20 }
     },
     {
       "name": "PROD",
       "type": "producer",
-      "coordinates": [25, 25, 2],
+      "coordinates": [7, 7, 0],
       "radius": 0.15,
-      "control": { "type": "rate", "value": 800 }
+      "control": { "type": "rate", "value": 20 }
     }
   ]
-} 
+}
