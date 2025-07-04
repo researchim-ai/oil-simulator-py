@@ -3,7 +3,7 @@ from .amg import BoomerSolver, AmgXSolver
 from typing import Optional
 
 class CPRPreconditioner:
-    def __init__(self, reservoir, fluid, backend="amgx", omega=0.8):
+    def __init__(self, reservoir, fluid, backend="amgx", omega=0.3):
         self.backend = backend
         self.omega = omega
         self.failed_amg = False  # Флаг провала AMG
@@ -156,28 +156,59 @@ class CPRPreconditioner:
         return indptr[:N+1], indices[:pos], data[:pos]
 
     def apply(self, vec: torch.Tensor) -> torch.Tensor:
-        n = vec.shape[0]//2
-        rhs_p = vec[:n].cpu().numpy()
+        """🔧 ИСПРАВЛЕННОЕ CPR предобуславливание
+        
+        CPR применяется как:
+        1. Решаем уравнение давления через AMG: A_p * delta_p = rhs_p  
+        2. Насыщенность обрабатываем через простое Jacobi масштабирование
+        3. Возвращаем результат с правильным масштабированием
+        """
+        n = vec.shape[0] // 2
+        
+        # 🔧 ИСПРАВЛЕНО: правильная обработка gradients
+        if vec.requires_grad:
+            rhs_p = vec[:n].detach().cpu().numpy()
+        else:
+            rhs_p = vec[:n].cpu().numpy()
 
+        # Решаем давление через AMG или Jacobi
         if self.solver is None or self.failed_amg:
             # Fallback к диагональному предобуславливателю
-            corr_p = self.diag_inv * rhs_p
+            delta_p = self.diag_inv * rhs_p
         else:
             try:
-                corr_p = self.solver.solve(rhs_p)
+                delta_p = self.solver.solve(rhs_p)
                 
                 # Проверяем результат на NaN/Inf
-                if np.any(np.isnan(corr_p)) or np.any(np.isinf(corr_p)):
-                    print("CPR: AMG вернул NaN/Inf, переключаемся на Jacobi")
+                if np.any(np.isnan(delta_p)) or np.any(np.isinf(delta_p)):
+                    print("    CPR: AMG вернул NaN/Inf, переключаемся на Jacobi")
                     self.failed_amg = True
-                    corr_p = self.diag_inv * rhs_p
-                    
+                    delta_p = self.diag_inv * rhs_p
+                elif np.linalg.norm(delta_p) > 1e6:  # слишком большое решение
+                    print(f"    CPR: AMG дал огромное решение ||delta_p||={np.linalg.norm(delta_p):.3e}, переключаемся на Jacobi")
+                    self.failed_amg = True
+                    delta_p = self.diag_inv * rhs_p
+                
             except Exception as e:
-                print(f"CPR: Ошибка в AMG решателе: {e}, переключаемся на Jacobi")
+                print(f"    CPR: Ошибка в AMG решателе: {e}, переключаемся на Jacobi")
                 self.failed_amg = True
-                corr_p = self.diag_inv * rhs_p
+                delta_p = self.diag_inv * rhs_p
 
-        out = torch.zeros_like(vec)
-        out[:n] = torch.from_numpy(corr_p).to(vec.device)
+        # 🔧 ИСПРАВЛЕНО: правильная сборка результата
+        # Создаем новый тензор с тем же dtype и device
+        out = torch.zeros_like(vec, dtype=vec.dtype, device=vec.device, requires_grad=False)
+        
+        # Давление: результат AMG решения с умеренным масштабированием
+        pressure_result = torch.from_numpy(delta_p).to(device=vec.device, dtype=vec.dtype)
+        
+        # Ограничиваем magnitude pressure решения для стабильности
+        pressure_norm = pressure_result.norm()
+        if pressure_norm > 100.0:  # если решение слишком большое
+            pressure_result = pressure_result / pressure_norm * 100.0
+        
+        out[:n] = pressure_result
+        
+        # Насыщенность: простое масштабирование
         out[n:] = self.omega * vec[n:]
+        
         return out 

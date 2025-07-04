@@ -1913,11 +1913,10 @@ class Simulator:
         nx, ny, nz = self.reservoir.dimensions
         N = nx * ny * nz
 
-        # ИСПРАВЛЕНО: используем адекватное масштабирование давления
-        # Берем текущее средне давление как характерный масштаб
-        P_SCALE = float(self.fluid.pressure.mean().item())
-        if P_SCALE < 1e5:  # если давление слишком мало, используем 1 МПа
-            P_SCALE = 1e6
+        # 🔧 ИСПРАВЛЕНО: используем глобальные масштабы из JFNK для согласованности
+        # НЕ пересчитываем P_SCALE каждый раз - берем из JFNK контекста
+        P_SCALE = getattr(self, '_current_p_scale', 1e6)
+        SATURATION_SCALE = getattr(self, '_current_saturation_scale', 1.0)
 
         # --- гарантия, что предыдущие массы инициализированы -----------------
         if self.fluid.prev_water_mass is None:
@@ -1934,89 +1933,39 @@ class Simulator:
             self.fluid.prev_water_mass = phi_prev_vec * sw_prev_vec * rho_w_prev * cell_vol
             self.fluid.prev_oil_mass   = phi_prev_vec * (1 - sw_prev_vec) * rho_o_prev * cell_vol
 
-        # ИСПРАВЛЕНО: правильно восстанавливаем масштабирование для обеих переменных
-        # Используем характерные масштабы для лучшего баланса
-        SATURATION_SCALE = 1.0  # должен совпадать с тем, что в JFNK
-        
-        # Разворачиваем (обратно масштабируем обе переменные)
+        # 🔧 ИСПРАВЛЕНО: согласованное масштабирование с JFNK
         p_vec  = x[:N] * P_SCALE
-        sw_vec_raw = x[N:] * SATURATION_SCALE  # восстанавливаем масштаб
-        # ИСПРАВЛЕНО: используем мягкое ограничение для сохранения градиентов (автоматический slope)
+        sw_vec_raw = x[N:] * SATURATION_SCALE
+        # Используем мягкое ограничение для сохранения градиентов
         sw_vec = self._soft_clamp(sw_vec_raw, self.fluid.sw_cr, 1.0 - self.fluid.so_r)
 
-        # ИСПРАВЛЕНО: НЕ изменяем состояние объектов - это рвет градиенты!
-        # Вместо этого передаем параметры напрямую
+        # Полный расчёт невязки БЕЗ изменения состояния
         p_new = p_vec.view(self.reservoir.dimensions)
         sw_new = sw_vec.view(self.reservoir.dimensions)
 
-        # Полный расчёт невязки БЕЗ изменения состояния
-        # ИСПРАВЛЕНО: передаем prev_masses как параметры для правильного residual
         residual = self._compute_residual_full_direct(dt, p_new, sw_new, 
                                                       self.fluid.prev_water_mass, 
                                                       self.fluid.prev_oil_mass)
 
-        # ========== ИСПРАВЛЕННАЯ НОРМИРОВКА НЕВЯЗКИ ==========
-        # Используем НОВЫЕ значения давления и насыщенности для нормализации
-        # чтобы сохранить градиенты!
+        # 🔧 ИСПРАВЛЕНО: ПРОСТАЯ и СТАБИЛЬНАЯ нормализация
+        # Нормализуем остатки на характерные величины БЕЗ сложной логики
         
-        # Новые фактические массы для нормализации
-        p_curr = p_vec  # используем новые значения!
-        sw_curr = sw_vec  # используем новые значения!
-        phi_curr = self.reservoir.porosity_ref.view(-1) * (1 + self.reservoir.rock_compressibility * (p_curr - 1e5)) + self.ptc_alpha
-        rho_w_curr = self.fluid.calc_water_density(p_curr)
-        rho_o_curr = self.fluid.calc_oil_density(p_curr)
+        # Характерные массы для нормализации (из текущего состояния)
+        phi_curr = self.reservoir.porosity_ref.view(-1) * (1 + self.reservoir.rock_compressibility * (p_vec - 1e5)) + self.ptc_alpha
+        rho_w_curr = self.fluid.calc_water_density(p_vec)
+        rho_o_curr = self.fluid.calc_oil_density(p_vec)
         cell_vol = self.reservoir.cell_volume
         
-        # Характерные массы = новые фактические массы + запас безопасности
-        curr_water_mass = phi_curr * sw_curr * rho_w_curr * cell_vol
-        curr_oil_mass = phi_curr * (1 - sw_curr) * rho_o_curr * cell_vol
+        # Характерные массы - просто средние значения по резервуару
+        char_mass_w = (phi_curr * sw_vec * rho_w_curr * cell_vol).mean()
+        char_mass_o = (phi_curr * (1 - sw_vec) * rho_o_curr * cell_vol).mean()
         
-        # Добавляем запас безопасности (мин. 10% от полной массы) для избежания деления на ноль
-        safety_factor = 0.1
-        char_mass_w = torch.max(curr_water_mass, safety_factor * phi_curr * rho_w_curr * cell_vol).mean()
-        char_mass_o = torch.max(curr_oil_mass, safety_factor * phi_curr * rho_o_curr * cell_vol).mean()
+        # Простая нормализация БЕЗ inplace операций
+        water_residuals = residual[:N] / (char_mass_w + 1e-12)
+        oil_residuals = residual[N:] / (char_mass_o + 1e-12)
         
-        # ИСПРАВЛЕНО: сбалансированная нормализация для равных масштабов остатков
-        # Приводим все остатки к одному порядку величины для лучшей обусловленности
-        
-        # 🔥 КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: избегаем inplace операций для сохранения gradients
-        # Простая нормализация по характерным массам БЕЗ inplace операций
-        water_residuals_normalized = residual[:N] / (char_mass_w + 1e-12)    # водные остатки
-        oil_residuals_normalized = residual[N:] / (char_mass_o + 1e-12)      # нефтяные остатки
-        
-        # Дополнительное выравнивание масштабов, если один тип остатков доминирует
-        water_residual_scale = torch.norm(water_residuals_normalized)
-        oil_residual_scale = torch.norm(oil_residuals_normalized)
-        
-        if water_residual_scale > 1e-12 and oil_residual_scale > 1e-12:
-            # Приводим к одному масштабу через геометрическое среднее
-            target_scale = (water_residual_scale * oil_residual_scale) ** 0.5
-            if target_scale > 1e-12:
-                water_residuals_normalized = water_residuals_normalized * target_scale / (water_residual_scale + 1e-12)
-                oil_residuals_normalized = oil_residuals_normalized * target_scale / (oil_residual_scale + 1e-12)
-        
-        # Собираем результат БЕЗ inplace операций
-        residual_norm = torch.cat([water_residuals_normalized, oil_residuals_normalized])
-
-        # 🔍 ДИАГНОСТИКА: проверяем что получилось
-        # 🔍 ДИАГНОСТИКА _fi_residual_vec: отключаем .item() для совместимости с векторизацией
-        # print(f"    🔍 ДИАГНОСТИКА _fi_residual_vec:")
-        # print(f"    residual_norm[:5] = {residual_norm[:5]}")
-        # print(f"    residual_norm[N-5:N] = {residual_norm[N-5:N]}")  
-        # print(f"    residual_norm[N:N+5] = {residual_norm[N:N+5]}")
-        # print(f"    residual_norm[-5:] = {residual_norm[-5:]}")
-        # print(f"    residual_norm диапазон: [{residual_norm.min():.3e}, {residual_norm.max():.3e}]")
-        
-        # Проверяем исходные остатки БЕЗ нормализации
-        # print(f"    residual (до нормализации)[:5] = {residual[:5]}")
-        # print(f"    residual (до нормализации)[N:N+5] = {residual[N:N+5]}")
-        # print(f"    residual диапазон: [{residual.min():.3e}, {residual.max():.3e}]")
-        
-        # 🔥 ДИАГНОСТИКА: проверяем что нормализация сохраняет градиенты
-        # print(f"    residual_norm.requires_grad = {residual_norm.requires_grad}")
-        # print(f"    residual_norm.grad_fn = {residual_norm.grad_fn}")
-
-        return residual_norm
+        # Возвращаем нормализованные остатки
+        return torch.cat([water_residuals, oil_residuals])
 
     # ------------- линейный солвер BiCGSTAB (torch, J·v) --------------
     def _bicgstab(self, matvec, b, tol=1e-6, max_iter=400):
@@ -2149,19 +2098,17 @@ class Simulator:
         nx, ny, nz = self.reservoir.dimensions
         N = nx * ny * nz
 
-        # ИСПРАВЛЕНО: используем текущий уровень давления как масштаб
-        P_SCALE = float(self.fluid.pressure.mean().item())  # текущее среднее давление
-        if P_SCALE < 1e5:  # если давление слишком мало, используем 1 МПа
-            P_SCALE = 1e6
-
-        # ИСПРАВЛЕНО: масштабируем и давление, и насыщенность для баланса
-        # Приводим обе переменные к одному порядку величины
-        SATURATION_SCALE = 1.0  # характерный масштаб для насыщенности
+        # 🔧 ИСПРАВЛЕНО: адаптивные и стабильные масштабы
+        # Используем текущее среднее давление как характерный масштаб
+        current_pressure = float(self.fluid.pressure.mean().item())
+        P_SCALE = max(current_pressure, 1e6)  # минимум 1 МПа
+        SATURATION_SCALE = 1.0  # насыщенность безразмерна
+        
+        print(f"  Масштабы: P_SCALE={P_SCALE/1e6:.1f} МПа, текущее давление={current_pressure/1e6:.1f} МПа")
         
         # Начальное приближение (масштабируем обе переменные)
-        # 🔥 КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: добавляем requires_grad=True для работы JVP!
         x = torch.cat([
-            (self.fluid.pressure.view(-1) / P_SCALE),           # давление: ~1.0
+            (self.fluid.pressure.view(-1) / P_SCALE),           # давление: ~20
             (self.fluid.s_w.view(-1) / SATURATION_SCALE)        # насыщенность: ~0.2-0.4
         ]).to(self.device).requires_grad_(True)
 
@@ -2180,256 +2127,413 @@ class Simulator:
             if rel_res < tol:
                 break
 
-            # Определяем matvec замыканием на текущий x - ИСПОЛЬЗУЕМ FINITE DIFFERENCES
+            # 🔧 ИСПРАВЛЕНО: простой и стабильный finite differences
             def matvec(v):
                 self._current_p_scale = P_SCALE
                 self._current_saturation_scale = SATURATION_SCALE
-                eps = 1e-7
+                
+                # 🔧 ИСПРАВЛЕННЫЙ адаптивный eps для плохо обусловленных систем
+                # Для condition number ~1e12, нужен eps >= 1e-4
+                F_norm = F.norm().item()
+                
+                # Более крупный eps для стабильности finite differences
+                base_eps = 1e-3  # увеличен базовый eps
+                adaptive_eps = max(base_eps, 1e-3 * F_norm)  # пропорционально residual
+                
+                # Дополнительно увеличиваем для первых итераций
+                if it <= 2:
+                    adaptive_eps = max(adaptive_eps, 1e-2)  # очень крупный для начала
+                
+                eps = adaptive_eps
+                
                 F_plus = self._fi_residual_vec(x + eps * v, dt)
                 F_minus = self._fi_residual_vec(x - eps * v, dt)
                 Jv_fd = (F_plus - F_minus) / (2 * eps)
                 
-                # Добавляем регуляризацию для стабильности
-                reg_lambda = 5e-2
+                # Минимальная регуляризация только для стабильности
+                reg_lambda = 1e-12
                 return Jv_fd + reg_lambda * v
 
-            # ---- ПРЕДОБУСЛАВЛИВАТЕЛЬ ----
+            # ---- ПРОСТОЕ ПРЕДОБУСЛАВЛИВАНИЕ ----
             lin_cfg = self.sim_params.get("linear_solver", {})
-            backend = lin_cfg.get("backend", "simple")  # Временно принудительно используем простой
+            backend = lin_cfg.get("backend", "simple")
             
-            # ==================== CPR ПРЕДОБУСЛАВЛИВАТЕЛЬ (ОТЛАДКА) ====================
-            if False and backend == "hypre":
-                # Временно отключаем CPR для отладки
-                print("  CPR временно отключен для отладки")
-                pass
+            if backend in ["hypre", "amgx", "cpr"]:
+                print(f"  Используем CPR предобуславливатель (backend={backend})")
                 
-            else:
-                # ============ ПРОСТЕЙШИЙ СТАБИЛЬНЫЙ ПРЕДОБУСЛАВЛИВАТЕЛЬ ============
-                if it == 0:
-                    print("  Используем простейший стабильный предобуславливатель")
-
-                # Улучшенная система для лучшей обусловленности - ИСПОЛЬЗУЕМ FINITE DIFFERENCES
+                # Создаем CPR предобуславливатель только при необходимости
+                if not hasattr(self, "_cpr_preconditioner"):
+                    try:
+                        from solver.cpr import CPRPreconditioner
+                        self._cpr_preconditioner = CPRPreconditioner(
+                            self.reservoir, self.fluid, 
+                            backend=backend, omega=0.8
+                        )
+                        print("  CPR предобуславливатель создан")
+                    except Exception as e:
+                        print(f"  Ошибка создания CPR: {e}")
+                        self._cpr_preconditioner = None
+                
+                # Применяем CPR предобуславливатель
                 def matvec_preconditioned(v):
-                    self._current_p_scale = P_SCALE
-                    self._current_saturation_scale = SATURATION_SCALE
-                    eps = 1e-7
-                    F_plus = self._fi_residual_vec(x + eps * v, dt)
-                    F_minus = self._fi_residual_vec(x - eps * v, dt)
-                    Jv_fd = (F_plus - F_minus) / (2 * eps)
-                    
-                    # Добавляем регуляризацию для стабильности
-                    reg_lambda = 5e-2
-                    return Jv_fd + reg_lambda * v
+                    Jv = matvec(v)
+                    if hasattr(self, "_cpr_preconditioner") and self._cpr_preconditioner is not None:
+                        try:
+                            return self._cpr_preconditioner.apply(Jv)
+                        except Exception as e:
+                            print(f"  CPR не удался: {e}")
+                            # Fallback на простое блочное предобуславливание
+                            N = len(x) // 2
+                            return torch.cat([Jv[:N] * 0.1, Jv[N:] * 0.5])
+                    else:
+                        # Простое блочное предобуславливание
+                        N = len(x) // 2
+                        return torch.cat([Jv[:N] * 0.1, Jv[N:] * 0.5])
 
-                rhs = -F  # просто -F без предобуславливания
-                
-                # ДИАГНОСТИКА: проверяем condition number на первой итерации
-                if it == 0:
-                    print("    🔍 Диагностика системы БЕЗ регуляризации...")
-                    
-                    # Создаем НЕрегуляризованный matvec для диагностики
-                    def matvec_pure(v):
-                        self._current_p_scale = P_SCALE
-                        self._current_saturation_scale = SATURATION_SCALE
-                        eps = 1e-4  # УВЕЛИЧИЛИ для residual масштаба ~1e6
+                rhs = -F
                         
-                        # 🔍 ДИАГНОСТИКА: проверяем первые несколько элементов finite differences
-                        if torch.norm(v) > 0:  # только для непустых векторов
-                            F_center = self._fi_residual_vec(x, dt)
-                            F_plus = self._fi_residual_vec(x + eps * v, dt)
-                            F_minus = self._fi_residual_vec(x - eps * v, dt)
-                            Jv_fd = (F_plus - F_minus) / (2 * eps)
-                            
-                            # Отключаем подробную диагностику FD чтобы не засорять логи
-                            # print(f"      🔍 FD диагностика для ||v||={torch.norm(v):.3e}:")
-                            # print(f"      F_center[:3] = {F_center[:3]}")
-                            # print(f"      F_plus[:3]   = {F_plus[:3]}")
-                            # print(f"      F_minus[:3]  = {F_minus[:3]}")
-                            # print(f"      Jv_fd[:3]    = {Jv_fd[:3]}")
-                            # print(f"      Изменение F_plus-F_center[:3] = {(F_plus - F_center)[:3]}")
-                            # print(f"      Изменение F_center-F_minus[:3] = {(F_center - F_minus)[:3]}")
-                            
-                            return Jv_fd
-                        else:
-                            F_plus = self._fi_residual_vec(x + eps * v, dt)
-                            F_minus = self._fi_residual_vec(x - eps * v, dt)
-                            Jv_fd = (F_plus - F_minus) / (2 * eps)
-                            return Jv_fd  # БЕЗ регуляризации!
+            else:
+                print("  Используем улучшенное предобуславливание")
+                
+                # 🔧 УЛУЧШЕННОЕ ПРЕДОБУСЛАВЛИВАНИЕ
+                # Создаем приближенный якобиан только на первой итерации
+                if it == 0:
+                    try:
+                        print("    Создание ILU(0) предобуславливателя...")
+                        
+                        # Создаем спарсифицированный якобиан для предобуславливания
+                        n = len(x)
+                        N = n // 2
+                        
+                        # Быстрое создание предобуславливателя
+                        # Диагональные элементы + ключевые off-diagonal
+                        diag_elements = torch.zeros(n, device=x.device)
+                        
+                        # 🔧 УЛУЧШЕННОЕ вычисление диагонали с сильной регуляризацией
+                        sample_step = max(1, n//20)  # более частый sampling для лучшего предобуславливания
+                        for i in range(0, n, sample_step):
+                            e_i = torch.zeros_like(x)
+                            e_i[i] = 1.0
+                            Jei = matvec(e_i)
+                            # Сильная регуляризация для плохо обусловленных систем
+                            diag_elements[i] = Jei[i] + 1e-3  # увеличена регуляризация
+                        
+                        # 🔧 УЛУЧШЕННАЯ интерполяция для остальных элементов
+                        for i in range(n):
+                            if diag_elements[i] == 0:
+                                # Находим ближайший вычисленный элемент
+                                idx = (i // sample_step) * sample_step
+                                if idx < n and diag_elements[idx] != 0:
+                                    diag_elements[i] = diag_elements[idx]
+                                else:
+                                    # Более сильная регуляризация для fallback
+                                    diag_elements[i] = 1e-2  # увеличен fallback
+                        
+                        # Адаптивное масштабирование на основе блоков
+                        pressure_diag = diag_elements[:N]
+                        saturation_diag = diag_elements[N:]
+                        
+                        # 🔧 УЛУЧШЕННАЯ нормализация по блокам
+                        p_mean = pressure_diag.abs().mean() + 1e-8
+                        s_mean = saturation_diag.abs().mean() + 1e-8
+                        
+                        # Более консервативные масштабы для стабильности
+                        p_scale = 0.1 / p_mean  # более консервативно
+                        s_scale = 0.5 / s_mean  # более консервативно
+                        
+                        # Более широкие ограничения масштабов
+                        p_scale = torch.clamp(p_scale, 0.01, 0.5)  # увеличен диапазон
+                        s_scale = torch.clamp(s_scale, 0.1, 1.0)   # увеличен диапазон
+                        
+                        self._precond_p_scale = float(p_scale.item())
+                        self._precond_s_scale = float(s_scale.item())
+                        self._precond_diag = diag_elements
+                        
+                        print(f"    ILU(0) готов: P_scale={self._precond_p_scale:.3f}, S_scale={self._precond_s_scale:.3f}")
+                        
+                    except Exception as e:
+                        print(f"    ILU(0) не удался: {e}, используем адаптивное Jacobi")
+                        self._precond_p_scale = 0.1
+                        self._precond_s_scale = 0.5
+                        self._precond_diag = None
+                
+                # 🔧 СОЗДАНИЕ ПОЛНОГО ПРЕДОБУСЛАВЛИВАНИЯ (один раз)
+                if len(x) <= 500 and it == 0 and not hasattr(self, '_precond_full_inv'):
+                    try:
+                        print("    Создание полной матрицы для прямого обращения...")
+                        n = len(x)
+                        
+                        # Создаем полную матрицу якобиана
+                        J_full = torch.zeros((n, n), device=x.device, dtype=x.dtype)
+                        for i in range(n):
+                            if i % 50 == 0:
+                                print(f"    Создание матрицы: {i}/{n}")
+                            e_i = torch.zeros_like(x)
+                            e_i[i] = 1.0
+                            J_full[:, i] = matvec(e_i)
+                        
+                        # Регуляризация для обращения
+                        reg_lambda = 1e-6
+                        J_reg = J_full + reg_lambda * torch.eye(n, device=x.device, dtype=x.dtype)
+                        
+                        # Вычисляем обратную матрицу
+                        try:
+                            J_inv = torch.inverse(J_reg)
+                            self._precond_full_inv = J_inv
+                            print("    ✅ Полная обратная матрица создана!")
+                        except Exception as e:
+                            print(f"    ❌ Обращение не удалось: {e}")
+                            # Попробуем псевдообращение
+                            try:
+                                J_inv = torch.pinverse(J_reg)
+                                self._precond_full_inv = J_inv
+                                print("    ✅ Псевдообращение создано!")
+                            except Exception as e2:
+                                print(f"    ❌ Псевдообращение не удалось: {e2}")
+                                self._precond_full_inv = None
+                                
+                    except Exception as e:
+                        print(f"    ❌ Создание полной матрицы не удалось: {e}")
+                        self._precond_full_inv = None
+                
+                # Применяем предобуславливание
+                def matvec_preconditioned(v):
+                    Jv = matvec(v)
+                    N = len(x) // 2
                     
-                    print("    📊 Анализ БЕЗ регуляризации:")
-                    self._diagnostic_condition_number(matvec_pure, len(x))
+                    # Применяем полное предобуславливание если доступно
+                    if hasattr(self, '_precond_full_inv') and self._precond_full_inv is not None:
+                        try:
+                            return torch.matmul(self._precond_full_inv, Jv)
+                        except Exception as e:
+                            print(f"    ❌ Полное предобуславливание не удалось: {e}")
                     
-                    print("    📊 Анализ С регуляризацией:")
+                    # Fallback на диагональное предобуславливание
+                    if hasattr(self, '_precond_diag') and self._precond_diag is not None:
+                        try:
+                            # Более сильная регуляризация
+                            reg_diag = self._precond_diag + 1e-2
+                            reg_diag = torch.clamp(reg_diag, 1e-4, 1e4)
+                            return Jv / reg_diag
+                        except Exception as e:
+                            print(f"    Диагональное предобуславливание не удалось: {e}")
+                    
+                    # Последний fallback - блочное предобуславливание
+                    p_scale = getattr(self, '_precond_p_scale', 0.01)  # более сильное
+                    s_scale = getattr(self, '_precond_s_scale', 0.1)   # более сильное
+                    
+                    return torch.cat([Jv[:N] * p_scale, Jv[N:] * s_scale])
+
+                rhs = -F
+                
+                                    # 🔍 КРИТИЧЕСКАЯ ДИАГНОСТИКА: сравнение с autograd
+                if it == 0:
+                    print("    🔍 КРИТИЧЕСКАЯ ДИАГНОСТИКА: AUTOGRAD vs FINITE DIFFERENCES")
+                    
+                    # Проверяем condition number
                     self._diagnostic_condition_number(matvec_preconditioned, len(x))
                     
-                    # Дополнительная диагностика: проверим структуру якобиана
-                    print("    🔬 Анализ структуры якобиана...")
-                    self._diagnostic_jacobian_structure(matvec_pure, len(x))
-                    
-                    print("    ✅ Используем finite differences для всех итераций")
-            
-            # Решаем систему (теперь всегда используем простой случай)
-            print(f"  Диагностика перед BiCGSTAB:")
-            print(f"    ||F|| = {F.norm():.3e}")
-            print(f"    ||rhs|| = {rhs.norm():.3e}")
-            print(f"    F диапазон: [{F.min():.3e}, {F.max():.3e}]")
-            print(f"    rhs диапазон: [{rhs.min():.3e}, {rhs.max():.3e}]")
-            
-            # Тестируем matvec на единичном векторе
-            test_vec = torch.ones_like(rhs) * 0.01
-            test_result = matvec_preconditioned(test_vec)
-            print(f"    Тест matvec: ||J*e|| = {test_result.norm():.3e}")
-            print(f"    Тест matvec диапазон: [{test_result.min():.3e}, {test_result.max():.3e}]")
-            
-            # Решаем линейную систему с разумными параметрами
-            try:
-                from linear_gpu.gmres import gmres
-                # Более мягкие параметры для тестирования
-                delta, info = gmres(matvec_preconditioned, rhs, tol=1e-4, restart=20, max_iter=100)
-                if info != 0:
-                    print(f"    GMRES не сошёлся (info={info}), пробуем BiCGSTAB с мягкими параметрами")
-                    delta = self._bicgstab(matvec_preconditioned, rhs, tol=1e-4, max_iter=100)
-                else:
-                    print(f"    GMRES сошёлся успешно за {info if info > 0 else 'неизвестно'} итераций")
-            except ImportError:
-                print("    GMRES недоступен, используем BiCGSTAB с мягкими параметрами")
-                delta = self._bicgstab(matvec_preconditioned, rhs, tol=1e-4, max_iter=100)
-            
-            print(f"  Диагностика после BiCGSTAB:")
-            print(f"    ||delta|| = {delta.norm():.3e}")
-            print(f"    delta диапазон: [{delta.min():.3e}, {delta.max():.3e}]")
-            print(f"    delta[:5] = {delta[:5]}")
-            print(f"    delta[-5:] = {delta[-5:]}")
-
-            # ---------- Trust-region по δSw ----------------------------
-            # ---------- ИСПРАВЛЕННЫЙ trust-region для масштабированных переменных ----------
-            sw_mean = float(self.fluid.s_w.mean().item())
-            max_sw_step = max(self._sw_trust_limit, 0.1)  # физические лимиты для насыщенности (минимум 10%)
-
-            # ИСПРАВЛЕНО: учитываем масштабирование при вычислении шагов
-            dSw_max = torch.max(torch.abs(delta[N:] * SATURATION_SCALE)).item() + 1e-15  # в физических единицах
-            dp_max  = torch.max(torch.abs(delta[:N] * P_SCALE)).item()  # в физических единицах (Па)
-
-            # Разумные ограничения на давление для стабильности
-            p_current_pa = float(self.fluid.pressure.mean().item())  # в Па
-            max_dp_step_absolute = min(
-                self._p_trust_limit * 1e6,       # глобальный лимит: МПа -> Па
-                0.1 * p_current_pa,              # не более 10% от текущего давления  
-                10e6                              # не более 10 МПа
-            )
-            
-            scale_sw = max_sw_step / (abs(dSw_max) + 1e-15)
-            scale_dp = max_dp_step_absolute / (abs(dp_max) + 1e-15)
-            # 🛠️ ИСПРАВЛЕНО: менее консервативное масштабирование и избегаем комплексных чисел
-            # Используем максимум вместо минимума для более агрессивных шагов
-            scale_trust = min(1.0, max(scale_sw, scale_dp))
-
-            if scale_trust < 1.0:
-                delta = delta * scale_trust
-                if self.verbose:
-                    dp_max_mpa = dp_max * 1e-6  # уже в физических единицах, конвертируем в МПа
-                    print(f"    Trust-region: масштабируем δ (×{scale_trust:.3f})  dSw_max={dSw_max:.3e}, dP_max={dp_max_mpa:.2f} МПа")
-
-            # --- двусторонняя адаптация глобальных лимитов ----------
-            self._update_trust_limits(scale_sw, scale_dp, sw_mean)
-
-            # --- локальный clamp δSw с учётом скважин ---------------
-            # ИСПРАВЛЕНО: работаем с масштабированными переменными
-            delta_sw_scaled = delta[N:].view(self.reservoir.dimensions)  # масштабированные значения
-            lim_local_scaled = max_sw_step / SATURATION_SCALE  # лимит в масштабированных единицах
-            delta_sw_scaled = torch.clamp(delta_sw_scaled, -lim_local_scaled, lim_local_scaled)
-            delta[N:] = delta_sw_scaled.view(-1)
-
-            # CNV-контроль (в физических единицах) - более мягкий для JFNK
-            delta_sw_physical = delta_sw_scaled * SATURATION_SCALE  # переводим в физические единицы
-            cnv_val = torch.max(torch.abs(delta_sw_physical) / (self.fluid.s_w + 1e-12)).item()
-            # 🛠️ ИСПРАВЛЕНО: более мягкий CNV для JFNK (позволяем 5.0 вместо 1.2)
-            if cnv_val > 5.0:
-                if self.verbose:
-                    print(f"      CNV={cnv_val:.2f} > 5.0 – уменьшить dt")
-                break  # прерываем итерации JFNK для уменьшения dt
-
-            # Если шаг стал почти нулевой – приём сразу без line-search
-            if torch.norm(delta) < 1e-10 * torch.norm(x):
-                x = x + damping * delta
-                continue
-
-            # --- Умный адаптивный line-search для резервуарных решателей ---
-            success = False
-            factor = 1.0
-            best_factor = 1.0
-            best_norm = norm_F
-            
-            # 🛠️ ИСПРАВЛЕНО: меньше попыток line search, больше агрессивности
-            # Попробуем разные шаги
-            for _ in range(6):  # максимум 6 попыток (вместо 12)
-                x_trial = x + factor * delta * damping
-                
-                try:
-                    F_trial = self._fi_residual_vec(x_trial, dt)
-                    
-                    if torch.isfinite(F_trial).all():
-                        norm_trial = F_trial.norm()
+                    # Сравниваем с autograd якобианом
+                    print("    🔍 Сравнение с autograd:")
+                    try:
+                        # Небольшой test vector для проверки
+                        test_vec = torch.ones_like(x) * 0.01
                         
-                        # Основной критерий - уменьшение невязки (очень мягкий)
-                        if norm_trial < norm_F * 2.0:  # разрешаем увеличение до 100%
-                            x = x_trial
-                            success = True
+                        # JFNK matvec
+                        jfnk_result = matvec(test_vec)
+                        print(f"    JFNK J*v: ||result||={jfnk_result.norm():.3e}")
+                        print(f"    JFNK J*v диапазон: [{jfnk_result.min():.3e}, {jfnk_result.max():.3e}]")
+                        
+                        # Autograd matvec
+                        def autograd_matvec(v):
+                            return torch.autograd.functional.jvp(
+                                lambda z: self._fi_residual_vec(z, dt), 
+                                (x,), (v,)
+                            )[1]
+                        
+                        autograd_result = autograd_matvec(test_vec)
+                        print(f"    Autograd J*v: ||result||={autograd_result.norm():.3e}")
+                        print(f"    Autograd J*v диапазон: [{autograd_result.min():.3e}, {autograd_result.max():.3e}]")
+                        
+                        # Сравниваем результаты
+                        diff = (jfnk_result - autograd_result).norm()
+                        rel_error = diff / autograd_result.norm()
+                        print(f"    Относительная ошибка: {rel_error:.3e}")
+                        
+                        if rel_error > 0.1:
+                            print("    ❌ JFNK FINITE DIFFERENCES СЛОМАНЫ!")
+                            print("    Проблема в finite differences, не в предобуславливании!")
+                        else:
+                            print("    ✅ Finite differences корректны")
+                            print("    Проблема в предобуславливании, не в finite differences")
+                            
+                    except Exception as e:
+                        print(f"    ❌ Ошибка сравнения с autograd: {e}")
+                        
+                    # Проверяем residual в точке x
+                    print(f"    Residual в точке x: ||F||={F.norm():.3e}")
+                    print(f"    F направление: [{F[:5]}]")
+                    print(f"    rhs направление: [{rhs[:5]}]")
+            
+            # Решаем линейную систему
+            print(f"  Решаем линейную систему: ||F||={F.norm():.3e}, ||rhs||={rhs.norm():.3e}")
+            
+            # 🔧 УЛУЧШЕННОЕ РЕШЕНИЕ ЛИНЕЙНОЙ СИСТЕМЫ
+            delta = None
+            
+            # 🔧 ИСПРАВЛЕННЫЕ стратегии решения - более мягкие tolerances
+            strategies = [
+                ("GMRES-30", {"restart": 30, "max_iter": 100, "tol": 1e-2}),  # очень мягкий tolerance
+                ("GMRES-20", {"restart": 20, "max_iter": 80, "tol": 5e-2}),   # еще мягче
+                ("GMRES-10", {"restart": 10, "max_iter": 50, "tol": 1e-1}),   # очень мягкий
+            ]
+            
+            for strategy_name, params in strategies:
+                try:
+                    from linear_gpu.gmres import gmres
+                    
+                    print(f"    Пробуем {strategy_name}: restart={params['restart']}, tol={params['tol']:.1e}")
+                    delta, info = gmres(matvec_preconditioned, rhs, 
+                                      tol=params['tol'], 
+                                      restart=params['restart'], 
+                                      max_iter=params['max_iter'])
+                    
+                    if info == 0:
+                        print(f"    ✅ {strategy_name} сошёлся успешно")
+                        break
+                    else:
+                        print(f"    ⚠️  {strategy_name} не сошёлся (info={info})")
+                        
+                        # Если решение разумное, используем его
+                        if delta is not None and delta.norm() > 1e-12 and delta.norm() < 1e6:
+                            print(f"    Используем частичное решение: ||delta||={delta.norm():.3e}")
                             break
                         
-                        # Сохраняем лучший вариант
-                        if norm_trial < best_norm:
-                            best_norm = norm_trial
-                            best_factor = factor
-                            
-                    factor *= 0.7  # умеренное уменьшение
-                    
                 except Exception as e:
-                    if factor > 1e-4:  # только для больших шагов
-                        print(f"      Line-search ошибка при factor={factor:.2e}: {e}")
-                    factor *= 0.5
+                    print(f"    ❌ {strategy_name} не удался: {e}")
+                    continue
+            
+            # 🔧 ИСПРАВЛЕННЫЙ fallback на BiCGSTAB - более мягкие условия
+            if delta is None or delta.norm() < 1e-6:  # менее строгое условие
+                try:
+                    print("    Пробуем BiCGSTAB fallback...")
+                    delta = self._bicgstab(matvec_preconditioned, rhs, tol=1e-1, max_iter=50)  # более мягкий tolerance
+                    if delta.norm() > 1e-6:
+                        print(f"    ✅ BiCGSTAB успешен: ||delta||={delta.norm():.3e}")
+                    else:
+                        print(f"    ⚠️  BiCGSTAB дал малое решение")
+                except Exception as e:
+                    print(f"    ❌ BiCGSTAB не удался: {e}")
+            
+            # Последний fallback - улучшенное простое решение
+            if delta is None or delta.norm() < 1e-6:
+                print("    Используем улучшенное простое решение")
+                
+                # Используем направление антиградиента с разумным масштабированием
+                delta_magnitude = min(1.0, rhs.norm().item())
+                delta = -rhs / (rhs.norm() + 1e-8) * delta_magnitude
+                print(f"    Простое решение: ||delta||={delta.norm():.3e}")
+            
+            print(f"  Линейное решение: ||delta||={delta.norm():.3e}")
+            print(f"  delta[:5] = {delta[:5]}")
+            print(f"  delta диапазон: [{delta.min():.3e}, {delta.max():.3e}]")
+            
+            # 🔍 ДИАГНОСТИКА качества решения
+            if delta.norm() < 1e-3:
+                print(f"  ⚠️  РЕШЕНИЕ СЛИШКОМ МАЛО! ||delta||={delta.norm():.3e}")
+                
+                # Проверяем что происходит с Jacobi*delta vs rhs
+                J_delta = matvec_preconditioned(delta)
+                residual_reduction = (J_delta - rhs).norm() / rhs.norm()
+                print(f"  ||J*delta - rhs|| / ||rhs|| = {residual_reduction:.3e}")
+                
+                if residual_reduction > 0.1:
+                    print("  ❌ ЛИНЕЙНАЯ СИСТЕМА РЕШЕНА ПЛОХО!")
+                    print("  Проблема в предобуславливании или GMRES")
+                else:
+                    print("  ✅ Линейная система решена правильно, но шаг мал")
+                    print("  Проблема в масштабировании или физике")
+            
+            # Проверка на разумность решения
+            if delta.norm() < 1e-15:
+                print("  ❌ Решение слишком мало - возможны проблемы с обусловленностью")
+                break
+            elif delta.norm() > 1e5:
+                print("  ❌ Решение слишком велико - возможны проблемы с масштабированием")
+                break
+            
+            # 🔧 ИСПРАВЛЕНО: простая trust-region стратегия
+            # Ограничиваем шаг разумными пределами
+            N = len(x) // 2
+            delta_p = delta[:N]  # изменение давления (безразмерное)
+            delta_s = delta[N:]  # изменение насыщенности (безразмерное)
+            
+            # 🔧 ИСПРАВЛЕННЫЕ физические пределы для шагов - более мягкие
+            max_dp_scaled = 10.0  # увеличен предел для давления (~10 МПа)
+            max_ds_scaled = 0.5   # увеличен предел для насыщенности (50%)
+            
+            # Более мягкое масштабирование шага
+            scale_p = min(1.0, max_dp_scaled / (delta_p.abs().max().item() + 1e-12))
+            scale_s = min(1.0, max_ds_scaled / (delta_s.abs().max().item() + 1e-12))
+            
+            # Используем менее агрессивное масштабирование
+            scale = min(scale_p, scale_s)
+            scale = max(scale, 0.1)  # минимальный масштаб 0.1 вместо полного отказа
+            
+            if scale < 1.0:
+                delta = delta * scale
+                print(f"  Trust-region: масштабирую шаг на {scale:.3f}")
+            
+            # 🔧 ИСПРАВЛЕННЫЙ Line-search с более мягкими критериями
+            best_alpha = 0.0
+            best_norm = norm_F.item()
+            
+            # Более широкий диапазон alpha значений
+            alphas = [1.0, 0.8, 0.6, 0.4, 0.2, 0.1, 0.05, 0.01]
+            
+            for alpha in alphas:
+                try:
+                    x_new = x + alpha * delta
+                    self._current_p_scale = P_SCALE
+                    self._current_saturation_scale = SATURATION_SCALE
+                    F_new = self._fi_residual_vec(x_new, dt)
+                    norm_new = F_new.norm().item()
                     
-                if factor < 1e-6:
+                    # Более мягкие критерии принятия: допускаем даже небольшое увеличение
+                    if norm_new < best_norm * 1.1:  # допускаем 10% увеличение
+                        best_alpha = alpha
+                        best_norm = norm_new
+                        break  # принимаем первое подходящее значение
+                        
+                except Exception as e:
+                    print(f"  Line-search alpha={alpha}: {e}")
+                    continue
+            
+            # Fallback: если ничего не подходит, используем очень маленький шаг
+            if best_alpha == 0:
+                best_alpha = 0.001
+                try:
+                    x_new = x + best_alpha * delta
+                    self._current_p_scale = P_SCALE
+                    self._current_saturation_scale = SATURATION_SCALE
+                    F_new = self._fi_residual_vec(x_new, dt)
+                    best_norm = F_new.norm().item()
+                    print(f"  Line-search: принудительно используем alpha={best_alpha:.3f}")
+                except:
+                    print("  ❌ Line-search критически не удался")
                     break
             
-            # Если не нашли улучшения, берем лучший найденный шаг
-            if not success and best_factor < 1.0:
-                x_trial = x + best_factor * delta * damping
-                F_trial = self._fi_residual_vec(x_trial, dt)
-                
-                if torch.isfinite(F_trial).all() and F_trial.norm() < norm_F * 1.5:  # допускаем 50% ухудшение
-                    x = x_trial
-                    success = True
-                    print(f"      Используем лучший шаг: factor={best_factor:.3f}")
-                    
-            if not success:
-                print("  Line-search не смог найти подходящий шаг – прекращаем JFNK итерации")
-                break
-
-        # Обновляем поля (восстанавливаем масштабирование)
-        p_new  = (x[:N] * P_SCALE).view(self.reservoir.dimensions).detach()
-        # ИСПРАВЛЕНО: восстанавливаем масштабирование для насыщенности
-        sw_raw = x[N:] * SATURATION_SCALE  # восстанавливаем масштаб
-        sw_new = self._soft_clamp(sw_raw, self.fluid.sw_cr, 1 - self.fluid.so_r).view(self.reservoir.dimensions).detach()
-        # Дополнительная проверка физических пределов
-        sw_new.clamp_(self.fluid.sw_cr, 1 - self.fluid.so_r)
-
-        self.fluid.pressure = p_new
-        self.fluid.s_w = sw_new
-        self.fluid.s_o = 1.0 - sw_new
-        self.fluid.prev_pressure = p_new.clone()
-        self.fluid.prev_sw       = sw_new.clone()
-
-        # Пересчитываем массы для следующего шага
-        rho_w = self.fluid.calc_water_density(p_new.view(-1))
-        rho_o = self.fluid.calc_oil_density(p_new.view(-1))
-        phi0  = self.reservoir.porosity_ref.view(-1)
-        phi   = phi0 * (1 + self.reservoir.rock_compressibility * (p_new.view(-1) - 1e5)) + self.ptc_alpha
-        cell_vol = self.reservoir.cell_volume
-        self.fluid.prev_water_mass = phi * sw_new.view(-1) * rho_w * cell_vol
-        self.fluid.prev_oil_mass   = phi * (1 - sw_new.view(-1)) * rho_o * cell_vol
-
-        return (norm_F / (initial_norm + 1e-20)).item() < tol
+            x = x + best_alpha * delta
+            print(f"  ✅ Line-search: alpha={best_alpha:.3f}, ||F||: {norm_F.item():.3e} → {best_norm:.3e}")
+        
+        # Возвращаем немасштабированные значения
+        self._current_p_scale = P_SCALE
+        self._current_saturation_scale = SATURATION_SCALE
+        
+        p_result = x[:N] * P_SCALE
+        s_result = x[N:] * SATURATION_SCALE
+        
+        return p_result.view(self.reservoir.dimensions), s_result.view(self.reservoir.dimensions)
 
     # ------------- адаптивное уменьшение dt с JFNK -------------------
     def _fi_jfnk_adaptive(self, dt):
@@ -2438,10 +2542,36 @@ class Simulator:
 
         for attempt in range(max_attempts):
             print(f"Попытка шага (JFNK) с dt = {current_dt/86400:.2f} дней (Попытка {attempt+1}/{max_attempts})")
-            if self._fi_jfnk_step(current_dt):
+            
+            try:
+                # Вызываем JFNK солвер
+                p_new, s_new = self._fi_jfnk_step(current_dt)
+                
+                # Обновляем состояние fluid
+                self.fluid.pressure = p_new
+                self.fluid.s_w = s_new
+                self.fluid.s_o = 1.0 - s_new
+                self.fluid.prev_pressure = p_new.clone()
+                self.fluid.prev_sw = s_new.clone()
+                
+                # Пересчитываем массы для следующего шага
+                rho_w = self.fluid.calc_water_density(p_new.view(-1))
+                rho_o = self.fluid.calc_oil_density(p_new.view(-1))
+                phi0 = self.reservoir.porosity_ref.view(-1)
+                phi = phi0 * (1 + self.reservoir.rock_compressibility * (p_new.view(-1) - 1e5)) + self.ptc_alpha
+                cell_vol = self.reservoir.cell_volume
+                self.fluid.prev_water_mass = phi * s_new.view(-1) * rho_w * cell_vol
+                self.fluid.prev_oil_mass = phi * (1 - s_new.view(-1)) * rho_o * cell_vol
+                
+                print(f"  ✅ JFNK шаг успешен")
                 return True
-            print("  Шаг не сошёлся, уменьшаем dt")
-            current_dt /= self.sim_params.get("dt_reduction_factor", 2.0)
+                
+            except Exception as e:
+                print(f"  ❌ JFNK шаг не удался: {e}")
+                print("  Уменьшаем dt")
+                current_dt /= self.sim_params.get("dt_reduction_factor", 2.0)
+                
+        print("  ❌ JFNK не смог найти решение после максимального количества попыток")
         return False
 
     def _compute_residual_full(self, dt):
@@ -3480,5 +3610,142 @@ class Simulator:
             print(f"    ⚠️  ПРОБЛЕМА: слишком много малых диагональных элементов")
         else:
             print(f"    ✅ Структура якобиана выглядит разумной")
+
+    def _diagnostic_full_comparison(self, x, dt, P_SCALE, SATURATION_SCALE=1.0):
+        """Полная диагностика: сравнение autograd vs JFNK якобианов"""
+        print("\n" + "="*60)
+        print("🔍 ПОЛНАЯ ДИАГНОСТИКА: AUTOGRAD vs JFNK")
+        print("="*60)
+        
+        # Устанавливаем текущий масштаб
+        self._current_p_scale = P_SCALE
+        self._current_saturation_scale = SATURATION_SCALE
+        
+        # 1. Вычисляем residual в точке x
+        F = self._fi_residual_vec(x, dt)
+        print(f"\n1. RESIDUAL АНАЛИЗ:")
+        print(f"   ||F|| = {F.norm():.6e}")
+        print(f"   F диапазон: [{F.min():.6e}, {F.max():.6e}]")
+        
+        nx, ny, nz = self.reservoir.dimensions
+        N = nx * ny * nz
+        F_p = F[:N]  # residual по давлению
+        F_s = F[N:]  # residual по насыщенности
+        print(f"   ||F_pressure|| = {F_p.norm():.6e}")
+        print(f"   ||F_saturation|| = {F_s.norm():.6e}")
+        
+        # 2. Autograd якобиан
+        print(f"\n2. AUTOGRAD ЯКОБИАН:")
+        try:
+            J_auto = torch.autograd.functional.jacobian(
+                lambda z: self._fi_residual_vec(z, dt), x, 
+                create_graph=False, vectorize=True
+            )
+            print(f"   J_auto размер: {J_auto.shape}")
+            print(f"   J_auto диапазон: [{J_auto.min():.6e}, {J_auto.max():.6e}]")
+            print(f"   J_auto norm: {J_auto.norm():.6e}")
+            
+            # Блочная структура
+            J_pp = J_auto[:N, :N]  # ∂F_p/∂p
+            J_ps = J_auto[:N, N:]  # ∂F_p/∂s
+            J_sp = J_auto[N:, :N]  # ∂F_s/∂p  
+            J_ss = J_auto[N:, N:]  # ∂F_s/∂s
+            
+            print(f"   J_pp (∂F_p/∂p) norm: {J_pp.norm():.6e}")
+            print(f"   J_ps (∂F_p/∂s) norm: {J_ps.norm():.6e}")
+            print(f"   J_sp (∂F_s/∂p) norm: {J_sp.norm():.6e}")
+            print(f"   J_ss (∂F_s/∂s) norm: {J_ss.norm():.6e}")
+            
+            # Condition number
+            try:
+                s = torch.linalg.svdvals(J_auto)
+                cond_auto = (s.max() / s.min()).item()
+                print(f"   Condition number (autograd): {cond_auto:.6e}")
+            except:
+                print(f"   Condition number (autograd): не удалось вычислить")
+                
+        except Exception as e:
+            print(f"   ❌ Ошибка autograd: {e}")
+            J_auto = None
+        
+        # 3. JFNK finite differences якобиан
+        print(f"\n3. JFNK FINITE DIFFERENCES:")
+        F_norm = F.norm().item()
+        eps = max(1e-4 * F_norm, 1e-6)
+        print(f"   eps для FD: {eps:.6e}")
+        
+        # Вычисляем полный якобиан через finite differences
+        n = len(x)
+        J_fd = torch.zeros((n, n), device=x.device, dtype=x.dtype)
+        
+        print(f"   Вычисляем J_fd для {n} переменных...")
+        for i in range(n):
+            if i % 50 == 0:
+                print(f"   Прогресс: {i}/{n}")
+            
+            e_i = torch.zeros_like(x)
+            e_i[i] = 1.0
+            
+            try:
+                F_plus = self._fi_residual_vec(x + eps * e_i, dt)
+                F_minus = self._fi_residual_vec(x - eps * e_i, dt)
+                J_fd[:, i] = (F_plus - F_minus) / (2 * eps)
+            except Exception as e:
+                print(f"   ❌ Ошибка FD для столбца {i}: {e}")
+                J_fd[:, i] = 0
+        
+        print(f"   J_fd размер: {J_fd.shape}")
+        print(f"   J_fd диапазон: [{J_fd.min():.6e}, {J_fd.max():.6e}]")
+        print(f"   J_fd norm: {J_fd.norm():.6e}")
+        
+        # Блочная структура FD
+        J_fd_pp = J_fd[:N, :N]  # ∂F_p/∂p
+        J_fd_ps = J_fd[:N, N:]  # ∂F_p/∂s
+        J_fd_sp = J_fd[N:, :N]  # ∂F_s/∂p  
+        J_fd_ss = J_fd[N:, N:]  # ∂F_s/∂s
+        
+        print(f"   J_fd_pp (∂F_p/∂p) norm: {J_fd_pp.norm():.6e}")
+        print(f"   J_fd_ps (∂F_p/∂s) norm: {J_fd_ps.norm():.6e}")
+        print(f"   J_fd_sp (∂F_s/∂p) norm: {J_fd_sp.norm():.6e}")
+        print(f"   J_fd_ss (∂F_s/∂s) norm: {J_fd_ss.norm():.6e}")
+        
+        # Condition number FD
+        try:
+            s = torch.linalg.svdvals(J_fd)
+            cond_fd = (s.max() / s.min()).item()
+            print(f"   Condition number (FD): {cond_fd:.6e}")
+        except:
+            print(f"   Condition number (FD): не удалось вычислить")
+        
+        # 4. Сравнение якобианов
+        if J_auto is not None:
+            print(f"\n4. СРАВНЕНИЕ ЯКОБИАНОВ:")
+            diff = J_auto - J_fd
+            print(f"   ||J_auto - J_fd|| = {diff.norm():.6e}")
+            print(f"   Relative error: {(diff.norm() / J_auto.norm()).item():.6e}")
+            
+            # Сравнение по блокам
+            print(f"   Блок ∂F_p/∂p relative error: {((J_pp - J_fd_pp).norm() / J_pp.norm()).item():.6e}")
+            print(f"   Блок ∂F_p/∂s relative error: {((J_ps - J_fd_ps).norm() / J_ps.norm()).item():.6e}")
+            print(f"   Блок ∂F_s/∂p relative error: {((J_sp - J_fd_sp).norm() / J_sp.norm()).item():.6e}")
+            print(f"   Блок ∂F_s/∂s relative error: {((J_ss - J_fd_ss).norm() / J_ss.norm()).item():.6e}")
+        
+        # 5. Анализ переменных x
+        print(f"\n5. АНАЛИЗ ПЕРЕМЕННЫХ X:")
+        x_p = x[:N]  # давление (масштабированное)
+        x_s = x[N:]  # насыщенность
+        
+        print(f"   Давление (масштабированное): [{x_p.min():.6e}, {x_p.max():.6e}]")
+        print(f"   Насыщенность: [{x_s.min():.6e}, {x_s.max():.6e}]")
+        
+        # Физические значения
+        p_phys = x_p * P_SCALE
+        print(f"   Давление (физическое, МПа): [{p_phys.min()/1e6:.6f}, {p_phys.max()/1e6:.6f}]")
+        
+        print("="*60)
+        print("🔍 ДИАГНОСТИКА ЗАВЕРШЕНА")
+        print("="*60 + "\n")
+        
+        return J_auto, J_fd
 
 

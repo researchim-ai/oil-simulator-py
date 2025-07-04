@@ -42,6 +42,10 @@ def main():
     sim_params = config.get('simulation', {})
     solver_type = sim_params.get('solver_type', 'impes')
     
+    # 🔧 ИСПРАВЛЕНО: Добавляем linear_solver в sim_params
+    if 'linear_solver' in config:
+        sim_params['linear_solver'] = config['linear_solver']
+    
     simulator = Simulator(
         reservoir=reservoir,
         fluid=fluid,
