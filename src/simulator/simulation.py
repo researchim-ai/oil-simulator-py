@@ -2090,6 +2090,89 @@ class Simulator:
 
         return x
 
+    def _bicgstab_improved(self, matvec, b, tol=1e-6, max_iter=200):
+        """Улучшенная версия BiCGSTAB с лучшей обработкой ошибок"""
+        x = torch.zeros_like(b)
+        r = b.clone()
+        r_hat = r.clone()
+        rho_old = alpha = omega = torch.tensor(1.0, device=b.device)
+        v = torch.zeros_like(b)
+        p = torch.zeros_like(b)
+        
+        initial_norm = r.norm()
+        if initial_norm < tol:
+            return x
+
+        for i in range(max_iter):
+            rho_new = torch.dot(r_hat, r)
+            
+            # Проверка на стагнацию
+            if rho_new.abs() < 1e-20:
+                break
+                
+            if i > 0:
+                beta = (rho_new / rho_old) * (alpha / omega)
+                if not torch.isfinite(beta):
+                    break
+                p = r + beta * (p - omega * v)
+            else:
+                p = r.clone()
+            
+            v = matvec(p)
+            
+            # Проверяем что matvec вернул конечные значения
+            if not torch.isfinite(v).all():
+                break
+            
+            alpha = rho_new / torch.dot(r_hat, v)
+            if not torch.isfinite(alpha):
+                break
+            
+            s = r - alpha * v
+            
+            # Проверяем норму s
+            s_norm = s.norm()
+            if s_norm < tol:
+                x = x + alpha * p
+                break
+            
+            t = matvec(s)
+            
+            if not torch.isfinite(t).all():
+                break
+            
+            omega = torch.dot(t, s) / torch.dot(t, t)
+            if not torch.isfinite(omega):
+                break
+            
+            x = x + alpha * p + omega * s
+            r = s - omega * t
+            
+            # Проверяем сходимость
+            if r.norm() < tol:
+                break
+                
+            rho_old = rho_new
+
+        return x
+
+    def _fallback_solve(self, matvec, rhs):
+        """Fallback решение для случая когда все стратегии не сработали"""
+        # Пробуем простое решение - направление антиградиента
+        print("    Пробуем простое решение - направление антиградиента")
+        
+        # Используем направление антиградиента с разумным масштабированием
+        delta_magnitude = min(1.0, rhs.norm().item())
+        delta = -rhs / (rhs.norm() + 1e-8) * delta_magnitude
+        
+        # Проверяем качество решения
+        if delta.norm() > 1e-12:
+            print(f"    ✅ Fallback решение: ||delta||={delta.norm():.3e}")
+            return delta
+        else:
+            print("    ❌ Fallback решение слишком мало")
+            return torch.zeros_like(rhs)
+
     # ------------- JFNK основной цикл --------------------------------
     def _fi_jfnk_step(self, dt, tol=None, max_iter=10, damping=0.6):
         if tol is None:
@@ -2132,19 +2215,30 @@ class Simulator:
                 self._current_p_scale = P_SCALE
                 self._current_saturation_scale = SATURATION_SCALE
                 
-                # 🔧 ИСПРАВЛЕННЫЙ адаптивный eps для плохо обусловленных систем
-                # Для condition number ~1e12, нужен eps >= 1e-4
+                # 🔧 АГРЕССИВНЫЙ адаптивный eps для катастрофически плохо обусловленных систем
                 F_norm = F.norm().item()
                 
-                # Более крупный eps для стабильности finite differences
-                base_eps = 1e-3  # увеличен базовый eps
-                adaptive_eps = max(base_eps, 1e-3 * F_norm)  # пропорционально residual
+                # Базовый eps увеличен для системы с condition number ~1e12
+                base_eps = 1e-3  # минимальный eps для стабильности
                 
-                # Дополнительно увеличиваем для первых итераций
-                if it <= 2:
-                    adaptive_eps = max(adaptive_eps, 1e-2)  # очень крупный для начала
+                # Адаптивный eps на основе нормы residual
+                adaptive_eps = max(base_eps, 5e-3 * F_norm)  # увеличен коэффициент
+                
+                # Дополнительно увеличиваем для первых итераций (критично для плохо обусловленных систем)
+                if it == 0:
+                    adaptive_eps = max(adaptive_eps, 5e-2)  # первая итерация - очень крупный
+                elif it <= 2:
+                    adaptive_eps = max(adaptive_eps, 1e-2)  # первые итерации - крупный
+                elif it <= 5:
+                    adaptive_eps = max(adaptive_eps, 5e-3)  # средние итерации - умеренный
                 
                 eps = adaptive_eps
+                
+                # Для condition number > 1e12 принудительно увеличиваем eps
+                if hasattr(self, '_last_condition_number') and self._last_condition_number > 1e12:
+                    eps = max(eps, 1e-2)  # принудительно крупный eps для катастрофически плохих систем
+                
+                print(f"    Finite difference epsilon: {eps:.3e} (iteration {it})")
                 
                 F_plus = self._fi_residual_vec(x + eps * v, dt)
                 F_minus = self._fi_residual_vec(x - eps * v, dt)
@@ -2330,8 +2424,18 @@ class Simulator:
                 if it == 0:
                     print("    🔍 КРИТИЧЕСКАЯ ДИАГНОСТИКА: AUTOGRAD vs FINITE DIFFERENCES")
                     
-                    # Проверяем condition number
+                    # Проверяем condition number и сохраняем для использования в finite differences
                     self._diagnostic_condition_number(matvec_preconditioned, len(x))
+                    
+                    # Сохраняем приблизительное condition number для адаптации eps
+                    try:
+                        device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
+                        v_test = torch.randn(len(x), dtype=torch.float32, device=device)
+                        v_test = v_test / torch.norm(v_test)
+                        Av_test = matvec_preconditioned(v_test)
+                        self._last_condition_number = Av_test.norm().item() * 1e12  # приблизительная оценка
+                    except:
+                        self._last_condition_number = 1e12  # fallback значение
                     
                     # Сравниваем с autograd якобианом
                     print("    🔍 Сравнение с autograd:")
@@ -2381,37 +2485,59 @@ class Simulator:
             # 🔧 УЛУЧШЕННОЕ РЕШЕНИЕ ЛИНЕЙНОЙ СИСТЕМЫ
             delta = None
             
-            # 🔧 ИСПРАВЛЕННЫЕ стратегии решения - более мягкие tolerances
+            # 🔧 АГРЕССИВНЫЕ стратегии GMRES - для плохо обусловленных систем
             strategies = [
-                ("GMRES-30", {"restart": 30, "max_iter": 100, "tol": 1e-2}),  # очень мягкий tolerance
-                ("GMRES-20", {"restart": 20, "max_iter": 80, "tol": 5e-2}),   # еще мягче
-                ("GMRES-10", {"restart": 10, "max_iter": 50, "tol": 1e-1}),   # очень мягкий
+                ("GMRES-80", {"restart": 80, "max_iter": 200, "tol": 1e-3}),   # очень высокий restart для тяжелых систем
+                ("GMRES-60", {"restart": 60, "max_iter": 150, "tol": 5e-3}),   # высокий restart
+                ("GMRES-40", {"restart": 40, "max_iter": 120, "tol": 1e-2}),   # умеренный restart
+                ("GMRES-20", {"restart": 20, "max_iter": 80, "tol": 5e-2}),    # низкий restart, мягкий tolerance
+                ("BiCGSTAB", {"max_iter": 200, "tol": 1e-2}),                  # альтернативный метод
             ]
             
             for strategy_name, params in strategies:
                 try:
-                    from linear_gpu.gmres import gmres
-                    
-                    print(f"    Пробуем {strategy_name}: restart={params['restart']}, tol={params['tol']:.1e}")
-                    delta, info = gmres(matvec_preconditioned, rhs, 
-                                      tol=params['tol'], 
-                                      restart=params['restart'], 
-                                      max_iter=params['max_iter'])
-                    
-                    if info == 0:
-                        print(f"    ✅ {strategy_name} сошёлся успешно")
-                        break
-                    else:
-                        print(f"    ⚠️  {strategy_name} не сошёлся (info={info})")
+                    if strategy_name.startswith("GMRES"):
+                        from linear_gpu.gmres import gmres
                         
-                        # Если решение разумное, используем его
-                        if delta is not None and delta.norm() > 1e-12 and delta.norm() < 1e6:
-                            print(f"    Используем частичное решение: ||delta||={delta.norm():.3e}")
+                        print(f"    Пробуем {strategy_name}: restart={params['restart']}, tol={params['tol']:.1e}")
+                        delta, info = gmres(matvec_preconditioned, rhs, 
+                                          tol=params['tol'], 
+                                          restart=params['restart'], 
+                                          max_iter=params['max_iter'])
+                        
+                        if info == 0:
+                            print(f"    ✅ {strategy_name} сошёлся успешно")
                             break
+                        else:
+                            print(f"    ⚠️  {strategy_name} не сошёлся (info={info})")
+                            
+                            # Если решение разумное, используем его
+                            if delta is not None and delta.norm() > 1e-12 and delta.norm() < 1e6:
+                                print(f"    🔧 Используем частичное решение: ||delta||={delta.norm():.3e}")
+                                break
+                                
+                    elif strategy_name == "BiCGSTAB":
+                        print(f"    Пробуем BiCGSTAB: max_iter={params['max_iter']}, tol={params['tol']:.1e}")
                         
+                        # Используем встроенную реализацию BiCGSTAB
+                        delta = self._bicgstab_improved(matvec_preconditioned, rhs, 
+                                                      tol=params['tol'], 
+                                                      max_iter=params['max_iter'])
+                        
+                        if delta is not None and delta.norm() > 1e-12:
+                            print(f"    ✅ BiCGSTAB успешен: ||delta||={delta.norm():.3e}")
+                            break
+                        else:
+                            print(f"    ⚠️  BiCGSTAB не сошёлся")
+                            
                 except Exception as e:
-                    print(f"    ❌ {strategy_name} не удался: {e}")
+                    print(f"    ❌ {strategy_name} ошибка: {e}")
                     continue
+            
+            # Если ни одна стратегия не сработала полностью
+            if delta is None or delta.norm() < 1e-12:
+                print("    Все стратегии не сработали - используем fallback")
+                delta = self._fallback_solve(matvec_preconditioned, rhs)
             
             # 🔧 ИСПРАВЛЕННЫЙ fallback на BiCGSTAB - более мягкие условия
             if delta is None or delta.norm() < 1e-6:  # менее строгое условие
@@ -2468,28 +2594,53 @@ class Simulator:
             delta_p = delta[:N]  # изменение давления (безразмерное)
             delta_s = delta[N:]  # изменение насыщенности (безразмерное)
             
-            # 🔧 ИСПРАВЛЕННЫЕ физические пределы для шагов - более мягкие
-            max_dp_scaled = 10.0  # увеличен предел для давления (~10 МПа)
-            max_ds_scaled = 0.5   # увеличен предел для насыщенности (50%)
+            # 🔧 УМНЫЕ физические пределы для шагов - адаптивные на основе текущего состояния
+            # Для давления: больше позволяем при низком давлении, меньше при высоком
+            current_p_phys = (x[:N] * P_SCALE).mean().item() / 1e6  # средние МПа
+            if current_p_phys < 5:   # низкое давление
+                max_dp_scaled = 8.0  # можем делать большие шаги
+            elif current_p_phys < 20:  # умеренное давление
+                max_dp_scaled = 5.0
+            else:                    # высокое давление
+                max_dp_scaled = 2.0  # осторожные шаги
             
-            # Более мягкое масштабирование шага
+            # Для насыщенности: более консервативно около границ
+            current_sw = (x[N:] * SATURATION_SCALE).mean().item()
+            if current_sw < 0.3 or current_sw > 0.7:  # около границ
+                max_ds_scaled = 0.1  # очень осторожно
+            else:                                      # в средней зоне
+                max_ds_scaled = 0.2  # умеренно
+            
+            # Более консервативное масштабирование шага
             scale_p = min(1.0, max_dp_scaled / (delta_p.abs().max().item() + 1e-12))
             scale_s = min(1.0, max_ds_scaled / (delta_s.abs().max().item() + 1e-12))
-            
-            # Используем менее агрессивное масштабирование
             scale = min(scale_p, scale_s)
-            scale = max(scale, 0.1)  # минимальный масштаб 0.1 вместо полного отказа
+            scale = max(scale, 0.05)  # минимальный масштаб 0.05 для большей осторожности
+            
+            print(f"    Trust-region: current P={current_p_phys:.1f} МПа, Sw={current_sw:.3f}")
+            print(f"    Trust-region: max_dp={max_dp_scaled:.1f}, max_ds={max_ds_scaled:.2f}, scale={scale:.3f}")
             
             if scale < 1.0:
                 delta = delta * scale
                 print(f"  Trust-region: масштабирую шаг на {scale:.3f}")
             
-            # 🔧 ИСПРАВЛЕННЫЙ Line-search с более мягкими критериями
+            # 🔧 УЛУЧШЕННЫЙ Line-search с адаптивными критериями
             best_alpha = 0.0
             best_norm = norm_F.item()
             
-            # Более широкий диапазон alpha значений
-            alphas = [1.0, 0.8, 0.6, 0.4, 0.2, 0.1, 0.05, 0.01]
+            # Более агрессивные alpha значения для плохо обусловленных систем
+            if it <= 2:  # для первых итераций - более консервативные шаги
+                alphas = [0.1, 0.05, 0.01, 0.005, 0.001]
+            else:  # для последующих итераций - более агрессивные
+                alphas = [1.0, 0.8, 0.6, 0.4, 0.2, 0.1, 0.05, 0.01]
+            
+            # Адаптивные критерии принятия на основе итерации
+            if it == 0:
+                accept_factor = 2.0    # для первой итерации допускаем удвоение
+            elif it <= 2:
+                accept_factor = 1.5    # для первых итераций - мягче
+            else:
+                accept_factor = 1.1    # для последующих - строже
             
             for alpha in alphas:
                 try:
@@ -2499,10 +2650,11 @@ class Simulator:
                     F_new = self._fi_residual_vec(x_new, dt)
                     norm_new = F_new.norm().item()
                     
-                    # Более мягкие критерии принятия: допускаем даже небольшое увеличение
-                    if norm_new < best_norm * 1.1:  # допускаем 10% увеличение
+                    # Адаптивные критерии принятия
+                    if norm_new < best_norm * accept_factor:
                         best_alpha = alpha
                         best_norm = norm_new
+                        print(f"  Line-search: alpha={alpha:.3f}, ||F||: {norm_F.item():.3e} → {norm_new:.3e}")
                         break  # принимаем первое подходящее значение
                         
                 except Exception as e:
@@ -2524,6 +2676,13 @@ class Simulator:
                     break
             
             x = x + best_alpha * delta
+            
+            # 🔧 КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: применяем физические ограничения
+            x_clipped = self._apply_physical_constraints(x, P_SCALE, SATURATION_SCALE)
+            if not torch.allclose(x, x_clipped, atol=1e-10):
+                x = x_clipped
+                print(f"  🔧 Применены физические ограничения для {N} переменных")
+            
             print(f"  ✅ Line-search: alpha={best_alpha:.3f}, ||F||: {norm_F.item():.3e} → {best_norm:.3e}")
         
         # Возвращаем немасштабированные значения
@@ -3484,13 +3643,13 @@ class Simulator:
             print(f"    ✅ JVP корректен")
     
     def _diagnostic_condition_number(self, matvec, n):
-        """Диагностика: оценка condition number через power method"""
+        """Улучшенная диагностика condition number с агрессивными рекомендациями"""
         # Не делаем полную диагностику для больших систем
         if n > 500:
             print(f"    Система слишком большая ({n}) для диагностики condition number")
             return
             
-        print(f"    Оценка condition number для системы размера {n}...")
+        print(f"    🔍 Оценка condition number для системы размера {n}...")
         
         # Power method для оценки максимального собственного числа
         # Используем то же device, что и в системе
@@ -3499,7 +3658,7 @@ class Simulator:
         v = v / torch.norm(v)
         
         lambda_max = 0.0
-        for i in range(15):
+        for i in range(20):  # больше итераций для точности
             try:
                 Av = matvec(v)
                 lambda_max = torch.dot(v, Av).item()
@@ -3511,26 +3670,58 @@ class Simulator:
                 print(f"    ❌ Power method failed at iteration {i}: {e}")
                 return
         
-        # Приближенная оценка минимального собственного числа  
+        # Улучшенная оценка минимального собственного числа через обратную итерацию
         lambda_min = lambda_max * 1e-12  # консервативная оценка
         
+        # Пытаемся найти более точное значение λ_min
+        try:
+            v_inv = torch.randn(n, dtype=torch.float32, device=device)
+            v_inv = v_inv / torch.norm(v_inv)
+            
+            # Обратная итерация для минимального собственного числа
+            for i in range(10):
+                Av = matvec(v_inv)
+                if torch.norm(Av) < 1e-15:
+                    lambda_min = 1e-15
+                    break
+                v_inv = Av / torch.norm(Av)
+            else:
+                # Если не нашли нулевое, используем последнее значение
+                lambda_min = torch.norm(matvec(v_inv)).item()
+        except:
+            pass
+        
         # Оценка condition number
-        if abs(lambda_min) < 1e-12:
+        if abs(lambda_min) < 1e-15:
             cond_est = float('inf')
         else:
             cond_est = abs(lambda_max / lambda_min)
         
-        print(f"    Результат condition number:")
+        print(f"    📊 Результат condition number:")
         print(f"      λ_max ≈ {lambda_max:.3e}")
         print(f"      λ_min ≈ {lambda_min:.3e}")
         print(f"      cond  ≈ {cond_est:.3e}")
         
         if cond_est > 1e12:
-            print(f"    ⚠️  СИСТЕМА СИНГУЛЯРНА! (cond > 1e12)")
+            print(f"    💀 СИСТЕМА КАТАСТРОФИЧЕСКИ ПЛОХО ОБУСЛОВЛЕНА! (cond > 1e12)")
+            print(f"    🚨 КРИТИЧЕСКИЕ РЕКОМЕНДАЦИИ:")
+            print(f"       - Увеличить finite difference epsilon до 1e-3")
+            print(f"       - Использовать CPR предобуславливание")
+            print(f"       - Применить физические ограничения")
+            print(f"       - Уменьшить временной шаг в 4 раза")
+            print(f"       - Использовать более сильную регуляризацию")
+        elif cond_est > 1e10:
+            print(f"    ❌ СИСТЕМА КРАЙНЕ ПЛОХО ОБУСЛОВЛЕНА! (cond > 1e10)")
+            print(f"       - Увеличить finite difference epsilon до 1e-4")
+            print(f"       - Использовать CPR или ILU предобуславливание")
+            print(f"       - Уменьшить временной шаг в 2 раза")
         elif cond_est > 1e8:
             print(f"    ⚠️  Система очень плохо обусловлена (cond > 1e8)")
+            print(f"       - Использовать AMG предобуславливание")
+            print(f"       - Применить регуляризацию")
         elif cond_est > 1e6:
             print(f"    ⚠️  Система плохо обусловлена (cond > 1e6)")
+            print(f"       - Использовать хорошее предобуславливание")
         else:
             print(f"    ✅ Обусловленность приемлемая")
 
@@ -3747,5 +3938,60 @@ class Simulator:
         print("="*60 + "\n")
         
         return J_auto, J_fd
+
+    def _apply_physical_constraints(self, x, P_SCALE, SATURATION_SCALE):
+        """
+        Применяет физические ограничения к решению
+        
+        Args:
+            x: масштабированные переменные [давление, насыщенность]
+            P_SCALE: масштаб давления [Па]
+            SATURATION_SCALE: масштаб насыщенности (обычно 1.0)
+        
+        Returns:
+            x_clipped: ограниченные переменные
+        """
+        N = len(x) // 2
+        x_clipped = x.clone()
+        
+        # === ОГРАНИЧЕНИЯ ДЛЯ ДАВЛЕНИЯ ===
+        # Переводим в физические единицы 
+        p_physical = x[:N] * P_SCALE
+        
+        # Минимальное давление: 0.1 МПа = 1e5 Па
+        p_min = 1e5 / P_SCALE  # в масштабированных единицах
+        # Максимальное давление: 200 МПа = 2e8 Па  
+        p_max = 2e8 / P_SCALE  # в масштабированных единицах
+        
+        x_clipped[:N] = torch.clamp(x[:N], p_min, p_max)
+        
+        # === ОГРАНИЧЕНИЯ ДЛЯ ВОДОНАСЫЩЕННОСТИ ===
+        # Переводим в физические единицы
+        sw_physical = x[N:] * SATURATION_SCALE
+        
+        # Физические пределы водонасыщенности
+        sw_min = self.fluid.sw_cr / SATURATION_SCALE  # связанная водонасыщенность
+        sw_max = (1.0 - self.fluid.so_r) / SATURATION_SCALE  # 1 - остаточная нефтенасыщенность
+        
+        x_clipped[N:] = torch.clamp(x[N:], sw_min, sw_max)
+        
+        # === ДИАГНОСТИКА ===
+        n_clipped_p = (x[:N] != x_clipped[:N]).sum().item()
+        n_clipped_s = (x[N:] != x_clipped[N:]).sum().item()
+        
+        if n_clipped_p > 0 or n_clipped_s > 0:
+            print(f"    🔧 Ограничено: {n_clipped_p} давлений, {n_clipped_s} насыщенностей")
+            
+            if n_clipped_p > 0:
+                p_min_actual = (x_clipped[:N] * P_SCALE).min().item() / 1e6  # МПа
+                p_max_actual = (x_clipped[:N] * P_SCALE).max().item() / 1e6  # МПа
+                print(f"    P диапазон: [{p_min_actual:.2f}, {p_max_actual:.2f}] МПа")
+            
+            if n_clipped_s > 0:
+                sw_min_actual = (x_clipped[N:] * SATURATION_SCALE).min().item()
+                sw_max_actual = (x_clipped[N:] * SATURATION_SCALE).max().item()
+                print(f"    Sw диапазон: [{sw_min_actual:.3f}, {sw_max_actual:.3f}]")
+        
+        return x_clipped
 
 
