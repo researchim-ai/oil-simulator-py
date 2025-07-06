@@ -1067,13 +1067,55 @@ class Simulator:
         return Q_total
 
     def _calculate_well_terms(self, mob_t, P_prev):
-        """ Рассчитывает источниковые члены от скважин для IMPES. 
-        Для целей модульных тестов возвращаем нули, чтобы результаты были детерминированны.
+        """Формирует скважинные члены для матрицы/правой части давления.
+
+        Возвращаем два вектора длиной N (кол-во ячеек):
+
+        1. ``q_wells`` – источник/сток объёмного расхода (м³/с), идёт в RHS.
+        2. ``well_bhp_terms`` – дополнительный коэффициент на диагональ матрицы
+           для BHP-контролируемых скважин (WI * λ_t). Пока таких скважин в
+           мега-конфиге нет, так что вектор нулевой, но оставляем логику на
+           будущее.
         """
-        N = self.reservoir.nx * self.reservoir.ny * self.reservoir.nz
-        # Возвращаем нулевые векторы – скважины отключены для стабильности CI-тестов
-        q_wells = torch.zeros(N, device=self.device)
-        well_bhp_terms = torch.zeros(N, device=self.device)
+        nx, ny, nz = self.reservoir.dimensions
+        N = nx * ny * nz
+
+        q_wells = torch.zeros(N, device=self.device, dtype=torch.float32)
+        well_bhp_terms = torch.zeros(N, device=self.device, dtype=torch.float32)
+
+        if getattr(self, "well_manager", None) is None:
+            return q_wells, well_bhp_terms
+
+        for well in self.well_manager.get_wells():
+            i, j, k = int(well.i), int(well.j), int(well.k)
+
+            # Защита от выхода за границы – просто пропускаем такую скважину
+            if i >= nx or j >= ny or k >= nz:
+                continue
+
+            cell_idx = (i * ny + j) * nz + k  # flatten index (x-major)
+
+            if well.control_type == "rate":
+                # Значение в конфиге м³/сут. Переводим в м³/с
+                q_total = well.control_value / 86400.0
+                # Инжектор – источник (+), продакшн – сток (−)
+                sign = 1.0 if well.type == "injector" else -1.0
+                q_wells[cell_idx] += sign * q_total
+
+            elif well.control_type == "bhp":
+                # BHP-контроль: добавляем WI*λ_t на диагональ и
+                # WI*λ_t*P_bhp в RHS. Здесь используем текущую total mobility.
+                WI = well.well_index
+                lam_t_cell = float(mob_t[i, j, k])
+                coeff = WI * lam_t_cell
+                well_bhp_terms[cell_idx] += coeff
+                # Знак для RHS зависит от типа скважины (инжектор = positive)
+                p_bhp = well.control_value * 1e6  # МПа→Па
+                rhs_sign = -1.0  # выносим coeff*(p - p_bhp) в Л.Ч., остаётся -coeff*p_bhp
+                if well.type == "injector":
+                    rhs_sign *= -1.0  # для инжектора поток направлен внутрь
+                q_wells[cell_idx] += rhs_sign * coeff * p_bhp
+
         return q_wells, well_bhp_terms
 
     def _compute_residual_full(self, dt):
@@ -1331,3 +1373,92 @@ class Simulator:
             print(f"[WARN] Не удалось создать GIF: {e}")
 
         print(f"\nСимуляция завершена за {time.time()-t0:.1f} с. Результаты в {results_dir}")
+
+    # ------------------------------------------------------------------
+    # Простая реализация алгоритма Conjugate Gradient на PyTorch.
+    # Рассчитана на SPD-матрицу (что выполняется для давления).
+    # При отключённых тестовых патчах trans_patch этот метод подхватывает
+    # решение, иначе его переопределяет заглушка.
+    # ------------------------------------------------------------------
+    def _solve_pressure_cg_pytorch(self, A, Q, M_diag=None, tol=1e-6, max_iter=500):
+        """Решает Ax = Q, где A — torch.sparse_coo_tensor (N×N).
+
+        Args:
+            A: разреженная матрица (сжатый COO)
+            Q: правая часть, 1-D tensor длины N (float32)
+            M_diag: предобуславливатель-диагональ (Jacobi) или None
+            tol: относительная невязка ‖r‖/‖Q‖ для остановки
+            max_iter: максимум итераций
+        Returns:
+            x (tensor), converged (bool)
+        """
+        N = Q.shape[0]
+        x = torch.zeros(N, device=Q.device, dtype=Q.dtype)
+
+        # helper: sparse matvec
+        def matvec(v):
+            return torch.sparse.mm(A, v.unsqueeze(1)).squeeze(1)
+
+        r = Q - matvec(x)
+        if M_diag is not None:
+            z = r / (M_diag + 1e-12)
+        else:
+            z = r.clone()
+        p = z.clone()
+
+        rs_old = torch.dot(r, z)
+        Q_norm = torch.norm(Q)
+        if Q_norm == 0:
+            return x, True
+
+        for k in range(int(max_iter)):
+            Ap = matvec(p)
+            alpha = rs_old / (torch.dot(p, Ap) + 1e-30)
+            x += alpha * p
+            r -= alpha * Ap
+            if torch.norm(r) / Q_norm < tol:
+                return x, True
+            if M_diag is not None:
+                z = r / (M_diag + 1e-12)
+            else:
+                z = r
+            rs_new = torch.dot(r, z)
+            beta = rs_new / (rs_old + 1e-30)
+            p = z + beta * p
+            rs_old = rs_new
+        return x, False
+
+    # ------------------------------------------------------------------
+    # Трансмиссивности для IMPES / FI – «боевой» вариант (без тестовых
+    # патчей).  Вычисляем однократным вызовом и кэшируем в self.T_x/y/z.
+    # ------------------------------------------------------------------
+    def _init_impes_transmissibilities(self):
+        if all(hasattr(self, attr) for attr in ("T_x", "T_y", "T_z")):
+            return  # уже рассчитаны
+
+        kx = self.reservoir.permeability_x
+        ky = self.reservoir.permeability_y
+        kz = self.reservoir.permeability_z
+        dx, dy, dz = self.reservoir.grid_size
+        nx, ny, nz = self.reservoir.dimensions
+
+        eps = 1e-12  # чтобы избежать деления на ноль
+
+        # Гармонические средние проницаемостей
+        if nx > 1:
+            kx_harm = 2 * kx[:-1] * kx[1:] / (kx[:-1] + kx[1:] + eps)
+            self.T_x = (dy * dz / dx) * kx_harm.to(self.device)
+        else:
+            self.T_x = torch.zeros((0, ny, nz), device=self.device)
+
+        if ny > 1:
+            ky_harm = 2 * ky[:, :-1, :] * ky[:, 1:, :] / (ky[:, :-1, :] + ky[:, 1:, :] + eps)
+            self.T_y = (dx * dz / dy) * ky_harm.to(self.device)
+        else:
+            self.T_y = torch.zeros((nx, 0, nz), device=self.device)
+
+        if nz > 1:
+            kz_harm = 2 * kz[:, :, :-1] * kz[:, :, 1:] / (kz[:, :, :-1] + kz[:, :, 1:] + eps)
+            self.T_z = (dx * dy / dz) * kz_harm.to(self.device)
+        else:
+            self.T_z = torch.zeros((nx, ny, 0), device=self.device)

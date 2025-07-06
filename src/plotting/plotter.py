@@ -30,6 +30,12 @@ class Plotter:
         p_slice = pressure[:, :, z_slice_idx]
         s_slice = saturation[:, :, z_slice_idx]
 
+        # ------------------------------------------------------------------
+        # Сохраняем базовую насыщенность (первый вызов) для отображения ∆Sw
+        # ------------------------------------------------------------------
+        if not hasattr(self, "_baseline_sw"):
+            self._baseline_sw = s_slice.copy()
+
         fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 5))
         
         title_suffix = f" (Срез Z={z_slice_idx})"
@@ -58,39 +64,25 @@ class Plotter:
         fig.colorbar(im1, ax=ax1)
 
         # ------------------------------------------------------------------
-        # Насыщенность – адаптивная шкала: если изменения <5%, зумим
+        # ∆Sw = текущая – базовая: видно даже прирост 0.01
         # ------------------------------------------------------------------
-        vmin = float(s_slice.min())
-        vmax = float(s_slice.max())
-        diff = vmax - vmin
+        delta_sw = s_slice - self._baseline_sw
 
-        # Очень маленькие изменения (<2 %) – показываем окошко 0.02, чтобы увидеть фронт
-        if diff < 0.02:
-            vmin = vmin
-            vmax = min(1.0, vmin + 0.02)
-        elif diff < 0.05:  # изменения 2–5 % – окно 0.05
-            vmax = min(1.0, vmin + 0.05)
-        elif diff < 1e-4:  # совсем нет изменений
-            vmin, vmax = 0.0, 1.0
+        # Убираем экстремальные пиксели: берём 2-й и 98-й перцентили
+        p2, p98 = np.percentile(delta_sw, [2, 98])
+        span = max(abs(p2), abs(p98), 1e-4)  # чтобы не было нуля
 
-        # Подстраховка на случай vmin == vmax (одинаковая насыщенность)
-        if abs(vmax - vmin) < 1e-6:
-            vmin = max(0.0, vmin - 0.01)
-            vmax = min(1.0, vmax + 0.01)
-
-        # Используем более контрастную палитру и bilinear для плавности
-        im2 = ax2.imshow(s_slice,
-                         cmap='plasma',
+        im2 = ax2.imshow(delta_sw,
+                         cmap='RdBu_r',
                          origin='lower',
                          extent=(0, nx, 0, ny),
                          interpolation='bilinear',
-                         vmin=vmin, vmax=vmax,
+                         vmin=-span, vmax=span,
                          aspect='equal')
+        ax2.contour(delta_sw, levels=[0.0], colors='k', linewidths=0.5, origin='lower', extent=(0, nx, 0, ny))
         ax2.set_aspect('equal', adjustable='box')
-        ax2.set_title(f'Насыщенность водой{title_suffix}')
-        ax2.set_xlabel('Ячейка X')
-        ax2.set_ylabel('Ячейка Y')
-        fig.colorbar(im2, ax=ax2)
+        ax2.tick_params(left=False, bottom=False, labelleft=False, labelbottom=False)
+        ax2.set_title(f'∆Sw (текущая – начальная){title_suffix}')
 
         plt.tight_layout()
         plt.savefig(filename)

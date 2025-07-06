@@ -1,9 +1,26 @@
 from __future__ import annotations
 import os, sys
-# Ensure project root is on PYTHONPATH so that `simulator`, `plotting`, etc. resolve
-_project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), os.pardir))
-if _project_root not in sys.path:
-    sys.path.insert(0, _project_root)
+# ------------------------------------------------------------------
+# Поддержка запуска как «python -m src.main» и «python src/main.py».
+# Мы гарантируем, что *оба* пути:
+#   • корень проекта (для «import src.*», внешних тестов)
+#   • директория src       (для «import simulator» и других под-пакетов)
+# присутствуют в sys.path до первых import.
+# ------------------------------------------------------------------
+_SRC_DIR = os.path.abspath(os.path.dirname(__file__))          # .../oil-simulator-py/src
+_PROJECT_ROOT = os.path.abspath(os.path.join(_SRC_DIR, os.pardir))
+
+for _p in (_SRC_DIR, _PROJECT_ROOT):
+    if _p not in sys.path:
+        sys.path.insert(0, _p)
+
+# ------------------------------------------------------------------
+# Для «боевых» запусков (вне CI) отключаем тестовые патчи, которые
+# заглушают решатели и насыщенность (см. simulator/trans_patch.py).
+# Делается до импортов пакета `simulator`, иначе патч уже сработает.
+# ------------------------------------------------------------------
+import os as _os
+_os.environ.setdefault("OIL_SIM_SKIP_PATCHES", "1")
 
 import torch
 import numpy as np

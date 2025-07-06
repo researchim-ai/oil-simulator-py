@@ -70,6 +70,19 @@
 5. **Регресс-тест без AMG**  
    • Добавить конфиг с `linear_solver.backend="torch_gmres"` и убедиться, что FI-решатель стабильно сходится без BoomerAMG.
 
+### Дополнение (июль 2025)
+
+6. **IMPES large-scale benchmark**  
+   • Запуск `industrial_3d.json` и `mega_3d.json` в IMPES-режиме (2-фаза) с подбором CFL-устойчивого шага.  
+   • Сравнить wall-time/сутки vs FI, зафиксировать в docs/performance.md.
+
+7. **Black-Oil (газ) pre-work**  
+   • Расширить `fluid.py` на газовую фазу и растворённый газ.  
+   • Подготовить тест 1×1 и SPE1-cut, добавить `tests/test_black_oil.py`.
+
+8. **Параллельный writer**  
+   • Реализация асинхронного PNG/VTK сохранения (multiprocessing.Pool) чтобы не блокировать GPU.
+
 > Эти пункты образуют «Sprint-1» перед переходом к много-GPU и поверхностной сети.
 
 ## 1. Видение
