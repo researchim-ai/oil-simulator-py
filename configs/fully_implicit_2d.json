@@ -40,8 +40,11 @@
         "c_rock": 1e-5,
         "s_wr": 0.2,
         "s_or": 0.2,
-        "pc_scale": 0.0,
-        "pc_threshold": 0.01
+        "pc_threshold": 0.01,
+        "capillary_pressure": {
+            "pc_scale": 0.0,
+            "pc_exponent": 1.5
+        }
     },
     
     "wells": [

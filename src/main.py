@@ -25,7 +25,7 @@ def main():
     print(f"Загружена конфигурация: {config.get('description', 'Без описания')}.")
     
     # Инициализация устройства для тензоров
-    device = initialize_device()
+    device = initialize_device(config)
 
     # Создаем объекты для моделирования
     reservoir = Reservoir(config['reservoir'], device)
@@ -68,8 +68,15 @@ def load_config(config_path):
     with open(config_path, 'r') as f:
         return json.load(f)
 
-def initialize_device():
-    use_gpu = torch.cuda.is_available()
+def initialize_device(config):
+    # Читаем use_cuda из конфигурации simulation
+    use_gpu = config.get('simulation', {}).get('use_cuda', torch.cuda.is_available())
+    
+    # Проверяем доступность CUDA если запрошено
+    if use_gpu and not torch.cuda.is_available():
+        print("⚠️  CUDA запрошено в конфигурации, но недоступно. Переключаемся на CPU.")
+        use_gpu = False
+    
     device = torch.device("cuda:0" if use_gpu else "cpu")
     print(f"PyTorch будет использовать {'GPU: ' + torch.cuda.get_device_name(0) if use_gpu else 'CPU'}.")
     return device

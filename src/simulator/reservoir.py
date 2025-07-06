@@ -12,7 +12,7 @@ class Reservoir:
         :param config: Словарь с параметрами пласта.
         :param device: Устройство для вычислений ('cpu' или 'cuda').
         """
-        self.device = device if device is not None else torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+        self.device = device if device is not None else torch.device('cpu')
         
         # Размеры пласта
         self.dimensions = config.get('dimensions', [10, 10, 1])

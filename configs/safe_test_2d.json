@@ -1,0 +1,42 @@
+{
+  "reservoir": {
+    "dimensions": [3, 3, 1],
+    "grid_size": [10.0, 10.0, 5.0],
+    "porosity": 0.3,
+    "permeability_x": 200.0,
+    "permeability_y": 200.0,
+    "permeability_z": 200.0,
+    "c_rock": 1e-7,
+    "pressure_ref": 20000000.0
+  },
+  "fluid": {
+    "pressure": 20.0,
+    "s_w": 0.5,
+    "c_oil": 1e-7,
+    "c_water": 1e-7,
+    "c_rock": 1e-7,
+    "mu_oil": 2.0,
+    "mu_water": 1.0,
+    "rho_oil": 800.0,
+    "rho_water": 1000.0,
+    "relative_permeability": {
+      "sw_cr": 0.1,
+      "so_r": 0.2,
+      "nw": 2.0,
+      "no": 2.0
+    },
+    "pc_scale": 0.0,
+    "pc_exponent": 1.5
+  },
+  "wells": [],
+  "simulation": {
+    "total_time": 0.01,
+    "time_step": 0.001,
+    "solver_type": "fully_implicit",
+    "jacobian": "jfnk",
+    "tolerance": 1e-5,
+    "max_iterations": 8,
+    "damping": 0.9,
+    "backend": "cpu"
+  }
+}

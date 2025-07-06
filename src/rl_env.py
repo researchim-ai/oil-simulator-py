@@ -29,7 +29,7 @@ class ReservoirEnv(gym.Env):
         self.config_path = config_path
         self.max_steps = max_steps
         self.render_mode = render_mode
-        self.device = device or torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        self.device = device or torch.device("cpu")
 
         # --- Создаём объекты симуляции по конфигу ---
         with open(config_path, "r", encoding="utf-8") as f:

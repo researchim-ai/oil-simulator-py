@@ -14,7 +14,7 @@ class Fluid:
             reservoir: Объект пласта
             device: Устройство для вычислений (CPU/GPU)
         """
-        self.device = device if device is not None else torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+        self.device = device if device is not None else torch.device('cpu')
         
         # Размеры и форма тензоров
         self.dimensions = reservoir.dimensions
@@ -36,6 +36,14 @@ class Fluid:
         self.oil_compressibility = config.get('c_oil', 1e-5) / 1e6  # 1/МПа -> 1/Па
         self.water_compressibility = config.get('c_water', 1e-5) / 1e6  # 1/МПа -> 1/Па
         self.rock_compressibility = config.get('c_rock', 1e-5) / 1e6  # 1/МПа -> 1/Па
+        
+        # 🔧 КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: правильное опорное давление для сжимаемости
+        self.pressure_ref = getattr(reservoir, 'pressure_ref', 1e5)
+        print(f"🔧 Опорное давление для плотности: {self.pressure_ref:.0f} Па ({self.pressure_ref/1e6:.1f} МПа)")
+        
+        # 🔧 КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: правильное опорное давление для сжимаемости
+        self.pressure_ref = getattr(reservoir, 'pressure_ref', 1e5)
+        print(f"🔧 Опорное давление для плотности: {self.pressure_ref:.0f} Па ({self.pressure_ref/1e6:.1f} МПа)")
         
         # Совокупная сжимаемость флюида (используется в IMPES)
         total_c = (self.oil_compressibility + self.water_compressibility + self.rock_compressibility) / 2
@@ -199,7 +207,7 @@ class Fluid:
         Returns:
             Тензор плотности воды
         """
-        return self.rho_water_ref * (1.0 + self.water_compressibility * (pressure - 1e5))
+        return self.rho_water_ref * (1.0 + self.water_compressibility * (pressure - self.pressure_ref))
 
     def calc_oil_density(self, pressure):
         """

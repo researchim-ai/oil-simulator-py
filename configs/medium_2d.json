@@ -4,8 +4,9 @@
     "save_vtk": true,
     "simulation": {
         "solver_type": "fully_implicit",
-        "total_time_days": 180,
-        "time_step_days": 2.0,
+        "jacobian": "jfnk",
+        "total_time_days": 30,
+        "time_step_days": 5.0,
         "save_interval": 30,
         "animation_fps": 5,
         "newton_max_iter": 20,
@@ -15,7 +16,10 @@
         "max_time_step_attempts": 5,
         "dt_increase_factor": 1.25,
         "dt_reduction_factor": 2.0,
-        "use_cuda": true
+        "use_cuda": false,
+        "jfnk_tol": 1e-3,
+        "auto_solver": true,
+        "diagnostics": false
     },
     "reservoir": {
         "dimensions": [100, 100, 1],
