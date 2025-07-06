@@ -134,20 +134,20 @@ class Simulator:
         jacobian_type = sim_params.get("jacobian", "jfnk")
         
         if solver_type == "impes":
-            print("🏭 Инициализация IMPES solver")
+            print("Инициализация IMPES solver")
             self.fi_solver = None  # IMPES не использует FI solver
         elif jacobian_type == "jfnk":
-            print("🏭 Инициализация JFNK solver")
+            print("Инициализация JFNK solver")
             backend = self.sim_params.get("backend", "hypre")  # 🔧 КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: читаем из конфигурации
-            print(f"🔧 Backend из конфигурации: '{backend}'")
+            print(f"Backend из конфигурации: '{backend}'")
             self.fi_solver = FullyImplicitSolver(self, backend=backend)
         elif jacobian_type == "autograd":
-            print("🏭 Инициализация Autograd solver")
+            print("Инициализация Autograd solver")
             self.fi_solver = self._create_autograd_solver()
         else:
             raise ValueError(f"Неизвестный тип solver: {solver_type}/{jacobian_type}. Доступны: impes, jfnk, autograd")
             
-        print(f"🏭 Solver инициализирован: {solver_type}/{jacobian_type}")
+        print(f"Solver инициализирован: {solver_type}/{jacobian_type}")
 
     def _setup_logging(self):
         """Настройка логирования с контролем вывода"""
@@ -235,39 +235,39 @@ class Simulator:
         jacobian_mode = self.sim_params.get("jacobian", "jfnk").lower()
 
         # 🔧 ИСПРАВЛЕНО: ЯВНЫЙ выбор solver'а через параметры БЕЗ автоматики
-        print(f"🔧 Используем solver: jacobian='{jacobian_mode}' (явно указано в конфигурации)")
+        print(f"Используем solver: jacobian='{jacobian_mode}' (явно указано в конфигурации)")
         
         if jacobian_mode == "manual":
             # Путь старого ручного Ньютона (ниже в коде)
             pass
         elif jacobian_mode == "autograd":
             # 🏭 ПРОМЫШЛЕННЫЙ AUTOGRAD - строгая сходимость
-            print("🏭 Используем Autograd (промышленный стандарт)")
+            print("Используем Autograd")
             success = self._fi_autograd_adaptive(dt)
             if success:
                 return True
-            print("❌ Autograd failed to converge")
-            print("🏭 Логика: уменьшаем dt или завершаем")
+            print("Autograd failed to converge")
+            print("Уменьшаем dt или завершаем")
             return False  # Не делаем fallback на IMPES!
         elif jacobian_mode == "jfnk":
             # 🏭 ПРОМЫШЛЕННЫЙ JFNK - никаких компромиссов!
-            print("🏭 Используем JFNK (промышленный стандарт)")
+            print("Используем JFNK")
             
             # 🔧 КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: Используем единый solver из конструктора
             if not hasattr(self, "_fisolver"):
                 if hasattr(self, "fi_solver") and self.fi_solver is not None:
-                    print(f"🏭 Используем уже инициализированный JFNK solver")
+                    print(f"Используем уже инициализированный JFNK solver")
                     self._fisolver = self.fi_solver
                 else:
                     try:
                         from solver.jfnk import FullyImplicitSolver
                         petsc_options = self.sim_params.get("petsc_options", {})
-                        print(f"🏭 Инициализируем JFNK solver")
+                        print(f"Инициализируем JFNK solver")
                         backend = self.sim_params.get("backend", "hypre")
-                        print(f"🔧 Backend из конфигурации: '{backend}'")
+                        print(f"Backend из конфигурации: '{backend}'")
                         self._fisolver = FullyImplicitSolver(self, backend=backend)
                     except Exception as e:
-                        print(f"❌ Ошибка инициализации JFNK: {e}")
+                        print(f"Ошибка инициализации JFNK: {e}")
                         raise RuntimeError(f"JFNK initialization failed: {e}")
 
             # Подготавливаем начальное приближение
@@ -282,7 +282,7 @@ class Simulator:
                     self.fluid.s_w.view(-1)
                 ]).to(self.device)
 
-            print(f"🏭 Запускаем Newton с системой {len(x0)} переменных")
+            print(f"Запускаем Newton для {len(x0)} переменных")
             x_out, converged = self._fisolver.step(x0, dt)
             
             if converged:
@@ -293,11 +293,11 @@ class Simulator:
                 self.fluid.pressure = p_new
                 self.fluid.s_w = sw_new
                 self.fluid.s_o = 1 - sw_new
-                print("✅ JFNK converged successfully")
+                print("JFNK converged successfully")
                 return True
             else:
-                print("❌ JFNK failed to converge")
-                print("🏭 логика: уменьшаем dt или завершаем")
+                print("JFNK failed to converge")
+                print("Уменьшаем dt или завершаем")
                 return False  # Не делаем fallback на IMPES!
         else:
             raise ValueError(f"Неизвестный режим jacobian='{jacobian_mode}'. Поддерживаются: 'manual', 'autograd', 'jfnk'.")
@@ -327,8 +327,8 @@ class Simulator:
             print("Решатель не сошелся. Уменьшаем шаг времени.")
             current_dt /= self.sim_params.get("dt_reduction_factor", 2.0)
 
-        print("❌ Не удалось добиться сходимости даже с минимальным шагом.")
-        print("🏭 Промышленная логика: manual Jacobian solver failed - завершаем step как неудачный")
+        print("Не удалось добиться сходимости даже с минимальным шагом.")
+        print("Manual Jacobian solver failed - завершаем step как неудачный")
         return False  # Промышленные системы НЕ делают fallback на IMPES!
 
     def _fully_implicit_newton_step(self, dt, max_iter=20, tol=1e-3, 

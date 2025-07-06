@@ -11,7 +11,8 @@
     "jacobian": "jfnk",
     "autograd_threshold_cells": 20000,
     "newton_max_iter": 15,
-    "newton_tolerance": 1e-4,
+    "newton_tolerance": 1e-6,
+    "newton_rtol": 1e-4,
 
     "linear_solver": {
       "backend": "hypre",

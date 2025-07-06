@@ -1,0 +1,89 @@
+{
+  "description": "A large 3D case representing the original goal.",
+  "output_filename": "large_3d_final",
+  "save_vtk": true,
+  "simulation": {
+    "solver_type": "fully_implicit",
+    "total_time_days": 360,
+    "time_step_days": 5.0,
+    "save_interval": 20,
+    "animation_fps": 4,
+    "newton_max_iter": 25,
+    "newton_tolerance": 1e-06,
+    "jacobian_regularization": 5e-07,
+    "damping_factor": 0.6,
+    "max_time_step_attempts": 4,
+    "dt_increase_factor": 1.2,
+    "dt_reduction_factor": 2.5,
+    "use_cuda": true,
+    "jacobian": "jfnk",
+    "newton_rtol": 0.0001,
+    "verbosity": true
+  },
+  "reservoir": {
+    "dimensions": [
+      100,
+      100,
+      10
+    ],
+    "grid_size": [
+      20.0,
+      20.0,
+      5.0
+    ],
+    "porosity": 0.2,
+    "permeability": 100,
+    "k_vertical_fraction": 0.1
+  },
+  "fluid": {
+    "pressure": 20.0,
+    "s_w": 0.1,
+    "mu_oil": 1.0,
+    "mu_water": 0.5,
+    "rho_oil": 850.0,
+    "rho_water": 1000.0,
+    "c_oil": 4e-05,
+    "c_water": 4e-05,
+    "c_rock": 4e-05,
+    "relative_permeability": {
+      "sw_cr": 0.1,
+      "so_r": 0.2,
+      "nw": 2.0,
+      "no": 2.0
+    },
+    "capillary_pressure": {
+      "pc_scale": 50000.0,
+      "pc_exponent": 1.2
+    }
+  },
+  "wells": [
+    {
+      "name": "PROD-1",
+      "type": "producer",
+      "coordinates": [
+        25,
+        25,
+        5
+      ],
+      "radius": 0.1,
+      "control": {
+        "type": "rate",
+        "value": 100.0
+      }
+    },
+    {
+      "name": "INJ-1",
+      "type": "injector",
+      "coordinates": [
+        75,
+        75,
+        5
+      ],
+      "radius": 0.1,
+      "control": {
+        "type": "rate",
+        "value": 100.0
+      }
+    }
+  ]
+}
