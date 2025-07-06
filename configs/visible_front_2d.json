@@ -1,0 +1,61 @@
+{
+  "description": "2-D displacement test: clear water front visible quickly (40x20 grid, 1 injector vs 1 producer)",
+  "output_filename": "visible_front_demo",
+  "save_vtk": true,
+
+  "simulation": {
+    "solver_type": "fully_implicit",
+    "total_time_days": 3.0,
+    "time_step_days": 0.1,
+
+    "jacobian": "jfnk",
+    "newton_max_iter": 10,
+    "newton_tolerance": 1e-6,
+    "newton_rtol": 1e-4,
+    "gif_fps": 6,
+
+    "linear_solver": {
+      "backend": "hypre",
+      "tol": 1e-8,
+      "max_iter": 300
+    },
+
+    "verbose": true,
+    "use_cuda": false
+  },
+
+  "reservoir": {
+    "dimensions": [40, 20, 1],
+    "grid_size": [50.0, 50.0, 2.0],
+    "porosity": 0.22,
+    "permeability": 20,
+    "k_vertical_fraction": 1.0
+  },
+
+  "fluid": {
+    "pressure": 20.0,
+    "s_w": 0.2,
+    "mu_oil": 2.0,
+    "mu_water": 0.5,
+    "rho_oil": 850,
+    "rho_water": 997,
+    "c_oil": 4e-5,
+    "c_water": 4e-5,
+    "c_rock": 4e-5,
+
+    "relative_permeability": {
+      "sw_cr": 0.2,
+      "so_r": 0.15,
+      "nw": 2.0,
+      "no": 2.0
+    },
+    "capillary_pressure": {
+      "pc_scale": 0.0
+    }
+  },
+
+  "wells": [
+    { "name": "INJ_LEFT", "type": "injector",  "coordinates": [0, 10, 0],  "radius": 0.15, "control": { "type": "rate", "value": 8000 } },
+    { "name": "PROD_RIGHT", "type": "producer", "coordinates": [39, 10, 0], "radius": 0.15, "control": { "type": "rate", "value": 8000 } }
+  ]
+} 

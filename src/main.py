@@ -1,3 +1,10 @@
+from __future__ import annotations
+import os, sys
+# Ensure project root is on PYTHONPATH so that `simulator`, `plotting`, etc. resolve
+_project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), os.pardir))
+if _project_root not in sys.path:
+    sys.path.insert(0, _project_root)
+
 import torch
 import numpy as np
 import matplotlib.pyplot as plt

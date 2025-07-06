@@ -1251,13 +1251,16 @@ class Simulator:
                 else:
                     q_total = 0.0
 
+                # Переводим объёмный расход (м³/с) в массовый (кг/с)
+                rho_w_cell = rho_w[i, j, k]
+                rho_o_cell = rho_o[i, j, k]
+
                 if well.type == 'injector':
-                    # inject water only
-                    q_w[i, j, k] += q_total
-                    # oil injection usually zero
+                    # Закачиваем только воду
+                    q_w[i, j, k] += q_total * rho_w_cell
                 else:  # producer
-                    q_w[i, j, k] += q_total * fw[i, j, k]
-                    q_o[i, j, k] += q_total * (1 - fw[i, j, k])
+                    q_w[i, j, k] += q_total * fw[i, j, k] * rho_w_cell
+                    q_o[i, j, k] += q_total * (1 - fw[i, j, k]) * rho_o_cell
 
         # ------------------------------------------------------------------
         # Residuals per cell (update with q terms now defined)
@@ -1273,3 +1276,58 @@ class Simulator:
             F_p = F_p / self.scaler.p_scale
 
         return torch.cat([F_p, F_sw])
+
+    # ==================================================================
+    # ==                    SIMPLE DRIVER (main.py)                  ==
+    # ==================================================================
+    def run(self, output_filename: str = "run", save_vtk: bool = False):
+        """Minimal driver used by src/main.py to execute a full simulation.
+
+        Args:
+            output_filename: base name for result artefacts inside results/.
+            save_vtk: if True – write VTK after each output step and at the end.
+        """
+        from plotting.plotter import Plotter   # local import to avoid cycles
+        from output.vtk_writer import save_to_vtk
+        import os, datetime, time
+
+        # Resolve time parameters
+        dt_days = self.sim_params.get("time_step_days", self.dt / 86400.0)
+        total_days = self.sim_params.get("total_time_days", self.total_time / 86400.0)
+        dt_sec = dt_days * 86400.0
+        total_steps = int(total_days / dt_days + 1e-8)
+
+        results_dir = os.path.join("results", output_filename + "_" + datetime.datetime.now().strftime("%Y%m%d_%H%M%S"))
+        os.makedirs(results_dir, exist_ok=True)
+        plotter = Plotter(self.reservoir)
+
+        print(f"Запускаем {total_steps} шагов по {dt_days:.3f} суток (dt={dt_sec:.1f} c).")
+        t0 = time.time()
+        for step in range(total_steps):
+            print(f"\n=== Шаг {step+1}/{total_steps} ===")
+            ok = self.run_step(dt_sec)
+            if not ok:
+                print("Расчёт не сошёлся – прерываем.")
+                break
+
+            if (step % self.steps_per_output) == 0:
+                png_name = os.path.join(results_dir, f"frame_{step:04d}.png")
+                plotter.save_plots(self.fluid.pressure.cpu().numpy(),
+                                   self.fluid.s_w.cpu().numpy(),
+                                   png_name,
+                                   time_info=f"Day {dt_days*(step+1):.2f}")
+                if save_vtk:
+                    save_to_vtk(self.reservoir, self.fluid, filename=os.path.join(results_dir, f"state_{step:04d}"))
+
+        if save_vtk:
+            save_to_vtk(self.reservoir, self.fluid, filename=os.path.join(results_dir, "final"))
+
+        # Создаём GIF из сохранённых PNG (даже если save_vtk==False)
+        try:
+            from utils import create_animation
+            gif_path = os.path.join(results_dir, "animation.gif")
+            create_animation(results_dir, gif_path, fps=self.sim_params.get("gif_fps", 5))
+        except Exception as e:
+            print(f"[WARN] Не удалось создать GIF: {e}")
+
+        print(f"\nСимуляция завершена за {time.time()-t0:.1f} с. Результаты в {results_dir}")

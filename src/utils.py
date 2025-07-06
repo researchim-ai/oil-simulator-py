@@ -15,8 +15,8 @@ def create_animation(image_folder, output_path, fps=5):
     """
     images = []
 
-    # Регулярное выражение для извлечения номера шага из имени файла
-    regex = re.compile(r'_step_(\d+)\.png$')
+    # Поддерживаем два формата имён: frame_0001.png и foo_step_12.png
+    regex = re.compile(r'(?:^|_)(?:step|frame)_(\d+)\.png$')
 
     # Собираем файлы и их номера шагов
     file_tuples = []

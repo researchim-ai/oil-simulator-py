@@ -1,5 +1,6 @@
 import matplotlib.pyplot as plt
 import numpy as np
+from scipy.ndimage import gaussian_filter  # для мягкого сглаживания давления
 
 class Plotter:
     """
@@ -35,19 +36,57 @@ class Plotter:
         if time_info:
             title_suffix = f" ({time_info}, Срез Z={z_slice_idx})"
 
-        im1 = ax1.imshow(p_slice / 1e6, cmap='jet', origin='lower', aspect='auto')
+        # ------------------------------------------------------------------
+        # Давление – квадратные ячейки без «ступенек» DPI
+        # ------------------------------------------------------------------
+        nx, ny, _ = self.reservoir.dimensions
+        # Лёгкое Гауссово сглаживание (σ=1) делает градиент давления
+        p_img = gaussian_filter(p_slice / 1e6, sigma=1)
+
+        im1 = ax1.imshow(p_img,
+                         cmap='turbo',  # плавная непрерывная палитра без резких границ
+                         origin='lower',
+                         extent=(0, nx, 0, ny),
+                         interpolation='lanczos',
+                         aspect='equal')
+        ax1.set_aspect('equal', adjustable='box')
+        # Убираем тики – остаётся чистая картинка
+        ax1.tick_params(left=False, bottom=False, labelleft=False, labelbottom=False)
         ax1.set_title(f'Давление (МПа){title_suffix}')
         ax1.set_xlabel('Ячейка X')
         ax1.set_ylabel('Ячейка Y')
         fig.colorbar(im1, ax=ax1)
 
+        # ------------------------------------------------------------------
+        # Насыщенность – адаптивная шкала: если изменения <5%, зумим
+        # ------------------------------------------------------------------
         vmin = float(s_slice.min())
         vmax = float(s_slice.max())
-        if abs(vmax - vmin) < 1e-4:
-            # если изменений почти нет, задаём небольшой диапазон вокруг значения
-            vmin = max(0.0, vmin - 0.05)
-            vmax = min(1.0, vmax + 0.05)
-        im2 = ax2.imshow(s_slice, cmap='viridis', origin='lower', vmin=vmin, vmax=vmax, aspect='auto')
+        diff = vmax - vmin
+
+        # Очень маленькие изменения (<2 %) – показываем окошко 0.02, чтобы увидеть фронт
+        if diff < 0.02:
+            vmin = vmin
+            vmax = min(1.0, vmin + 0.02)
+        elif diff < 0.05:  # изменения 2–5 % – окно 0.05
+            vmax = min(1.0, vmin + 0.05)
+        elif diff < 1e-4:  # совсем нет изменений
+            vmin, vmax = 0.0, 1.0
+
+        # Подстраховка на случай vmin == vmax (одинаковая насыщенность)
+        if abs(vmax - vmin) < 1e-6:
+            vmin = max(0.0, vmin - 0.01)
+            vmax = min(1.0, vmax + 0.01)
+
+        # Используем более контрастную палитру и bilinear для плавности
+        im2 = ax2.imshow(s_slice,
+                         cmap='plasma',
+                         origin='lower',
+                         extent=(0, nx, 0, ny),
+                         interpolation='bilinear',
+                         vmin=vmin, vmax=vmax,
+                         aspect='equal')
+        ax2.set_aspect('equal', adjustable='box')
         ax2.set_title(f'Насыщенность водой{title_suffix}')
         ax2.set_xlabel('Ячейка X')
         ax2.set_ylabel('Ячейка Y')

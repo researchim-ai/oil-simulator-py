@@ -12,3 +12,5 @@ ruff
 gymnasium
 petsc4py
 mpi4py
+pyvista==0.43.4
+vtk==9.3.0

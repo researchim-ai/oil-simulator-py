@@ -24,7 +24,8 @@ class FullyImplicitSolver:
                                        backend=backend)
 
         # Newton params ----------------------------------------------------
-        self.tol = simulator.sim_params.get("newton_tolerance", 1e-6)
+        self.tol = simulator.sim_params.get("newton_tolerance", 1e-6)  # абсолютная
+        self.rtol = simulator.sim_params.get("newton_rtol", 1e-3)       # относительная
         self.max_it = simulator.sim_params.get("newton_max_iter", 15)
 
     def _Jv(self, x: torch.Tensor, v: torch.Tensor, dt):
@@ -57,11 +58,12 @@ class FullyImplicitSolver:
         # 🔍 ДИАГНОСТИКА: включаем для первой итерации
         self.sim._debug_residual_once = True
         
-        trust_radius = 5.0  # стартовое ограничение в безразмерном масштабе
+        trust_radius = 1e12  # практически без ограничения (оставляем для защиты от NaN)
         prev_F_norm = None
 
         # Diagnostics
         self.total_gmres_iters = 0
+        init_F_scaled = None  # значение невязки на первой итерации для относительного критерия
 
         for it in range(self.max_it):
             F_phys = self.sim._fi_residual_vec(x if self.scaler is None else self._unscale_x(x), dt)
@@ -74,10 +76,12 @@ class FullyImplicitSolver:
             
             # 🎯 Масштабируем по размеру системы
             F_scaled = F_norm / math.sqrt(len(F))
+            if init_F_scaled is None:
+                init_F_scaled = F_scaled  # сохраняем стартовую невязку
             print(f"  Newton #{it}: ||F||={F_norm:.3e}, ||F||_scaled={F_scaled:.3e}")
             
-            # Используем масштабированную невязку для проверки сходимости
-            if F_scaled < self.tol:
+            # Используем абсолютную И относительную невязку для проверки сходимости
+            if (F_scaled < self.tol) or (F_scaled < self.rtol * init_F_scaled):
                 print(f"  Newton сошелся за {it} итераций! (масштабированная невязка)")
                 # Expose diagnostics
                 self.last_newton_iters = it
@@ -151,12 +155,15 @@ class FullyImplicitSolver:
                     return x, False
 
             # 🚀 ПРОМЫШЛЕННЫЙ line-search с логированием
-            delta_norm = delta.norm()
-            print(f"  Line search: ||delta||={delta_norm:.3e}")
-            
+            Np = delta.shape[0] // 2
+            pressure_scaled = delta[:Np] / 1e6  # Па -> МПа для нормы
+            delta_scaled = torch.cat([pressure_scaled, delta[Np:]])
+            delta_norm_scaled = delta_scaled.norm()
+            print(f"  Line search: ||delta||_scaled={delta_norm_scaled:.3e}")
+
             factor = 1.0
-            if delta.norm() > trust_radius:
-                factor = trust_radius / (delta.norm() + 1e-12)
+            if delta_norm_scaled > trust_radius:
+                factor = trust_radius / (delta_norm_scaled + 1e-12)
             
             x_new = None
             while factor > 1e-4:

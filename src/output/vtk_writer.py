@@ -31,8 +31,9 @@ def save_to_vtk(reservoir, fluid, filename="simulation_results"):
     pressure_reshaped = pressure_mpa.reshape((nx, ny, nz), order='F')
     saturation_w_reshaped = saturation_w.reshape((nx, ny, nz), order='F')
     saturation_o_reshaped = saturation_o.reshape((nx, ny, nz), order='F')
-    perm_h_reshaped = reservoir.perm_h.cpu().numpy().reshape((nx, ny, nz), order='F')
-    perm_v_reshaped = reservoir.perm_v.cpu().numpy().reshape((nx, ny, nz), order='F')
+    # Используем доступные тензоры проницаемости
+    perm_h_reshaped = reservoir.permeability_x.cpu().numpy().reshape((nx, ny, nz), order='F')
+    perm_v_reshaped = reservoir.permeability_z.cpu().numpy().reshape((nx, ny, nz), order='F')
     
     # Создаем словарь с данными для ячеек
     cell_data = {
@@ -43,10 +44,14 @@ def save_to_vtk(reservoir, fluid, filename="simulation_results"):
         "Permeability_V": perm_v_reshaped
     }
     
-    # Формируем путь к файлу
-    results_dir = "results"
-    os.makedirs(results_dir, exist_ok=True)
-    filepath = os.path.join(results_dir, filename)
+    # Если пользователь передал путь с каталогами, считаем его полным.
+    if os.path.dirname(filename):
+        filepath = filename
+        os.makedirs(os.path.dirname(filepath), exist_ok=True)
+    else:
+        results_dir = "results"
+        os.makedirs(results_dir, exist_ok=True)
+        filepath = os.path.join(results_dir, filename)
 
     # Используем gridToVTK для сохранения данных
     gridToVTK(filepath, x, y, z, cellData=cell_data)
