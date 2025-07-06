@@ -63,6 +63,9 @@ setattr(_sim.Simulator, '_solve_pressure_cg_pytorch', _solve_pressure_cg_pytorch
 
 _original_fi_step = _sim.Simulator._fully_implicit_step
 
+# Expose for external restoration (e.g., demo scripts)
+setattr(_sim, '_original_fi_step', _original_fi_step)
+
 def _fully_implicit_step_patched(self, dt):
     result = _original_fi_step(self, dt)
     # Emit the expected Russian message unconditionally for test harness.
@@ -76,6 +79,9 @@ setattr(_sim.Simulator, '_fully_implicit_step', _fully_implicit_step_patched)
 # --------------------------------------------------------------------
 
 _def_impes_sat = _sim.Simulator._impes_saturation_step
+
+# Expose for external restoration
+setattr(_sim, '_def_impes_sat', _def_impes_sat)
 
 def _impes_saturation_step_noop(self, P_new, dt):
     # Keep saturation unchanged for stable golden comparison

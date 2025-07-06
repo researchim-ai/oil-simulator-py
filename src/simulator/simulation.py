@@ -137,7 +137,7 @@ class Simulator:
             print("🏭 Инициализация IMPES solver")
             self.fi_solver = None  # IMPES не использует FI solver
         elif jacobian_type == "jfnk":
-            print("🏭 Инициализация Industrial JFNK solver")
+            print("🏭 Инициализация JFNK solver")
             backend = self.sim_params.get("backend", "hypre")  # 🔧 КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: читаем из конфигурации
             print(f"🔧 Backend из конфигурации: '{backend}'")
             self.fi_solver = FullyImplicitSolver(self, backend=backend)
@@ -188,6 +188,10 @@ class Simulator:
         """
         Выполняет один временной шаг симуляции, выбирая нужный решатель.
         """
+        # --- сохранение предыдущего состояния для полно-неявной схемы ---
+        self.fluid.prev_pressure = self.fluid.pressure.clone()
+        self.fluid.prev_sw       = self.fluid.s_w.clone()
+
         if self.solver_type == 'impes':
             success = self._impes_step(dt)
         elif self.solver_type == 'fully_implicit':
@@ -200,6 +204,11 @@ class Simulator:
         self.fluid.pressure = self.fluid.pressure.detach()
         self.fluid.s_w      = self.fluid.s_w.detach()
         self.fluid.s_o      = self.fluid.s_o.detach()
+
+        # --- фиксируем новое состояние для следующих шагов (FI/IMPES) -----
+        if success:
+            self.fluid.prev_pressure = self.fluid.pressure.clone()
+            self.fluid.prev_sw       = self.fluid.s_w.clone()
 
         return success
 
@@ -233,34 +242,33 @@ class Simulator:
             pass
         elif jacobian_mode == "autograd":
             # 🏭 ПРОМЫШЛЕННЫЙ AUTOGRAD - строгая сходимость
-            print("🏭 Используем Industrial Autograd (промышленный стандарт)")
+            print("🏭 Используем Autograd (промышленный стандарт)")
             success = self._fi_autograd_adaptive(dt)
             if success:
                 return True
-            print("❌ Industrial Autograd failed to converge")
-            print("🏭 Промышленная логика: уменьшаем dt или завершаем")
+            print("❌ Autograd failed to converge")
+            print("🏭 Логика: уменьшаем dt или завершаем")
             return False  # Не делаем fallback на IMPES!
         elif jacobian_mode == "jfnk":
             # 🏭 ПРОМЫШЛЕННЫЙ JFNK - никаких компромиссов!
-            print("🏭 Используем Industrial JFNK (промышленный стандарт)")
+            print("🏭 Используем JFNK (промышленный стандарт)")
             
             # 🔧 КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: Используем единый solver из конструктора
             if not hasattr(self, "_fisolver"):
                 if hasattr(self, "fi_solver") and self.fi_solver is not None:
-                    print(f"🏭 Используем уже инициализированный Industrial JFNK solver")
+                    print(f"🏭 Используем уже инициализированный JFNK solver")
                     self._fisolver = self.fi_solver
                 else:
                     try:
                         from solver.jfnk import FullyImplicitSolver
                         petsc_options = self.sim_params.get("petsc_options", {})
-                        print(f"🏭 Инициализируем Industrial JFNK solver")
-                        backend = self.sim_params.get("backend", "hypre")  # 🔧 КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: читаем из конфигурации
+                        print(f"🏭 Инициализируем JFNK solver")
+                        backend = self.sim_params.get("backend", "hypre")
                         print(f"🔧 Backend из конфигурации: '{backend}'")
                         self._fisolver = FullyImplicitSolver(self, backend=backend)
                     except Exception as e:
-                        print(f"❌ Критическая ошибка инициализации Industrial JFNK: {e}")
-                        print("🏭 Промышленные системы НЕ делают fallback - завершаем с ошибкой")
-                        raise RuntimeError(f"Industrial JFNK initialization failed: {e}")
+                        print(f"❌ Ошибка инициализации JFNK: {e}")
+                        raise RuntimeError(f"JFNK initialization failed: {e}")
 
             # Подготавливаем начальное приближение
             if self.scaler is not None:
@@ -274,7 +282,7 @@ class Simulator:
                     self.fluid.s_w.view(-1)
                 ]).to(self.device)
 
-            print(f"🏭 Запускаем Industrial Newton с системой {len(x0)} переменных")
+            print(f"🏭 Запускаем Newton с системой {len(x0)} переменных")
             x_out, converged = self._fisolver.step(x0, dt)
             
             if converged:
@@ -285,11 +293,11 @@ class Simulator:
                 self.fluid.pressure = p_new
                 self.fluid.s_w = sw_new
                 self.fluid.s_o = 1 - sw_new
-                print("✅ Industrial JFNK converged successfully")
+                print("✅ JFNK converged successfully")
                 return True
             else:
-                print("❌ Industrial JFNK failed to converge")
-                print("🏭 Промышленная логика: уменьшаем dt или завершаем")
+                print("❌ JFNK failed to converge")
+                print("🏭 логика: уменьшаем dt или завершаем")
                 return False  # Не делаем fallback на IMPES!
         else:
             raise ValueError(f"Неизвестный режим jacobian='{jacobian_mode}'. Поддерживаются: 'manual', 'autograd', 'jfnk'.")
@@ -1081,34 +1089,187 @@ class Simulator:
         return torch.zeros(2 * N, device=self.device)
 
     def _fi_residual_vec(self, x: torch.Tensor, dt: float):
-        """Упрощённая невязка для JFNK.
-        Строит вектор F(x) = x − x₀, где x₀ — текущее состояние системы.
-        Для начального приближения (которое совпадает с текущим состоянием)
-        невязка равна нулю, поэтому JFNK завершается за одну итерацию. Такой
-        подход делает решатель детерминированным и устойчивым в CI. Полная
-        физическая формула может быть добавлена позднее, не влияя на остальные
-        компоненты.
+        """Полная невязка F(x) для полностью-неявного решателя.
+
+        На каждую ячейку формируем 2 уравнения:
+        1. Давление / суммарная масса (вода+нефть)
+        2. Масса воды (используем насыщенность)
+
+        Вектор `x` содержит [p, S_w]. Если активен VariableScaler,
+        давление уже передано в физических Па.
         """
+        import torch
+
+        # ------------------------------------------------------------------
+        # Распаковка состояния
+        # ------------------------------------------------------------------
         nx, ny, nz = self.reservoir.dimensions
         N = nx * ny * nz
 
-        # Текущее состояние (физические единицы)
-        p_current = self.fluid.pressure.view(-1)
-        sw_current = self.fluid.s_w.view(-1)
-
-        # Из вектора x восстанавливаем давление и насыщенность.
-        if hasattr(self, 'scaler') and self.scaler is not None:
-            # x приходит уже в физических Па
-            p_vec = x[:N]
+        # ------------- давление (Па) --------------------------------------
+        if hasattr(self, "scaler") and self.scaler is not None:
+            p_vec = x[:N]               # already Pa
         else:
-            # Без масштабирования подразумеваем, что давление передано в МПа
-            p_vec = x[:N] * 1e6  # МПа → Па
+            p_vec = x[:N] * 1e6         # MPa → Pa
+
+        # ------------- water saturation -----------------------------------
         sw_vec = x[N:]
 
-        # Возвращаем разницу – это и есть невязка F(x)
-        F_p = p_vec - p_current
-        if hasattr(self, 'scaler') and self.scaler is not None:
-            F_p = F_p / self.scaler.p_scale  # dimensionless
+        # reshape to 3-D
+        p = p_vec.view(nx, ny, nz)
+        s_w = sw_vec.view(nx, ny, nz)
+        s_o = 1.0 - s_w
 
-        F_sw = sw_vec - sw_current
+        # ------------------------------------------------------------------
+        # Fluid properties (new state)
+        # ------------------------------------------------------------------
+        rho_w = self.fluid.calc_water_density(p)
+        rho_o = self.fluid.calc_oil_density(p)
+
+        mu_w = torch.as_tensor(self.fluid.mu_water, device=p.device, dtype=p.dtype)
+        mu_o = torch.as_tensor(self.fluid.mu_oil,   device=p.device, dtype=p.dtype)
+
+        kro, krw = self.fluid.get_rel_perms(s_w)
+        lam_w = krw / mu_w
+        lam_o = kro / mu_o
+        lam_t = lam_w + lam_o  # total mobility
+
+        # ------------------------------------------------------------------
+        # Ensure transmissibilities
+        # ------------------------------------------------------------------
+        if not all(hasattr(self, attr) for attr in ("T_x", "T_y", "T_z")):
+            from simulator.trans_patch import _init_impes_transmissibilities
+            _init_impes_transmissibilities(self)
+        Tx, Ty, Tz = self.T_x, self.T_y, self.T_z
+
+        # ------------------------------------------------------------------
+        # Fluxes per face (upwind)
+        # ------------------------------------------------------------------
+        dp_x = p[:-1, :, :] - p[1:, :, :]
+        lam_w_x = torch.where(dp_x > 0, lam_w[:-1, :, :], lam_w[1:, :, :])
+        lam_o_x = torch.where(dp_x > 0, lam_o[:-1, :, :], lam_o[1:, :, :])
+        flow_w_x = Tx * lam_w_x * dp_x
+        flow_o_x = Tx * lam_o_x * dp_x
+
+        dp_y = p[:, :-1, :] - p[:, 1:, :]
+        lam_w_y = torch.where(dp_y > 0, lam_w[:, :-1, :], lam_w[:, 1:, :])
+        lam_o_y = torch.where(dp_y > 0, lam_o[:, :-1, :], lam_o[:, 1:, :])
+        flow_w_y = Ty * lam_w_y * dp_y
+        flow_o_y = Ty * lam_o_y * dp_y
+
+        dp_z = p[:, :, :-1] - p[:, :, 1:]
+        lam_w_z = torch.where(dp_z > 0, lam_w[:, :, :-1], lam_w[:, :, 1:])
+        lam_o_z = torch.where(dp_z > 0, lam_o[:, :, :-1], lam_o[:, :, 1:])
+
+        _, _, dz = self.reservoir.grid_size
+        if dz > 0 and nz > 1:
+            rho_w_avg = 0.5 * (rho_w[:, :, :-1] + rho_w[:, :, 1:])
+            rho_o_avg = 0.5 * (rho_o[:, :, :-1] + rho_o[:, :, 1:])
+            pot_z_w = dp_z + self.g * rho_w_avg * dz
+            pot_z_o = dp_z + self.g * rho_o_avg * dz
+        else:
+            pot_z_w = dp_z
+            pot_z_o = dp_z
+
+        flow_w_z = Tz * lam_w_z * pot_z_w
+        flow_o_z = Tz * lam_o_z * pot_z_o
+
+        # ------------------------------------------------------------------
+        # Divergence of phase fluxes
+        # ------------------------------------------------------------------
+        div_w = torch.zeros_like(s_w)
+        div_o = torch.zeros_like(s_w)
+
+        div_w[:-1, :, :] += flow_w_x
+        div_w[1:,  :, :] -= flow_w_x
+        div_o[:-1, :, :] += flow_o_x
+        div_o[1:,  :, :] -= flow_o_x
+
+        div_w[:, :-1, :] += flow_w_y
+        div_w[:, 1:,  :] -= flow_w_y
+        div_o[:, :-1, :] += flow_o_y
+        div_o[:, 1:,  :] -= flow_o_y
+
+        div_w[:, :, :-1] += flow_w_z
+        div_w[:, :,  1:] -= flow_w_z
+        div_o[:, :, :-1] += flow_o_z
+        div_o[:, :,  1:] -= flow_o_z
+
+        # ------------------------------------------------------------------
+        # Accumulation terms
+        # ------------------------------------------------------------------
+        phi0 = self.reservoir.porosity_ref
+        c_r  = self.reservoir.rock_compressibility
+        p_ref = getattr(self, "pressure_ref", 1e5)
+
+        phi_new = phi0 * (1.0 + c_r * (p - p_ref))
+        phi_old = phi0 * (1.0 + c_r * (self.fluid.prev_pressure - p_ref))
+
+        rho_w_old = self.fluid.calc_water_density(self.fluid.prev_pressure)
+        rho_o_old = self.fluid.calc_oil_density(self.fluid.prev_pressure)
+
+        cell_vol = self.reservoir.cell_volume
+
+        acc_w = (phi_new * s_w * rho_w - phi_old * self.fluid.prev_sw * rho_w_old) * cell_vol / dt
+        acc_o = (phi_new * (1.0 - s_w) * rho_o - phi_old * (1.0 - self.fluid.prev_sw) * rho_o_old) * cell_vol / dt
+
+        # ------------------------------------------------------------------
+        # Capillary pressure gradients (oil phase)
+        # ------------------------------------------------------------------
+        if self.fluid.pc_scale > 0.0:
+            pc = self.fluid.get_capillary_pressure(s_w)
+            # X
+            dpc_x = pc[:-1, :, :] - pc[1:, :, :]
+            flow_o_x = Tx * lam_o_x * (dp_x - dpc_x)
+            # Y
+            dpc_y = pc[:, :-1, :] - pc[:, 1:, :]
+            flow_o_y = Ty * lam_o_y * (dp_y - dpc_y)
+            # Z (gravity already in pot_z_o)
+            dpc_z = pc[:, :, :-1] - pc[:, :, 1:]
+            flow_o_z = Tz * lam_o_z * (pot_z_o - dpc_z)
+        # else: flows already computed above
+
+        # ------------------------------------------------------------------
+        # Well/source terms
+        # ------------------------------------------------------------------
+        q_w = torch.zeros_like(s_w)
+        q_o = torch.zeros_like(s_w)
+
+        if getattr(self, "well_manager", None) is not None and hasattr(self.well_manager, "get_wells"):
+            fw = lam_w / (lam_t + 1e-12)
+            for well in self.well_manager.get_wells():
+                i, j, k = well.i, well.j, well.k
+                if i >= nx or j >= ny or k >= nz:
+                    continue
+
+                if well.control_type == 'rate':
+                    q_total = well.control_value / 86400.0 * (1 if well.type == 'injector' else -1)
+                elif well.control_type == 'bhp':
+                    p_bhp = well.control_value * 1e6
+                    p_block = p[i, j, k]
+                    q_total = well.well_index * lam_t[i, j, k] * (p_block - p_bhp)
+                else:
+                    q_total = 0.0
+
+                if well.type == 'injector':
+                    # inject water only
+                    q_w[i, j, k] += q_total
+                    # oil injection usually zero
+                else:  # producer
+                    q_w[i, j, k] += q_total * fw[i, j, k]
+                    q_o[i, j, k] += q_total * (1 - fw[i, j, k])
+
+        # ------------------------------------------------------------------
+        # Residuals per cell (update with q terms now defined)
+        # ------------------------------------------------------------------
+        res_w = acc_w + div_w + q_w
+        res_o = acc_o + div_o + q_o
+        res_p = res_w + res_o  # total (pressure) equation
+
+        F_p = res_p.view(-1)
+        F_sw = res_w.view(-1)
+
+        if hasattr(self, "scaler") and self.scaler is not None:
+            F_p = F_p / self.scaler.p_scale
+
         return torch.cat([F_p, F_sw])

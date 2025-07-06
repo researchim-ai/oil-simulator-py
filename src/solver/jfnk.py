@@ -74,11 +74,11 @@ class FullyImplicitSolver:
             
             # 🎯 Масштабируем по размеру системы
             F_scaled = F_norm / math.sqrt(len(F))
-            print(f"  🚀 Newton #{it}: ||F||={F_norm:.3e}, ||F||_scaled={F_scaled:.3e}")
+            print(f"  Newton #{it}: ||F||={F_norm:.3e}, ||F||_scaled={F_scaled:.3e}")
             
             # Используем масштабированную невязку для проверки сходимости
             if F_scaled < self.tol:
-                print(f"  🚀 Newton сошелся за {it} итераций! (масштабированная невязка)")
+                print(f"  Newton сошелся за {it} итераций! (масштабированная невязка)")
                 # Expose diagnostics
                 self.last_newton_iters = it
                 self.last_gmres_iters = self.total_gmres_iters
@@ -93,7 +93,7 @@ class FullyImplicitSolver:
             eta_k = min(max(eta_k, 1e-8), 1e-1)
             gmres_tol = max(1e-8, eta_k)
             
-            print(f"  🚀 GMRES: tol={gmres_tol:.3e}")
+            print(f"  GMRES: tol={gmres_tol:.3e}")
             
             def A(v):
                 # Convert v to physical for Jv evaluation if scaling active
@@ -117,9 +117,9 @@ class FullyImplicitSolver:
                 gmres_restart = 30
                 gmres_maxiter = 100
                 
-            print(f"  🚀 GMRES: restart={gmres_restart}, max_iter={gmres_maxiter}")
+            print(f"  GMRES: restart={gmres_restart}, max_iter={gmres_maxiter}")
             
-            delta, info, gm_iters = gmres(
+            gmres_out = gmres(
                 A,
                 -F,
                 M=self.prec.apply,
@@ -128,17 +128,23 @@ class FullyImplicitSolver:
                 max_iter=gmres_maxiter,
             )
 
+            if len(gmres_out) == 3:
+                delta, info, gm_iters = gmres_out
+            else:
+                delta, info = gmres_out
+                gm_iters = gmres_maxiter  # pessimistic estimate
+
             self.total_gmres_iters += gm_iters
 
             if info != 0 or not torch.isfinite(delta).all():
-                print(f"  🚀 GMRES не сошёлся (info={info}), ||delta||={delta.norm():.3e}")
+                print(f"  GMRES не сошёлся (info={info}), ||delta||={delta.norm():.3e}")
                 
                 # 🎯 FALLBACK стратегия: простое демпфирование
                 if torch.isfinite(delta).all() and delta.norm() > 0:
-                    print(f"  🚀 Используем демпфированное решение GMRES")
+                    print(f"  Используем демпфированное решение GMRES")
                     delta = delta * 0.1  # Сильное демпфирование
                 else:
-                    print(f"  🚀 GMRES failed полностью. Прерывание JFNK.")
+                    print(f"  GMRES failed полностью. Прерывание JFNK.")
                     # On failure also expose iteration counts
                     self.last_newton_iters = self.max_it
                     self.last_gmres_iters = self.total_gmres_iters
@@ -146,7 +152,7 @@ class FullyImplicitSolver:
 
             # 🚀 ПРОМЫШЛЕННЫЙ line-search с логированием
             delta_norm = delta.norm()
-            print(f"  🚀 Line search: ||delta||={delta_norm:.3e}")
+            print(f"  Line search: ||delta||={delta_norm:.3e}")
             
             factor = 1.0
             if delta.norm() > trust_radius:
@@ -157,12 +163,12 @@ class FullyImplicitSolver:
                 x_candidate = x + factor * delta
                 if torch.isfinite(self.sim._fi_residual_vec(x_candidate, dt)).all():
                     x_new = x_candidate
-                    print(f"  🚀 Line search успешно: factor={factor:.3e}")
+                    print(f"  Line search успешно: factor={factor:.3e}")
                     break
                 factor *= 0.5
                 
             if x_new is None:
-                print(f"  🚀 Line search failed. Прерывание JFNK.")
+                print(f"  Line search failed. Прерывание JFNK.")
                 # On failure also expose iteration counts
                 self.last_newton_iters = self.max_it
                 self.last_gmres_iters = self.total_gmres_iters
@@ -179,7 +185,7 @@ class FullyImplicitSolver:
             x = x_new
             prev_F_norm = F_norm
             
-        print(f"  🚀 Newton не сошелся за {self.max_it} итераций")
+        print(f"  Newton не сошелся за {self.max_it} итераций")
         # On failure also expose iteration counts
         self.last_newton_iters = self.max_it
         self.last_gmres_iters = self.total_gmres_iters

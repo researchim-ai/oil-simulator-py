@@ -40,18 +40,18 @@ def gmres(A, b: torch.Tensor, M: Callable[[torch.Tensor], torch.Tensor] = None,
 
     # 🎯 ПРОМЫШЛЕННАЯ ДИАГНОСТИКА
     b_norm = torch.norm(b)
-    print(f"  🚀 GMRES: ||b||={b_norm:.3e}, tol={tol:.3e}, restart={restart}, max_iter={max_iter}")
+    print(f"  GMRES: ||b||={b_norm:.3e}, tol={tol:.3e}, restart={restart}, max_iter={max_iter}")
     
     if b_norm < 1e-15:
-        print("  🚀 GMRES: Нулевая RHS, возвращаем ноль")
+        print("  GMRES: Нулевая RHS, возвращаем ноль")
         return x, 0
 
     r = precond(b - _matvec(A, x))
     beta = torch.norm(r)
-    print(f"  🚀 GMRES: Начальная невязка ||r||={beta:.3e}")
+    print(f"  GMRES: Начальная невязка ||r||={beta:.3e}")
     
     if beta < tol * b_norm:
-        print("  🚀 GMRES: Уже сошлось на старте")
+        print("  GMRES: Уже сошлось на старте")
         return x, 0
 
     # Givens параметры
@@ -79,7 +79,7 @@ def gmres(A, b: torch.Tensor, M: Callable[[torch.Tensor], torch.Tensor] = None,
             # 🎯 МОНИТОРИНГ качества предобуславливателя
             if j == 0:
                 precond_effect = torch.norm(w) / torch.norm(V[j])
-                print(f"  🚀 GMRES: Эффективность предобуславливателя: {precond_effect:.3e}")
+                print(f"  GMRES: Эффективность предобуславливателя: {precond_effect:.3e}")
             
             # ортогонализация Gram-Schmidt
             for i in range(j + 1):
@@ -90,7 +90,7 @@ def gmres(A, b: torch.Tensor, M: Callable[[torch.Tensor], torch.Tensor] = None,
             
             # 🎯 ПРОВЕРКА на breakdown
             if H[j + 1, j] < 1e-15:
-                print(f"  🚀 GMRES: Breakdown на j={j}, ||w||={H[j + 1, j]:.3e}")
+                print(f"  GMRES: Breakdown на j={j}, ||w||={H[j + 1, j]:.3e}")
                 # Добавляем случайный вектор для продолжения
                 w = torch.randn_like(w) * 1e-12
                 H[j + 1, j] = torch.norm(w)
@@ -125,11 +125,11 @@ def gmres(A, b: torch.Tensor, M: Callable[[torch.Tensor], torch.Tensor] = None,
             
             # 🎯 ДИНАМИЧЕСКОЕ логирование прогресса
             if j % 10 == 0 or j < 5:
-                print(f"  🚀 GMRES: j={j}, ||r||={residual:.3e}, rel={relative_residual:.3e}")
+                print(f"  GMRES: j={j}, ||r||={residual:.3e}, rel={relative_residual:.3e}")
             
             # 🎯 ПРОВЕРКА сходимости
             if relative_residual < tol:
-                print(f"  🚀 GMRES: Сошлось на j={j}!")
+                print(f"  GMRES: Сошлось на j={j}!")
                 # вычисляем решение
                 try:
                     y = torch.linalg.solve(H[:j + 1, :j + 1], g[:j + 1])
@@ -139,10 +139,10 @@ def gmres(A, b: torch.Tensor, M: Callable[[torch.Tensor], torch.Tensor] = None,
                     
                     # 🎯 ФИНАЛЬНАЯ проверка
                     final_residual = torch.norm(b - _matvec(A, x))
-                    print(f"  🚀 GMRES: Финальная невязка: {final_residual:.3e}")
+                    print(f"  GMRES: Финальная невязка: {final_residual:.3e}")
                     return x, 0
                 except Exception as e:
-                    print(f"  🚀 GMRES: Ошибка в решении системы: {e}")
+                    print(f"  GMRES: Ошибка в решении системы: {e}")
                     break
             
             # 🎯 СОХРАНЕНИЕ лучшего решения
@@ -160,7 +160,7 @@ def gmres(A, b: torch.Tensor, M: Callable[[torch.Tensor], torch.Tensor] = None,
                 stagnation_count += 1
                 
         # 🎯 ПЕРЕЗАПУСК с улучшенной стратегией
-        print(f"  🚀 GMRES: Перезапуск после {restart} итераций, ||r||={residual:.3e}")
+        print(f"  GMRES: Перезапуск после {restart} итераций, ||r||={residual:.3e}")
         
         try:
             y = torch.linalg.solve(H[:restart, :restart], g[:restart])
@@ -168,7 +168,7 @@ def gmres(A, b: torch.Tensor, M: Callable[[torch.Tensor], torch.Tensor] = None,
             update = sum(y[i] * V[i] for i in range(max_i))
             x = x + update
         except Exception as e:
-            print(f"  🚀 GMRES: Ошибка в перезапуске: {e}, используем лучшее решение")
+            print(f"  GMRES: Ошибка в перезапуске: {e}, используем лучшее решение")
             x = best_x.clone()
             
         # новый резидуал
@@ -176,15 +176,15 @@ def gmres(A, b: torch.Tensor, M: Callable[[torch.Tensor], torch.Tensor] = None,
         beta = torch.norm(r)
         relative_residual = beta / b_norm
         
-        print(f"  🚀 GMRES: После перезапуска: ||r||={beta:.3e}, rel={relative_residual:.3e}")
+        print(f"  GMRES: После перезапуска: ||r||={beta:.3e}, rel={relative_residual:.3e}")
         
         if relative_residual < tol:
-            print("  🚀 GMRES: Сошлось после перезапуска!")
+            print("  GMRES: Сошлось после перезапуска!")
             return x, 0
             
         # 🎯 АДАПТИВНАЯ стратегия против стагнации
         if stagnation_count > 20:
-            print("  🚀 GMRES: Стагнация обнаружена, используем лучшее решение")
+            print("  GMRES: Стагнация обнаружена, используем лучшее решение")
             return best_x, 1
             
         # подготовка к следующему циклу
@@ -195,6 +195,6 @@ def gmres(A, b: torch.Tensor, M: Callable[[torch.Tensor], torch.Tensor] = None,
         outer += restart
         
     # 🎯 ВОЗВРАТ лучшего найденного решения
-    print(f"  🚀 GMRES: Не сошлось за {max_iter} итераций")
-    print(f"  🚀 GMRES: Лучшая невязка: {best_residual:.3e}")
+    print(f"  GMRES: Не сошлось за {max_iter} итераций")
+    print(f"  GMRES: Лучшая невязка: {best_residual:.3e}")
     return best_x, 1 

@@ -9,8 +9,23 @@ from __future__ import annotations
 from typing import Callable, Tuple
 import torch
 
-# Import the reference implementation (simple but robust)
-from solver.krylov import gmres as _gmres_base
+# ---------------------------------------------------------------------------
+# Robust import of reference GMRES implementation.  In CI the repository root
+# (with `src/`) is *not* on PYTHONPATH at the time this module is imported, so
+# a plain `import solver.krylov` may fail.  We attempt the import, and if it
+# raises `ModuleNotFoundError`, we prepend the parent directory of *this* file
+# (which is the repo root) **and** the "src" sub-directory to `sys.path` and
+# retry.
+# ---------------------------------------------------------------------------
+import importlib, os, sys
+
+try:
+    from solver.krylov import gmres as _gmres_base  # type: ignore
+except ModuleNotFoundError:
+    repo_root = os.path.dirname(os.path.abspath(__file__))
+    sys.path.insert(0, repo_root)
+    sys.path.insert(0, os.path.join(repo_root, "src"))
+    _gmres_base = importlib.import_module("solver.krylov").gmres  # type: ignore
 
 
 def gmres(
