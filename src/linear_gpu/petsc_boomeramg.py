@@ -1,5 +1,11 @@
 import numpy as np
-from petsc4py import PETSc
+try:
+    from petsc4py import PETSc
+    HAVE_PETSC = True
+except ImportError:
+    HAVE_PETSC = False
+    PETSc = None
+    print("[WARN] petsc4py не найден – BoomerAMG будет недоступен, используется Jacobi")
 import sys
 
 
@@ -28,6 +34,8 @@ def solve_boomeramg(indptr, indices, data, b, tol=1e-8, max_iter=1000, atol=1e-5
     res : float
         Итоговая относительная невязка.
     """
+    if not HAVE_PETSC:
+        raise RuntimeError("petsc4py отсутствует – BoomerAMG недоступен")
     n = b.shape[0]
 
     # 🔧 КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: Правильная инициализация PETSc

@@ -101,10 +101,10 @@ class FullyImplicitSolver:
             
             def A(v):
                 # Convert v to physical for Jv evaluation if scaling active
+                Ncells = self.sim.reservoir.dimensions[0]*self.sim.reservoir.dimensions[1]*self.sim.reservoir.dimensions[2]
                 if self.scaler is not None:
-                    Np = v.shape[0] // 2
                     v_phys = v.clone()
-                    v_phys[:Np] = v[:Np] * self.scaler.p_scale
+                    v_phys[:Ncells] = v[:Ncells] * self.scaler.p_scale
                 else:
                     v_phys = v
 
@@ -155,9 +155,9 @@ class FullyImplicitSolver:
                     return x, False
 
             # 🚀 ПРОМЫШЛЕННЫЙ line-search с логированием
-            Np = delta.shape[0] // 2
-            pressure_scaled = delta[:Np] / 1e6  # Па -> МПа для нормы
-            delta_scaled = torch.cat([pressure_scaled, delta[Np:]])
+            Ncells = delta.shape[0] // (3 if delta.shape[0] % 2 == 0 and delta.shape[0] // (delta.shape[0] // 2) == 3 else 2)
+            pressure_scaled = delta[:Ncells] / 1e6
+            delta_scaled = torch.cat([pressure_scaled, delta[Ncells:]])
             delta_norm_scaled = delta_scaled.norm()
             print(f"  Line search: ||delta||_scaled={delta_norm_scaled:.3e}")
 
@@ -202,10 +202,10 @@ class FullyImplicitSolver:
     # helpers
     # ------------------------------------------------------------------
     def _unscale_x(self, x_hat: torch.Tensor) -> torch.Tensor:
-        """Convert scaled vector back to physical units."""
+        """Convert scaled vector back to physical units, supports 2/3 vars per cell."""
         if self.scaler is None:
             return x_hat
-        Np = x_hat.shape[0] // 2
+        Ncells = self.sim.reservoir.dimensions[0]*self.sim.reservoir.dimensions[1]*self.sim.reservoir.dimensions[2]
         x_phys = x_hat.clone()
-        x_phys[:Np] = x_hat[:Np] * self.scaler.p_scale  # back to Pa
+        x_phys[:Ncells] = x_hat[:Ncells] * self.scaler.p_scale  # back to Pa
         return x_phys 

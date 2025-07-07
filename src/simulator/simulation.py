@@ -191,6 +191,8 @@ class Simulator:
         # --- сохранение предыдущего состояния для полно-неявной схемы ---
         self.fluid.prev_pressure = self.fluid.pressure.clone()
         self.fluid.prev_sw       = self.fluid.s_w.clone()
+        if hasattr(self.fluid, 's_g'):
+            self.fluid.prev_sg   = self.fluid.s_g.clone()
 
         if self.solver_type == 'impes':
             success = self._impes_step(dt)
@@ -204,11 +206,15 @@ class Simulator:
         self.fluid.pressure = self.fluid.pressure.detach()
         self.fluid.s_w      = self.fluid.s_w.detach()
         self.fluid.s_o      = self.fluid.s_o.detach()
+        if hasattr(self.fluid, 's_g'):
+            self.fluid.s_g      = self.fluid.s_g.detach()
 
         # --- фиксируем новое состояние для следующих шагов (FI/IMPES) -----
         if success:
             self.fluid.prev_pressure = self.fluid.pressure.clone()
             self.fluid.prev_sw       = self.fluid.s_w.clone()
+            if hasattr(self.fluid, 's_g'):
+                self.fluid.prev_sg   = self.fluid.s_g.clone()
 
         return success
 
@@ -271,16 +277,33 @@ class Simulator:
                         raise RuntimeError(f"JFNK initialization failed: {e}")
 
             # Подготавливаем начальное приближение
-            if self.scaler is not None:
-                x0 = torch.cat([
-                    self.scaler.p_to_hat(self.fluid.pressure.view(-1)),
-                    self.fluid.s_w.view(-1)
-                ]).to(self.device)
+            Ncells = self.reservoir.dimensions[0]*self.reservoir.dimensions[1]*self.reservoir.dimensions[2]
+            if hasattr(self.fluid, 's_g'):
+                # Трёхфазный вектор [P, Sw, Sg]
+                if self.scaler is not None:
+                    x0 = torch.cat([
+                        self.scaler.p_to_hat(self.fluid.pressure.view(-1)),
+                        self.fluid.s_w.view(-1),
+                        self.fluid.s_g.view(-1)
+                    ]).to(self.device)
+                else:
+                    x0 = torch.cat([
+                        (self.fluid.pressure.view(-1) / 1e6),
+                        self.fluid.s_w.view(-1),
+                        self.fluid.s_g.view(-1)
+                    ]).to(self.device)
             else:
-                x0 = torch.cat([
-                    (self.fluid.pressure.view(-1) / 1e6),  # fallback scaling
-                    self.fluid.s_w.view(-1)
-                ]).to(self.device)
+                # Двухфазный как раньше
+                if self.scaler is not None:
+                    x0 = torch.cat([
+                        self.scaler.p_to_hat(self.fluid.pressure.view(-1)),
+                        self.fluid.s_w.view(-1)
+                    ]).to(self.device)
+                else:
+                    x0 = torch.cat([
+                        (self.fluid.pressure.view(-1) / 1e6),
+                        self.fluid.s_w.view(-1)
+                    ]).to(self.device)
 
             print(f"Запускаем Newton для {len(x0)} переменных")
             x_out, converged = self._fisolver.step(x0, dt)
@@ -289,10 +312,21 @@ class Simulator:
                 # Обновляем решение
                 N = self.reservoir.dimensions[0]*self.reservoir.dimensions[1]*self.reservoir.dimensions[2]
                 p_new = (x_out[:N] * 1e6).view(self.reservoir.dimensions)
-                sw_new = x_out[N:].view(self.reservoir.dimensions).clamp(self.fluid.sw_cr, 1-self.fluid.so_r)
+                if x_out.shape[0] == 3*N:
+                    sw_new = x_out[N:2*N].view(self.reservoir.dimensions)
+                    sg_new = x_out[2*N:].view(self.reservoir.dimensions)
+                    # Корректируем насыщенности
+                    sw_new = sw_new.clamp(self.fluid.sw_cr, 1.0)
+                    sg_new = sg_new.clamp(0.0, 1.0 - sw_new)
+                    so_new = 1.0 - sw_new - sg_new
+                    self.fluid.s_w = sw_new
+                    self.fluid.s_g = sg_new
+                    self.fluid.s_o = so_new
+                else:
+                    sw_new = x_out[N:].view(self.reservoir.dimensions).clamp(self.fluid.sw_cr, 1-self.fluid.so_r)
+                    self.fluid.s_w = sw_new
+                    self.fluid.s_o = 1 - sw_new
                 self.fluid.pressure = p_new
-                self.fluid.s_w = sw_new
-                self.fluid.s_o = 1 - sw_new
                 print("JFNK converged successfully")
                 return True
             else:
@@ -323,6 +357,8 @@ class Simulator:
             self.fluid.pressure = self.fluid.pressure.clone()
             self.fluid.s_w = self.fluid.s_w.clone()
             self.fluid.s_o = 1.0 - self.fluid.s_w
+            if hasattr(self.fluid, 's_g'):
+                self.fluid.s_g = 1.0 - self.fluid.s_w - self.fluid.s_o
             
             print("Решатель не сошелся. Уменьшаем шаг времени.")
             current_dt /= self.sim_params.get("dt_reduction_factor", 2.0)
@@ -460,8 +496,8 @@ class Simulator:
                     rho_o = self.fluid.calc_oil_density(p_vec)
                 
                 # Вязкости (константы)
-                mu_w = self.fluid.mu_water * torch.ones_like(p_vec)
-                mu_o = self.fluid.mu_oil * torch.ones_like(p_vec)
+                mu_w = self.fluid.calc_water_viscosity(p_vec)
+                mu_o = self.fluid.calc_oil_viscosity(p_vec)
                 
                 # Расчет относительных проницаемостей и их производных
                 kr_w = self.fluid.calc_water_kr(sw_vec)
@@ -876,13 +912,17 @@ class Simulator:
         P_prev = self.fluid.pressure
         S_w = self.fluid.s_w
 
-        kro, krw = self.fluid.get_rel_perms(S_w)
+        S_g = getattr(self.fluid, 's_g', torch.zeros_like(S_w))
+        kro, krw, krg = self.fluid.get_rel_perms_three(S_w, S_g) if hasattr(self.fluid, 'get_rel_perms_three') else (*self.fluid.get_rel_perms(S_w), torch.zeros_like(S_w))
         mu_o_pas = self.fluid.mu_oil
         mu_w_pas = self.fluid.mu_water
+        mu_g_pas = getattr(self.fluid, 'mu_gas', 1e-4)  # Па·с
 
         mob_w = krw / mu_w_pas
         mob_o = kro / mu_o_pas
-        mob_t = mob_w + mob_o
+        mob_g = krg / mu_g_pas
+
+        mob_t = mob_w + mob_o + mob_g
 
         # 2. Трансмиссивности с учётом апстрима
         dp_x_prev = P_prev[:-1,:,:] - P_prev[1:,:,:]
@@ -902,7 +942,7 @@ class Simulator:
 
         # 4. Сборка матрицы и RHS
         A, A_diag = self._build_pressure_matrix_vectorized(Tx_t, Ty_t, Tz_t, dt, well_bhp_terms)
-        Q = self._build_pressure_rhs(dt, P_prev, mob_w, mob_o, q_wells, dp_x_prev, dp_y_prev, dp_z_prev)
+        Q = self._build_pressure_rhs(dt, P_prev, mob_w, mob_o, mob_g, q_wells, dp_x_prev, dp_y_prev, dp_z_prev)
 
         # 5. Параметры CG из конфигурации
         cg_tol_base = self.sim_params.get("cg_tolerance", 1e-6)
@@ -926,14 +966,17 @@ class Simulator:
     def _impes_saturation_step(self, P_new, dt):
         """ Явный шаг для обновления насыщенности в схеме IMPES. """
         S_w_old = self.fluid.s_w
+        S_g_old = getattr(self.fluid, 's_g', torch.zeros_like(S_w_old))
 
-        kro, krw = self.fluid.get_rel_perms(S_w_old)
+        kro, krw, krg = self.fluid.get_rel_perms_three(S_w_old, S_g_old) if hasattr(self.fluid, 'get_rel_perms_three') else (*self.fluid.get_rel_perms(S_w_old), torch.zeros_like(S_w_old))
         mu_o_pas = self.fluid.mu_oil
         mu_w_pas = self.fluid.mu_water
+        mu_g_pas = getattr(self.fluid, 'mu_gas', 1e-4)
 
         mob_w = krw / mu_w_pas
         mob_o = kro / mu_o_pas
-        mob_t = mob_w + mob_o
+        mob_g = krg / mu_g_pas
+        mob_t = mob_w + mob_o + mob_g
 
         # 1. Градиенты давления и апстрим мобильностей
         dp_x = P_new[:-1,:,:] - P_new[1:,:,:]
@@ -944,27 +987,47 @@ class Simulator:
         mob_w_y = torch.where(dp_y > 0, mob_w[:,:-1,:], mob_w[:,1:,:])
         mob_w_z = torch.where(dp_z > 0, mob_w[:,:,:-1], mob_w[:,:,1:])
 
+        mob_g_x = torch.where(dp_x > 0, mob_g[:-1,:,:], mob_g[1:,:,:])
+        mob_g_y = torch.where(dp_y > 0, mob_g[:,:-1,:], mob_g[:,1:,:])
+        mob_g_z = torch.where(dp_z > 0, mob_g[:,:,:-1], mob_g[:,:,1:])
+
         # 2. Потенциалы с учётом гравитации
         _, _, dz = self.reservoir.grid_size
         if dz > 0 and self.reservoir.nz > 1:
             rho_w_avg = 0.5 * (self.fluid.rho_w[:,:,:-1] + self.fluid.rho_w[:,:,1:])
-            pot_z = dp_z + self.g * rho_w_avg * dz
+            rho_g_avg = 0.5 * (self.fluid.rho_g[:,:,:-1] + self.fluid.rho_g[:,:,1:])
+            pot_z_w = dp_z + self.g * rho_w_avg * dz
+            pot_z_g = dp_z + self.g * rho_g_avg * dz
         else:
-            pot_z = dp_z
+            pot_z_w = dp_z
+            pot_z_g = dp_z
 
         # 3. Расходы воды
         flow_w_x = self.T_x * mob_w_x * dp_x
         flow_w_y = self.T_y * mob_w_y * dp_y
-        flow_w_z = self.T_z * mob_w_z * pot_z
+        flow_w_z = self.T_z * mob_w_z * pot_z_w
+
+        flow_g_x = self.T_x * mob_g_x * dp_x
+        flow_g_y = self.T_y * mob_g_y * dp_y
+        flow_g_z = self.T_z * mob_g_z * pot_z_g
 
         # 4. Дивергенция
-        div_flow = torch.zeros_like(S_w_old)
-        div_flow[:-1, :, :] += flow_w_x
-        div_flow[1:, :, :]  -= flow_w_x
-        div_flow[:, :-1, :] += flow_w_y
-        div_flow[:, 1:, :]  -= flow_w_y
-        div_flow[:, :, :-1] += flow_w_z
-        div_flow[:, :, 1:]  -= flow_w_z
+        div_w = torch.zeros_like(S_w_old)
+        div_g = torch.zeros_like(S_w_old)
+
+        div_w[:-1, :, :] += flow_w_x
+        div_w[1:, :, :]  -= flow_w_x
+        div_w[:, :-1, :] += flow_w_y
+        div_w[:, 1:, :]  -= flow_w_y
+        div_w[:, :, :-1] += flow_w_z
+        div_w[:, :, 1:]  -= flow_w_z
+
+        div_g[:-1, :, :] += flow_g_x
+        div_g[1:, :, :]  -= flow_g_x
+        div_g[:, :-1, :] += flow_g_y
+        div_g[:, 1:, :]  -= flow_g_y
+        div_g[:, :, :-1] += flow_g_z
+        div_g[:, :, 1:]  -= flow_g_z
 
         # 5. Источники/стоки воды от скважин
         q_w = torch.zeros_like(S_w_old)
@@ -984,16 +1047,27 @@ class Simulator:
                 q_w[i, j, k] += (-q_total) if well.type == 'injector' else (-q_total * fw[i, j, k])
 
         # 6. Обновление насыщенности с ограничением максимального изменения
-        dSw = (dt / self.porous_volume) * (q_w - div_flow)
-        sw_mean = float(self.fluid.s_w.mean().item())
-        max_sw_cfg = self.sim_params.get("max_saturation_change", 0.05)
-        max_sw_step = max(max_sw_cfg, 0.3 * (1 - sw_mean), 0.15)
-        dSw_clamped = dSw.clamp(-max_sw_step, max_sw_step)
+        dSw = -div_w * dt / self.reservoir.porous_volume
+        dSg = -div_g * dt / self.reservoir.porous_volume
 
-        S_w_new = (S_w_old + dSw_clamped).clamp(self.fluid.sw_cr, 1.0 - self.fluid.so_r)
+        max_sw_step = self.sim_params.get("max_sw_step", 0.2)
+        dSw_clamped = dSw.clamp(-max_sw_step, max_sw_step)
+        dSg_clamped = dSg.clamp(-max_sw_step, max_sw_step)
+
+        S_w_new = (S_w_old + dSw_clamped).clamp(self.fluid.sw_cr, 1.0)
+        S_g_new = (S_g_old + dSg_clamped).clamp(0.0, 1.0)
+        # Нормируем, чтобы сумма ≤1
+        sum_s = S_w_new + S_g_new
+        mask = sum_s > 1.0
+        S_w_new[mask] = S_w_new[mask] / sum_s[mask]
+        S_g_new[mask] = S_g_new[mask] / sum_s[mask]
 
         self.fluid.s_w = S_w_new
-        self.fluid.s_o = 1.0 - self.fluid.s_w
+        if hasattr(self.fluid, 's_g'):
+            self.fluid.s_g = S_g_new
+            self.fluid.s_o = 1.0 - self.fluid.s_w - self.fluid.s_g
+        else:
+            self.fluid.s_o = 1.0 - self.fluid.s_w
 
         affected_cells = torch.sum(torch.abs(dSw) > 1e-8).item()
         print(
@@ -1033,7 +1107,7 @@ class Simulator:
         A = torch.sparse_coo_tensor(torch.stack([final_rows, final_cols]), final_vals, (N, N))
         return A.coalesce(), diag_vals
 
-    def _build_pressure_rhs(self, dt, P_prev, mob_w, mob_o, q_wells, dp_x_prev, dp_y_prev, dp_z_prev):
+    def _build_pressure_rhs(self, dt, P_prev, mob_w, mob_o, mob_g, q_wells, dp_x_prev, dp_y_prev, dp_z_prev):
         """ Собирает правую часть Q для СЛАУ IMPES. """
         N = self.reservoir.nx * self.reservoir.ny * self.reservoir.nz
         compressibility_term = ((self.porous_volume.view(-1) * self.fluid.cf.view(-1) / dt).float() * P_prev.view(-1).float())
@@ -1042,9 +1116,12 @@ class Simulator:
         if dz > 0 and self.reservoir.nz > 1:
             mob_w_z = torch.where(dp_z_prev > 0, mob_w[:,:,:-1], mob_w[:,:,1:])
             mob_o_z = torch.where(dp_z_prev > 0, mob_o[:,:,:-1], mob_o[:,:,1:])
+            mob_g_z = torch.where(dp_z_prev > 0, mob_g[:,:,:-1], mob_g[:,:,1:])
             rho_w_z = torch.where(dp_z_prev > 0, self.fluid.rho_w[:,:,:-1], self.fluid.rho_w[:,:,1:])
             rho_o_z = torch.where(dp_z_prev > 0, self.fluid.rho_o[:,:,:-1], self.fluid.rho_o[:,:,1:])
-            grav_flow = self.T_z * self.g * dz * (mob_w_z * rho_w_z + mob_o_z * rho_o_z)
+            rho_g_z = torch.where(dp_z_prev > 0, self.fluid.rho_g[:,:,:-1] if hasattr(self.fluid,'rho_g') else torch.zeros_like(rho_w_z),
+                                   self.fluid.rho_g[:,:,1:] if hasattr(self.fluid,'rho_g') else torch.zeros_like(rho_w_z))
+            grav_flow = self.T_z * self.g * dz * (mob_w_z * rho_w_z + mob_o_z * rho_o_z + mob_g_z * rho_g_z)
             Q_g[:,:,:-1] -= grav_flow
             Q_g[:,:,1:]  += grav_flow
         Q_pc = torch.zeros_like(P_prev)
@@ -1168,8 +1245,8 @@ class Simulator:
         rho_w = self.fluid.calc_water_density(p)
         rho_o = self.fluid.calc_oil_density(p)
 
-        mu_w = torch.as_tensor(self.fluid.mu_water, device=p.device, dtype=p.dtype)
-        mu_o = torch.as_tensor(self.fluid.mu_oil,   device=p.device, dtype=p.dtype)
+        mu_w = self.fluid.calc_water_viscosity(p)
+        mu_o = self.fluid.calc_oil_viscosity(p)
 
         kro, krw = self.fluid.get_rel_perms(s_w)
         lam_w = krw / mu_w

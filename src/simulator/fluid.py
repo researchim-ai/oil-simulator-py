@@ -23,45 +23,91 @@ class Fluid:
         # Начальные значения
         initial_pressure = config.get('pressure', 20.0) * 1e6  # МПа -> Па
         initial_sw = config.get('s_w', 0.2)
+        initial_sg = config.get('s_g', 0.0)
+        if initial_sg < 0 or initial_sg > 1 - initial_sw:
+            raise ValueError("s_g должна быть в диапазоне [0, 1 - s_w]")
         
-        # Свойства флюидов
-        self.mu_oil = config.get('mu_oil', 1.0) * 1e-3  # сП -> Па*с
-        self.mu_water = config.get('mu_water', 0.5) * 1e-3  # сП -> Па*с
+        # ------------------------------------------------------------------
+        # 1. Свойства флюидов – постоянные по умолчанию
+        # ------------------------------------------------------------------
+        self.mu_oil   = float(config.get('mu_oil', 1.0))   * 1e-3  # сП → Па·с
+        self.mu_water = float(config.get('mu_water', 0.5)) * 1e-3  # сП → Па·с
+        self.mu_gas   = float(config.get('mu_gas', 0.05)) * 1e-3  # сП → Па·с
+        
+        # ------------------------------------------------------------------
+        # 2. PVT-таблицы (опционально)
+        # ------------------------------------------------------------------
+        self._use_pvt = False
+        pvt_cfg = config.get('pvt', None)
+        if pvt_cfg is not None:
+            try:
+                # Давление в МПа → Па
+                self._p_grid = torch.tensor(pvt_cfg['pressure'], dtype=torch.float32) * 1e6
+                # Таблицы свойств (приводим единицы):
+                # Плотности (кг/м3)
+                self._rho_o_table = torch.tensor(pvt_cfg.get('rho_oil', []), dtype=torch.float32)
+                self._rho_w_table = torch.tensor(pvt_cfg.get('rho_water', []), dtype=torch.float32)
+                self._rho_g_table = torch.tensor(pvt_cfg.get('rho_gas', []), dtype=torch.float32)
+                # Вязкости (cP → Pa·s)
+                self._mu_o_table  = torch.tensor(pvt_cfg.get('mu_oil', []), dtype=torch.float32)  * 1e-3
+                self._mu_w_table  = torch.tensor(pvt_cfg.get('mu_water', []), dtype=torch.float32) * 1e-3
+                self._mu_g_table  = torch.tensor(pvt_cfg.get('mu_gas', []), dtype=torch.float32)  * 1e-3
+
+                # Проверка длины
+                n_p = self._p_grid.numel()
+                assert all(tbl.numel() == n_p for tbl in (self._rho_o_table,
+                                                          self._rho_w_table,
+                                                          self._rho_g_table,
+                                                          self._mu_o_table,
+                                                          self._mu_w_table,
+                                                          self._mu_g_table)), \
+                    "Все PVT-таблицы должны иметь ту же длину, что и pressure[]"
+
+                # Убедимся, что сетка давления отсортирована по возрастанию
+                if not torch.all(self._p_grid[1:] >= self._p_grid[:-1]):
+                    raise ValueError("pvt.pressure должен быть отсортирован по возрастанию")
+
+                # По умолчанию храним таблицы на CPU; при вызове перенесём на нужное устройство
+                self._use_pvt = True
+                print("[Fluid] PVT-таблицы загружены (", n_p, "точек)")
+            except Exception as e:
+                print(f"[WARN] Ошибка при чтении PVT-таблиц: {e}. Используем константы.")
         
         # Плотности
-        self.rho_oil_ref = config.get('rho_oil', 850.0)  # кг/м^3
-        self.rho_water_ref = config.get('rho_water', 1000.0)  # кг/м^3
+        self.rho_oil_ref   = float(config.get('rho_oil', 850.0))   # кг/м3
+        self.rho_water_ref = float(config.get('rho_water', 1000.0)) # кг/м3
+        self.rho_gas_ref   = float(config.get('rho_gas', 150.0))   # кг/м3
         
         # Сжимаемость (1/Па)
-        self.oil_compressibility = config.get('c_oil', 1e-5) / 1e6  # 1/МПа -> 1/Па
-        self.water_compressibility = config.get('c_water', 1e-5) / 1e6  # 1/МПа -> 1/Па
-        self.rock_compressibility = config.get('c_rock', 1e-5) / 1e6  # 1/МПа -> 1/Па
+        self.oil_compressibility   = float(config.get('c_oil', 1e-5))   / 1e6  # 1/Па
+        self.water_compressibility = float(config.get('c_water', 1e-5)) / 1e6
+        self.gas_compressibility   = float(config.get('c_gas', 3e-4)) / 1e6
+        self.rock_compressibility  = float(config.get('c_rock', 1e-5))  / 1e6
         
-        # 🔧 КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: правильное опорное давление для сжимаемости
-        self.pressure_ref = getattr(reservoir, 'pressure_ref', 1e5)
-        print(f"🔧 Опорное давление для плотности: {self.pressure_ref:.0f} Па ({self.pressure_ref/1e6:.1f} МПа)")
-        
-        # 🔧 КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: правильное опорное давление для сжимаемости
+        # КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: правильное опорное давление для сжимаемости
         self.pressure_ref = getattr(reservoir, 'pressure_ref', 1e5)
         print(f"🔧 Опорное давление для плотности: {self.pressure_ref:.0f} Па ({self.pressure_ref/1e6:.1f} МПа)")
         
         # Совокупная сжимаемость флюида (используется в IMPES)
-        total_c = (self.oil_compressibility + self.water_compressibility + self.rock_compressibility) / 2
+        total_c = (self.oil_compressibility + self.water_compressibility + self.gas_compressibility + self.rock_compressibility) / 2
         self.cf = torch.full(self.dimensions, total_c, device=self.device)
         
         # Параметры модели относительной проницаемости
         rp_cfg = config.get('relative_permeability', {})
         self.nw    = rp_cfg.get('nw', 2)           # Показатель Кори для воды
         self.no    = rp_cfg.get('no', 2)           # Показатель Кори для нефти
+        self.ng    = rp_cfg.get('ng', 2)           # Показатель Кори для газа
         self.sw_cr = rp_cfg.get('sw_cr', 0.2)      # Связанная водонасыщенность
         self.so_r  = rp_cfg.get('so_r', 0.2)       # Остаточная нефтенасыщенность
         
         # Инициализация полей
         self.pressure = torch.full(self.dimensions, initial_pressure, device=self.device)
         self.s_w = torch.full(self.dimensions, initial_sw, device=self.device)
-        self.s_o = 1.0 - self.s_w
+        self.s_g = torch.full(self.dimensions, initial_sg, device=self.device)
+        self.s_o = 1.0 - self.s_w - self.s_g
         self.prev_pressure = self.pressure.clone()
         self.prev_sw = self.s_w.clone()
+        self.prev_sg = self.s_g.clone()
         
         # Сохраняем предыдущее состояние для неявных расчетов
         self.prev_water_mass = None
@@ -82,8 +128,11 @@ class Fluid:
         print("Инициализация флюидов и начальных условий...")
         print(f"  Начальное давление: {initial_pressure/1e6:.2f} МПа")
         print(f"  Начальная водонасыщенность: {initial_sw}")
+        print(f"  Начальная газонасыщенность:  {initial_sg}")
         print(f"  Вязкость нефти/воды: {self.mu_oil*1e3:.1f}/{self.mu_water*1e3:.1f} сП")
+        print(f"  Вязкость газа:       {self.mu_gas*1e3:.2f} сП")
         print(f"  Плотность нефти/воды: {self.rho_oil_ref}/{self.rho_water_ref} кг/м^3")
+        print(f"  Плотность газа:        {self.rho_gas_ref} кг/м^3")
         print(f"  Сжимаемость: {self.oil_compressibility*1e6:.1e} 1/Па")
         print(f"  Капиллярное давление: {self.pc_scale/1e6:.2e} МПа, показатель {self.pc_exponent}")
         print(f"  Связанная водонасыщенность: {self.sw_cr}, остаточная нефтенасыщенность: {self.so_r}")
@@ -109,6 +158,11 @@ class Fluid:
     def mu_o(self):
         """Вязкость нефти (альтернативное имя)"""
         return self.mu_oil
+
+    @property
+    def rho_g(self):
+        """Плотность газа при текущем давлении"""
+        return self.calc_gas_density(self.pressure)
 
     def _get_normalized_saturation(self, s_w):
         """
@@ -198,28 +252,16 @@ class Fluid:
         return dpc_dsw
 
     def calc_water_density(self, pressure):
-        """
-        Вычисляет плотность воды при заданном давлении.
-        
-        Args:
-            pressure: Тензор давления
-            
-        Returns:
-            Тензор плотности воды
-        """
+        """Плотность воды ρw(P)."""
+        if self._use_pvt:
+            return self._interp(pressure, self._p_grid, self._rho_w_table)
         return self.rho_water_ref * (1.0 + self.water_compressibility * (pressure - self.pressure_ref))
 
     def calc_oil_density(self, pressure):
-        """
-        Вычисляет плотность нефти при заданном давлении.
-        
-        Args:
-            pressure: Тензор давления
-            
-        Returns:
-            Тензор плотности нефти
-        """
-        return self.rho_oil_ref * (1.0 + self.oil_compressibility * (pressure - 1e5))
+        """Плотность нефти ρo(P)."""
+        if self._use_pvt:
+            return self._interp(pressure, self._p_grid, self._rho_o_table)
+        return self.rho_oil_ref * (1.0 + self.oil_compressibility * (pressure - self.pressure_ref))
 
     def calc_water_kr(self, s_w):
         """
@@ -315,7 +357,64 @@ class Fluid:
         
         return result
 
+    # ---- Вязкости (Pa·s) ----
+    def calc_water_viscosity(self, pressure):
+        if self._use_pvt:
+            return self._interp(pressure, self._p_grid, self._mu_w_table)
+        return torch.full_like(pressure, self.mu_water)
+
+    def calc_oil_viscosity(self, pressure):
+        if self._use_pvt:
+            return self._interp(pressure, self._p_grid, self._mu_o_table)
+        return torch.full_like(pressure, self.mu_oil)
+
+    # ---- Газовая фаза ----
+    def calc_gas_density(self, pressure):
+        """Плотность газа ρg(P)."""
+        if self._use_pvt and hasattr(self, '_rho_g_table') and self._rho_g_table.numel() > 0:
+            return self._interp(pressure, self._p_grid, self._rho_g_table)
+        return self.rho_gas_ref * (1.0 + self.gas_compressibility * (pressure - self.pressure_ref))
+
+    def calc_gas_viscosity(self, pressure):
+        """Вязкость газа μg(P)."""
+        if self._use_pvt and hasattr(self, '_mu_g_table') and self._mu_g_table.numel() > 0:
+            return self._interp(pressure, self._p_grid, self._mu_g_table)
+        return torch.full_like(pressure, self.mu_gas)
+
     # ---- Алиасы для обратной совместимости со старым кодом ----
     # (симулятор обращается к этим именам)
     calc_capillary_pressure = get_capillary_pressure
     calc_dpc_dsw            = get_capillary_pressure_derivative
+
+    # ------------------------------------------------------------------
+    # Вспомогательная 1-D интерполяция (linear) на GPU/CPU
+    # ------------------------------------------------------------------
+    def _interp(self, p, p_grid, prop_grid):
+        """Линейная интерполяция prop(p). p и сетки – torch.Tensor."""
+        # Гарантируем одинаковое устройство
+        p_grid = p_grid.to(p.device)
+        prop_grid = prop_grid.to(p.device)
+
+        p_flat = p.view(-1)
+        idx_hi = torch.searchsorted(p_grid, p_flat, right=True)
+        idx_hi = idx_hi.clamp(1, p_grid.numel() - 1)
+        idx_lo = idx_hi - 1
+
+        p_lo = p_grid[idx_lo]
+        p_hi = p_grid[idx_hi]
+        w = (p_flat - p_lo) / (p_hi - p_lo + 1e-12)
+        prop = prop_grid[idx_lo] + w * (prop_grid[idx_hi] - prop_grid[idx_lo])
+        return prop.view_as(p)
+
+    # Для трёхфазного случая возвращаем krg дополнительно
+    def get_rel_perms_three(self, s_w, s_g):
+        """Возвращает (kro, krw, krg)."""
+        kro = self.calc_oil_kr(s_w)
+        krw = self.calc_water_kr(s_w)
+        krg = self.calc_gas_kr(s_g)
+        return kro, krw, krg
+
+    def calc_gas_kr(self, s_g):
+        """Относительная проницаемость газа (Corey)."""
+        # Простая Corey: krg = Sg^ng
+        return s_g ** self.ng
