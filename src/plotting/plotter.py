@@ -12,6 +12,11 @@ class Plotter:
         :param reservoir: Экземпляр пласта для получения информации о сетке.
         """
         self.reservoir = reservoir
+        # Храним предыдущий срез насыщенности, чтобы показывать
+        # приращение ∆Sw между соседними шагами, а не относительно
+        # самого первого состояния. Так изменения будут заметны
+        # даже при медленной эволюции.
+        self._prev_sw = None
 
     def save_plots(self, pressure, saturation_w, filename, time_info=None, saturation_g=None):
         """
@@ -30,15 +35,13 @@ class Plotter:
         p_slice = pressure[:, :, z_slice_idx]
         s_slice = saturation_w[:, :, z_slice_idx]
 
-        # ------------------------------------------------------------------
-        # Сохраняем базовую насыщенность (первый вызов) для отображения ∆Sw
-        # ------------------------------------------------------------------
-        if not hasattr(self, "_baseline_sw"):
-            self._baseline_sw = s_slice.copy()
-
-        fig, axes = plt.subplots(1, 3 if hasattr(self.reservoir, 'nz') else 2, figsize=(18, 5))
+        # --------------------------------------------------------------
+        # Подготовка figure и заголовка
+        # --------------------------------------------------------------
+        n_panels = 3 if self.reservoir.nz > 1 else 2
+        fig, axes = plt.subplots(1, n_panels, figsize=(18, 5))
         ax1 = axes[0]
-        
+
         title_suffix = f" (Срез Z={z_slice_idx})"
         if time_info:
             title_suffix = f" ({time_info}, Срез Z={z_slice_idx})"
@@ -64,65 +67,54 @@ class Plotter:
         ax1.set_ylabel('Ячейка Y')
         fig.colorbar(im1, ax=ax1)
 
-        # --------------------------------------------------------------
-        # Газонасыщенность (если газовая фаза есть)
-        # --------------------------------------------------------------
+        # Переставляем индексы панелей
+        # Теперь: ax1 – Pressure, ax2 – Water Saturation, ax3 – Gas Saturation (если есть)
         if len(axes) == 3:
-            ax_g = axes[1]
+            ax2 = axes[1]
+            ax3 = axes[2]
         else:
-            ax_g = None
+            ax2 = axes[1]
+            ax3 = None
 
-        if ax_g is not None:
-            if saturation_g is not None:
-                s_g_slice = saturation_g[:, :, z_slice_idx]
-            else:
-                s_g_slice = np.zeros_like(s_slice)
-            im_g = ax_g.imshow(s_g_slice,
-                               cmap='magma', origin='lower', extent=(0, nx, 0, ny),
-                               interpolation='lanczos', vmin=0, vmax=1, aspect='equal')
-            ax_g.set_title(f'Gas Saturation Sg{title_suffix}')
-            ax_g.set_xlabel('Ячейка X')
-            ax_g.set_ylabel('Ячейка Y')
-            fig.colorbar(im_g, ax=ax_g)
-
-        # Переставляем ax2 индекс в зависимости от наличия газового
-        ax2 = axes[-1]
-
-        # ------------------------------------------------------------------
-        # ∆Sw: сглаживаем и выводим приятной палитрой ----------------
-        # ------------------------------------------------------------------
-        delta_sw = s_slice - self._baseline_sw
-
-        # Гауссово сглаживание убирает «пиксельность»
-        delta_sw_smooth = gaussian_filter(delta_sw, sigma=1)
-
-        # Отбрасываем экстремальные значения для авто-контраста
-        p2, p98 = np.percentile(delta_sw_smooth, [2, 98])
-        span = max(abs(p2), abs(p98), 1e-4)
-
-        # Если ∆Sw только положительная – сдвигаем минимум к 0
-        vmin = 0.0 if delta_sw_smooth.min() >= 0 else -span
-        vmax = span
-
-        im2 = ax2.imshow(delta_sw_smooth,
-                         cmap='viridis',
-                         origin='lower',
-                         extent=(0, nx, 0, ny),
-                         interpolation='lanczos',
-                         vmin=vmin, vmax=vmax,
-                         aspect='equal')
-        # Контур нуля (граница фронта)
-        try:
-            ax2.contour(delta_sw_smooth, levels=[0.0], colors='k', linewidths=0.5, origin='lower', extent=(0, nx, 0, ny))
-        except Exception:
-            pass  # может не быть уровня 0, игнорируем
-
-        ax2.set_aspect('equal', adjustable='box')
-        ax2.tick_params(left=False, bottom=False, labelleft=False, labelbottom=False)
+        # --------------------------------------------------------------
+        # Water Saturation (absolute)
+        # --------------------------------------------------------------
+        s_img = gaussian_filter(s_slice, sigma=1)
+        # Динамический диапазон — делаем минимальное видимое отличие даже при узком спрэде S_w
+        sw_min, sw_max = float(np.min(s_img)), float(np.max(s_img))
+        # Если фронт ещё не двинулся, оставляем глобальные пределы, чтобы палитра не схлопнулась
+        if abs(sw_max - sw_min) < 1e-4:
+            sw_min, sw_max = 0.0, 1.0
+        im_sw = ax2.imshow(s_img, cmap='viridis', origin='lower', extent=(0, nx, 0, ny),
+                           interpolation='lanczos', vmin=sw_min, vmax=sw_max, aspect='equal')
+        ax2.set_title(f'Water Saturation S_w{title_suffix}')
         ax2.set_xlabel('Ячейка X')
         ax2.set_ylabel('Ячейка Y')
-        ax2.set_title(f'Приращение водонасыщенности ∆Sw{title_suffix}')
-        fig.colorbar(im2, ax=ax2)
+        fig.colorbar(im_sw, ax=ax2)
+
+        # --------------------------------------------------------------
+        # Gas Saturation (if provided)
+        # --------------------------------------------------------------
+        if ax3 is not None:
+            if saturation_g is not None:
+                s_g_slice = saturation_g[:, :, z_slice_idx]
+                s_g_img = gaussian_filter(s_g_slice, sigma=1)
+            else:
+                s_g_img = np.zeros_like(s_slice)
+
+            sg_min, sg_max = float(np.min(s_g_img)), float(np.max(s_g_img))
+            if sg_max < 1e-6:
+                # газа нет – оставляем чёрную картинку на полной шкале
+                sg_min, sg_max = 0.0, 1.0
+            im_g = ax3.imshow(s_g_img, cmap='magma', origin='lower', extent=(0, nx, 0, ny),
+                               interpolation='lanczos', vmin=sg_min, vmax=sg_max, aspect='equal')
+            ax3.set_title(f'Gas Saturation S_g{title_suffix}')
+            ax3.set_xlabel('Ячейка X')
+            ax3.set_ylabel('Ячейка Y')
+            fig.colorbar(im_g, ax=ax3)
+
+        # Обновляем предыдущий Sw, чтобы в будущем можно было снова строить ∆Sw при необходимости
+        self._prev_sw = s_slice.copy()
 
         plt.tight_layout()
         plt.savefig(filename)

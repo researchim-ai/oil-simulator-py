@@ -938,27 +938,40 @@ class Simulator:
             P_new, converged = self._impes_pressure_step(current_dt)
 
             if converged:
-                # Обновляем давление и выполняем шаг насыщенности
+                # --- Давление и насыщенность ---------------------------
                 self.fluid.pressure = P_new
                 self._impes_saturation_step(P_new, current_dt)
 
-                # Сохраняем предыдущие состояния для следующего шага
-                self.fluid.prev_pressure = self.fluid.pressure.clone()
-                self.fluid.prev_sw = self.fluid.s_w.clone()
+                # --- Проверка масс-баланса ----------------------------
+                mb_tol = self.sim_params.get("mass_balance_tol", 0.05)  # 5 % по умолчанию
+                mass_ok = True
+                if getattr(self, "_initial_mass", None) is not None:
+                    m_now = self._compute_total_mass().item()
+                    mb_err = abs((m_now - self._initial_mass) / (self._initial_mass + 1e-30))
+                    if mb_err > mb_tol:
+                        print(f"  Массовый баланс ушёл на {mb_err*100:.2f} % (> {mb_tol*100:.1f} %) – уменьшаем dt")
+                        mass_ok = False
 
-                consecutive_success += 1
-
-                # Попробуем увеличить dt, если успешно несколько раз подряд
-                if consecutive_success >= 2 and current_dt < original_dt and not last_dt_increased:
-                    current_dt = min(current_dt * dt_increase_factor, original_dt)
-                    last_dt_increased = True
+                if not mass_ok:
+                    converged = False  # будет обработано как неудача ниже
                 else:
-                    last_dt_increased = False
+                    # --- Сохраняем новое состояние -------------------
+                    self.fluid.prev_pressure = self.fluid.pressure.clone()
+                    self.fluid.prev_sw = self.fluid.s_w.clone()
 
-                return True
+                    consecutive_success += 1
+
+                    # --- Возможное увеличение dt ---------------------
+                    if consecutive_success >= 2 and current_dt < original_dt and not last_dt_increased:
+                        current_dt = min(current_dt * dt_increase_factor, original_dt)
+                        last_dt_increased = True
+                    else:
+                        last_dt_increased = False
+
+                    return True
 
             # если не сошлось, уменьшаем шаг
-            print("  IMPES не сошелся, уменьшаем dt")
+            print("  IMPES не сошелся или нарушен масс-баланс, уменьшаем dt")
             current_dt /= dt_reduction_factor
             consecutive_success = 0
             last_dt_increased = False
