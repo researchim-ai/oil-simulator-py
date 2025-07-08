@@ -53,7 +53,7 @@
       "name": "INJ",
       "type": "injector",
       "i": 0, "j": 0, "k": 2,
-      "radius": {"radius": 0.1, "well_index": 1e-15},
+      "radius": 0.1,
       "control_type": "bhp",
       "control_value": 40.0
     },
@@ -61,14 +61,14 @@
       "name": "PROD",
       "type": "producer",
       "i": 39, "j": 39, "k": 2,
-      "radius": {"radius": 0.1, "well_index": 5e-15},
+      "radius": 0.1,
       "control_type": "bhp",
       "control_value": 5.0
     }
   ],
 
   "simulation": {
-    "solver_type": "impes",
+    "solver_type": "fully_implicit",
     "time_step_days": 0.06,
     "total_time_days": 60,
 
@@ -80,6 +80,9 @@
     "jacobian": "jfnk",
     "backend": "hypre",
 
+    "well_auto_factor": 20,
+    "gmres_min_tol": 1e-7,
+    "newton_eta0": 1e-3,
     "debug_wells": true,
     "verbose": true
   }

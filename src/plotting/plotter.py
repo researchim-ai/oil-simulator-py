@@ -50,14 +50,16 @@ class Plotter:
         # Давление – квадратные ячейки без «ступенек» DPI
         # ------------------------------------------------------------------
         nx, ny, _ = self.reservoir.dimensions
-        # Лёгкое Гауссово сглаживание (σ=1) делает градиент давления
-        p_img = gaussian_filter(p_slice / 1e6, sigma=1)
+        # Мягкое сглаживание убирает численный «шум» 5×5 без размывания крупного градиента
+        p_img = gaussian_filter(p_slice / 1e6, sigma=0.7)
 
+        # Используем nearest-neighbor, чтобы каждая ячейка отображалась один-к-одному
+        # и не возникало «мозаики» из Lanczos-фильтра на малых массивах (40×40).
         im1 = ax1.imshow(p_img,
-                         cmap='turbo',  # плавная непрерывная палитра без резких границ
+                         cmap='turbo',
                          origin='lower',
                          extent=(0, nx, 0, ny),
-                         interpolation='lanczos',
+                         interpolation='bilinear',
                          aspect='equal')
         ax1.set_aspect('equal', adjustable='box')
         # Убираем тики – остаётся чистая картинка
@@ -79,14 +81,14 @@ class Plotter:
         # --------------------------------------------------------------
         # Water Saturation (absolute)
         # --------------------------------------------------------------
-        s_img = gaussian_filter(s_slice, sigma=1)
+        s_img = gaussian_filter(s_slice, sigma=0.7)
         # Динамический диапазон — делаем минимальное видимое отличие даже при узком спрэде S_w
         sw_min, sw_max = float(np.min(s_img)), float(np.max(s_img))
         # Если фронт ещё не двинулся, оставляем глобальные пределы, чтобы палитра не схлопнулась
         if abs(sw_max - sw_min) < 1e-4:
             sw_min, sw_max = 0.0, 1.0
         im_sw = ax2.imshow(s_img, cmap='viridis', origin='lower', extent=(0, nx, 0, ny),
-                           interpolation='lanczos', vmin=sw_min, vmax=sw_max, aspect='equal')
+                           interpolation='bilinear', vmin=sw_min, vmax=sw_max, aspect='equal')
         ax2.set_title(f'Water Saturation S_w{title_suffix}')
         ax2.set_xlabel('Ячейка X')
         ax2.set_ylabel('Ячейка Y')
@@ -98,7 +100,7 @@ class Plotter:
         if ax3 is not None:
             if saturation_g is not None:
                 s_g_slice = saturation_g[:, :, z_slice_idx]
-                s_g_img = gaussian_filter(s_g_slice, sigma=1)
+                s_g_img = gaussian_filter(s_g_slice, sigma=0.7)
             else:
                 s_g_img = np.zeros_like(s_slice)
 
@@ -107,7 +109,7 @@ class Plotter:
                 # газа нет – оставляем чёрную картинку на полной шкале
                 sg_min, sg_max = 0.0, 1.0
             im_g = ax3.imshow(s_g_img, cmap='magma', origin='lower', extent=(0, nx, 0, ny),
-                               interpolation='lanczos', vmin=sg_min, vmax=sg_max, aspect='equal')
+                               interpolation='bilinear', vmin=sg_min, vmax=sg_max, aspect='equal')
             ax3.set_title(f'Gas Saturation S_g{title_suffix}')
             ax3.set_xlabel('Ячейка X')
             ax3.set_ylabel('Ячейка Y')

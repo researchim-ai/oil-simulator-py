@@ -338,7 +338,8 @@ class Simulator:
 
             # Подготавливаем начальное приближение
             Ncells = self.reservoir.dimensions[0]*self.reservoir.dimensions[1]*self.reservoir.dimensions[2]
-            if hasattr(self.fluid, 's_g'):
+            has_gas_phase = hasattr(self.fluid, 's_g') and torch.any(self.fluid.s_g > 1e-8)
+            if has_gas_phase:
                 # Трёхфазный вектор [P, Sw, Sg]
                 if self.scaler is not None:
                     x0 = torch.cat([
@@ -1267,6 +1268,17 @@ class Simulator:
         q_wells = torch.zeros(N, device=self.device, dtype=torch.float32)
         well_bhp_terms = torch.zeros(N, device=self.device, dtype=torch.float32)
 
+        # --------------------------------------------------------------
+        # Авто-лимитер по 99-му перцентилю λ_t (well_auto_factor × perc99).
+        # Работает, если явный well_mobility_limiter не задан.
+        # --------------------------------------------------------------
+        auto_factor = self.sim_params.get("well_auto_factor", 20.0)
+        if self.sim_params.get("well_mobility_limiter", None) is None:
+            with torch.no_grad():
+                lam_t_thresh = torch.quantile(mob_t.view(-1), 0.99).item() * auto_factor
+        else:
+            lam_t_thresh = None  # отключаем авто-пресечение
+
         if getattr(self, "well_manager", None) is None:
             return q_wells, well_bhp_terms
 
@@ -1290,7 +1302,18 @@ class Simulator:
                 # WI*λ_t*P_bhp в RHS. Здесь используем текущую total mobility.
                 WI = well.well_index
                 lam_t_cell = float(mob_t[i, j, k])
-                coeff = WI * lam_t_cell
+                coeff_raw = WI * lam_t_cell
+                user_lim = self.sim_params.get('well_mobility_limiter', None)
+                if user_lim is not None and coeff_raw > user_lim:
+                    coeff = user_lim
+                    if self.sim_params.get('debug_wells', False):
+                        print(f"[Limiter] WELL {well.name}: coeff_raw={coeff_raw:.3e} > user_lim={user_lim:.3e}. Clamped")
+                elif lam_t_thresh is not None and lam_t_cell > lam_t_thresh:
+                    coeff = WI * lam_t_thresh
+                    if self.sim_params.get('debug_wells', False):
+                        print(f"[AutoLimiter] WELL {well.name}: λ_t={lam_t_cell:.3e} > λ_thr={lam_t_thresh:.3e}. Clamped")
+                else:
+                    coeff = coeff_raw
                 well_bhp_terms[cell_idx] += coeff
                 # Знак для RHS зависит от типа скважины (инжектор = positive)
                 p_bhp = well.control_value * 1e6  # МПа→Па
@@ -1343,11 +1366,20 @@ class Simulator:
 
         # ------------- water saturation -----------------------------------
         sw_vec = x[N:]
+        if x.numel() == 3 * N:
+            sg_vec = x[2*N:]
+        else:
+            sg_vec = None
 
         # reshape to 3-D
         p = p_vec.view(nx, ny, nz)
         s_w = sw_vec.view(nx, ny, nz)
-        s_o = 1.0 - s_w
+        if sg_vec is not None:
+            s_g = sg_vec.view(nx, ny, nz)
+            s_o = 1.0 - s_w - s_g
+        else:
+            s_o = 1.0 - s_w
+            s_g = torch.zeros_like(s_w)
 
         # ------------------------------------------------------------------
         # Fluid properties (new state)
@@ -1362,6 +1394,14 @@ class Simulator:
         lam_w = krw / mu_w
         lam_o = kro / mu_o
         lam_t = lam_w + lam_o  # total mobility
+
+        # === Авто-лимитер λ_t для скважин ===
+        auto_factor = self.sim_params.get("well_auto_factor", 20.0)
+        if self.sim_params.get("well_mobility_limiter", None) is None:
+            with torch.no_grad():
+                lam_t_thresh = torch.quantile(lam_t.view(-1), 0.99).item() * auto_factor
+        else:
+            lam_t_thresh = None
 
         # ------------------------------------------------------------------
         # Ensure transmissibilities
@@ -1476,7 +1516,19 @@ class Simulator:
                 elif well.control_type == 'bhp':
                     p_bhp = well.control_value * 1e6
                     p_block = p[i, j, k]
-                    q_total = well.well_index * lam_t[i, j, k] * (p_block - p_bhp)
+                    coeff_raw = well.well_index * lam_t[i, j, k]
+                    user_lim = self.sim_params.get('well_mobility_limiter', None)
+                    if user_lim is not None and coeff_raw > user_lim:
+                        coeff_eff = user_lim
+                        if self.sim_params.get('debug_wells', False):
+                            print(f"[Limiter] WELL {well.name}: coeff_raw={coeff_raw:.3e} > user_lim={user_lim:.3e}. Clamped.")
+                    elif lam_t_thresh is not None and lam_t[i, j, k] > lam_t_thresh:
+                        coeff_eff = well.well_index * lam_t_thresh
+                        if self.sim_params.get('debug_wells', False):
+                            print(f"[AutoLimiter] WELL {well.name}: λ_t={lam_t[i,j,k]:.3e} > λ_thr={lam_t_thresh:.3e}. Clamped.")
+                    else:
+                        coeff_eff = coeff_raw
+                    q_total = coeff_eff * (p_block - p_bhp)
                 else:
                     q_total = 0.0
 

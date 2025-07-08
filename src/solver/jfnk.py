@@ -65,6 +65,8 @@ class FullyImplicitSolver:
         self.total_gmres_iters = 0
         init_F_scaled = None  # значение невязки на первой итерации для относительного критерия
 
+        gmres_tol_min = self.sim.sim_params.get("gmres_min_tol", 1e-5)  # раньше 1e-8, но по умолчанию 1e-5 достаточно
+
         for it in range(self.max_it):
             F_phys = self.sim._fi_residual_vec(x if self.scaler is None else self._unscale_x(x), dt)
 
@@ -90,12 +92,13 @@ class FullyImplicitSolver:
                 
             # Адаптивный forcing-term η_k  по Brown–Saad
             if prev_F_norm is None:
-                eta_k = 0.1
+                # Стартовый forcing-term – управляемый параметр, по умолчанию 1e-2
+                eta_k = self.sim.sim_params.get("newton_eta0", 1e-2)
             else:
                 ratio = (F_norm / prev_F_norm).item()
                 eta_k = 0.9 * ratio**2
             eta_k = min(max(eta_k, 1e-8), 1e-1)
-            gmres_tol = max(1e-8, eta_k)
+            gmres_tol = max(gmres_tol_min, eta_k)
             
             print(f"  GMRES: tol={gmres_tol:.3e}")
             
