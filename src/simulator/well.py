@@ -7,7 +7,7 @@ class Well:
     Класс для представления скважины в резервуаре.
     """
     
-    def __init__(self, name, well_type, i, j, k, radius, control_type, control_value, reservoir_dimensions):
+    def __init__(self, name, well_type, i, j, k, radius, control_type, control_value, reservoir):
         """
         Инициализирует скважину.
         
@@ -18,7 +18,7 @@ class Well:
             radius: Радиус скважины в метрах
             control_type: Тип контроля ('rate' или 'bhp')
             control_value: Значение контроля (дебит в м³/день или забойное давление в МПа)
-            reservoir_dimensions: Размеры резервуара (nx, ny, nz)
+            reservoir: Объект пласта
         """
         self.name = name
         self.type = well_type
@@ -29,25 +29,41 @@ class Well:
         self.control_type = control_type
         self.control_value = control_value
         
-        nx, ny, nz = reservoir_dimensions
+        nx, ny, nz = reservoir.dimensions
         self.cell_index = (i, j, k)
         self.cell_index_flat = i + j * nx + k * nx * ny
         
         # Определяем реальные размеры ячейки из reservoir_dimensions
         # Для Peaceman нужно знать dx, dy. Полагаем кубические ячейки и берём 1 м, если размеры не переданы.
-        dx = dy = 1.0
+        dx, dy, _ = reservoir.grid_size if hasattr(reservoir, 'grid_size') else (1.0, 1.0, 1.0)
         
-        # Эффективный радиус ячейки для модели Писмана
-        ro = 0.28 * ((dx**2 + dy**2)**0.5) / 2
+        # Эффективный радиус ячейки (Peaceman) – приближённо
+        re = 0.28 * ((dx**2 + dy**2)**0.5)
         
-        # Индекс скважины по модели Писмана
-        md_to_m2 = 9.869233e-16  # коэффициент перевода мД -> м^2
-        k_h_assumed_md = 100.0  # мД (по умолчанию)
-        k_h_si = k_h_assumed_md * md_to_m2  # в м^2
+        md_to_m2 = 9.869233e-16
+        k_cell_md = (reservoir.permeability_x[i,j,k] / md_to_m2).item()
+        k_h_si = k_cell_md * md_to_m2
 
-        # Формула Писмана: WI = 2π k_h / ln(r_o / r_w)
-        # Получаем WI в единицах м^3/(Па·с)
-        self.well_index = 2 * math.pi * k_h_si / (math.log(ro / radius) + 1e-12)
+        dz_cell = reservoir.grid_size[2] if hasattr(reservoir,'grid_size') else 1.0
+
+        # Пользователь может задать либо просто числовой радиус (float), либо объект
+        # {"radius": rw, "well_index": WI}. Если указан WI, используем его напрямую.
+        if isinstance(radius, dict):
+            # Допускаем оба ключа, radius может отсутствовать (если ячейка мелкая)
+            rw = radius.get('radius', 0.1)
+            explicit_wi = radius.get('well_index', None)
+        else:
+            rw = radius
+            explicit_wi = None
+
+        if explicit_wi is not None:
+            # Явно заданный WI имеет приоритет
+            self.well_index = explicit_wi
+            self.radius = rw
+        else:
+            # Формула: WI = 2π k_h * dz / ln(re/rw)
+            self.well_index = 2 * math.pi * k_h_si * dz_cell / math.log((re / (rw + 1e-12)))
+            self.radius = rw
         
     def __str__(self):
         return f"Well(name={self.name}, type={self.type}, pos=({self.i},{self.j},{self.k}), control={self.control_type}:{self.control_value})"
@@ -94,7 +110,7 @@ class WellManager:
                 radius=w['radius'],
                 control_type=control_type,
                 control_value=control_value,
-                reservoir_dimensions=reservoir.dimensions
+                reservoir=reservoir
             )
             self.wells.append(well)
             print(f"  > Скважина '{well.name}' добавлена в менеджер.")

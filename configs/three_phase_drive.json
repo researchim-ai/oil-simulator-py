@@ -1,0 +1,59 @@
+{
+  "dimensions": [60, 60, 10],
+  "grid_size": [20.0, 20.0, 10.0],
+
+  "permeability": 150.0,
+  "k_vertical_fraction": 0.2,
+  "porosity": 0.22,
+
+  "fluid": {
+    "pressure": 25.0,
+    "s_w": 0.20,
+    "s_g": 0.00,
+
+    "mu_oil": 1.2,
+    "mu_water": 0.6,
+    "mu_gas": 0.04,
+
+    "rho_oil": 850.0,
+    "rho_water": 1000.0,
+    "rho_gas": 90.0,
+
+    "relative_permeability": {
+      "nw": 2,
+      "no": 2,
+      "ng": 2,
+      "sw_cr": 0.15,
+      "so_r": 0.15
+    }
+  },
+
+  "wells": [
+    {
+      "name": "INJ",
+      "type": "injector",
+      "i": 5, "j": 5, "k": 0,
+      "radius": 0.1,
+      "control_type": "rate",
+      "control_value": 500.0
+    },
+    {
+      "name": "PROD",
+      "type": "producer",
+      "i": 55, "j": 55, "k": 9,
+      "radius": 0.1,
+      "control_type": "bhp",
+      "control_value": 15.0
+    }
+  ],
+
+  "simulation": {
+    "solver": "fully_implicit",
+    "jacobian": "jfnk",
+    "total_time_days": 30,
+    "time_step_days": 1,
+    "verbose": true,
+    "gif_fps": 5,
+    "save_vtk": true
+  }
+} 

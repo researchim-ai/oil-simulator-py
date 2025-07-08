@@ -149,6 +149,14 @@ class Simulator:
             
         print(f"Solver инициализирован: {solver_type}/{jacobian_type}")
 
+        # --------------------------------------------------------------
+        # Контроль масс-баланса: считаем начальную массу всех фаз.
+        # --------------------------------------------------------------
+        try:
+            self._initial_mass = self._compute_total_mass().item()
+        except Exception:
+            self._initial_mass = None
+
     def _setup_logging(self):
         """Настройка логирования с контролем вывода"""
         def _log(*args, **kwargs):
@@ -216,6 +224,58 @@ class Simulator:
             if hasattr(self.fluid, 's_g'):
                 self.fluid.prev_sg   = self.fluid.s_g.clone()
 
+        # --------------------------------------------------------------
+        # Массовый баланс (воды+нефти+газа) и расширенная статистика
+        # --------------------------------------------------------------
+        if success:
+            # --- Статистика по полям ----------------------------------
+            p_min = float(self.fluid.pressure.min())/1e6
+            p_mean = float(self.fluid.pressure.mean())/1e6
+            p_max = float(self.fluid.pressure.max())/1e6
+
+            sw_min = float(self.fluid.s_w.min())
+            sw_mean = float(self.fluid.s_w.mean())
+            sw_max = float(self.fluid.s_w.max())
+
+            if hasattr(self.fluid, "s_g"):
+                sg_min = float(self.fluid.s_g.min())
+                sg_mean = float(self.fluid.s_g.mean())
+                sg_max = float(self.fluid.s_g.max())
+            else:
+                sg_min = sg_mean = sg_max = 0.0
+
+            # --- Массовый баланс --------------------------------------
+            mass_now = None
+            imbalance = None
+            if getattr(self, "_initial_mass", None) is not None:
+                mass_now = self._compute_total_mass().item()
+                imbalance = abs(mass_now - self._initial_mass) / (self._initial_mass + 1e-12)
+
+            # Печатаем сводку
+            msg = (
+                f"STAT | P(min/mean/max)=({p_min:.2f}/{p_mean:.2f}/{p_max:.2f}) МПа; "
+                f"Sw(min/mean/max)=({sw_min:.3f}/{sw_mean:.3f}/{sw_max:.3f}); "
+                f"Sg(min/mean/max)=({sg_min:.3f}/{sg_mean:.3f}/{sg_max:.3f})"
+            )
+            if imbalance is not None:
+                msg += f"; mass err={imbalance*100:.3f} %"
+            print(msg)
+
+            # Предупреждение, если баланс >0.5 %
+            if imbalance is not None and imbalance > 0.005:
+                print(f"[WARN] Массовый баланс отклонён на {imbalance*100:.2f} %")
+
+        # --------------------------------------------------------------
+        # Массовый баланс (воды+нефти+газа). Если отклонение > thresh,
+        # выводим предупреждение.  Можно включить assert в тестах.
+        # --------------------------------------------------------------
+        if success and getattr(self, "_initial_mass", None) is not None:
+            mass_now = self._compute_total_mass().item()
+            imbalance = abs(mass_now - self._initial_mass) / (self._initial_mass + 1e-12)
+            if imbalance > 0.01:  # 1 %
+                print(f"[WARN] Массовый баланс ушёл на {imbalance*100:.2f} % после {self.step_count} шагов")
+            self.step_count += 1
+        
         return success
 
     def _fully_implicit_step(self, dt):
@@ -912,6 +972,15 @@ class Simulator:
         P_prev = self.fluid.pressure
         S_w = self.fluid.s_w
 
+        # --- пересчёт совокупной compressibility c_t -------------------
+        c_o = getattr(self.fluid, 'oil_compressibility', 1e-11)
+        c_w = getattr(self.fluid, 'water_compressibility', 1e-11)
+        c_g = getattr(self.fluid, 'gas_compressibility', 3e-10)
+        c_r = getattr(self.reservoir, 'rock_compressibility', 1e-11)
+        S_g_tmp = getattr(self.fluid, 's_g', torch.zeros_like(S_w))
+        S_o_tmp = 1.0 - S_w - S_g_tmp
+        self.fluid.cf = (S_o_tmp * c_o + S_w * c_w + S_g_tmp * c_g + c_r).to(self.device).float()
+        
         S_g = getattr(self.fluid, 's_g', torch.zeros_like(S_w))
         kro, krw, krg = self.fluid.get_rel_perms_three(S_w, S_g) if hasattr(self.fluid, 'get_rel_perms_three') else (*self.fluid.get_rel_perms(S_w), torch.zeros_like(S_w))
         mu_o_pas = self.fluid.mu_oil
@@ -1047,8 +1116,10 @@ class Simulator:
                 q_w[i, j, k] += (-q_total) if well.type == 'injector' else (-q_total * fw[i, j, k])
 
         # 6. Обновление насыщенности с ограничением максимального изменения
-        dSw = -div_w * dt / self.reservoir.porous_volume
-        dSg = -div_g * dt / self.reservoir.porous_volume
+        # Учёт источников/стоков от скважин (объёмные расходы м³/с)
+        # q_w и q_g имеют знак: + для инжектора, − для добычи.
+        dSw = (-div_w + q_w) * dt / self.reservoir.porous_volume
+        dSg = -div_g * dt / self.reservoir.porous_volume  # q_g учитываем позже, когда появится газовый инжектор
 
         max_sw_step = self.sim_params.get("max_sw_step", 0.2)
         dSw_clamped = dSw.clamp(-max_sw_step, max_sw_step)
@@ -1056,6 +1127,17 @@ class Simulator:
 
         S_w_new = (S_w_old + dSw_clamped).clamp(self.fluid.sw_cr, 1.0)
         S_g_new = (S_g_old + dSg_clamped).clamp(0.0, 1.0)
+
+        # --- Экзолюция растворённого газа (простая Black-Oil модель) ----
+        if hasattr(self.fluid, 'calc_rs'):
+            Rs_prev = self.fluid.calc_rs(self.fluid.prev_pressure)
+            Rs_new  = self.fluid.calc_rs(P_new)
+            # Объём газа, освобождённого из нефти (безразмерно)
+            dRs = (Rs_prev - Rs_new).clamp(min=0.0)
+            So_est = 1.0 - S_w_new - S_g_new
+            dSg_exsolved = dRs * So_est
+            S_g_new = (S_g_new + dSg_exsolved).clamp(0.0, 1.0)
+
         # Нормируем, чтобы сумма ≤1
         sum_s = S_w_new + S_g_new
         mask = sum_s > 1.0
@@ -1073,6 +1155,18 @@ class Simulator:
         print(
             f"P̄ = {P_new.mean()/1e6:.2f} МПа, Sw(min/max) = {self.fluid.s_w.min():.3f}/{self.fluid.s_w.max():.3f}, ΔSw ограничено до ±{max_sw_step}, ячеек изм.: {affected_cells}"
         )
+
+        # --- Динамическая совокупная сжимаемость -------------------------
+        #   c_t = So*c_o + Sw*c_w + Sg*c_g + c_rock  (1/Па)
+        #   Используем значения compressibility из Fluid / Reservoir.
+        #   Это уменьшит диагональный «аккумуляционный» член и позволит
+        #   давлению реагировать на дебиты скважин.
+        S_o = 1.0 - S_w_new - S_g_new
+        c_o = getattr(self.fluid, 'oil_compressibility', 1e-11)
+        c_w = getattr(self.fluid, 'water_compressibility', 1e-11)
+        c_g = getattr(self.fluid, 'gas_compressibility', 3e-10)
+        c_r = getattr(self.reservoir, 'rock_compressibility', 1e-11)
+        self.fluid.cf = (S_o * c_o + S_w_new * c_w + S_g_new * c_g + c_r).to(self.device).float()
 
     def _build_pressure_matrix_vectorized(self, Tx, Ty, Tz, dt, well_bhp_terms):
         """ Векторизованная сборка матрицы давления для IMPES. """
@@ -1173,11 +1267,10 @@ class Simulator:
             cell_idx = (i * ny + j) * nz + k  # flatten index (x-major)
 
             if well.control_type == "rate":
-                # Значение в конфиге м³/сут. Переводим в м³/с
+                # control_value задаётся положительным для инжектора и отрицательным для продюсера.
+                # Переводим м³/сут → м³/с без изменения знака.
                 q_total = well.control_value / 86400.0
-                # Инжектор – источник (+), продакшн – сток (−)
-                sign = 1.0 if well.type == "injector" else -1.0
-                q_wells[cell_idx] += sign * q_total
+                q_wells[cell_idx] += q_total
 
             elif well.control_type == "bhp":
                 # BHP-контроль: добавляем WI*λ_t на диагональ и
@@ -1188,10 +1281,14 @@ class Simulator:
                 well_bhp_terms[cell_idx] += coeff
                 # Знак для RHS зависит от типа скважины (инжектор = positive)
                 p_bhp = well.control_value * 1e6  # МПа→Па
-                rhs_sign = -1.0  # выносим coeff*(p - p_bhp) в Л.Ч., остаётся -coeff*p_bhp
-                if well.type == "injector":
-                    rhs_sign *= -1.0  # для инжектора поток направлен внутрь
-                q_wells[cell_idx] += rhs_sign * coeff * p_bhp
+                # Формула расхода: q = WI·λ_t·(p_block - P_bhp).
+                # Разлагаем: q = WI·λ_t·p_block  -  WI·λ_t·P_bhp.
+                # Член с p_block отправляется в матрицу (diag += coeff),
+                # в RHS остаётся (− WI·λ_t·P_bhp).
+                # Поэтому добавляем именно «минус».
+                q_wells[cell_idx] -= coeff * p_bhp
+                if self.sim_params.get('debug_wells', False):
+                    print(f"DEBUG WELL {well.name}: WI={WI:.3e}, λ_t={lam_t_cell:.3e}, coeff={coeff:.3e}, P_bhp={well.control_value:.2f} МПа")
 
         return q_wells, well_bhp_terms
 
@@ -1399,12 +1496,14 @@ class Simulator:
     # ==================================================================
     # ==                    SIMPLE DRIVER (main.py)                  ==
     # ==================================================================
-    def run(self, output_filename: str = "run", save_vtk: bool = False):
-        """Minimal driver used by src/main.py to execute a full simulation.
+    def run(self, output_filename: str = "run", save_vtk: bool = False, max_steps: int | None = None):
+        """Запускает симуляцию целиком либо ограниченным числом шагов.
 
         Args:
-            output_filename: base name for result artefacts inside results/.
-            save_vtk: if True – write VTK after each output step and at the end.
+            output_filename: базовое имя папки результатов внутри results/.
+            save_vtk: если True – писать VTK после каждого output-шага и в конце.
+            max_steps: при отладке можно задать, сколько временных шагов выполнить
+                       (None — без ограничения, до total_time_days).
         """
         from plotting.plotter import Plotter   # local import to avoid cycles
         from output.vtk_writer import save_to_vtk
@@ -1414,13 +1513,16 @@ class Simulator:
         dt_days = self.sim_params.get("time_step_days", self.dt / 86400.0)
         total_days = self.sim_params.get("total_time_days", self.total_time / 86400.0)
         dt_sec = dt_days * 86400.0
-        total_steps = int(total_days / dt_days + 1e-8)
+        total_steps_full = int(total_days / dt_days + 1e-8)
+        # Если max_steps указан, берём минимум из расчётного и заданного
+        total_steps = int(max_steps) if max_steps is not None else total_steps_full
 
         results_dir = os.path.join("results", output_filename + "_" + datetime.datetime.now().strftime("%Y%m%d_%H%M%S"))
         os.makedirs(results_dir, exist_ok=True)
         plotter = Plotter(self.reservoir)
 
-        print(f"Запускаем {total_steps} шагов по {dt_days:.3f} суток (dt={dt_sec:.1f} c).")
+        msg_extra = " (ограничено max_steps)" if max_steps is not None else ""
+        print(f"Запускаем {total_steps} шагов по {dt_days:.3f} суток (dt={dt_sec:.1f} c){msg_extra}.")
         t0 = time.time()
         for step in range(total_steps):
             print(f"\n=== Шаг {step+1}/{total_steps} ===")
@@ -1434,7 +1536,8 @@ class Simulator:
                 plotter.save_plots(self.fluid.pressure.cpu().numpy(),
                                    self.fluid.s_w.cpu().numpy(),
                                    png_name,
-                                   time_info=f"Day {dt_days*(step+1):.2f}")
+                                   time_info=f"Day {dt_days*(step+1):.2f}",
+                                   saturation_g=self.fluid.s_g.cpu().numpy() if hasattr(self.fluid, 's_g') else None)
                 if save_vtk:
                     save_to_vtk(self.reservoir, self.fluid, filename=os.path.join(results_dir, f"state_{step:04d}"))
 
@@ -1539,3 +1642,36 @@ class Simulator:
             self.T_z = (dx * dy / dz) * kz_harm.to(self.device)
         else:
             self.T_z = torch.zeros((nx, ny, 0), device=self.device)
+
+    # ------------------------------------------------------------------
+    # Утилита: суммарная масса всех флюидов (кг). Используется для
+    # контроля баланса массы.
+    # ------------------------------------------------------------------
+    def _compute_total_mass(self):
+        vol = self.reservoir.porous_volume
+
+        mass_w = torch.sum(self.fluid.rho_w * self.fluid.s_w * vol)
+        mass_o = torch.sum(self.fluid.rho_o * self.fluid.s_o * vol)
+
+        if hasattr(self.fluid, "rho_g") and hasattr(self.fluid, "s_g"):
+            mass_g = torch.sum(self.fluid.rho_g * self.fluid.s_g * vol)
+        else:
+            mass_g = torch.tensor(0.0, device=self.device)
+
+        # ---- Black-Oil масса с учётом растворённого газа ------------
+        if hasattr(self.fluid, 'calc_bo'):
+            P = self.fluid.pressure
+            So = self.fluid.s_o
+            Sw = self.fluid.s_w
+            Sg = getattr(self.fluid, 's_g', torch.zeros_like(So))
+            Bo = self.fluid.calc_bo(P)
+            Bg = self.fluid.calc_bg(P)
+            Bw = self.fluid.calc_bw(P)
+            Rs = self.fluid.calc_rs(P)
+            Rv = self.fluid.calc_rv(P)
+
+            mass_o = torch.sum( (self.fluid.rho_o_sc/Bo) * So * vol )  # нефть
+            mass_w = torch.sum( (self.fluid.rho_w_sc/Bw) * Sw * vol )  # вода
+            # Газ: свободный + растворённый в нефти (Rs) + выпаренный (Rv)
+            mass_g = torch.sum( (self.fluid.rho_g_sc/Bg) * ( Sg + So*Rs ) * vol )
+            return mass_w + mass_o + mass_g

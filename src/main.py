@@ -81,11 +81,12 @@ def main():
     # Запускаем симуляцию
     output_filename = config.get('output_filename', 'simulation_output')
     save_vtk = config.get('save_vtk', False)
-    simulator.run(output_filename, save_vtk)
+    simulator.run(output_filename, save_vtk, max_steps=args.steps)
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Запуск симулятора нефтяного пласта")
     parser.add_argument('--config', type=str, required=True, help='Путь к файлу конфигурации .json')
+    parser.add_argument('--steps', type=int, default=None, help='Количество временных шагов (для отладки)')
     return parser.parse_args()
 
 def load_config(config_path):

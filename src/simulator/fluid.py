@@ -52,16 +52,20 @@ class Fluid:
                 self._mu_o_table  = torch.tensor(pvt_cfg.get('mu_oil', []), dtype=torch.float32)  * 1e-3
                 self._mu_w_table  = torch.tensor(pvt_cfg.get('mu_water', []), dtype=torch.float32) * 1e-3
                 self._mu_g_table  = torch.tensor(pvt_cfg.get('mu_gas', []), dtype=torch.float32)  * 1e-3
+                # Таблицы PVT – новые поля ---------------------------------
+                self._bo_table   = torch.tensor(pvt_cfg.get('bo', []), dtype=torch.float32)
+                self._bg_table   = torch.tensor(pvt_cfg.get('bg', []), dtype=torch.float32)
+                self._bw_table   = torch.tensor(pvt_cfg.get('bw', []), dtype=torch.float32)
+                self._rs_table   = torch.tensor(pvt_cfg.get('rs', []), dtype=torch.float32)
+                self._rv_table   = torch.tensor(pvt_cfg.get('rv', []), dtype=torch.float32)
 
                 # Проверка длины
                 n_p = self._p_grid.numel()
-                assert all(tbl.numel() == n_p for tbl in (self._rho_o_table,
-                                                          self._rho_w_table,
-                                                          self._rho_g_table,
-                                                          self._mu_o_table,
-                                                          self._mu_w_table,
-                                                          self._mu_g_table)), \
-                    "Все PVT-таблицы должны иметь ту же длину, что и pressure[]"
+                assert all(tbl.numel() == n_p for tbl in (
+                    self._rho_o_table, self._rho_w_table, self._rho_g_table,
+                    self._mu_o_table,  self._mu_w_table,  self._mu_g_table,
+                    self._bo_table,    self._bg_table,    self._bw_table,
+                    self._rs_table,    self._rv_table)), "Все PVT-таблицы должны иметь одинаковую длину"
 
                 # Убедимся, что сетка давления отсортирована по возрастанию
                 if not torch.all(self._p_grid[1:] >= self._p_grid[:-1]):
@@ -73,10 +77,15 @@ class Fluid:
             except Exception as e:
                 print(f"[WARN] Ошибка при чтении PVT-таблиц: {e}. Используем константы.")
         
-        # Плотности
-        self.rho_oil_ref   = float(config.get('rho_oil', 850.0))   # кг/м3
-        self.rho_water_ref = float(config.get('rho_water', 1000.0)) # кг/м3
-        self.rho_gas_ref   = float(config.get('rho_gas', 150.0))   # кг/м3
+        # Плотности при стандартных условиях (surface) используем как ref
+        self.rho_o_sc = float(config.get('rho_o_sc', 850.0))
+        self.rho_w_sc = float(config.get('rho_w_sc', 1000.0))
+        self.rho_g_sc = float(config.get('rho_g_sc', 150.0))
+        
+        # Алиасы для обратной совместимости со старым кодом
+        self.rho_oil_ref   = self.rho_o_sc
+        self.rho_water_ref = self.rho_w_sc
+        self.rho_gas_ref   = self.rho_g_sc
         
         # Сжимаемость (1/Па)
         self.oil_compressibility   = float(config.get('c_oil', 1e-5))   / 1e6  # 1/Па
@@ -132,11 +141,14 @@ class Fluid:
         print(f"  Вязкость нефти/воды: {self.mu_oil*1e3:.1f}/{self.mu_water*1e3:.1f} сП")
         print(f"  Вязкость газа:       {self.mu_gas*1e3:.2f} сП")
         print(f"  Плотность нефти/воды: {self.rho_oil_ref}/{self.rho_water_ref} кг/м^3")
-        print(f"  Плотность газа:        {self.rho_gas_ref} кг/м^3")
+        print(f"  Плотность газа:        {self.rho_gas_ref} кг/m^3")
         print(f"  Сжимаемость: {self.oil_compressibility*1e6:.1e} 1/Па")
         print(f"  Капиллярное давление: {self.pc_scale/1e6:.2e} МПа, показатель {self.pc_exponent}")
         print(f"  Связанная водонасыщенность: {self.sw_cr}, остаточная нефтенасыщенность: {self.so_r}")
         print(f"  Тензоры флюидов размещены на: {self.device}")
+
+        self.pbubble = float(config.get('pbubble', 20.0)) * 1e6  # МПа → Па
+        self.rs_bubble = float(config.get('rs_bubble', 100.0))   # (m³ газа)|(m³ нефти) – условные ед.
 
     # Свойства для совместимости со старым кодом IMPES
     @property
@@ -253,14 +265,16 @@ class Fluid:
 
     def calc_water_density(self, pressure):
         """Плотность воды ρw(P)."""
-        if self._use_pvt:
-            return self._interp(pressure, self._p_grid, self._rho_w_table)
+        if self._use_pvt and self._bw_table.numel() > 0:
+            Bw = self.calc_bw(pressure)
+            return self.rho_w_sc / (Bw + 1e-12)
         return self.rho_water_ref * (1.0 + self.water_compressibility * (pressure - self.pressure_ref))
 
     def calc_oil_density(self, pressure):
         """Плотность нефти ρo(P)."""
-        if self._use_pvt:
-            return self._interp(pressure, self._p_grid, self._rho_o_table)
+        if self._use_pvt and self._bo_table.numel() > 0:
+            Bo = self.calc_bo(pressure)
+            return self.rho_o_sc / (Bo + 1e-12)
         return self.rho_oil_ref * (1.0 + self.oil_compressibility * (pressure - self.pressure_ref))
 
     def calc_water_kr(self, s_w):
@@ -371,8 +385,9 @@ class Fluid:
     # ---- Газовая фаза ----
     def calc_gas_density(self, pressure):
         """Плотность газа ρg(P)."""
-        if self._use_pvt and hasattr(self, '_rho_g_table') and self._rho_g_table.numel() > 0:
-            return self._interp(pressure, self._p_grid, self._rho_g_table)
+        if self._use_pvt and self._bg_table.numel() > 0:
+            Bg = self.calc_bg(pressure)
+            return self.rho_g_sc / (Bg + 1e-12)
         return self.rho_gas_ref * (1.0 + self.gas_compressibility * (pressure - self.pressure_ref))
 
     def calc_gas_viscosity(self, pressure):
@@ -418,3 +433,63 @@ class Fluid:
         """Относительная проницаемость газа (Corey)."""
         # Простая Corey: krg = Sg^ng
         return s_g ** self.ng
+
+    def calc_rs(self, pressure):
+        """Растворённый газовый фактор Rs(P).
+
+        Простая линейная зависимость:
+            P >= Pbubble   → Rs = Rs_bubble (насыщенная нефть)
+            P <  Pbubble   → Rs линейно падает до 0 при P→0.
+        Возвращает безразмерное отношение (объём газа при стандартных усл. / объём нефти).
+        """
+        pb = self.pbubble
+        rs_b = self.rs_bubble
+        return torch.where(pressure >= pb,
+                           torch.full_like(pressure, rs_b),
+                           rs_b * pressure / pb)
+
+    # ---- PVT ------------------------------------------------------------
+    def calc_bo(self, pressure):
+        if self._use_pvt and self._bo_table.numel() > 0:
+            return self._interp(pressure, self._p_grid, self._bo_table)
+        return torch.ones_like(pressure)
+
+    def calc_bg(self, pressure):
+        if self._use_pvt and self._bg_table.numel() > 0:
+            return self._interp(pressure, self._p_grid, self._bg_table)
+        return torch.ones_like(pressure)
+
+    def calc_bw(self, pressure):
+        if self._use_pvt and self._bw_table.numel() > 0:
+            return self._interp(pressure, self._p_grid, self._bw_table)
+        return torch.ones_like(pressure)
+
+    def calc_rs(self, pressure):
+        # сначала попробуем табличное значение, иначе линейная модель ниже
+        if self._use_pvt and self._rs_table.numel() > 0:
+            return self._interp(pressure, self._p_grid, self._rs_table)
+        return super().calc_rs(pressure)  # линейная базовая реализация
+
+    def calc_rv(self, pressure):
+        if self._use_pvt and self._rv_table.numel() > 0:
+            return self._interp(pressure, self._p_grid, self._rv_table)
+        return torch.zeros_like(pressure)
+
+    # ---- плотности с учётом Bo/Bg/Bw -----------------------------------
+    def calc_oil_density(self, pressure):
+        if self._use_pvt and self._bo_table.numel() > 0:
+            Bo = self.calc_bo(pressure)
+            return self.rho_o_sc / (Bo + 1e-12)
+        return super().calc_oil_density(pressure)
+
+    def calc_water_density(self, pressure):
+        if self._use_pvt and self._bw_table.numel() > 0:
+            Bw = self.calc_bw(pressure)
+            return self.rho_w_sc / (Bw + 1e-12)
+        return super().calc_water_density(pressure)
+
+    def calc_gas_density(self, pressure):
+        if self._use_pvt and self._bg_table.numel() > 0:
+            Bg = self.calc_bg(pressure)
+            return self.rho_g_sc / (Bg + 1e-12)
+        return super().calc_gas_density(pressure)
