@@ -16,15 +16,29 @@ from simulator.simulation import Simulator
 from plotting.plotter import Plotter
 
 
-def run_sim(config_path: str, solver_type: str, steps: int) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+def run_sim(config_path: str, solver_type: str, steps: int,
+            gmres_tol: float | None = None,
+            newton_eta0: float | None = None,
+            newton_tol: float | None = None,
+            newton_rtol: float | None = None) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
     """Запускает расчёт и возвращает final поля (pressure[Pa], Sw, Sg/None)."""
     cfg = json.load(open(config_path))
     cfg_sim = cfg.get('simulation', {}).copy()
     cfg_sim['solver_type'] = solver_type
     if solver_type == 'fully_implicit':
-        # Гасим остаток давления до уровня IMPES
-        cfg_sim.setdefault('gmres_min_tol', 1e-9)
-        cfg_sim.setdefault('newton_eta0', 1e-4)
+        # Гасим остаток давления до уровня IMPES (значения могут быть переопределены аргументами)
+        if gmres_tol is None:
+            gmres_tol = 1e-9
+        if newton_eta0 is None:
+            newton_eta0 = 1e-4
+        cfg_sim['gmres_min_tol'] = gmres_tol
+        cfg_sim['newton_eta0'] = newton_eta0
+
+        # Дополнительные критерии Ньютона можно задавать
+        if newton_tol is not None:
+            cfg_sim['newton_tolerance'] = newton_tol
+        if newton_rtol is not None:
+            cfg_sim['newton_rtol'] = newton_rtol
 
     # Отрубаем все промежуточные PNG/VTK – будем строить только финальный кадр
     cfg_sim['steps_per_output'] = 10 ** 9
@@ -47,19 +61,23 @@ def run_sim(config_path: str, solver_type: str, steps: int) -> Tuple[np.ndarray,
     return pressure, Sw, Sg
 
 
-def make_plot(pressure_impes, pressure_fi, Sw, out_dir):
+def make_plot(pressure_impes, pressure_fi, Sw, out_dir, sigma: float = 1.0,
+              pressure_limits: tuple | None = None):
     """Сохраняет side-by-side карты давления IMPES и FI + карту их разности."""
     import matplotlib.pyplot as plt
     from scipy.ndimage import gaussian_filter
 
     # Берём центральный Z-срез
     z_idx = pressure_impes.shape[2] // 2
-    p_imp = gaussian_filter(pressure_impes[:, :, z_idx] / 1e6, sigma=0.7)
-    p_fi = gaussian_filter(pressure_fi[:, :, z_idx] / 1e6, sigma=0.7)
+    p_imp = gaussian_filter(pressure_impes[:, :, z_idx] / 1e6, sigma=sigma)
+    p_fi = gaussian_filter(pressure_fi[:, :, z_idx] / 1e6, sigma=sigma)
     p_diff = p_fi - p_imp
 
-    vmin = min(p_imp.min(), p_fi.min())
-    vmax = max(p_imp.max(), p_fi.max())
+    if pressure_limits is not None:
+        vmin, vmax = pressure_limits
+    else:
+        vmin = min(p_imp.min(), p_fi.min())
+        vmax = max(p_imp.max(), p_fi.max())
     vdiff = max(abs(p_diff.min()), abs(p_diff.max()))
 
     fig, axes = plt.subplots(1, 3, figsize=(15, 5))
@@ -85,6 +103,19 @@ def main():
     parser = argparse.ArgumentParser(description="Сравнить IMPES и FI на одном конфиге")
     parser.add_argument('--config', required=True)
     parser.add_argument('--steps', type=int, default=1)
+    parser.add_argument('--fi_gmres_tol', type=float, default=1e-9,
+                        help='Минимальный tol для GMRES в FI')
+    parser.add_argument('--fi_newton_eta0', type=float, default=1e-4,
+                        help='Стартовый forcing term η₀ Ньютона')
+    parser.add_argument('--fi_newton_tol', type=float, default=1e-7,
+                        help='Абсолютная невязка Ньютона')
+    parser.add_argument('--fi_newton_rtol', type=float, default=1e-4,
+                        help='Относительная невязка Ньютона')
+    parser.add_argument('--smooth_sigma', type=float, default=1.0,
+                        help='Sigma для Gaussian фильтра при визуализации давлений')
+    parser.add_argument('--fix_pressure_limits', nargs=2, type=float,
+                        metavar=('PMIN', 'PMAX'),
+                        help='Фиксированный диапазон цветов давления (МПа)')
     args = parser.parse_args()
 
     out_dir = os.path.join('results', 'compare_' + datetime.datetime.now().strftime('%Y%m%d_%H%M%S'))
@@ -92,9 +123,18 @@ def main():
     print("=== Запуск IMPES …")
     p_imp, Sw, _ = run_sim(args.config, 'impes', args.steps)
     print("=== Запуск Fully-Implicit …")
-    p_fi, _, _ = run_sim(args.config, 'fully_implicit', args.steps)
+    p_fi, _, _ = run_sim(
+        args.config, 'fully_implicit', args.steps,
+        gmres_tol=args.fi_gmres_tol,
+        newton_eta0=args.fi_newton_eta0,
+        newton_tol=args.fi_newton_tol,
+        newton_rtol=args.fi_newton_rtol
+    )
 
-    make_plot(p_imp, p_fi, Sw, out_dir)
+    limits = tuple(args.fix_pressure_limits) if args.fix_pressure_limits else None
+    make_plot(p_imp, p_fi, Sw, out_dir,
+              sigma=args.smooth_sigma,
+              pressure_limits=limits)
 
 
 if __name__ == '__main__':
