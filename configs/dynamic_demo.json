@@ -81,8 +81,6 @@
     "backend": "hypre",
 
     "well_auto_factor": 20,
-    "gmres_min_tol": 1e-7,
-    "newton_eta0": 1e-3,
     "debug_wells": true,
     "verbose": true
   }

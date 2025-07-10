@@ -1,0 +1,62 @@
+{
+  "description": "SMALL example 2D case (~2 500 cells) solved with Fully-Implicit JFNK (tight tolerances by default).",
+  "output_filename": "small_fi",
+  "save_vtk": true,
+
+  "simulation": {
+    "solver_type": "fully_implicit",
+    "jacobian": "jfnk",
+    "total_time_days": 30,
+    "time_step_days": 0.2,
+    "save_interval": 5,
+    "animation_fps": 5,
+    "newton_max_iter": 15,
+    "max_time_step_attempts": 5,
+    "dt_increase_factor": 1.25,
+    "dt_reduction_factor": 2.0,
+    "use_cuda": false
+  },
+
+  "reservoir": {
+    "dimensions": [50, 50, 1],
+    "grid_size": [10.0, 10.0, 5.0],
+    "porosity": 0.20,
+    "permeability": 100,
+    "k_vertical_fraction": 0.10
+  },
+
+  "fluid": {
+    "pressure": 20.0,
+    "s_w": 0.20,
+    "mu_oil": 1.0,
+    "mu_water": 0.5,
+    "rho_oil": 850.0,
+    "rho_water": 1000.0,
+    "c_oil": 1e-5,
+    "c_water": 1e-5,
+    "c_rock": 1e-5,
+    "s_wr": 0.20,
+    "s_or": 0.20,
+    "pc_scale": 0.0,
+    "pc_threshold": 0.01
+  },
+
+  "wells": [
+    {
+      "name": "INJ",
+      "type": "injector",
+      "i": 5, "j": 25, "k": 0,
+      "radius": 0.1,
+      "control_type": "rate",
+      "control_value": 10.0
+    },
+    {
+      "name": "PROD",
+      "type": "producer",
+      "i": 45, "j": 25, "k": 0,
+      "radius": 0.1,
+      "control_type": "bhp",
+      "control_value": 18.0
+    }
+  ]
+} 

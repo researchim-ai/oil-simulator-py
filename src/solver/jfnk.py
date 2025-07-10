@@ -24,8 +24,8 @@ class FullyImplicitSolver:
                                        backend=backend)
 
         # Newton params ----------------------------------------------------
-        self.tol = simulator.sim_params.get("newton_tolerance", 1e-6)  # абсолютная
-        self.rtol = simulator.sim_params.get("newton_rtol", 1e-3)       # относительная
+        self.tol = simulator.sim_params.get("newton_tolerance", 1e-7)  # абсолютная
+        self.rtol = simulator.sim_params.get("newton_rtol", 1e-4)       # относительная
         self.max_it = simulator.sim_params.get("newton_max_iter", 15)
 
     def _Jv(self, x: torch.Tensor, v: torch.Tensor, dt):
@@ -65,7 +65,7 @@ class FullyImplicitSolver:
         self.total_gmres_iters = 0
         init_F_scaled = None  # значение невязки на первой итерации для относительного критерия
 
-        gmres_tol_min = self.sim.sim_params.get("gmres_min_tol", 1e-5)  # раньше 1e-8, но по умолчанию 1e-5 достаточно
+        gmres_tol_min = self.sim.sim_params.get("gmres_min_tol", 1e-7)  # минимум tolerances
 
         for it in range(self.max_it):
             F_phys = self.sim._fi_residual_vec(x if self.scaler is None else self._unscale_x(x), dt)
@@ -93,7 +93,7 @@ class FullyImplicitSolver:
             # Адаптивный forcing-term η_k  по Brown–Saad
             if prev_F_norm is None:
                 # Стартовый forcing-term – управляемый параметр, по умолчанию 1e-2
-                eta_k = self.sim.sim_params.get("newton_eta0", 1e-2)
+                eta_k = self.sim.sim_params.get("newton_eta0", 1e-4)
             else:
                 ratio = (F_norm / prev_F_norm).item()
                 eta_k = 0.9 * ratio**2

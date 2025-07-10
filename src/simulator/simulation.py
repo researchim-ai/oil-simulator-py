@@ -223,6 +223,9 @@ class Simulator:
             self.fluid.prev_sw       = self.fluid.s_w.clone()
             if hasattr(self.fluid, 's_g'):
                 self.fluid.prev_sg   = self.fluid.s_g.clone()
+            # Обновляем гистерезис капиллярного давления
+            if hasattr(self.fluid, 'update_hysteresis'):
+                self.fluid.update_hysteresis()
 
         # --------------------------------------------------------------
         # Массовый баланс (воды+нефти+газа) и расширенная статистика
@@ -428,7 +431,7 @@ class Simulator:
         print("Manual Jacobian solver failed - завершаем step как неудачный")
         return False  # Промышленные системы НЕ делают fallback на IMPES!
 
-    def _fully_implicit_newton_step(self, dt, max_iter=20, tol=1e-3, 
+    def _fully_implicit_newton_step(self, dt, max_iter=20, tol=1e-7, 
                                       damping_factor=0.7, jac_reg=1e-7, 
                                       line_search_factors=None, use_cuda=False):
         """
@@ -460,7 +463,7 @@ class Simulator:
             if max_iter is None:
                 max_iter = self.sim_params.get("newton_max_iter", 20)
             if tol is None:
-                tol = self.sim_params.get("newton_tolerance", 1e-3)
+                tol = self.sim_params.get("newton_tolerance", 1e-7)
             if damping_factor is None:
                 damping_factor = self.sim_params.get("damping_factor", 0.7)
             if jac_reg is None:
@@ -1386,14 +1389,16 @@ class Simulator:
         # ------------------------------------------------------------------
         rho_w = self.fluid.calc_water_density(p)
         rho_o = self.fluid.calc_oil_density(p)
+        rho_g = self.fluid.calc_gas_density(p) if sg_vec is not None else None
 
         mu_w = self.fluid.calc_water_viscosity(p)
         mu_o = self.fluid.calc_oil_viscosity(p)
+        mu_g = self.fluid.calc_gas_viscosity(p) if sg_vec is not None else None
 
         kro, krw = self.fluid.get_rel_perms(s_w)
         lam_w = krw / mu_w
         lam_o = kro / mu_o
-        lam_t = lam_w + lam_o  # total mobility
+        lam_t = lam_w + lam_o + (lam_g if sg_vec is not None else 0.0)  # total mobility
 
         # === Авто-лимитер λ_t для скважин ===
         auto_factor = self.sim_params.get("well_auto_factor", 20.0)
@@ -1444,10 +1449,11 @@ class Simulator:
         flow_o_z = Tz * lam_o_z * pot_z_o
 
         # ------------------------------------------------------------------
-        # Divergence of phase fluxes
+        # Divergence of phase fluxes (add gas if active)
         # ------------------------------------------------------------------
         div_w = torch.zeros_like(s_w)
         div_o = torch.zeros_like(s_w)
+        div_g = torch.zeros_like(s_w) if sg_vec is not None else None
 
         div_w[:-1, :, :] += flow_w_x
         div_w[1:,  :, :] -= flow_w_x
@@ -1464,6 +1470,24 @@ class Simulator:
         div_o[:, :, :-1] += flow_o_z
         div_o[:, :,  1:] -= flow_o_z
 
+        if sg_vec is not None:
+            # Gas flows (no capillary for now)
+            lam_g_x = torch.where(dp_x > 0, lam_g[:-1, :, :], lam_g[1:, :, :])
+            lam_g_y = torch.where(dp_y > 0, lam_g[:, :-1, :], lam_g[:, 1:, :])
+            lam_g_z = torch.where(dp_z > 0, lam_g[:, :, :-1], lam_g[:, :, 1:])
+
+            flow_g_x = Tx * lam_g_x * dp_x
+            flow_g_y = Ty * lam_g_y * dp_y
+            pot_z_g = dp_z + self.g * (0.5 * (rho_g[:, :, :-1] + rho_g[:, :, 1:])) * dz if dz>0 and nz>1 else dp_z
+            flow_g_z = Tz * lam_g_z * pot_z_g
+
+            div_g[:-1, :, :] += flow_g_x
+            div_g[1:,  :, :] -= flow_g_x
+            div_g[:, :-1, :] += flow_g_y
+            div_g[:, 1:,  :] -= flow_g_y
+            div_g[:, :, :-1] += flow_g_z
+            div_g[:, :,  1:] -= flow_g_z
+
         # ------------------------------------------------------------------
         # Accumulation terms
         # ------------------------------------------------------------------
@@ -1476,11 +1500,23 @@ class Simulator:
 
         rho_w_old = self.fluid.calc_water_density(self.fluid.prev_pressure)
         rho_o_old = self.fluid.calc_oil_density(self.fluid.prev_pressure)
+        rho_g_old = self.fluid.calc_gas_density(self.fluid.prev_pressure) if sg_vec is not None else None
 
         cell_vol = self.reservoir.cell_volume
 
         acc_w = (phi_new * s_w * rho_w - phi_old * self.fluid.prev_sw * rho_w_old) * cell_vol / dt
-        acc_o = (phi_new * (1.0 - s_w) * rho_o - phi_old * (1.0 - self.fluid.prev_sw) * rho_o_old) * cell_vol / dt
+        acc_o = (phi_new * (1.0 - s_w - (s_g if sg_vec is not None else 0)) * rho_o -
+                 phi_old * (1.0 - self.fluid.prev_sw - (self.fluid.prev_sg if sg_vec is not None else 0)) * rho_o_old) * cell_vol / dt
+        if sg_vec is not None:
+            rho_g_old = self.fluid.calc_gas_density(self.fluid.prev_pressure)
+            Rs_new = self.fluid.calc_rs(p)
+            Rs_old = self.fluid.calc_rs(self.fluid.prev_pressure)
+            rho_g_sc = self.fluid.rho_g_sc
+
+            # масса газа = φ (Sg ρg + So Rs ρg_sc)
+            mass_g_new = phi_new * (s_g * rho_g + (1.0 - s_w - s_g) * Rs_new * rho_g_sc)
+            mass_g_old = phi_old * (self.fluid.prev_sg * rho_g_old + (1.0 - self.fluid.prev_sw - self.fluid.prev_sg) * Rs_old * rho_g_sc)
+            acc_g = (mass_g_new - mass_g_old) * cell_vol / dt
 
         # ------------------------------------------------------------------
         # Capillary pressure gradients (oil phase)
@@ -1503,6 +1539,7 @@ class Simulator:
         # ------------------------------------------------------------------
         q_w = torch.zeros_like(s_w)
         q_o = torch.zeros_like(s_w)
+        q_g = torch.zeros_like(s_w) if sg_vec is not None else None
 
         if getattr(self, "well_manager", None) is not None and hasattr(self.well_manager, "get_wells"):
             fw = lam_w / (lam_t + 1e-12)
@@ -1535,6 +1572,7 @@ class Simulator:
                 # Переводим объёмный расход (м³/с) в массовый (кг/с)
                 rho_w_cell = rho_w[i, j, k]
                 rho_o_cell = rho_o[i, j, k]
+                rho_g_cell = rho_g[i, j, k] if sg_vec is not None else None
 
                 if well.type == 'injector':
                     # Закачиваем только воду
@@ -1542,6 +1580,8 @@ class Simulator:
                 else:  # producer
                     q_w[i, j, k] += q_total * fw[i, j, k] * rho_w_cell
                     q_o[i, j, k] += q_total * (1 - fw[i, j, k]) * rho_o_cell
+                    if sg_vec is not None:
+                        q_g[i, j, k] += q_total * (1 - fw[i, j, k]) * rho_g_cell
 
         # ------------------------------------------------------------------
         # Residuals per cell (update with q terms now defined)

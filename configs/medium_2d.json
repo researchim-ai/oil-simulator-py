@@ -10,7 +10,6 @@
         "save_interval": 30,
         "animation_fps": 5,
         "newton_max_iter": 20,
-        "newton_tolerance": 5e-4,
         "jacobian_regularization": 1e-7,
         "damping_factor": 0.7,
         "max_time_step_attempts": 5,

@@ -114,6 +114,8 @@ class Fluid:
         self.s_w = torch.full(self.dimensions, initial_sw, device=self.device)
         self.s_g = torch.full(self.dimensions, initial_sg, device=self.device)
         self.s_o = 1.0 - self.s_w - self.s_g
+        # --- Hysteresis state: максимальная достигнутая Sw (для Land)
+        self.sw_max = self.s_w.clone()
         self.prev_pressure = self.pressure.clone()
         self.prev_sw = self.s_w.clone()
         self.prev_sg = self.s_g.clone()
@@ -149,6 +151,13 @@ class Fluid:
 
         self.pbubble = float(config.get('pbubble', 20.0)) * 1e6  # МПа → Па
         self.rs_bubble = float(config.get('rs_bubble', 100.0))   # (m³ газа)|(m³ нефти) – условные ед.
+
+    # ------------------------------------------------------------------
+    # Hysteresis helper
+    # ------------------------------------------------------------------
+    def update_hysteresis(self):
+        """Обновляет sw_max после успешного шага симуляции."""
+        self.sw_max = torch.maximum(self.sw_max, self.s_w)
 
     # Свойства для совместимости со старым кодом IMPES
     @property
@@ -235,12 +244,16 @@ class Fluid:
         """
         if self.pc_scale == 0.0:
             return torch.zeros_like(s_w)
-            
+
         s_norm = self._get_normalized_saturation(s_w)
-        
-        # Простая степенная модель Pc = scale * (1-s_norm)^-exponent
-        # Добавляем эпсилон для стабильности, если s_norm = 1
-        pc = self.pc_scale * (1.0 - s_norm + 1e-6) ** (-self.pc_exponent)
+
+        # --- Drainage curve (baseline) ---------------------------------
+        pc_drain = self.pc_scale * (1.0 - s_norm + 1e-6) ** (-self.pc_exponent)
+
+        # --- Land hysteresis correction --------------------------------
+        #   Pc_imb = Pc_drain * (1 - Sw_max)/(1 - Sw)
+        land_factor = torch.clamp((1.0 - self.sw_max) / (1.0 - s_w + 1e-6), 0.0, 1.0)
+        pc = pc_drain * land_factor
         return pc
 
     def get_capillary_pressure_derivative(self, s_w):
@@ -251,15 +264,19 @@ class Fluid:
         """
         if self.pc_scale == 0.0:
             return torch.zeros_like(s_w)
-            
+
         s_norm = self._get_normalized_saturation(s_w)
         dsw_norm_dsw = 1 / (1 - self.sw_cr - self.so_r)
 
-        # d(Pc)/d(sw) = d(Pc)/d(s_norm) * d(s_norm)/d(sw)
-        # d(Pc)/d(s_norm) = pc_scale * (-exponent) * (1-s_norm)^(-exponent-1) * (-1)
-        dpc_dsn = self.pc_scale * self.pc_exponent * (1.0 - s_norm + 1e-6) ** (-self.pc_exponent - 1)
-        
-        dpc_dsw = dpc_dsn * dsw_norm_dsw
+        # Drainage derivative (with negative sign)
+        dpc_dsn = -self.pc_scale * self.pc_exponent * (1.0 - s_norm + 1e-6) ** (-self.pc_exponent - 1)
+        dpc_dsw_drain = dpc_dsn * dsw_norm_dsw
+
+        # Land factor and its derivative
+        land_factor = torch.clamp((1.0 - self.sw_max) / (1.0 - s_w + 1e-6), 0.0, 1.0)
+        dland_dsw = (1.0 - self.sw_max) / (1.0 - s_w + 1e-6) ** 2
+
+        dpc_dsw = dpc_dsw_drain * land_factor + (self.pc_scale * (1.0 - s_norm + 1e-6) ** (-self.pc_exponent)) * dland_dsw
         dpc_dsw = torch.where(s_norm >= 1, torch.zeros_like(dpc_dsw), dpc_dsw)
         return dpc_dsw
 
@@ -447,6 +464,29 @@ class Fluid:
         return torch.where(pressure >= pb,
                            torch.full_like(pressure, rs_b),
                            rs_b * pressure / pb)
+
+    def calc_drs_dp(self, pressure):
+        """dRs/dP (Па⁻¹). Для линейной модели Rs = Rs_b * P/pb ниже пузырькового давления."""
+        if self._use_pvt and self._rs_table.numel() > 0:
+            # численная производная через центральные разности
+            eps = 1e3  # 0.001 МПа
+            return (self.calc_rs(pressure + eps) - self.calc_rs(pressure - eps)) / (2 * eps)
+        pb = self.pbubble
+        rs_b = self.rs_bubble
+        return torch.where(pressure >= pb,
+                           torch.zeros_like(pressure),
+                           rs_b / pb)
+
+    # ------------------------------------------------------------------
+    # Масса газа (свободный + растворённый)
+    # ------------------------------------------------------------------
+    def total_gas_mass(self, s_o, s_g, pressure, porosity):
+        """Возвращает суммарную массу газовой фазы в ячейке (кг)."""
+        rho_g = self.calc_gas_density(pressure)
+        rho_g_sc = self.rho_g_sc
+        Rs = self.calc_rs(pressure)
+        # m_g =  φ (Sg ρg + So Rs ρg_sc)
+        return porosity * (s_g * rho_g + s_o * Rs * rho_g_sc)
 
     # ---- PVT ------------------------------------------------------------
     def calc_bo(self, pressure):

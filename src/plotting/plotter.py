@@ -18,7 +18,8 @@ class Plotter:
         # даже при медленной эволюции.
         self._prev_sw = None
 
-    def save_plots(self, pressure, saturation_w, filename, time_info=None, saturation_g=None):
+    def save_plots(self, pressure, saturation_w, filename, time_info=None, saturation_g=None,
+                   pressure_limits: tuple | None = None, show_delta_p: bool = False):
         """
         Сохраняет 2D-карты давления и насыщенности в файл.
         Визуализируется центральный срез по оси Z.
@@ -38,7 +39,10 @@ class Plotter:
         # --------------------------------------------------------------
         # Подготовка figure и заголовка
         # --------------------------------------------------------------
+        extra_p_delta = show_delta_p and (hasattr(self, '_prev_pressure') and self._prev_pressure is not None)
         n_panels = 3 if self.reservoir.nz > 1 else 2
+        if extra_p_delta:
+            n_panels += 1
         fig, axes = plt.subplots(1, n_panels, figsize=(18, 5))
         ax1 = axes[0]
 
@@ -51,15 +55,21 @@ class Plotter:
         # ------------------------------------------------------------------
         nx, ny, _ = self.reservoir.dimensions
         # Мягкое сглаживание убирает численный «шум» 5×5 без размывания крупного градиента
-        p_img = gaussian_filter(p_slice / 1e6, sigma=0.7)
+        p_mpa = p_slice / 1e6
+        p_img = gaussian_filter(p_mpa, sigma=0.7)
 
-        # Используем nearest-neighbor, чтобы каждая ячейка отображалась один-к-одному
-        # и не возникало «мозаики» из Lanczos-фильтра на малых массивах (40×40).
+        # Фиксированный диапазон, если указан pressure_limits (в МПа)
+        if pressure_limits is not None:
+            vmin, vmax = pressure_limits
+        else:
+            vmin, vmax = p_img.min(), p_img.max()
+
         im1 = ax1.imshow(p_img,
                          cmap='turbo',
                          origin='lower',
                          extent=(0, nx, 0, ny),
                          interpolation='bilinear',
+                         vmin=vmin, vmax=vmax,
                          aspect='equal')
         ax1.set_aspect('equal', adjustable='box')
         # Убираем тики – остаётся чистая картинка
@@ -71,12 +81,16 @@ class Plotter:
 
         # Переставляем индексы панелей
         # Теперь: ax1 – Pressure, ax2 – Water Saturation, ax3 – Gas Saturation (если есть)
-        if len(axes) == 3:
-            ax2 = axes[1]
-            ax3 = axes[2]
+        # Indices now variable due to optional delta panel
+        idx = 1
+        ax2 = axes[idx]
+        idx += 1
+        if self.reservoir.nz > 1:
+            ax3 = axes[idx]
+            idx += 1
         else:
-            ax2 = axes[1]
             ax3 = None
+        ax_delta = axes[idx] if extra_p_delta else None
 
         # --------------------------------------------------------------
         # Water Saturation (absolute)
@@ -115,8 +129,24 @@ class Plotter:
             ax3.set_ylabel('Ячейка Y')
             fig.colorbar(im_g, ax=ax3)
 
+        # --------------------------------------------------------------
+        # ΔP panel (optional)
+        # --------------------------------------------------------------
+        if extra_p_delta and ax_delta is not None:
+            dp = (p_mpa - self._prev_pressure[:, :, z_slice_idx] / 1e6)
+            dp_img = gaussian_filter(dp, sigma=0.7)
+            dmax = np.max(np.abs(dp_img))
+            im_dp = ax_delta.imshow(dp_img, cmap='seismic', origin='lower', extent=(0, nx, 0, ny),
+                                    interpolation='bilinear', vmin=-dmax, vmax=dmax, aspect='equal')
+            ax_delta.set_title(f'ΔP (МПа){title_suffix}')
+            ax_delta.set_xlabel('Ячейка X')
+            ax_delta.set_ylabel('Ячейка Y')
+            fig.colorbar(im_dp, ax=ax_delta)
+
         # Обновляем предыдущий Sw, чтобы в будущем можно было снова строить ∆Sw при необходимости
         self._prev_sw = s_slice.copy()
+        # Сохраняем текущее давление для следующего шага (для ΔP)
+        self._prev_pressure = pressure.copy()
 
         plt.tight_layout()
         plt.savefig(filename)

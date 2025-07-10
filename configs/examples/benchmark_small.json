@@ -1,0 +1,44 @@
+{
+  "description": "Benchmark SMALL config to compare IMPES vs Fully-Implicit with compare_solvers.py.",
+  "output_filename": "benchmark_small",
+  "save_vtk": false,
+
+  "simulation": {
+    "solver_type": "impes",
+    "total_time_days": 5,
+    "time_step_days": 0.2,
+    "save_interval": 5,
+    "animation_fps": 5,
+    "cg_tolerance": 1e-5,
+    "cg_max_iter": 200,
+    "use_cuda": false
+  },
+
+  "reservoir": {
+    "dimensions": [30, 30, 1],
+    "grid_size": [10.0, 10.0, 5.0],
+    "porosity": 0.25,
+    "permeability": 150,
+    "k_vertical_fraction": 0.10
+  },
+
+  "fluid": {
+    "pressure": 20.0,
+    "s_w": 0.25,
+    "mu_oil": 1.2,
+    "mu_water": 0.5,
+    "rho_oil": 850.0,
+    "rho_water": 1000.0,
+    "c_oil": 1e-5,
+    "c_water": 1e-5,
+    "c_rock": 1e-5,
+    "s_wr": 0.20,
+    "s_or": 0.20,
+    "pc_scale": 0.0
+  },
+
+  "wells": [
+    { "name": "INJ", "type": "injector", "i": 2, "j": 2, "k": 0, "radius": 0.1, "control_type": "rate", "control_value": 5.0 },
+    { "name": "PROD", "type": "producer", "i": 27, "j": 27, "k": 0, "radius": 0.1, "control_type": "bhp", "control_value": 18.0 }
+  ]
+} 
