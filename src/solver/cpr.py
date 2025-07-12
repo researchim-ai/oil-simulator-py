@@ -4,7 +4,7 @@ from .geom_amg import GeoSolver
 from typing import Optional
 
 class CPRPreconditioner:
-    def __init__(self, reservoir, fluid, backend="amgx", omega=0.3):
+    def __init__(self, reservoir, fluid, backend="amgx", omega=0.3, smoother: str = "jacobi"):
         self.backend = backend
         self.omega = omega
         self.failed_amg = False  # Флаг провала AMG
@@ -28,8 +28,10 @@ class CPRPreconditioner:
                 self.failed_amg = True
         elif backend == "geo":
             try:
-                print("🔧 CPR: Используем собственный геометрический AMG (GeoSolver)...")
-                self.solver = GeoSolver(reservoir)
+                print(f"🔧 CPR: Используем собственный геометрический AMG (GeoSolver, smoother='{smoother}')...")
+                self.solver = GeoSolver(reservoir, smoother=smoother)
+                # Alias для обратной совместимости
+                self.geo_solver = self.solver
                 print("✅ CPR: GeoSolver инициализирован успешно")
             except Exception as e:
                 print(f"❌ CPR: Ошибка GeoSolver: {e}")

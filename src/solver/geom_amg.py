@@ -86,16 +86,24 @@ def mg_solve(b: torch.Tensor, hx: float = 1.0, hy: float = 1.0, hz: float = 1.0,
     return x, res 
 
 
+# ------------------------------------------------------------
+# GeoSolver: теперь с выбором сглаживателя (Jacobi или L1-GS)
+# ------------------------------------------------------------
 class GeoSolver:
     """Простой геометрический мультигрид-решатель блока давления.
 
     Интерфейс повторяет BoomerSolver/AmgXSolver: метод solve(rhs, tol, max_iter)
     принимает rhs в виде numpy-массива (vector) и возвращает numpy-массив решения.
     """
-    def __init__(self, reservoir):
+    def __init__(self, reservoir, smoother: str = "jacobi"):
         self.nx, self.ny, self.nz = reservoir.dimensions
         self.hx, self.hy, self.hz = map(float, reservoir.grid_size)
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
+
+        # Тип сглаживателя: 'jacobi' | 'l1gs'
+        self.smoother = smoother.lower()
+        if self.smoother not in ("jacobi", "l1gs"):
+            raise ValueError("smoother must be 'jacobi' or 'l1gs'")
 
         # --- копируем тензоры проницаемости (м^2) на выбранное устройство ---
         kx = reservoir.permeability_x.to(self.device, dtype=torch.float32).clone()
@@ -165,76 +173,94 @@ class GeoSolver:
         kx, ky, kz = data["kx"], data["ky"], data["kz"]
         hx, hy, hz = data["hx"], data["hy"], data["hz"]
 
-        # --- transmissibilities --------------------------------------
-        # Right faces (i+1/2)
-        Tx_r = self._harmonic(kx[..., :-1], kx[..., 1:]) * (hy * hz) / hx
-        # Left faces – shift Tx_r to the left
-        Tx_l = F.pad(Tx_r, (1, 0, 0, 0, 0, 0))[:, :, :-1]
-
-        # Front/back (y-direction)
-        Ty_f = self._harmonic(ky[:, :-1, :], ky[:, 1:, :]) * (hx * hz) / hy
-        Ty_b = F.pad(Ty_f, (0, 0, 1, 0, 0, 0))[:, :-1, :]
-
-        # Up/down (z-direction)
+        # --- transmissibilities по граням (без паддинга) --------------
+        Tx = self._harmonic(kx[..., :-1], kx[..., 1:]) * (hy * hz) / hx       # shape (nz, ny, nx-1)
+        Ty = self._harmonic(ky[:, :-1, :], ky[:, 1:, :]) * (hx * hz) / hy     # shape (nz, ny-1, nx)
         if kz.shape[0] > 1:
-            Tz_u = self._harmonic(kz[:-1, :, :], kz[1:, :, :]) * (hx * hy) / hz
-            # сдвигаем Tz_u на один слой вниз без обрезки, чтобы форма совпадала
-            Tz_d = F.pad(Tz_u, (0, 0, 0, 0, 1, 0))
+            Tz = self._harmonic(kz[:-1, :, :], kz[1:, :, :]) * (hx * hy) / hz # shape (nz-1, ny, nx)
         else:
-            Tz_u = torch.zeros_like(kx)
-            Tz_d = torch.zeros_like(kx)
+            Tz = None
 
-        # --- диагональ ------------------------------------------------
-        diag = Tx_r + Tx_l + Ty_f + Ty_b + Tz_u + Tz_d + 1e-12  # избегаем деления на 0
-
-        # --- вычисляем A x = sum T*(x - x_nb) ------------------------
+        # --- вычисляем A x = div(T * grad x) --------------------------
         div = torch.zeros_like(x)
 
-        # x-right / left
-        div[..., :-1] += Tx_r * (x[..., :-1] - x[..., 1:])
-        div[..., 1:]  += Tx_l[..., 1:] * (x[..., 1:] - x[..., :-1])
+        # X-направление -------------------------------------------------
+        div[..., :-1] += Tx * (x[..., :-1] - x[..., 1:])
+        div[..., 1:]  += Tx * (x[..., 1:] - x[..., :-1])
 
-        # y-front/back (dim=1)
-        div[:, :-1, :] += Ty_f * (x[:, :-1, :] - x[:, 1:, :])
-        div[:, 1:, :]  += Ty_b[:, 1:, :] * (x[:, 1:, :] - x[:, :-1, :])
+        # Y-направление -------------------------------------------------
+        div[:, :-1, :] += Ty * (x[:, :-1, :] - x[:, 1:, :])
+        div[:, 1:, :]  += Ty * (x[:, 1:, :] - x[:, :-1, :])
 
-        # z-up/down (dim=0)
-        if x.shape[0] > 1:
-            div[:-1, :, :] += Tz_u * (x[:-1, :, :] - x[1:, :, :])
-            div[1:, :, :]  += Tz_d[1:, :, :] * (x[1:, :, :] - x[:-1, :, :])
-
+        # Z-направление -------------------------------------------------
+        if Tz is not None:
+            div[:-1, :, :] += Tz * (x[:-1, :, :] - x[1:, :, :])
+            div[1:, :, :]  += Tz * (x[1:, :, :] - x[:-1, :, :])
+ 
         return div  # SPD (positive definite)
 
     # ------------------------------------------------------------------
-    def _jacobi_relax_var(self, x, b, lvl_data, omega=0.8, iters=2):
+    def _compute_diag(self, kx, ky, kz, hx, hy, hz, shape):
+        # --- transmissibilities (как в _apply_A) ----------------------
+        Tx = self._harmonic(kx[..., :-1], kx[..., 1:]) * (hy * hz) / hx
+        Ty = self._harmonic(ky[:, :-1, :], ky[:, 1:, :]) * (hx * hz) / hy
+        if kz.shape[0] > 1:
+            Tz = self._harmonic(kz[:-1, :, :], kz[1:, :, :]) * (hx * hy) / hz
+        else:
+            Tz = None
+
+        diag = torch.zeros(shape, device=kx.device)
+        # X faces
+        diag[..., :-1] += Tx
+        diag[..., 1:]  += Tx
+        # Y faces
+        diag[:, :-1, :] += Ty
+        diag[:, 1:, :]  += Ty
+        # Z faces
+        if Tz is not None:
+            diag[:-1, :, :] += Tz
+            diag[1:, :, :]  += Tz
+
+        return diag + 1e-12
+
+    # ------------------ Jacobi (как было) ------------------------------
+    def _jacobi_relax_var(self, x, b, lvl_data, lvl_idx, omega=0.8, iters=2):
         kx, ky, kz = lvl_data["kx"], lvl_data["ky"], lvl_data["kz"]
         hx, hy, hz = lvl_data["hx"], lvl_data["hy"], lvl_data["hz"]
 
-        # вычислим диагональ один раз
-        Tx_r = self._harmonic(kx[..., :-1], kx[..., 1:]) * (hy * hz) / hx
-        Tx_l = F.pad(Tx_r, (1, 0, 0, 0, 0, 0))[:, :, :-1]
-        Ty_f = self._harmonic(ky[:, :-1, :], ky[:, 1:, :]) * (hx * hz) / hy
-        Ty_b = F.pad(Ty_f, (0, 0, 1, 0, 0, 0))[:, :-1, :]
-        if kz.shape[0] > 1:
-            Tz_u = self._harmonic(kz[:-1, :, :], kz[1:, :, :]) * (hx * hy) / hz
-            Tz_d = F.pad(Tz_u, (0, 0, 0, 0, 1, 0))
-        else:
-            Tz_u = Tz_d = torch.zeros_like(kx)
-        # Формируем диагональ так же, как в _apply_A, чтобы избежать ошибок
-        diag = torch.zeros_like(x)
-        diag[..., :-1] += Tx_r
-        diag[..., 1:]  += Tx_l[..., 1:]
-        diag[:, :-1, :] += Ty_f
-        diag[:, 1:, :]  += Ty_b[:, 1:, :]
-        if x.shape[0] > 1:
-            diag[:-1, :, :] += Tz_u
-            diag[1:, :, :]  += Tz_d[1:, :, :]
-        diag = diag + 1e-12
+        # --- diag из переменных коэффициентов ---
+        diag = self._compute_diag(kx, ky, kz, hx, hy, hz, x.shape)
 
         inv_diag = 1.0 / diag
         for _ in range(iters):
-            r = b - self._apply_A(x, lvl=self.current_level)
+            r = b - self._apply_A(x, lvl=lvl_idx)
             x = x + omega * inv_diag * r
+        return x
+
+    # ------------------ L1-GS (red-black) ------------------------------
+    def _l1gs_relax_var(self, x, b, lvl_data, lvl_idx, omega=0.8, iters=1):
+        kx, ky, kz = lvl_data["kx"], lvl_data["ky"], lvl_data["kz"]
+        hx, hy, hz = lvl_data["hx"], lvl_data["hy"], lvl_data["hz"]
+
+        diag = self._compute_diag(kx, ky, kz, hx, hy, hz, x.shape)
+
+        # Pre-compute masks for red-black ordering
+        nz, ny, nx = x.shape
+        zz = torch.arange(nz, device=x.device)[:, None, None]
+        yy = torch.arange(ny, device=x.device)[None, :, None]
+        xx = torch.arange(nx, device=x.device)[None, None, :]
+        parity = (zz + yy + xx) % 2  # 0 = red, 1 = black
+        mask_red = parity == 0
+        mask_blk = parity == 1
+
+        for _ in range(iters):
+            # red sweep
+            r = b - self._apply_A(x, lvl=lvl_idx)
+            x = x + omega * (r / diag) * mask_red
+
+            # black sweep
+            r = b - self._apply_A(x, lvl=lvl_idx)
+            x = x + omega * (r / diag) * mask_blk
         return x
 
     # ------------------------------------------------------------------
@@ -248,15 +274,17 @@ class GeoSolver:
         return fine[0, 0]
 
     def _v_cycle_var(self, lvl, x, b, omega=0.8, pre=2, post=2):
-        self.current_level = lvl
         lvl_data = self.levels[lvl]
-
+        
         # критерий грубой сетки
         if lvl == len(self.levels) - 1 or min(x.shape) <= 4:
-            return self._jacobi_relax_var(x, b, lvl_data, omega=omega, iters=20)
+            return self._jacobi_relax_var(x, b, lvl_data, lvl, omega=omega, iters=20)
 
         # pre-smooth
-        x = self._jacobi_relax_var(x, b, lvl_data, omega=omega, iters=pre)
+        if self.smoother == "l1gs":
+            x = self._l1gs_relax_var(x, b, lvl_data, lvl, omega=omega, iters=pre)
+        else:
+            x = self._jacobi_relax_var(x, b, lvl_data, lvl, omega=omega, iters=pre)
 
         # residual
         r = b - self._apply_A(x, lvl)
@@ -275,7 +303,10 @@ class GeoSolver:
         x = x + e
 
         # post-smooth
-        x = self._jacobi_relax_var(x, b, lvl_data, omega=omega, iters=post)
+        if self.smoother == "l1gs":
+            x = self._l1gs_relax_var(x, b, lvl_data, lvl, omega=omega, iters=post)
+        else:
+            x = self._jacobi_relax_var(x, b, lvl_data, lvl, omega=omega, iters=post)
         return x
 
     # ------------------------------------------------------------------

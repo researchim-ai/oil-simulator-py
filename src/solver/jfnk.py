@@ -19,9 +19,11 @@ class FullyImplicitSolver:
         self.scaler = VariableScaler(simulator.reservoir, simulator.fluid) if VariableScaler else None
 
         # CPR preconditioner (pressure block) ------------------------------
+        smoother = simulator.sim_params.get("smoother", "jacobi")
         self.prec = CPRPreconditioner(simulator.reservoir,
                                        simulator.fluid,
-                                       backend=backend)
+                                       backend=backend,
+                                       smoother=smoother)
 
         # Newton params ----------------------------------------------------
         self.tol = simulator.sim_params.get("newton_tolerance", 1e-7)  # абсолютная
