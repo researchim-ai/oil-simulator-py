@@ -38,11 +38,22 @@ class Fluid:
         # 2. PVT-таблицы (опционально)
         # ------------------------------------------------------------------
         self._use_pvt = False
+        self._use_temp = False  # температурная сетка по умолчанию отключена
         pvt_cfg = config.get('pvt', None)
         if pvt_cfg is not None:
             try:
-                # Давление в МПа → Па
+                # --- Сетка давления (МПа → Па) ---
                 self._p_grid = torch.tensor(pvt_cfg['pressure'], dtype=torch.float32) * 1e6
+
+                # --- Необязательная температурная сетка (°C) ---
+                if 'temperature' in pvt_cfg:
+                    self._t_grid = torch.tensor(pvt_cfg['temperature'], dtype=torch.float32)  # °C
+                    if not torch.all(self._t_grid[1:] >= self._t_grid[:-1]):
+                        raise ValueError("pvt.temperature должен быть отсортирован по возрастанию")
+                    self._use_temp = True
+                else:
+                    self._t_grid = torch.tensor([float(config.get('temperature', 60.0))], dtype=torch.float32)
+                    self._use_temp = False
                 # Таблицы свойств (приводим единицы):
                 # Плотности (кг/м3)
                 self._rho_o_table = torch.tensor(pvt_cfg.get('rho_oil', []), dtype=torch.float32)
@@ -52,20 +63,36 @@ class Fluid:
                 self._mu_o_table  = torch.tensor(pvt_cfg.get('mu_oil', []), dtype=torch.float32)  * 1e-3
                 self._mu_w_table  = torch.tensor(pvt_cfg.get('mu_water', []), dtype=torch.float32) * 1e-3
                 self._mu_g_table  = torch.tensor(pvt_cfg.get('mu_gas', []), dtype=torch.float32)  * 1e-3
-                # Таблицы PVT – новые поля ---------------------------------
-                self._bo_table   = torch.tensor(pvt_cfg.get('bo', []), dtype=torch.float32)
-                self._bg_table   = torch.tensor(pvt_cfg.get('bg', []), dtype=torch.float32)
-                self._bw_table   = torch.tensor(pvt_cfg.get('bw', []), dtype=torch.float32)
-                self._rs_table   = torch.tensor(pvt_cfg.get('rs', []), dtype=torch.float32)
-                self._rv_table   = torch.tensor(pvt_cfg.get('rv', []), dtype=torch.float32)
+                # Таблицы PVT (может быть 1-D или 2-D T×P)
+                def to_tensor(name):
+                    arr = pvt_cfg.get(name, [])
+                    return torch.tensor(arr, dtype=torch.float32)
+
+                self._bo_table = to_tensor('bo')
+                self._bg_table = to_tensor('bg')
+                self._bw_table = to_tensor('bw')
+                self._rs_table = to_tensor('rs')
+                self._rv_table = to_tensor('rv')
 
                 # Проверка длины
                 n_p = self._p_grid.numel()
-                assert all(tbl.numel() == n_p for tbl in (
-                    self._rho_o_table, self._rho_w_table, self._rho_g_table,
-                    self._mu_o_table,  self._mu_w_table,  self._mu_g_table,
-                    self._bo_table,    self._bg_table,    self._bw_table,
-                    self._rs_table,    self._rv_table)), "Все PVT-таблицы должны иметь одинаковую длину"
+                if self._use_temp:
+                    n_t = self._t_grid.numel()
+                    # Таблицы 2-D должны иметь форму (n_t, n_p)
+                    def check_shape(t):
+                        # Разрешаем: (n_t, n_p) или (n_p,) или пустой
+                        return t.numel()==0 or (t.dim()==2 and t.shape==(n_t,n_p)) or (t.numel()==n_p)
+                    assert all(check_shape(tbl) for tbl in (
+                        self._bo_table, self._bg_table, self._bw_table,
+                        self._rs_table, self._rv_table,
+                        self._rho_o_table, self._rho_w_table, self._rho_g_table,
+                        self._mu_o_table,  self._mu_w_table,  self._mu_g_table)), "PVT-таблица имеет неверную форму"
+                else:
+                    assert all(tbl.numel() == n_p for tbl in (
+                        self._rho_o_table, self._rho_w_table, self._rho_g_table,
+                        self._mu_o_table,  self._mu_w_table,  self._mu_g_table,
+                        self._bo_table,    self._bg_table,    self._bw_table,
+                        self._rs_table,    self._rv_table)), "Все PVT-таблицы должны иметь одинаковую длину"
 
                 # Убедимся, что сетка давления отсортирована по возрастанию
                 if not torch.all(self._p_grid[1:] >= self._p_grid[:-1]):
@@ -160,6 +187,9 @@ class Fluid:
         print(f"  Тензоры флюидов размещены на: {self.device}")
 
         self.pbubble = float(config.get('pbubble', 20.0)) * 1e6  # МПа → Па
+
+        # --- Температура пласта (°C) ---
+        self.temperature = float(config.get('temperature', 60.0))
         self.rs_bubble = float(config.get('rs_bubble', 100.0))   # (m³ газа)|(m³ нефти) – условные ед.
 
     # ------------------------------------------------------------------
@@ -341,18 +371,17 @@ class Fluid:
     calc_dpc_dsg = get_capillary_pressure_og_derivative
 
     def calc_water_density(self, pressure):
-        """Плотность воды ρw(P) с учётом PVT или линейной сжимаемости."""
+        """Плотность воды ρw(P) с учётом Bw(P,T)."""
         if self._use_pvt and self._bw_table.numel() > 0:
             Bw = self.calc_bw(pressure)
             return self.rho_w_sc / (Bw + 1e-12)
         return self.rho_water_ref * (1.0 + self.water_compressibility * (pressure - self.pressure_ref))
 
     def calc_oil_density(self, pressure):
-        """Плотность нефти ρo(P) с учётом PVT или линейной сжимаемости."""
+        """Плотность нефти ρo(P) с учётом Bo(P,T)."""
         if self._use_pvt and self._bo_table.numel() > 0:
             Bo = self.calc_bo(pressure)
             return self.rho_o_sc / (Bo + 1e-12)
-        # Fallback: линейная модель сжимаемости
         return self.rho_oil_ref * (1.0 + self.oil_compressibility * (pressure - self.pressure_ref))
 
     def calc_water_kr(self, s_w):
@@ -451,27 +480,36 @@ class Fluid:
 
     # ---- Вязкости (Pa·s) ----
     def calc_water_viscosity(self, pressure):
-        if self._use_pvt:
-            return self._interp(pressure, self._p_grid, self._mu_w_table)
+        if self._use_pvt and self._mu_w_table.numel() > 0:
+            if self._mu_w_table.dim()==2 and self._use_temp:
+                return self._interp2d(pressure, self.temperature, self._p_grid, self._t_grid, self._mu_w_table)
+            else:
+                return self._interp(pressure, self._p_grid, self._mu_w_table)
         return torch.full_like(pressure, self.mu_water)
 
     def calc_oil_viscosity(self, pressure):
-        if self._use_pvt:
-            return self._interp(pressure, self._p_grid, self._mu_o_table)
+        if self._use_pvt and self._mu_o_table.numel() > 0:
+            if self._mu_o_table.dim()==2 and self._use_temp:
+                return self._interp2d(pressure, self.temperature, self._p_grid, self._t_grid, self._mu_o_table)
+            else:
+                return self._interp(pressure, self._p_grid, self._mu_o_table)
         return torch.full_like(pressure, self.mu_oil)
 
     # ---- Газовая фаза ----
     def calc_gas_density(self, pressure):
-        """Плотность газа ρg(P) с учётом PVT или линейной сжимаемости."""
+        """Плотность газа ρg(P) с учётом Bg(P,T)."""
         if self._use_pvt and self._bg_table.numel() > 0:
             Bg = self.calc_bg(pressure)
             return self.rho_g_sc / (Bg + 1e-12)
         return self.rho_gas_ref * (1.0 + self.gas_compressibility * (pressure - self.pressure_ref))
 
     def calc_gas_viscosity(self, pressure):
-        """Вязкость газа μg(P)."""
-        if self._use_pvt and hasattr(self, '_mu_g_table') and self._mu_g_table.numel() > 0:
-            return self._interp(pressure, self._p_grid, self._mu_g_table)
+        """Вязкость газа μg(P[,T])."""
+        if self._use_pvt and self._mu_g_table.numel() > 0:
+            if self._mu_g_table.dim()==2 and self._use_temp:
+                return self._interp2d(pressure, self.temperature, self._p_grid, self._t_grid, self._mu_g_table)
+            else:
+                return self._interp(pressure, self._p_grid, self._mu_g_table)
         return torch.full_like(pressure, self.mu_gas)
 
     # ---- Алиасы для обратной совместимости со старым кодом ----
@@ -519,30 +557,105 @@ class Fluid:
         return slope.view_as(p)
 
     # ------------------------------------------------------------------
+    # 2-D (T×P) билинейная интерполяция и её производная по P
+    # ------------------------------------------------------------------
+    def _interp2d(self, p, t, p_grid, t_grid, prop_grid):
+        """Билинейная интерполяция prop(t, p). prop_grid shape=(nT, nP)."""
+        # Приводим к тензорам на том же устройстве, что p
+        device = p.device
+        p_grid = p_grid.to(device)
+        t_grid = t_grid.to(device)
+        prop_grid = prop_grid.to(device)
+
+        p_flat = p.view(-1)
+        t_flat = (t if isinstance(t, torch.Tensor) else torch.tensor(t)).to(device).view(-1).expand_as(p_flat)
+
+        # Индексы по давлению
+        idx_p_hi = torch.searchsorted(p_grid, p_flat, right=True).clamp(1, p_grid.numel()-1)
+        idx_p_lo = idx_p_hi - 1
+        p_lo = p_grid[idx_p_lo]; p_hi = p_grid[idx_p_hi]
+        wp = (p_flat - p_lo) / (p_hi - p_lo + 1e-12)
+
+        # Индексы по температуре
+        idx_t_hi = torch.searchsorted(t_grid, t_flat, right=True).clamp(1, t_grid.numel()-1)
+        idx_t_lo = idx_t_hi - 1
+        t_lo = t_grid[idx_t_lo]; t_hi = t_grid[idx_t_hi]
+        wt = (t_flat - t_lo) / (t_hi - t_lo + 1e-12)
+
+        # Значения свойства в четырёх узлах
+        f_ll = prop_grid[idx_t_lo, idx_p_lo]
+        f_lh = prop_grid[idx_t_lo, idx_p_hi]
+        f_hl = prop_grid[idx_t_hi, idx_p_lo]
+        f_hh = prop_grid[idx_t_hi, idx_p_hi]
+
+        # Интерполяция сначала по P, затем по T
+        fp_lo = f_ll + wp * (f_lh - f_ll)
+        fp_hi = f_hl + wp * (f_hh - f_hl)
+        f = fp_lo + wt * (fp_hi - fp_lo)
+        return f.view_as(p)
+
+    def _interp2d_dp(self, p, t, p_grid, t_grid, prop_grid):
+        """Производная d(prop)/dP для 2-D таблицы."""
+        device = p.device
+        p_grid = p_grid.to(device)
+        t_grid = t_grid.to(device)
+        prop_grid = prop_grid.to(device)
+
+        p_flat = p.view(-1)
+        t_flat = (t if isinstance(t, torch.Tensor) else torch.tensor(t)).to(device).view(-1).expand_as(p_flat)
+
+        idx_p_hi = torch.searchsorted(p_grid, p_flat, right=True).clamp(1, p_grid.numel()-1)
+        idx_p_lo = idx_p_hi - 1
+        p_lo = p_grid[idx_p_lo]; p_hi = p_grid[idx_p_hi]
+        inv_dP = 1.0 / (p_hi - p_lo + 1e-12)
+        wp = (p_flat - p_lo) * inv_dP
+
+        idx_t_hi = torch.searchsorted(t_grid, t_flat, right=True).clamp(1, t_grid.numel()-1)
+        idx_t_lo = idx_t_hi - 1
+        t_lo = t_grid[idx_t_lo]; t_hi = t_grid[idx_t_hi]
+        wt = (t_flat - t_lo) / (t_hi - t_lo + 1e-12)
+
+        # Слоны вдоль P (склоны на LoT и HiT)
+        slope_loT = (prop_grid[idx_t_lo, idx_p_hi] - prop_grid[idx_t_lo, idx_p_lo]) * inv_dP
+        slope_hiT = (prop_grid[idx_t_hi, idx_p_hi] - prop_grid[idx_t_hi, idx_p_lo]) * inv_dP
+
+        dfdp = slope_loT * (1 - wt) + slope_hiT * wt
+        return dfdp.view_as(p)
+
+    # ------------------------------------------------------------------
     # PVT-производные по давлению
     # ------------------------------------------------------------------
     def calc_dbo_dp(self, pressure):
-        """dBo/dP по линейной интерполяции таблицы (1/Па)."""
         if self._use_pvt and self._bo_table.numel() > 0:
-            return self._interp_derivative(pressure, self._p_grid, self._bo_table)
+            if self._bo_table.dim()==2 and self._use_temp:
+                return self._interp2d_dp(pressure, self.temperature, self._p_grid, self._t_grid, self._bo_table)
+            else:
+                return self._interp_derivative(pressure, self._p_grid, self._bo_table)
         return torch.zeros_like(pressure)
 
     def calc_dbg_dp(self, pressure):
-        """dBg/dP (1/Па)."""
         if self._use_pvt and self._bg_table.numel() > 0:
-            return self._interp_derivative(pressure, self._p_grid, self._bg_table)
+            if self._bg_table.dim()==2 and self._use_temp:
+                return self._interp2d_dp(pressure, self.temperature, self._p_grid, self._t_grid, self._bg_table)
+            else:
+                return self._interp_derivative(pressure, self._p_grid, self._bg_table)
         return torch.zeros_like(pressure)
 
     def calc_dbw_dp(self, pressure):
-        """dBw/dP (1/Па)."""
         if self._use_pvt and self._bw_table.numel() > 0:
-            return self._interp_derivative(pressure, self._p_grid, self._bw_table)
+            if self._bw_table.dim()==2 and self._use_temp:
+                return self._interp2d_dp(pressure, self.temperature, self._p_grid, self._t_grid, self._bw_table)
+            else:
+                return self._interp_derivative(pressure, self._p_grid, self._bw_table)
         return torch.zeros_like(pressure)
 
     def calc_drs_dp(self, pressure):
         """dRs/dP (1/Па) – аналитическая производная через PVT-таблицу или линейная модель."""
         if self._use_pvt and self._rs_table.numel() > 0:
-            return self._interp_derivative(pressure, self._p_grid, self._rs_table)
+            if self._rs_table.dim()==2 and self._use_temp:
+                return self._interp2d_dp(pressure, self.temperature, self._p_grid, self._t_grid, self._rs_table)
+            else:
+                return self._interp_derivative(pressure, self._p_grid, self._rs_table)
         # Fallback: линейная модель ниже pbubble
         pb = self.pbubble
         rs_b = self.rs_bubble
@@ -553,7 +666,10 @@ class Fluid:
     def calc_drv_dp(self, pressure):
         """dRv/dP (1/Па)."""
         if self._use_pvt and self._rv_table.numel() > 0:
-            return self._interp_derivative(pressure, self._p_grid, self._rv_table)
+            if self._rv_table.dim()==2 and self._use_temp:
+                return self._interp2d_dp(pressure, self.temperature, self._p_grid, self._t_grid, self._rv_table)
+            else:
+                return self._interp_derivative(pressure, self._p_grid, self._rv_table)
         # По умолчанию Rv=0 ⇒ производная 0
         return torch.zeros_like(pressure)
 
@@ -562,17 +678,26 @@ class Fluid:
     # ------------------------------------------------------------------
     def calc_dmu_o_dp(self, pressure):
         if self._use_pvt and self._mu_o_table.numel() > 0:
-            return self._interp_derivative(pressure, self._p_grid, self._mu_o_table)
+            if self._mu_o_table.dim()==2 and self._use_temp:
+                return self._interp2d_dp(pressure, self.temperature, self._p_grid, self._t_grid, self._mu_o_table)
+            else:
+                return self._interp_derivative(pressure, self._p_grid, self._mu_o_table)
         return torch.zeros_like(pressure)
 
     def calc_dmu_w_dp(self, pressure):
         if self._use_pvt and self._mu_w_table.numel() > 0:
-            return self._interp_derivative(pressure, self._p_grid, self._mu_w_table)
+            if self._mu_w_table.dim()==2 and self._use_temp:
+                return self._interp2d_dp(pressure, self.temperature, self._p_grid, self._t_grid, self._mu_w_table)
+            else:
+                return self._interp_derivative(pressure, self._p_grid, self._mu_w_table)
         return torch.zeros_like(pressure)
 
     def calc_dmu_g_dp(self, pressure):
-        if self._use_pvt and hasattr(self, '_mu_g_table') and self._mu_g_table.numel() > 0:
-            return self._interp_derivative(pressure, self._p_grid, self._mu_g_table)
+        if self._use_pvt and self._mu_g_table.numel() > 0:
+            if self._mu_g_table.dim()==2 and self._use_temp:
+                return self._interp2d_dp(pressure, self.temperature, self._p_grid, self._t_grid, self._mu_g_table)
+            else:
+                return self._interp_derivative(pressure, self._p_grid, self._mu_g_table)
         return torch.zeros_like(pressure)
 
     # ------------------------------------------------------------------
@@ -617,7 +742,10 @@ class Fluid:
         """Растворённый газовый фактор Rs(P)."""
         # Табличное значение при наличии PVT
         if self._use_pvt and self._rs_table.numel() > 0:
-            return self._interp(pressure, self._p_grid, self._rs_table)
+            if self._rs_table.dim()==2 and self._use_temp:
+                return self._interp2d(pressure, self.temperature, self._p_grid, self._t_grid, self._rs_table)
+            else:
+                return self._interp(pressure, self._p_grid, self._rs_table)
 
         # Fallback: линейная зависимость от давления
         pb = self.pbubble
@@ -652,22 +780,34 @@ class Fluid:
     # ---- PVT ------------------------------------------------------------
     def calc_bo(self, pressure):
         if self._use_pvt and self._bo_table.numel() > 0:
-            return self._interp(pressure, self._p_grid, self._bo_table)
+            if self._bo_table.dim() == 2 and self._use_temp:
+                return self._interp2d(pressure, self.temperature, self._p_grid, self._t_grid, self._bo_table)
+            else:
+                return self._interp(pressure, self._p_grid, self._bo_table)
         return torch.ones_like(pressure)
 
     def calc_bg(self, pressure):
         if self._use_pvt and self._bg_table.numel() > 0:
-            return self._interp(pressure, self._p_grid, self._bg_table)
+            if self._bg_table.dim()==2 and self._use_temp:
+                return self._interp2d(pressure, self.temperature, self._p_grid, self._t_grid, self._bg_table)
+            else:
+                return self._interp(pressure, self._p_grid, self._bg_table)
         return torch.ones_like(pressure)
 
     def calc_bw(self, pressure):
         if self._use_pvt and self._bw_table.numel() > 0:
-            return self._interp(pressure, self._p_grid, self._bw_table)
+            if self._bw_table.dim()==2 and self._use_temp:
+                return self._interp2d(pressure, self.temperature, self._p_grid, self._t_grid, self._bw_table)
+            else:
+                return self._interp(pressure, self._p_grid, self._bw_table)
         return torch.ones_like(pressure)
 
     def calc_rs(self, pressure):
         if self._use_pvt and self._rs_table.numel() > 0:
-            return self._interp(pressure, self._p_grid, self._rs_table)
+            if self._rs_table.dim()==2 and self._use_temp:
+                return self._interp2d(pressure, self.temperature, self._p_grid, self._t_grid, self._rs_table)
+            else:
+                return self._interp(pressure, self._p_grid, self._rs_table)
         pb = self.pbubble
         rs_b = self.rs_bubble
         return torch.where(pressure >= pb,
@@ -676,7 +816,11 @@ class Fluid:
 
     def calc_rv(self, pressure):
         if self._use_pvt and self._rv_table.numel() > 0:
-            return self._interp(pressure, self._p_grid, self._rv_table)
+            if self._rv_table.dim()==2 and self._use_temp:
+                return self._interp2d(pressure, self.temperature, self._p_grid, self._t_grid, self._rv_table)
+            else:
+                return self._interp(pressure, self._p_grid, self._rv_table)
+        # По умолчанию Rv=0
         return torch.zeros_like(pressure)
 
     # ---- плотности с учётом Bo/Bg/Bw -----------------------------------
