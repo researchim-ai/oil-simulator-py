@@ -570,7 +570,7 @@ class Simulator:
                 # Расчет мобильностей для векторизации
                 lambda_w = kr_w / mu_w
                 lambda_o = kr_o / mu_o
-                lambda_t = lambda_w + lambda_o
+                lambda_t = lambda_w + lambda_o + 1e-10
                 fw = lambda_w / (lambda_w + lambda_o + 1e-10)
                 fo = lambda_o / (lambda_w + lambda_o + 1e-10)
                 
@@ -990,10 +990,15 @@ class Simulator:
         S_w = self.fluid.s_w
 
         # --- пересчёт совокупной compressibility c_t -------------------
-        c_o = getattr(self.fluid, 'oil_compressibility', 1e-11)
-        c_w = getattr(self.fluid, 'water_compressibility', 1e-11)
-        c_g = getattr(self.fluid, 'gas_compressibility', 3e-10)
+        rho_w_prev = self.fluid.calc_water_density(P_prev)
+        rho_o_prev = self.fluid.calc_oil_density(P_prev)
+        rho_g_prev = self.fluid.calc_gas_density(P_prev) if hasattr(self.fluid, 'calc_gas_density') else torch.zeros_like(P_prev)
+
+        c_w = self.fluid.calc_drho_w_dp(P_prev) / (rho_w_prev + 1e-12)
+        c_o = self.fluid.calc_drho_o_dp(P_prev) / (rho_o_prev + 1e-12)
+        c_g = self.fluid.calc_drho_g_dp(P_prev) / (rho_g_prev + 1e-12)
         c_r = getattr(self.reservoir, 'rock_compressibility', 1e-11)
+
         S_g_tmp = getattr(self.fluid, 's_g', torch.zeros_like(S_w))
         S_o_tmp = 1.0 - S_w - S_g_tmp
         self.fluid.cf = (S_o_tmp * c_o + S_w * c_w + S_g_tmp * c_g + c_r).to(self.device).float()
@@ -1179,10 +1184,16 @@ class Simulator:
         #   Это уменьшит диагональный «аккумуляционный» член и позволит
         #   давлению реагировать на дебиты скважин.
         S_o = 1.0 - S_w_new - S_g_new
-        c_o = getattr(self.fluid, 'oil_compressibility', 1e-11)
-        c_w = getattr(self.fluid, 'water_compressibility', 1e-11)
-        c_g = getattr(self.fluid, 'gas_compressibility', 3e-10)
+
+        rho_w_new = self.fluid.calc_water_density(P_new)
+        rho_o_new = self.fluid.calc_oil_density(P_new)
+        rho_g_new = self.fluid.calc_gas_density(P_new) if hasattr(self.fluid,'calc_gas_density') else torch.zeros_like(P_new)
+
+        c_w = self.fluid.calc_drho_w_dp(P_new) / (rho_w_new + 1e-12)
+        c_o = self.fluid.calc_drho_o_dp(P_new) / (rho_o_new + 1e-12)
+        c_g = self.fluid.calc_drho_g_dp(P_new) / (rho_g_new + 1e-12)
         c_r = getattr(self.reservoir, 'rock_compressibility', 1e-11)
+
         self.fluid.cf = (S_o * c_o + S_w_new * c_w + S_g_new * c_g + c_r).to(self.device).float()
 
     def _build_pressure_matrix_vectorized(self, Tx, Ty, Tz, dt, well_bhp_terms):
@@ -1250,6 +1261,22 @@ class Simulator:
             Q_pc[:,:-1,:]  -= pc_flow_y
             Q_pc[:,:,1:]   += pc_flow_z
             Q_pc[:,:,:-1]  -= pc_flow_z
+        # ---- oil–gas Pc contribution (если активен газ) --------------
+        S_g = getattr(self.fluid, 's_g', torch.zeros_like(P_prev))
+        if hasattr(self.fluid, 'pc_og_scale') and self.fluid.pc_og_scale > 0 and torch.any(S_g):
+            pcg = self.fluid.get_capillary_pressure_og(S_g)
+            mob_g_x = torch.where(dp_x_prev > 0, mob_g[:-1,:,:], mob_g[1:,:,:])
+            mob_g_y = torch.where(dp_y_prev > 0, mob_g[:,:-1,:], mob_g[:,1:,:])
+            mob_g_z = torch.where(dp_z_prev > 0, mob_g[:,:,:-1], mob_g[:,:,1:])
+            pcg_flow_x = self.T_x * mob_g_x * (pcg[1:,:,:] - pcg[:-1,:,:])
+            pcg_flow_y = self.T_y * mob_g_y * (pcg[:,1:,:] - pcg[:,:-1,:])
+            pcg_flow_z = self.T_z * mob_g_z * (pcg[:,:,1:] - pcg[:,:,:-1])
+            Q_pc[1:,:,:]   += pcg_flow_x
+            Q_pc[:-1,:,:]  -= pcg_flow_x
+            Q_pc[:,1:,:]   += pcg_flow_y
+            Q_pc[:,:-1,:]  -= pcg_flow_y
+            Q_pc[:,:,1:]   += pcg_flow_z
+            Q_pc[:,:,:-1]  -= pcg_flow_z
         Q_total = compressibility_term + q_wells.flatten().float() + Q_g.view(-1).float() + Q_pc.view(-1).float()
         Q_total = Q_total.to(torch.float32)
         return Q_total
@@ -1395,9 +1422,15 @@ class Simulator:
         mu_o = self.fluid.calc_oil_viscosity(p)
         mu_g = self.fluid.calc_gas_viscosity(p) if sg_vec is not None else None
 
-        kro, krw = self.fluid.get_rel_perms(s_w)
+        if sg_vec is not None:
+            kro, krw, krg = self.fluid.get_rel_perms_three(s_w, s_g)
+        else:
+            kro, krw = self.fluid.get_rel_perms(s_w)
+            krg = None
+
         lam_w = krw / mu_w
         lam_o = kro / mu_o
+        lam_g = (krg / mu_g) if sg_vec is not None else None
         lam_t = lam_w + lam_o + (lam_g if sg_vec is not None else 0.0)  # total mobility
 
         # === Авто-лимитер λ_t для скважин ===
@@ -1471,15 +1504,20 @@ class Simulator:
         div_o[:, :,  1:] -= flow_o_z
 
         if sg_vec is not None:
-            # Gas flows (no capillary for now)
+            # Gas flows with Pc_og
             lam_g_x = torch.where(dp_x > 0, lam_g[:-1, :, :], lam_g[1:, :, :])
             lam_g_y = torch.where(dp_y > 0, lam_g[:, :-1, :], lam_g[:, 1:, :])
             lam_g_z = torch.where(dp_z > 0, lam_g[:, :, :-1], lam_g[:, :, 1:])
 
-            flow_g_x = Tx * lam_g_x * dp_x
-            flow_g_y = Ty * lam_g_y * dp_y
+            pc_og = self.fluid.calc_pc_og(s_g) if self.fluid.pc_og_scale > 0 else torch.zeros_like(s_g)
+            dpc_og_x = pc_og[:-1, :, :] - pc_og[1:, :, :]
+            dpc_og_y = pc_og[:, :-1, :] - pc_og[:, 1:, :]
+            dpc_og_z = pc_og[:, :, :-1] - pc_og[:, :, 1:]
+
+            flow_g_x = Tx * lam_g_x * (dp_x - dpc_og_x)
+            flow_g_y = Ty * lam_g_y * (dp_y - dpc_og_y)
             pot_z_g = dp_z + self.g * (0.5 * (rho_g[:, :, :-1] + rho_g[:, :, 1:])) * dz if dz>0 and nz>1 else dp_z
-            flow_g_z = Tz * lam_g_z * pot_z_g
+            flow_g_z = Tz * lam_g_z * (pot_z_g - dpc_og_z)
 
             div_g[:-1, :, :] += flow_g_x
             div_g[1:,  :, :] -= flow_g_x

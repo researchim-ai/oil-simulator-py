@@ -114,8 +114,9 @@ class Fluid:
         self.s_w = torch.full(self.dimensions, initial_sw, device=self.device)
         self.s_g = torch.full(self.dimensions, initial_sg, device=self.device)
         self.s_o = 1.0 - self.s_w - self.s_g
-        # --- Hysteresis state: максимальная достигнутая Sw (для Land)
+        # --- Hysteresis state: максимальная достигнутая Sw/Sg (Land) ---
         self.sw_max = self.s_w.clone()
+        self.sg_max = self.s_g.clone()
         self.prev_pressure = self.pressure.clone()
         self.prev_sw = self.s_w.clone()
         self.prev_sg = self.s_g.clone()
@@ -124,16 +125,25 @@ class Fluid:
         self.prev_water_mass = None
         self.prev_oil_mass = None
         
-        # Поддержка как старого, так и нового формата
         if 'capillary_pressure' in config:
             pc_params = config['capillary_pressure']
-            self.pc_scale = pc_params.get('pc_scale', 0.0)
-            self.pc_exponent = pc_params.get('pc_exponent', 1.5)
-            self.pc_threshold = pc_params.get('pc_threshold', 0.01)
+            # --- oil–water ---
+            self.pc_ow_scale    = pc_params.get('pc_ow_scale', pc_params.get('pc_scale', 0.0))
+            self.pc_ow_exponent = pc_params.get('pc_ow_exponent', pc_params.get('pc_exponent', 1.5))
+            # --- oil–gas (по умолчанию те же, что и для ow) ---
+            self.pc_og_scale    = pc_params.get('pc_og_scale', self.pc_ow_scale)
+            self.pc_og_exponent = pc_params.get('pc_og_exponent', self.pc_ow_exponent)
+            self.pc_threshold   = pc_params.get('pc_threshold', 0.01)
         else:
-            self.pc_scale = config.get('pc_scale', 0.0)
-            self.pc_exponent = config.get('pc_exponent', 1.5)
-            self.pc_threshold = config.get('pc_threshold', 0.01)
+            self.pc_ow_scale    = config.get('pc_scale', 0.0)
+            self.pc_ow_exponent = config.get('pc_exponent', 1.5)
+            self.pc_og_scale    = self.pc_ow_scale
+            self.pc_og_exponent = self.pc_ow_exponent
+            self.pc_threshold   = config.get('pc_threshold', 0.01)
+
+        # Для обратной совместимости оставляем старые поля
+        self.pc_scale    = self.pc_ow_scale
+        self.pc_exponent = self.pc_ow_exponent
         
         # Выводим информацию об инициализации
         print("Инициализация флюидов и начальных условий...")
@@ -156,8 +166,10 @@ class Fluid:
     # Hysteresis helper
     # ------------------------------------------------------------------
     def update_hysteresis(self):
-        """Обновляет sw_max после успешного шага симуляции."""
+        """Обновляет максимальные значения насыщенностей для Land-коррекции."""
         self.sw_max = torch.maximum(self.sw_max, self.s_w)
+        if hasattr(self, 's_g'):
+            self.sg_max = torch.maximum(self.sg_max, self.s_g)
 
     # Свойства для совместимости со старым кодом IMPES
     @property
@@ -236,6 +248,9 @@ class Fluid:
         
         return dkro_dsw, dkrw_dsw
 
+    # ------------------------------------------------------------------
+    # Capillary pressure – oil-water (existing)
+    # ------------------------------------------------------------------
     def get_capillary_pressure(self, s_w):
         """
         Вычисляет капиллярное давление по простой степенной модели.
@@ -279,6 +294,51 @@ class Fluid:
         dpc_dsw = dpc_dsw_drain * land_factor + (self.pc_scale * (1.0 - s_norm + 1e-6) ** (-self.pc_exponent)) * dland_dsw
         dpc_dsw = torch.where(s_norm >= 1, torch.zeros_like(dpc_dsw), dpc_dsw)
         return dpc_dsw
+
+    # ------------------------------------------------------------------
+    # Capillary pressure – oil–gas (новое)
+    # ------------------------------------------------------------------
+    def get_capillary_pressure_og(self, s_g):
+        """Pcₒᵍ(Sg) с Land-Killough гистерезисом."""
+        if self.pc_og_scale == 0.0:
+            return torch.zeros_like(s_g)
+
+        # Нормализованная Sg (принимаем sg_cr=0)
+        denom = 1.0 - self.sw_cr - self.so_r
+        s_norm = torch.clamp(s_g / (denom + 1e-12), 0.0, 1.0)
+
+        # Drainage
+        pc_drain = self.pc_og_scale * (1.0 - s_norm + 1e-6) ** (-self.pc_og_exponent)
+
+        # Land hysteresis (по газу)
+        land_factor = torch.clamp((1.0 - self.sg_max) / (1.0 - s_g + 1e-6), 0.0, 1.0)
+        pc = pc_drain * land_factor
+        return pc
+
+    def get_capillary_pressure_og_derivative(self, s_g):
+        """dPcₒᵍ/dSg (≤0)."""
+        if self.pc_og_scale == 0.0:
+            return torch.zeros_like(s_g)
+
+        denom = 1.0 - self.sw_cr - self.so_r
+        s_norm = torch.clamp(s_g / (denom + 1e-12), 0.0, 1.0)
+        dsg_norm_dsg = 1.0 / denom
+
+        dpc_dsn = -self.pc_og_scale * self.pc_og_exponent * (1.0 - s_norm + 1e-6) ** (-self.pc_og_exponent - 1)
+        dpc_dsg_drain = dpc_dsn * dsg_norm_dsg
+
+        land_factor = torch.clamp((1.0 - self.sg_max) / (1.0 - s_g + 1e-6), 0.0, 1.0)
+        dland_dsg = (1.0 - self.sg_max) / (1.0 - s_g + 1e-6) ** 2
+
+        dpc_dsg = dpc_dsg_drain * land_factor + (self.pc_og_scale * (1.0 - s_norm + 1e-6) ** (-self.pc_og_exponent)) * dland_dsg
+        dpc_dsg = torch.where(s_norm >= 1, torch.zeros_like(dpc_dsg), dpc_dsg)
+        return dpc_dsg
+
+    # Алиасы для совместимости
+    calc_pc_ow  = get_capillary_pressure
+    calc_pc_og  = get_capillary_pressure_og
+    calc_dpc_dsw = get_capillary_pressure_derivative
+    calc_dpc_dsg = get_capillary_pressure_og_derivative
 
     def calc_water_density(self, pressure):
         """Плотность воды ρw(P) с учётом PVT или линейной сжимаемости."""
@@ -439,6 +499,107 @@ class Fluid:
         prop = prop_grid[idx_lo] + w * (prop_grid[idx_hi] - prop_grid[idx_lo])
         return prop.view_as(p)
 
+    # ------------------------------------------------------------------
+    # 1-D линейная интерполяция – производная d(prop)/dP
+    # ------------------------------------------------------------------
+    def _interp_derivative(self, p, p_grid, prop_grid):
+        """Возвращает производную линейной интерполяции d(prop)/dP."""
+        # Гарантируем одинаковое устройство
+        p_grid = p_grid.to(p.device)
+        prop_grid = prop_grid.to(p.device)
+
+        p_flat = p.view(-1)
+        idx_hi = torch.searchsorted(p_grid, p_flat, right=True)
+        idx_hi = idx_hi.clamp(1, p_grid.numel() - 1)
+        idx_lo = idx_hi - 1
+
+        p_lo = p_grid[idx_lo]
+        p_hi = p_grid[idx_hi]
+        slope = (prop_grid[idx_hi] - prop_grid[idx_lo]) / (p_hi - p_lo + 1e-12)
+        return slope.view_as(p)
+
+    # ------------------------------------------------------------------
+    # PVT-производные по давлению
+    # ------------------------------------------------------------------
+    def calc_dbo_dp(self, pressure):
+        """dBo/dP по линейной интерполяции таблицы (1/Па)."""
+        if self._use_pvt and self._bo_table.numel() > 0:
+            return self._interp_derivative(pressure, self._p_grid, self._bo_table)
+        return torch.zeros_like(pressure)
+
+    def calc_dbg_dp(self, pressure):
+        """dBg/dP (1/Па)."""
+        if self._use_pvt and self._bg_table.numel() > 0:
+            return self._interp_derivative(pressure, self._p_grid, self._bg_table)
+        return torch.zeros_like(pressure)
+
+    def calc_dbw_dp(self, pressure):
+        """dBw/dP (1/Па)."""
+        if self._use_pvt and self._bw_table.numel() > 0:
+            return self._interp_derivative(pressure, self._p_grid, self._bw_table)
+        return torch.zeros_like(pressure)
+
+    def calc_drs_dp(self, pressure):
+        """dRs/dP (1/Па) – аналитическая производная через PVT-таблицу или линейная модель."""
+        if self._use_pvt and self._rs_table.numel() > 0:
+            return self._interp_derivative(pressure, self._p_grid, self._rs_table)
+        # Fallback: линейная модель ниже pbubble
+        pb = self.pbubble
+        rs_b = self.rs_bubble
+        return torch.where(pressure >= pb,
+                           torch.zeros_like(pressure),
+                           rs_b / pb)
+
+    def calc_drv_dp(self, pressure):
+        """dRv/dP (1/Па)."""
+        if self._use_pvt and self._rv_table.numel() > 0:
+            return self._interp_derivative(pressure, self._p_grid, self._rv_table)
+        # По умолчанию Rv=0 ⇒ производная 0
+        return torch.zeros_like(pressure)
+
+    # ------------------------------------------------------------------
+    # Вязкости: производные dμ/dP (Па·с / Па)
+    # ------------------------------------------------------------------
+    def calc_dmu_o_dp(self, pressure):
+        if self._use_pvt and self._mu_o_table.numel() > 0:
+            return self._interp_derivative(pressure, self._p_grid, self._mu_o_table)
+        return torch.zeros_like(pressure)
+
+    def calc_dmu_w_dp(self, pressure):
+        if self._use_pvt and self._mu_w_table.numel() > 0:
+            return self._interp_derivative(pressure, self._p_grid, self._mu_w_table)
+        return torch.zeros_like(pressure)
+
+    def calc_dmu_g_dp(self, pressure):
+        if self._use_pvt and hasattr(self, '_mu_g_table') and self._mu_g_table.numel() > 0:
+            return self._interp_derivative(pressure, self._p_grid, self._mu_g_table)
+        return torch.zeros_like(pressure)
+
+    # ------------------------------------------------------------------
+    # Плотности: dρ/dP (кг·м⁻³ / Па)
+    # ------------------------------------------------------------------
+    def calc_drho_o_dp(self, pressure):
+        if self._use_pvt and self._bo_table.numel() > 0:
+            Bo = self.calc_bo(pressure)
+            dBo = self.calc_dbo_dp(pressure)
+            return -self.rho_o_sc * dBo / (Bo + 1e-12)**2
+        # Линейная compressibility
+        return self.oil_compressibility * self.rho_oil_ref * torch.ones_like(pressure)
+
+    def calc_drho_w_dp(self, pressure):
+        if self._use_pvt and self._bw_table.numel() > 0:
+            Bw = self.calc_bw(pressure)
+            dBw = self.calc_dbw_dp(pressure)
+            return -self.rho_w_sc * dBw / (Bw + 1e-12)**2
+        return self.water_compressibility * self.rho_water_ref * torch.ones_like(pressure)
+
+    def calc_drho_g_dp(self, pressure):
+        if self._use_pvt and self._bg_table.numel() > 0:
+            Bg = self.calc_bg(pressure)
+            dBg = self.calc_dbg_dp(pressure)
+            return -self.rho_g_sc * dBg / (Bg + 1e-12)**2
+        return self.gas_compressibility * self.rho_gas_ref * torch.ones_like(pressure)
+
     # Для трёхфазного случая возвращаем krg дополнительно
     def get_rel_perms_three(self, s_w, s_g):
         """Возвращает (kro, krw, krg)."""
@@ -465,8 +626,8 @@ class Fluid:
                            torch.full_like(pressure, rs_b),
                            rs_b * pressure / pb)
 
-    def calc_drs_dp(self, pressure):
-        """dRs/dP (Па⁻¹). Для линейной модели Rs = Rs_b * P/pb ниже пузырькового давления."""
+    def calc_drs_dp_fd(self, pressure):
+        """[LEGACY] dRs/dP численно через конечные разности (используется только если явно вызвано)."""
         if self._use_pvt and self._rs_table.numel() > 0:
             # численная производная через центральные разности
             eps = 1e3  # 0.001 МПа
