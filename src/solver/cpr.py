@@ -1,5 +1,6 @@
 import torch, numpy as np
 from .amg import BoomerSolver, AmgXSolver
+from .geom_amg import GeoSolver
 from typing import Optional
 
 class CPRPreconditioner:
@@ -25,7 +26,16 @@ class CPRPreconditioner:
                 print(f"❌ CPR: Ошибка инициализации AmgX: {e}")
                 self.solver = None
                 self.failed_amg = True
-        elif backend in ("hypre", "boomer", "cpu"):  # 🔧 КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: добавили "cpu"
+        elif backend == "geo":
+            try:
+                print("🔧 CPR: Используем собственный геометрический AMG (GeoSolver)...")
+                self.solver = GeoSolver(reservoir)
+                print("✅ CPR: GeoSolver инициализирован успешно")
+            except Exception as e:
+                print(f"❌ CPR: Ошибка GeoSolver: {e}")
+                self.solver = None
+                self.failed_amg = True
+        elif backend in ("hypre", "boomer", "cpu"):  # BoomerAMG на CPU
             try:
                 print(f"🔧 CPR: Пытаемся инициализировать BoomerAMG...")
                 print(f"🔧 CPR: CSR matrix: shape=({len(indptr)-1}x{len(indptr)-1}), nnz={len(data)}")

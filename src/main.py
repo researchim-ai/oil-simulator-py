@@ -64,6 +64,10 @@ def main():
 
     # Создаем симулятор
     sim_params = config.get('simulation', {})
+    # если указан backend через CLI – переопределяем
+    if args.backend is not None:
+        sim_params['backend'] = args.backend
+
     solver_type = sim_params.get('solver_type', 'impes')
     
     # 🔧 ИСПРАВЛЕНО: Добавляем linear_solver в sim_params
@@ -87,6 +91,7 @@ def parse_args():
     parser = argparse.ArgumentParser(description="Запуск симулятора нефтяного пласта")
     parser.add_argument('--config', type=str, required=True, help='Путь к файлу конфигурации .json')
     parser.add_argument('--steps', type=int, default=None, help='Количество временных шагов (для отладки)')
+    parser.add_argument('--backend', type=str, default=None, help='Backend CPR/AMG: geo, amgx, boomer, cpu')
     return parser.parse_args()
 
 def load_config(config_path):
