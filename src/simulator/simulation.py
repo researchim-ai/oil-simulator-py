@@ -381,7 +381,9 @@ class Simulator:
                     sg_new = x_out[2*N:].view(self.reservoir.dimensions)
                     # Корректируем насыщенности
                     sw_new = sw_new.clamp(self.fluid.sw_cr, 1.0)
-                    sg_new = sg_new.clamp(0.0, 1.0 - sw_new)
+                    # Верхний предел Sg зависит от Sw, поэтому используем torch.min
+                    upper = 1.0 - sw_new
+                    sg_new = torch.min(sg_new, upper).clamp_min(0.0)
                     so_new = 1.0 - sw_new - sg_new
                     self.fluid.s_w = sw_new
                     self.fluid.s_g = sg_new
@@ -726,66 +728,47 @@ class Simulator:
                 prev_residual_norm = residual_norm
                 self._update_trust_limits(prev_residual_norm, residual_norm, jacobian, delta, p_vec, sw_vec)
                 
-                # Line search для улучшения сходимости
-                best_factor = None
-                best_residual_norm = float('inf')
-                
-                # Применяем демпфирование перед line search для стабильности
+                # ---- Backtracking Armijo line-search ----------------------
                 if damping_factor < 1.0:
                     delta = damping_factor * delta
-                    print(f"  Применено демпфирование с коэффициентом {damping_factor}")
-                
-                # Быстрый line search с использованием предварительно определенных факторов
-                for factor in line_search_factors:
-                    # Временно применяем шаг
-                    self._apply_newton_step(delta, factor)
-                    
-                    # Быстрый расчет невязки без сборки полного якобиана
-                    new_residual = self._compute_residual_fast(dt, nx, ny, nz, dx, dy, dz)
-                    new_residual_norm = torch.norm(new_residual).item()
-                    
-                    # Откатываем изменения
+                    print(f"  Демпфирование Ньютона: factor={damping_factor}")
+
+                alpha = 1.0                   # начальный шаг
+                alpha_min = 1e-4              # минимально допустимый
+                rho   = 0.5                   # коэффициент уменьшения
+                c1    = 1e-4                  # константа условия Армижо
+
+                current_residual_norm = residual_norm
+                armijo_ok = False
+
+                while alpha >= alpha_min:
+                    # Пробуем шаг x + alpha*delta
+                    self._apply_newton_step(delta, alpha)
+                    trial_residual = self._compute_residual_fast(dt, nx, ny, nz, dx, dy, dz)
+                    trial_norm = torch.norm(trial_residual).item()
+
+                    if trial_norm <= (1 - c1 * alpha) * current_residual_norm:
+                        armijo_ok = True
+                        break  # условие Армижо выполнено
+
+                    # Откат и уменьшение шага
                     self.fluid.pressure = current_p.clone()
                     self.fluid.s_w = current_sw.clone()
-                    
-                    # Проверяем, улучшает ли этот фактор сходимость
-                    if new_residual_norm < best_residual_norm:
-                        best_residual_norm = new_residual_norm
-                        best_factor = factor
-                        
-                        # Если улучшение значительное, прекращаем поиск
-                        if new_residual_norm < 0.7 * residual_norm:
-                            break
-                
-                # Улучшенная обработка случая, когда line search не помог
-                if best_factor is None or best_residual_norm >= residual_norm:
-                    # Используем самый маленький фактор для предотвращения дивергенции
-                    best_factor = min(line_search_factors)
-                    print(f"  Внимание: Line search не смог уменьшить невязку. Используем минимальный шаг {best_factor}.")
-                    
-                    # Если невязка достаточно мала или это одна из начальных итераций, продолжаем
-                    if residual_norm < 15 * tol or iter_idx < 3:
-                        print(f"  Продолжаем итерации с минимальным шагом")
-                    else:
-                        # Проверяем, была ли сходимость на предыдущих итерациях
-                        stagnation_count = getattr(self, '_stagnation_count', 0) + 1
-                        setattr(self, '_stagnation_count', stagnation_count)
-                        
-                        if stagnation_count > 2:
-                            print(f"  Невязка слишком велика, итерации Ньютона не сходятся после нескольких попыток")
-                            # Восстанавливаем исходное состояние
-                            self.fluid.pressure = current_p.clone()
-                            self.fluid.s_w = current_sw.clone()
-                            setattr(self, '_stagnation_count', 0)
-                            return False, iter_idx + 1
-                        else:
-                            print(f"  Попытка продолжить с минимальным шагом (попытка {stagnation_count})")
-                else:
-                    # Сбрасываем счетчик стагнаций при успешном шаге
-                    setattr(self, '_stagnation_count', 0)
-                
-                # Применяем найденный оптимальный шаг
-                self._apply_newton_step(delta, best_factor)
+                    alpha *= rho
+
+                if not armijo_ok:
+                    print(f"  Armijo LS не нашёл приемлемый шаг ≥ {alpha_min}. Прерываем итерации.")
+                    # Восстанавливаем исходное состояние
+                    self.fluid.pressure = current_p.clone()
+                    self.fluid.s_w = current_sw.clone()
+                    return False, iter_idx + 1
+
+                print(f"  Line-search: выбран шаг alpha={alpha:.3f}, невязка {trial_norm:.3e}")
+
+                # Сбрасываем счётчик стагнаций, так как улучшили невязку
+                setattr(self, '_stagnation_count', 0)
+
+                # Уже применили шаг внутри line-search, поэтому не нужно повторно _apply_newton_step
                 
                 # Ограничиваем значения физическими пределами
                 self.fluid.s_w.clamp_(self.fluid.sw_cr, 1.0 - self.fluid.so_r)
@@ -849,7 +832,13 @@ class Simulator:
         
         # Применяем приращения с заданным фактором
         p_delta_raw = delta[:num_cells].reshape(-1) * factor
-        sw_delta_raw = delta[num_cells:].reshape(-1) * factor
+        sw_delta_raw = delta[num_cells:].reshape(-1) * factor  # переопределим ниже при 3 фазах
+        sg_delta_raw = None
+
+        # Корректные срезы для трёхфазного случая
+        if delta.numel() == 3 * num_cells:
+            sw_delta_raw = delta[num_cells:2*num_cells].reshape(-1) * factor
+            sg_delta_raw = delta[2*num_cells:3*num_cells].reshape(-1) * factor
         
         # Ограничиваем изменения давления (не более 10% от текущего значения и не более 5 МПа)
         max_p_change_rel = 0.1 * torch.abs(old_p)
@@ -859,29 +848,50 @@ class Simulator:
         
         # Насыщенность не ограничиваем компонентно – доверяем глобальному trust-region
         sw_delta = sw_delta_raw
+        sg_delta = sg_delta_raw if sg_delta_raw is not None else None
         
         # Применяем обновления к давлению и насыщенности
         self.fluid.pressure = (old_p + p_delta).reshape(nx, ny, nz)
         self.fluid.s_w = (old_sw + sw_delta).reshape(nx, ny, nz)
+        if sg_delta is not None:
+            old_sg = getattr(self.fluid, 's_g', torch.zeros_like(old_sw)).reshape(-1)
+            self.fluid.s_g = (old_sg + sg_delta).reshape(nx, ny, nz)
         
         # Ограничиваем физическими пределами
         self.fluid.pressure.clamp_(1e5, 100e6)  # От 0.1 МПа до 100 МПа
-        self.fluid.s_w.clamp_(self.fluid.sw_cr, 1.0 - self.fluid.so_r)
+        self.fluid.s_w.clamp_(self.fluid.sw_cr, 1.0)
+        if sg_delta is not None:
+            self.fluid.s_g.clamp_(0.0, 1.0)
+            # Нормализация, чтобы So >= so_r и Sw+Sg<=1
+            total = self.fluid.s_w + self.fluid.s_g
+            excess = torch.clamp(total - (1.0 - self.fluid.so_r), min=0.0)
+            if torch.any(excess > 0):
+                # Снимаем избыток пропорционально Sw и Sg
+                frac_w = self.fluid.s_w / (total + 1e-12)
+                frac_g = 1.0 - frac_w
+                self.fluid.s_w -= excess * frac_w
+                self.fluid.s_g -= excess * frac_g
         
-        # Обновляем также нефтенасыщенность
-        self.fluid.s_o = 1.0 - self.fluid.s_w
+        # Обновляем нефтенасыщенность
+        if sg_delta is not None:
+            self.fluid.s_o = 1.0 - self.fluid.s_w - self.fluid.s_g
+        else:
+            self.fluid.s_o = 1.0 - self.fluid.s_w
         
         # Подсчитываем количество ограниченных значений
         p_limited = torch.sum(p_delta != p_delta_raw).item()
         sw_limited = torch.sum(sw_delta != sw_delta_raw).item()
-        
-        # Выводим информацию о больших изменениях для отладки
-        max_p_change = torch.max(torch.abs(p_delta)).item()
+        max_p_change_val = torch.max(torch.abs(p_delta)).item()
         max_sw_change = torch.max(torch.abs(sw_delta)).item()
-        if max_p_change > 1e6 or max_sw_change > 0.1 or p_limited > 0 or sw_limited > 0:
-            p_limited_percent = p_limited / num_cells * 100
-            sw_limited_percent = sw_limited / num_cells * 100
-            print(f"  Изменения: P_max={max_p_change/1e6:.3f} МПа, Sw_max={max_sw_change:.3f}. Ограничено: P={p_limited_percent:.1f}%, Sw={sw_limited_percent:.1f}%")
+        p_limited_percent = p_limited / num_cells * 100
+        sw_limited_percent = sw_limited / num_cells * 100
+        sg_limited_percent = None
+        sg_max_change = None
+        if sg_delta is not None:
+            sg_limited = torch.sum(sg_delta != sg_delta_raw).item()
+            sg_limited_percent = sg_limited / num_cells * 100
+            sg_max_change = torch.max(torch.abs(sg_delta)).item()
+        print(f"  Изменения: P_max={max_p_change_val/1e6:.3f} МПа, Sw_max={max_sw_change:.3f}, Sg_max={sg_max_change:.3f}. Ограничено: P={p_limited_percent:.1f}%, Sw={sw_limited_percent:.1f}%, Sg={sg_limited_percent:.1f}%")
 
         # -------- Локальный trust-region больше не нужен: глобальный ограничитель уже применён ---------
 
@@ -1368,7 +1378,10 @@ class Simulator:
         """
         nx, ny, nz = self.reservoir.dimensions
         N = nx * ny * nz
-        return torch.zeros(2 * N, device=self.device)
+        if hasattr(self.fluid, 's_g'):
+            return torch.zeros(3 * N, device=self.device)
+        else:
+            return torch.zeros(2 * N, device=self.device)
 
     def _fi_residual_vec(self, x: torch.Tensor, dt: float):
         """Полная невязка F(x) для полностью-неявного решателя.
@@ -1394,11 +1407,12 @@ class Simulator:
         else:
             p_vec = x[:N] * 1e6         # MPa → Pa
 
-        # ------------- water saturation -----------------------------------
-        sw_vec = x[N:]
+        # ------------- water & gas saturation -----------------------------
         if x.numel() == 3 * N:
-            sg_vec = x[2*N:]
+            sw_vec = x[N:2*N]
+            sg_vec = x[2*N:3*N]
         else:
+            sw_vec = x[N:]
             sg_vec = None
 
         # reshape to 3-D
@@ -1494,9 +1508,9 @@ class Simulator:
         div_o[1:,  :, :] -= flow_o_x
 
         div_w[:, :-1, :] += flow_w_y
-        div_w[:, 1:,  :] -= flow_w_y
+        div_w[:,  1:, :] -= flow_w_y
         div_o[:, :-1, :] += flow_o_y
-        div_o[:, 1:,  :] -= flow_o_y
+        div_o[:,  1:, :] -= flow_o_y
 
         div_w[:, :, :-1] += flow_w_z
         div_w[:, :,  1:] -= flow_w_z
@@ -1631,10 +1645,16 @@ class Simulator:
         F_p = res_p.view(-1)
         F_sw = res_w.view(-1)
 
+        if sg_vec is not None:
+            res_g = acc_g + div_g + q_g
+            F_sg = res_g.view(-1)
         if hasattr(self, "scaler") and self.scaler is not None:
             F_p = F_p / self.scaler.p_scale
 
-        return torch.cat([F_p, F_sw])
+        if sg_vec is not None:
+            return torch.cat([F_p, F_sw, F_sg])
+        else:
+            return torch.cat([F_p, F_sw])
 
     # ==================================================================
     # ==                    SIMPLE DRIVER (main.py)                  ==

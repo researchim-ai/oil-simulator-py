@@ -10,6 +10,11 @@ class CPRPreconditioner:
         self.failed_amg = False  # Флаг провала AMG
         
         print(f"🔧 CPR: Инициализация с backend='{backend}'")
+
+        # Сохраняем ссылку на reservoir для последующей возможной
+        # переинициализации AMG (например, смена сглаживателя).
+        self.reservoir = reservoir
+
         indptr, ind, data = self._assemble_pressure_csr(reservoir, fluid)
         print(f"🔧 CPR: Построена pressure матрица размера {len(indptr)-1}x{len(indptr)-1}, nnz={len(data)}")
         
@@ -117,6 +122,7 @@ class CPRPreconditioner:
         # --- суммарная мобильность (константа для CPR) ---
         lam_t = 1.0 / fluid.mu_water + 1.0 / fluid.mu_oil  # 1/Па·с
         lam = lam_t  # скаляр
+        self.lam_const = lam  # сохраняем для масштабирования AMG результата
 
         # 🎯 УЛУЧШЕННОЕ МАСШТАБИРОВАНИЕ для высокой сжимаемости
         # Типичная transmissibility
@@ -133,20 +139,18 @@ class CPRPreconditioner:
         # Для высокой сжимаемости нужно более агрессивное масштабирование
         compressibility_factor = max_compress / 1e-9  # Нормализуем к 1e-9
         
-        # Выбираем масштаб с учетом сжимаемости
-        if typical_T < 1e-12:
-            matrix_scale = 1e12 * compressibility_factor  # Очень маленькие коэффициенты
-        elif typical_T < 1e-6:
-            matrix_scale = 1e6 * compressibility_factor   # Маленькие коэффициенты
-        elif typical_T > 1e6:
-            matrix_scale = 1e-6 / compressibility_factor  # Большие коэффициенты
-        else:
-            matrix_scale = 1.0 * compressibility_factor   # Нормальные коэффициенты
+        # FIX: отказались от искусственного масштабирования — ставим 1.0.
+        # Чрезмерное "растягивание" матрицы приводило к гигантским поправкам δp
+        # и к фактическому «заглушению» шагов Ньютона. Более корректно оставить
+        # физический масштаб коэффициентов и позволить AMG обрабатывать
+        # плохо обусловленную, но реалистичную матрицу.
+
+        matrix_scale = 1.0
         
         print(f"🎯 CPR: Типичная transmissibility: {typical_T:.3e}")
         print(f"🎯 CPR: Максимальная сжимаемость: {max_compress:.3e}")
         print(f"🎯 CPR: Фактор сжимаемости: {compressibility_factor:.3e}")
-        print(f"🎯 CPR: Масштаб матрицы: {matrix_scale:.3e}")
+        print(f"🎯 CPR: Масштаб матрицы: {matrix_scale:.3e} (физический масштаб, без искусственного множителя)")
         
         # Сохраняем масштаб для восстановления решения
         self.matrix_scale = matrix_scale
@@ -159,6 +163,9 @@ class CPRPreconditioner:
         indices = np.empty(nnz_est, dtype=np.int32)
         data = np.empty(nnz_est, dtype=np.float64)
 
+        # Сохраняем диагональные элементы для последующего автомасштабирования
+        diag_vals = []
+
         pos = 0
         idx = 0
         for k in range(nz):
@@ -170,28 +177,28 @@ class CPRPreconditioner:
 
                     # X-
                     if i > 0:
-                        t = Tx[i-1, j, k] * lam * self.matrix_scale
+                        t = Tx[i-1, j, k] * lam  # self.matrix_scale =1
                         indices[pos] = center - 1
                         data[pos] = -t
                         pos += 1
                         diag += t
                     # X+
                     if i < nx - 1:
-                        t = Tx[i, j, k] * lam * self.matrix_scale
+                        t = Tx[i, j, k] * lam
                         indices[pos] = center + 1
                         data[pos] = -t
                         pos += 1
                         diag += t
                     # Y-
                     if j > 0:
-                        t = Ty[i, j-1, k] * lam * self.matrix_scale
+                        t = Ty[i, j-1, k] * lam
                         indices[pos] = center - nx
                         data[pos] = -t
                         pos += 1
                         diag += t
                     # Y+
                     if j < ny - 1:
-                        t = Ty[i, j, k] * lam * self.matrix_scale
+                        t = Ty[i, j, k] * lam
                         indices[pos] = center + nx
                         data[pos] = -t
                         pos += 1
@@ -199,13 +206,13 @@ class CPRPreconditioner:
                     # Z-/Z+
                     if nz > 1:
                         if k > 0:
-                            t = Tz[i, j, k-1] * lam * self.matrix_scale
+                            t = Tz[i, j, k-1] * lam
                             indices[pos] = center - nx * ny
                             data[pos] = -t
                             pos += 1
                             diag += t
                         if k < nz - 1:
-                            t = Tz[i, j, k] * lam * self.matrix_scale
+                            t = Tz[i, j, k] * lam
                             indices[pos] = center + nx * ny
                             data[pos] = -t
                             pos += 1
@@ -222,15 +229,28 @@ class CPRPreconditioner:
                     
                     # Диагональный элемент
                     indices[pos] = center
-                    data[pos] = diag + adaptive_shift * self.matrix_scale
+                    diag_entry = diag + adaptive_shift  # пока без масштабирования
+                    data[pos] = diag_entry
+                    diag_vals.append(abs(diag_entry))
                     pos += 1
                     idx += 1
 
         indptr[N] = pos
-        
-        # 🎯 Логирование масштабированной матрицы
-        print(f"🎯 CPR: Масштабированная матрица - мин: {np.min(data[:pos]):.3e}, макс: {np.max(data[:pos]):.3e}")
-        
+
+        # --- АВТОМАТИЧЕСКОЕ МАСШТАБИРОВАНИЕ МАТРИЦЫ ---
+        diag_median = np.median(diag_vals) if diag_vals else 1.0
+        # Гарантируем ненулевую диагональ
+        if diag_median < 1e-20:
+            diag_median = 1e-20
+        scale = 1.0 / diag_median
+        data[:pos] *= scale  # нормализуем матрицу
+
+        # Сохраняем коэффициент для последующего восстановления решения
+        self.matrix_scale = scale
+
+        print(f"🎯 CPR: Автомасштабирование — median(|diag|)={diag_median:.3e}, scale={scale:.3e}")
+        print(f"🎯 CPR: Диапазон элементов после масштабирования: min={data[:pos].min():.3e}, max={data[:pos].max():.3e}")
+
         return indptr[:N+1], indices[:pos], data[:pos]
 
     def apply(self, vec: torch.Tensor) -> torch.Tensor:
@@ -241,7 +261,28 @@ class CPRPreconditioner:
         2. Насыщенность обрабатываем через простое Jacobi масштабирование
         3. Автоматическое масштабирование для робастности
         """
-        n = vec.shape[0] // 2
+        # Количество ячеек
+        if not hasattr(self, "_n_cells"):
+            nx, ny, nz = self.reservoir_dims if hasattr(self, "reservoir_dims") else (None, None, None)
+        n_cells = getattr(self, "_n_cells", None)
+        if n_cells is None:
+            # лениво сохраняем на первом вызове
+            from math import prod
+            try:
+                import builtins  # avoid circular if reservoir not passed
+                dims = builtins.__dict__.get("_cpr_cached_dims", None)
+            except Exception:
+                dims = None
+            # safest way: infer from diag_inv length
+            n_cells = self.diag_inv.shape[0]
+            self._n_cells = n_cells
+
+        vars_per_cell = vec.shape[0] // n_cells
+        if vars_per_cell not in (2, 3):
+            raise ValueError(f"CPRPreconditioner: unsupported vars_per_cell={vars_per_cell} (expected 2 or 3)")
+
+        # Давление — первые n_cells компонентов
+        n = n_cells
         
         # 🔧 ИСПРАВЛЕНО: правильная обработка gradients
         if vec.requires_grad:
@@ -268,7 +309,13 @@ class CPRPreconditioner:
         else:
             try:
                 print(f"    CPR: Используем AMG решение (RHS масштаб: {rhs_scale:.2e})")
-                delta_p_scaled = self.solver.solve(rhs_scaled, tol=1e-8, max_iter=200)
+                delta_p_geom = self.solver.solve(rhs_scaled, tol=1e-8, max_iter=200)
+                # --- ВОССТАНОВЛЕНИЕ РЕШЕНИЯ ---
+                # Теперь матрица собирается без искусственного множителя, поэтому
+                # решение AMG непосредственно связано с физическим через
+                #   δ_geom = δ_true / rhs_scale  ⇒  δ_true = δ_geom · rhs_scale.
+                # Пока откладываем умножение на rhs_scale до финального шага.
+                delta_p_scaled = delta_p_geom  # matrix_scale = 1.0
                 
                 # Проверяем результат на NaN/Inf
                 if np.any(np.isnan(delta_p_scaled)) or np.any(np.isinf(delta_p_scaled)):
@@ -278,12 +325,33 @@ class CPRPreconditioner:
                 else:
                     delta_p_norm = np.linalg.norm(delta_p_scaled)
                     print(f"    CPR: AMG решение успешно, ||delta_p||={delta_p_norm:.3e}")
-                    
-                    # 🎯 ROBUST проверка: решение должно быть разумного размера
-                    if delta_p_norm > 1e8:  # слишком большое решение
-                        print(f"    CPR: AMG дал огромное решение, переключаемся на Jacobi")
-                        self.failed_amg = True
-                        delta_p_scaled = self.diag_inv * rhs_scaled
+
+                    # 🎯 ROBUST проверка: сравниваем относительную величину решения
+                    rel_ratio = delta_p_norm / (rhs_norm + 1e-30)
+                    # Если решение слишком велико ( >1e8 раз RHS), считаем AMG нестабильным
+                    if rel_ratio > 1e8:
+                        print(f"    CPR: AMG решение УТРАТИЛО надёжность (||δp||/||rhs||={rel_ratio:.2e});")
+                        if self.backend == "geo" and getattr(self.solver, "smoother", "") != "jacobi":
+                            print("    CPR: Переключаем GeoSolver на Jacobi-сглаживатель и пробуем ещё раз...")
+                            try:
+                                self.solver = self.solver.__class__(self.reservoir, smoother="jacobi")
+                                print("✅ CPR: GeoSolver переинициализирован на Jacobi-сглаживатель")
+                                delta_p_geom = self.solver.solve(rhs_scaled, tol=1e-8, max_iter=200)
+                                delta_p_scaled = delta_p_geom
+                                print(f"✅ CPR: GeoSolver успешно решил AMG (Jacobi)")
+                                # Пересчитываем норму и ratio после повторной попытки
+                                delta_p_norm = np.linalg.norm(delta_p_scaled)
+                                rel_ratio = delta_p_norm / (rhs_norm + 1e-30)
+                            except Exception as e:
+                                print(f"❌ CPR: Ошибка повторного AMG (Jacobi): {e}")
+                                rel_ratio = 1e20  # форсируем откат
+                        # Если всё ещё слишком велико — окончательный откат на Jacobi
+                        if rel_ratio > 1e8:
+                            print("❌ CPR: Даже после смены сглаживателя решение остаётся нестабильным; окончательно отключаем AMG")
+                            self.failed_amg = True
+                            delta_p_scaled = self.diag_inv * rhs_scaled
+                    elif rel_ratio > 1e6:
+                        print(f"    CPR: AMG решение выглядит подозрительно (||δp||/||rhs||={rel_ratio:.2e}), но продолжаем использовать")
                 
             except Exception as e:
                 print(f"    CPR: Ошибка в AMG решателе: {e}, переключаемся на Jacobi")
@@ -291,38 +359,41 @@ class CPRPreconditioner:
                 delta_p_scaled = self.diag_inv * rhs_scaled
 
         # 🎯 ПРАВИЛЬНОЕ ВОССТАНОВЛЕНИЕ МАСШТАБА
-        # Нужно восстановить только rhs_scale, matrix_scale уже учтен в матрице
-        delta_p = delta_p_scaled * rhs_scale
+        #   δ_geom = δ_true / rhs_scale      (для GeoSolver)
+        #   δ_geom = δ_true / (rhs_scale·matrix_scale)  (для AMGX/Boomer)
+        if self.backend == "geo":
+            delta_p = delta_p_scaled * rhs_scale
+        else:
+            delta_p = delta_p_scaled * rhs_scale * self.matrix_scale
         
         # 🔧 ДОПОЛНИТЕЛЬНЫЙ DEBUG
-        if hasattr(self, 'matrix_scale'):
-            print(f"    CPR: Восстановление масштаба: rhs_scale={rhs_scale:.3e}, matrix_scale={self.matrix_scale:.3e}")
-            print(f"    CPR: ||delta_p|| до восстановления: {np.linalg.norm(delta_p_scaled):.3e}")
-            print(f"    CPR: ||delta_p|| после восстановления: {np.linalg.norm(delta_p):.3e}")
+        print(f"    CPR: Восстановление масштаба: rhs_scale={rhs_scale:.3e}, matrix_scale={self.matrix_scale:.3e} (backend={self.backend})")
+        print(f"    CPR: ||delta_p|| до восстановления: {np.linalg.norm(delta_p_scaled):.3e}")
+        print(f"    CPR: ||delta_p|| после восстановления: {np.linalg.norm(delta_p):.3e}")
         
         # ❌ УБРАНО: delta_p = delta_p / self.matrix_scale (двойное восстановление!)
 
         # 🔧 ИСПРАВЛЕНО: правильная сборка результата
         out = torch.zeros_like(vec, dtype=vec.dtype, device=vec.device, requires_grad=False)
-        
-        # Давление: результат AMG решения 
+
+        # Давление: результат AMG решения
         pressure_result = torch.from_numpy(delta_p).to(device=vec.device, dtype=vec.dtype)
-        
+
         # 🎯 ДОПОЛНИТЕЛЬНАЯ защита от экстремальных значений
         pressure_norm = pressure_result.norm()
         vec_norm = vec[:n].norm()
-        
-        # Ограничиваем решение разумным кратным от входного вектора
         if vec_norm > 1e-15:
-            max_ratio = 1000.0  # Решение не должно быть более чем в 1000 раз больше входа
+            # Разрешаем значительно более крупные поправки (до 1e12 раз RHS).
+            # Линейный поиск позаботится о корректном демпфировании.
+            max_ratio = 1e12
             if pressure_norm > max_ratio * vec_norm:
-                scale_factor = (max_ratio * vec_norm) / pressure_norm
+                scale_factor = (max_ratio * vec_norm) / (pressure_norm + 1e-30)
                 pressure_result = pressure_result * scale_factor
                 print(f"    CPR: Ограничили решение фактором {scale_factor:.3e}")
-        
+
         out[:n] = pressure_result
-        
-        # Насыщенность: простое масштабирование
+
+        # Насыщенности (любой фазы): Jacobi scaling ω
         out[n:] = self.omega * vec[n:]
         
         return out 

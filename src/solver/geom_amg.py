@@ -106,9 +106,15 @@ class GeoSolver:
             raise ValueError("smoother must be 'jacobi', 'l1gs' or 'chebyshev'")
 
         # --- копируем тензоры проницаемости (м^2) на выбранное устройство ---
-        kx = reservoir.permeability_x.to(self.device, dtype=torch.float32).clone()
-        ky = reservoir.permeability_y.to(self.device, dtype=torch.float32).clone()
-        kz = reservoir.permeability_z.to(self.device, dtype=torch.float32).clone()
+        # В Reservoir тензоры хранятся в порядке (nx, ny, nz),
+        # тогда как все вычисления GeoSolver предполагают (nz, ny, nx).
+        # Поэтому транспонируем оси и делаем их contiguous.
+        kx = reservoir.permeability_x.to(self.device, dtype=torch.float32).permute(2, 1, 0).contiguous()
+        ky = reservoir.permeability_y.to(self.device, dtype=torch.float32).permute(2, 1, 0).contiguous()
+        kz = reservoir.permeability_z.to(self.device, dtype=torch.float32).permute(2, 1, 0).contiguous()
+
+        # После перестановки осей пересохраняем размеры (nz, ny, nx)
+        self.nz, self.ny, self.nx = kx.shape
 
         # --- выравниваем размер до чётного, чтобы avg_pool3d 2× работал без ошибок
         def _pad_even(t: torch.Tensor):
@@ -173,13 +179,17 @@ class GeoSolver:
         kx, ky, kz = data["kx"], data["ky"], data["kz"]
         hx, hy, hz = data["hx"], data["hy"], data["hz"]
 
-        # --- transmissibilities по граням (без паддинга) --------------
-        Tx = self._harmonic(kx[..., :-1], kx[..., 1:]) * (hy * hz) / hx       # shape (nz, ny, nx-1)
-        Ty = self._harmonic(ky[:, :-1, :], ky[:, 1:, :]) * (hx * hz) / hy     # shape (nz, ny-1, nx)
-        if kz.shape[0] > 1:
-            Tz = self._harmonic(kz[:-1, :, :], kz[1:, :, :]) * (hx * hy) / hz # shape (nz-1, ny, nx)
+        # --- transmissibilities --- (кешируем для уровня lvl) ---------
+        if "Tx" not in data:
+            Tx = self._harmonic(kx[..., :-1], kx[..., 1:]) * (hy * hz) / hx       # (nz, ny, nx-1)
+            Ty = self._harmonic(ky[:, :-1, :], ky[:, 1:, :]) * (hx * hz) / hy     # (nz, ny-1, nx)
+            if kz.shape[0] > 1:
+                Tz = self._harmonic(kz[:-1, :, :], kz[1:, :, :]) * (hx * hy) / hz # (nz-1, ny, nx)
+            else:
+                Tz = None
+            data["Tx"], data["Ty"], data["Tz"] = Tx, Ty, Tz
         else:
-            Tz = None
+            Tx, Ty, Tz = data["Tx"], data["Ty"], data["Tz"]
 
         # --- вычисляем A x = div(T * grad x) --------------------------
         div = torch.zeros_like(x)
@@ -265,33 +275,29 @@ class GeoSolver:
 
     # ------------------ Chebyshev (polynomial) ------------------------------
     def _chebyshev_relax_var(self, x, b, lvl_data, lvl_idx, iters=4):
-        """Chebyshev semi-iterative smoother (order = iters).
+        """Chebyshev semi-iterative smoother с динамической переоценкой спектра.
 
-        Для SPD матрицы A оцениваем λ_min, λ_max и выполняем полиномную
-        релаксацию Чебышёва 1-го рода. Простая эвристика λ_min = 0.1 λ_max.
-        Оценку λ_max кешируем для каждого уровня посредством пары итераций
-        степенного метода. Этого достаточно для сглаживателя (точность не
-        критична).
+        • λ_max оцениваем на каждой релаксации 5 итерациями степенного метода –
+          это ~O(N) и не доминирует в стоимости V-cycle.
+        • λ_min берём как λ_max / κ, где κ = 50 (целимся в спектральное число
+          после Jacobi-предсглаживания). Эвристики вполне достаточно: цель –
+          подавить высокочастотный шум.
+        • Порядок полинома = iters (вызов из V-cycle). Мы гарантируем iters≥4
+          при вызове из _v_cycle_var, иначе Chebyshev неэффективен.
         """
-        # --- кэш спектральных пределов -------------------------------------
-        if not hasattr(self, "_lambda_cache"):
-            self._lambda_cache = {}
 
-        if lvl_idx in self._lambda_cache:
-            lam_max = self._lambda_cache[lvl_idx]
-        else:
-            # грубая степень метода (3 итерации)
-            v = torch.rand_like(x)
+        # ---- оценка λ_max --------------------------------------------------
+        v = torch.rand_like(x)
+        v = v / (torch.norm(v) + 1e-12)
+        for _ in range(5):  # чуть меньше итераций – достаточно точно
+            v = self._apply_A(v, lvl_idx)
             v = v / (torch.norm(v) + 1e-12)
-            for _ in range(3):
-                v = self._apply_A(v, lvl_idx)
-                v = v / (torch.norm(v) + 1e-12)
-            Av = self._apply_A(v, lvl_idx)
-            lam_max = torch.dot(v.flatten(), Av.flatten()).item()
-            lam_max = max(lam_max, 1e-8)
-            self._lambda_cache[lvl_idx] = lam_max
+        Av = self._apply_A(v, lvl_idx)
+        lam_max = torch.dot(v.flatten(), Av.flatten()).item()
+        lam_max = max(lam_max, 1e-8)
+        lam_max *= 1.05  # небольшое завышение
 
-        lam_min = lam_max * 0.1  # грубая нижняя граница
+        lam_min = lam_max / 50.0  # κ = 50
 
         theta = (lam_max + lam_min) / 2.0
         delta = (lam_max - lam_min) / 2.0
@@ -332,7 +338,8 @@ class GeoSolver:
         if self.smoother == "l1gs":
             x = self._l1gs_relax_var(x, b, lvl_data, lvl, omega=omega, iters=pre)
         elif self.smoother == "chebyshev":
-            x = self._chebyshev_relax_var(x, b, lvl_data, lvl, iters=pre)
+            # Итераций ≥4 для эффективности
+            x = self._chebyshev_relax_var(x, b, lvl_data, lvl, iters=max(4, pre))
         else:
             x = self._jacobi_relax_var(x, b, lvl_data, lvl, omega=omega, iters=pre)
 
@@ -356,30 +363,55 @@ class GeoSolver:
         if self.smoother == "l1gs":
             x = self._l1gs_relax_var(x, b, lvl_data, lvl, omega=omega, iters=post)
         elif self.smoother == "chebyshev":
-            x = self._chebyshev_relax_var(x, b, lvl_data, lvl, iters=post)
+            x = self._chebyshev_relax_var(x, b, lvl_data, lvl, iters=max(4, post))
         else:
             x = self._jacobi_relax_var(x, b, lvl_data, lvl, omega=omega, iters=post)
         return x
 
     # ------------------------------------------------------------------
     def solve(self, rhs, tol=1e-6, max_iter=10):
-        nz0, ny0, nx0 = self.nz, self.ny, self.nx
-        # учтём возможный паддинг
+        # ------------------------------
+        # 1. RHS -> 3-D (nz, ny, nx)
+        #    CPR формирует rhs в линейной индексации (x-быстрейшая)
+        #    => сначала ресейпим (nx, ny, nz), затем permute.
+        # ------------------------------
+        nx0, ny0, nz0 = self.nx, self.ny, self.nz  # внешние размеры (после транспонирования)
+
+        rhs_tensor = torch.as_tensor(rhs.reshape(nz0, ny0, nx0), dtype=torch.float32, device=self.device)
+        b = rhs_tensor  # (nz, ny, nx) – уже в нужном порядке
+
+        # --- учтём возможный паддинг -------------------------------------------------
         dz, dy, dx = self._pad
-        b = torch.as_tensor(rhs.reshape(nz0, ny0, nx0), dtype=torch.float32, device=self.device)
         if dx or dy or dz:
             pad = (0, dx, 0, dy, 0, dz)
             b = F.pad(b, pad, mode="constant", value=0.0)
-        x = torch.zeros_like(b)
 
+        # ------------------------------
+        # 2. Итеративное решение V-cycle
+        #    • более агрессивный pre/post (5)
+        #    • до 30 V-циклов
+        # ------------------------------
+        x = torch.zeros_like(b)
+        # Более лёгкий V-cycle для предобуславливателя
+        max_iter = min(max_iter, 10)
         for itr in range(max_iter):
-            x = self._v_cycle_var(0, x, b, omega=0.8)
+            x = self._v_cycle_var(0, x, b, omega=0.8, pre=2, post=2)
             res = torch.norm(b - self._apply_A(x, lvl=0)) / (torch.norm(b) + 1e-12)
             if res < tol:
                 break
+
+        # fallback: если res > 0.5, делаем ещё 5 усиленных циклов
+        if res > 0.5:
+            for _ in range(5):
+                x = self._v_cycle_var(0, x, b, omega=0.8, pre=4, post=4)
+            res = torch.norm(b - self._apply_A(x, lvl=0)) / (torch.norm(b) + 1e-12)
 
         # обрезаем паддинг
         if dx or dy or dz:
             x = x[:nz0, :ny0, :nx0]
 
-        return x.cpu().numpy().ravel() 
+        # ------------------------------
+        # 3. Возврат в линейный вид (x-быстрейшая)
+        # ------------------------------
+        x_out = x  # (nz, ny, nx)
+        return x_out.cpu().numpy().ravel(order="C") 

@@ -160,9 +160,13 @@ class FullyImplicitSolver:
                     return x, False
 
             # 🚀 ПРОМЫШЛЕННЫЙ line-search с логированием
-            Ncells = delta.shape[0] // (3 if delta.shape[0] % 2 == 0 and delta.shape[0] // (delta.shape[0] // 2) == 3 else 2)
-            pressure_scaled = delta[:Ncells] / 1e6
-            delta_scaled = torch.cat([pressure_scaled, delta[Ncells:]])
+            n_cells = self.sim.reservoir.dimensions[0]*self.sim.reservoir.dimensions[1]*self.sim.reservoir.dimensions[2]
+            vars_per_cell = delta.shape[0] // n_cells
+            pressure_scaled = delta[:n_cells] / 1e6
+            if vars_per_cell == 3:
+                delta_scaled = torch.cat([pressure_scaled, delta[n_cells:]])
+            else:
+                delta_scaled = torch.cat([pressure_scaled, delta[n_cells:]])
             delta_norm_scaled = delta_scaled.norm()
             print(f"  Line search: ||delta||_scaled={delta_norm_scaled:.3e}")
 

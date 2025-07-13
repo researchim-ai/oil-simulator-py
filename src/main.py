@@ -69,6 +69,8 @@ def main():
         sim_params['backend'] = args.backend
     if hasattr(args, 'smoother') and args.smoother is not None:
         sim_params['smoother'] = args.smoother
+    if hasattr(args, 'solver_type') and args.solver_type is not None:
+        sim_params['solver_type'] = args.solver_type
     
     # 🔧 ИСПРАВЛЕНО: Добавляем linear_solver в sim_params
     if 'linear_solver' in config:
@@ -93,6 +95,7 @@ def parse_args():
     parser.add_argument('--steps', type=int, default=None, help='Количество временных шагов (для отладки)')
     parser.add_argument('--backend', type=str, default=None, help='Backend CPR/AMG: geo, amgx, boomer, cpu')
     parser.add_argument('--smoother', type=str, default=None, help="Сглаживатель Geo-AMG: jacobi, l1gs, chebyshev")
+    parser.add_argument('--solver_type', type=str, default=None, choices=['impes', 'fully_implicit'], help='Тип решателя: impes или fully_implicit')
     return parser.parse_args()
 
 def load_config(config_path):
