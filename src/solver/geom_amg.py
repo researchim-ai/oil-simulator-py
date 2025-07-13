@@ -100,10 +100,10 @@ class GeoSolver:
         self.hx, self.hy, self.hz = map(float, reservoir.grid_size)
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
 
-        # Тип сглаживателя: 'jacobi' | 'l1gs'
+        # Тип сглаживателя: 'jacobi' | 'l1gs' | 'chebyshev'
         self.smoother = smoother.lower()
-        if self.smoother not in ("jacobi", "l1gs"):
-            raise ValueError("smoother must be 'jacobi' or 'l1gs'")
+        if self.smoother not in ("jacobi", "l1gs", "chebyshev"):
+            raise ValueError("smoother must be 'jacobi', 'l1gs' or 'chebyshev'")
 
         # --- копируем тензоры проницаемости (м^2) на выбранное устройство ---
         kx = reservoir.permeability_x.to(self.device, dtype=torch.float32).clone()
@@ -263,6 +263,54 @@ class GeoSolver:
             x = x + omega * (r / diag) * mask_blk
         return x
 
+    # ------------------ Chebyshev (polynomial) ------------------------------
+    def _chebyshev_relax_var(self, x, b, lvl_data, lvl_idx, iters=4):
+        """Chebyshev semi-iterative smoother (order = iters).
+
+        Для SPD матрицы A оцениваем λ_min, λ_max и выполняем полиномную
+        релаксацию Чебышёва 1-го рода. Простая эвристика λ_min = 0.1 λ_max.
+        Оценку λ_max кешируем для каждого уровня посредством пары итераций
+        степенного метода. Этого достаточно для сглаживателя (точность не
+        критична).
+        """
+        # --- кэш спектральных пределов -------------------------------------
+        if not hasattr(self, "_lambda_cache"):
+            self._lambda_cache = {}
+
+        if lvl_idx in self._lambda_cache:
+            lam_max = self._lambda_cache[lvl_idx]
+        else:
+            # грубая степень метода (3 итерации)
+            v = torch.rand_like(x)
+            v = v / (torch.norm(v) + 1e-12)
+            for _ in range(3):
+                v = self._apply_A(v, lvl_idx)
+                v = v / (torch.norm(v) + 1e-12)
+            Av = self._apply_A(v, lvl_idx)
+            lam_max = torch.dot(v.flatten(), Av.flatten()).item()
+            lam_max = max(lam_max, 1e-8)
+            self._lambda_cache[lvl_idx] = lam_max
+
+        lam_min = lam_max * 0.1  # грубая нижняя граница
+
+        theta = (lam_max + lam_min) / 2.0
+        delta = (lam_max - lam_min) / 2.0
+
+        # первая итерация -----------------------------------------------
+        r = b - self._apply_A(x, lvl_idx)
+        p = r / theta
+        x = x + p
+        alpha_prev = 1.0 / theta
+
+        for _ in range(iters - 1):
+            r = b - self._apply_A(x, lvl_idx)
+            beta = (delta * alpha_prev / 2.0) ** 2
+            alpha = 1.0 / (theta - beta / alpha_prev)
+            p = alpha * r + beta * p
+            x = x + p
+            alpha_prev = alpha
+        return x
+
     # ------------------------------------------------------------------
     def _restrict_vol(self, vol):
         vol5d = vol[None, None, ...]
@@ -283,6 +331,8 @@ class GeoSolver:
         # pre-smooth
         if self.smoother == "l1gs":
             x = self._l1gs_relax_var(x, b, lvl_data, lvl, omega=omega, iters=pre)
+        elif self.smoother == "chebyshev":
+            x = self._chebyshev_relax_var(x, b, lvl_data, lvl, iters=pre)
         else:
             x = self._jacobi_relax_var(x, b, lvl_data, lvl, omega=omega, iters=pre)
 
@@ -305,6 +355,8 @@ class GeoSolver:
         # post-smooth
         if self.smoother == "l1gs":
             x = self._l1gs_relax_var(x, b, lvl_data, lvl, omega=omega, iters=post)
+        elif self.smoother == "chebyshev":
+            x = self._chebyshev_relax_var(x, b, lvl_data, lvl, iters=post)
         else:
             x = self._jacobi_relax_var(x, b, lvl_data, lvl, omega=omega, iters=post)
         return x

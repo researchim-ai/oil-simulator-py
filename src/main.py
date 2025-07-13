@@ -92,7 +92,7 @@ def parse_args():
     parser.add_argument('--config', type=str, required=True, help='Путь к файлу конфигурации .json')
     parser.add_argument('--steps', type=int, default=None, help='Количество временных шагов (для отладки)')
     parser.add_argument('--backend', type=str, default=None, help='Backend CPR/AMG: geo, amgx, boomer, cpu')
-    parser.add_argument('--smoother', type=str, default=None, help="Сглаживатель Geo-AMG: jacobi, l1gs")
+    parser.add_argument('--smoother', type=str, default=None, help="Сглаживатель Geo-AMG: jacobi, l1gs, chebyshev")
     return parser.parse_args()
 
 def load_config(config_path):
