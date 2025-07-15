@@ -83,6 +83,20 @@ def main():
         sim_params=sim_params,
         device=device
     )
+
+    # Если патчи trans_patch всё-таки были применены (например, из-за раннего импорта),
+    # но переменная окружения требует их пропустить, восстанавливаем оригинальные методы.
+    import os as _os
+    if _os.environ.get("OIL_SIM_SKIP_PATCHES", "0") == "1":
+        try:
+            import simulator.trans_patch as _tp
+            if hasattr(_tp, "_original_fi_step"):
+                Simulator._fully_implicit_step = _tp._original_fi_step
+            if hasattr(_tp, "_def_impes_sat"):
+                Simulator._impes_saturation_step = _tp._def_impes_sat
+        except ImportError:
+            # trans_patch не импортировался – ничего восстанавливать не нужно
+            pass
     
     # Запускаем симуляцию
     output_filename = config.get('output_filename', 'simulation_output')

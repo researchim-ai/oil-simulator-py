@@ -1,0 +1,69 @@
+{
+  "description": "Mega 3D — реальный водо-напорный кейс (4 инжектора, 5 продюсеров)",
+  "output_filename": "mega_3d_real_run",
+  "save_vtk": true,
+
+  "simulation": {
+    "solver_type": "fully_implicit",
+    "total_time_days": 90.0,
+    "time_step_days": 0.5,
+
+    "jacobian": "jfnk",
+    "newton_max_iter": 25,
+    "newton_tolerance": 1e-6,
+    "newton_rtol": 1e-4,
+
+    "backend": "geo",
+    "smoother": "chebyshev",
+    "trust_radius": 50.0,
+
+    "max_time_step_attempts": 4,
+    "verbose": true,
+    "use_cuda": true,
+    "steps_per_output": 10,
+    "gif_fps": 6
+  },
+
+  "reservoir": {
+    "dimensions": [200, 200, 25],
+    "grid_size": [20.0, 20.0, 5.0],
+    "porosity": 0.25,
+    "permeability": 250,
+    "k_vertical_fraction": 0.15
+  },
+
+  "fluid": {
+    "pressure": 20.0,
+    "s_w": 0.2,
+    "mu_oil": 1.5,
+    "mu_water": 0.6,
+    "rho_oil": 850,
+    "rho_water": 997,
+    "c_oil": 4e-5,
+    "c_water": 4e-5,
+    "c_rock": 4e-5,
+
+    "relative_permeability": {
+      "sw_cr": 0.2,
+      "so_r": 0.15,
+      "nw": 2.0,
+      "no": 2.0
+    },
+    "capillary_pressure": {
+      "pc_scale": 0.0
+    }
+  },
+
+  "wells": [
+    { "name": "INJ_NW", "type": "injector", "coordinates": [10, 10, 12],   "radius": 0.2, "control": { "type": "rate", "value": 50000 }},
+    { "name": "INJ_NE", "type": "injector", "coordinates": [190, 10, 12],  "radius": 0.2, "control": { "type": "rate", "value": 50000 }},
+    { "name": "INJ_SW", "type": "injector", "coordinates": [10, 190, 12],  "radius": 0.2, "control": { "type": "rate", "value": 50000 }},
+    { "name": "INJ_SE", "type": "injector", "coordinates": [190, 190, 12], "radius": 0.2, "control": { "type": "rate", "value": 50000 }},
+
+    { "name": "PROD_N", "type": "producer", "coordinates": [100, 10, 12],   "radius": 0.2, "control": { "type": "rate", "value": -30000 }},
+    { "name": "PROD_S", "type": "producer", "coordinates": [100, 190, 12],  "radius": 0.2, "control": { "type": "rate", "value": -30000 }},
+    { "name": "PROD_W", "type": "producer", "coordinates": [10, 100, 12],   "radius": 0.2, "control": { "type": "rate", "value": -30000 }},
+    { "name": "PROD_E", "type": "producer", "coordinates": [190, 100, 12],  "radius": 0.2, "control": { "type": "rate", "value": -30000 }},
+    { "name": "PROD_C", "type": "producer", "coordinates": [100, 100, 12],  "radius": 0.2, "control": { "type": "rate", "value": -30000 }}
+  ]
+} 

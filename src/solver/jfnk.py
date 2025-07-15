@@ -84,8 +84,14 @@ class FullyImplicitSolver:
         )
         baseline_mean_p = x[:n_cells_tot].mean().clone()
 
+        # Позволяем пользователю отключить фиксацию среднего давления,
+        # чтобы глобальное давление могло расти/падать при нетто-дебите.
+        fix_pressure_drift = self.sim.sim_params.get("fix_pressure_drift", True)
+
         # Helper для устранения дрейфа давления
         def _anchor_pressure(x_hat: torch.Tensor):
+            if not fix_pressure_drift:
+                return x_hat
             drift = x_hat[:n_cells_tot].mean() - baseline_mean_p
             if torch.abs(drift) > 1e-6:
                 x_hat[:n_cells_tot] -= drift

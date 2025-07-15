@@ -1,0 +1,69 @@
+{
+  "description": "Realistic 3D waterflood case (60×60×10) — 4 injectors, 5 producers, fully implicit JFNK + CPR + Geo-AMG.",
+  "output_filename": "waterflood_60x60x10_run",
+  "save_vtk": true,
+
+  "simulation": {
+    "solver_type": "fully_implicit",
+    "total_time_days": 180.0,
+    "time_step_days": 1.0,
+
+    "jacobian": "jfnk",
+    "newton_max_iter": 25,
+    "newton_tolerance": 1e-6,
+    "newton_rtol": 1e-4,
+
+    "backend": "geo",
+    "smoother": "chebyshev",
+    "trust_radius": 30.0,
+
+    "max_time_step_attempts": 4,
+    "verbose": true,
+    "use_cuda": true,
+    "steps_per_output": 15,
+    "pressure_weight": 1e-6
+  },
+
+  "reservoir": {
+    "dimensions": [60, 60, 10],
+    "grid_size": [25.0, 25.0, 5.0],
+    "porosity": 0.25,
+    "permeability": 300,
+    "k_vertical_fraction": 0.2
+  },
+
+  "fluid": {
+    "pressure": 15.0,
+    "s_w": 0.25,
+    "mu_oil": 2.0,
+    "mu_water": 0.9,
+    "rho_oil": 820,
+    "rho_water": 1000,
+    "c_oil": 1.2e-5,
+    "c_water": 4.0e-5,
+    "c_rock": 5.0e-5,
+
+    "relative_permeability": {
+      "sw_cr": 0.2,
+      "so_r": 0.2,
+      "nw": 2.0,
+      "no": 2.0
+    },
+    "capillary_pressure": {
+      "pc_scale": 0.0
+    }
+  },
+
+  "wells": [
+    { "name": "INJ_NW", "type": "injector",  "coordinates": [5, 5, 5],   "radius": 0.15, "control": { "type": "rate", "value": 3000 }},
+    { "name": "INJ_NE", "type": "injector",  "coordinates": [55, 5, 5],  "radius": 0.15, "control": { "type": "rate", "value": 3000 }},
+    { "name": "INJ_SW", "type": "injector",  "coordinates": [5, 55, 5],  "radius": 0.15, "control": { "type": "rate", "value": 3000 }},
+    { "name": "INJ_SE", "type": "injector",  "coordinates": [55, 55, 5], "radius": 0.15, "control": { "type": "rate", "value": 3000 }},
+
+    { "name": "PROD_N",  "type": "producer", "coordinates": [30, 5, 5],   "radius": 0.15, "control": { "type": "rate", "value": -2500 }},
+    { "name": "PROD_S",  "type": "producer", "coordinates": [30, 55, 5],  "radius": 0.15, "control": { "type": "rate", "value": -2500 }},
+    { "name": "PROD_W",  "type": "producer", "coordinates": [5, 30, 5],   "radius": 0.15, "control": { "type": "rate", "value": -2500 }},
+    { "name": "PROD_E",  "type": "producer", "coordinates": [55, 30, 5],  "radius": 0.15, "control": { "type": "rate", "value": -2500 }},
+    { "name": "PROD_C",  "type": "producer", "coordinates": [30, 30, 5],  "radius": 0.15, "control": { "type": "rate", "value": -2500 }}
+  ]
+} 

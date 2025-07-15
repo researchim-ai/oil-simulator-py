@@ -3,6 +3,7 @@
 import importlib
 import torch
 import numpy as _np
+import os
 
 
 def _init_impes_transmissibilities(self):

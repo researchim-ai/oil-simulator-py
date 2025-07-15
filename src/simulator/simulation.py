@@ -299,9 +299,9 @@ class Simulator:
 
             # Печатаем сводку
             msg = (
-                f"STAT | P(min/mean/max)=({p_min:.2f}/{p_mean:.2f}/{p_max:.2f}) МПа; "
-                f"Sw(min/mean/max)=({sw_min:.3f}/{sw_mean:.3f}/{sw_max:.3f}); "
-                f"Sg(min/mean/max)=({sg_min:.3f}/{sg_mean:.3f}/{sg_max:.3f})"
+                f"STAT | P(min/mean/max)=({p_min:.3f}/{p_mean:.3f}/{p_max:.3f}) МПа; "
+                f"Sw(min/mean/max)=({sw_min:.4f}/{sw_mean:.4f}/{sw_max:.4f}); "
+                f"Sg(min/mean/max)=({sg_min:.4f}/{sg_mean:.4f}/{sg_max:.4f})"
             )
             if imbalance is not None:
                 msg += f"; mass err={imbalance*100:.3f} %"
@@ -1258,19 +1258,22 @@ class Simulator:
                 continue
 
             if well.control_type == 'rate':
-                # m³/сут → m³/с
+                # m³/сут → m³/с (знак уже задан пользователем: «+» инжектор, «−» продюсер)
                 q_vol = well.control_value / 86400.0
-
-                # Преобразуем в эквивалентный вклад по давлению (Па/с): Δp = q / (Ct·φ·V_pore)
-                Ct_cell  = float(self.fluid.cf[i, j, k])          # 1/Па
-                phiV_cell = float(self.reservoir.porous_volume[i, j, k])  # φ·V [м³]
-                dp_equiv = q_vol / (Ct_cell * phiV_cell) if Ct_cell * phiV_cell > 0 else 0.0
-                q_w[i, j, k] += dp_equiv
+                # Для уравнения насыщенности берём именно объёмный расход воды.
+                q_w[i, j, k] += q_vol
             elif well.control_type == 'bhp':
                 p_bhp = well.control_value * 1e6
                 p_block = P_new[i, j, k]
-                q_total = well.well_index * mob_t[i, j, k] * (p_block - p_bhp)
-                q_w[i, j, k] += (-q_total) if well.type == 'injector' else (-q_total * fw[i, j, k])
+                # Объёмный расход через WI: q_total > 0  => отток из пласта
+                q_total = well.well_index * mob_t[i, j, k] * (p_block - p_bhp)  # м³/с
+
+                if well.type == 'injector':
+                    # Закачка воды (инжектор): расход в уравнении насыщенности положительный
+                    q_w[i, j, k] += -q_total  # p_block - p_bhp < 0 ⇒ q_total < 0, поэтому «минус»
+                else:
+                    # Добывающая скважина: берём водную долю потока (фракция fw)
+                    q_w[i, j, k] += -q_total * fw[i, j, k]
 
         # 6. Обновление насыщенности с ограничением максимального изменения
         # Учёт источников/стоков от скважин (объёмные расходы м³/с)
@@ -1457,14 +1460,14 @@ class Simulator:
             cell_idx = (i * ny + j) * nz + k  # flatten index (x-major)
 
             if well.control_type == "rate":
-                # control_value задаётся положительным для инжектора и отрицательным для продюсера.
-                # Переводим м³/сут → м³/с без изменения знака.
-                q_vol = well.control_value / 86400.0  # м³/с
+                # Пользователь задаёт знак расхода в конфиге: «+» для инжекции, «−» для добычи.
+                # Поэтому просто переводим м³/сут → м³/с без дополнительного изменения знака.
+                q_vol = well.control_value / 86400.0
 
-                Ct_cell  = float(self.fluid.cf[i, j, k])
-                phiV_cell = float(self.reservoir.porous_volume[i, j, k])
-                dp_equiv = q_vol / (Ct_cell * phiV_cell) if Ct_cell * phiV_cell > 0 else 0.0
-                q_wells[cell_idx] += dp_equiv
+                # Мировая практика (Eclipse / OPM): объёмный расход входит
+                # в уравнение давления напрямую как источник/сток.
+                # Поэтому просто добавляем q_vol со знаком (+ инжекция, – добыча).
+                q_wells[cell_idx] += q_vol
             elif well.control_type == "bhp":
                 # BHP-контроль: добавляем WI*λ_t на диагональ и
                 # WI*λ_t*P_bhp в RHS. Здесь используем текущую total mobility.
@@ -1729,7 +1732,9 @@ class Simulator:
                     continue
 
                 if well.control_type == 'rate':
-                    q_total = well.control_value / 86400.0 * (1 if well.type == 'injector' else -1)
+                    # Конфиг уже содержит правильный знак дебита: «+» для инжектора, «−» для продюсера.
+                    # Просто переводим м³/сут → м³/с без изменения знака.
+                    q_total = well.control_value / 86400.0
                 elif well.control_type == 'bhp':
                     p_bhp = well.control_value * 1e6
                     p_block = p[i, j, k]
@@ -1746,6 +1751,9 @@ class Simulator:
                     else:
                         coeff_eff = coeff_raw
                     q_total = coeff_eff * (p_block - p_bhp)
+                    # Продюсер (p_bhp < p_block) должен извлекать флюид → отрицательный дебит
+                    if well.type == 'producer':
+                        q_total = -q_total
                 else:
                     q_total = 0.0
 

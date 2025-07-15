@@ -1,0 +1,105 @@
+{
+  "description": "Waterflood 5-spot pattern (4×4) в кубе 60×60×10; 16 injectors @150k, 25 producers @-40k. Net +1.4e6 m³/d ≈ 5 % PV/d.",
+  "output_filename": "waterflood_5spot_60x60x10_run",
+  "save_vtk": true,
+
+  "simulation": {
+    "solver_type": "fully_implicit",
+    "total_time_days": 365.0,
+    "time_step_days": 0.25,
+
+    "jacobian": "jfnk",
+    "newton_max_iter": 30,
+    "newton_tolerance": 1e-6,
+    "newton_rtol": 1e-4,
+
+    "backend": "geo",
+    "smoother": "chebyshev",
+    "trust_radius": 30.0,
+
+    "max_time_step_attempts": 6,
+    "verbose": true,
+    "use_cuda": true,
+    "steps_per_output": 20,
+    "pressure_weight": 1e-6,
+
+    "fix_pressure_drift": false,
+
+    "dt_min": 3600.0,
+    "adaptive_dt": true
+  },
+
+  "reservoir": {
+    "dimensions": [60, 60, 10],
+    "grid_size": [25.0, 25.0, 5.0],
+    "porosity": 0.25,
+    "permeability": 300,
+    "k_vertical_fraction": 0.2
+  },
+
+  "fluid": {
+    "pressure": 15.0,
+    "s_w": 0.2,
+    "mu_oil": 2.0,
+    "mu_water": 0.9,
+    "rho_oil": 820,
+    "rho_water": 1000,
+    "c_oil": 1.2e-5,
+    "c_water": 4.0e-5,
+    "c_rock": 5.0e-5,
+
+    "relative_permeability": {
+      "sw_cr": 0.2,
+      "so_r": 0.2,
+      "nw": 2.0,
+      "no": 2.0
+    },
+    "capillary_pressure": {
+      "pc_scale": 0.0
+    }
+  },
+
+  "wells": [
+    {"name":"INJ_0_0", "type":"injector", "coordinates":[5,5,5],   "radius":0.15, "control":{"type":"rate","value":150000}},
+    {"name":"INJ_1_0", "type":"injector", "coordinates":[20,5,5],  "radius":0.15, "control":{"type":"rate","value":150000}},
+    {"name":"INJ_2_0", "type":"injector", "coordinates":[35,5,5],  "radius":0.15, "control":{"type":"rate","value":150000}},
+    {"name":"INJ_3_0", "type":"injector", "coordinates":[50,5,5],  "radius":0.15, "control":{"type":"rate","value":150000}},
+
+    {"name":"INJ_0_1", "type":"injector", "coordinates":[5,20,5],  "radius":0.15, "control":{"type":"rate","value":150000}},
+    {"name":"INJ_1_1", "type":"injector", "coordinates":[20,20,5], "radius":0.15, "control":{"type":"rate","value":150000}},
+    {"name":"INJ_2_1", "type":"injector", "coordinates":[35,20,5], "radius":0.15, "control":{"type":"rate","value":150000}},
+    {"name":"INJ_3_1", "type":"injector", "coordinates":[50,20,5], "radius":0.15, "control":{"type":"rate","value":150000}},
+
+    {"name":"INJ_0_2", "type":"injector", "coordinates":[5,35,5],  "radius":0.15, "control":{"type":"rate","value":150000}},
+    {"name":"INJ_1_2", "type":"injector", "coordinates":[20,35,5], "radius":0.15, "control":{"type":"rate","value":150000}},
+    {"name":"INJ_2_2", "type":"injector", "coordinates":[35,35,5], "radius":0.15, "control":{"type":"rate","value":150000}},
+    {"name":"INJ_3_2", "type":"injector", "coordinates":[50,35,5], "radius":0.15, "control":{"type":"rate","value":150000}},
+
+    {"name":"INJ_0_3", "type":"injector", "coordinates":[5,50,5],  "radius":0.15, "control":{"type":"rate","value":150000}},
+    {"name":"INJ_1_3", "type":"injector", "coordinates":[20,50,5], "radius":0.15, "control":{"type":"rate","value":150000}},
+    {"name":"INJ_2_3", "type":"injector", "coordinates":[35,50,5], "radius":0.15, "control":{"type":"rate","value":150000}},
+    {"name":"INJ_3_3", "type":"injector", "coordinates":[50,50,5], "radius":0.15, "control":{"type":"rate","value":150000}},
+
+    {"name":"PROD_0_0", "type":"producer", "coordinates":[12,12,5], "radius":0.15, "control":{"type":"rate","value":-40000}},
+    {"name":"PROD_1_0", "type":"producer", "coordinates":[27,12,5], "radius":0.15, "control":{"type":"rate","value":-40000}},
+    {"name":"PROD_2_0", "type":"producer", "coordinates":[42,12,5], "radius":0.15, "control":{"type":"rate","value":-40000}},
+    {"name":"PROD_3_0", "type":"producer", "coordinates":[57,12,5], "radius":0.15, "control":{"type":"rate","value":-40000}},
+
+    {"name":"PROD_0_1", "type":"producer", "coordinates":[12,27,5], "radius":0.15, "control":{"type":"rate","value":-40000}},
+    {"name":"PROD_1_1", "type":"producer", "coordinates":[27,27,5], "radius":0.15, "control":{"type":"rate","value":-40000}},
+    {"name":"PROD_2_1", "type":"producer", "coordinates":[42,27,5], "radius":0.15, "control":{"type":"rate","value":-40000}},
+    {"name":"PROD_3_1", "type":"producer", "coordinates":[57,27,5], "radius":0.15, "control":{"type":"rate","value":-40000}},
+
+    {"name":"PROD_0_2", "type":"producer", "coordinates":[12,42,5], "radius":0.15, "control":{"type":"rate","value":-40000}},
+    {"name":"PROD_1_2", "type":"producer", "coordinates":[27,42,5], "radius":0.15, "control":{"type":"rate","value":-40000}},
+    {"name":"PROD_2_2", "type":"producer", "coordinates":[42,42,5], "radius":0.15, "control":{"type":"rate","value":-40000}},
+    {"name":"PROD_3_2", "type":"producer", "coordinates":[57,42,5], "radius":0.15, "control":{"type":"rate","value":-40000}},
+
+    {"name":"PROD_0_3", "type":"producer", "coordinates":[12,57,5], "radius":0.15, "control":{"type":"rate","value":-40000}},
+    {"name":"PROD_1_3", "type":"producer", "coordinates":[27,57,5], "radius":0.15, "control":{"type":"rate","value":-40000}},
+    {"name":"PROD_2_3", "type":"producer", "coordinates":[42,57,5], "radius":0.15, "control":{"type":"rate","value":-40000}},
+    {"name":"PROD_3_3", "type":"producer", "coordinates":[57,57,5], "radius":0.15, "control":{"type":"rate","value":-40000}},
+
+    {"name":"PROD_C", "type":"producer", "coordinates":[30,30,5], "radius":0.15, "control":{"type":"rate","value":-40000}}
+  ]
+} 
