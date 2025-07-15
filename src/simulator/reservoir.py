@@ -81,3 +81,17 @@ class Reservoir:
             Линейный индекс ячейки
         """
         return i + j * self.nx + k * self.nx * self.ny
+
+    @classmethod
+    def from_config(cls, cfg: dict, device=None):
+        """Создаёт объект Reservoir из полной конфигурации симуляции или из
+        отдельного блока `reservoir`.
+
+        Args:
+            cfg: Словарь полной конфигурации (может содержать ключ "reservoir")
+                 или непосредственно словарь параметров пласта.
+            device: PyTorch-устройство (cpu / cuda). По умолчанию CPU.
+        """
+        # Если нам передали целиком конфиг симулятора – возьмём подпункт
+        res_cfg = cfg.get("reservoir", cfg)
+        return cls(config=res_cfg, device=device)

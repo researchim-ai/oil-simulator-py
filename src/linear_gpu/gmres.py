@@ -136,11 +136,17 @@ def gmres(A, b: torch.Tensor, M: Callable[[torch.Tensor], torch.Tensor] = None,
                     max_i = min(j + 1, len(V))
                     update = sum(y[i] * V[i] for i in range(max_i))
                     x = x + update
-                    
-                    # 🎯 ФИНАЛЬНАЯ проверка
+
+                    # �� ФИНАЛЬНАЯ проверка – считаем по настоящей невязке
                     final_residual = torch.norm(b - _matvec(A, x))
+                    rel_final = final_residual / b_norm
                     print(f"  GMRES: Финальная невязка: {final_residual:.3e}")
-                    return x, 0
+                    if rel_final < tol:
+                        return x, 0
+                    else:
+                        print(f"  GMRES: После прямой проверки rel={rel_final:.3e} > tol, продолжаем...")
+                        # force loop continue; break out to restart outer loop
+                        break
                 except Exception as e:
                     print(f"  GMRES: Ошибка в решении системы: {e}")
                     break

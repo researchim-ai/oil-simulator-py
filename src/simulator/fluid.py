@@ -21,7 +21,11 @@ class Fluid:
         nx, ny, nz = self.dimensions
         
         # Начальные значения
-        initial_pressure = config.get('pressure', 20.0) * 1e6  # МПа -> Па
+        # Поддерживаем оба варианта: 'initial_pressure' (Па) и устаревший 'pressure' (МПа)
+        if 'initial_pressure' in config:
+            initial_pressure = float(config['initial_pressure'])  # уже в Паскалях
+        else:
+            initial_pressure = float(config.get('pressure', 20.0)) * 1e6  # МПа → Па
         initial_sw = config.get('s_w', 0.2)
         initial_sg = config.get('s_g', 0.0)
         if initial_sg < 0 or initial_sg > 1 - initial_sw:
@@ -832,3 +836,31 @@ class Fluid:
 
     def calc_gas_density(self, pressure):
         return self.rho_gas_ref * (1.0 + self.gas_compressibility * (pressure - self.pressure_ref)) if not (self._use_pvt and self._bg_table.numel() > 0) else self.rho_g_sc / (self.calc_bg(pressure) + 1e-12)
+
+    # ------------------------------------------------------------------
+    # Helper constructors
+    # ------------------------------------------------------------------
+    @classmethod
+    def from_config(cls, cfg: dict, reservoir=None, device=None):
+        """Создаёт объект Fluid из полной конфигурации симуляции.
+
+        Обёртка предназначена для тестов и высокого уровня API, где передаётся
+        полный JSON конфиг, содержащий секции ``reservoir`` и ``fluid``.
+
+        Args:
+            cfg: Полный конфиг либо непосредственно словарь параметров флюида.
+            reservoir: Опциональный уже созданный объект Reservoir. Если
+                отсутствует, будет создан из той же конфигурации.
+            device: CPU/GPU устройство.
+        """
+        # Отложенный импорт, чтобы избежать циклических зависимостей
+        from simulator.reservoir import Reservoir  # локальный импорт
+
+        # Извлекаем секцию с параметрами флюида
+        fluid_cfg = cfg.get("fluid", cfg)
+
+        # Если резервуар не передан, создаём его из той же конфигурации
+        if reservoir is None:
+            reservoir = Reservoir.from_config(cfg, device=device)
+
+        return cls(config=fluid_cfg, reservoir=reservoir, device=device)
