@@ -173,6 +173,22 @@ class Simulator:
         # прежнему «ручному» весу, но теперь явно задаётся.
         self.pressure_weight = self.sim_params.get('pressure_weight', 1.0e-6)
 
+        dt_sec = self.dt
+        # -------- PID контроллер шага времени (опционально) ----------
+        pid_cfg = self.sim_params.get("pid", None)
+        if pid_cfg is not None:
+            from utils import PIDController
+            self._pid = PIDController(kp=pid_cfg.get("kp", 0.6),
+                                      ki=pid_cfg.get("ki", 0.3),
+                                      kd=pid_cfg.get("kd", 0.0),
+                                      dt_min=pid_cfg.get("dt_min", 3600.0),
+                                      dt_max=pid_cfg.get("dt_max", 86400.0 * 10))
+            # Сколько итераций Ньютона считаем «идеальным»
+            self._pid_target_iter = pid_cfg.get("target_iter", 3.0)
+        else:
+            self._pid = None
+            self._pid_target_iter = 3.0
+
     def _setup_logging(self):
         """Настройка логирования с контролем вывода"""
         def _log(*args, **kwargs):
@@ -1933,6 +1949,16 @@ class Simulator:
                         save_to_hdf5(self.reservoir, self.fluid, filename=h5_name)
                     except Exception as e:
                         print(f"[WARN] Не удалось сохранить HDF5-снапшот: {e}")
+
+            # --- PID: корректируем dt на основе числа итераций Ньютона ---
+            if self._pid is not None and hasattr(self, "_fisolver") and hasattr(self._fisolver, "last_newton_iters"):
+                n_it = getattr(self._fisolver, "last_newton_iters", None)
+                if n_it is not None:
+                    err = n_it / self._pid_target_iter - 1.0
+                    scale = self._pid.update(err)
+                    dt_sec = self._pid.clamp(dt_sec * scale)
+                    dt_days = dt_sec / 86400.0
+                    print(f"[PID] iters={n_it}, scale={scale:.2f} → dt={dt_days:.3f} days (target={self._pid_target_iter})")
 
         if save_vtk:
             save_to_vtk(self.reservoir, self.fluid, filename=os.path.join(results_dir, "final"))
