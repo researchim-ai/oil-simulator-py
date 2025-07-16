@@ -451,7 +451,7 @@ class Simulator:
                     self.fluid.s_o = 1 - sw_new
                 self.fluid.pressure = p_new
                 # --- лёгкий локальный сдвиг для rate-скважин (unit-test helper) ---
-                if hasattr(self, "well_manager"):
+                if hasattr(self, "well_manager") and self.well_manager is not None:
                     for _w in self.well_manager.get_wells():
                         if _w.control_type == "rate":
                             i, j, k = int(_w.i), int(_w.j), int(_w.k)
@@ -502,7 +502,7 @@ class Simulator:
                         self.fluid.s_w = sw_new
                         self.fluid.s_o = 1 - sw_new
                     self.fluid.pressure = p_new
-                    if hasattr(self, "well_manager"):
+                    if hasattr(self, "well_manager") and self.well_manager is not None:
                         for _w in self.well_manager.get_wells():
                             if _w.control_type == "rate":
                                 i, j, k = int(_w.i), int(_w.j), int(_w.k)
@@ -529,7 +529,7 @@ class Simulator:
                         self.fluid.s_w = sw_new
                         self.fluid.s_o = 1 - sw_new
                     self.fluid.pressure = p_new
-                    if hasattr(self, "well_manager"):
+                    if hasattr(self, "well_manager") and self.well_manager is not None:
                         for _w in self.well_manager.get_wells():
                             if _w.control_type == "rate":
                                 i, j, k = int(_w.i), int(_w.j), int(_w.k)
@@ -1695,6 +1695,49 @@ class Simulator:
             div_g[:, :, :-1] += flow_g_z
             div_g[:, :,  1:] -= flow_g_z
 
+        # --- Black-Oil: перенос растворённого газа (Rs) с нефтью и нефти (Rv) с газом ---
+        if sg_vec is not None:
+            # Upwind Rs и Rv для каждой грани
+            Rs_new = self.fluid.calc_rs(p)
+            Rv_new = self.fluid.calc_rv(p)
+            Rs_x = torch.where(dp_x > 0, Rs_new[:-1, :, :], Rs_new[1:, :, :])
+            Rs_y = torch.where(dp_y > 0, Rs_new[:, :-1, :], Rs_new[:, 1:, :])
+            Rs_z = torch.where(dp_z > 0, Rs_new[:, :, :-1], Rs_new[:, :, 1:])
+
+            Rv_x = torch.where(dp_x > 0, Rv_new[:-1, :, :], Rv_new[1:, :, :])
+            Rv_y = torch.where(dp_y > 0, Rv_new[:, :-1, :], Rv_new[:, 1:, :])
+            Rv_z = torch.where(dp_z > 0, Rv_new[:, :, :-1], Rv_new[:, :, 1:])
+
+            rho_g_sc = self.fluid.rho_g_sc
+            rho_o_sc = self.fluid.rho_o_sc
+
+            # Массовые потоки растворённого газа, движущегося с нефтью
+            flux_rs_x = flow_o_x * Rs_x
+            flux_rs_y = flow_o_y * Rs_y
+            flux_rs_z = flow_o_z * Rs_z
+
+            # Массовые потоки испаряющейся нефти, движущейся с газом
+            flux_rv_x = flow_g_x * Rv_x
+            flux_rv_y = flow_g_y * Rv_y
+            flux_rv_z = flow_g_z * Rv_z
+
+            # Добавляем к дивергенциям
+            # Rs переносится с нефтью → вклад в газовый баланс
+            div_g[:-1, :, :] += flux_rs_x
+            div_g[1:,  :, :] -= flux_rs_x
+            div_g[:, :-1, :] += flux_rs_y
+            div_g[:, 1:,  :] -= flux_rs_y
+            div_g[:, :, :-1] += flux_rs_z
+            div_g[:, :,  1:] -= flux_rs_z
+
+            # Rv переносится с газом → вклад в нефтяной баланс
+            div_o[:-1, :, :] += flux_rv_x
+            div_o[1:,  :, :] -= flux_rv_x
+            div_o[:, :-1, :] += flux_rv_y
+            div_o[:, 1:,  :] -= flux_rv_y
+            div_o[:, :, :-1] += flux_rv_z
+            div_o[:, :,  1:] -= flux_rv_z
+
         # ------------------------------------------------------------------
         # Accumulation terms
         # ------------------------------------------------------------------
@@ -1710,19 +1753,34 @@ class Simulator:
         rho_g_old = self.fluid.calc_gas_density(self.fluid.prev_pressure) if sg_vec is not None else None
 
         cell_vol = self.reservoir.cell_volume
-
-        acc_w = (phi_new * s_w * rho_w - phi_old * self.fluid.prev_sw * rho_w_old) * cell_vol / dt
-        acc_o = (phi_new * (1.0 - s_w - (s_g if sg_vec is not None else 0)) * rho_o -
-                 phi_old * (1.0 - self.fluid.prev_sw - (self.fluid.prev_sg if sg_vec is not None else 0)) * rho_o_old) * cell_vol / dt
+        # --- Black-Oil: растворённый газ (Rs) и испаряющаяся нефть (Rv) ---
         if sg_vec is not None:
-            rho_g_old = self.fluid.calc_gas_density(self.fluid.prev_pressure)
             Rs_new = self.fluid.calc_rs(p)
+            Rv_new = self.fluid.calc_rv(p)
             Rs_old = self.fluid.calc_rs(self.fluid.prev_pressure)
+            Rv_old = self.fluid.calc_rv(self.fluid.prev_pressure)
+        else:
+            Rs_new = Rs_old = Rv_new = Rv_old = torch.zeros_like(s_w)
+
+        # --- Water accumulation (без изменений) --------------------------
+        acc_w = (phi_new * s_w * rho_w - phi_old * self.fluid.prev_sw * rho_w_old) * cell_vol / dt
+
+        # --- Oil accumulation: свободная нефть + нефть, испарившаяся в газ (Rv) ---
+        rho_o_sc = self.fluid.rho_o_sc
+        if sg_vec is not None:
+            mass_o_new = phi_new * ( (1.0 - s_w - s_g) * rho_o + (s_g * Rv_new * rho_o_sc) )
+            mass_o_old = phi_old * ( (1.0 - self.fluid.prev_sw - self.fluid.prev_sg) * rho_o_old + (self.fluid.prev_sg * Rv_old * rho_o_sc) )
+        else:
+            mass_o_new = phi_new * ( (1.0 - s_w) * rho_o )
+            mass_o_old = phi_old * ( (1.0 - self.fluid.prev_sw) * rho_o_old )
+        acc_o = (mass_o_new - mass_o_old) * cell_vol / dt
+
+        if sg_vec is not None:
             rho_g_sc = self.fluid.rho_g_sc
 
-            # масса газа = φ (Sg ρg + So Rs ρg_sc)
-            mass_g_new = phi_new * (s_g * rho_g + (1.0 - s_w - s_g) * Rs_new * rho_g_sc)
-            mass_g_old = phi_old * (self.fluid.prev_sg * rho_g_old + (1.0 - self.fluid.prev_sw - self.fluid.prev_sg) * Rs_old * rho_g_sc)
+            # масса газа = свободный + растворённый в нефти (Rs)
+            mass_g_new = phi_new * ( s_g * rho_g + (1.0 - s_w - s_g) * Rs_new * rho_g_sc )
+            mass_g_old = phi_old * ( self.fluid.prev_sg * rho_g_old + (1.0 - self.fluid.prev_sw - self.fluid.prev_sg) * Rs_old * rho_g_sc )
             acc_g = (mass_g_new - mass_g_old) * cell_vol / dt
 
         # ------------------------------------------------------------------
@@ -1793,7 +1851,9 @@ class Simulator:
                     q_w[i, j, k] += q_total * fw[i, j, k] * rho_w_cell
                     q_o[i, j, k] += q_total * (1 - fw[i, j, k]) * rho_o_cell
                     if sg_vec is not None:
-                        q_g[i, j, k] += q_total * (1 - fw[i, j, k]) * rho_g_cell
+                        # Свободный газ + растворённый в нефти (Rs)
+                        Rs_cell = Rs_new[i, j, k]
+                        q_g[i, j, k] += q_total * (1 - fw[i, j, k]) * (rho_g_cell + Rs_cell * self.fluid.rho_g_sc)
 
         # ------------------------------------------------------------------
         # Residuals per cell (update with q terms now defined)
@@ -1991,7 +2051,7 @@ class Simulator:
         else:
             mass_g = torch.tensor(0.0, device=self.device)
 
-        # ---- Black-Oil масса с учётом растворённого газа ------------
+        # ---- Black-Oil масса с учётом Rs и Rv ------------------------
         if hasattr(self.fluid, 'calc_bo'):
             P = self.fluid.pressure
             So = self.fluid.s_o
@@ -2002,9 +2062,8 @@ class Simulator:
             Bw = self.fluid.calc_bw(P)
             Rs = self.fluid.calc_rs(P)
             Rv = self.fluid.calc_rv(P)
-
-            mass_o = torch.sum( (self.fluid.rho_o_sc/Bo) * So * vol )  # нефть
+            # Газ: свободный + растворённый в нефти (Rs)
+            mass_o = torch.sum( (self.fluid.rho_o_sc/Bo) * ( So + Sg*Rv ) * vol )  # нефть + испарившаяся в газ
             mass_w = torch.sum( (self.fluid.rho_w_sc/Bw) * Sw * vol )  # вода
-            # Газ: свободный + растворённый в нефти (Rs) + выпаренный (Rv)
             mass_g = torch.sum( (self.fluid.rho_g_sc/Bg) * ( Sg + So*Rs ) * vol )
             return mass_w + mass_o + mass_g
