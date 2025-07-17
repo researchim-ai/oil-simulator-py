@@ -4,7 +4,7 @@ from .geom_amg import GeoSolver
 from typing import Optional
 
 class CPRPreconditioner:
-    def __init__(self, reservoir, fluid, backend="amgx", omega=0.3, smoother: str = "jacobi"):
+    def __init__(self, reservoir, fluid, backend="amgx", omega=0.3, smoother: str = "chebyshev"):
         self.backend = backend
         self.omega = omega
         self.failed_amg = False  # Флаг провала AMG
@@ -28,13 +28,17 @@ class CPRPreconditioner:
         # численные AMG (Boomer/Hypre) – там и без дополнительного 
         # масштабирования условность приемлема.
 
-        if hasattr(self, "matrix_scale") and self.matrix_scale > 1e4 and backend in ("hypre", "boomer", "cpu", "amgx"):
-            print(f"⚠️  CPR: matrix_scale={self.matrix_scale:.3e} слишком велик – ограничиваем до 1e4")
-            self.matrix_scale = 1.0  # фактически отключаем влияние
+        if hasattr(self, "matrix_scale") and self.matrix_scale > 1e8 and backend in ("hypre", "boomer", "cpu", "amgx"):
+            # Для AMG backends на CPU/GPU слишком большой scale ухудшает устойчивость;
+            # однако объёмная форма требует scale до 1e8. Ограничиваем более мягко.
+            LIMIT = 1e8
+            if self.matrix_scale > LIMIT:
+                print(f"⚠️  CPR: matrix_scale={self.matrix_scale:.3e} > {LIMIT:.1e}; клампим")
+                self.matrix_scale = LIMIT
         
         # Сохраняем диагональ для Jacobi fallback
         self.diag_inv = self._extract_diagonal_inverse(indptr, ind, data)
-        print(f"🔧 CPR: Диагональ для fallback готова")
+        print(f"�� CPR: Диагональ для fallback готова")
         
         if backend == "amgx" and AmgXSolver is not None:
             try:
@@ -48,7 +52,7 @@ class CPRPreconditioner:
         elif backend == "geo":
             try:
                 print(f"🔧 CPR: Используем собственный геометрический AMG (GeoSolver, smoother='{smoother}')...")
-                self.solver = GeoSolver(reservoir, smoother=smoother)
+                self.solver = GeoSolver(reservoir, smoother=smoother or "chebyshev")
                 # Alias для обратной совместимости
                 self.geo_solver = self.solver
                 print("✅ CPR: GeoSolver инициализирован успешно")
@@ -258,7 +262,7 @@ class CPRPreconditioner:
             diag_median = 1e-20
         scale_raw = 1.0 / diag_median
         # 💡 Ограничиваем scale, иначе Geo-AMG/Chebyshev взрываются при 1e8…1e9
-        MAX_SCALE = 1e4
+        MAX_SCALE = 1e8
         N_cells = nx * ny * nz
 
         # 🔧 НОВОЕ: для микросеток (<100 ячеек) полностью отключаем scale,
@@ -374,35 +378,38 @@ class CPRPreconditioner:
                     self.failed_amg = True
                     delta_p_scaled = self.diag_inv * rhs_scaled
                 else:
-                    delta_p_norm = np.linalg.norm(delta_p_scaled)
-                    print(f"    CPR: AMG решение успешно, ||delta_p||={delta_p_norm:.3e}")
+                    delta_p_norm_scaled = np.linalg.norm(delta_p_scaled)
+                    print(f"    CPR: AMG решение успешно, ||delta_p_scaled||={delta_p_norm_scaled:.3e}")
 
-                    # 🎯 ROBUST проверка: сравниваем относительную величину решения
-                    rel_ratio = delta_p_norm / (rhs_norm + 1e-30)
-                    # Если решение слишком велико ( >1e8 раз RHS), считаем AMG нестабильным
-                    if n_cells > 500 and rel_ratio > 1e8:
-                        print(f"    CPR: AMG решение УТРАТИЛО надёжность (||δp||/||rhs||={rel_ratio:.2e});")
-                        if self.backend == "geo" and getattr(self.solver, "smoother", "") != "jacobi":
-                            print("    CPR: Переключаем GeoSolver на Jacobi-сглаживатель и пробуем ещё раз...")
-                            try:
-                                self.solver = self.solver.__class__(self.reservoir, smoother="jacobi")
-                                print("✅ CPR: GeoSolver переинициализирован на Jacobi-сглаживатель")
-                                delta_p_geom = self.solver.solve(rhs_scaled, tol=1e-8, max_iter=200)
-                                delta_p_scaled = delta_p_geom
-                                print(f"✅ CPR: GeoSolver успешно решил AMG (Jacobi)")
-                                # Пересчитываем норму и ratio после повторной попытки
-                                delta_p_norm = np.linalg.norm(delta_p_scaled)
-                                rel_ratio = delta_p_norm / (rhs_norm + 1e-30)
-                            except Exception as e:
-                                print(f"❌ CPR: Ошибка повторного AMG (Jacobi): {e}")
-                                rel_ratio = 1e20  # форсируем откат
-                        # Если всё ещё слишком велико — окончательный откат на Jacobi
-                        if rel_ratio > 1e8:
-                            print("❌ CPR: Даже после смены сглаживателя решение остаётся нестабильным; окончательно отключаем AMG")
-                            self.failed_amg = True
-                            delta_p_scaled = self.diag_inv * rhs_scaled
-                    elif n_cells > 500 and rel_ratio > 1e6:
-                        print(f"    CPR: AMG решение выглядит подозрительно (||δp||/||rhs||={rel_ratio:.2e}), но продолжаем использовать")
+                    if self.backend != "geo":
+                        # --- ROBUST проверка для численных AMG ---
+                        delta_p_phys_norm = delta_p_norm_scaled * self.matrix_scale
+                        rel_ratio = delta_p_phys_norm / (rhs_norm + 1e-30)
+
+                        # Если решение слишком велико (>1e8 раз RHS) – считаем AMG нестабильным
+                        if n_cells > 500 and rhs_norm > 1e-6 and rel_ratio > 1e8:
+                            print(f"    CPR: AMG решение УТРАТИЛО надёжность (||δp||/||rhs||={rel_ratio:.2e});")
+                            if self.backend == "geo" and getattr(self.solver, "smoother", "") != "jacobi":
+                                print("    CPR: Переключаем GeoSolver на Jacobi-сглаживатель и пробуем ещё раз...")
+                                try:
+                                    self.solver = self.solver.__class__(self.reservoir, smoother="jacobi")
+                                    print("✅ CPR: GeoSolver переинициализирован на Jacobi-сглаживатель")
+                                    delta_p_geom = self.solver.solve(rhs_scaled, tol=1e-8, max_iter=200)
+                                    delta_p_scaled = delta_p_geom
+                                    print(f"✅ CPR: GeoSolver успешно решил AMG (Jacobi)")
+                                    # Пересчитываем норму и ratio после повторной попытки
+                                    delta_p_norm = np.linalg.norm(delta_p_scaled)
+                                    rel_ratio = delta_p_norm / (rhs_norm + 1e-30)
+                                except Exception as e:
+                                    print(f"❌ CPR: Ошибка повторного AMG (Jacobi): {e}")
+                                    rel_ratio = 1e20  # форсируем откат
+                            # Если всё ещё слишком велико — окончательный откат на Jacobi
+                            if rel_ratio > 1e8:
+                                print("❌ CPR: Даже после смены сглаживателя решение остаётся нестабильным; окончательно отключаем AMG")
+                                self.failed_amg = True
+                                delta_p_scaled = self.diag_inv * rhs_scaled
+                        elif n_cells > 500 and rhs_norm > 1e-6 and rel_ratio > 1e6:
+                            print(f"    CPR: AMG решение выглядит подозрительно (||δp||/||rhs||={rel_ratio:.2e}), но продолжаем использовать")
                 
             except Exception as e:
                 print(f"    CPR: Ошибка в AMG решателе: {e}, переключаемся на Jacobi")
@@ -451,7 +458,7 @@ class CPRPreconditioner:
 
         final_norm = pressure_result.norm().item()
         rhs_norm_torch = vec[:n].norm().item() + 1e-30
-        if n_cells > 500 and final_norm > 1e9 * rhs_norm_torch:
+        if self.backend != "geo" and n_cells > 500 and rhs_norm_torch > 1e-6 and final_norm > 1e9 * rhs_norm_torch:
             print(f"    CPR: Δp всё ещё экстремально велико (||δp||/||rhs||={final_norm/rhs_norm_torch:.2e}); обнуляем результат")
             pressure_result.zero_()
 
@@ -462,7 +469,7 @@ class CPRPreconditioner:
             # Разрешаем значительно более крупные поправки (до 1e12 раз RHS).
             # Линейный поиск позаботится о корректном демпфировании.
             max_ratio = 1e12
-            if pressure_norm > max_ratio * vec_norm:
+            if self.backend != "geo" and vec_norm > 1e-6 and pressure_norm > max_ratio * vec_norm:
                 scale_factor = (max_ratio * vec_norm) / (pressure_norm + 1e-30)
                 pressure_result = pressure_result * scale_factor
                 print(f"    CPR: Ограничили решение фактором {scale_factor:.3e}")

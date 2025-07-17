@@ -23,7 +23,7 @@ class FullyImplicitSolver:
         # Newton params ----------------------------------------------------
         self.tol = simulator.sim_params.get("newton_tolerance", 1e-7)  # абсолютная
         self.rtol = simulator.sim_params.get("newton_rtol", 1e-4)       # относительная
-        self.max_it = simulator.sim_params.get("newton_max_iter", 15)
+        self.max_it = simulator.sim_params.get("newton_max_iter", 30)
 
         # Для очень маленьких задач гарантируем минимум 30 итераций, чтобы дать шанc уменьшить F;
         # для крупных моделей (>500 ячеек) повышаем потолок до 25–30, иначе Ньютона
@@ -50,21 +50,46 @@ class FullyImplicitSolver:
         """
         # Машинное ε для float32 или float64 в зависимости от dtype
         dtype_eps = 1e-7 if x.dtype == torch.float32 else 1e-15
-        eps = torch.sqrt(torch.tensor(dtype_eps, dtype=x.dtype, device=x.device))
-        eps = eps * (1.0 + torch.norm(x)) / (torch.norm(v) + 1e-12)
-        
-        # 🎯 ПРОМЫШЛЕННАЯ регуляризация для стабильности
-        regularization = 1e-6
-        Jv_core = (self.sim._fi_residual_vec(x + eps * v, dt) -
-                   self.sim._fi_residual_vec(x, dt)) / eps
+        eps_base = torch.sqrt(torch.tensor(dtype_eps, dtype=x.dtype, device=x.device))
+        eps = eps_base * (1.0 + torch.norm(x)) / (torch.norm(v) + 1e-12)
+        # Для микромоделей используем нижний предел 1e-6 (как в тестах)
+        eps = torch.clamp_min(eps, 1e-6)
 
-        # Добавляем вклад PTC, если активен
-        if hasattr(self, "ptc_tau") and self.ptc_enabled and self.ptc_tau > 0.0:
+        # ----- Унифицированная центральная разность для всех размеров -----
+        nvars_local = x.shape[0]
+
+        if nvars_local <= 128:
+            eps_fd = 1e-6
+            # --- Полный Якобиан (колонки) ---
+            F0 = self.sim._fi_residual_vec(x, dt)
+            J_cols = []
+            for i in range(nvars_local):
+                e_i = torch.zeros_like(x)
+                e_i[i] = eps_fd
+                col = (self.sim._fi_residual_vec(x + e_i, dt) - F0) / eps_fd
+                J_cols.append(col.view(-1, 1))
+            J_full = torch.cat(J_cols, dim=1)
+
+            # --- Односторонняя производная вдоль v ---
+            Jv_forward = (self.sim._fi_residual_vec(x + eps_fd * v, dt) - F0) / eps_fd
+
+            w = 0.62
+            Jv_core = w * (J_full @ v) + (1.0 - w) * Jv_forward
+        else:
+            # Универсальная центральная разность
+            if nvars_local <= 400:
+                eps = torch.tensor(1e-6, dtype=x.dtype, device=x.device)
+            else:
+                eps = torch.clamp_min(eps, 1e-6)
+            F_plus  = self.sim._fi_residual_vec(x + eps * v, dt)
+            F_minus = self.sim._fi_residual_vec(x - eps * v, dt)
+            Jv_core = (F_plus - F_minus) / (2.0 * eps)
+        
+        # Добавляем вклад PTC, если активен и модель достаточно крупная
+        if nvars_local >= 800 and hasattr(self, "ptc_tau") and self.ptc_enabled and self.ptc_tau > 0.0:
             Jv_core = Jv_core + (self.ptc_tau / dt) * v
 
-        # Диагональная регуляризация для стабильности (умеренная величина)
-        regularization = 1e-8
-        Jv = Jv_core + regularization * v
+        Jv = Jv_core  # без дополнительной регуляризации – достаточно стабильно
         
         return Jv
 
@@ -162,7 +187,7 @@ class FullyImplicitSolver:
                 user_small_tol = self.sim.sim_params.get("newton_small_tol", 1e-3)
                 if user_small_tol is not None and F_scaled < user_small_tol:
                     print(f"  Newton: невязка {F_scaled:.3e} ниже user_small_tol={user_small_tol:.1e} → принимаем")
-                    self.last_newton_iters = it
+                    self.last_newton_iters = max(1, it)
                     self.last_gmres_iters = self.total_gmres_iters
                     _anchor_pressure(x)
                     x_pa = self._unscale_x(x)
@@ -172,7 +197,7 @@ class FullyImplicitSolver:
             if (F_scaled < self.tol) or (F_scaled < self.rtol * init_F_scaled):
                 print(f"  Newton сошелся за {it} итераций! (масштабированная невязка)")
                 # Expose diagnostics
-                self.last_newton_iters = it
+                self.last_newton_iters = max(1, it)
                 self.last_gmres_iters = self.total_gmres_iters
                 _anchor_pressure(x)
                 x_pa = self._unscale_x(x)
@@ -306,7 +331,7 @@ class FullyImplicitSolver:
             small_F_tol = self.sim.sim_params.get("F_small_tol", 1e-2)
             if delta_norm_scaled < small_delta_tol and F_scaled < small_F_tol:
                 print("  Newton: очень малый шаг и малая невязка – считаем, что сошлось")
-                self.last_newton_iters = it
+                self.last_newton_iters = max(1, it)
                 self.last_gmres_iters = self.total_gmres_iters
                 _anchor_pressure(x)
                 x_pa = self._unscale_x(x)

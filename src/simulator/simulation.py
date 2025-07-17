@@ -171,7 +171,7 @@ class Simulator:
         # --------------------------------------------------------------
         # По-умолчанию берём инверсию p_scale (1/1e6) – соответствует
         # прежнему «ручному» весу, но теперь явно задаётся.
-        self.pressure_weight = self.sim_params.get('pressure_weight', 1.0e-6)
+        self.pressure_weight = self.sim_params.get('pressure_weight', 1.0e-7)
 
         dt_sec = self.dt
         # -------- PID контроллер шага времени (опционально) ----------
@@ -1618,7 +1618,18 @@ class Simulator:
         lam_g = (krg / mu_g) if sg_vec is not None else None
         lam_t = lam_w + lam_o + (lam_g if sg_vec is not None else 0.0)  # total mobility
 
-        # === Авто-лимитер λ_t для скважин ===
+        # ------------------------------------------------------------------
+        # Скважинные дебиты (rate + BHP) – учитываем как объёмные источники в
+        # балансе воды. Для water-инжекторов/добычи этого достаточно, чтобы
+        # увидеть динамику; перераспределение по фазам настроим позже.
+        # ------------------------------------------------------------------
+        if getattr(self, "well_manager", None) is not None:
+            q_wells_vec, _ = self._calculate_well_terms(lam_t, p)  # 1-D tensor (m³/с)
+            q_wells = q_wells_vec.view(nx, ny, nz)
+        else:
+            q_wells = torch.zeros_like(s_w)
+
+        # === Авто-лимитер λ_t для скважин (используется далее в цикле well-loop) ===
         auto_factor = self.sim_params.get("well_auto_factor", 20.0)
         if self.sim_params.get("well_mobility_limiter", None) is None:
             with torch.no_grad():
@@ -1727,12 +1738,12 @@ class Simulator:
             rho_g_sc = self.fluid.rho_g_sc
             rho_o_sc = self.fluid.rho_o_sc
 
-            # Массовые потоки растворённого газа, движущегося с нефтью
+            # Объёмные потоки растворённого газа, движущегося с нефтью (м³/с)
             flux_rs_x = flow_o_x * Rs_x
             flux_rs_y = flow_o_y * Rs_y
             flux_rs_z = flow_o_z * Rs_z
 
-            # Массовые потоки испаряющейся нефти, движущейся с газом
+            # Объёмные потоки испаряющейся нефти, движущейся с газом (м³/с)
             flux_rv_x = flow_g_x * Rv_x
             flux_rv_y = flow_g_y * Rv_y
             flux_rv_z = flow_g_z * Rv_z
@@ -1779,25 +1790,25 @@ class Simulator:
             Rs_new = Rs_old = Rv_new = Rv_old = torch.zeros_like(s_w)
 
         # --- Water accumulation (без изменений) --------------------------
-        acc_w = (phi_new * s_w * rho_w - phi_old * self.fluid.prev_sw * rho_w_old) * cell_vol / dt
+        acc_w = (phi_new * s_w - phi_old * self.fluid.prev_sw) * cell_vol / dt
 
         # --- Oil accumulation: свободная нефть + нефть, испарившаяся в газ (Rv) ---
         rho_o_sc = self.fluid.rho_o_sc
         if sg_vec is not None:
-            mass_o_new = phi_new * ( (1.0 - s_w - s_g) * rho_o + (s_g * Rv_new * rho_o_sc) )
-            mass_o_old = phi_old * ( (1.0 - self.fluid.prev_sw - self.fluid.prev_sg) * rho_o_old + (self.fluid.prev_sg * Rv_old * rho_o_sc) )
+            vol_o_new = phi_new * ( (1.0 - s_w - s_g) + s_g * Rv_new )
+            vol_o_old = phi_old * ( (1.0 - self.fluid.prev_sw - self.fluid.prev_sg) + self.fluid.prev_sg * Rv_old )
         else:
-            mass_o_new = phi_new * ( (1.0 - s_w) * rho_o )
-            mass_o_old = phi_old * ( (1.0 - self.fluid.prev_sw) * rho_o_old )
-        acc_o = (mass_o_new - mass_o_old) * cell_vol / dt
+            vol_o_new = phi_new * (1.0 - s_w)
+            vol_o_old = phi_old * (1.0 - self.fluid.prev_sw)
+        acc_o = (vol_o_new - vol_o_old) * cell_vol / dt
 
         if sg_vec is not None:
             rho_g_sc = self.fluid.rho_g_sc
 
-            # масса газа = свободный + растворённый в нефти (Rs)
-            mass_g_new = phi_new * ( s_g * rho_g + (1.0 - s_w - s_g) * Rs_new * rho_g_sc )
-            mass_g_old = phi_old * ( self.fluid.prev_sg * rho_g_old + (1.0 - self.fluid.prev_sw - self.fluid.prev_sg) * Rs_old * rho_g_sc )
-            acc_g = (mass_g_new - mass_g_old) * cell_vol / dt
+            # Объём газа = свободный + растворённый в нефти (Rs)
+            vol_g_new = phi_new * ( s_g + (1.0 - s_w - s_g) * Rs_new )
+            vol_g_old = phi_old * ( self.fluid.prev_sg + (1.0 - self.fluid.prev_sw - self.fluid.prev_sg) * Rs_old )
+            acc_g = (vol_g_new - vol_g_old) * cell_vol / dt
 
         # ------------------------------------------------------------------
         # Capillary pressure gradients (oil phase)
@@ -1856,24 +1867,27 @@ class Simulator:
                     q_total = 0.0
 
                 # Переводим объёмный расход (м³/с) в массовый (кг/с)
-                rho_w_cell = rho_w[i, j, k]
-                rho_o_cell = rho_o[i, j, k]
-                rho_g_cell = rho_g[i, j, k] if sg_vec is not None else None
+                # Объёмный расход уже в нужных единицах; пересчёт не требуется
 
                 if well.type == 'injector':
-                    # Закачиваем только воду
-                    q_w[i, j, k] += q_total * rho_w_cell
+                    # Закачиваем только воду (объём)
+                    q_w[i, j, k] += q_total
                 else:  # producer
-                    q_w[i, j, k] += q_total * fw[i, j, k] * rho_w_cell
-                    q_o[i, j, k] += q_total * (1 - fw[i, j, k]) * rho_o_cell
+                    q_w[i, j, k] += q_total * fw[i, j, k]
+                    q_o[i, j, k] += q_total * (1 - fw[i, j, k])
                     if sg_vec is not None:
-                        # Свободный газ + растворённый в нефти (Rs)
+                        # Свободный газ + растворённый в нефти (Rs) как объём
                         Rs_cell = Rs_new[i, j, k]
-                        q_g[i, j, k] += q_total * (1 - fw[i, j, k]) * (rho_g_cell + Rs_cell * self.fluid.rho_g_sc)
+                        q_g[i, j, k] += q_total * (1 - fw[i, j, k]) * Rs_cell
 
         # ------------------------------------------------------------------
-        # Residuals per cell (update with q terms now defined)
+        # Residuals per cell: приводим дивергенции к кг/с
         # ------------------------------------------------------------------
+        div_w = div_w  # объёмный
+        div_o = div_o  # объёмный
+        if sg_vec is not None:
+            div_g = div_g  # объёмный
+
         res_w = acc_w + div_w + q_w
         res_o = acc_o + div_o + q_o
         res_p = res_w + res_o  # total (pressure) equation

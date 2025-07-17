@@ -95,7 +95,7 @@ class GeoSolver:
     Интерфейс повторяет BoomerSolver/AmgXSolver: метод solve(rhs, tol, max_iter)
     принимает rhs в виде numpy-массива (vector) и возвращает numpy-массив решения.
     """
-    def __init__(self, reservoir, smoother: str = "jacobi"):
+    def __init__(self, reservoir, smoother: str = "chebyshev"):
         self.nx, self.ny, self.nz = reservoir.dimensions
         self.hx, self.hy, self.hz = map(float, reservoir.grid_size)
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
@@ -137,6 +137,9 @@ class GeoSolver:
         kx, ky, kz = self.kx, self.ky, self.kz
         hx, hy, hz = self.hx, self.hy, self.hz
 
+        from linear_gpu.csr import build_7pt_csr
+        use_cusparse = torch.cuda.is_available()
+
         while min(kx.shape[-1], kx.shape[-2], kx.shape[-3]) >= 4 and len(self.levels) < 6:
             self.levels.append({
                 "kx": kx,
@@ -145,6 +148,7 @@ class GeoSolver:
                 "hx": hx,
                 "hy": hy,
                 "hz": hz,
+                "A_csr": None,
             })
 
             # coarsen permeability with volume-weighted average (avg_pool3d)
@@ -184,11 +188,25 @@ class GeoSolver:
             # оно лишь усложняет условия тестов.
             self.A_scale = 1.0
         else:
-            # Ограничиваем масштаб, иначе Chebyshev/Geo-AMG генерирует
-            # гигантские δp и теряет устойчивость. 1e4 достаточно, чтобы
-            # привести диагональ к диапазону O(1).
-            self.A_scale = min(1.0 / d_med, 1.0e4)
+            # Масштабируем так, чтобы медиана диагонали ~1.
+            # Для очень мелких диагоналей допускаем A_scale до 1e8.
+            self.A_scale = min(1.0 / d_med, 1.0e8)
 
+        # --- подготавливаем CSR-матрицу для самого тонкого уровня
+        if use_cusparse:
+            lvl0 = self.levels[0]
+            Tx = self._harmonic(lvl0["kx"][..., :-1], lvl0["kx"][..., 1:]) * (self.hy * self.hz) / self.hx
+            Ty = self._harmonic(lvl0["ky"][:, :-1, :], lvl0["ky"][:, 1:, :]) * (self.hx * self.hz) / self.hy
+            if self.nz > 1:
+                Tz = self._harmonic(lvl0["kz"][:-1, :, :], lvl0["kz"][1:, :, :]) * (self.hx * self.hy) / self.hz
+            else:
+                Tz = None
+
+            indptr, indices, data = build_7pt_csr(Tx.cpu().numpy(), Ty.cpu().numpy(),
+                                                 Tz.cpu().numpy() if Tz is not None else None,
+                                                 self.nx, self.ny, self.nz)
+            lvl0["A_csr"] = torch.sparse_csr_tensor(indptr, indices, data, dtype=torch.float64,
+                                                    device=self.device)
         print(f"GeoSolver: cells={n_cells}, median(|diag|)={d_med:.3e}, A_scale={self.A_scale:.3e}")
 
     # ------------------------------------------------------------------
@@ -217,6 +235,13 @@ class GeoSolver:
             Tx, Ty, Tz = data["Tx"], data["Ty"], data["Tz"]
 
         # --- вычисляем A x = div(T * grad x) --------------------------
+        # Если есть CSR и мы на CUDA – используем cuSPARSE SpMV
+        if "A_csr" in data and data["A_csr"] is not None and x.is_cuda:
+            A = data["A_csr"]
+            y = torch.sparse.mm(A, x.reshape(-1,1)).reshape_as(x)
+            # Масштабируем оператор тем же коэффициентом, что и RHS
+            return y * self.A_scale
+
         div = torch.zeros_like(x)
 
         # X-направление -------------------------------------------------
@@ -232,7 +257,8 @@ class GeoSolver:
             div[:-1, :, :] += Tz * (x[:-1, :, :] - x[1:, :, :])
             div[1:, :, :]  += Tz * (x[1:, :, :] - x[:-1, :, :])
  
-        return div  # SPD (positive definite)
+        # Масштабируем результат на A_scale, чтобы A и RHS были в одном масштабе
+        return div * self.A_scale  # SPD (positive definite)
 
     # ------------------------------------------------------------------
     def _compute_diag(self, kx, ky, kz, hx, hy, hz, shape):
@@ -423,8 +449,8 @@ class GeoSolver:
                 eye = torch.eye(n_cells_total, dtype=torch.float64, device=self.device)
                 for j in range(n_cells_total):
                     col_vec = eye[:, j].reshape(rhs_tensor.shape)
-                    # raw operator (без A_scale) → домножаем вручную
-                    Acol = self._apply_A(col_vec, lvl=0) * self.A_scale
+                    # _apply_A уже возвращает масштабированный столбец
+                    Acol = self._apply_A(col_vec, lvl=0)
                     A_dense[:, j] = Acol.reshape(-1)
 
                 x_direct = torch.linalg.solve(A_dense, b.reshape(-1))
