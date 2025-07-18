@@ -18,7 +18,8 @@ class FullyImplicitSolver:
         self.prec = CPRPreconditioner(simulator.reservoir,
                                        simulator.fluid,
                                        backend=backend,
-                                       smoother=smoother)
+                                       smoother=smoother,
+                                       scaler=self.scaler)
 
         # Newton params ----------------------------------------------------
         self.tol = simulator.sim_params.get("newton_tolerance", 1e-7)  # абсолютная
@@ -140,7 +141,7 @@ class FullyImplicitSolver:
             # Слишком маленький trust-radius (2.0) приводит к чрезмерному урезанию
             # шага на крупных системах → стагнации.  Увеличиваем по умолчанию до 50,
             # оставляя возможность переопределить через конфиг.
-            trust_radius = self.sim.sim_params.get("trust_radius", 50.0)
+            trust_radius = self.sim.sim_params.get("trust_radius", 1000.0)
         prev_F_norm = None
 
         # Diagnostics
@@ -315,14 +316,8 @@ class FullyImplicitSolver:
                     delta[:n_cells_local] -= mean_dp
                     print(f"  ⬇️  Убрано среднее δp={mean_dp.item():.3e} (компонента null-space)")
             vars_per_cell = delta.shape[0] // n_cells
-            if self.scaler is not None:
-                pressure_scaled = delta[:n_cells] * self.scaler.inv_p_scale
-            else:
-                pressure_scaled = delta[:n_cells] / 1e6
-            if vars_per_cell == 3:
-                delta_scaled = torch.cat([pressure_scaled, delta[n_cells:]])
-            else:
-                delta_scaled = torch.cat([pressure_scaled, delta[n_cells:]])
+            # delta уже в «hat»-единицах, дополнительное масштабирование не требуется
+            delta_scaled = delta  # используем напрямую для нормы
             delta_norm_scaled = delta_scaled.norm()
             print(f"  Line search: ||delta||_scaled={delta_norm_scaled:.3e}")
 

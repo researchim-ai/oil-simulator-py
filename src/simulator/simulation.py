@@ -408,6 +408,8 @@ class Simulator:
                             backend = "geo" if n_cells > 500 else "hypre"
                         print(f"Backend из конфигурации: '{backend}'")
                         self._fisolver = FullyImplicitSolver(self, backend=backend)
+                        # Экспортируем для unit-тестов и внешней отладочной информации
+                        self.fi_solver = self._fisolver
                     except Exception as e:
                         print(f"Ошибка инициализации JFNK: {e}")
                         raise RuntimeError(f"JFNK initialization failed: {e}")
@@ -1204,6 +1206,57 @@ class Simulator:
         A, A_diag = self._build_pressure_matrix_vectorized(Tx_t, Ty_t, Tz_t, dt, well_bhp_terms)
         Q = self._build_pressure_rhs(dt, P_prev, mob_w, mob_o, mob_g, q_wells, dp_x_prev, dp_y_prev, dp_z_prev)
 
+        # ------------------------------------------------------------------
+        # 4b.  Диагональное row-масштабирование (как в CPR) –
+        #      выравниваем строки, чтобы CG видел хорошо обусловленную матрицу
+        # ------------------------------------------------------------------
+        with torch.no_grad():
+            # A может быть sparse COO или CSR. Работаем универсально через индексы.
+            if A.layout != torch.sparse_coo and A.layout != torch.sparse_csr:
+                raise NotImplementedError("Row-scaling: ожидается sparse матрица (COO/CSR)")
+
+            indices = A.indices() if A.layout == torch.sparse_coo else None
+            values = A.values()
+
+            if A.layout == torch.sparse_csr:
+                # Быстро через crow_indices (аналог CSR row_ptr)
+                indptr = A.crow_indices()
+                row_max = torch.zeros(A.size(0), device=A.device, dtype=values.dtype)
+                for i in range(A.size(0)):
+                    start = indptr[i].item()
+                    end = indptr[i+1].item()
+                    if end > start:
+                        row_abs = torch.abs(values[start:end])
+                        row_max[i] = torch.max(row_abs)
+            else:
+                # COO: воспользуемся scatter_reduce (PyTorch ≥1.12) или fallback на manual loop
+                row_max = torch.zeros(A.size(0), device=A.device, dtype=values.dtype)
+                if hasattr(row_max, 'scatter_reduce_'):
+                    row_max.scatter_reduce_(0, indices[0], torch.abs(values), reduce="amax", include_self=True)
+                else:
+                    rows = indices[0]
+                    abs_vals = torch.abs(values)
+                    for r, v_abs in zip(rows.tolist(), abs_vals.tolist()):
+                        if v_abs > row_max[r]:
+                            row_max[r] = v_abs
+
+            scale_vec = torch.where(row_max > 0, 1.0 / row_max, torch.ones_like(row_max))
+
+            # Масштабируем значения матрицы
+            if A.layout == torch.sparse_csr:
+                for i in range(A.size(0)):
+                    s = scale_vec[i]
+                    start = indptr[i].item()
+                    end = indptr[i+1].item()
+                    if end > start:
+                        values[start:end] *= s
+            else:
+                values *= scale_vec[indices[0]]
+
+            # Масштабируем RHS и диагональ
+            Q = Q * scale_vec
+            A_diag = A_diag * scale_vec
+
         # 5. Параметры CG из конфигурации
         cg_tol_base = self.sim_params.get("cg_tolerance", 1e-6)
         cg_max_iter_base = self.sim_params.get("cg_max_iter", 500)
@@ -1292,28 +1345,29 @@ class Simulator:
         # 5. Источники/стоки воды от скважин
         q_w = torch.zeros_like(S_w_old)
         fw = mob_w / (mob_t + 1e-10)
-        for well in self.well_manager.get_wells():
-            i, j, k = well.i, well.j, well.k
-            if i >= self.reservoir.nx or j >= self.reservoir.ny or k >= self.reservoir.nz:
-                continue
+        if getattr(self, "well_manager", None) is not None:
+            for well in self.well_manager.get_wells():
+                i, j, k = well.i, well.j, well.k
+                if i >= self.reservoir.nx or j >= self.reservoir.ny or k >= self.reservoir.nz:
+                    continue
 
-            if well.control_type == 'rate':
-                # m³/сут → m³/с (знак уже задан пользователем: «+» инжектор, «−» продюсер)
-                q_vol = well.control_value / 86400.0
-                # Для уравнения насыщенности берём именно объёмный расход воды.
-                q_w[i, j, k] += q_vol
-            elif well.control_type == 'bhp':
-                p_bhp = well.control_value * 1e6
-                p_block = P_new[i, j, k]
-                # Объёмный расход через WI: q_total > 0  => отток из пласта
-                q_total = well.well_index * mob_t[i, j, k] * (p_block - p_bhp)  # м³/с
+                if well.control_type == 'rate':
+                    # m³/сут → m³/с (знак уже задан пользователем: «+» инжектор, «−» продюсер)
+                    q_vol = well.control_value / 86400.0
+                    # Для уравнения насыщенности берём именно объёмный расход воды.
+                    q_w[i, j, k] += q_vol
+                elif well.control_type == 'bhp':
+                    p_bhp = well.control_value * 1e6
+                    p_block = P_new[i, j, k]
+                    # Объёмный расход через WI: q_total > 0  => отток из пласта
+                    q_total = well.well_index * mob_t[i, j, k] * (p_block - p_bhp)  # м³/с
 
-                if well.type == 'injector':
-                    # Закачка воды (инжектор): расход в уравнении насыщенности положительный
-                    q_w[i, j, k] += -q_total  # p_block - p_bhp < 0 ⇒ q_total < 0, поэтому «минус»
-                else:
-                    # Добывающая скважина: берём водную долю потока (фракция fw)
-                    q_w[i, j, k] += -q_total * fw[i, j, k]
+                    if well.type == 'injector':
+                        # Закачка воды (инжектор): расход в уравнении насыщенности положительный
+                        q_w[i, j, k] += -q_total  # p_block - p_bhp < 0 ⇒ q_total < 0, поэтому «минус»
+                    else:
+                        # Добывающая скважина: берём водную долю потока (фракция fw)
+                        q_w[i, j, k] += -q_total * fw[i, j, k]
 
         # 6. Обновление насыщенности с ограничением максимального изменения
         # Учёт источников/стоков от скважин (объёмные расходы м³/с)

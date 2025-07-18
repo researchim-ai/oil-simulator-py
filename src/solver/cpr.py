@@ -4,8 +4,21 @@ from .geom_amg import GeoSolver
 from typing import Optional
 
 class CPRPreconditioner:
-    def __init__(self, reservoir, fluid, backend="amgx", omega=0.3, smoother: str = "chebyshev"):
+    def __init__(self, reservoir, fluid, backend="amgx", omega=0.3, smoother: str = "chebyshev", scaler=None):
         self.backend = backend
+        # VariableScaler для согласованного column-scale (давление)
+        self.scaler = scaler
+        if scaler is not None:
+            self.p_scale = scaler.p_scale
+            self.inv_p_scale = scaler.inv_p_scale
+            # Массив масштабов для насыщенностей (Sw, опц. Sg)
+            self.s_scales = getattr(scaler, 's_scales', [1.0])
+            self.inv_s_scales = getattr(scaler, 'inv_s_scales', [1.0])
+        else:
+            self.p_scale = 1.0
+            self.inv_p_scale = 1.0
+            self.s_scales = [1.0]
+            self.inv_s_scales = [1.0]
         self.omega = omega
         self.failed_amg = False  # Флаг провала AMG
         
@@ -181,7 +194,8 @@ class CPRPreconditioner:
         indices = np.empty(nnz_est, dtype=np.int32)
         data = np.empty(nnz_est, dtype=np.float64)
 
-        # Сохраняем диагональные элементы для последующего автомасштабирования
+        # Для row-scaling понадобится сохранить макс.|row| после сборки
+        row_abs_max = np.zeros(N, dtype=np.float64)
         diag_vals = []
 
         pos = 0
@@ -195,7 +209,7 @@ class CPRPreconditioner:
 
                     # X-
                     if i > 0:
-                        t = Tx[i-1, j, k] * lam  # self.matrix_scale =1
+                        t = Tx[i-1, j, k] * lam
                         indices[pos] = center - 1
                         data[pos] = -t
                         pos += 1
@@ -240,17 +254,21 @@ class CPRPreconditioner:
                     # Для высокой сжимаемости нужен больший сдвиг
                     base_shift = 1e-12
                     if hasattr(self, 'compressibility_factor'):
-                        # Увеличиваем сдвиг пропорционально сжимаемости
                         adaptive_shift = base_shift * max(1.0, self.compressibility_factor ** 0.5)
                     else:
                         adaptive_shift = base_shift
                     
                     # Диагональный элемент
                     indices[pos] = center
-                    diag_entry = diag + adaptive_shift
+                    diag_entry = diag + adaptive_shift  # already in scaled units
                     data[pos] = diag_entry
-                    diag_vals.append(abs(diag_entry))
                     pos += 1
+                    diag_vals.append(abs(diag_entry))
+
+                    # ---- Row max abs value (для последующей нормализации) ----
+                    row_start = indptr[idx]
+                    row_end   = pos
+                    row_abs_max[idx] = np.max(np.abs(data[row_start:row_end]))
                     idx += 1
 
         indptr[N] = pos
@@ -281,8 +299,44 @@ class CPRPreconditioner:
 
         data[:pos] *= scale  # нормализуем матрицу с учётом клипа
 
-        # Сохраняем коэффициент для последующего восстановления решения
-        self.matrix_scale = scale
+        # ----- ROW SCALING ---------------------------------------------------
+        # d_i = 1 / max|row_i|  ⇒  D A x = D b
+        # Row-scaling должен опираться на уже отмасштабированную матрицу,
+        # иначе мы фактически дублируем коэффициент «scale» и получаем
+        # гигантские величины δp.  Используем m_scaled = row_abs_max * scale.
+
+        row_scale = np.ones(N, dtype=np.float64)
+        for i in range(N):
+            m_scaled = row_abs_max[i] * scale
+            if m_scaled > 1e-30:
+                row_scale[i] = 1.0 / m_scaled
+            else:
+                row_scale[i] = 1.0
+
+        # Применяем масштаб к данным матрицы
+        for i in range(N):
+            s = row_scale[i]
+            start = indptr[i]
+            end   = indptr[i+1] if i < N-1 else pos
+            data[start:end] *= s
+
+        # Диагональ для Jacobi должна отражать ту же нормализацию
+        diag_inv_scaled = np.zeros(N, dtype=np.float64)
+        for i in range(N):
+            start = indptr[i]
+            end   = indptr[i+1] if i < N-1 else pos
+            # после масштабирования diag находится внутри этого среза
+            for j in range(start, end):
+                if indices[j] == i:
+                    val = data[j]
+                    diag_inv_scaled[i] = 1.0 / max(abs(val), 1e-12)
+                    break
+
+        self.row_scale = row_scale          # numpy 1-D (length N)
+        self.diag_inv = diag_inv_scaled     # заменяем предыдущую
+
+        # Матрица теперь отмасштабирована → дополнительный matrix_scale не нужен
+        self.matrix_scale = 1.0
 
         print(f"🎯 CPR: Автомасштабирование — median(|diag|)={diag_median:.3e}, scale={scale:.3e}")
         print(f"🎯 CPR: Диапазон элементов после масштабирования: min={data[:pos].min():.3e}, max={data[:pos].max():.3e}")
@@ -319,12 +373,13 @@ class CPRPreconditioner:
 
         # Давление — первые n_cells компонентов
         n = n_cells
-        
-        # 🔧 ИСПРАВЛЕНО: правильная обработка gradients
-        if vec.requires_grad:
-            rhs_p = vec[:n].detach().cpu().numpy()
-        else:
-            rhs_p = vec[:n].cpu().numpy()
+
+        # Используем Normalizer для безразмерного RHS
+        rhs_hat_torch = self.scaler.scale_vec(vec)[:n]
+        rhs_p = rhs_hat_torch.detach().cpu().numpy()
+
+        # применяем row-scale, рассчитанный для той же матрицы
+        rhs_p = rhs_p * self.row_scale
 
         # 🎯 АВТОМАТИЧЕСКОЕ МАСШТАБИРОВАНИЕ для робастности
         rhs_norm = np.linalg.norm(rhs_p)
@@ -333,9 +388,9 @@ class CPRPreconditioner:
             out = torch.zeros_like(vec, dtype=vec.dtype, device=vec.device, requires_grad=False)
             return out
         
-        # Слишком большое rhs_scale умножает решение и может дать огромные δp.
-        # Практика показала, что достаточно ограничить верхний предел ~10.
-        rhs_scale = max(1e-6, min(10.0, rhs_norm))  # Клампим между 1e-6 и 10
+        # Новая стратегия: после row-scaling система уже хорошо нормирована,
+        # дополнительный rhs_scale только искажает итоговую δp.
+        rhs_scale = 1.0
 
         # --------------------------------------------------------------
         # 🔒 ДОП. ЗАЩИТА: ограничиваем одновременный масштаб
@@ -353,7 +408,9 @@ class CPRPreconditioner:
             )
             rhs_scale = rhs_scale_new
 
-        rhs_scaled = rhs_p * (1.0 / rhs_scale)
+        # после row-scaling зачастую rhs_norm уже O(1);
+        # оставляем прежний rhs_scale но используем более мягкий лимит
+        rhs_scaled = rhs_p  # rhs_scale == 1
 
         # Решаем давление через AMG или Jacobi
         if self.solver is None or self.failed_amg:
@@ -427,28 +484,53 @@ class CPRPreconditioner:
         # δ_geom, фактически равный δ_true / matrix_scale.  Поэтому здесь
         # нужно вернуть исходный масштаб ЧЕРЕЗ деление, а не умножение.
 
-        if self.backend == "geo":
-            # GeoSolver работает с A_orig, поэтому δ_geom ≈ δ_true / rhs_scale;
-            # восстанавливаем: δ_true = δ_geom · rhs_scale
-            delta_p = delta_p_scaled * rhs_scale
-        else:
-            delta_p = delta_p_scaled * rhs_scale * self.matrix_scale
+        # --------------------------------------------------------------
+        # Обратный column-scale: возвращаем давление в физических Па
+        # --------------------------------------------------------------
+        delta_p_hat = delta_p_scaled  # matrix_scale =1, уже в hat-единицах
+        print(f"    CPR: ||delta_p_hat||={np.linalg.norm(delta_p_hat):.3e}")
+
+        # --------------------------------------------------------------
+        # Безопасный кламп давления в hat-пространстве
+        # --------------------------------------------------------------
+        MAX_DP_HAT = 1e4  # 10 кМПа при p_scale=1 МПа
+        delta_p_hat = np.clip(delta_p_hat, -MAX_DP_HAT, MAX_DP_HAT)
+        print(f"    CPR: ||delta_p_hat(clamped)||={np.linalg.norm(delta_p_hat):.3e}")
+
+        # --- восстановление физических Па через Normalizer ------------
+        delta_hat_full = torch.zeros_like(vec, dtype=vec.dtype, device=vec.device)
+        delta_hat_full[:n] = torch.from_numpy(delta_p_hat).to(device=vec.device, dtype=vec.dtype)
+        delta_phys_full = self.scaler.unscale_vec(delta_hat_full)
+        pressure_result = delta_phys_full[:n]
 
         # В будущем, если появятся бекенды, где матрица не масштабируется,
         # достаточно выставлять self.matrix_scale = 1.0 во время сборки.
         
         # 🔧 ДОПОЛНИТЕЛЬНЫЙ DEBUG
-        print(f"    CPR: Восстановление масштаба: rhs_scale={rhs_scale:.3e}, matrix_scale={self.matrix_scale:.3e} (backend={self.backend})")
-        print(f"    CPR: ||delta_p|| до восстановления: {np.linalg.norm(delta_p_scaled):.3e}")
-        print(f"    CPR: ||delta_p|| после восстановления: {np.linalg.norm(delta_p):.3e}")
+        print(f"    CPR: ||delta_p_phys||={pressure_result.norm():.3e}")
         
         # ❌ УБРАНО: delta_p = delta_p / self.matrix_scale (двойное восстановление!)
 
         # 🔧 ИСПРАВЛЕНО: правильная сборка результата
         out = torch.zeros_like(vec, dtype=vec.dtype, device=vec.device, requires_grad=False)
 
-        # Давление: результат AMG решения
-        pressure_result = torch.from_numpy(delta_p).to(device=vec.device, dtype=vec.dtype)
+        # Давление уже записано в pressure_result (Па)
+
+        # --------------------------------------------------------------
+        # Saturation block — нормализация и Jacobi
+        # --------------------------------------------------------------
+        rhs_hat_full = self.scaler.scale_vec(vec)
+        sat_hat = rhs_hat_full[n:]
+        sat_norm = sat_hat.norm().item()
+
+        # Адаптивное ω: меньше при очень больших невязках
+        base_omega = self.omega
+        omega_eff = min(base_omega, 0.1) if sat_norm > 100.0 else base_omega
+
+        # Нормализуем, применяем Jacobi, масштаб НЕ возвращаем
+        scale_s = sat_norm if sat_norm > 1.0 else 1.0
+        delta_s_hat = omega_eff * (sat_hat / scale_s)
+        delta_s_phys = delta_s_hat  # насыщенности безразмерны
 
         # --------------------------------------------------------------
         # Финальная защита: если даже после всех клампов поправка давления
@@ -456,6 +538,8 @@ class CPRPreconditioner:
         # испортить line-search.  JFNK при необходимости скорректирует шаг.
         # --------------------------------------------------------------
 
+        # после корректной нормализации необходимость дополнительных клипов резко падает;
+        # однако оставляем проверку NaN/Inf на всякий случай
         final_norm = pressure_result.norm().item()
         rhs_norm_torch = vec[:n].norm().item() + 1e-30
         if self.backend != "geo" and n_cells > 500 and rhs_norm_torch > 1e-6 and final_norm > 1e9 * rhs_norm_torch:
@@ -476,7 +560,7 @@ class CPRPreconditioner:
 
         out[:n] = pressure_result
 
-        # Насыщенности (любой фазы): Jacobi scaling ω
-        out[n:] = self.omega * vec[n:]
-        
+        # Насыщенности (все фазы): простое Jacobi damping ω
+        out[n:] = delta_s_phys
+
         return out 
