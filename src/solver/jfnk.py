@@ -3,7 +3,7 @@ import sys
 import os
 import math
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from linear_gpu.gmres import gmres
+from linear_gpu.fgmres import fgmres
 from .cpr import CPRPreconditioner
 
 class FullyImplicitSolver:
@@ -14,12 +14,23 @@ class FullyImplicitSolver:
         self.scaler = simulator.scaler  # используем уже созданный в Simulator
 
         # CPR preconditioner (pressure block) ------------------------------
-        smoother = simulator.sim_params.get("smoother", "jacobi")
+        sim_params = simulator.sim_params
+        smoother = sim_params.get("smoother", "jacobi")
+
+        # Параметры GeoSolver из конфигурации
+        geo_params = {
+            "cycles_per_call": sim_params.get("geo_cycles", 1),
+            "pre_smooth":      sim_params.get("geo_pre", 2),
+            "post_smooth":     sim_params.get("geo_post", 2),
+            "max_levels":      sim_params.get("geo_levels", 6),
+        }
+
         self.prec = CPRPreconditioner(simulator.reservoir,
                                        simulator.fluid,
                                        backend=backend,
                                        smoother=smoother,
-                                       scaler=self.scaler)
+                                       scaler=self.scaler,
+                                       geo_params=geo_params)
 
         # Newton params ----------------------------------------------------
         self.tol = simulator.sim_params.get("newton_tolerance", 1e-7)  # абсолютная
@@ -91,6 +102,11 @@ class FullyImplicitSolver:
             Jv_core = Jv_core + (self.ptc_tau / dt) * v
 
         Jv = Jv_core  # без дополнительной регуляризации – достаточно стабильно
+
+        # ---- Guard against NaN/Inf ----------------------------------------------------
+        if not torch.isfinite(Jv).all():
+            print("  _Jv: обнаружены NaN/Inf – заменяем на 0")
+            Jv = torch.zeros_like(Jv)
         
         return Jv
 
@@ -109,6 +125,18 @@ class FullyImplicitSolver:
             )
         )
         baseline_mean_p = x[:n_cells_tot].mean().clone()
+
+        # --------------------------------------------------------------
+        # Адаптивный выбор режима: «облегчённый» для маленьких сеток
+        # --------------------------------------------------------------
+        advanced_threshold = self.sim.sim_params.get("advanced_threshold", 50_000)
+        advanced_mode = n_cells_tot > advanced_threshold
+        if not advanced_mode:
+            # Отключаем улучшения, которые приводят к вырожденным шагам на микромоделях
+            self.ptc_tau = 0.0
+            allow_defl = False
+        else:
+            allow_defl = True
 
         # Позволяем пользователю отключить фиксацию среднего давления,
         # чтобы глобальное давление могло расти/падать при нетто-дебите.
@@ -141,11 +169,23 @@ class FullyImplicitSolver:
             # Слишком маленький trust-radius (2.0) приводит к чрезмерному урезанию
             # шага на крупных системах → стагнации.  Увеличиваем по умолчанию до 50,
             # оставляя возможность переопределить через конфиг.
-            trust_radius = self.sim.sim_params.get("trust_radius", 1000.0)
+            n_cells_global = (
+                self.scaler.n_cells
+                if self.scaler is not None
+                else (
+                    self.sim.reservoir.dimensions[0]
+                    * self.sim.reservoir.dimensions[1]
+                    * self.sim.reservoir.dimensions[2]
+                )
+            )
+            default_tr = 20.0 + 0.5 * math.sqrt(n_cells_global)
+            trust_radius = self.sim.sim_params.get("trust_radius", default_tr)
         prev_F_norm = None
 
         # Diagnostics
         self.total_gmres_iters = 0
+        # Дефляционный базис (ортонорм колонки, в hat-пространстве)
+        self.defl_basis = []
         init_F_scaled = None  # значение невязки на первой итерации для относительного критерия
 
         gmres_tol_min = self.sim.sim_params.get("gmres_min_tol", 1e-7)  # минимум tolerances
@@ -177,6 +217,16 @@ class FullyImplicitSolver:
             
             # 🎯 Масштабируем по размеру системы
             F_scaled = F_norm / math.sqrt(len(F))
+
+            # --- Быстрый выход: если невязка уже мала (<1e-4), принимаем без решения ---
+            early_tol = self.sim.sim_params.get("early_accept_tol", 1e-4)
+            if F_scaled < early_tol:
+                print(f"  Newton: ||F||_scaled={F_scaled:.3e} < early_tol={early_tol:.1e} → принимаем без корректировки")
+                self.last_newton_iters = max(1, it)
+                self.last_gmres_iters = self.total_gmres_iters
+                _anchor_pressure(x)
+                x_pa = self._unscale_x(x)
+                return self.scaler.to_mpa_vec(x_pa) if self.scaler is not None else x_pa / 1e6, True
             if init_F_scaled is None:
                 init_F_scaled = F_scaled  # сохраняем стартовую невязку
             print(f"  Newton #{it}: ||F||={F_norm:.3e}, ||F||_scaled={F_scaled:.3e}")
@@ -244,35 +294,67 @@ class FullyImplicitSolver:
                 
             print(f"  GMRES: restart={gmres_restart}, max_iter={gmres_maxiter}")
             
-            gmres_out = gmres(
+            # Подготавливаем базис как один тензор (n,k) colwise
+            basis_tensor = None
+            if allow_defl and self.defl_basis:
+                basis_tensor = torch.stack(self.defl_basis, dim=1)
+
+            gmres_out = fgmres(
                 A,
                 -F,
                 M=M_hat,
                 tol=gmres_tol,
                 restart=gmres_restart,
                 max_iter=gmres_maxiter,
+                deflation_basis=basis_tensor,
+                min_iters=3
             )
+            delta, info, gm_iters = gmres_out
 
-            if len(gmres_out) == 3:
-                delta, info, gm_iters = gmres_out
-            else:
-                delta, info = gmres_out
-                gm_iters = gmres_maxiter  # pessimistic estimate
+            # Защита: если GMRES вернул NaN/Inf, обнуляем δ
+            if not torch.isfinite(delta).all():
+                print("  GMRES вернул NaN/Inf – заменяем на 0")
+                delta = torch.zeros_like(delta)
+                info = 1
+
+            # Норма решения в масштабированных координатах для trust-region
+            delta_norm_scaled = delta.norm() / math.sqrt(len(delta))
+
+            # --- Fallback: если GMRES вернул почти нулевую δx, используем одно применение предобуславливателя
+            if delta_norm_scaled < 1e-12:
+                print("  GMRES вернул δ≈0 — используем M_hat(−F) как fallback")
+                delta = M_hat(-F)
+                delta_norm_scaled = delta.norm() / math.sqrt(len(delta))
 
             self.total_gmres_iters += gm_iters
+
+            # --- обновляем дефляционный базис ---------------------------------
+            if allow_defl and torch.isfinite(delta).all():
+                # нормализация и ортогонализация
+                v = delta.clone()
+                v_norm = v.norm()
+                if v_norm > 1e-8:
+                    v = v / v_norm
+                    # ортогонализуем к текущему
+                    for q in self.defl_basis:
+                        v = v - torch.dot(q, v) * q
+                    v_norm2 = v.norm()
+                    if v_norm2 > 1e-6:
+                        v = v / v_norm2
+                        self.defl_basis.append(v)
+                        # ограничиваем размер до 10 векторов
+                        if len(self.defl_basis) > 10:
+                            self.defl_basis.pop(0)
 
             if info != 0 or not torch.isfinite(delta).all():
                 print(f"  GMRES не сошёлся (info={info}), ||delta||={delta.norm():.3e}")
                 nvars = F.shape[0]
-                # �� FALLBACK стратегия для маленьких систем: прямое решение J δ = -F
+                # 🎯 FALLBACK 1: маленькая система – пробуем прямой solve
                 if nvars <= 200 and self.sim.sim_params.get("small_direct_jac", True):
                     try:
                         print("  ➡️  Пробуем сформировать полный Якобиан и решить напрямую")
                         eye = torch.eye(nvars, device=F.device, dtype=F.dtype)
-                        J_cols = []
-                        for j in range(nvars):
-                            col = A(eye[:, j])  # J * e_j
-                            J_cols.append(col)
+                        J_cols = [A(eye[:, j]) for j in range(nvars)]
                         J_full = torch.stack(J_cols, dim=1)
                         delta = torch.linalg.solve(J_full, -F)
                         info = 0
@@ -280,101 +362,72 @@ class FullyImplicitSolver:
                     except Exception as e:
                         print(f"  ❌ Не удалось решить напрямую: {e}")
                         info = 1
-                # 🎯 FALLBACK стратегия: демпфирование (без полного Якобиана)
-                if info != 0 or not torch.isfinite(delta).all():
-                    if torch.isfinite(delta).all() and delta.norm() > 0:
-                        n_small = len(delta)
-                        if n_small <= 100:
-                            print("  Маленькая система – используем полное решение GMRES без демпфирования")
-                            # без дополнительного масштаба
-                        else:
-                            print("  Используем демпфированное решение GMRES")
-                            delta = delta * 0.1
-                    else:
-                        print("  GMRES failed полностью. Прерывание JFNK.")
-                        self.last_newton_iters = self.max_it
-                        self.last_gmres_iters = self.total_gmres_iters
-                        return self._unscale_x(x), False
 
-            # 🚀 ПРОМЫШЛЕННЫЙ line-search с логированием
-            # Определяем число ячеек до первого использования, чтобы избежать UnboundLocalError
-            n_cells = (
-                self.scaler.n_cells
-                if self.scaler is not None
-                else (
-                    self.sim.reservoir.dimensions[0]
-                    * self.sim.reservoir.dimensions[1]
-                    * self.sim.reservoir.dimensions[2]
-                )
-            )
+                # 🎯 FALLBACK 2: демпфирование Jacobi
+                if info != 0 or not torch.isfinite(delta).all() or delta.norm() < 1e-12:
+                    print("  ⏎ Используем демпфированный Jacobi шаг")
+                    delta = M_hat(-F)
+                    # легкое демпфирование
+                    delta = delta * 0.1
+                    info = 0  # разрешаем продолжить
+                    if not torch.isfinite(delta).all():
+                        delta = torch.zeros_like(delta)
 
-            # Удаляем компоненту постоянного смещения давления (null-space)
-            if delta.shape[0] >= n_cells:
-                n_cells_local = n_cells  # то же самое значение
-                if n_cells_local <= 100:
-                    mean_dp = delta[:n_cells_local].mean()
-                    delta[:n_cells_local] -= mean_dp
-                    print(f"  ⬇️  Убрано среднее δp={mean_dp.item():.3e} (компонента null-space)")
-            vars_per_cell = delta.shape[0] // n_cells
-            # delta уже в «hat»-единицах, дополнительное масштабирование не требуется
-            delta_scaled = delta  # используем напрямую для нормы
-            delta_norm_scaled = delta_scaled.norm()
-            print(f"  Line search: ||delta||_scaled={delta_norm_scaled:.3e}")
-
-            # --- Small-step termination -----------------------------------
-            small_delta_tol = self.sim.sim_params.get("delta_small_tol", 1e-4)
-            small_F_tol = self.sim.sim_params.get("F_small_tol", 1e-2)
-            if delta_norm_scaled < small_delta_tol and F_scaled < small_F_tol:
-                print("  Newton: очень малый шаг и малая невязка – считаем, что сошлось")
-                self.last_newton_iters = max(1, it)
-                self.last_gmres_iters = self.total_gmres_iters
-                _anchor_pressure(x)
-                x_pa = self._unscale_x(x)
-                return (
-                    self.scaler.to_mpa_vec(x_pa) if self.scaler is not None else x_pa / 1e6,
-                    True,
-                )
-
-            # --- BACKTRACKING Armijo line-search ---------------------------------
+            # --- КВАДРАТИЧНАЯ line-search ---------------------------------------
             factor = 1.0
-            # --- Trust-region (если включён) ---------------------------
-            if trust_radius is not None:
-                if delta_norm_scaled > trust_radius:
-                    factor = trust_radius / (delta_norm_scaled + 1e-12)
-                    print(f"  Trust-region: сокращаем шаг до factor={factor:.3e} (радиус {trust_radius:.2f})")
+            if trust_radius is not None and delta_norm_scaled > trust_radius:
+                factor = trust_radius / (delta_norm_scaled + 1e-12)
+                print(f"  Trust-region: сокращаем шаг до factor={factor:.3e} (радиус {trust_radius:.2f})")
 
-            c1 = 1e-4  # Armijo constant
-            ls_max_iter = 12
+            c1 = 1e-4
+            ls_max = 8
             success = False
 
-            for ls_it in range(ls_max_iter):
+            for ls_it in range(ls_max):
                 x_candidate = x + factor * delta
-
-                # Проверяем числовую корректность
                 if not torch.isfinite(x_candidate).all():
                     factor *= 0.5
                     continue
 
-                F_candidate = self.sim._fi_residual_vec(x_candidate, dt)
+                x_candidate_phys = self._unscale_x(x_candidate) if self.scaler is not None else x_candidate
+                F_candidate_phys = self.sim._fi_residual_vec(x_candidate_phys, dt)
+                F_candidate_hat = self.scaler.scale_vec(F_candidate_phys) if self.scaler is not None else F_candidate_phys
                 if self.ptc_enabled and self.ptc_tau > 0.0:
-                    F_candidate = F_candidate + (self.ptc_tau / dt) * (x_candidate - x_ref)
-                if not torch.isfinite(F_candidate).all():
+                    F_candidate_hat = F_candidate_hat + (self.ptc_tau / dt) * (x_candidate - x_ref)
+                if not torch.isfinite(F_candidate_hat).all():
                     factor *= 0.5
                     continue
 
-                F_candidate_norm = F_candidate.norm()
-                # Условие Армихо: ||F(x+αΔ)|| <= (1 - c1*α) * ||F(x)||
-                if F_candidate_norm <= (1.0 - c1 * factor) * F_norm:
-                    print(f"  Line search успешно (Armijo): factor={factor:.3e}, ||F_new||={F_candidate_norm:.3e}")
+                f_curr = F_candidate_hat.norm()
+
+                if f_curr <= (1 - c1 * factor) * F_norm:
+                    print(f"  Line search принял шаг α={factor:.3e}, ||F||={f_curr:.3e}")
                     x_new = x_candidate
                     success = True
                     break
-                else:
-                    print(f"  Line search уменьшает шаг: factor={factor:.3e} -> {(factor*0.5):.3e}, ||F_new||={F_candidate_norm:.3e}")
-                    factor *= 0.5
+
+                factor *= 0.5
 
             if not success:
-                print("  Line search не смогло найти приемлемый шаг. Прерывание JFNK.")
+                print("  Line search не нашёл шаг – пробуем демпфированный Jacobi fallback (α=0.3)")
+                delta_fb = 0.3 * M_hat(-F)
+                x_fb = x + delta_fb
+                if torch.isfinite(x_fb).all():
+                    x_fb_phys = self._unscale_x(x_fb) if self.scaler is not None else x_fb
+                    F_fb_phys = self.sim._fi_residual_vec(x_fb_phys, dt)
+                    F_fb_hat = self.scaler.scale_vec(F_fb_phys) if self.scaler is not None else F_fb_phys
+                    if self.ptc_enabled and self.ptc_tau > 0.0:
+                        F_fb_hat = F_fb_hat + (self.ptc_tau / dt) * (x_fb - x_ref)
+                    F_fb_norm = F_fb_hat.norm()
+                    if F_fb_norm < 0.95 * F_norm:
+                        print(f"  ✅ Jacobi fallback принят, ||F||={F_fb_norm:.3e}")
+                        x = x_fb
+                        success = True
+                    else:
+                        print("  ❌ Jacobi fallback не улучшил невязку")
+
+            if not success:
+                print("  JFNK: even fallback failed – завершаем шаг неудачей")
                 self.last_newton_iters = self.max_it
                 self.last_gmres_iters = self.total_gmres_iters
                 return self._unscale_x(x), False

@@ -90,15 +90,37 @@ def mg_solve(b: torch.Tensor, hx: float = 1.0, hy: float = 1.0, hz: float = 1.0,
 # GeoSolver: теперь с выбором сглаживателя (Jacobi или L1-GS)
 # ------------------------------------------------------------
 class GeoSolver:
-    """Простой геометрический мультигрид-решатель блока давления.
+    """Геометрический AMG для давления с настраиваемыми параметрами.
 
-    Интерфейс повторяет BoomerSolver/AmgXSolver: метод solve(rhs, tol, max_iter)
-    принимает rhs в виде numpy-массива (vector) и возвращает numpy-массив решения.
+    Параметры по умолчанию (cycles=1, pre/post=2) подходят для предобуславливателя
+    малых моделей.  Для крупных сеток n_cells>5e4 автоматически включается
+    «усиленный» режим: cycles=3, pre=post=8 и глубина max_levels≥9.
     """
-    def __init__(self, reservoir, smoother: str = "chebyshev"):
+    def __init__(self, reservoir,
+                 smoother: str = "chebyshev",
+                 cycles_per_call: int = 1,
+                 pre_smooth: int = 2,
+                 post_smooth: int = 2,
+                 max_levels: int = 6):
         self.nx, self.ny, self.nz = reservoir.dimensions
         self.hx, self.hy, self.hz = map(float, reservoir.grid_size)
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
+
+        # Размер системы
+        n_cells_total = self.nx * self.ny * self.nz
+
+        # Авто-усиление параметров для крупных сеток
+        if n_cells_total > 50_000 and cycles_per_call == 1 and pre_smooth == 2:
+            cycles_per_call = 3
+            pre_smooth = post_smooth = 8
+            max_levels = max(max_levels, 9)
+            print(f"GeoSolver: крупная сетка (N={n_cells_total}), включаем strong-режим: "
+                  f"cycles={cycles_per_call}, pre/post={pre_smooth}, max_levels={max_levels}")
+
+        self.cycles_per_call = cycles_per_call
+        self.pre_smooth = pre_smooth
+        self.post_smooth = post_smooth
+        self.max_levels_cfg = max_levels
 
         # Тип сглаживателя: 'jacobi' | 'l1gs' | 'chebyshev'
         self.smoother = smoother.lower()
@@ -140,7 +162,7 @@ class GeoSolver:
         from linear_gpu.csr import build_7pt_csr
         use_cusparse = torch.cuda.is_available()
 
-        while min(kx.shape[-1], kx.shape[-2], kx.shape[-3]) >= 4 and len(self.levels) < 6:
+        while min(kx.shape[-1], kx.shape[-2], kx.shape[-3]) >= 4 and len(self.levels) < self.max_levels_cfg:
             self.levels.append({
                 "kx": kx,
                 "ky": ky,
@@ -462,15 +484,16 @@ class GeoSolver:
                 print(f"GeoSolver: direct LU fallback failed: {e}. Switching to V-cycle.")
 
         # ------------------------------
-        # 2. Итеративное решение V-cycle
-        #    • более агрессивный pre/post (5)
-        #    • до 30 V-циклов
-        # ------------------------------
         x = torch.zeros_like(b, dtype=torch.float64)
-        # Более лёгкий V-cycle для предобуславливателя
+
+        n_cells = rhs_tensor.numel()
+        strong = n_cells > 50000  # усиленный режим для крупных сеток
+
         max_iter = min(max_iter, 10)
         for itr in range(max_iter):
-            x = self._v_cycle_var(0, x, b, omega=0.8, pre=2, post=2)
+            for _ in range(self.cycles_per_call):
+                x = self._v_cycle_var(0, x, b, omega=0.8,
+                                       pre=self.pre_smooth, post=self.post_smooth)
             res = torch.norm(b - self._apply_A(x, lvl=0)) / (torch.norm(b) + 1e-12)
             if res < tol:
                 break

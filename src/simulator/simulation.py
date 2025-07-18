@@ -346,7 +346,19 @@ class Simulator:
         return success
 
     def _fully_implicit_step(self, dt):
-        """ Выполняет один временной шаг полностью неявной схемой. """
+        """Выполняет один полностью неявный шаг (FI)."""
+        # Адаптация стартового шага времени для крупных моделей
+        n_cells_tot = (self.reservoir.dimensions[0]
+                       * self.reservoir.dimensions[1]
+                       * self.reservoir.dimensions[2])
+        if n_cells_tot > 50000:
+            # Чем больше модель, тем осторожнее стартовый шаг времени
+            factor = 0.02 if n_cells_tot > 200000 else 0.05  # 0.02 сут для >200k, 0.05 сут иначе
+            min_dt_sec = factor * 86400
+            if dt > min_dt_sec:
+                print(f"  Simulation: крупная модель (N={n_cells_tot}), сокращаем dt до {factor:.2f} суток")
+                dt = min_dt_sec
+
         # ------------------------------------------------------------------
         # Новый, предсказуемый выбор метода: исключительно по полю
         #     sim_params["jacobian"].
