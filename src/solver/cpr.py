@@ -1,25 +1,87 @@
 import torch, numpy as np
+import math
 from .amg import BoomerSolver, AmgXSolver
 from .geom_amg import GeoSolver
-from typing import Optional
+from typing import Optional, Dict
+import os
 
 class CPRPreconditioner:
-    def __init__(self, reservoir, fluid, backend="amgx", omega=0.3,
-                 smoother: str = "chebyshev", scaler=None, geo_params: dict = None):
-        self.backend = backend
-        # VariableScaler для согласованного column-scale (давление)
-        self.scaler = scaler
-        if scaler is not None:
-            self.p_scale = scaler.p_scale
-            self.inv_p_scale = scaler.inv_p_scale
-            # Массив масштабов для насыщенностей (Sw, опц. Sg)
-            self.s_scales = getattr(scaler, 's_scales', [1.0])
-            self.inv_s_scales = getattr(scaler, 'inv_s_scales', [1.0])
+    def __init__(self, *args,
+                 backend: str = "amgx",
+                 omega: float = 0.3,
+                 smoother: str = "chebyshev",
+                 scaler=None,
+                 geo_params: Optional[dict] = None):
+        """CPR предобуславливатель.
+
+        Поддерживаются два способа вызова:
+        1. CPRPreconditioner(simulator, backend="geo", ...)
+           – новый интерфейс, где передаём симулятор.
+        2. CPRPreconditioner(reservoir, fluid, backend="geo", ...)
+           – старый интерфейс, используется для обратной совместимости
+             (симулятор может быть None, тогда Stage-2 недоступен).
+        """
+
+        # --------------------------------------------------------------
+        # Разбор positional args для обратной совместимости
+        # --------------------------------------------------------------
+        if len(args) == 1:
+            # Новый интерфейс: только simulator
+            simulator = args[0]
+            from simulator.simulation import Simulator as _Sim
+            if not isinstance(simulator, _Sim):
+                raise TypeError("CPRPreconditioner: ожидается объект Simulator либо (reservoir, fluid)")
+            reservoir = simulator.reservoir
+            fluid = simulator.fluid
+            self.simulator = simulator
+        elif len(args) >= 2:
+            # Старый интерфейс
+            reservoir, fluid = args[0], args[1]
+            simulator = None if len(args) == 2 else args[2]
+            self.simulator = simulator
         else:
-            self.p_scale = 1.0
-            self.inv_p_scale = 1.0
-            self.s_scales = [1.0]
-            self.inv_s_scales = [1.0]
+            raise TypeError("CPRPreconditioner: неверные позиционные аргументы")
+
+        self.backend = backend
+        # --------------------------------------------------------------
+        # VariableScaler: если не передан – используем единичный
+        # --------------------------------------------------------------
+        if scaler is None:
+            class _IdentityScaler:
+                p_scale = 1.0
+                inv_p_scale = 1.0
+                s_scales = [1.0]
+                inv_s_scales = [1.0]
+
+                def scale_vec(self, v):
+                    return v
+
+                def unscale_vec(self, v):
+                    return v
+
+                def p_to_hat(self, p):
+                    # Давление Pa → оставляем как есть
+                    return p
+
+                n_cells = 0  # будет переписано позже
+
+            scaler = _IdentityScaler()
+
+        self.scaler = scaler
+        if hasattr(reservoir, "dimensions"):
+            n_cells_tot = reservoir.dimensions[0] * reservoir.dimensions[1] * reservoir.dimensions[2]
+            # Обновим n_cells для scaler, если вдруг
+            try:
+                setattr(self.scaler, "n_cells", n_cells_tot)
+            except Exception:
+                pass
+
+        # Масштабные коэффициенты из scaler (используются ниже)
+        self.p_scale = getattr(self.scaler, "p_scale", 1.0)
+        self.inv_p_scale = getattr(self.scaler, "inv_p_scale", 1.0)
+        self.s_scales = getattr(self.scaler, "s_scales", [1.0])
+        self.inv_s_scales = getattr(self.scaler, "inv_s_scales", [1.0])
+
         self.omega = omega
         self.failed_amg = False  # Флаг провала AMG
         
@@ -71,12 +133,26 @@ class CPRPreconditioner:
         elif backend == "geo":
             # Автопереключение сглаживателя для крупных сеток
             n_cells_geo = reservoir.dimensions[0] * reservoir.dimensions[1] * reservoir.dimensions[2]
-            if smoother == "jacobi" and n_cells_geo > 5000:
-                print("⚙️  CPR: GeoSolver – крупная сетка, переключаем smoother на 'chebyshev'")
-                smoother = "chebyshev"
+            if n_cells_geo > 50000 and smoother in ("chebyshev", "jacobi", None):
+                print("⚙️  CPR: GeoSolver – крупная сетка, переключаем smoother на 'l1gs'")
+                smoother = "l1gs"
             try:
                 print(f"🔧 CPR: Используем собственный геометрический AMG (GeoSolver, smoother='{smoother}')...")
+                # Если параметры не заданы – ставим лёгкий режим (cycles=2, pre/post=2, levels=6)
                 geo_params = geo_params or {}
+                if "cycles_per_call" not in geo_params:
+                    geo_params["cycles_per_call"] = 2  # избежать strong-режима
+                if "pre_smooth" not in geo_params:
+                    geo_params["pre_smooth"] = 2
+                if "post_smooth" not in geo_params:
+                    geo_params["post_smooth"] = 2
+                # Избегаем авто-"strong" режима GeoSolver: если cycles=1 и pre=2 –
+                # поменяем pre/post на 3, что незначительно увеличит работу, но
+                # не вызовет усиление до cycles=3 pre=8.
+                if geo_params["cycles_per_call"] == 1 and geo_params["pre_smooth"] == 2:
+                    geo_params["pre_smooth"] = geo_params["post_smooth"] = 3
+                if "max_levels" not in geo_params:
+                    geo_params["max_levels"] = 6
                 self.solver = GeoSolver(reservoir, smoother=smoother or "chebyshev", **geo_params)
                 # Alias для обратной совместимости
                 self.geo_solver = self.solver
@@ -85,6 +161,10 @@ class CPRPreconditioner:
                 print(f"❌ CPR: Ошибка GeoSolver: {e}")
                 self.solver = None
                 self.failed_amg = True
+        elif backend == "geo2":
+            from solver.geo_solver_v2 import GeoSolverV2
+            # v2 принимает только omega / max_coarse_ratio; берём defaults
+            self.solver = GeoSolverV2(reservoir)
         elif backend in ("hypre", "boomer", "cpu"):  # BoomerAMG на CPU
             try:
                 print(f"🔧 CPR: Пытаемся инициализировать BoomerAMG...")
@@ -292,7 +372,12 @@ class CPRPreconditioner:
             diag_median = 1e-20
         scale_raw = 1.0 / diag_median
         # 💡 Ограничиваем scale, иначе Geo-AMG/Chebyshev взрываются при 1e8…1e9
-        MAX_SCALE = 1e6  # более жёсткий потолок для matrix-scale
+        # Более жёсткий потолок для matrix-scale: 1e5 вместо 1e6 —
+        # это уменьшает величину Jacobi-поправки и делает fallback стабильнее.
+        # Более высокий предел позволяет нормализовать матрицу на крупных моделях,
+        # где диагональные элементы могут быть ~1e-12.  1e8 всё ещё безопасен для
+        # float32 и не приводит к переполнению, но существенно улучшает кондиционирование.
+        MAX_SCALE = 1e8
         N_cells = nx * ny * nz
 
         # 🔧 НОВОЕ: для микросеток (<100 ячеек) полностью отключаем scale,
@@ -375,9 +460,9 @@ class CPRPreconditioner:
         # Давление — первые n_cells компонентов
         n = n_cells
 
-        # Используем Normalizer для безразмерного RHS
-        rhs_hat_torch = self.scaler.scale_vec(vec)[:n]
-        rhs_p = rhs_hat_torch.detach().cpu().numpy()
+        # Переводим RHS из hat-пространства в физические единицы
+        rhs_phys_torch = self.scaler.unscale_vec(vec)[:n]
+        rhs_p = rhs_phys_torch.detach().cpu().numpy()
 
         # Row-scaling не применяем – матрица и правая часть уже
         # в согласованных физических единицах
@@ -397,7 +482,9 @@ class CPRPreconditioner:
         # 🔒 ДОП. ЗАЩИТА: ограничиваем одновременный масштаб
         #          matrix_scale · rhs_scale ≤ 1e6
         # --------------------------------------------------------------
-        MAX_COMBINED_SCALE = 1e6
+        # Сдвигаем лимит одновременного масштабирования, чтобы не урезать rhs
+        # при большом matrix_scale (крупные сетки >1e6 ячеек).
+        MAX_COMBINED_SCALE = 1e9
         prod_scale = self.matrix_scale * rhs_scale
         if prod_scale > MAX_COMBINED_SCALE:
             # Уменьшаем rhs_scale, сохраняя нижний порог 1e-6
@@ -410,24 +497,72 @@ class CPRPreconditioner:
             rhs_scale = rhs_scale_new
 
         # --- Согласовываем RHS с масштабированной матрицей -------------
-        rhs_scaled = rhs_p * self.matrix_scale
+        # Для GeoSolverV2 ('geo2') матрица внутри решателя собирается в физическом масштабе,
+        # поэтому *не* применяем дополнительный множитель matrix_scale к RHS.
+        if self.backend == "geo2":
+            rhs_scaled = rhs_p.copy()
+        else:
+            rhs_scaled = rhs_p * self.matrix_scale
+
+        # --------------------------------------------------------------
+        #  Дополнительное row-scale RHS → средний масштаб ~ O(1).
+        #  Это резко снижает δp/RHS в первом вызове AMG.
+        # --------------------------------------------------------------
+        # --- Дополнительное row-scale: приводим RHS к среднему O(1) масштабу ---
+        row_norm = max(np.linalg.norm(rhs_scaled) / math.sqrt(len(rhs_scaled)), 1e-12)
+        if os.environ.get("OIL_DEBUG", "0") == "1":
+            print(f"[CPR-DBG] RHS before row_scale: min={rhs_scaled.min():.3e}, max={rhs_scaled.max():.3e}, row_norm={row_norm:.3e}")
+        rhs_scaled /= row_norm
+        local_row_scale = row_norm
+        if os.environ.get("OIL_DEBUG", "0") == "1":
+            print(f"[CPR-DBG] RHS after row_scale: min={rhs_scaled.min():.3e}, max={rhs_scaled.max():.3e}")
 
         # Решаем давление через AMG или Jacobi
         if self.solver is None or self.failed_amg:
-            # Fallback к диагональному предобуславливателю
-            print(f"    CPR: Используем диагональное предобуславливание")
+            # Fallback: одна итерация Jacobi/L1GS
+            print("    CPR: AMG недоступен – применяем одну итерацию Jacobi")
             delta_p_scaled = (self.diag_inv / max(self.matrix_scale, 1e-30)) * rhs_scaled
         else:
             try:
                 print(f"    CPR: Используем AMG решение (RHS масштаб: {rhs_scale:.2e})")
-                gmres_tol = 1e-6 if n_cells <= 500 else 1e-8
-                delta_p_geom = self.solver.solve(rhs_scaled, tol=gmres_tol, max_iter=200)
+                # Для геометрического AMG высокая точность (1e-8) не нужна:
+                # - малые модели (≤500 клеток) – Jacobi справится
+                # - средние (<5e5) – 1e-4 достаточно
+                # - крупные (≥5e5) – 1e-5 удерживает надёжность без лишних циклов
+                if n_cells < 500:
+                    gmres_tol = 1e-6
+                elif n_cells < 500_000:
+                    gmres_tol = 1e-4
+                else:
+                    gmres_tol = 1e-5
+                if self.backend == "geo":
+                    gmres_tol = 1e-8 if n_cells < 20000 else 1e-6
+                    if n_cells < 10000:
+                        gmres_tol = 1e-5
+                    delta_p_geom = self.solver.solve(rhs_scaled, tol=gmres_tol, max_iter=200)
+                elif self.backend == "geo2":
+                    # GeoSolverV2 принимает torch.Tensor
+                    rhs_t = torch.from_numpy(rhs_scaled).to(dtype=torch.float64, device=self.solver.device)
+                    delta_t = self.solver.solve(rhs_t, tol=1e-6, max_iter=10)
+                    delta_p_geom = delta_t.astype(np.float64) if not isinstance(delta_t, np.ndarray) else delta_t
+                else:
+                    # AMG backend on GPU/CPU
+                    try:
+                        delta_p_geom = self.solver.solve(rhs_scaled, tol=gmres_tol, max_iter=200)
+                    except Exception as e:
+                        print(f"    CPR: Ошибка в AMG решателе: {e}, переключаемся на Jacobi")
+                        self.failed_amg = True
+                        delta_p_scaled = (self.diag_inv / max(self.matrix_scale, 1e-30)) * rhs_scaled
+                        return out # Return the zero vector if AMG fails
+
+                # Убираем константный null-space (среднее), характерный для Neumann BC
+                delta_p_geom = delta_p_geom - delta_p_geom.mean()
                 # --- ВОССТАНОВЛЕНИЕ РЕШЕНИЯ ---
                 # Теперь матрица собирается без искусственного множителя, поэтому
                 # решение AMG непосредственно связано с физическим через
                 #   δ_geom = δ_true / rhs_scale  ⇒  δ_true = δ_geom · rhs_scale.
                 # Пока откладываем умножение на rhs_scale до финального шага.
-                delta_p_scaled = delta_p_geom  # matrix_scale = 1.0
+                delta_p_scaled = delta_p_geom
                 
                 # Проверяем результат на NaN/Inf
                 if np.any(np.isnan(delta_p_scaled)) or np.any(np.isinf(delta_p_scaled)):
@@ -440,19 +575,38 @@ class CPRPreconditioner:
 
                     # --- ROBUST infinity-norm guard ---------------------------------------
                     ratio_inf = np.linalg.norm(delta_p_scaled, np.inf) / (rhs_norm + 1e-30)
-                    if ratio_inf > 1e4:
-                        print(f"    ⚠️  CPR: ||δp||_inf слишком велик (ratio={ratio_inf:.2e}); fallback на Jacobi")
-                        self.failed_amg = True
-                        delta_p_scaled = (self.diag_inv / max(self.matrix_scale, 1e-30)) * rhs_scaled
-                        delta_p_norm_scaled = np.linalg.norm(delta_p_scaled)
+                    # --- DEBUG: выводим guard ratio вне зависимости от порога ---
+                    print(f"    CPR DEBUG: rhs_norm={rhs_norm:.3e}, delta_p_inf={np.linalg.norm(delta_p_scaled, np.inf):.3e}, ratio_inf={ratio_inf:.3e}")
+                    if self.backend == "geo":
+                        # Backend 'geo2' — та же геометрия, применяем те же пороги.
+                        pass
+                    if self.backend in ("geo", "geo2"):
+                        # Для геометрического AMG допускаем ratio до 1e10.
+                        # Если превышает – временно переходим на Jacobi в этом вызове,
+                        # но НЕ отключаем AMG насовсем: повторные итерации Ньютона
+                        # часто стабилизируются, когда невязка падает.
+                        if ratio_inf > 1e10:
+                            print(
+                                f"    ⚠️  Geo-AMG нестабилен (ratio={ratio_inf:.2e}) – локальный fallback на Jacobi"
+                            )
+                            # Одноразовый Jacobi-доблинг без изменения self.failed_amg
+                            delta_p_scaled = (self.diag_inv / max(self.matrix_scale, 1e-30)) * rhs_scaled
+                        # для backend=='geo' дополнительно действий не требуется
+                    else:
+                        limit_ratio = 1e4  # для численных AMG
+                        if ratio_inf > limit_ratio:
+                            print(f"    ⚠️  CPR: ||δp||_inf слишком велик (ratio={ratio_inf:.2e}); fallback на Jacobi")
+                            self.failed_amg = True
+                            delta_p_scaled = (self.diag_inv / max(self.matrix_scale, 1e-30)) * rhs_scaled
 
-                    if self.backend != "geo":
+                    if self.backend not in ("geo", "geo2"):
                         # --- ROBUST проверка для численных AMG ---
                         delta_p_phys_norm = delta_p_norm_scaled * self.matrix_scale
                         rel_ratio = delta_p_phys_norm / (rhs_norm + 1e-30)
 
                         # Если решение слишком велико (>1e8 раз RHS) – считаем AMG нестабильным
-                        if n_cells > 500 and rhs_norm > 1e-6 and rel_ratio > 1e8:
+                        thr_rel = 1e10 if self.backend in ("geo", "geo2") else 1e8
+                        if n_cells > 500 and rhs_norm > 1e-6 and rel_ratio > thr_rel:
                             print(f"    CPR: AMG решение УТРАТИЛО надёжность (||δp||/||rhs||={rel_ratio:.2e});")
                             if self.backend == "geo" and getattr(self.solver, "smoother", "") != "jacobi":
                                 print("    CPR: Переключаем GeoSolver на Jacobi-сглаживатель и пробуем ещё раз...")
@@ -469,7 +623,7 @@ class CPRPreconditioner:
                                     print(f"❌ CPR: Ошибка повторного AMG (Jacobi): {e}")
                                     rel_ratio = 1e20  # форсируем откат
                             # Если всё ещё слишком велико — окончательный откат на Jacobi
-                            if rel_ratio > 1e8:
+                            if rel_ratio > thr_rel:
                                 print("❌ CPR: Даже после смены сглаживателя решение остаётся нестабильным; окончательно отключаем AMG")
                                 self.failed_amg = True
                                 delta_p_scaled = (self.diag_inv / max(self.matrix_scale, 1e-30)) * rhs_scaled
@@ -502,13 +656,22 @@ class CPRPreconditioner:
         # переводим решение обратно, деля на тот же matrix_scale
         # После согласованного масштабирования RHS на matrix_scale дополнительное деление
         # приводит к искусственному занижению поправки давления. Используем решение напрямую.
-        delta_p_hat = delta_p_scaled
+        # Восстанавливаем физический масштаб: A_scaled = matrix_scale * A_phys,
+        # поэтому δp_phys = δp_scaled / matrix_scale
+        # Учитываем обратное row-scale
+        # Для backend='geo2' обратно делить на matrix_scale не нужно –
+        # решение уже в физическом масштабе.
+        if self.backend == "geo2":
+            delta_p_hat = delta_p_scaled * local_row_scale
+        else:
+            delta_p_hat = (delta_p_scaled * local_row_scale) / max(self.matrix_scale, 1e-30)
         print(f"    CPR: ||delta_p_hat||={np.linalg.norm(delta_p_hat):.3e}")
 
         # --- Адаптивное ограничение Δp ----------------------------------
         # 1) убираем экстремальные выбросы отдельных ячеек
-        MAX_DP_HAT = 1e4  # 10 кМПа
-        np.clip(delta_p_hat, -MAX_DP_HAT, MAX_DP_HAT, out=delta_p_hat)
+        # --- Локальный кламп отдельных ячеек ---
+        MAX_DP_HAT_LOCAL = 1e5  # 100 кМПа – более мягко
+        np.clip(delta_p_hat, -MAX_DP_HAT_LOCAL, MAX_DP_HAT_LOCAL, out=delta_p_hat)
 
         # 2) ограничиваем энергию решения: ‖δp‖ ≤ 10 × ‖rhs‖
         # Сопоставляем единицы: delta_p_hat находится в том же масштабе, что и rhs_scaled
@@ -523,25 +686,51 @@ class CPRPreconditioner:
         # print(f"    CPR: ||delta_p_hat(clamped)||={np.linalg.norm(delta_p_hat):.3e}")
 
         # --- восстановление физических Па через Normalizer ------------
-        delta_hat_full = torch.zeros_like(vec, dtype=vec.dtype, device=vec.device)
-        # Давление
-        delta_hat_full[:n] = torch.from_numpy(delta_p_hat).to(device=vec.device, dtype=vec.dtype)
+        # Вектор физических поправок (Па, безразмерные насыщенности)
+        delta_phys_full = torch.zeros_like(vec, dtype=vec.dtype, device=vec.device)
+        # Давление – физические Па
+        delta_phys_full[:n] = torch.from_numpy(delta_p_hat).to(device=vec.device, dtype=vec.dtype)
 
-        # --------------------------------------------------------------
-        # ψ-Relax tail: два Jacobi шага для насыщенности (ω=0.5)
-        # --------------------------------------------------------------
-        vars_per_cell = vec.shape[0] // n
-        if vars_per_cell >= 2:
-            omega_tail = 0.6
-            rhs_s_hat = vec[n:]
-            n_iter = 4 if self._n_cells > 50000 else 2
-            delta_s = torch.zeros_like(rhs_s_hat)
-            resid = rhs_s_hat.clone()
-            for _ in range(n_iter):
-                delta_s = delta_s - omega_tail * resid
-                # После диагонального предобуславливателя приближённо resid *= (1-omega)
-                resid = (1 - omega_tail) * resid
-            delta_hat_full[n:] = delta_s
+        # Для возможной ψ-Relax работаем в hat-пространстве ----------------
+        delta_hat_full = self.scaler.scale_vec(delta_phys_full)
+
+        # ------------------------------------------------------------------
+        # Stage-2: Saturation block (Jacobi)                                 
+        # ------------------------------------------------------------------
+        try:
+            props = getattr(self.simulator, "_cell_props_cache", None)
+            if props is not None:
+                phi  = props["phi"]          # (N,)
+                dt   = props["dt"]           # scalar tensor
+                V    = props["V"]
+                lam_w = props["lam_w"]
+                lam_o = props["lam_o"]
+                c_w   = props["c_w"]
+                c_o   = props["c_o"]
+
+                diag_SS = phi / (dt + 1e-30)           # (N,)
+                dFs_dp  = (lam_w * c_w + lam_o * c_o) * V / (dt + 1e-30)
+
+                # RHS для насыщенностей – оставшиеся компоненты vec
+                rhs_s = self.scaler.unscale_vec(vec)[n:]
+
+                # delta_p (torch) уже физический
+                delta_p_phys = delta_phys_full[:n]
+
+                delta_s = (rhs_s - dFs_dp * delta_p_phys) / (diag_SS + 1e-30)
+
+                # Кламп осторожности — не даём выйти за физ. пределы >1
+                delta_s = torch.clamp(delta_s, -0.5, 0.5)
+
+                delta_phys_full[n:] = delta_s
+                # Обновляем hat-вектор
+                delta_hat_full = self.scaler.scale_vec(delta_phys_full)
+        except Exception as _e:
+            # fallback: оставляем нули, но выводим предупреждение один раз
+            if not hasattr(self, "_warn_stage2"):
+                print(f"[CPR] Stage-2 saturation update failed: {_e}")
+                self._warn_stage2 = True
+
         # --------------------------------------------------------------
         # ψ-Relax Chebyshev tail на полной системе
         # --------------------------------------------------------------
@@ -571,18 +760,35 @@ class CPRPreconditioner:
                                                      torch.zeros_like(r_hat_cpu), iters=2, omega=0.7)
                 delta_inc = delta_inc_cpu.to(vec.device)
                 delta_hat_full = delta_hat_full + delta_inc
+                # синхронизируем физический вектор
+                delta_phys_full = self.scaler.unscale_vec(delta_hat_full)
 
-        delta_phys_full = self.scaler.unscale_vec(delta_hat_full)
+        # delta_phys_full уже в физических единицах
         pressure_result = delta_phys_full[:n]
 
         # --------------------------------------------------------------
-        # 🔒 Физический кламп Δp (Pa) — ограничиваем до 50 МПа
+        # ДИНАМИЧЕСКИЙ кламп давления: ограничиваем Δp относительно RHS.
+        #   |Δp| ≤ c · ‖rhs_p‖₂ / √N
+        # где c ≈ 20.  Для маленьких RHS оставляем базовый предел 50 МПа.
         # --------------------------------------------------------------
-        MAX_DP_PA = 5e7  # 50 мегапаскалей
+        # import math  # удалено как дублирующее
         if torch.isfinite(pressure_result).all():
-            pressure_clamped = torch.clamp(pressure_result, -MAX_DP_PA, MAX_DP_PA)
+            # Норма RHS (в Pa) = hat * p_scale
+            rhs_norm_hat = vec[:n].norm().item()
+            rhs_norm_phys = rhs_norm_hat * float(self.p_scale)
+            n_cells_float = float(n)
+            dynamic_lim = 10.0 * rhs_norm_phys / (math.sqrt(n_cells_float) + 1e-30)
+
+            # Минимальный и максимальный пределы
+            MIN_LIM = 2e7   # 20 МПа – чуть слабее ограничение
+            MAX_LIM = 5e7   # 50 МПа – ещё мягче, помогает line-search
+            clamp_val = max(MIN_LIM, min(dynamic_lim, MAX_LIM))
+
+            pressure_clamped = torch.clamp(pressure_result, -clamp_val, clamp_val)
             if not torch.allclose(pressure_clamped, pressure_result):
-                print(f"    CPR: Δp_phys клампирован до ±{MAX_DP_PA/1e6:.1f} МПа")
+                print(
+                    f"    CPR: Δp_phys клампирован динамически до ±{clamp_val/1e6:.1f} МПа"
+                )
             pressure_result = pressure_clamped
 
         # В будущем, если появятся бекенды, где матрица не масштабируется,
@@ -594,21 +800,18 @@ class CPRPreconditioner:
         # ❌ УБРАНО: delta_p = delta_p / self.matrix_scale (двойное восстановление!)
 
         # 🔧 ИСПРАВЛЕНО: правильная сборка результата
-        out = torch.zeros_like(vec, dtype=vec.dtype, device=vec.device, requires_grad=False)
+        # Собираем выходной вектор и конвертируем в hat-пространство
+        out_phys = torch.zeros_like(vec, dtype=vec.dtype, device=vec.device, requires_grad=False)
 
         # Давление уже записано в pressure_result (Па)
 
         # --------------------------------------------------------------
-        # Saturation block — нормализация и Jacobi
+        # Saturation block — используем результат Stage-2, уже сохранённый
+        # в `delta_phys_full`.  Никаких дополнительных Jacobi-заглушек не
+        # требуется: рассчитанные ΔS коррелируют с давлением и RHS.
         # --------------------------------------------------------------
-        rhs_hat_full = self.scaler.scale_vec(vec)
-        sat_hat_res = rhs_hat_full[n:]
 
-        # Простой Jacobi для хвоста насыщенности
-        delta_s_hat = -0.2 * torch.sign(sat_hat_res)
-        delta_s_hat = torch.clamp(delta_s_hat, -0.2, 0.2)
-
-        delta_s_phys = delta_s_hat  # насыщенности безразмерны
+        delta_s_phys = delta_phys_full[n:]
 
         # --------------------------------------------------------------
         # Финальная защита: если даже после всех клампов поправка давления
@@ -620,7 +823,7 @@ class CPRPreconditioner:
         # однако оставляем проверку NaN/Inf на всякий случай
         final_norm = pressure_result.norm().item()
         rhs_norm_torch = vec[:n].norm().item() + 1e-30
-        if self.backend != "geo" and n_cells > 500 and rhs_norm_torch > 1e-6 and final_norm > 1e9 * rhs_norm_torch:
+        if self.backend not in ("geo", "geo2") and n_cells > 500 and rhs_norm_torch > 1e-6 and final_norm > 1e9 * rhs_norm_torch:
             print(f"    CPR: Δp всё ещё экстремально велико (||δp||/||rhs||={final_norm/rhs_norm_torch:.2e}); обнуляем результат")
             pressure_result.zero_()
 
@@ -636,9 +839,10 @@ class CPRPreconditioner:
                 pressure_result = pressure_result * scale_factor
                 print(f"    CPR: Ограничили решение фактором {scale_factor:.3e}")
 
-        out[:n] = pressure_result
+        out_phys[:n] = pressure_result
 
         # Насыщенности (все фазы): простое Jacobi damping ω
-        out[n:] = delta_s_phys
+        out_phys[n:] = delta_s_phys
 
-        return out 
+        # Возвращаем физический вектор (давление – Па, насыщенности – безразмерные)
+        return out_phys 

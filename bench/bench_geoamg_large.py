@@ -131,9 +131,23 @@ def bench_case(nx, ny, nz, mode="fi", steps=100):
         sim_params = {
             "solver_type": "fully_implicit",
             "jacobian": "jfnk",
-            "backend": "geo",  # GeoAMG
-            "total_time_days": steps*1.0,
-            "time_step_days": 1.0,
+            "backend": "geo2",  # GeoAMG v2
+
+            # --- ключевые параметры устойчивости ---
+            "time_step_days": 0.02,        # маленький стартовый шаг
+            "adaptive_dt": True,           # позволь увеличить автоматически
+            # trust_radius не задаём – динамический
+            "line_search_min_alpha": 0.02, # разрешаем шаг до 0.02
+            "ptc": "auto_after=1",
+            "advanced_threshold": 1_000_000_000,  # отключить дефляцию на первых шагах
+
+            # Geo-AMG «лёгкий» режим по умолчанию
+            "geo_cycles": 2,
+            "geo_pre": 2,
+            "geo_post": 2,
+            "geo_levels": 6,
+
+            "total_time_days": steps * 1.0,
             "verbose": True,
             "use_cuda": device.type == "cuda",
         }

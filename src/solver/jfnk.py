@@ -25,8 +25,7 @@ class FullyImplicitSolver:
             "max_levels":      sim_params.get("geo_levels", 6),
         }
 
-        self.prec = CPRPreconditioner(simulator.reservoir,
-                                       simulator.fluid,
+        self.prec = CPRPreconditioner(simulator,
                                        backend=backend,
                                        smoother=smoother,
                                        scaler=self.scaler,
@@ -214,7 +213,8 @@ class FullyImplicitSolver:
                 F = F_hat
             
             F_norm = F.norm()
-            
+            self.last_res_norm = F_norm.item()
+
             # 🎯 Масштабируем по размеру системы
             F_scaled = F_norm / math.sqrt(len(F))
 
@@ -284,13 +284,13 @@ class FullyImplicitSolver:
                 
             # 🎯 АДАПТИВНЫЕ параметры GMRES в зависимости от итерации
             if it == 0:
-                # Первая итерация - строгие параметры
-                gmres_restart = 50
-                gmres_maxiter = 200
+                # Первая итерация – достаточно 60 итераций, дальше line-search.
+                gmres_restart = 40
+                gmres_maxiter = 60
             else:
-                # Последующие итерации - более мягкие параметры
+                # Последующие итерации – ещё короче
                 gmres_restart = 30
-                gmres_maxiter = 100
+                gmres_maxiter = 40
                 
             print(f"  GMRES: restart={gmres_restart}, max_iter={gmres_maxiter}")
             
@@ -375,6 +375,27 @@ class FullyImplicitSolver:
 
             # --- КВАДРАТИЧНАЯ line-search ---------------------------------------
             factor = 1.0
+            # Минимально допустимый шаг для line-search можно переопределить через sim_params
+            # Допускаем гораздо более сильное демпфирование, если конфиг не переопределил
+            cfg_alpha = self.sim.sim_params.get("line_search_min_alpha", 1e-4)
+            # Никогда не допускаем порога выше 1e-4, иначе LS часто терпит неудачу
+            min_factor = min(cfg_alpha, 1e-4)
+            if min_factor <= 0.0:
+                min_factor = 1e-4  # защита от некорректного ввода
+            if min_factor > 1.0:
+                min_factor = 1.0
+            
+            # --- ДИНАМИЧЕСКИЙ trust-radius -----------------------------------
+            trust_radius_cfg = self.sim.sim_params.get("trust_radius", None)
+            if trust_radius_cfg is not None:
+                trust_radius = trust_radius_cfg  # явное значение из конфига
+            else:
+                # Энергетический радиус: 20‖F‖ / √N  (но ≥50)
+                rhs_norm = getattr(self, "last_res_norm", F_norm)
+                n_vars = delta.numel()
+                dyn_tr = 20.0 * rhs_norm / max((n_vars ** 0.5), 1.0)
+                trust_radius = max(50.0, dyn_tr)
+
             if trust_radius is not None and delta_norm_scaled > trust_radius:
                 factor = trust_radius / (delta_norm_scaled + 1e-12)
                 print(f"  Trust-region: сокращаем шаг до factor={factor:.3e} (радиус {trust_radius:.2f})")
@@ -384,6 +405,11 @@ class FullyImplicitSolver:
             success = False
 
             for ls_it in range(ls_max):
+                # Проверяем минимальный размер шага
+                if factor < min_factor:
+                    print(f"  Line search: достигнут минимальный α={min_factor:.3e} – прекращаем LS")
+                    break
+
                 x_candidate = x + factor * delta
                 if not torch.isfinite(x_candidate).all():
                     factor *= 0.5

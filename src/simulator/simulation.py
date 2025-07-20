@@ -1631,6 +1631,19 @@ class Simulator:
         давление уже передано в физических Па.
         """
         import torch
+        # --------------------------------------------------------------
+        # Кэш ячеечных свойств (phi, λ, compressibility и др.)
+        # --------------------------------------------------------------
+        try:
+            # Локальный импорт во избежание циклических зависимостей
+            from .props import compute_cell_props
+            self._cell_props_cache = compute_cell_props(self, x, dt)
+        except Exception as _e:
+            # В диагностических целях выводим предупреждение один раз
+            if not hasattr(self, "_warn_props_failed"):
+                print(f"[WARN] compute_cell_props failed: {_e}")
+                self._warn_props_failed = True
+            self._cell_props_cache = None
 
         # ------------------------------------------------------------------
         # Распаковка состояния

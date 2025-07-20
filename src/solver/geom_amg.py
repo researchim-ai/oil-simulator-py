@@ -101,13 +101,21 @@ class GeoSolver:
                  cycles_per_call: int = 1,
                  pre_smooth: int = 2,
                  post_smooth: int = 2,
-                 max_levels: int = 6):
+                 max_levels: int = 6,
+                 cycle_type: str = "W"):
         self.nx, self.ny, self.nz = reservoir.dimensions
         self.hx, self.hy, self.hz = map(float, reservoir.grid_size)
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
 
         # Размер системы
         n_cells_total = self.nx * self.ny * self.nz
+
+        # --- ДИНАМИЧЕСКИЙ ВЫБОР ГЛУБИНЫ AMG ------------------------------
+        import math
+        target_coarse = max(n_cells_total // 500, 2000)
+        levels_needed = 0 if n_cells_total <= target_coarse else int(math.log(n_cells_total/target_coarse, 8)) + 1
+
+        self.max_levels_cfg = max(1, min(max_levels, levels_needed))
 
         # Авто-усиление параметров для крупных сеток
         if n_cells_total > 50_000 and cycles_per_call == 1 and pre_smooth == 2:
@@ -117,10 +125,23 @@ class GeoSolver:
             print(f"GeoSolver: крупная сетка (N={n_cells_total}), включаем strong-режим: "
                   f"cycles={cycles_per_call}, pre/post={pre_smooth}, max_levels={max_levels}")
 
-        self.cycles_per_call = cycles_per_call
+        # --- тип цикла MG ---------------------------------------------
+        self.cycle_type = cycle_type.upper()
+        if self.cycle_type not in ("V", "W"):
+            raise ValueError("cycle_type must be 'V' or 'W'")
+
+        # минимум два цикла за вызов – заметно повышает надёжность
+        self.cycles_per_call = max(2, cycles_per_call)
+
+        # При маленьком числе уровней усиливаем сглаживание
+        if self.max_levels_cfg <= 3:
+            pre_smooth = post_smooth = max(pre_smooth, 4)
+
         self.pre_smooth = pre_smooth
         self.post_smooth = post_smooth
-        self.max_levels_cfg = max_levels
+
+        # Хвостовой Chebyshev на самом тонком уровне для подавления ВЧ-шумов
+        self.cheby_tail = 3  # итераций; =0 → нет хвоста
 
         # Тип сглаживателя: 'jacobi' | 'l1gs' | 'chebyshev'
         self.smoother = smoother.lower()
@@ -171,6 +192,7 @@ class GeoSolver:
                 "hy": hy,
                 "hz": hz,
                 "A_csr": None,
+                "diag": None,  # будет заполнена позже
             })
 
             # coarsen permeability with volume-weighted average (avg_pool3d)
@@ -190,7 +212,15 @@ class GeoSolver:
             "hx": hx,
             "hy": hy,
             "hz": hz,
+            "diag": None,
         })
+
+        # ---------- кешируем диагональ для каждого уровня ---------------
+        for lvl_data in self.levels:
+            diag_lvl = self._compute_diag(lvl_data["kx"], lvl_data["ky"], lvl_data["kz"],
+                                           lvl_data["hx"], lvl_data["hy"], lvl_data["hz"],
+                                           lvl_data["kx"].shape)
+            lvl_data["diag"] = diag_lvl * self.A_scale
 
         # ------------------------------------------------------------
         # Масштабируем оператор так, чтобы медиана диагонали была ~1.
@@ -211,8 +241,9 @@ class GeoSolver:
             self.A_scale = 1.0
         else:
             # Масштабируем так, чтобы медиана диагонали ~1.
-            # Для очень мелких диагоналей допускаем A_scale до 1e8.
-            self.A_scale = min(1.0 / d_med, 1.0e8)
+            # Верхний предел снижён до 1e6 – этого достаточно, и Jacobi не
+            # порождает гигантских δp при очень маленьких |A_ii|.
+            self.A_scale = min(1.0 / d_med, 1.0e6)
 
         # --- подготавливаем CSR-матрицу для самого тонкого уровня
         if use_cusparse:
@@ -312,7 +343,7 @@ class GeoSolver:
         hx, hy, hz = lvl_data["hx"], lvl_data["hy"], lvl_data["hz"]
 
         # --- diag из переменных коэффициентов ---
-        diag = self._compute_diag(kx, ky, kz, hx, hy, hz, x.shape) * self.A_scale
+        diag = lvl_data["diag"]
 
         inv_diag = 1.0 / diag
         for _ in range(iters):
@@ -325,7 +356,7 @@ class GeoSolver:
         kx, ky, kz = lvl_data["kx"], lvl_data["ky"], lvl_data["kz"]
         hx, hy, hz = lvl_data["hx"], lvl_data["hy"], lvl_data["hz"]
 
-        diag = self._compute_diag(kx, ky, kz, hx, hy, hz, x.shape) * self.A_scale
+        diag = lvl_data["diag"]
 
         # Pre-compute masks for red-black ordering
         nz, ny, nx = x.shape
@@ -425,8 +456,11 @@ class GeoSolver:
         # zero initial correction on coarse grid
         x_c = torch.zeros_like(r_c)
 
-        # recurse one level deeper
+        # recurse: V- or W-cycle
         x_c = self._v_cycle_var(lvl + 1, x_c, r_c, omega, pre, post)
+        if self.cycle_type == "W":
+            # второй заход на том же RHS – W-cycle (более надёжно)
+            x_c = self._v_cycle_var(lvl + 1, x_c, r_c, omega, pre, post)
 
         # prolongate correction
         e = self._prolong_vol(x_c, x.shape)
@@ -439,6 +473,10 @@ class GeoSolver:
             x = self._chebyshev_relax_var(x, b, lvl_data, lvl, iters=max(4, post))
         else:
             x = self._jacobi_relax_var(x, b, lvl_data, lvl, omega=omega, iters=post)
+
+        # --- хвостовой Chebyshev на самом тонком уровне -----------------
+        if lvl == 0 and self.cheby_tail > 0:
+            x = self._chebyshev_relax_var(x, b, lvl_data, lvl, iters=self.cheby_tail)
         return x
 
     # ------------------------------------------------------------------
