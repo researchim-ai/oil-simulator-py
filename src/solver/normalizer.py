@@ -1,5 +1,6 @@
 import math
 import torch
+import os
 
 class Normalizer:
     """Единый слой безразмеризации всех переменных пласта.
@@ -30,8 +31,17 @@ class Normalizer:
         decade = 10 ** int(math.floor(math.log10(p_scale)))
         p_scale = round(p_scale / decade) * decade
 
-        # Для репродуктабельности тестов фиксируем 1 МПа
-        self.p_scale = 1e6
+        # Позволяем переопределить шкалу давления через переменную окружения
+        #   OIL_P_SCALE (в паскалях) или через аргумент конфигурации
+        p_scale_env = os.environ.get("OIL_P_SCALE")
+        if p_scale_env is not None:
+            try:
+                p_scale = float(p_scale_env)
+            except ValueError:
+                print(f"[Normalizer] Некорректное OIL_P_SCALE='{p_scale_env}', игнорирую")
+
+        # Если пользователь явно не задал шкалу – используем динамическое значение
+        self.p_scale = p_scale
         self.inv_p_scale = 1.0 / self.p_scale
 
         # ---------------- насыщенности --------------------------------

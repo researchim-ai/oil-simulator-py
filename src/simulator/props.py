@@ -102,11 +102,19 @@ def compute_cell_props(sim, x_hat: torch.Tensor, dt_sec: float) -> Dict[str, tor
     # cell_volume может быть 0-D тензором; берём скаляр float
     cell_vol = float(reservoir.cell_volume.item()) if torch.is_tensor(reservoir.cell_volume) else float(reservoir.cell_volume)
 
+    # ------------------------------------------------------------------
+    # Безопасный нижний порог шагу времени: если dt слишком мал (<dt_floor),
+    # используем dt_floor, чтобы избежать деления на крошечный dt в CPR.
+    # Значение можно переопределить через sim.sim_params['dt_floor_sec'].
+    # ------------------------------------------------------------------
+    dt_floor = float(sim.sim_params.get('dt_floor_sec', 300.0))  # 5 минут по умолчанию
+    dt_eff   = max(float(dt_sec), dt_floor)
+
     props = {
         # Геометрия
         'phi': phi.reshape(-1),                               # (N,)
         'V': torch.full((n_cells,), cell_vol, device=p_vec.device, dtype=p_vec.dtype),
-        'dt': torch.tensor(dt_sec, device=p_vec.device, dtype=p_vec.dtype),
+        'dt': torch.tensor(dt_eff, device=p_vec.device, dtype=p_vec.dtype),
 
         # Мобильности
         'lam_w': lam_w.reshape(-1),

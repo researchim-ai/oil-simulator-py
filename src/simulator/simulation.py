@@ -238,12 +238,79 @@ class Simulator:
             success = self._impes_step(dt)
         elif self.solver_type == 'fully_implicit':
             # --- Адаптивный контроль dt --------------------------------
-            attempts = self.sim_params.get("max_time_step_attempts", 5)
-            current_dt = dt
-            success = False
+            attempts       = self.sim_params.get("max_time_step_attempts", 5)
+            current_dt     = dt
+            success        = False
+            # резервная копия состояния на начало всего шага (до всех попыток)
+            step_start_backup = (
+                self.fluid.pressure.clone(),
+                self.fluid.s_w.clone(),
+                self.fluid.s_o.clone(),
+                self.fluid.s_g.clone() if hasattr(self.fluid, 's_g') else None,
+            )
+
+            fails_consec   = 0  # подряд неудач на текущем dt
+
             for attempt in range(attempts):
                 print(f"[run_step] Попытка FI-шага dt={current_dt/86400:.3f} суток (#{attempt+1}/{attempts})")
+                # Сохраняем состояние перед попыткой, чтобы можно было откатиться
+                state_backup = (
+                    self.fluid.pressure.clone(),
+                    self.fluid.s_w.clone(),
+                    self.fluid.s_o.clone(),
+                    self.fluid.s_g.clone() if hasattr(self.fluid, 's_g') else None,
+                )
+
                 success = self._fully_implicit_step(current_dt)
+
+                # Если неудача – откатываем состояние полностью
+                if not success:
+                    # откат к состоянию ДО текущей попытки
+                    self.fluid.pressure.copy_(state_backup[0])
+                    self.fluid.s_w.copy_(state_backup[1])
+                    self.fluid.s_o.copy_(state_backup[2])
+                    if state_backup[3] is not None:
+                        self.fluid.s_g.copy_(state_backup[3])
+                    fails_consec += 1
+                else:
+                    fails_consec = 0  # успех – сбрасываем счётчик
+
+                # --------------------------------------------------
+                # Дополнительный критерий приёмки: физические пределы
+                # насыщенностей после «успешного» Ньютона. Если даже
+                # после решения наблюдается Sw/Sg вне диапазона, шаг
+                # считаем НЕуспешным и переходим к уменьшению dt.
+                # --------------------------------------------------
+                if success:
+                    eps = 1e-6
+                    sw_ok = (self.fluid.s_w.min() >= self.fluid.sw_cr - eps) and (
+                        self.fluid.s_w.max() <= 1.0 - self.fluid.so_r + eps
+                    )
+                    sg_ok = True
+                    if hasattr(self.fluid, "s_g"):
+                        sg_ok = (self.fluid.s_g.min() >= -eps) and (
+                            (self.fluid.s_w + self.fluid.s_g).max() <= 1.0 - self.fluid.so_r + eps
+                        )
+
+                    # --- Дополнительные крITERии устойчивости ---
+                    excessive_sum = (
+                        (self.fluid.s_w + (self.fluid.s_g if hasattr(self.fluid, 's_g') else 0.0))
+                        - (1.0 - self.fluid.so_r)
+                    )
+                    max_excess = excessive_sum.max().item()
+
+                    alpha_sat_last = getattr(self, "alpha_sat_last", 1.0)
+
+                    if sw_ok and sg_ok and (max_excess < 0.02) and (alpha_sat_last >= 1e-3):
+                        # Всё в порядке – окончательно принимаем шаг
+                        break
+                    else:
+                        print(
+                            "[run_step] ❌ Отказ приёмки: Sw/Sg вне диапазона или α_sat слишком мал (α_sat="
+                            f"{alpha_sat_last:.1e}, excess={max_excess:.3f}) – откат"
+                        )
+                        success = False  # будем обрабатывать как fail ниже
+
                 if success:
                     break
                 # --------------------------------------------------
@@ -260,7 +327,7 @@ class Simulator:
                     continue  # повторяем с тем же dt и новым smoother
 
                 # Если и Jacobi не помог – уменьшаем шаг времени
-                current_dt *= 0.25  # агрессивное снижение
+                current_dt *= 0.2  # более мягкое, но устойчивое снижение
                 if current_dt < self._dt_min:
                     print("[run_step] Достигнут минимум dt – прекращаем попытки")
                     break
@@ -278,11 +345,39 @@ class Simulator:
 
         # --- фиксируем новое состояние для следующих шагов (FI/IMPES) -----
         if success:
+            # ----------------------------------------------------------
+            # FINITE RANGE GUARD: гарантируем, что после принятия шага
+            # насыщенности остаются в допустимых пределах.
+            # ----------------------------------------------------------
+            sw_cr = self.fluid.sw_cr
+            so_r  = self.fluid.so_r
+
+            # Кламп для Sw
+            self.fluid.s_w.clamp_(sw_cr, 1.0)
+
+            if hasattr(self.fluid, 's_g'):
+                # Трёхфазный случай: Sg ≥ 0 и Sw+Sg ≤ 1−So_r
+                self.fluid.s_g.clamp_(0.0, 1.0)
+                total = self.fluid.s_w + self.fluid.s_g
+                excess = torch.clamp(total - (1.0 - so_r), min=0.0)
+                if torch.any(excess > 0):
+                    frac_w = self.fluid.s_w / (total + 1e-12)
+                    frac_g = 1.0 - frac_w
+                    self.fluid.s_w -= excess * frac_w
+                    self.fluid.s_g -= excess * frac_g
+                # Обновляем нефтенасыщенность
+                self.fluid.s_o = 1.0 - self.fluid.s_w - self.fluid.s_g
+            else:
+                # Двухфазный случай
+                self.fluid.s_o = 1.0 - self.fluid.s_w
+
+            # --- Сохраняем "чистое" состояние для следующего шага ---
             self.fluid.prev_pressure = self.fluid.pressure.clone()
             self.fluid.prev_sw       = self.fluid.s_w.clone()
             if hasattr(self.fluid, 's_g'):
                 self.fluid.prev_sg   = self.fluid.s_g.clone()
-            # Обновляем гистерезис капиллярного давления
+
+            # Обновляем гистерезис капиллярного давления (если есть)
             if hasattr(self.fluid, 'update_hysteresis'):
                 self.fluid.update_hysteresis()
 
@@ -649,6 +744,9 @@ class Simulator:
             # Сохраняем текущее состояние для возможного отката
             current_p = self.fluid.pressure.clone()
             current_sw = self.fluid.s_w.clone()
+            current_sg = None
+            if hasattr(self.fluid, 's_g') and self.fluid.s_g is not None:
+                current_sg = self.fluid.s_g.clone()
             
             # Инициализация параметров для оптимизации
             nx, ny, nz = self.reservoir.dimensions
@@ -924,9 +1022,14 @@ class Simulator:
                         armijo_ok = True
                         break  # условие Армижо выполнено
 
-                    # Откат и уменьшение шага
+                    # Откат и уменьшение шага (включая Sg, если есть)
                     self.fluid.pressure = current_p.clone()
                     self.fluid.s_w = current_sw.clone()
+                    if current_sg is not None:
+                        self.fluid.s_g = current_sg.clone()
+                        self.fluid.s_o = 1.0 - self.fluid.s_w - self.fluid.s_g
+                    else:
+                        self.fluid.s_o = 1.0 - self.fluid.s_w
                     alpha *= rho
 
                 if not armijo_ok:
@@ -934,6 +1037,11 @@ class Simulator:
                     # Восстанавливаем исходное состояние
                     self.fluid.pressure = current_p.clone()
                     self.fluid.s_w = current_sw.clone()
+                    if current_sg is not None:
+                        self.fluid.s_g = current_sg.clone()
+                        self.fluid.s_o = 1.0 - self.fluid.s_w - self.fluid.s_g
+                    else:
+                        self.fluid.s_o = 1.0 - self.fluid.s_w
                     return False, iter_idx + 1
 
                 print(f"  Line-search: выбран шаг alpha={alpha:.3f}, невязка {trial_norm:.3e}")
@@ -959,9 +1067,14 @@ class Simulator:
                 print(f"  Невязка достаточно близка к допустимой, принимаем результат")
                 return True, max_iter
             else:
-                # Восстанавливаем исходное состояние
+                # Восстанавливаем исходное состояние полностью
                 self.fluid.pressure = current_p.clone()
                 self.fluid.s_w = current_sw.clone()
+                if current_sg is not None:
+                    self.fluid.s_g = current_sg.clone()
+                    self.fluid.s_o = 1.0 - self.fluid.s_w - self.fluid.s_g
+                else:
+                    self.fluid.s_o = 1.0 - self.fluid.s_w
                 return False, max_iter
         finally:
             # Гарантируем восстановление print даже при исключениях
@@ -1030,21 +1143,28 @@ class Simulator:
             old_sg = getattr(self.fluid, 's_g', torch.zeros_like(old_sw)).reshape(-1)
             self.fluid.s_g = (old_sg + sg_delta).reshape(nx, ny, nz)
         
-        # Ограничиваем физическими пределами
-        self.fluid.pressure.clamp_(1e5, 100e6)  # От 0.1 МПа до 100 МПа
+        # --------- Saturation guards --------------------------------------
+        self.fluid.pressure.clamp_(1e5, 100e6)  # 0.1–100 МПа
+
+        # Кламп Sw и, при наличии, Sg, так чтобы 0<=S<=1 и Sw+Sg<=1-so_r
         self.fluid.s_w.clamp_(self.fluid.sw_cr, 1.0)
         if sg_delta is not None:
             self.fluid.s_g.clamp_(0.0, 1.0)
-            # Нормализация, чтобы So >= so_r и Sw+Sg<=1
+
             total = self.fluid.s_w + self.fluid.s_g
             excess = torch.clamp(total - (1.0 - self.fluid.so_r), min=0.0)
             if torch.any(excess > 0):
-                # Снимаем избыток пропорционально Sw и Sg
                 frac_w = self.fluid.s_w / (total + 1e-12)
                 frac_g = 1.0 - frac_w
                 self.fluid.s_w -= excess * frac_w
                 self.fluid.s_g -= excess * frac_g
         
+        # После коррекции повторно проверяем диапазон, логируем первые выбросы
+        if not torch.isfinite(self.fluid.s_w).all() or self.fluid.s_w.min()<0 or self.fluid.s_w.max()>1:
+            print("[ERR] Sw out of range after clamp")
+        if sg_delta is not None and ( (not torch.isfinite(self.fluid.s_g).all()) or self.fluid.s_g.min()<0 or self.fluid.s_g.max()>1 ):
+            print("[ERR] Sg out of range after clamp")
+
         # Обновляем нефтенасыщенность
         if sg_delta is not None:
             self.fluid.s_o = 1.0 - self.fluid.s_w - self.fluid.s_g
@@ -1658,12 +1778,28 @@ class Simulator:
             p_vec = x[:N] * 1e6         # MPa → Pa
 
         # ------------- water & gas saturation -----------------------------
-        if x.numel() == 3 * N:
-            sw_vec = x[N:2*N]
-            sg_vec = x[2*N:3*N]
-        else:
-            sw_vec = x[N:]
+        # Надёжно определяем, сколько переменных приходится на одну ячейку.
+        # Возможны только 2 (P, Sw) либо 3 (P, Sw, Sg).
+        vars_per_cell = x.numel() // N
+
+        if vars_per_cell == 3:
+            sw_vec = x[N : 2 * N]
+            sg_vec = x[2 * N : 3 * N]
+        elif vars_per_cell == 2:
+            sw_vec = x[N : 2 * N]
             sg_vec = None
+        else:
+            raise ValueError(
+                f"_fi_residual_vec: unsupported vars_per_cell={vars_per_cell} (len(x)={x.numel()}, N={N})"
+            )
+
+        # --- Диагностика: изменение состояния между вызовами --------------
+        if hasattr(self, "_dbg_prev_p_vec"):
+            dp_max = (p_vec - self._dbg_prev_p_vec).abs().max().item()
+            dsw_max = (sw_vec - self._dbg_prev_sw_vec).abs().max().item()
+            print(f"[diag F] Δp_max={dp_max:.3e} Pa, ΔSw_max={dsw_max:.3e}")
+        self._dbg_prev_p_vec = p_vec.clone()
+        self._dbg_prev_sw_vec = sw_vec.clone()
 
         # reshape to 3-D
         p = p_vec.view(nx, ny, nz)
@@ -1674,6 +1810,74 @@ class Simulator:
         else:
             s_o = 1.0 - s_w
             s_g = torch.zeros_like(s_w)
+
+        # ------------------------------------------------------------------
+        # DEBUG: sanity-checks for saturations (range and finite numbers)
+        # ------------------------------------------------------------------
+        def _debug_check(name: str, tensor: torch.Tensor):
+            if not torch.isfinite(tensor).all() or tensor.min() < -1e-3 or tensor.max() > 1.01:
+                non_finite = (~torch.isfinite(tensor)).sum().item()
+                finite_vals = tensor[torch.isfinite(tensor)]
+                fmin = finite_vals.min().item() if finite_vals.numel() else float('nan')
+                fmax = finite_vals.max().item() if finite_vals.numel() else float('nan')
+                print(f"[ERR] {name} corrupted: non_finite={non_finite}, range={fmin:.3e}..{fmax:.3e}")
+
+        _debug_check("Sw", s_w)
+        _debug_check("So", s_o)
+        if sg_vec is not None:
+            _debug_check("Sg", s_g)
+
+        # ------------------------------------------------------------------
+        # Sanitize saturations: заменяем NaN/±Inf, чтобы subsequent clamp не
+        # оставлял их NaN (torch.clamp(NaN)=NaN).
+        # Числа >1 ставим в 1, <0 – в 0.
+        # ------------------------------------------------------------------
+        s_w = torch.nan_to_num(s_w, nan=0.5, posinf=1.0, neginf=0.0)
+        if sg_vec is not None:
+            s_g = torch.nan_to_num(s_g, nan=0.0, posinf=1.0, neginf=0.0)
+
+        # ------------------------------------------------------------------
+        # PHYSICAL CLAMP: ограничиваем насыщенности перед расчётом свойств.
+        # Это предотвращает появление NaN/Inf в Pc и rel-perm при Sw/Sg за
+        # пределами 0..1. Аналогично _apply_newton_step, но действует уже на
+        # кандидаты x+αδ внутри line-search, поэтому охватывает все вызовы
+        # _fi_residual_vec.
+        # ------------------------------------------------------------------
+        sw_cr = self.fluid.sw_cr
+        so_r  = self.fluid.so_r
+
+        # Clamp water saturation
+        s_w = torch.clamp(s_w, sw_cr, 1.0 - so_r)
+
+        if sg_vec is not None:
+            # Clamp gas saturation independently, then enforce Sw+Sg ≤ 1-So_r
+            s_g = torch.clamp(s_g, 0.0, 1.0 - so_r)
+
+            total = s_w + s_g
+            excess = torch.clamp(total - (1.0 - so_r), min=0.0)
+            if torch.any(excess > 0):
+                frac_w = s_w / (total + 1e-12)
+                frac_g = 1.0 - frac_w
+                s_w = s_w - excess * frac_w
+                s_g = s_g - excess * frac_g
+
+            s_o = 1.0 - s_w - s_g
+        else:
+            s_o = 1.0 - s_w
+            s_g = torch.zeros_like(s_w)
+
+        # Обновляем плоские векторы для дальнейших расчётов
+        sw_vec = s_w.view(-1)
+        if sg_vec is not None:
+            sg_vec = s_g.view(-1)
+
+        # --- DEBUG: диапазоны входного состояния (печатаем один раз) ----
+        if not hasattr(self, "_dbg_state_logged"):
+            print(f"[state] p range: {p_vec.min():.3e} .. {p_vec.max():.3e}")
+            print(f"[state] Sw range: {sw_vec.min():.3e} .. {sw_vec.max():.3e}")
+            if sg_vec is not None:
+                print(f"[state] Sg range: {sg_vec.min():.3e} .. {sg_vec.max():.3e}")
+            self._dbg_state_logged = True
 
         # ------------------------------------------------------------------
         # Fluid properties (new state)
@@ -1692,10 +1896,34 @@ class Simulator:
             kro, krw = self.fluid.get_rel_perms(s_w)
             krg = None
 
+        # ---------------- additional NaN/Inf checks on props ---------------
+        for _name, _t in (("krw", krw), ("kro", kro), ("krg", krg if sg_vec is not None else None),
+                          ("mu_w", mu_w), ("mu_o", mu_o), ("mu_g", mu_g if sg_vec is not None else None)):
+            if _t is None:
+                continue
+            if not torch.isfinite(_t).all():
+                bad = (~torch.isfinite(_t)).sum().item()
+                print(f"[ERR] {_name} contains {bad} non-finite values")
+
         lam_w = krw / mu_w
         lam_o = kro / mu_o
         lam_g = (krg / mu_g) if sg_vec is not None else None
         lam_t = lam_w + lam_o + (lam_g if sg_vec is not None else 0.0)  # total mobility
+
+        # ------------------------------------------------------------------
+        # DEBUG: проверяем lam_t на нечисловые значения / переполнения
+        # ------------------------------------------------------------------
+        if not torch.isfinite(lam_t).all():
+            n_bad = (~torch.isfinite(lam_t)).sum().item()
+            lam_t_finite = lam_t[torch.isfinite(lam_t)]
+            finite_min = lam_t_finite.min().item() if lam_t_finite.numel() > 0 else float('nan')
+            finite_max = lam_t_finite.max().item() if lam_t_finite.numel() > 0 else float('nan')
+            print(f"[ERR] lam_t contains {n_bad} non-finite values; finite range {finite_min:.3e} .. {finite_max:.3e}")
+        else:
+            # логируем диапазон один раз
+            if not hasattr(self, "_dbg_lam_t_logged"):
+                print(f"[lam_t] range: {lam_t.min():.3e} .. {lam_t.max():.3e}")
+                self._dbg_lam_t_logged = True
 
         # ------------------------------------------------------------------
         # Скважинные дебиты (rate + BHP) – учитываем как объёмные источники в
@@ -1771,7 +1999,7 @@ class Simulator:
         div_w[:, :-1, :] += flow_w_y
         div_w[:,  1:, :] -= flow_w_y
         div_o[:, :-1, :] += flow_o_y
-        div_o[:,  1:, :] -= flow_o_y
+        div_o[:,  1:,  :] -= flow_o_y
 
         div_w[:, :, :-1] += flow_w_z
         div_w[:, :,  1:] -= flow_w_z
@@ -1980,6 +2208,13 @@ class Simulator:
         # численный вес давления
         F_p = self.pressure_weight * F_p
         # Давление остаётся в Па; при необходимости масштабируется позже
+
+        # --- DEBUG: нормы невязки --------------------------------------
+        if not hasattr(self, "_dbg_res_logged"):
+            print(f"[F-norms] ||F_p||={F_p.norm():.3e}, ||F_sw||={F_sw.norm():.3e}")
+            if sg_vec is not None:
+                pass
+            self._dbg_res_logged = True
 
         if sg_vec is not None:
             return torch.cat([F_p, F_sw, F_sg])

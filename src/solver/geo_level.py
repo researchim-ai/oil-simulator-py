@@ -15,6 +15,7 @@ import torch
 import torch.nn.functional as F
 import numpy as np
 from linear_gpu.csr import build_7pt_csr
+import os
 
 __all__ = ["build_level_csr", "GeoLevel"]
 
@@ -63,13 +64,51 @@ class GeoLevel:  # noqa: D101
 
         # --- фиксация нулевых строк (неактивные ячейки) -----------------
         diag_vals = vals[diag_idx].abs()
-        zero_mask = diag_vals < 1e-12
+        # 🔧 КРИТИЧЕСКИЙ ФИКС: порог 1e-12 оказался слишком высоким —
+        #  при типичных transmissibility ~1e-13 все активные ячейки считались
+        #  «пустыми», и их диагонали затирались до 1.  В итоге вся матрица
+        #  превращалась в почти единичную и Geo-AMG «взрывался».  Снижаем
+        #  порог до 1e-20 (≈ машинный эпсилон для float64) либо, что лучше,
+        #  используем относительный: <1e-12 * median(|diag|).
+        eps_abs = 1e-20
+        eps_rel = 1e-12 * torch.median(diag_vals).item()
+        thr = max(eps_abs, eps_rel)
+        zero_mask = diag_vals < thr
         if zero_mask.any():
             # Задаём A_ii = 1, off-diag оставляем как есть (они уже ~0)
             vals[diag_idx[zero_mask]] = 1.0
             diag_vals = vals[diag_idx].abs()  # обновляем
 
         self.diag = diag_vals.to(dtype=torch.float64)  # уже на device
+        # -------- L1-диагональ: 1 / Σ_j |A_ij| -------------------------
+        row_counts = crow[1:] - crow[:-1]
+        row_idx = torch.repeat_interleave(torch.arange(self.diag.numel(), device=device), row_counts)
+        row_abs_sum = torch.zeros_like(self.diag)
+        row_abs_sum.index_add_(0, row_idx, vals.abs())
+
+        # ---- Изолированные строки: Σ|A_ij| < 1e-8 -----------------------
+        iso_mask = row_abs_sum < 1e-8
+        safe_sum = row_abs_sum.clone()
+        safe_sum[iso_mask] = 1.0  # чтобы 1/sum не дал Inf
+        self.inv_l1 = 1.0 / safe_sum
+        # Jacobi не должен менять изолированные ячейки
+        self.inv_l1[iso_mask] = 0.0
+
+        if os.environ.get("OIL_DEBUG", "0") == "1":
+            n_iso = iso_mask.sum().item()
+            print(f"[GeoLevel] isolated rows (<1e-8): {n_iso}/{self.inv_l1.numel()}")
+
+        # ----------------- DEBUG: статистика строк L1-нормы -----------------
+        if os.environ.get("OIL_DEBUG", "0") == "1":
+            print(
+                f"[GeoLevel] row_abs_sum: min={row_abs_sum.min().item():.3e}, "
+                f"median={row_abs_sum.median().item():.3e}, max={row_abs_sum.max().item():.3e}"
+            )
+            print(f"[GeoLevel] inv_l1 max={self.inv_l1.max().item():.3e}")
+            if torch.isnan(self.inv_l1).any() or torch.isinf(self.inv_l1).any():
+                nan_cnt = torch.isnan(self.inv_l1).sum().item()
+                inf_cnt = torch.isinf(self.inv_l1).sum().item()
+                print(f"[GeoLevel] ⚠️  inv_l1 has nan={nan_cnt}, inf={inf_cnt}")
 
         # --- Red/Black маски -------------------------------------------
         nz, ny, nx = kx.shape

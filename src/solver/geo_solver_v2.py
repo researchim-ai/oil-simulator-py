@@ -25,11 +25,12 @@ class GeoSolverV2:
                  max_coarse_ratio: int = 500, device: str | None = None,
                  cycle_type: str = "W", cycles_per_call: int = 3,
                  pre_smooth: int = 3, post_smooth: int = 3,
-                 omega_fine: float = 0.60,
-                 smoother_fine: str = "linez",  # linez|rbgs|chebyshev
+                 omega_fine: float = 0.35,
+                 smoother_fine: str = "rbgs",  # rbgs|linez|chebyshev
                  cheby_tail: int = 3,
-                 delta_clip_factor: float = 5.0,
+                 delta_clip_factor: float | None = 1000.0,
                  clip_kappa: float = 5.0,
+                 max_levels: int | None = None,
                  debug: bool | None = None):
         self.device = device or ("cuda" if torch.cuda.is_available() else "cpu")
         self.omega = float(omega)
@@ -83,8 +84,9 @@ class GeoSolverV2:
             print(f"[DBG] A_phys diag min={diag_orig.min().item():.3e}, max={diag_orig.max().item():.3e}")
             print(f"[DBG] ||A_phys||_1 = {torch.norm(a_vals,1).item():.3e}")
             self._dbg_logged = True
-        scale_full = 1.0 / torch.sqrt(diag_orig.clamp_min(1e-20))  # = diag^{-1/2} после scale
-        scale_sqrt = torch.sqrt(scale_full)                         # = diag^{-1/4}
+        # Первое эквилибрирование: S1 = diag_orig^{-1/4}
+        scale_full = 1.0 / torch.sqrt(diag_orig.clamp_min(1e-20))  # diag^{-1/2}
+        scale_sqrt = torch.sqrt(scale_full)                         # diag^{-1/4} = S1
 
         # --- масштабируем values ---
         crow = base_lvl.A_csr.crow_indices()
@@ -99,13 +101,79 @@ class GeoSolverV2:
         # ---- Второй симметричный шаг: диагональ к 1 ----------------
         diag_idx_tmp = crow[1:] - 1
         diag_tmp = vals[diag_idx_tmp].abs().clone()
+        # Второе симметричное эквилибрирование: S2 = diag(A1)^{-1/2}
         second_scale = 1.0 / torch.sqrt(diag_tmp.clamp_min(1e-20))
 
         # масштабируем ещё раз: A ← S2 A S2
         vals.mul_(second_scale[row_idx] * second_scale[col])
 
         diag_final = vals[diag_idx_tmp].abs().clone()
-        base_lvl.diag = diag_final  # теперь diag≈1
+        base_lvl.diag = diag_final  # теперь diag ≈ 1
+
+# --- пересчёт inv_l1 для базового уровня в эквилибрированном масштабе ---
+        crow = base_lvl.A_csr.crow_indices()
+        vals_hat = base_lvl.A_csr.values().abs()  # уже отмасштабированные значения
+        row_counts = crow[1:] - crow[:-1]
+        row_idx = torch.repeat_interleave(torch.arange(crow.numel()-1, device=self.device), row_counts)
+        row_abs_sum_hat = torch.zeros_like(diag_final)
+        row_abs_sum_hat.index_add_(0, row_idx, vals_hat)
+
+        iso_mask0 = row_abs_sum_hat < 1e-8
+        safe_sum0 = row_abs_sum_hat.clone(); safe_sum0[iso_mask0] = 1.0
+        base_lvl.inv_l1 = (1.0 / safe_sum0).clamp_max(1.0)
+        base_lvl.inv_l1[iso_mask0] = 0.0
+
+        if os.environ.get("OIL_DEBUG", "0") == "1":
+            print(
+                f"[ISO L0] isolated rows (<1e-8): {iso_mask0.sum().item()}/{len(iso_mask0)}"
+            )
+            print(
+                f"[L0] row_abs_sum_hat: min={row_abs_sum_hat.min().item():.3e}, "
+                f"median={row_abs_sum_hat.median().item():.3e}, max={row_abs_sum_hat.max().item():.3e}"
+            )
+            print(
+                f"[L0] inv_l1 stats: min={base_lvl.inv_l1.min().item():.3e}, "
+                f"median={base_lvl.inv_l1.median().item():.3e}, max={base_lvl.inv_l1.max().item():.3e}"
+            )
+
+        if self.debug:
+            print(
+                f"[GeoSolverV2] inv_l1 stats after scaling: min={base_lvl.inv_l1.min().item():.3e}, "
+                f"median={base_lvl.inv_l1.median().item():.3e}, max={base_lvl.inv_l1.max().item():.3e}"
+            )
+
+        # ---------------- Диагностика эффективности AMG (после построения всех уровней) ----------------
+        # Старый ранний блок диагностики перемещён в конец __init__.
+        # Деактивируем его, чтобы не выполнялся до инициализации self.levels.
+        if False and os.environ.get("OIL_DEBUG", "0") == "1":
+            try:
+                if len(self.levels) > 0:
+                    base_lvl = self.levels[0]
+                    n_cells = base_lvl.n_cells
+                    with torch.no_grad():
+                        e = torch.randn(n_cells, device=self.device, dtype=torch.float64)
+                        e = e / (e.norm() + 1e-30)
+
+                        x0 = torch.zeros_like(e)
+                        x_smooth = self._rb_gs(0, x0.clone(), -e, iters=1)
+                        smooth_factor = (x_smooth.norm() / e.norm()).item()
+
+                        x_v = self._v_cycle(0, x0.clone(), -e)
+                        vcycle_factor = (x_v.norm() / e.norm()).item()
+
+                        print(f"[DIAG] RBGS factor={smooth_factor:.3e}, V-cycle factor={vcycle_factor:.3e}")
+            except Exception as _e:
+                print(f"[DIAG] Ошибка диагностики AMG: {_e}")
+
+        # ------------------------------------------------------------------
+        # Итоговый симметричный масштаб S_total = S2 · S1  (элемент-wise).
+        # Он удовлетворяет A_hat = S_total · A_phys · S_total, diag(A_hat) ≈ 1.
+        # Для согласованного решения системы A δ = rhs нужно масштабировать
+        # RHS и восстанавливать δ именно через S_total, а НЕ только через
+        # первый шаг scale_full.  Ошибка здесь приводила к гигантским δ и
+        # нестабильности Geo-AMG.
+        # ------------------------------------------------------------------
+        S_total = scale_sqrt * second_scale  # diag-vector
 
         # --- диагностика после одного шага ---
         if self.debug and (torch.isnan(vals).any() or torch.isinf(vals).any()):
@@ -121,34 +189,47 @@ class GeoSolverV2:
         if self.debug:
             print(f"[GeoSolverV2] diagÂ (sqrt(diag_orig)) min={diag_final.min().item():.3e}, max={diag_final.max().item():.3e}")
 
-        # Итоговый масштаб RHS: S_total = scale_full (выравнивает RHS с Â)
-        self.Dinv = scale_full
+        # Итоговый масштаб RHS: именно S_total, а не scale_full
+        self.Dinv = S_total  # = S2 · S1
         if self.debug:
             print(f"[GeoSolverV2] Dinv min={self.Dinv.min().item():.3e}, max={self.Dinv.max().item():.3e}")
 
         def _equilibrate_level(lvl: GeoLevel):  # noqa: D401
             """Нормирует матрицу уровня: A ← S A S, diag(A)=1, возвращает S."""
+            # --- Первый симметричный шаг: S1 = diag^{-1/4} -----------------
             diag = lvl.diag
             S_full = 1.0 / torch.sqrt(diag.clamp_min(1e-20))
-            S = torch.sqrt(S_full)  # симметричное: diag^{-1/4}
+            S1 = torch.sqrt(S_full)  # diag^{-1/4}
 
             crow = lvl.A_csr.crow_indices()
             col = lvl.A_csr.col_indices()
             vals = lvl.A_csr.values()
             row_counts = crow[1:] - crow[:-1]
             row_idx = torch.repeat_interleave(torch.arange(crow.numel()-1, device=self.device), row_counts)
-            vals.mul_(S[row_idx] * S[col])  # S A S
+            vals.mul_(S1[row_idx] * S1[col])  # A1 = S1 A S1
+
+            # --- Второй симметричный шаг: S2 = diag(A1)^{-1/2} -------------
             diag_idx = crow[1:] - 1
-            diag_new = vals[diag_idx].abs().clone()
-            lvl.diag = diag_new
-            return S
+            diag_A1 = vals[diag_idx].abs().clone()
+            S2 = 1.0 / torch.sqrt(diag_A1.clamp_min(1e-20))  # diag^{-1/2}
+            vals.mul_(S2[row_idx] * S2[col])                 # A2 = S2 A1 S2
+
+            diag_final = vals[diag_idx].abs().clone()
+            lvl.diag = diag_final
+
+            # --- DEBUG: статистики после полного эквилибрирования ---------
+            if os.environ.get("OIL_DEBUG", "0") == "1":
+                print(
+                    f"[EQ L{len(self.levels)}] diag stats: min={diag_final.min().item():.3e}, "
+                    f"median={diag_final.median().item():.3e}, max={diag_final.max().item():.3e}"
+                )
+
+            return S1 * S2  # полный масштаб уровня
 
         # ---------------- Hierarchy of coarser grids -----------------
         # Нормируем базовый уровень (уже сделано выше вручную)
         self.levels: List[GeoLevel] = [base_lvl]
 
-
-        target_coarse = max(base_lvl.n_cells // max_coarse_ratio, 2000)
 
         # Для построения грубых уровней используем исходные проницаемости
         kx_c, ky_c, kz_c = kx, ky, kz
@@ -157,14 +238,63 @@ class GeoSolverV2:
         def pool(t):
             return F.avg_pool3d(t[None, None, ...], kernel_size=2, stride=2, padding=0)[0, 0]
 
-        while kx_c.numel() > target_coarse and min(kx_c.shape) >= 4:
+        lvl_count = 1  # уже есть базовый уровень
+        while kx_c.numel() > 1 and min(kx_c.shape) >= 2:
+            if max_levels is not None and lvl_count >= max_levels:
+                break
             kx_c = pool(kx_c); ky_c = pool(ky_c); kz_c = pool(kz_c)
             hx *= 2.0; hy *= 2.0; hz *= 2.0
             lvl = GeoLevel(kx_c, ky_c, kz_c, hx, hy, hz, device=self.device)
             # эквилибрируем каждый новый уровень
             _equilibrate_level(lvl)
+            # Пересчитываем inv_l1 для отмасштабированного уровня
+            crow_c = lvl.A_csr.crow_indices()
+            vals_c = lvl.A_csr.values().abs()
+            row_counts_c = crow_c[1:] - crow_c[:-1]
+            row_idx_c = torch.repeat_interleave(torch.arange(crow_c.numel()-1, device=self.device), row_counts_c)
+            row_abs_sum_c = torch.zeros_like(lvl.diag)
+            row_abs_sum_c.index_add_(0, row_idx_c, vals_c)
+
+            iso_mask_c = row_abs_sum_c < 1e-8
+            safe_sum_c = row_abs_sum_c.clone(); safe_sum_c[iso_mask_c] = 1.0
+            lvl.inv_l1 = (1.0 / safe_sum_c).clamp_max(1.0)
+            lvl.inv_l1[iso_mask_c] = 0.0
+
+            if os.environ.get("OIL_DEBUG", "0") == "1":
+                print(
+                    f"[ISO L{lvl_count}] isolated rows (<1e-8): {iso_mask_c.sum().item()}/{len(iso_mask_c)}"
+                )
+                print(
+                    f"[L{lvl_count}] row_abs_sum_hat: min={row_abs_sum_c.min().item():.3e}, "
+                    f"median={row_abs_sum_c.median().item():.3e}, max={row_abs_sum_c.max().item():.3e}"
+                )
+                print(
+                    f"[L{lvl_count}] inv_l1 stats: min={lvl.inv_l1.min().item():.3e}, "
+                    f"median={lvl.inv_l1.median().item():.3e}, max={lvl.inv_l1.max().item():.3e}"
+                )
             print(f"[GeoSolverV2] built level {len(self.levels)}: n={lvl.n_cells}")
             self.levels.append(lvl)
+            lvl_count += 1
+
+# ----------------- Диагностика эффективности после построения иерархии -----------------
+        if os.environ.get("OIL_DEBUG", "0") == "1":
+            try:
+                base_lvl = self.levels[0]
+                n_cells_diag = base_lvl.n_cells
+                with torch.no_grad():
+                    e = torch.randn(n_cells_diag, device=self.device, dtype=torch.float64)
+                    e = e / (e.norm() + 1e-30)
+
+                    x0 = torch.zeros_like(e)
+                    x_smooth = self._rb_gs(0, x0.clone(), -e, iters=1)
+                    smooth_factor = (x_smooth.norm() / e.norm()).item()
+
+                    x_v = self._v_cycle(0, x0.clone(), -e)
+                    vcycle_factor = (x_v.norm() / e.norm()).item()
+
+                print(f"[DIAG] RBGS factor={smooth_factor:.3e}, V-cycle factor={vcycle_factor:.3e}")
+            except Exception as _e:
+                print(f"[DIAG] Ошибка диагностики AMG (post-build): {_e}")
 
     # ------------------------------------------------------------------
     def _apply_A(self, lvl_idx: int, x: torch.Tensor) -> torch.Tensor:
@@ -176,26 +306,27 @@ class GeoSolverV2:
         lvl = self.levels[lvl_idx]
         # -------- L1-Jacobi диагональный суррогат --------
         # --- L1-Jacobi: denom = Σ_j |A_ij| -------------------------------
-        crow = lvl.A_csr.crow_indices()
-        row_counts = crow[1:] - crow[:-1]
-        row_idx = torch.repeat_interleave(torch.arange(crow.numel()-1, device=self.device), row_counts)
-        abs_vals = lvl.A_csr.values().abs()
-        row_abs_sum = torch.zeros_like(lvl.diag)
-        row_abs_sum.index_add_(0, row_idx, abs_vals)
-
-        denom = row_abs_sum.clamp_min(1e-12)
-        inv_diag = 1.0 / denom
+        inv_diag = lvl.inv_l1
         omega = self.omega_fine if lvl_idx == 0 else self.omega
-        init_clip = self.delta_clip_factor * (b.abs().max().item() + 1e-12)
-        for _ in range(iters):
+        if self.delta_clip_factor is not None:
+            init_clip = self.delta_clip_factor * (b.abs().max().item() + 1e-12)
+        else:
+            init_clip = None
+        for k in range(iters):
             r = b - self._apply_A(lvl_idx, x)
             x = x + omega * inv_diag * r
+            if self.debug and lvl_idx == 0 and k < 3:
+                print(
+                    f"[DBG-JAC] k={k} |r|₂={r.norm().item():.3e} |r|∞={r.abs().max().item():.3e} "
+                    f"|invD|∞={inv_diag.max().item():.3e} |invD*r|∞={(inv_diag*r).abs().max().item():.3e} ω={omega:.2f}"
+                )
 
             # --- динамический clip только на самом тонком уровне ---
-            if lvl_idx == 0 and self.delta_clip_factor is not None:
-                dyn_clip = self.clip_kappa * (x.abs().max().item() + 1e-12)
-                clip_val = max(init_clip, dyn_clip)
-                x = torch.clamp(x, -clip_val, clip_val)
+            if init_clip is not None and lvl_idx == 0:
+                if init_clip is not None:
+                    dyn_clip = self.clip_kappa * (x.abs().max().item() + 1e-12)
+                    clip_val = max(init_clip, dyn_clip)
+                    x = torch.clamp(x, -clip_val, clip_val)
 
             # --- диагностика NaN/Inf ---
             if not torch.isfinite(x).all():
@@ -240,21 +371,18 @@ class GeoSolverV2:
         """Red-Black Gauss–Seidel smoother (GPU-friendly)."""
         lvl = self.levels[lvl_idx]
         # L1 surrogate diag: 1 / Σ |A_ij|
-        crow = lvl.A_csr.crow_indices()
-        row_counts = crow[1:] - crow[:-1]
-        row_idx = torch.repeat_interleave(torch.arange(crow.numel()-1, device=self.device), row_counts)
-        abs_vals = lvl.A_csr.values().abs()
-        row_abs_sum = torch.zeros_like(lvl.diag)
-        row_abs_sum.index_add_(0, row_idx, abs_vals)
-        inv_diag = 1.0 / row_abs_sum.clamp_min(1e-12)
+        inv_diag = lvl.inv_l1
         omega = self.omega_fine if lvl_idx == 0 else self.omega
 
         red_mask = lvl.is_red
         black_mask = lvl.is_black
 
-        init_clip = self.delta_clip_factor * (b.abs().max().item() + 1e-12)
+        if self.delta_clip_factor is not None:
+            init_clip = self.delta_clip_factor * (b.abs().max().item() + 1e-12)
+        else:
+            init_clip = None
 
-        for _ in range(iters):
+        for k in range(iters):
             # red sweep (in-place)
             r = b - self._apply_A(lvl_idx, x)
             x[red_mask] += omega * inv_diag[red_mask] * r[red_mask]
@@ -264,10 +392,17 @@ class GeoSolverV2:
             x[black_mask] += omega * inv_diag[black_mask] * r[black_mask]
 
             # динамический clip только на самом тонком уровне
-            if lvl_idx == 0 and self.delta_clip_factor is not None:
+            if init_clip is not None and lvl_idx == 0:
                 dyn_clip = self.clip_kappa * (x.abs().max().item() + 1e-12)
                 clip_val = max(init_clip, dyn_clip)
                 torch.clamp_(x, -clip_val, clip_val)
+
+            if self.debug and lvl_idx == 0 and k < 3:
+                inc_mag = (omega * inv_diag * r).abs().max().item()
+                print(
+                    f"[DBG-RBGS] k={k} |r|₂={r.norm().item():.3e} |r|∞={r.abs().max().item():.3e} |invD|∞={inv_diag.max().item():.3e} "
+                    f"|ω*invD*r|∞={inc_mag:.3e} clip={init_clip if init_clip else 0:.3e}"
+                )
         return x
 
     def _line_gs_z(self, lvl_idx: int, x: torch.Tensor, b: torch.Tensor, iters: int = 1) -> torch.Tensor:
@@ -332,33 +467,82 @@ class GeoSolverV2:
 
     # Helpers -----------------------------------------------------------------
     def _restrict3d(self, vol3d: torch.Tensor) -> torch.Tensor:
-        """Volume-weighted restriction 2×2×2 → coarse grid."""
-        return F.avg_pool3d(vol3d[None, None, ...], kernel_size=2, stride=2, padding=0)[0, 0]
+        """Half-weight restriction 2×2×2 -> coarse.
+        """
+        if os.environ.get("OIL_DEBUG", "0") == "1":
+            n_before = vol3d.norm().item()
+        coarse = F.avg_pool3d(vol3d[None, None, ...], kernel_size=2, stride=2, padding=0)[0, 0]
+        if os.environ.get("OIL_DEBUG", "0") == "1":
+            print(f"[RS] restrict norm ratio={(coarse.norm()/(n_before+1e-30)):.3e}")
+        return coarse
 
     def _prolong3d(self, coarse3d: torch.Tensor, target_shape: tuple[int, int, int]) -> torch.Tensor:
-        """Linear prolongation to fine grid size."""
-        return F.interpolate(coarse3d[None, None, ...], size=target_shape, mode="trilinear", align_corners=False)[0, 0]
+        """Trilinear prolongation 2×2×2 <- coarse.
+        """
+        if os.environ.get("OIL_DEBUG", "0") == "1":
+            n_c = coarse3d.norm().item()
+        fine = F.interpolate(coarse3d[None, None, ...], size=target_shape, mode="trilinear", align_corners=False)[0, 0]
+        fine_norm = fine.norm().item()
+        if os.environ.get("OIL_DEBUG", "0") == "1":
+            print(f"[PR] prolong norm ratio={fine_norm/(n_c+1e-30):.3e} (fine/coarse)")
+        return fine
 
     def _v_cycle(self, lvl_idx: int, x_vec: torch.Tensor, b_vec: torch.Tensor) -> torch.Tensor:
         """Recursive V-/W-cycle in 3-D form, input / output вектор (flattened)."""
         lvl = self.levels[lvl_idx]
-        # Coarsest grid: 30 Jacobi
-        if lvl_idx == len(self.levels) - 1 or lvl.n_cells < 64:
-            return self._jacobi(lvl_idx, x_vec, b_vec, iters=30)
+        debug_any = os.environ.get("OIL_DEBUG", "0") == "1"
+        debug_top = debug_any and lvl_idx == 0
+        if debug_any:
+            r0 = b_vec - self._apply_A(lvl_idx, x_vec)
+            print(f"[VC] L{lvl_idx} start ‖x‖={x_vec.norm():.3e} ‖r‖₂={r0.norm():.3e}")
+
+        # Coarsest grid: если ≤8 неизвестных – решаем точно, иначе 30 Jacobi
+        if lvl_idx == len(self.levels) - 1 or lvl.n_cells <= 8:
+            if lvl.n_cells <= 8:
+                # Точное решение маленькой системы, но сначала эквилибрируем
+                A_dense = lvl.A_csr.to_dense()
+                b_dense = b_vec.clone()
+
+                # Row-scale: denom = Σ|A_ij|, min 1e-12
+                row_sum = A_dense.abs().sum(dim=1).clamp_min(1e-12)
+                D = torch.diag(1.0 / row_sum)
+                A_equil = D @ A_dense
+                b_equil = D @ b_dense
+
+                # DEBUG: подробная проверка матрицы coarse уровня
+                if os.environ.get("OIL_DEBUG", "0") == "1":
+                    print(f"[COARSE L{lvl_idx}] row_sum: {row_sum.tolist()}")
+                    print(f"[COARSE L{lvl_idx}] diag: {torch.diag(A_equil).tolist()}")
+                    try:
+                        svals = torch.linalg.svdvals(A_equil)
+                        print(f"[COARSE L{lvl_idx}] σ_min={svals.min().item():.3e}, σ_max={svals.max().item():.3e}, cond={svals.max()/svals.min() if svals.min()>0 else float('inf'):.3e}")
+                    except Exception as _svd_e:
+                        print(f"[COARSE L{lvl_idx}] SVD error: {_svd_e}")
+                    print(f"[COARSE L{lvl_idx}] RHS: {b_equil.tolist()}")
+
+                    # --- Регуляризация: добавляем объёмный член C*I ---------
+                    reg_coeff = 1e-3  # эквивалент φβ/Δt на грубой сетке
+                    A_equil_reg = A_equil + torch.eye(A_equil.size(0), dtype=A_equil.dtype, device=A_equil.device) * reg_coeff
+
+                    try:
+                        sol_scaled = torch.linalg.solve(A_equil_reg, b_equil.view(-1,1)).squeeze(1)
+                        return sol_scaled  # уже в исходном масштабе b_equil
+                    except Exception:
+                        # fallback Jacobi если лин. система вырождена
+                        x_vec = self._jacobi(lvl_idx, x_vec, b_vec, iters=100)
+            else:
+                x_vec = self._jacobi(lvl_idx, x_vec, b_vec, iters=30)
 
         nz, ny, nx = lvl.kx.shape
         x3d = x_vec.reshape(nz, ny, nx)
         b3d = b_vec.reshape_as(x3d)
 
-        # pre-smooth
-        if lvl_idx == 0 and self.smoother_fine == "linez":
-            x_vec = self._line_gs_z(lvl_idx, x_vec, b_vec, iters=self.pre_smooth)
-        elif lvl_idx == 0 and self.smoother_fine == "rbgs":
+        # Pre-smoothing
+        if self.smoother_fine == "rbgs":
             x_vec = self._rb_gs(lvl_idx, x_vec, b_vec, iters=self.pre_smooth)
-        elif lvl_idx == 0 and self.smoother_fine == "chebyshev":
-            x_vec = self._chebyshev(lvl_idx, x_vec, b_vec, iters=self.pre_smooth)
-        else:
-            x_vec = self._jacobi(lvl_idx, x_vec, b_vec, iters=self.pre_smooth)
+        if debug_any:
+            r1 = b_vec - self._apply_A(lvl_idx, x_vec)
+            print(f"[VC] L{lvl_idx} after pre-smooth ‖x‖={x_vec.norm():.3e} ‖r‖₂={r1.norm():.3e}")
         x3d = x_vec.reshape_as(x3d)
 
         # residual (3-D)
@@ -373,19 +557,25 @@ class GeoSolverV2:
         x_c_vec = self._v_cycle(lvl_idx + 1, x_c3d.reshape(-1), r_c3d.reshape(-1))
         x_c3d = x_c_vec.reshape_as(r_c3d)
 
-        # prolongate error
-        e3d = self._prolong3d(x_c3d, x3d.shape)
-        x3d = x3d + e3d
+        # prolongate error to fine grid
+        correction = self._prolong3d(x_c3d, (nz, ny, nx))
+
+        if debug_any:
+            print(f"[VC] L{lvl_idx} ‖r_c‖₂={r_c3d.norm():.3e} → ‖e_c‖₂={x_c3d.norm():.3e}, gain={x_c3d.norm()/(r_c3d.norm()+1e-30):.3e}")
+            print(f"[VC] L{lvl_idx} prolong ‖P e_c‖₂={correction.norm():.3e}, ratio={correction.norm()/(x_c3d.norm()+1e-30):.3e}")
+        # apply coarse-grid correction
+        x_res = x_vec - correction.view(-1)
+        if debug_any:
+            r2 = b_vec - self._apply_A(lvl_idx, x_res)
+            print(f"[VC] L{lvl_idx} after coarse corr ‖x‖={x_res.norm():.3e} ‖r‖₂={r2.norm():.3e}")
+        x3d = x3d + correction
 
         # post-smooth
-        if lvl_idx == 0 and self.smoother_fine == "linez":
-            x_vec = self._line_gs_z(lvl_idx, x3d.reshape(-1), b_vec, iters=self.post_smooth)
-        elif lvl_idx == 0 and self.smoother_fine == "rbgs":
-            x_vec = self._rb_gs(lvl_idx, x3d.reshape(-1), b_vec, iters=self.post_smooth)
-        elif lvl_idx == 0 and self.smoother_fine == "chebyshev":
-            x_vec = self._chebyshev(lvl_idx, x3d.reshape(-1), b_vec, iters=self.post_smooth)
-        else:
-            x_vec = self._jacobi(lvl_idx, x3d.reshape(-1), b_vec, iters=self.post_smooth)
+        if self.smoother_fine == "rbgs":
+            x_vec = self._rb_gs(lvl_idx, x_res, b_vec, iters=self.post_smooth)
+        if debug_any:
+            r3 = b_vec - self._apply_A(lvl_idx, x_vec)
+            print(f"[VC] L{lvl_idx} after post-smooth ‖x‖={x_vec.norm():.3e} ‖r‖₂={r3.norm():.3e}")
         x3d = x_vec.reshape_as(x3d)
 
         # Chebyshev tail (если явно включён и не совпадает со smoother)
@@ -403,8 +593,18 @@ class GeoSolverV2:
         if rhs.dtype != torch.float64:
             rhs = rhs.to(dtype=torch.float64)
 
-        # эквилибрируем RHS: rhs̃ = S⁻¹ rhs
-        rhs_hat = rhs * self.Dinv
+        # ------------- RHS: работаем напрямую в hat-пространстве ------------
+        rhs_hat = rhs.clone()  # без умножения на S_total (Dinv)
+
+        # ------------- Row-scale RHS (корректировка масштаба) -------------
+        row_norm = rhs_hat.norm() / math.sqrt(rhs_hat.numel()) + 1e-30
+        rhs_hat  = rhs_hat / row_norm
+
+        # ---- DEBUG -------------------------------------------------------
+        if self.debug or os.environ.get("OIL_DEBUG", "0") == "1":
+            rhs_l2  = rhs_hat.norm().item()
+            rhs_inf = rhs_hat.abs().max().item()
+            print(f"[GeoSolverV2] DEBUG RHS_hat: ||·||₂={rhs_l2:.3e}, ||·||_inf={rhs_inf:.3e}, row_norm={row_norm:.3e}")
         # --- DEBUG: сравнение масштаба RHS и Â ---
         if self.debug:
             try:
@@ -421,6 +621,17 @@ class GeoSolverV2:
                 if self.cycle_type == "W":
                     x = self._v_cycle(0, x, rhs_hat)
             res = rhs_hat - self._apply_A(0, x)
+            # ----- CHECK FINITE -------------------------------------------------
+            if (not torch.isfinite(x).all()) or (not torch.isfinite(res).all()):
+                n_x_finite  = torch.isfinite(x).sum().item()
+                n_res_finite = torch.isfinite(res).sum().item()
+                print(
+                    f"[GeoSolverV2] ❌ NaN/Inf detected after V-cycle: "
+                    f"finite(x)={n_x_finite}/{x.numel()}, finite(res)={n_res_finite}/{res.numel()}, "
+                    f"|x|_max={x.abs().max().item():.3e}, |res|_max={res.abs().max().item():.3e}"
+                )
+                # Возвращаем None, чтобы вызывающая сторона могла переключиться
+                return None
             if self.debug:
                 # расширенный лог одной строки
                 Ax = rhs_hat - res
@@ -436,9 +647,8 @@ class GeoSolverV2:
                 break
             if res_norm < tol:
                 break
-        # Для согласованности с CPR возвращаем физическое решение, т.е.
-        # снимаем эквилибрирующий масштаб: δ_phys = x / S,  где S = self.Dinv.
-        delta_phys = x * self.Dinv
+        # Возвращаем прежний row-scale (эквилибрирование не применялось)
+        delta_phys = x * row_norm
         if torch.isfinite(delta_phys).all():
             print(f"[GeoSolverV2] DEBUG solve: ||rhs_hat||={rhs_hat.norm().item():.3e}, ||x||={x.norm().item():.3e}, ||delta_phys||={delta_phys.norm().item():.3e}")
         else:
