@@ -514,7 +514,7 @@ class CPRPreconditioner:
             rhs_hat_torch = vec[:n]
             rhs_p = rhs_hat_torch.detach().cpu().numpy()  # hat
         else:
-        rhs_phys_torch = self.scaler.unscale_vec(vec)[:n]
+            rhs_phys_torch = self.scaler.unscale_vec(vec)[:n]
             rhs_p = rhs_phys_torch.detach().cpu().numpy()  # Па
 
         # Row-scaling не применяем – матрица и правая часть уже
@@ -573,7 +573,7 @@ class CPRPreconditioner:
             rhs_hat_tmp[:n_cells_hat] *= self.scaler.inv_p_scale  # Pa → hat
             row_norm = max(np.linalg.norm(rhs_hat_tmp) / math.sqrt(len(rhs_hat_tmp)), 1e-12)
         else:
-        row_norm = max(np.linalg.norm(rhs_scaled) / math.sqrt(len(rhs_scaled)), 1e-12)
+            row_norm = max(np.linalg.norm(rhs_scaled) / math.sqrt(len(rhs_scaled)), 1e-12)
         if os.environ.get("OIL_DEBUG", "0") == "1":
             print(f"[CPR-DBG] RHS before row_scale: min={rhs_scaled.min():.3e}, max={rhs_scaled.max():.3e}, row_norm={row_norm:.3e}")
         rhs_scaled /= row_norm

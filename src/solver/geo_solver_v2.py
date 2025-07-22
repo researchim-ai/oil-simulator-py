@@ -302,6 +302,14 @@ class GeoSolverV2:
         Ax = torch.sparse.mm(lvl.A_csr, x.view(-1, 1)).squeeze(1)
         return Ax
 
+    def _vec2vol(self, lvl_idx: int, v: torch.Tensor) -> torch.Tensor:
+        nz, ny, nx = self.levels[lvl_idx].kx.shape
+        return v.view(nz, ny, nx)
+
+    def _vol2vec(self, vol: torch.Tensor) -> torch.Tensor:
+        return vol.reshape(-1)
+
+
     def _jacobi(self, lvl_idx: int, x: torch.Tensor, b: torch.Tensor, iters: int = 2) -> torch.Tensor:
         lvl = self.levels[lvl_idx]
         # -------- L1-Jacobi диагональный суррогат --------
@@ -371,7 +379,7 @@ class GeoSolverV2:
         """Red-Black Gauss–Seidel smoother (GPU-friendly)."""
         lvl = self.levels[lvl_idx]
         # L1 surrogate diag: 1 / Σ |A_ij|
-        inv_diag = lvl.inv_l1
+        inv_diag = 1.0 / lvl.diag
         omega = self.omega_fine if lvl_idx == 0 else self.omega
 
         red_mask = lvl.is_red
@@ -498,40 +506,14 @@ class GeoSolverV2:
 
         # Coarsest grid: если ≤8 неизвестных – решаем точно, иначе 30 Jacobi
         if lvl_idx == len(self.levels) - 1 or lvl.n_cells <= 8:
-            if lvl.n_cells <= 8:
-                # Точное решение маленькой системы, но сначала эквилибрируем
-                A_dense = lvl.A_csr.to_dense()
-                b_dense = b_vec.clone()
+            A = lvl.A_csr.to_dense()
+            # якорим одну точку, чтобы убрать нулевой режим
+            A[0, :] = 0; A[:, 0] = 0; A[0, 0] = 1.0
+            b_fix = b_vec.clone()
+            b_fix[0] = 0.0
+            sol = torch.linalg.solve(A, b_fix.view(-1, 1)).squeeze(1)
+            return sol
 
-                # Row-scale: denom = Σ|A_ij|, min 1e-12
-                row_sum = A_dense.abs().sum(dim=1).clamp_min(1e-12)
-                D = torch.diag(1.0 / row_sum)
-                A_equil = D @ A_dense
-                b_equil = D @ b_dense
-
-                # DEBUG: подробная проверка матрицы coarse уровня
-                if os.environ.get("OIL_DEBUG", "0") == "1":
-                    print(f"[COARSE L{lvl_idx}] row_sum: {row_sum.tolist()}")
-                    print(f"[COARSE L{lvl_idx}] diag: {torch.diag(A_equil).tolist()}")
-                    try:
-                        svals = torch.linalg.svdvals(A_equil)
-                        print(f"[COARSE L{lvl_idx}] σ_min={svals.min().item():.3e}, σ_max={svals.max().item():.3e}, cond={svals.max()/svals.min() if svals.min()>0 else float('inf'):.3e}")
-                    except Exception as _svd_e:
-                        print(f"[COARSE L{lvl_idx}] SVD error: {_svd_e}")
-                    print(f"[COARSE L{lvl_idx}] RHS: {b_equil.tolist()}")
-
-                    # --- Регуляризация: добавляем объёмный член C*I ---------
-                    reg_coeff = 1e-3  # эквивалент φβ/Δt на грубой сетке
-                    A_equil_reg = A_equil + torch.eye(A_equil.size(0), dtype=A_equil.dtype, device=A_equil.device) * reg_coeff
-
-                    try:
-                        sol_scaled = torch.linalg.solve(A_equil_reg, b_equil.view(-1,1)).squeeze(1)
-                        return sol_scaled  # уже в исходном масштабе b_equil
-                    except Exception:
-                        # fallback Jacobi если лин. система вырождена
-                        x_vec = self._jacobi(lvl_idx, x_vec, b_vec, iters=100)
-            else:
-                x_vec = self._jacobi(lvl_idx, x_vec, b_vec, iters=30)
 
         nz, ny, nx = lvl.kx.shape
         x3d = x_vec.reshape(nz, ny, nx)
@@ -559,24 +541,27 @@ class GeoSolverV2:
 
         # prolongate error to fine grid
         correction = self._prolong3d(x_c3d, (nz, ny, nx))
+        corr_vec = self._vol2vec(correction)
 
         if debug_any:
-            print(f"[VC] L{lvl_idx} ‖r_c‖₂={r_c3d.norm():.3e} → ‖e_c‖₂={x_c3d.norm():.3e}, gain={x_c3d.norm()/(r_c3d.norm()+1e-30):.3e}")
-            print(f"[VC] L{lvl_idx} prolong ‖P e_c‖₂={correction.norm():.3e}, ratio={correction.norm()/(x_c3d.norm()+1e-30):.3e}")
-        # apply coarse-grid correction
-        x_res = x_vec - correction.view(-1)
+            print(f"[VC] L{lvl_idx} ‖r_c‖₂={r_c3d.norm():.3e} → ‖e_c‖₂={x_c3d.norm():.3e}, "
+                  f"gain={x_c3d.norm()/(r_c3d.norm()+1e-30):.3e}")
+            print(f"[VC] L{lvl_idx} prolong ‖P e_c‖₂={corr_vec.norm():.3e}, "
+                  f"ratio={corr_vec.norm()/(x_c3d.norm()+1e-30):.3e}")
+
+        # apply coarse-grid correction  (ПЛЮС!)
+        x_vec = x_vec + corr_vec
         if debug_any:
-            r2 = b_vec - self._apply_A(lvl_idx, x_res)
-            print(f"[VC] L{lvl_idx} after coarse corr ‖x‖={x_res.norm():.3e} ‖r‖₂={r2.norm():.3e}")
-        x3d = x3d + correction
+            r2 = b_vec - self._apply_A(lvl_idx, x_vec)
+            print(f"[VC] L{lvl_idx} after coarse corr ‖x‖={x_vec.norm():.3e} ‖r‖₂={r2.norm():.3e}")
 
         # post-smooth
         if self.smoother_fine == "rbgs":
-            x_vec = self._rb_gs(lvl_idx, x_res, b_vec, iters=self.post_smooth)
+            x_vec = self._rb_gs(lvl_idx, x_vec, b_vec, iters=self.post_smooth)
+
         if debug_any:
             r3 = b_vec - self._apply_A(lvl_idx, x_vec)
             print(f"[VC] L{lvl_idx} after post-smooth ‖x‖={x_vec.norm():.3e} ‖r‖₂={r3.norm():.3e}")
-        x3d = x_vec.reshape_as(x3d)
 
         # Chebyshev tail (если явно включён и не совпадает со smoother)
         if lvl_idx == 0 and self.cheby_tail > 0 and self.smoother_fine != "chebyshev":
@@ -594,11 +579,7 @@ class GeoSolverV2:
             rhs = rhs.to(dtype=torch.float64)
 
         # ------------- RHS: работаем напрямую в hat-пространстве ------------
-        rhs_hat = rhs.clone()  # без умножения на S_total (Dinv)
-
-        # ------------- Row-scale RHS (корректировка масштаба) -------------
-        row_norm = rhs_hat.norm() / math.sqrt(rhs_hat.numel()) + 1e-30
-        rhs_hat  = rhs_hat / row_norm
+        rhs_hat = rhs.to(dtype=torch.float64, device=self.device)
 
         # ---- DEBUG -------------------------------------------------------
         if self.debug or os.environ.get("OIL_DEBUG", "0") == "1":
@@ -648,7 +629,7 @@ class GeoSolverV2:
             if res_norm < tol:
                 break
         # Возвращаем прежний row-scale (эквилибрирование не применялось)
-        delta_phys = x * row_norm
+        delta_phys = x
         if torch.isfinite(delta_phys).all():
             print(f"[GeoSolverV2] DEBUG solve: ||rhs_hat||={rhs_hat.norm().item():.3e}, ||x||={x.norm().item():.3e}, ||delta_phys||={delta_phys.norm().item():.3e}")
         else:
