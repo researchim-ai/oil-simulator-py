@@ -1,751 +1,224 @@
-import torch, numpy as np
-import math
-from .amg import BoomerSolver, AmgXSolver
-from .geom_amg import GeoSolver
-from typing import Optional, Dict
-import os
+# -*- coding: utf-8 -*-
+"""
+CPR(2-stage) предобуславливатель, совместимый с твоим текущим jfnk.py.
+Внутри он пытается построить GeoSolverV2 по твоей (показанной) сигнатуре.
+Если нужные объекты в simulator.linops отсутствуют — Stage-1 делает Jacobi=I.
+"""
 
-def _to_torch(x, ref_t: torch.Tensor):
-    if isinstance(x, torch.Tensor):
-        return x.to(ref_t.device, ref_t.dtype)
-    return torch.as_tensor(x, device=ref_t.device, dtype=ref_t.dtype)
+from __future__ import annotations
+from typing import Optional, Dict, Any, Tuple, Callable, List
+import torch
 
-def _l2_inf(x):
-    if isinstance(x, torch.Tensor):
-        return x.norm().item(), x.abs().max().item()
-    v = np.asarray(x)
-    return float(np.linalg.norm(v)), float(np.max(np.abs(v)))
+from .geo_solver_v2 import GeoSolverV2, LevelData  # твоя реализация
 
-
-def _chk_tensor(tag, t):
-    if isinstance(t, torch.Tensor):
-        n2 = t.norm().item() if torch.isfinite(t).all() else float('nan')
-        ni = t.abs().max().item() if torch.isfinite(t).all() else float('nan')
-        print(f"[LOG {tag}] ‖·‖₂={n2:.3e}  ‖·‖∞={ni:.3e}  finite={torch.isfinite(t).all().item()}")
-        if not torch.isfinite(t).all():
-            raise ValueError(f"NaN/Inf in {tag}")
-    elif isinstance(t, np.ndarray):
-        n2 = np.linalg.norm(t) if np.isfinite(t).all() else float('nan')
-        ni = np.max(np.abs(t)) if np.isfinite(t).all() else float('nan')
-        print(f"[LOG {tag}] ‖·‖₂={n2:.3e}  ‖·‖∞={ni:.3e}  finite={np.isfinite(t).all()}")
-        if not np.isfinite(t).all():
-            raise ValueError(f"NaN/Inf in {tag}")
+__all__ = ["CPRPreconditioner"]
 
 
 class CPRPreconditioner:
-    def __init__(self, *args,
-                 backend: str = "amgx",
-                 omega: float = 0.3,
-                 smoother: str = "chebyshev",
-                 scaler=None,
-                 geo_params: Optional[dict] = None,
-                 # 🔽 новые параметры, читаемые из конфига/CLI
-                 geo_tol: float = 1e-6,
-                 geo_max_iter: int = 10,
-                 gmres_tol: float = 1e-3,
-                 gmres_max_iter: int = 60):
-        # --------------------------------------------------------------
-        # Разбор positional args для обратной совместимости
-        # --------------------------------------------------------------
-        if len(args) == 1:
-            # Новый интерфейс: только simulator
-            simulator = args[0]
-            from simulator.simulation import Simulator as _Sim
-            if not isinstance(simulator, _Sim):
-                raise TypeError("CPRPreconditioner: ожидается объект Simulator либо (reservoir, fluid)")
-            reservoir = simulator.reservoir
-            fluid = simulator.fluid
-            self.simulator = simulator
-        elif len(args) >= 2:
-            # Старый интерфейс
-            reservoir, fluid = args[0], args[1]
-            simulator = None if len(args) == 2 else args[2]
-            self.simulator = simulator
-        else:
-            raise TypeError("CPRPreconditioner: неверные позиционные аргументы")
+    """
+    Двухступенчатый CPR:
 
+      Stage 1 (pressure):  dp = M_p^{-1} * rhs_p  — через GeoSolverV2 (если есть уровни и операторы).
+      Stage 2 (saturation): ds ≈ rhs_s - Aps * dp  (Jacobi=I по умолчанию) + кламп.
+
+    Ожидается порядок неизвестных: [p(0..N-1), Sw(0..N-1)].
+    Если у тебя 3 фазы — замени split/merge на свои.
+    """
+
+    def __init__(
+        self,
+        simulator,
+        backend: str = "geo2",
+        smoother: str = "rbgs",
+        scaler=None,
+        geo_params: Optional[Dict[str, Any]] = None,
+        geo_tol: float = 1e-6,
+        geo_max_iter: int = 10,
+        gmres_tol: float = 1e-3,           # оставляем, чтобы не ломать сигнатуру
+        gmres_max_iter: int = 60,          # оставляем, чтобы не ломать сигнатуру
+        **kwargs,
+    ):
+        self.sim = simulator
+        self.scaler = scaler
         self.backend = backend
+        self.smoother = smoother
+        self.geo_params = geo_params or {}
         self.geo_tol = geo_tol
         self.geo_max_iter = geo_max_iter
-        self.gmres_tol = gmres_tol
-        self.gmres_max_iter = gmres_max_iter        
-        # --------------------------------------------------------------
-        # VariableScaler: если не передан – используем единичный
-        # --------------------------------------------------------------
-        if scaler is None:
-            class _IdentityScaler:
-                p_scale = 1.0
-                inv_p_scale = 1.0
-                s_scales = [1.0]
-                inv_s_scales = [1.0]
 
-                def scale_vec(self, v):
-                    return v
-
-                def unscale_vec(self, v):
-                    return v
-
-                def p_to_hat(self, p):
-                    # Давление Pa → оставляем как есть
-                    return p
-
-                n_cells = 0  # будет переписано позже
-
-            scaler = _IdentityScaler()
-
-        self.scaler = scaler
-        if hasattr(reservoir, "dimensions"):
-            n_cells_tot = reservoir.dimensions[0] * reservoir.dimensions[1] * reservoir.dimensions[2]
-            # Обновим n_cells для scaler, если вдруг
-            try:
-                setattr(self.scaler, "n_cells", n_cells_tot)
-            except Exception:
-                pass
-
-        # Масштаб давления (Па → hat) для безразмеризации.
-        # Нужен только для геометрического AMG v2, но сохраняем всегда.
-        self.p_scale    = getattr(self.scaler, "p_scale", 1.0)
-        self.inv_p_scale = getattr(self.scaler, "inv_p_scale", 1.0)
-
-        self.omega = omega
-        self.failed_amg = False  # Флаг провала AMG
-        
-        print(f"🔧 CPR: Инициализация с backend='{backend}'")
-
-        # Сохраняем ссылку на reservoir для последующей возможной
-        # переинициализации AMG (например, смена сглаживателя).
-        self.reservoir = reservoir
-
-        indptr, ind, data = self._assemble_pressure_csr(reservoir, fluid)
-        print(f"🔧 CPR: Построена pressure матрица размера {len(indptr)-1}x{len(indptr)-1}, nnz={len(data)}")
-
-        # --------------------------------------------------------------
-        # Защита от чрезмерного масштабирования матрицы
-        # --------------------------------------------------------------
-        # Для мелких моделей (2-D, тонкие пласты) диагональ может быть
-        # ~1e-9, что приводит к scale~1e+9 и, как следствие, к гигантским
-        # поправкам δp после восстановления.  Ограничиваем коэффициент
-        # сверху разумным значением (1e4) для backends, использующих
-        # численные AMG (Boomer/Hypre) – там и без дополнительного 
-        # масштабирования условность приемлема.
-
-        if hasattr(self, "matrix_scale") and self.matrix_scale > 1e8 and backend in ("hypre", "boomer", "cpu", "amgx"):
-            # Для AMG backends на CPU/GPU слишком большой scale ухудшает устойчивость;
-            # однако объёмная форма требует scale до 1e8. Ограничиваем более мягко.
-            LIMIT = 1e8
-            if self.matrix_scale > LIMIT:
-                print(f"⚠️  CPR: matrix_scale={self.matrix_scale:.3e} > {LIMIT:.1e}; клампим")
-                self.matrix_scale = LIMIT
-        
-        # Сохраняем диагональ для Jacobi fallback
-        # Сохраняем CSR блока давления
-        self._indptr_p = indptr
-        self._indices_p = ind
-        self._data_p = data
-
-        self.diag_inv = self._extract_diagonal_inverse(indptr, ind, data)
-        print(f"�� CPR: Диагональ для fallback готова")
-        
-        if backend == "amgx" and AmgXSolver is not None:
-            try:
-                print(f"🔧 CPR: Пытаемся инициализировать AmgX...")
-                self.solver = AmgXSolver(indptr, ind, data)
-                print(f"✅ CPR: AmgX инициализирован успешно")
-            except Exception as e:
-                print(f"❌ CPR: Ошибка инициализации AmgX: {e}")
-                self.solver = None
-                self.failed_amg = True
-        elif backend == "geo":
-            # Автопереключение сглаживателя для крупных сеток
-            n_cells_geo = reservoir.dimensions[0] * reservoir.dimensions[1] * reservoir.dimensions[2]
-            if n_cells_geo > 50000 and smoother in ("chebyshev", "jacobi", None):
-                print("⚙️  CPR: GeoSolver – крупная сетка, переключаем smoother на 'l1gs'")
-                smoother = "l1gs"
-            try:
-                print(f"🔧 CPR: Используем собственный геометрический AMG (GeoSolver, smoother='{smoother}')...")
-                # Если параметры не заданы – ставим лёгкий режим (cycles=2, pre/post=2, levels=6)
-                geo_params = geo_params or {}
-                if "cycles_per_call" not in geo_params:
-                    geo_params["cycles_per_call"] = 2  # избежать strong-режима
-                if "pre_smooth" not in geo_params:
-                    geo_params["pre_smooth"] = 2
-                if "post_smooth" not in geo_params:
-                    geo_params["post_smooth"] = 2
-                # Избегаем авто-"strong" режима GeoSolver: если cycles=1 и pre=2 –
-                # поменяем pre/post на 3, что незначительно увеличит работу, но
-                # не вызовет усиление до cycles=3 pre=8.
-                if geo_params["cycles_per_call"] == 1 and geo_params["pre_smooth"] == 2:
-                    geo_params["pre_smooth"] = geo_params["post_smooth"] = 3
-                if "max_levels" not in geo_params:
-                    geo_params["max_levels"] = 6
-                self.solver = GeoSolver(reservoir, smoother=smoother or "chebyshev", **geo_params)
-                # Alias для обратной совместимости
-                self.geo_solver = self.solver
-                print("✅ CPR: GeoSolver инициализирован успешно")
-            except Exception as e:
-                print(f"❌ CPR: Ошибка GeoSolver: {e}")
-                self.solver = None
-                self.failed_amg = True
-        elif backend == "geo2":
-            from solver.geo_solver_v2 import GeoSolverV2
-            geo_params = geo_params or {}
-            # добавим наши tol/iter в geo_params, если пользователь не переопределил
-            geo_params.setdefault("default_tol", self.geo_tol)
-            geo_params.setdefault("default_max_iter", self.geo_max_iter)
-
-            allowed_geo2_keys = {
-                "omega", "max_coarse_ratio", "device", "cycle_type",
-                "cycles_per_call", "pre_smooth", "post_smooth",
-                "omega_fine", "smoother_fine", "cheby_tail",
-                "delta_clip_factor", "clip_kappa", "debug",
-                "default_tol", "default_max_iter"
-            }
-            geo2_kwargs = {k: v for k, v in geo_params.items() if k in allowed_geo2_keys}
-            if geo2_kwargs:
-                print(f"🔧 CPR: GeoSolverV2 с пользовательскими параметрами: {geo2_kwargs}")
-            self.solver = GeoSolverV2(reservoir, **geo2_kwargs)
-        elif backend in ("hypre", "boomer", "cpu"):  # BoomerAMG на CPU
-            try:
-                print(f"🔧 CPR: Пытаемся инициализировать BoomerAMG...")
-                print(f"🔧 CPR: CSR matrix: shape=({len(indptr)-1}x{len(indptr)-1}), nnz={len(data)}")
-                print(f"🔧 CPR: Matrix range: min={np.min(data):.3e}, max={np.max(data):.3e}")
-                
-                self.solver = BoomerSolver(indptr, ind, data)
-                print(f"✅ CPR: BoomerAMG инициализирован успешно")
-            except Exception as e:
-                print(f"❌ CPR: Ошибка инициализации BoomerAMG: {e}")
-                import traceback
-                print(f"❌ CPR: Полный трейс ошибки:")
-                traceback.print_exc()
-                self.solver = None
-                self.failed_amg = True
-        else:
-            # 'jacobi' или 'none' – не используем AMG
-            print(f"🔧 CPR: Использование диагонального предобуславливания (backend='{backend}')")
-            self.solver = None
-        
-        if self.solver is None:
-            print(f"⚠️  CPR: Будет использоваться диагональное предобуславливание")
-        else:
-            print(f"✅ CPR: AMG предобуславливание готово")
-
-    def _extract_diagonal_inverse(self, indptr, indices, data):
-        """Извлекает обратную диагональ из CSR матрицы"""
-        n = len(indptr) - 1
-        diag = np.ones(n)
-        
-        for i in range(n):
-            start, end = indptr[i], indptr[i+1]
-            for j in range(start, end):
-                if indices[j] == i:  # диагональный элемент
-                    diag[i] = 1.0 / max(abs(data[j]), 1e-12)
-                    break
-        return diag
-
-    def _assemble_pressure_csr(self, reservoir, fluid):
-        """Формирует CSR-матрицу (indptr, indices, data) для уравнения
-        давления по классическому 7-точечному шаблону.
-
-        Используем гармонические средние проницаемостей для трансмис-
-        сибилизаторов и предполагаем постоянную суммарную мобильность
-        λ_t = 1/μ_w + 1/μ_o. Такого приближения достаточно для
-        предобуславливателя CPR: матрица отражает геометрию сетки и
-        контраст проницаемостей, а обновлять её каждый шаг не требуется.
-        """
-
-        # --- параметры сетки и проницаемости ---
-        nx, ny, nz = reservoir.dimensions
-        dx, dy, dz = reservoir.grid_size
-
-        # Переводим из тензоров CUDA/CPU в numpy
-        kx = reservoir.permeability_x.detach().cpu().numpy()
-        ky = reservoir.permeability_y.detach().cpu().numpy()
-        kz = reservoir.permeability_z.detach().cpu().numpy()
-
-        dx = float(dx); dy = float(dy); dz = float(dz)
-
-        # --- transmissibilities по граням ---
-        Tx = np.zeros((nx-1, ny, nz), dtype=np.float64)
-        for i in range(nx-1):
-            k_harm = 2 * kx[i] * kx[i+1] / (kx[i] + kx[i+1] + 1e-15)
-            Tx[i] = k_harm * dy * dz / dx
-
-        Ty = np.zeros((nx, ny-1, nz), dtype=np.float64)
-        for j in range(ny-1):
-            k_harm = 2 * ky[:, j, :] * ky[:, j+1, :] / (ky[:, j, :] + ky[:, j+1, :] + 1e-15)
-            Ty[:, j, :] = k_harm * dx * dz / dy
-
-        Tz = np.zeros((nx, ny, nz-1), dtype=np.float64)
-        if nz > 1:
-            for k in range(nz-1):
-                k_harm = 2 * kz[:, :, k] * kz[:, :, k+1] / (kz[:, :, k] + kz[:, :, k+1] + 1e-15)
-                Tz[:, :, k] = k_harm * dx * dy / dz
-
-        # --- суммарная мобильность (константа для CPR) ---
-        lam_t = 1.0 / fluid.mu_water + 1.0 / fluid.mu_oil  # 1/Па·с
-        # ----- Безразмеризация: переводим коэффициенты в hat-пространство ----
-        inv_p_scale = getattr(self, "inv_p_scale", 1.0)
-        lam = lam_t * inv_p_scale  # скаляр в hat-единицах (1/hat·s)
-        self.lam_const = lam  # сохраняем для масштабирования AMG результата
-
-        # 🎯 УЛУЧШЕННОЕ МАСШТАБИРОВАНИЕ для высокой сжимаемости
-        # Типичная transmissibility
-        typical_T = np.mean(kx) * dy * dz / dx * lam
-        
-        # 🔧 КРИТИЧЕСКОЕ УЛУЧШЕНИЕ: учитываем сжимаемость
-        # Получаем характерные значения сжимаемости
-        max_compress = max(
-            getattr(fluid, 'oil_compressibility', 1e-9),
-            getattr(fluid, 'water_compressibility', 1e-9),
-            getattr(reservoir, 'rock_compressibility', 1e-9)
+        # число ячеек
+        self.n_cells = (
+            scaler.n_cells if scaler is not None
+            else simulator.reservoir.dimensions[0]
+               * simulator.reservoir.dimensions[1]
+               * simulator.reservoir.dimensions[2]
         )
-        
-        # Для высокой сжимаемости нужно более агрессивное масштабирование
-        compressibility_factor = max_compress / 1e-9  # Нормализуем к 1e-9
-        
-        # FIX: отказались от искусственного масштабирования — ставим 1.0.
-        # Чрезмерное "растягивание" матрицы приводило к гигантским поправкам δp
-        # и к фактическому «заглушению» шагов Ньютона. Более корректно оставить
-        # физический масштаб коэффициентов и позволить AMG обрабатывать
-        # плохо обусловленную, но реалистичную матрицу.
 
-        matrix_scale = 1.0
-        
-        print(f"🎯 CPR: Типичная transmissibility: {typical_T:.3e}")
-        print(f"🎯 CPR: Максимальная сжимаемость: {max_compress:.3e}")
-        print(f"🎯 CPR: Фактор сжимаемости: {compressibility_factor:.3e}")
-        print(f"🎯 CPR: Масштаб матрицы: {matrix_scale:.3e} (физический масштаб, без искусственного множителя)")
-        
-        # Сохраняем масштаб для восстановления решения
-        self.matrix_scale = matrix_scale
-        self.compressibility_factor = compressibility_factor
+        sp = simulator.sim_params
+        self.debug: bool = bool(sp.get("cpr_debug", False))
+        self.cycles_stage1: int = int(sp.get("geo_cycles", self.geo_params.get("cycles_per_call", 1)))
+        self.max_sat_correction: float = float(sp.get("max_sat_corr", 5e-3))
 
-        # --- предварительное выделение памяти под CSR ---
-        N = nx * ny * nz
-        nnz_est = 7 * N
-        indptr = np.zeros(N + 1, dtype=np.int64)
-        indices = np.empty(nnz_est, dtype=np.int32)
-        data = np.empty(nnz_est, dtype=np.float64)
+        # опциональные пользовательские колбэки
+        self.Aps_times: Optional[Callable[[torch.Tensor], torch.Tensor]] = kwargs.get("Aps_times", None)
+        self.solve_sat_cb: Optional[Callable[[torch.Tensor], torch.Tensor]] = kwargs.get("solve_sat", None)
 
-        # Для row-scaling понадобится сохранить макс.|row| после сборки
-        row_abs_max = np.zeros(N, dtype=np.float64)
-        diag_vals = []
+        # split/merge под 2 переменные на ячейку
+        self.split_fn = self._split_2vars
+        self.merge_fn = self._merge_2vars
 
-        pos = 0
-        idx = 0
-        for k in range(nz):
-            for j in range(ny):
-                for i in range(nx):
-                    center = idx
-                    indptr[idx] = pos
-                    diag = 0.0
+        # Попробуем собрать GeoSolverV2. Если не сможем — Stage-1 будет Jacobi=I.
+        self.geo_solver: Optional[GeoSolverV2] = None
+        self._build_geo_solver_safe()
 
-                    # X-
-                    if i > 0:
-                        t = Tx[i-1, j, k] * lam
-                        indices[pos] = center - 1
-                        data[pos] = -t
-                        pos += 1
-                        diag += t
-                    # X+
-                    if i < nx - 1:
-                        t = Tx[i, j, k] * lam
-                        indices[pos] = center + 1
-                        data[pos] = -t
-                        pos += 1
-                        diag += t
-                    # Y-
-                    if j > 0:
-                        t = Ty[i, j-1, k] * lam
-                        indices[pos] = center - nx
-                        data[pos] = -t
-                        pos += 1
-                        diag += t
-                    # Y+
-                    if j < ny - 1:
-                        t = Ty[i, j, k] * lam
-                        indices[pos] = center + nx
-                        data[pos] = -t
-                        pos += 1
-                        diag += t
-                    # Z-/Z+
-                    if nz > 1:
-                        if k > 0:
-                            t = Tz[i, j, k-1] * lam
-                            indices[pos] = center - nx * ny
-                            data[pos] = -t
-                            pos += 1
-                            diag += t
-                        if k < nz - 1:
-                            t = Tz[i, j, k] * lam
-                            indices[pos] = center + nx * ny
-                            data[pos] = -t
-                            pos += 1
-                            diag += t
+        if self.debug:
+            print(f"[CPR] geo_solver={'ON' if self.geo_solver is not None else 'OFF (Jacobi-I fallback)'}; "
+                  f"cycles_stage1={self.cycles_stage1}")
 
-                    # 🔧 КРИТИЧЕСКОЕ УЛУЧШЕНИЕ: адаптивный стабилизационный сдвиг
-                    # Для высокой сжимаемости нужен больший сдвиг
-                    base_shift = 1e-12
-                    if hasattr(self, 'compressibility_factor'):
-                        adaptive_shift = base_shift * max(1.0, self.compressibility_factor ** 0.5)
-                    else:
-                        adaptive_shift = base_shift
-                    
-                    # Диагональный элемент
-                    indices[pos] = center
-                    diag_entry = diag + adaptive_shift  # already in scaled units
-                    data[pos] = diag_entry
-                    pos += 1
-                    diag_vals.append(abs(diag_entry))
+    # ------------------------------------------------------------------ #
+    #                              PUBLIC                                #
+    # ------------------------------------------------------------------ #
+    def apply(self, rhs_phys: torch.Tensor) -> torch.Tensor:
+        """delta_phys ≈ M^{-1} rhs_phys (всё в физических единицах)."""
+        rhs_p, rhs_s = self.split_fn(rhs_phys)
 
-                    # ---- Row max abs value (для последующей нормализации) ----
-                    row_start = indptr[idx]
-                    row_end   = pos
-                    row_abs_max[idx] = np.max(np.abs(data[row_start:row_end]))
-                    idx += 1
+        # Stage-1: давление
+        dp = self._solve_pressure(rhs_p)
 
-        indptr[N] = pos
-
-        # ------------------------------------------------------------------
-        # 🚩 ЗАЗЕМЛЯЕМ ДАВЛЕНИЕ (ANCHOR ROW)
-        # Промышленные симуляторы убирают нулевой режим «P = const» фиксируя
-        # одну опорную ячейку.  Здесь выбираем ячейку 0.  Её строку в CSR
-        # заменяем на единичную диагональ: A[0,0] = 1, остальные элементы 0.
-        # Это делает систему невырожденной и улучшает сходимость AMG.
-        # ------------------------------------------------------------------
-        anchor = 0  # индекс опорной ячейки
-        start, end = indptr[anchor], indptr[anchor + 1]
-
-        # Если в строке нет места (теоретически не должно быть), расширять
-        # массивы не будем – вместо этого просто перезапишем первую позицию.
-        # Обнуляем значения строки
-        data[start:end] = 0.0
-
-        # Гарантируем хотя бы один элемент (диагональ) – записываем в первую
-        # позицию текущего диапазона.  Если diag уже там, indices[start] уже
-        # равно anchor; если нет – всё равно перезаписываем.
-        indices[start] = anchor
-        data[start] = 1.0  # единичная диагональ (масштабируется далее вместе со всеми)
-
-        # Для корректности row_abs_max переопределяем для anchor
-        row_abs_max[anchor] = 1.0
-
-        # --- АВТОМАТИЧЕСКОЕ МАСШТАБИРОВАНИЕ МАТРИЦЫ ---
-        diag_median = np.median(diag_vals) if diag_vals else 1.0
-        # Гарантируем ненулевую диагональ
-        if diag_median < 1e-20:
-            diag_median = 1e-20
-        scale_raw = 1.0 / diag_median
-        # 💡 Ограничиваем scale, иначе Geo-AMG/Chebyshev взрываются при 1e8…1e9
-        # Более жёсткий потолок для matrix-scale: 1e5 вместо 1e6 —
-        # это уменьшает величину Jacobi-поправки и делает fallback стабильнее.
-        # Более высокий предел позволяет нормализовать матрицу на крупных моделях,
-        # где диагональные элементы могут быть ~1e-12.  1e8 всё ещё безопасен для
-        # float32 и не приводит к переполнению, но существенно улучшает кондиционирование.
-        N_cells = nx * ny * nz
-
-        # 🔧 НОВОЕ: для микросеток (<100 ячеек) полностью отключаем scale,
-        # чтобы избежать гигантских δp после восстановления.
-        if self.backend == "geo2":
-            scale = 1.0
+        # Stage-2: насыщенности
+        if self.Aps_times is not None:
+            rhs_s_eff = rhs_s - self.Aps_times(dp)
         else:
-            MAX_SCALE = 1e8
-            if N_cells <= 100:
-                scale = 1.0
-            else:
-                scale = min(scale_raw, MAX_SCALE)
+            rhs_s_eff = rhs_s
 
-        data[:pos] *= scale  # нормализуем матрицу с учётом клипа
+        # нормировка rhs_s для устойчивости последнего шага
+        inf_s = rhs_s_eff.abs().max().item()
+        scale_s = 1.0 / (inf_s if inf_s > 0.0 and torch.isfinite(torch.tensor(inf_s)) else 1.0)
+        rhs_s_scaled = rhs_s_eff * scale_s
 
-        # ----- ROW SCALING (удалено) ----------------------------------------
-        # Промышленные CPR-реализации после полноценной безразмеризации
-        # не применяют дополнительный строковый масштаб.  Матрица уже
-        # кондиционирована (scale ≤ 1e6), а Jacobi-диагональ вычисляется
-        # напрямую из физической матрицы.
-
-        self.row_scale = np.ones(N, dtype=np.float64)
-
-        # Диагональ для Jacobi
-        diag_inv = np.zeros(N, dtype=np.float64)
-        for i in range(N):
-            start = indptr[i]
-            end   = indptr[i+1] if i < N-1 else pos
-            for j in range(start, end):
-                if indices[j] == i:
-                    diag_inv[i] = 1.0 / max(abs(data[j]), 1e-12)
-                    break
-
-        self.diag_inv = diag_inv
-
-        # После нормирования матрицы её масштаб равен factor 'scale';
-        # сохраняем его, чтобы согласованно масштабировать RHS и восстановить решение.
-        self.matrix_scale = scale
-
-        print(f"🎯 CPR: Автомасштабирование — median(|diag|)={diag_median:.3e}, scale={scale:.3e}")
-        print(f"🎯 CPR: Диапазон элементов после масштабирования: min={data[:pos].min():.3e}, max={data[:pos].max():.3e}")
-
-        return indptr[:N+1], indices[:pos], data[:pos]
-
-    def apply(self, vec: torch.Tensor) -> torch.Tensor:
-        """
-        CPR preconditioner application.
-        ВОЗВРАЩАЕТ Δ в *global-hat* единицах (через self.scaler).
-
-        Логика:
-        - backend == "geo2": всё делаем в физических единицах и зовём GeoSolverV2.apply_prec_phys().
-            GeoSolverV2 сам сделает переходы phys <-> geo2-hat, вернёт Δp в phys.
-            Stage-2 по насыщенностям так же делаем в phys, затем один раз scale_vec -> hat.
-        - другие backends: оставлена прежняя логика (AMGX/Boomer/Jacobi и т.п.),
-            но в самом конце мы тоже переводим результат в global-hat.
-        """
-        import math
-        import numpy as np
-        import torch
-
-        # ---- Общие проверки ----
-        if not torch.isfinite(vec).all():
-            _chk_tensor("A0 vec_in_hat", vec)
-            print("    CPR: RHS содержит NaN/Inf – возвращаем нулевой δ")
-            # Возвращаем нулевой вектор в тех же единицах (hat)
-            return torch.zeros_like(vec, dtype=vec.dtype, device=vec.device)
-
-        # Кол-во ячеек и переменных на ячейку
-        if not hasattr(self, "_n_cells"):
-            self._n_cells = self.diag_inv.shape[0]
-        n = self._n_cells
-        vars_per_cell = vec.shape[0] // n
-        if vars_per_cell not in (2, 3):
-            raise ValueError(f"CPRPreconditioner: unsupported vars_per_cell={vars_per_cell} (expected 2 or 3)")
-
-        # -------------------------------------------------------------------------
-        #                          backend == "geo2"
-        # -------------------------------------------------------------------------
-        if self.backend == "geo2":
-            # 1) RHS в физических единицах
-            rhs_phys_full = self.scaler.unscale_vec(vec)
-            rhs_p_phys = rhs_phys_full[:n].to(self.solver.device, torch.float64)
-
-            # 2) Давление: решаем в phys -> phys
-            delta_p_phys = self.solver.apply_prec_phys(rhs_p_phys, cycles=1)
-            if delta_p_phys is None:
-                # Фоллбэк — нулевой шаг по давлению
-                delta_p_phys = torch.zeros_like(rhs_p_phys)
-
-            # 3) Собираем полный phys-вектор поправки
-            delta_phys_full = torch.zeros_like(rhs_phys_full)
-            delta_phys_full[:n] = delta_p_phys.to(rhs_phys_full.device, dtype=rhs_phys_full.dtype)
-
-            # 4) Stage‑2 для насыщенностей (всё в phys)
-            try:
-                props = getattr(self.simulator, "_cell_props_cache", None)
-                if props is not None:
-                    phi, dt, V   = props["phi"], props["dt"], props["V"]
-                    lam_w, lam_o = props["lam_w"], props["lam_o"]
-                    c_w, c_o     = props["c_w"],  props["c_o"]
-                    lam_g, c_g   = props.get("lam_g"), props.get("c_g")
-                    rho_w        = props["rho_w"]
-
-                    rhs_s_phys = rhs_phys_full[n:]
-                    vp = rhs_s_phys.numel() // n
-
-                    diag_SS = (phi * V * rho_w) / (dt + 1e-30)
-                    dFs_dp  = (lam_w * c_w + lam_o * c_o) * V / (dt + 1e-30)
-                    if lam_g is not None and c_g is not None:
-                        dFs_dp = dFs_dp + lam_g * c_g * V / (dt + 1e-30)
-
-                    # давление уже phys
-                    delta_p_phys_local = delta_p_phys.to(dtype=rhs_phys_full.dtype, device=rhs_phys_full.device)
-
-                    deltas = []
-                    for s in range(vp):
-                        s0, s1 = s * n, (s + 1) * n
-                        rhs_sat = rhs_s_phys[s0:s1]
-                        delta_sat = (rhs_sat - dFs_dp * delta_p_phys_local) / (diag_SS + 1e-30)
-                        delta_sat = torch.clamp(delta_sat, -0.05, 0.05)
-                        deltas.append(delta_sat)
-
-                    if deltas:
-                        delta_s_phys = torch.cat(deltas, dim=0)
-                        delta_phys_full[n:n + delta_s_phys.numel()] = delta_s_phys.to(delta_phys_full.dtype)
-
-            except Exception as e:
-                if not hasattr(self, "_warn_stage2"):
-                    print(f"[CPR geo2] Stage-2 saturation update failed: {e}")
-                    self._warn_stage2 = True
-
-            # 5) Возвращаемся в global-hat ровно один раз
-            delta_hat_full = self.scaler.scale_vec(delta_phys_full).to(vec.device, vec.dtype)
-            return delta_hat_full
-
-        # -------------------------------------------------------------------------
-        #             ДАЛЬШЕ — СТАРЫЕ БЭКЕНДЫ (geo/amgx/boomer/jacobi/…)
-        # -------------------------------------------------------------------------
-
-        # RHS в физических единицах (давление блок)
-        rhs_phys_torch = self.scaler.unscale_vec(vec)[:n]
-        _chk_tensor("A1 rhs_phys", rhs_phys_torch)
-
-        rhs_p = rhs_phys_torch.detach().cpu().numpy()
-        rhs_norm = float(np.linalg.norm(rhs_p))
-        if rhs_norm < 1e-15:
-            # Ничего делать не надо, вернём 0 в hat
-            return torch.zeros_like(vec)
-
-        # Подготовка масштабов (как у вас было)
-        rhs_scale = 1.0
-        MAX_COMBINED_SCALE = 1e9
-        prod_scale = self.matrix_scale * rhs_scale
-        if prod_scale > MAX_COMBINED_SCALE:
-            rhs_scale = max(MAX_COMBINED_SCALE / max(self.matrix_scale, 1e-30), 1e-6)
-
-        rhs_scaled = rhs_p * self.matrix_scale
-
-        if hasattr(self, 'scaler') and self.scaler is not None:
-            rhs_hat_tmp = rhs_scaled.copy()
-            rhs_hat_tmp[:getattr(self.scaler, "n_cells", n)] *= getattr(self.scaler, "inv_p_scale", 1.0)
-            row_norm = max(np.linalg.norm(rhs_hat_tmp) / math.sqrt(len(rhs_hat_tmp)), 1e-12)
+        if self.solve_sat_cb is not None:
+            ds_scaled = self.solve_sat_cb(rhs_s_scaled)
         else:
-            row_norm = max(np.linalg.norm(rhs_scaled) / math.sqrt(len(rhs_scaled)), 1e-12)
+            ds_scaled = rhs_s_scaled  # Jacobi ~ I
 
-        rhs_scaled /= row_norm
-        local_row_scale = row_norm
-        _chk_tensor("A2 rhs_scaled", rhs_scaled)
-        print(f"[LOG A2] row_norm={row_norm:.3e}, matrix_scale={self.matrix_scale:.3e}, rhs_scale={rhs_scale:.3e}")
+        ds = ds_scaled * (1.0 / scale_s)
 
-        # Решаем давление
-        if self.solver is None or self.failed_amg:
-            print("    CPR: AMG недоступен – Jacobi fallback")
-            delta_p_scaled = (self.diag_inv / max(self.matrix_scale, 1e-30)) * rhs_scaled
-        else:
-            try:
-                print("    CPR: Используем AMG backend")
-                tol = self.gmres_tol if self.gmres_tol is not None else (1e-6 if n < 500 else (1e-4 if n < 500_000 else 1e-5))
-                iters = self.gmres_max_iter if self.gmres_max_iter is not None else 200
+        if self.max_sat_correction > 0.0:
+            torch.clamp_(ds, -self.max_sat_correction, self.max_sat_correction)
 
-                delta_p_geom = self.solver.solve(rhs_scaled, tol=tol, max_iter=iters)
-                _chk_tensor("A3 delta_p_geom", delta_p_geom)
+        if self.debug:
+            print(f"[CPR] ||rhs_p||={rhs_p.norm():.3e}, ||rhs_s||={rhs_s.norm():.3e}, "
+                  f"||dp||={dp.norm():.3e}, ||ds||={ds.norm():.3e}, max|ds|={ds.abs().max().item():.3e}")
 
-                # центрируем, как у вас
-                delta_p_geom = delta_p_geom - delta_p_geom.mean()
-                _chk_tensor("A3b delta_p_geom_centered", delta_p_geom)
-                delta_p_scaled = delta_p_geom
+        return self.merge_fn(dp, ds)
 
-                if np.any(~np.isfinite(delta_p_scaled)):
-                    print("    CPR: AMG дал NaN/Inf -> Jacobi fallback")
-                    self.failed_amg = True
-                    delta_p_scaled = (self.diag_inv / max(self.matrix_scale, 1e-30)) * rhs_scaled
-                else:
-                    ratio_inf = np.linalg.norm(delta_p_scaled, np.inf) / (rhs_norm + 1e-30)
-                    if self.backend == "geo" and ratio_inf > 1e10:
-                        print("    ⚠️ Geo-AMG нестабилен, локальный Jacobi")
-                        delta_p_scaled = (self.diag_inv / max(self.matrix_scale, 1e-30)) * rhs_scaled
-            except Exception as e:
-                print(f"    CPR: Ошибка AMG: {e} -> Jacobi fallback")
-                self.failed_amg = True
-                delta_p_scaled = (self.diag_inv / max(self.matrix_scale, 1e-30)) * rhs_scaled
+    # ------------------------------------------------------------------ #
+    #                         PRESSURE STAGE                              #
+    # ------------------------------------------------------------------ #
+    def _solve_pressure(self, rhs_p: torch.Tensor) -> torch.Tensor:
+        if self.geo_solver is None:
+            # Jacobi ~ I
+            return rhs_p.clone()
 
-        # Восстанавливаем phys
-        safe_row_scale = np.clip(local_row_scale, 0.0, 1e6)
-        delta_p_phys_np = (delta_p_scaled * safe_row_scale) / max(self.matrix_scale, 1e-30)
-        _chk_tensor("A4 delta_p_phys_preclip", delta_p_phys_np)
-        delta_p_phys_np = np.nan_to_num(delta_p_phys_np, nan=0.0, posinf=0.0, neginf=0.0)
-
-        # Собираем phys-вектор
-        delta_phys_full = torch.zeros_like(vec)
-        delta_phys_full[:n] = torch.from_numpy(delta_p_phys_np).to(device=vec.device, dtype=vec.dtype)
-
-        # -------- Stage‑2 (как у вас было) --------
+        # GeoSolverV2.apply_prec_phys(rhs, cycles)
         try:
-            props = getattr(self.simulator, "_cell_props_cache", None)
-            if props is not None:
-                phi, dt, V = props["phi"], props["dt"], props["V"]
-                lam_w, lam_o = props["lam_w"], props["lam_o"]
-                c_w, c_o = props["c_w"], props["c_o"]
-                lam_g, c_g = props.get("lam_g"), props.get("c_g")
+            return self.geo_solver.apply_prec_phys(rhs_p, cycles=self.cycles_stage1)
+        except TypeError:
+            # вдруг сигнатура без cycles
+            return self.geo_solver.apply_prec_phys(rhs_p)
 
-                rho_w = props["rho_w"]
-                diag_SS = (phi * V * rho_w) / (dt + 1e-30)
-                rhs_s_phys = self.scaler.unscale_vec(vec)[n:]
+    # ------------------------------------------------------------------ #
+    #                          GEO SOLVER BUILD                           #
+    # ------------------------------------------------------------------ #
+    def _build_geo_solver_safe(self):
+        """
+        Пытаемся вытащить из simulator.linops всё, что нужно для GeoSolverV2.
+        Если чего-то не хватает — выходим в fallback (Jacobi=I).
+        """
+        linops = getattr(self.sim, "linops", None)
+        if linops is None:
+            return
 
-                if (not torch.isfinite(rhs_s_phys).all()) or (not torch.isfinite(diag_SS).all()):
-                    raise ValueError("non-finite rhs_s or diag_SS")
+        # ---- обязательные вещи ----
+        levels: Optional[List[LevelData]] = getattr(linops, "geo_levels", None)
+        apply_A = getattr(linops, "apply_A_level", None)
+        restrict_op = getattr(linops, "restrict_level", None)
+        prolong_op = getattr(linops, "prolong_level", None)
 
-                dFs_dp = (lam_w * c_w + lam_o * c_o) * V / (dt + 1e-30)
-                if lam_g is not None and c_g is not None:
-                    dFs_dp = dFs_dp + lam_g * c_g * V / (dt + 1e-30)
+        if levels is None or apply_A is None or restrict_op is None or prolong_op is None:
+            # ничего не строим
+            if self.debug:
+                print("[CPR] linops.{geo_levels,apply_A_level,restrict_level,prolong_level} не найдены → Jacobi=I")
+            return
 
-                # кламп давления
-                P_CLIP = 20.0e6
-                delta_phys_full[:n] = delta_phys_full[:n].clamp(-P_CLIP, P_CLIP)
+        # ---- опциональные вещи ----
+        W_rows = getattr(linops, "W_rows", None)
+        if W_rows is None:
+            # единичная левая эквилибрация
+            n = levels[0].n
+            W_rows = torch.ones(n, dtype=torch.float64, device=getattr(self.sim, "device", torch.device("cpu")))
 
-                vp = rhs_s_phys.numel() // n
-                delta_s_list = []
-                for s in range(vp):
-                    s0, s1 = s * n, (s + 1) * n
-                    rhs_sat = rhs_s_phys[s0:s1]
-                    delta_sat = (rhs_sat - dFs_dp * delta_phys_full[:n].cpu().numpy()) / (diag_SS + 1e-30)
-                    # преобразуем к torch и клампим
-                    delta_sat = torch.as_tensor(delta_sat, device=vec.device, dtype=vec.dtype)
-                    delta_sat = torch.clamp(delta_sat, -0.05, 0.05)
-                    delta_s_list.append(delta_sat)
+        # скейлеры давления (можешь поменять на свои)
+        to_hat = getattr(linops, "to_hat_p", None)
+        to_phys = getattr(linops, "to_phys_p", None)
+        if to_hat is None or to_phys is None:
+            # делаем identity
+            def to_hat(x: torch.Tensor) -> torch.Tensor:  # type: ignore
+                return x
+            def to_phys(x: torch.Tensor) -> torch.Tensor:  # type: ignore
+                return x
 
-                if delta_s_list:
-                    delta_s_full = torch.cat(delta_s_list, dim=0)
-                    if not torch.isfinite(delta_s_full).all():
-                        delta_s_full.zero_()
-                    delta_phys_full[n:n + rhs_s_phys.numel()] = delta_s_full
-        except Exception as _e:
-            if not hasattr(self, "_warn_stage2"):
-                print(f"[CPR] Stage-2 saturation update failed: {_e}")
-                self._warn_stage2 = True
+        device = getattr(self.sim, "device", torch.device("cpu"))
 
-        # -------- ψ-tail (по желанию – оставляем как было, если нужно) --------
+        # Параметры для GeoSolverV2
+        geo_pre = int(self.geo_params.get("pre_smooth", self.sim.sim_params.get("geo_pre", 2)))
+        geo_post = int(self.geo_params.get("post_smooth", self.sim.sim_params.get("geo_post", 2)))
+        rbgs_fine = int(self.geo_params.get("rbgs_iters_fine", 2))
+        rbgs_coarse = int(self.geo_params.get("rbgs_iters_coarse", 2))
+        omega0_f = float(self.geo_params.get("omega0_fine", 0.3))
+        omega_bounds = tuple(self.geo_params.get("omega_bounds", (0.05, 0.9)))
+        clip_kappa = float(self.geo_params.get("clip_kappa", 2.0))
+        delta_clip_factor = float(self.geo_params.get("delta_clip_factor", 1.0))
+        geo_debug = bool(self.sim.sim_params.get("geo_debug", False))
+
         try:
-            from solver.csr_full import assemble_full_csr
-            from solver.chebyshev import chebyshev_smooth
-        except ImportError:
-            assemble_full_csr = None
-            chebyshev_smooth = None
+            self.geo_solver = GeoSolverV2(
+                levels=levels,
+                W_rows=W_rows,
+                to_hat=to_hat,
+                to_phys=to_phys,
+                apply_A=apply_A,
+                restrict_op=restrict_op,
+                prolong_op=prolong_op,
+                device=device,
+                debug=geo_debug,
+                geo_pre=geo_pre,
+                geo_post=geo_post,
+                geo_max_iter=self.geo_max_iter,
+                geo_tol=self.geo_tol,
+                rbgs_iters_fine=rbgs_fine,
+                rbgs_iters_coarse=rbgs_coarse,
+                omega0_fine=omega0_f,
+                omega_bounds=omega_bounds,
+                clip_kappa=clip_kappa,
+                delta_clip_factor=delta_clip_factor,
+            )
+        except TypeError as e:
+            # если вдруг сигнатура всё-таки другая — не падаем, просто идём в Jacobi=I
+            if self.debug:
+                print(f"[CPR] Не удалось сконструировать GeoSolverV2: {e} → Jacobi=I")
+            self.geo_solver = None
 
-        if assemble_full_csr is not None and chebyshev_smooth is not None:
-            if not hasattr(self, "_full_A"):
-                n_total = vec.shape[0]
-                vars_pc = max(2, min(3, n_total // n))
-                indptr_f, indices_f, data_f = assemble_full_csr(
-                    self._indptr_p, self._indices_p, self._data_p,
-                    vars_per_cell=vars_pc, diag_sat=1.0)
-                self._full_A = torch.sparse_csr_tensor(
-                    torch.from_numpy(indptr_f),
-                    torch.from_numpy(indices_f),
-                    torch.from_numpy(data_f).to(torch.float32),
-                    size=(vec.shape[0], vec.shape[0])
-                )
+    # ------------------------------------------------------------------ #
+    #                     SPLIT/MERGE (2 variables/cell)                  #
+    # ------------------------------------------------------------------ #
+    def _split_2vars(self, v: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
+        n = self.n_cells
+        p = v[:n]
+        s = v[n:2 * n] if v.numel() >= 2 * n else torch.zeros_like(p)
+        return p, s
 
-            A_full = self._full_A
-            n_blocks = 2 if self._n_cells > 1_000_000 else 1
-            delta_hat_tmp = self.scaler.scale_vec(delta_phys_full).to(vec.device, vec.dtype)
-            for _ in range(n_blocks):
-                r_hat_cpu = vec.cpu() - torch.sparse.mm(A_full, delta_hat_tmp.cpu().unsqueeze(1)).squeeze(1)
-                delta_inc_cpu, _ = chebyshev_smooth(A_full, r_hat_cpu,
-                                                    torch.zeros_like(r_hat_cpu), iters=2, omega=0.7)
-                delta_hat_tmp = delta_hat_tmp + delta_inc_cpu.to(vec.device)
-            # перенесём обратно в phys, чтобы клампнуть давление, затем снова в hat
-            delta_phys_full = self.scaler.unscale_vec(delta_hat_tmp)
-
-        # Финальные клампы и проверки
-        pressure_result = delta_phys_full[:n]
-        rhs_norm_hat = vec[:n].norm().item()
-        rhs_norm_phys = rhs_norm_hat * float(getattr(self, "p_scale", 1.0))
-        clamp_val = max(1e7, min(10.0 * rhs_norm_phys / (math.sqrt(float(n)) + 1e-30), 2e7))
-        pressure_result = pressure_result.clamp(-clamp_val, clamp_val)
-        delta_phys_full[:n] = pressure_result
-
-        final_norm = pressure_result.norm().item()
-        rhs_norm_torch = vec[:n].norm().item() + 1e-30
-        if self.backend not in ("geo", "geo2") and n > 500 and rhs_norm_torch > 1e-6 and final_norm > 1e9 * rhs_norm_torch:
-            print("    CPR: Δp экстремально велико – обнуляем")
-            delta_phys_full[:n].zero_()
-
-        # ---- ВАЖНО: возвращаем ВСЕГДА в global-hat ----
-        delta_hat_full = self.scaler.scale_vec(delta_phys_full).to(vec.device, vec.dtype)
-        return delta_hat_full
+    def _merge_2vars(self, dp: torch.Tensor, ds: torch.Tensor) -> torch.Tensor:
+        if ds.numel() == 0:
+            return dp
+        return torch.cat([dp, ds], dim=0)

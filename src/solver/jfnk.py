@@ -53,7 +53,6 @@ class FullyImplicitSolver:
 
         self.prec = CPRPreconditioner(
             simulator,
-            backend=cpr_backend,
             smoother=smoother,
             scaler=self.scaler,
             geo_params=geo_params,
