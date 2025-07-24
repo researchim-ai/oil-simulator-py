@@ -44,12 +44,23 @@ class FullyImplicitSolver:
             "smoother_fine":   sim_params.get("smoother", "rbgs"),
         }
 
+        # CPR конфиг из sim_params
+        cpr_backend     = sim_params.get("cpr_backend", backend)
+        geo_tol         = sim_params.get("geo_tol", 1e-6)
+        geo_max_iter    = sim_params.get("geo_max_iter", 10)
+        gmres_tol       = sim_params.get("gmres_tol", 1e-3)
+        gmres_max_iter  = sim_params.get("gmres_max_iter", 60)
+
         self.prec = CPRPreconditioner(
             simulator,
-                                       backend=backend,
-                                       smoother=smoother,
-                                       scaler=self.scaler,
+            backend=cpr_backend,
+            smoother=smoother,
+            scaler=self.scaler,
             geo_params=geo_params,
+            geo_tol=geo_tol,
+            geo_max_iter=geo_max_iter,
+            gmres_tol=gmres_tol,
+            gmres_max_iter=gmres_max_iter,
         )
 
         # Newton params ----------------------------------------------------
@@ -72,6 +83,23 @@ class FullyImplicitSolver:
         #  Значение по умолчанию гораздо меньше, чтобы не "душить" мелкие тестовые задачи
         self.ptc_tau0 = simulator.sim_params.get("ptc_tau0", 10.0)
 
+    # --- small helpers -------------------------------------------------
+    def _n_cells(self):
+        if self.scaler is not None:
+            return self.scaler.n_cells
+        nx, ny, nz = self.sim.reservoir.dimensions
+        return nx * ny * nz
+
+    def _check_scale_inv(self, z_hat: torch.Tensor, tag: str):
+        if self.scaler is None:
+            return
+        z_phys = self.scaler.unscale_vec(z_hat)
+        z_back = self.scaler.scale_vec(z_phys)
+        err = (z_back - z_hat).abs().max().item()
+        if err > 1e-8:
+            print(f"[SCALE-MISMATCH] {tag}: {err:.3e}")
+
+
     def _Jv(self, x: torch.Tensor, v: torch.Tensor, dt):
         """🚀 ПРОМЫШЛЕННЫЙ Jacobian-vector произведение с регуляризацией.
         
@@ -80,12 +108,40 @@ class FullyImplicitSolver:
         машинного, масштабируемый на ‖x‖, чтобы избежать слишком мелких
         разностей, приводящих к шуму.
         """
-        # Машинное ε для float32 или float64 в зависимости от dtype
-        dtype_eps = 1e-7 if x.dtype == torch.float32 else 1e-15
-        eps_base = torch.sqrt(torch.tensor(dtype_eps, dtype=x.dtype, device=x.device))
-        eps = eps_base * (1.0 + torch.norm(x)) / (torch.norm(v) + 1e-12)
-        # Для микромоделей используем нижний предел 1e-6 (как в тестах)
-        eps = torch.clamp_min(eps, 1e-6)
+
+        # 0. Early exit: если v почти нулевой — возвращаем ноль (GMRES сам подберёт другое)
+        if v.norm() < 1e-14:
+            return torch.zeros_like(v)
+
+        # 2. Целевые амплитуды возмущений
+        n_cells = self.scaler.n_cells if self.scaler is not None else (len(x)//2)
+        dp_target = 1e5   # 0.1 МПа
+        ds_target = 1e-3  # для насыщенности
+
+        # 3. Считаем масштаб отдельно для давления и насыщенностей
+        v_p = v[:n_cells]
+        vmax_p = v_p.abs().max().item() + 1e-30
+        alpha_p = dp_target / vmax_p
+
+        if v.numel() > n_cells:
+            v_s = v[n_cells:2*n_cells]
+            vmax_s = v_s.abs().max().item() + 1e-30
+            alpha_s = ds_target / vmax_s
+            eps_dir = min(alpha_p, alpha_s)
+        else:
+            eps_dir = alpha_p
+
+        # 4. Финальный eps — в разумных пределах
+        eps = torch.clamp(torch.tensor(eps_dir, dtype=x.dtype, device=x.device),
+                        min=1e-6, max=1e-2)
+
+
+        # # Машинное ε для float32 или float64 в зависимости от dtype
+        # dtype_eps = 1e-7 if x.dtype == torch.float32 else 1e-15
+        # eps_base = torch.sqrt(torch.tensor(dtype_eps, dtype=x.dtype, device=x.device))
+        # eps = eps_base * (1.0 + torch.norm(x)) / (torch.norm(v) + 1e-12)
+        # # Для микромоделей используем нижний предел 1e-6 (как в тестах)
+        # eps = torch.clamp_min(eps, 1e-6)
 
         # ----- Унифицированная центральная разность для всех размеров -----
         nvars_local = x.shape[0]
@@ -115,23 +171,18 @@ class FullyImplicitSolver:
             else:
                 Jv_core = Jv_forward
         else:
-            # Универсальная центральная разность
-            if nvars_local <= 400:
-                eps = torch.tensor(1e-6, dtype=x.dtype, device=x.device)
-            else:
-                # Для крупных систем слишком маленький eps даёт числовой ноль.
-                # Устанавливаем нижний предел 1e-4 (экв. ~1 МПа для p_scale=1e9).
-                eps = torch.clamp_min(eps, 1e-4)
+            
+            eps = torch.clamp(eps, 1e-6, 1e-2)
 
             # --- Компонентный шаг: для насыщенностей нужен более крупный δ ---
             n_cells = self.scaler.n_cells if self.scaler is not None else (len(x)//2)
             vars_per_cell = nvars_local // n_cells
             v_mod = v.clone()
+            scale_factor = 1.0
             if vars_per_cell >= 2:
-                # для S используем eps_sat = 5e-3 вместо eps (обычно 1e-6..1e-4)
-                eps_sat = torch.tensor(5e-3, dtype=x.dtype, device=x.device)  # крупнее шаг для насыщенности
-                scale_factor = eps_sat / eps
-                v_mod[n_cells:] = v_mod[n_cells:] * scale_factor
+                ds_target = 5e-3
+                scale_factor = torch.tensor(ds_target, dtype=x.dtype, device=x.device) / eps
+                v_mod[n_cells:] *= scale_factor
 
             # --- Убираем нулевой (константный) режим давления -------------
             with torch.no_grad():
@@ -160,11 +211,28 @@ class FullyImplicitSolver:
                     vec_p[sat_start:sat_end] = torch.clamp(vec_p[sat_start:sat_end], 1e-6, 1.0 - 1e-6)
                 return vec_p
 
+            if not hasattr(self, "_dbg_jv_amplitude"):
+                n = self._n_cells()
+                # вектор возмущения в физических единицах
+                v_phys = v_mod.clone()   # уже phys, если вы его в phys привели (см. ваш код)
+                dp_step_est = (eps * v_phys[:n]).abs().max().item()
+                ds_step_est = (eps * v_phys[n:2*n]).abs().max().item() if v_phys.numel() >= 2*n else float('nan')
+                print(f"[Jv STEP] eps={float(eps):.3e}  ||v||={v.norm():.3e} "
+                    f"dp_step_est={dp_step_est:.3e} Pa  ds_step_est={ds_step_est:.3e}")
+                self._dbg_jv_amplitude = True
+
             x_plus  = _project(x + eps * v_mod)
             x_minus = _project(x - eps * v_mod)
+
+            if not hasattr(self, "_dbg_jv_real_step"):
+                n = self._n_cells()
+                dp_real = (x_plus[:n] - x[:n]).abs().max().item()
+                ds_real = (x_plus[n:2*n] - x[n:2*n]).abs().max().item() if x_plus.numel() >= 2*n else float('nan')
+                print(f"[Jv REAL]  Δp_max={dp_real:.3e} Pa  ΔS_max={ds_real:.3e}")
+                self._dbg_jv_real_step = True
+
             # ---- DEBUG: выводим амплитуду возмущения ------------------
             if not hasattr(self, "_dbg_jv_delta"):
-                n_cells = n_cells
                 dp_max = (x_plus[:n_cells] - x[:n_cells]).abs().max().item()
                 dsw_max = (x_plus[n_cells:2*n_cells] - x[n_cells:2*n_cells]).abs().max().item()
                 print(f"[Jv dbg] Δp_max={dp_max:.3e} Pa, ΔSw_max={dsw_max:.3e}")
@@ -176,9 +244,13 @@ class FullyImplicitSolver:
                 self._dbg_jv_delta = True
             Jv_core = (F_plus - F_minus) / (2.0 * eps)
 
+            if not hasattr(self, "_dbg_jv_core"):
+                print(f"[Jv OUT]  ||Jv_core||2={Jv_core.norm():.3e}  ||Jv_core||inf={Jv_core.abs().max():.3e}")
+                self._dbg_jv_core = True
+
             # корректируем обратно на scale_factor для S частей
-            if vars_per_cell >= 2 and scale_factor != 1.0:
-                Jv_core[n_cells:] = Jv_core[n_cells:] / scale_factor
+            if vars_per_cell >= 2 and (scale_factor - 1).abs() > 1e-12:
+                Jv_core[n_cells:] /= scale_factor
 
             # --- Fallback: если центральная разность дала почти нулевой вектор ---
             if Jv_core.norm() < 1e-8:
@@ -196,6 +268,12 @@ class FullyImplicitSolver:
         if nvars_local >= 800 and hasattr(self, "ptc_tau") and self.ptc_enabled and self.ptc_tau > 0.0:
             Jv_core = Jv_core + (self.ptc_tau / dt) * v
 
+        if not hasattr(self, "_dbg_jv_units"):
+            Jv_hat = self.scaler.scale_vec(Jv_core) if self.scaler else Jv_core
+            print(f"[Jv] ||Jv_phys||={Jv_core.norm():.3e}, ||Jv_hat||={Jv_hat.norm():.3e}")
+            self._dbg_jv_units = True
+
+
         Jv = Jv_core  # без дополнительной регуляризации – достаточно стабильно
 
         if not hasattr(self, "_dbg_jv_once"):
@@ -211,8 +289,13 @@ class FullyImplicitSolver:
         return Jv
 
     def step(self, x0: torch.Tensor, dt: float):
-        """🚀 ПРОМЫШЛЕННЫЙ Newton шаг с адаптивными стратегиями"""
+        """ПРОМЫШЛЕННЫЙ Newton шаг с адаптивными стратегиями"""
         x = x0.clone()  # x0 уже в нужных единицах (simulator использует VariableScaler)
+
+        n = self._n_cells()
+        print(f"[STEP] start ||x_hat||={x.norm():.3e}, p_hat[min,max]=({x[:n].min():.3e},{x[:n].max():.3e})")
+        self._check_scale_inv(x, "start")
+
 
         # Базовое среднее давление (в масштабированных единицах), чтобы фиксировать нулевой вектор
         n_cells_tot = (
@@ -300,10 +383,14 @@ class FullyImplicitSolver:
             # ---------------- residual (physical → scaled) ----------------
             x_phys = self._unscale_x(x) if self.scaler is not None else x
             F_phys = self.sim._fi_residual_vec(x_phys, dt)
-            F_hat = self.scaler.scale_vec(F_phys) if self.scaler is not None else F_phys
+            F_hat = self.scaler.scale_vec(F_phys) if self.scaler else F_phys
+            print(f"[RES] ||F_phys||={F_phys.norm():.3e}, ||F_hat||={F_hat.norm():.3e}, "
+                f"||F_p_hat||={F_hat[:n].norm():.3e}, ||F_s_hat||={F_hat[n:].norm():.3e}")
+
 
             # Динамически отключаем PTC, если невязка достаточно мала
             if self.ptc_enabled and self.ptc_tau > 0.0:
+                print(f"[PTC] tau={self.ptc_tau:.3e}, ||PTC_term||={((self.ptc_tau/dt)*(x-x_ref)).norm():.3e}")
                 if F_hat.norm() < 1e-2:
                     print("  PTC отключён – невязка стала малой")
                     self.ptc_tau = 0.0
@@ -372,6 +459,14 @@ class FullyImplicitSolver:
                 # v_hat → physical, затем Jv → scale back
                 # Перед каждым Jv обновляем cell_props_cache, чтобы
                 # центральная разность брала свежие φ, λ, ρ и пр.
+                if not hasattr(self, "_dbg_A_once"):
+                    n = self._n_cells()
+                    v_phys = self.scaler.unscale_vec(v_hat) if self.scaler else v_hat
+                    print(f"[A] ||v_hat||={v_hat.norm():.3e}, dp_phys_max={(v_phys[:n]).abs().max().item():.3e}, "
+                        f"dS_phys_max={(v_phys[n:]).abs().max().item() if v_phys.numel()>n else float('nan'):.3e}")
+                    self._dbg_A_once = True
+
+                
                 try:
                     from simulator.props import compute_cell_props
                     x_phys_curr = self._unscale_x(x) if self.scaler is not None else x
@@ -407,14 +502,6 @@ class FullyImplicitSolver:
                     return self.scaler.scale_vec(delta_phys)
                 else:
                     return self.prec.apply(r_hat)
-                
-            # 🎯 АДАПТИВНЫЕ параметры GMRES в зависимости от итерации
-            #   • первые две итерации: допускаем грубый tol=1e-3
-            #   • далее – используем базовый tol (обычно 1e-7)
-            if it <= 1:
-                gmres_tol_min = max(1e-3, gmres_tol_base)
-            else:
-                gmres_tol_min = gmres_tol_base
 
             # Параметры рестарта/макс. итер. в зависимости от итерации Ньютона
             if it == 0:
@@ -441,7 +528,13 @@ class FullyImplicitSolver:
                 deflation_basis=basis_tensor,
                 min_iters=3
             )
+
             delta, info, gm_iters = gmres_out
+
+            n = self._n_cells()
+            print(f"[GMRES] info={info}, iters={gm_iters}, ||δ_hat||={delta.norm():.3e}, "
+                f"||δp_hat||={delta[:n].norm():.3e}, ||δs_hat||={delta[n:].norm():.3e}")
+
 
             # Защита: если GMRES вернул NaN/Inf, обнуляем δ
             if not torch.isfinite(delta).all():
@@ -604,6 +697,9 @@ class FullyImplicitSolver:
 
                 delta_sw = delta[sat_start : sat_start + sw_num]
 
+                print(f"[SAT] Sw[min,max]=({sw_curr.min():.3e},{sw_curr.max():.3e}), "
+                    f"ΔSw_hat_max={delta[sat_start:sat_start+sw_curr.numel()].abs().max():.3e}")
+
                 alpha_sat = 1.0
 
                 # Верхний bound из Sw
@@ -615,6 +711,8 @@ class FullyImplicitSolver:
                 if neg_mask.any():
                     alpha_sw_neg = ( sw_curr[neg_mask] - sw_cr ) / ( -delta_sw[neg_mask] + 1e-30)
                     alpha_sat = min(alpha_sat, alpha_sw_neg.min().item())
+
+                print(f"[SAT] α_sat={alpha_sat:.3e}")
 
                 # Ограничение суммы Sw+Sg
                 if has_gas and delta_sg is not None:
@@ -640,7 +738,9 @@ class FullyImplicitSolver:
                 # не прерываем основную логику, просто выводим предупреждение
                 print(f"[sat-limiter] предупреждение: {_e}")
 
-            
+
+            print(f"[TR] R={trust_radius:.3e}, ||δ||_scaled={delta_norm_scaled:.3e}, α0={factor:.3e}")
+
             # --- ДИНАМИЧЕСКИЙ trust-radius -----------------------------------
             trust_radius_cfg = self.sim.sim_params.get("trust_radius", None)
             if trust_radius_cfg is not None:
@@ -661,19 +761,22 @@ class FullyImplicitSolver:
             success = False
 
             for ls_it in range(ls_max):
-                # Проверяем минимальный размер шага
+                # Проверка минимального шага
                 if factor < min_factor:
                     print(f"  Line search: достигнут минимальный α={min_factor:.3e} – прекращаем LS")
                     break
+
+                if ls_it == 0:
+                    Jv_hat_ls = A(delta)
 
                 x_candidate = x + factor * delta
                 if not torch.isfinite(x_candidate).all():
                     factor *= 0.5
                     continue
 
-                x_candidate_phys = self._unscale_x(x_candidate) if self.scaler is not None else x_candidate
+                x_candidate_phys = self._unscale_x(x_candidate) if self.scaler else x_candidate
                 F_candidate_phys = self.sim._fi_residual_vec(x_candidate_phys, dt)
-                F_candidate_hat = self.scaler.scale_vec(F_candidate_phys) if self.scaler is not None else F_candidate_phys
+                F_candidate_hat = self.scaler.scale_vec(F_candidate_phys) if self.scaler else F_candidate_phys
                 if self.ptc_enabled and self.ptc_tau > 0.0:
                     F_candidate_hat = F_candidate_hat + (self.ptc_tau / dt) * (x_candidate - x_ref)
                 if not torch.isfinite(F_candidate_hat).all():
@@ -682,14 +785,13 @@ class FullyImplicitSolver:
 
                 f_curr = F_candidate_hat.norm()
 
-                # --- DEBUG: выводим метрики line-search ---
-                with torch.no_grad():
+                # DEBUG
+                if ls_it == 0:
+                    lin_err = (F_candidate_hat - (F + factor * Jv_hat_ls)).norm() / (factor * Jv_hat_ls.norm() + 1e-30)
                     sw_range = (x_candidate_phys[n_cells_tot:2*n_cells_tot].min().item(),
                                 x_candidate_phys[n_cells_tot:2*n_cells_tot].max().item())
-                    print(
-                        f"    LS try α={factor:.3e}: ||F||={f_curr:.3e} (ratio={f_curr/(F_norm+1e-30):.3e}), "
-                        f"Sw_range=({sw_range[0]:.3e},{sw_range[1]:.3e})"
-                    )
+                    print(f"    LS try α={factor:.3e}: ||F||={f_curr:.3e} (ratio={f_curr/(F_norm+1e-30):.3e}), "
+                        f"lin_err={lin_err:.3e}, Sw_range=({sw_range[0]:.3e},{sw_range[1]:.3e})")
 
                 if f_curr <= (1 - c1 * factor) * F_norm:
                     print(f"  Line search принял шаг α={factor:.3e}, ||F||={f_curr:.3e}")
@@ -698,6 +800,7 @@ class FullyImplicitSolver:
                     break
 
                 factor *= 0.5
+
 
             if not success:
                 print("  Line search не нашёл шаг – пробуем демпфированный Jacobi fallback (α=0.3)")
@@ -756,13 +859,15 @@ class FullyImplicitSolver:
                 print(f"  Trust-region: новый радиус {trust_radius:.2f}")
 
             x = x_new
-
+            self._check_scale_inv(x_new, "after step")
             # --- Фиксация среднего давления -----------------------------------
             mean_p_drift = x[:n_cells_tot].mean() - baseline_mean_p
             if torch.abs(mean_p_drift) > 1e-6:
                 x[:n_cells_tot] -= mean_p_drift
                 print(f"  ⚖️  Сдвиг среднего давления устранён: drift={mean_p_drift.item():.3e}")
             prev_F_norm = F_norm
+
+            print(f"[DRIFT] mean_p_drift={mean_p_drift.item():.3e} (hat)")
 
             # Уменьшаем τ после успешного шага
             if self.ptc_enabled and self.ptc_tau > 0.0:

@@ -44,6 +44,61 @@ def build_level_csr(kx: torch.Tensor, ky: torch.Tensor, kz: torch.Tensor | None,
     # build_7pt_csr уже возвращает torch tensors; передаём их дальше
     return indptr, indices, data
 
+def build_level_from_csr(A_csr: torch.Tensor,
+                         diag: torch.Tensor,
+                         inv_l1: torch.Tensor,
+                         shape: tuple[int, int, int],
+                         hx: float, hy: float, hz: float,
+                         *, device: str = "cuda") -> "GeoLevel":
+    """Создаёт GeoLevel из уже готовых A_csr/diag/inv_l1 (Galerkin уровень)."""
+    nz, ny, nx = shape
+
+    lvl = object.__new__(GeoLevel)   # обходим __init__
+    lvl.kx = torch.zeros(nz, ny, nx, dtype=torch.float64, device=device)
+    lvl.ky = lvl.kx
+    lvl.kz = lvl.kx
+    lvl.hx, lvl.hy, lvl.hz = float(hx), float(hy), float(hz)
+    lvl.device = device
+
+    lvl.A_csr = A_csr.to(device)
+    lvl.diag  = diag.to(device)
+    lvl.W_rows = torch.ones(lvl.A_csr.size(0), dtype=torch.float64, device=device)
+
+    # --- Red/Black маски ---
+    z = torch.arange(nz, device=device)[:, None, None]
+    y = torch.arange(ny, device=device)[None, :, None]
+    x = torch.arange(nx, device=device)[None, None, :]
+    colors = (z + y + x) % 2 == 0
+    lvl.is_red   = colors.reshape(-1)
+    lvl.is_black = ~lvl.is_red
+
+    # --- коэффициенты вдоль z для line-GS ---
+    crow = lvl.A_csr.crow_indices()
+    col  = lvl.A_csr.col_indices()
+    vals = lvl.A_csr.values()
+
+    n_rows = crow.numel() - 1           # фактическое число строк
+    total  = n_rows                     # должно совпасть с nz*ny*nx, но берём из CSR
+    stride_z = nx * ny
+
+    row_idx = torch.repeat_interleave(torch.arange(n_rows, device=device),
+                                      crow[1:] - crow[:-1])
+
+    lvl.a_up = torch.zeros(total, dtype=torch.float64, device=device)
+    lvl.a_dn = torch.zeros_like(lvl.a_up)
+
+    diff = col - row_idx
+    mask_up = diff == stride_z
+    mask_dn = diff == -stride_z
+    if mask_up.any():
+        lvl.a_up.index_copy_(0, row_idx[mask_up], vals[mask_up])
+    if mask_dn.any():
+        lvl.a_dn.index_copy_(0, row_idx[mask_dn], vals[mask_dn])
+
+    return lvl
+
+
+
 class GeoLevel:  # noqa: D101
     def __init__(self, kx: torch.Tensor, ky: torch.Tensor, kz: torch.Tensor | None,
                  hx: float, hy: float, hz: float, *, device: str = "cuda"):
@@ -56,11 +111,27 @@ class GeoLevel:  # noqa: D101
         indices = indices.to(device)
         data = data.to(device)
         self.A_csr = torch.sparse_csr_tensor(indptr, indices, data, dtype=torch.float64, device=device)
+        crow = self.A_csr.crow_indices()
+        col  = self.A_csr.col_indices()
+        vals = self.A_csr.values()
+
+
         # diag и inv-sqrt(diag) для эквилибрации
         vals = self.A_csr.values()
         crow = self.A_csr.crow_indices()
         # Индексы диагональных элементов (последние в строке)
-        diag_idx = crow[1:] - 1
+        # diag_idx = crow[1:] - 1
+        row_starts = crow[:-1]; row_ends = crow[1:]
+        diag_idx = torch.empty_like(row_starts, dtype=torch.int64)
+        for i in range(row_starts.numel()):
+            s, e = row_starts[i].item(), row_ends[i].item()
+            row_cols = col[s:e]
+            # ищем индекс элемента, где col == i
+            pos = torch.nonzero(row_cols == i, as_tuple=False)
+            assert pos.numel() == 1, "diag not found or multiple diags"
+            diag_idx[i] = s + pos.item()
+
+
 
         # --- фиксация нулевых строк (неактивные ячейки) -----------------
         diag_vals = vals[diag_idx].abs()
@@ -70,16 +141,21 @@ class GeoLevel:  # noqa: D101
         #  превращалась в почти единичную и Geo-AMG «взрывался».  Снижаем
         #  порог до 1e-20 (≈ машинный эпсилон для float64) либо, что лучше,
         #  используем относительный: <1e-12 * median(|diag|).
-        eps_abs = 1e-20
-        eps_rel = 1e-12 * torch.median(diag_vals).item()
-        thr = max(eps_abs, eps_rel)
+        dmed = diag_vals.median()
+        thr = torch.clamp(1e-6 * dmed, min=1e-30)
         zero_mask = diag_vals < thr
+
         if zero_mask.any():
             # Задаём A_ii = 1, off-diag оставляем как есть (они уже ~0)
             vals[diag_idx[zero_mask]] = 1.0
             diag_vals = vals[diag_idx].abs()  # обновляем
 
         self.diag = diag_vals.to(dtype=torch.float64)  # уже на device
+        
+        # row-scale (по умолчанию единичный, если не делали row-equil)
+        self.W_rows = torch.ones(self.diag.numel(), dtype=torch.float64, device=device)
+
+
         # -------- L1-диагональ: 1 / Σ_j |A_ij| -------------------------
         row_counts = crow[1:] - crow[:-1]
         row_idx = torch.repeat_interleave(torch.arange(self.diag.numel(), device=device), row_counts)
@@ -87,7 +163,13 @@ class GeoLevel:  # noqa: D101
         row_abs_sum.index_add_(0, row_idx, vals.abs())
 
         # ---- Изолированные строки: Σ|A_ij| < 1e-8 -----------------------
-        iso_mask = row_abs_sum < 1e-8
+
+        med = row_abs_sum.median()
+        iso_thr = torch.clamp(1e-6 * med, min=torch.tensor(1e-30, device=med.device))
+
+        iso_mask = row_abs_sum < iso_thr
+
+
         safe_sum = row_abs_sum.clone()
         safe_sum[iso_mask] = 1.0  # чтобы 1/sum не дал Inf
         self.inv_l1 = 1.0 / safe_sum
@@ -96,7 +178,8 @@ class GeoLevel:  # noqa: D101
 
         if os.environ.get("OIL_DEBUG", "0") == "1":
             n_iso = iso_mask.sum().item()
-            print(f"[GeoLevel] isolated rows (<1e-8): {n_iso}/{self.inv_l1.numel()}")
+            print(f"[GeoLevel] iso_thr={iso_thr.item():.3e}; isolated rows={n_iso}/{self.inv_l1.numel()}")
+
 
         # ----------------- DEBUG: статистика строк L1-нормы -----------------
         if os.environ.get("OIL_DEBUG", "0") == "1":
@@ -136,6 +219,12 @@ class GeoLevel:  # noqa: D101
             self.a_up.index_copy_(0, row_idx[mask_up], vals[mask_up])
         if mask_dn.any():
             self.a_dn.index_copy_(0, row_idx[mask_dn], vals[mask_dn])
+
+    def matvec_hat(self, x: torch.Tensor) -> torch.Tensor:
+        """
+        y = Â * x  (всё уже в hat-пространстве)
+        """
+        return torch.sparse.mm(self.A_csr, x.unsqueeze(1)).squeeze(1)
 
     @property
     def n_cells(self) -> int:  # noqa: D401

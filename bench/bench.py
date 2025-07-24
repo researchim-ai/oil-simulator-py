@@ -1,0 +1,199 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+import os, sys, time, argparse, random
+import torch
+import numpy as np
+
+# путь к src
+sys.path.append(os.path.join(os.path.dirname(__file__), "..", "src"))
+
+from simulator.reservoir import Reservoir
+from simulator.fluid import Fluid
+from simulator.well import WellManager
+from simulator.simulation import Simulator
+from solver.cpr import CPRPreconditioner  # если вдруг требуется где-то внутри
+
+# --------------------------------------------------
+# Генерация случайных скважин
+# --------------------------------------------------
+def make_wells(nx, ny, nz, *, n_wells=50,
+               inj_fraction=0.3,
+               inj_rate=8e4,
+               prod_rate=-6e4):
+    wells = []
+    n_inj = int(n_wells * inj_fraction)
+    n_prod = n_wells - n_inj
+
+    def rnd(dim):  # избегаем границ
+        return random.randint(1, max(dim - 2, 1))
+
+    for i in range(n_inj):
+        wells.append(dict(
+            name=f"INJ{i+1}", type="injector",
+            i=rnd(nx), j=rnd(ny), k=rnd(nz),
+            radius={"radius": 0.1, "well_index": 1e-3},
+            control_type="bhp", control_value=30.0  # МПа
+        ))
+    for i in range(n_prod):
+        wells.append(dict(
+            name=f"PROD{i+1}", type="producer",
+            i=rnd(nx), j=rnd(ny), k=rnd(nz),
+            radius={"radius": 0.1, "well_index": 1e-3},
+            control_type="bhp", control_value=10.0  # МПа
+        ))
+    return wells
+
+
+def bench_case(nx, ny, nz, *,
+               mode="fi",
+               steps=1,
+               newton_max=1,
+               jfnk_max=5,
+               geo_cycles=1,
+               geo_pre=2,
+               geo_post=2,
+               geo_levels=6,
+               dt_days=0.02,
+               debug=True):
+    n_cells = nx * ny * nz
+    print(f"\n===== Case {nx}x{ny}x{nz}  (N={n_cells/1e6:.2f} M) mode={mode} =====")
+
+    if debug:
+        os.environ["OIL_DEBUG"] = "1"
+
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+    # --- Reservoir / Fluid -------------------------------------------------
+    res_cfg = {
+        "dimensions": [nx, ny, nz],
+        "grid_size": [20.0, 20.0, 5.0],
+        "permeability": 100.0,
+        "k_vertical_fraction": 0.1,
+        "porosity": 0.2,
+        "c_rock": 1e-5,
+    }
+    res = Reservoir(res_cfg, device=device)
+
+    fluid_cfg = {
+        "pressure": 20.0,
+        "s_w": 0.2,
+        "mu_oil": 1.0,
+        "mu_water": 0.5,
+        "mu_gas": 0.05,
+        "rho_oil": 850.0,
+        "rho_water": 1000.0,
+        "rho_gas": 150.0,
+    }
+    fluid = Fluid(fluid_cfg, res, device=device)
+
+    wells = WellManager(
+        make_wells(nx, ny, nz, n_wells=50, inj_fraction=0.3,
+                   inj_rate=8e4, prod_rate=-6e4),
+        res
+    )
+
+    if mode == "fi":
+        sim_params = {
+            "solver_type": "fully_implicit",
+            "jacobian": "jfnk",
+            "backend": "geo2",       # наш Geo-AMG v2
+            "time_step_days": dt_days,
+            "adaptive_dt": False,    # чтобы не удлинял шаг
+            "total_time_days": steps * 1.0,
+            "verbose": True,
+            "use_cuda": device.type == "cuda",
+
+            # лимиты итераций
+            "max_newton_iter": newton_max,
+            "jfnk_max_iter": jfnk_max,
+
+            # Geo-AMG настройки
+            "geo_cycles": geo_cycles,
+            "geo_pre": geo_pre,
+            "geo_post": geo_post,
+            "geo_levels": geo_levels,
+
+            # безопасность
+            "line_search_min_alpha": 0.02,
+            "ptc": "auto_after=1",
+            "advanced_threshold": 1_000_000_000,
+        }
+    else:
+        sim_params = {
+            "solver_type": "impes",
+            "total_time_days": steps * 1.0,
+            "time_step_days": 1.0,
+            "verbose": True,
+            "use_cuda": device.type == "cuda",
+        }
+
+    sim_params["cpr_backend"]   = args.cpr_backend
+    sim_params["geo_tol"]       = args.geo_tol
+    sim_params["geo_max_iter"]  = args.geo_max_iter
+    sim_params["gmres_tol"]     = args.gmres_tol
+    sim_params["gmres_max_iter"]= args.gmres_max_iter
+    sim_params["geo_cycles"]    = args.geo_cycles
+    sim_params["geo_pre"]       = args.geo_pre
+    sim_params["geo_post"]      = args.geo_post
+    sim_params["geo_levels"]    = args.geo_levels
+
+    sim = Simulator(res, fluid, wells, sim_params, device=device)
+
+    dt_sec = sim_params["time_step_days"] * 86400.0
+    if device.type == "cuda":
+        torch.cuda.synchronize()
+    t0 = time.time()
+    for step in range(steps):
+        ok = sim.run_step(dt_sec)
+        if not ok:
+            print(f"⚠️  Шаг {step+1} не сошёлся – прерываем кейс")
+            break
+    if device.type == "cuda":
+        torch.cuda.synchronize()
+    print(f"{step+1} шаг(ов) выполнено, elapsed={time.time()-t0:.2f}s, GPU={device.type=='cuda'}")
+
+
+def parse_args():
+    ap = argparse.ArgumentParser(
+        description="Быстрый бенч для GeoSolverV2 с подробными логами."
+    )
+    ap.add_argument("--nx", type=int, default=60)
+    ap.add_argument("--ny", type=int, default=60)
+    ap.add_argument("--nz", type=int, default=30)
+    ap.add_argument("--mode", choices=["fi", "impes"], default="fi")
+    ap.add_argument("--steps", type=int, default=1)
+
+    ap.add_argument("--newton", type=int, default=1, help="max_newton_iter")
+    ap.add_argument("--jfnk", type=int, default=5, help="jfnk_max_iter")
+
+    ap.add_argument("--geo_cycles", type=int, default=1)
+    ap.add_argument("--geo_pre", type=int, default=2)
+    ap.add_argument("--geo_post", type=int, default=2)
+    ap.add_argument("--geo_levels", type=int, default=6)
+
+    ap.add_argument("--dt", type=float, default=0.02, help="начальный шаг (сутки)")
+    ap.add_argument("--debug", action="store_true", default=True)
+    ap.add_argument('--cpr-backend', default='geo2')
+    ap.add_argument('--geo-tol', type=float, default=1e-6)
+    ap.add_argument('--geo-max-iter', type=int, default=10)
+    ap.add_argument('--gmres-tol', type=float, default=1e-3)
+    ap.add_argument('--gmres-max-iter', type=int, default=60)
+
+
+
+    return ap.parse_args()
+
+
+if __name__ == "__main__":
+    args = parse_args()
+    bench_case(args.nx, args.ny, args.nz,
+               mode=args.mode,
+               steps=args.steps,
+               newton_max=args.newton,
+               jfnk_max=args.jfnk,
+               geo_cycles=args.geo_cycles,
+               geo_pre=args.geo_pre,
+               geo_post=args.geo_post,
+               geo_levels=args.geo_levels,
+               dt_days=args.dt,
+               debug=args.debug)
