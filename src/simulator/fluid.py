@@ -125,7 +125,7 @@ class Fluid:
         self.rock_compressibility  = float(config.get('c_rock', 1e-5))  / 1e6
         
         # КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: правильное опорное давление для сжимаемости
-        self.pressure_ref = getattr(reservoir, 'pressure_ref', 1e5)
+        self.pressure_ref = getattr(reservoir, 'pressure_ref', 20e6)
         print(f"🔧 Опорное давление для плотности: {self.pressure_ref:.0f} Па ({self.pressure_ref/1e6:.1f} МПа)")
         
         # Совокупная сжимаемость флюида (используется в IMPES)
@@ -139,6 +139,10 @@ class Fluid:
         self.ng    = rp_cfg.get('ng', 2)           # Показатель Кори для газа
         self.sw_cr = rp_cfg.get('sw_cr', 0.2)      # Связанная водонасыщенность
         self.so_r  = rp_cfg.get('so_r', 0.2)       # Остаточная нефтенасыщенность
+        # Ширина активной зоны у границ для устойчивых производных Corey
+        self.rp_delta = float(rp_cfg.get('delta', 0.01))
+        # Минимальная водная мобильность для выхода из «мертвой зоны» (конфигурируемая)
+        self.krw_min = float(rp_cfg.get('krw_min', 1e-8))
         
         # Инициализация полей
         self.pressure = torch.full(self.dimensions, initial_pressure, device=self.device)
@@ -390,97 +394,63 @@ class Fluid:
 
     def calc_water_kr(self, s_w):
         """
-        Вычисляет относительную проницаемость воды по модели Кори.
-        
-        Args:
-            s_w: Тензор водонасыщенности
-            
-        Returns:
-            Тензор относительной проницаемости воды
+        Corey с устойчивым хвостом у Sw=Swc: в зоне [0, δ] используем
+        линейную аппроксимацию кривой (согласованную по значению в точке δ),
+        дающую ненулевую производную при Sw=Swc.
         """
-        s_norm = self._get_normalized_saturation(s_w)
-        return s_norm**self.nw
+        denom = (1.0 - self.sw_cr - self.so_r + 1e-12)
+        s_raw = ((s_w - self.sw_cr) / denom).clamp(0.0, 1.0)
+        delta = float(self.rp_delta)
+        # Corey в основной области
+        kr_core = s_raw ** self.nw
+        # Линейный хвост на [0, δ]: kr = s_raw * δ^{nw-1}
+        slope_tail = (delta ** max(self.nw - 1, 0))
+        kr_tail = s_raw * slope_tail
+        use_tail = (s_raw <= delta)
+        kr = torch.where(use_tail, kr_tail, kr_core)
+        # Минимальный пол: позволяет изменить чувствительность J по S при старте на границе
+        return torch.clamp(kr, min=self.krw_min)
 
     def calc_oil_kr(self, s_w):
         """
-        Вычисляет относительную проницаемость нефти по модели Кори.
-        
-        Args:
-            s_w: Тензор водонасыщенности
-            
-        Returns:
-            Тензор относительной проницаемости нефти
+        Corey с устойчивым хвостом у So=Sor: для s_raw∈[1-δ,1] используем
+        линейный хвост kro = (1 - s_raw) · δ^{no-1}, обеспечивающий
+        ненулевую производную при So=Sor и согласование в точке 1-δ.
         """
-        s_norm = self._get_normalized_saturation(s_w)
-        return (1 - s_norm)**self.no
+        denom = (1.0 - self.sw_cr - self.so_r + 1e-12)
+        s_raw = ((s_w - self.sw_cr) / denom).clamp(0.0, 1.0)
+        delta = float(self.rp_delta)
+        kro_core = (1.0 - s_raw).clamp(0.0, 1.0) ** self.no
+        slope_tail = (delta ** max(self.no - 1, 0))
+        kro_tail = (1.0 - s_raw) * slope_tail
+        use_tail = (s_raw >= (1.0 - delta))
+        return torch.where(use_tail, kro_tail, kro_core)
 
     def calc_dkrw_dsw(self, s_w):
-        """
-        Вычисляет производную относительной проницаемости воды по водонасыщенности.
-        
-        Args:
-            s_w: Тензор водонасыщенности
-            
-        Returns:
-            Тензор производной относительной проницаемости воды
-        """
-        s_norm = self._get_normalized_saturation(s_w)
-        normalized_range = 1.0 - self.sw_cr - self.so_r + 1e-10
-        
-        # ИСПРАВЛЕНО: используем torch.where вместо маскирования для сохранения градиентов
-        # Проверяем, находится ли насыщенность в допустимом диапазоне
-        in_range = (s_w >= self.sw_cr) & (s_w <= 1.0 - self.so_r)
-        
-        # Производная dkrw/dsw = dkrw/ds_norm * ds_norm/dsw
-        # Производная сигмоидальной нормализации
-        eps = 0.02  # должно совпадать с _get_normalized_saturation
-        s_norm_raw = (s_w - self.sw_cr) / normalized_range
-        sigmoid_input = torch.clamp((s_norm_raw - 0.5) / eps, -10.0, 10.0)
-        dsigmoid_dx = torch.sigmoid(sigmoid_input) * (1 - torch.sigmoid(sigmoid_input)) / eps
-        ds_norm_dsw = dsigmoid_dx / normalized_range
-        
-        # Полная производная
-        dkrw_ds_norm = self.nw * torch.clamp(s_norm, 1e-8, 1-1e-8)**(self.nw - 1)
-        result_full = dkrw_ds_norm * ds_norm_dsw
-        
-        # Применяем ограничение области без нарушения градиентов
-        result = torch.where(in_range, result_full, torch.zeros_like(result_full))
-        
-        return result
+        """Производная d(krw)/d(Sw) для piecewise-Corey с линейным хвостом."""
+        denom = (1.0 - self.sw_cr - self.so_r + 1e-12)
+        s_raw = ((s_w - self.sw_cr) / denom).clamp(0.0, 1.0)
+        delta = float(self.rp_delta)
+        dsraw_dsw = 1.0 / denom
+        # Хвост: d/dsw [s_raw * δ^{nw-1}] = δ^{nw-1} / denom
+        tail_der = (delta ** max(self.nw - 1, 0)) * dsraw_dsw
+        # Corey область: d/dsw [s_raw^{nw}] = nw * s_raw^{nw-1} / denom
+        core_der = self.nw * torch.clamp(s_raw, 1e-12, 1.0) ** (self.nw - 1) * dsraw_dsw
+        use_tail = (s_raw <= delta)
+        return torch.where(use_tail, tail_der, core_der)
 
     def calc_dkro_dsw(self, s_w):
-        """
-        Вычисляет производную относительной проницаемости нефти по водонасыщенности.
-        
-        Args:
-            s_w: Тензор водонасыщенности
-            
-        Returns:
-            Тензор производной относительной проницаемости нефти
-        """
-        s_norm = self._get_normalized_saturation(s_w)
-        normalized_range = 1.0 - self.sw_cr - self.so_r + 1e-10
-        
-        # ИСПРАВЛЕНО: используем torch.where вместо маскирования для сохранения градиентов
-        # Проверяем, находится ли насыщенность в допустимом диапазоне
-        in_range = (s_w >= self.sw_cr) & (s_w <= 1.0 - self.so_r)
-        
-        # Производная dkro/dsw = dkro/ds_norm * ds_norm/dsw
-        # Производная сигмоидальной нормализации
-        eps = 0.02  # должно совпадать с _get_normalized_saturation
-        s_norm_raw = (s_w - self.sw_cr) / normalized_range
-        sigmoid_input = torch.clamp((s_norm_raw - 0.5) / eps, -10.0, 10.0)
-        dsigmoid_dx = torch.sigmoid(sigmoid_input) * (1 - torch.sigmoid(sigmoid_input)) / eps
-        ds_norm_dsw = dsigmoid_dx / normalized_range
-        
-        # Полная производная
-        dkro_ds_norm = -self.no * torch.clamp(1 - s_norm, 1e-8, 1-1e-8)**(self.no - 1)
-        result_full = dkro_ds_norm * ds_norm_dsw
-        
-        # Применяем ограничение области без нарушения градиентов
-        result = torch.where(in_range, result_full, torch.zeros_like(result_full))
-        
-        return result
+        """Производная d(kro)/d(Sw) для piecewise-Corey с линейным хвостом."""
+        denom = (1.0 - self.sw_cr - self.so_r + 1e-12)
+        s_raw = ((s_w - self.sw_cr) / denom).clamp(0.0, 1.0)
+        delta = float(self.rp_delta)
+        dsraw_dsw = 1.0 / denom
+        # Хвост (вблизи 1): kro = (1 - s_raw) * δ^{no-1}
+        tail_der = - (delta ** max(self.no - 1, 0)) * dsraw_dsw
+        # Corey область: d/dsw [(1-s_raw)^{no}] = -no * (1-s_raw)^{no-1} / denom
+        core_der = -self.no * torch.clamp(1.0 - s_raw, 1e-12, 1.0) ** (self.no - 1) * dsraw_dsw
+        use_tail = (s_raw >= (1.0 - delta))
+        return torch.where(use_tail, tail_der, core_der)
 
     # ---- Вязкости (Pa·s) ----
     def calc_water_viscosity(self, pressure):

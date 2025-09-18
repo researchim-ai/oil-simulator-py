@@ -22,8 +22,8 @@ class Normalizer:
         H = nz * dz
         hydro_head = rho_w * g * H  # Па
 
-        ct_w = getattr(fluid, "water_compressibility", 1e-9)
-        ct_o = getattr(fluid, "oil_compressibility", 1e-9)
+        ct_w = float(getattr(fluid, "water_compressibility", 1e-9))
+        ct_o = float(getattr(fluid, "oil_compressibility", 1e-9))
         ct = max(ct_w, ct_o, 1e-9)
         compress_based = 1.0 / ct
 
@@ -39,14 +39,36 @@ class Normalizer:
                 p_scale = float(p_scale_env)
             except ValueError:
                 print(f"[Normalizer] Некорректное OIL_P_SCALE='{p_scale_env}', игнорирую")
-
+        else:
+            # РЕКОМЕНДУЕМЫЙ ДИАПАЗОН для пластовых задач: 5–20 МПа
+            # Слишком большой p_scale (например, 1/ct=1e9 Па) убивает численку.
+            lo, hi = 5e6, 2e7  # Па
+            if p_scale < lo or p_scale > hi:
+                print(f"[Normalizer] p_scale={p_scale:.3e} Па → приводим к [{lo:.1e}, {hi:.1e}]")
+            p_scale = min(max(p_scale, lo), hi)
         # Если пользователь явно не задал шкалу – используем динамическое значение
         self.p_scale = p_scale
         self.inv_p_scale = 1.0 / self.p_scale
 
         # ---------------- насыщенности --------------------------------
         has_gas = hasattr(fluid, "s_g")
-        self.s_scales = [1.0, 1.0] if has_gas else [1.0]
+        # Базово насыщенности безразмерны, но для параметризации y требуется согласованный масштаб:
+        # s_scale_y ≈ 1 / median(ds/dy) для воды, где ds/dy=(1−Swc−Sor)·σ(y)(1−σ(y))
+        s_scale_sw = 1.0
+        try:
+            if hasattr(fluid, "s_w") and fluid.s_w is not None:
+                sw = fluid.s_w.view(-1).detach()
+                swc = float(getattr(fluid, "sw_cr", 0.0))
+                sor = float(getattr(fluid, "so_r", 0.0))
+                denom = max(1e-12, 1.0 - swc - sor)
+                sigma = ((sw - swc) / denom).clamp(0.0, 1.0)
+                ds_dy = denom * (sigma * (1.0 - sigma))
+                med = float(ds_dy.median().item()) if ds_dy.numel() > 0 else 0.0
+                if med > 1e-8:
+                    s_scale_sw = 1.0 / med
+        except Exception:
+            s_scale_sw = 1.0
+        self.s_scales = ([s_scale_sw, 1.0] if has_gas else [s_scale_sw])
         self.inv_s_scales = [1.0 / s for s in self.s_scales]
 
         # Обобщённые массивы коэффициентов (phys → hat, hat → phys)
@@ -57,11 +79,7 @@ class Normalizer:
         nx, ny, nz = reservoir.dimensions
         self.n_cells = nx * ny * nz
 
-        print(
-            f"Normalizer: p_scale={self.p_scale:.3e} Па (~{self.p_scale/1e6:.2f} МПа); "
-            f"s_scales={self.s_scales}"
-        )
-
+        print(f"Normalizer: p_scale={self.p_scale:.3e} Па (~{self.p_scale/1e6:.2f} МПа); s_scales={self.s_scales}")
     # ------------------------------------------------------------------
     # Scalar helpers
     # ------------------------------------------------------------------

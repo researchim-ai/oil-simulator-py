@@ -65,7 +65,7 @@ class Simulator:
         self.g = 9.81
         
         # 🔧 КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: правильное опорное давление для сжимаемости
-        self.pressure_ref = getattr(reservoir, 'pressure_ref', 1e5)
+        self.pressure_ref = getattr(reservoir, 'pressure_ref', 20e6)
         print(f"🔧 Опорное давление для сжимаемости: {self.pressure_ref:.0f} Па ({self.pressure_ref/1e6:.1f} МПа)")
         
         # Scaling layer shared with solvers
@@ -171,7 +171,9 @@ class Simulator:
         # --------------------------------------------------------------
         # По-умолчанию берём инверсию p_scale (1/1e6) – соответствует
         # прежнему «ручному» весу, но теперь явно задаётся.
-        self.pressure_weight = self.sim_params.get('pressure_weight', 1.0e-7)
+        # В объёмной формуле FI давление и насыщенность должны иметь сопоставимые масштабы.
+        # Искусственное занижение давления ломает баланс. По умолчанию = 1.0.
+        self.pressure_weight = self.sim_params.get('pressure_weight', 1.0)
 
         dt_sec = self.dt
         # -------- PID контроллер шага времени (опционально) ----------
@@ -751,6 +753,7 @@ class Simulator:
             # Инициализация параметров для оптимизации
             nx, ny, nz = self.reservoir.dimensions
             num_cells = nx * ny * nz
+            N = num_cells
             
             # Устанавливаем устройство в зависимости от доступности CUDA
             if use_cuda and torch.cuda.is_available() and self.device.type == 'cuda':
@@ -787,14 +790,9 @@ class Simulator:
                     residual = torch.zeros(2 * num_cells, device=device)
                     jacobian = torch.zeros(2 * num_cells, 2 * num_cells, device=device)
                 
-                # Векторизованный расчет базовых величин
-                if hasattr(self, 'scaler') and self.scaler is not None:
-                    # x приходит уже в физических Па
-                    p_vec = x[:N]
-                else:
-                    # Без масштабирования подразумеваем, что давление передано в МПа
-                    p_vec = x[:N] * 1e6  # МПа → Па
-                sw_vec = x[N:]
+                # Берём текущее состояние как старт Ньютона
+                p_vec = self.fluid.pressure.reshape(-1).to(dtype=torch.float64, device=torch.device('cpu'))
+                sw_vec = self.fluid.s_w.reshape(-1).to(dtype=torch.float64, device=torch.device('cpu'))
                 # Пористость зависит от давления: φ(P) = φ_ref * (1 + c_r (P - P_ref))
                 phi0_vec = self.reservoir.porosity_ref.reshape(-1)
                 c_r = self.reservoir.rock_compressibility
@@ -895,7 +893,7 @@ class Simulator:
                     if jacobian.shape[0] > 1000:  # Для больших систем используем итеративные методы
                         import numpy as np
                         from scipy.sparse import csr_matrix, identity
-                        from scipy.sparse.linalg import spilu, gmres, LinearOperator
+                        from scipy.sparse.linalg import spilu, gmres as gmres_scipy, LinearOperator
 
                         jacobian_np = jacobian.cpu().numpy().astype(np.float32)
                         residual_np = residual.cpu().numpy().astype(np.float32)
@@ -913,7 +911,8 @@ class Simulator:
                         jacobian_csr = jacobian_csr + lam_reg * identity(jacobian_csr.shape[0], dtype=jacobian_csr.dtype)
 
                         # ILU0 предобуславливатель
-                        fill_factor = self.sim_params.get("linear_solver", {})
+                        ls_cfg = self.sim_params.get("linear_solver", {})
+                        fill_factor = ls_cfg.get("fill_factor", 10)
                         try:
                             ilu = spilu(jacobian_csr.astype(np.float64), drop_tol=0.0, fill_factor=fill_factor)
 
@@ -922,12 +921,11 @@ class Simulator:
 
                             M = LinearOperator(jacobian_csr.shape, Mx, dtype=np.float64)
 
-                            ls_cfg = self.sim_params.get("linear_solver", {})
                             restart = ls_cfg.get("restart", 50)
                             max_it  = ls_cfg.get("max_iter", 400)
                             tol_lin = ls_cfg.get("tol", 1e-8)
 
-                            delta_np, info = gmres(
+                            delta_np, info = gmres_scipy(
                                 jacobian_csr, -residual_np,
                                 M=M, restart=restart, maxiter=max_it, tol=tol_lin
                             )
@@ -941,9 +939,10 @@ class Simulator:
                             print(f"  ILU0/GMRES не удалось: {e_ilu}. Переходим к spsolve")
                             from scipy.sparse.linalg import spsolve
                             delta_np = spsolve(jacobian_csr, -residual_np)
+                        delta = torch.from_numpy(delta_np).to(dtype=jacobian.dtype)
                     else:
                         # Для небольших систем используем прямой решатель
-                        delta = self._robust_solve(jacobian, -residual)
+                        delta = torch.linalg.solve(jacobian, -residual)
                 except RuntimeError as e:
                     print(f"  Ошибка решения системы: {e}")
                     # Восстанавливаем исходное состояние
@@ -1096,10 +1095,22 @@ class Simulator:
         Returns:
             1-D тензор невязки длиной 2*N (water/oil)
         """
-        # Используем оптимизированную «полную» невязку для всех фаз.
-        # Она уже векторизована и опирается на кэшированные transmissibilities,
-        # поэтому выполняется достаточно быстро даже на больших сетках.
-        return self._compute_residual_full(dt)
+        """
+        Возвращаем реальную невязку FI для текущего состояния, чтобы line-search
+        принимал/отклонял шаг по физике, а не по нулям.
+        """
+        N = nx * ny * nz
+        if self.scaler is not None:
+            # _fi_residual_vec ожидает давление в Па при наличии scaler
+            p_part = self.fluid.pressure.reshape(-1)
+        else:
+            # без scaler _fi_residual_vec интерпретирует p в МПа
+            p_part = (self.fluid.pressure.reshape(-1) / 1e6)
+        if hasattr(self.fluid, 's_g'):
+            x = torch.cat([p_part, self.fluid.s_w.reshape(-1), self.fluid.s_g.reshape(-1)])
+        else:
+            x = torch.cat([p_part, self.fluid.s_w.reshape(-1)])
+        return self._fi_residual_vec(x, dt)
 
     def _apply_newton_step(self, delta, factor):
         """
@@ -1146,10 +1157,11 @@ class Simulator:
         # --------- Saturation guards --------------------------------------
         self.fluid.pressure.clamp_(1e5, 100e6)  # 0.1–100 МПа
 
-        # Кламп Sw и, при наличии, Sg, так чтобы 0<=S<=1 и Sw+Sg<=1-so_r
-        self.fluid.s_w.clamp_(self.fluid.sw_cr, 1.0)
+        # МЯГКИЕ границы для насыщенностей: даём выйти из «мертвой зоны» (аналогично в _fi_residual_vec)
+        eps_s = 1e-6
+        self.fluid.s_w.clamp_(self.fluid.sw_cr - eps_s, 1.0 - self.fluid.so_r + eps_s)
         if sg_delta is not None:
-            self.fluid.s_g.clamp_(0.0, 1.0)
+            self.fluid.s_g.clamp_(-eps_s, 1.0 - self.fluid.so_r + eps_s)
 
             total = self.fluid.s_w + self.fluid.s_g
             excess = torch.clamp(total - (1.0 - self.fluid.so_r), min=0.0)
@@ -1662,6 +1674,15 @@ class Simulator:
         q_wells = torch.zeros(N, device=self.device, dtype=torch.float32)
         well_bhp_terms = torch.zeros(N, device=self.device, dtype=torch.float32)
 
+        # Плавный запуск скважин: на самом первом шаге уменьшаем влияние скважин
+        ramp = 1.0
+        try:
+            ramp_cfg = float(self.sim_params.get('well_ramp_first_step', 0.2))
+            if getattr(self, 'step_count', 0) == 0:
+                ramp = max(0.0, min(1.0, ramp_cfg))
+        except Exception:
+            ramp = 1.0
+
         # --------------------------------------------------------------
         # Авто-лимитер по 99-му перцентилю λ_t (well_auto_factor × perc99).
         # Работает, если явный well_mobility_limiter не задан.
@@ -1688,7 +1709,7 @@ class Simulator:
             if well.control_type == "rate":
                 # Пользователь задаёт знак расхода в конфиге: «+» для инжекции, «−» для добычи.
                 # Поэтому просто переводим м³/сут → м³/с без дополнительного изменения знака.
-                q_vol = well.control_value / 86400.0
+                q_vol = (well.control_value / 86400.0) * ramp
 
                 # Мировая практика (Eclipse / OPM): объёмный расход входит
                 # в уравнение давления напрямую как источник/сток.
@@ -1711,7 +1732,7 @@ class Simulator:
                         print(f"[AutoLimiter] WELL {well.name}: λ_t={lam_t_cell:.3e} > λ_thr={lam_t_thresh:.3e}. Clamped")
                 else:
                     coeff = coeff_raw
-                well_bhp_terms[cell_idx] += coeff
+                well_bhp_terms[cell_idx] += coeff * ramp
                 # Знак для RHS зависит от типа скважины (инжектор = positive)
                 p_bhp = well.control_value * 1e6  # МПа→Па
                 # Формула расхода: q = WI·λ_t·(p_block - P_bhp).
@@ -1719,7 +1740,7 @@ class Simulator:
                 # Член с p_block отправляется в матрицу (diag += coeff),
                 # в RHS остаётся (− WI·λ_t·P_bhp).
                 # Поэтому добавляем именно «минус».
-                q_wells[cell_idx] -= coeff * p_bhp
+                q_wells[cell_idx] -= (coeff * ramp) * p_bhp
                 if self.sim_params.get('debug_wells', False):
                     print(f"DEBUG WELL {well.name}: WI={WI:.3e}, λ_t={lam_t_cell:.3e}, coeff={coeff:.3e}, P_bhp={well.control_value:.2f} МПа")
 
@@ -1846,12 +1867,13 @@ class Simulator:
         sw_cr = self.fluid.sw_cr
         so_r  = self.fluid.so_r
 
-        # Clamp water saturation
-        s_w = torch.clamp(s_w, sw_cr, 1.0 - so_r)
+        # МЯГКАЯ ПРОЕКЦИЯ: не «прижимаем» к границам, даём Ньютону выйти из мёртвой зоны
+        eps_s = 1e-6
+        s_w = torch.clamp(s_w, sw_cr - eps_s, 1.0 - so_r + eps_s)
 
         if sg_vec is not None:
-            # Clamp gas saturation independently, then enforce Sw+Sg ≤ 1-So_r
-            s_g = torch.clamp(s_g, 0.0, 1.0 - so_r)
+            # Газ тоже позволяем с малым запасом за границы для корректной чувствительности
+            s_g = torch.clamp(s_g, -eps_s, 1.0 - so_r + eps_s)
 
             total = s_w + s_g
             excess = torch.clamp(total - (1.0 - so_r), min=0.0)

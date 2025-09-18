@@ -157,7 +157,7 @@ class GeoSolverV2:
                  max_coarse_ratio: int = 500, device: str | None = None,
                  cycle_type: str = "W", cycles_per_call: int = 2,
                  pre_smooth: int = 3, post_smooth: int = 3,
-                 omega_fine: float = 0.35,
+                 omega_fine: float = 0.8,
                  smoother_fine: str = "rbgs",  # rbgs|linez|chebyshev
                  cheby_tail: int = 0,
                  delta_clip_factor: float | None = 1000.0,
@@ -198,15 +198,19 @@ class GeoSolverV2:
         base_lvl = GeoLevel(kx, ky, kz, self.hx, self.hy, self.hz, device=self.device)
 
         # --- [NEW] Left row equilibration ---------------------------------
-        # base_lvl.A_csr, w_rows0 = _row_equilibrate_csr(base_lvl.A_csr)
-        # base_lvl.diag = base_lvl.diag * w_rows0           # диагональ изменилась
-        # # inv_l1 пересчитай ниже, ты это и так делаешь
-        # self.W_rows = w_rows0    # сохраним для RHS
 
         base_lvl.A_csr, w_rows0 = _row_equilibrate_csr(base_lvl.A_csr)
         base_lvl.diag = base_lvl.diag * w_rows0
-        # Не применяем левое скейление к RHS, чтобы не взлетать
-        self.W_rows = torch.ones_like(w_rows0)
+        # ВАЖНО: если A ← W·A, то RHS должен быть b_hat ← W·b_hat.
+        # Нормализуем и клампим W_rows для численной устойчивости.
+        w = w_rows0.clone()
+        med_w = torch.median(w)
+        if torch.isfinite(med_w) and med_w > 0:
+            w = w / med_w
+        w = torch.clamp(w, 1e-6, 1e6)
+        self.W_rows = w
+        if self.debug:
+            print(f"[Geo2] W_rows L0: min={self.W_rows.min().item():.3e} med={torch.median(self.W_rows).item():.3e} max={self.W_rows.max().item():.3e}")
 
         def _pin_rowcol(A_csr, idx):
             crow = A_csr.crow_indices()
@@ -245,26 +249,32 @@ class GeoSolverV2:
             print(f"[DBG] ||A_phys||_1 = {torch.norm(a_vals,1).item():.3e}")
             self._dbg_logged = True
         # Первое эквилибрирование: S1 = diag_orig^{-1/4}
+        # Симметричное эквилибрирование в 2 шага:
+        # S1 = diag(A0)^(-1/4)  → A1 = S1 A0 S1
+        # S2 = diag(A1)^(-1/2) → A2 = S2 A1 S2  (diag(A2)≈1)
         scale_full = 1.0 / torch.sqrt(diag_orig.clamp_min(1e-20))  # diag^{-1/2}
-        scale_sqrt = torch.sqrt(scale_full)                         # diag^{-1/4} = S1
-
-        # --- масштабируем values ---
+        scale_sqrt = torch.sqrt(scale_full)                         # diag^{-1/4} (S1)
+        # применяем S1
         crow = base_lvl.A_csr.crow_indices()
-        col = base_lvl.A_csr.col_indices()
+        col  = base_lvl.A_csr.col_indices()
         vals = base_lvl.A_csr.values()
-
-        # Для каждой строки i повторяем scale[i] row_nnz раз
         row_counts = crow[1:] - crow[:-1]
-        row_idx = torch.repeat_interleave(torch.arange(crow.numel()-1, device=self.device), row_counts)
+        row_idx = torch.repeat_interleave(
+            torch.arange(crow.numel()-1, device=self.device), row_counts
+        )
         vals.mul_(scale_sqrt[row_idx] * scale_sqrt[col])
 
-        # ---- Второй симметричный шаг: диагональ к 1 ----------------
-        diag_idx_tmp = crow[1:] - 1
-        diag_tmp = vals[diag_idx_tmp].abs().clone()
-        # Второе симметричное эквилибрирование: S2 = diag(A1)^{-1/2}
-        second_scale = 1.0 / torch.sqrt(diag_tmp.clamp_min(1e-20))
+        row_starts, row_ends = crow[:-1], crow[1:]
+        diag_idx_tmp = torch.empty_like(row_starts, dtype=torch.int64)
+        for i in range(row_starts.numel()):
+            s, e = int(row_starts[i]), int(row_ends[i])
+            pos = torch.nonzero(col[s:e] == i, as_tuple=False)
+            assert pos.numel() == 1, "diag not found or multiple diags"
+            diag_idx_tmp[i] = s + int(pos.item())
 
-        # масштабируем ещё раз: A ← S2 A S2
+        diag_tmp = vals[diag_idx_tmp].abs().clone()
+        second_scale = 1.0 / torch.sqrt(diag_tmp.clamp_min(1e-20))  # S2
+        # применяем S2
         vals.mul_(second_scale[row_idx] * second_scale[col])
 
         diag_final = vals[diag_idx_tmp].abs().clone()
@@ -476,7 +486,11 @@ class GeoSolverV2:
             # [NEW] сначала левое эквилибрирование
             lvl.A_csr, w_rows_c = _row_equilibrate_csr(lvl.A_csr)
             lvl.diag = lvl.diag * w_rows_c
-            lvl.W_rows = w_rows_c
+            # нормализуем и клампим W_rows на уровне
+            med_c = torch.median(w_rows_c)
+            if torch.isfinite(med_c) and med_c > 0:
+                w_rows_c = w_rows_c / med_c
+            lvl.W_rows = torch.clamp(w_rows_c, 1e-6, 1e6)
             # потом твой симметричный шаг
             _ = _equilibrate_level(lvl)
 
@@ -501,7 +515,12 @@ class GeoSolverV2:
 
             # 5) pin null mode (тот же индекс в coarse, соответствующий anchor-ячейке родителя)
             #    Берём coarse-ячею, в которую попал fine anchor:
-            anchor_c = int(parent_idx[self.anchor_fine].item())
+            fine_anchor = int(getattr(fine_lvl, "anchor", self.anchor_fine))
+            # страхуемся на случай несоответствия размеров (должно быть редко)
+            if fine_anchor >= parent_idx.numel():
+                fine_anchor = parent_idx.numel() - 1
+
+            anchor_c = int(parent_idx[fine_anchor].item())
             lvl.anchor = anchor_c
 
             def _pin_rowcol_local(A_csr, idx):
@@ -642,6 +661,9 @@ class GeoSolverV2:
         lvl = self.levels[lvl_idx]
         inv_diag = lvl.inv_l1
         omega = self.omega_fine if lvl_idx == 0 else self.omega
+        if lvl_idx == 0:
+            omega = self.omega_fine = float(torch.clamp(torch.tensor(omega), 0.10, 0.95))
+
         red_mask, black_mask = lvl.is_red, lvl.is_black
 
         init_clip = None
@@ -667,11 +689,22 @@ class GeoSolverV2:
             r_after = b - self._apply_A(lvl_idx, x)
 
             mu = r_after.norm() / (r_before.norm() + 1e-30)
-            if lvl_idx == 0:   # только на самом тонком
-                if mu > 0.8:
-                    self.omega_fine *= 0.7
-                elif mu < 0.3:
-                    self.omega_fine = min(self.omega_fine * 1.1, 1.0)
+
+            # --- адаптация шага только на самом тонком уровне ------------
+            if lvl_idx == 0:
+                # жёсткие пределы, чтобы ω не «умирал» и не зашкаливал
+                MIN_OMEGA, MAX_OMEGA = 0.10, 0.95
+
+                # если сглаживание почти не работает (μ ≳ 0.9) — УВЕЛИЧИВАЕМ ω
+                if mu > 0.9:
+                    self.omega_fine = min(self.omega_fine * 1.25 + 1e-3, MAX_OMEGA)
+                # если и так хорошо сглаживает (μ ≲ 0.5) — слегка ПРИЖИМАЕМ ω (устойчивость)
+                elif mu < 0.5:
+                    self.omega_fine = max(self.omega_fine * 0.9, MIN_OMEGA)
+
+                # используем обновлённый шаг прямо в текущей итерации
+                omega = self.omega_fine
+
         
             if self.debug and lvl_idx == 0:
                 # ограничить синхронизации: .item() только тут
@@ -941,7 +974,8 @@ class GeoSolverV2:
         """Решает A δ = rhs (rhs в физических единицах) и возвращает δ в физических единицах."""
         # Переносим rhs на устройство решателя и корректный dtype
         rhs = rhs.to(device=self.device, dtype=torch.float64)
-        rhs_hat = self._to_hat(rhs)
+        # Полная согласованность: Â = S·(W·A_phys)·S, значит b̂ = W·(S·b_phys)
+        rhs_hat = self.W_rows * self._to_hat(rhs)
         rhs_hat[self.anchor_fine] = 0.0
 
         if self.debug:
@@ -1012,7 +1046,7 @@ class GeoSolverV2:
                 break
             if res_norm < tol:
                 break
-        # сначала снимаем row-scale, потом diag-scale
+        # решение в hat → снимаем левый row-scale, затем обратный diag-scale
         delta_hat  = x / self.W_rows
         delta_phys = self._to_phys(delta_hat)
         return delta_phys.to(rhs.device)
@@ -1084,3 +1118,20 @@ class GeoSolverV2:
             x_hat = self._v_cycle(0, x_hat, rhs_hat)
         x_hat = x_hat / self.W_rows
         return self._to_phys(x_hat)
+    
+    def apply_prec_hat(self, rhs_p_hat: torch.Tensor, cycles: int = 1) -> torch.Tensor:
+        """
+        CPR-режим: принимает и возвращает вектор РОВНО в hat-пространстве (pressure-блок).
+        Никакого phys↔hat внутри. Anchor обнуляется.
+        """
+        rhs = rhs_p_hat.to(device=self.device, dtype=torch.float64).clone()
+        # согласуем с левой строковой нормировкой: b̂_geo = W_rows · b̂_global
+        rhs = rhs * self.W_rows
+        rhs[self.anchor_fine] = 0.0
+        x = torch.zeros_like(rhs)
+        for _ in range(max(1, cycles)):
+            x = self._v_cycle(0, x, rhs)
+        # возвращаем обратно «без W», чтобы M ≈ Â^{-1} в исходных hat-координатах
+        x = x / self.W_rows
+        x[self.anchor_fine] = 0.0
+        return x  # HAT!

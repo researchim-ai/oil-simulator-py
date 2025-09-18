@@ -749,3 +749,243 @@ class CPRPreconditioner:
         # ---- ВАЖНО: возвращаем ВСЕГДА в global-hat ----
         delta_hat_full = self.scaler.scale_vec(delta_phys_full).to(vec.device, vec.dtype)
         return delta_hat_full
+
+    def apply_hat(self, vec_hat: torch.Tensor) -> torch.Tensor:
+        """
+        Главный вход CPR в hat-пространстве.
+        Работает для backend == 'geo2'. Никакого phys↔hat внутри.
+        vec_hat: [P | Sw | (Sg)] в hat.
+        Возвращает delta_hat той же длины.
+        """
+        if self.backend != "geo2":
+            # для остальных бэкендов оставляем старую apply (ниже), которая сама делает phys↔hat
+            # но чтобы не ломать вызовы, поддержим прозрачно:
+            return self.apply(vec_hat)
+
+        # ------ базовые размеры ------
+        n = self._n_cells if hasattr(self, "_n_cells") else self.diag_inv.shape[0]
+        total = vec_hat.numel()
+        if total % n not in (0,):
+            raise ValueError("CPR.apply_hat: vec length is not multiple of n_cells")
+        vars_per_cell = total // n
+        if vars_per_cell not in (2, 3):
+            raise ValueError(f"CPR.apply_hat: expected 2 or 3 vars/cell, got {vars_per_cell}")
+
+        # ------ разбиение ------
+        r_p_hat  = vec_hat[:n]
+        r_sw_hat = vec_hat[n:2*n]
+        r_sg_hat = vec_hat[2*n:3*n] if vars_per_cell == 3 else None
+
+        # ------ Stage-1: давление через GeoSolverV2 в global-hat (без доп. масштабирования) ------
+        if hasattr(self, "solver") and self.solver is not None:
+            try:
+                delta_p_hat = self.solver.apply_prec_hat(r_p_hat, cycles=1)
+            except Exception as e:
+                print(f"[CPR geo2] GeoSolverV2.apply_prec_hat failed: {e} — using Jacobi fallback")
+                delta_p_hat = (torch.as_tensor(self.diag_inv, device=vec_hat.device, dtype=vec_hat.dtype) * r_p_hat)
+        else:
+            # Jacobi fallback (диагональ собрана в _assemble_pressure_csr)
+            delta_p_hat = (torch.as_tensor(self.diag_inv, device=vec_hat.device, dtype=vec_hat.dtype) * r_p_hat)
+ 
+        # центрируем чтобы убрать нулевой мод
+        try:
+            rp_n2 = float(r_p_hat.norm().item())
+            dp_n2 = float(delta_p_hat.norm().item())
+            rp_inf = float(r_p_hat.abs().max().item())
+            dp_inf = float(delta_p_hat.abs().max().item())
+            print(f"[CPR P] ||r_p_hat||2={rp_n2:.3e}, ||δp_hat||2={dp_n2:.3e}, ||r||inf={rp_inf:.3e}, ||δp||inf={dp_inf:.3e}")
+        except Exception:
+            pass
+        delta_p_hat = delta_p_hat - delta_p_hat.mean()
+
+        # ------ Stage-2: блок насыщенностей (чисто hat, с учётом y‑переменной) ------
+        # Формула: δs_hat = (r_s_hat - K_hat * δp_hat) / diag_Jss_hat
+        # где K_hat = D_s^{-1} * (∂F_s/∂p)_phys * D_p
+        # и diag_Jss_hat = diag_Jss_phys (при одинаковом масштабе слева/справа для s)
+        z_sw_hat = torch.zeros_like(r_sw_hat)
+        z_sg_hat = torch.zeros_like(r_sg_hat) if r_sg_hat is not None else None
+
+        try:
+            props = getattr(self.simulator, "_cell_props_cache", None)
+            # Если кеш есть — берём физические величины и превращаем только коэффициенты связи
+            if props is not None:
+                phi, dt, V = props["phi"], props["dt"], props["V"]
+                lam_w, lam_o = props["lam_w"], props["lam_o"]
+                c_w, c_o = props["c_w"], props["c_o"]
+                lam_g, c_g = props.get("lam_g"), props.get("c_g")
+                rho_w = props["rho_w"]
+                rho_g = props.get("rho_g", None)
+
+                # diag J_ss (phys): для объёмной формы PV/dt
+                diag_SS_phys = (phi * V) / (dt + 1e-30)
+
+                # преобразование масштаба для K = ∂F_s/∂p в hat при массовой нормализации F_s
+                # F_s_hat = F_s_phys / sat_scale, где sat_scale=(PV/dt)*rho
+                # => K_hat = (1/sat_scale) * (∂F_s_phys/∂p_phys) * p_scale
+                p_scale  = float(getattr(self.scaler, "p_scale", 1.0))
+                # масштабы y для диагонали (нужны ниже)
+                s_scales = getattr(self.scaler, "s_scales", [1.0, 1.0])
+                sw_scale = float(s_scales[0]) if len(s_scales) >= 1 else 1.0
+                sg_scale = float(s_scales[1]) if len(s_scales) >= 2 else 1.0
+
+                # Консервативная оценка связи p→s через массу: (PV/dt)*rho*c
+                sat_acc_w = ((phi * V) / (dt + 1e-30)) * rho_w
+                dFs_dp_phys = sat_acc_w * c_w
+                dFs_dp_phys_g = None
+                if (lam_g is not None) and (c_g is not None) and (rho_g is not None):
+                    sat_acc_g = ((phi * V) / (dt + 1e-30)) * rho_g
+                    dFs_dp_phys_g = sat_acc_g * c_g
+
+                # sat_scale для воды/газа
+                sat_scale_w = ((phi * V) / (dt + 1e-30)) * rho_w
+                sat_scale_g = ((phi * V) / (dt + 1e-30)) * (rho_g if rho_g is not None else rho_w)
+                # K_hat для воды/газа: (p_scale/sat_scale)*dFs_dp_phys → упрощается до p_scale*c
+                Ksw_hat = p_scale * c_w
+                Ksg_hat = (p_scale * c_g) if (r_sg_hat is not None and c_g is not None) else None
+
+                # Переход к переменной y для воды при масс-нормировании F_s: J_yy_hat ≈ (ds/dy) * sw_scale.
+                try:
+                    # Предпочитаем актуальные значения из кеша JFNK
+                    sw_cand = props.get("sw_for_prec", None)
+                    dsdy_cand = props.get("dsdy_for_prec", None)
+                    if sw_cand is not None and dsdy_cand is not None and sw_cand.numel() >= r_sw_hat.numel():
+                        ds_dy = dsdy_cand.view(-1)[:r_sw_hat.numel()].to(r_sw_hat)
+                        if not hasattr(self, "_dbg_dsdy_logged") or not self._dbg_dsdy_logged:
+                            try:
+                                print(f"[CPR S] cache ds/dy: min={ds_dy.min().item():.3e} med={ds_dy.median().item():.3e} max={ds_dy.max().item():.3e}")
+                                self._dbg_dsdy_logged = True
+                            except Exception:
+                                pass
+                    else:
+                        sw = self.simulator.fluid.s_w.view(-1).to(r_sw_hat)
+                        swc = float(getattr(self.simulator.fluid, 'sw_cr', 0.0))
+                        sor = float(getattr(self.simulator.fluid, 'so_r', 0.0))
+                        denom = max(1e-12, 1.0 - swc - sor)
+                        sigma = ((sw - swc) / denom).clamp(0.0, 1.0)
+                        ds_dy = denom * (sigma * (1.0 - sigma))
+                        ds_dy = ds_dy.clamp_min(1e-8)
+                except Exception:
+                    ds_dy = torch.ones_like(r_sw_hat) * 1e-3
+ 
+                diag_SS_hat_sw = ds_dy * sw_scale
+                diag_SS_hat_sg = diag_SS_phys if (r_sg_hat is not None) else None
+
+                # Коррекция RHS насыщенностей с учётом влияния δp
+                # Безопасный клип влияния K относительно диагонали
+                try:
+                    itn = int(getattr(self.simulator, '_newton_it', 0))
+                except Exception:
+                    itn = 0
+                beta_sched = [0.3, 0.5, 0.8]
+                beta_default = float(getattr(self.simulator.sim_params, 'cpr_k_ps_ratio', 0.8))
+                beta = beta_sched[itn] if itn < len(beta_sched) else beta_default
+                Ksw_eff = torch.minimum(Ksw_hat.to(r_sw_hat), (beta * diag_SS_hat_sw.to(r_sw_hat)))
+                r_sw_corr = r_sw_hat - Ksw_eff * delta_p_hat
+                # Диагностика (однократно на итерацию): нормы и масштабы в S-блоке
+                try:
+                    if not hasattr(self, "_dbg_stage2_logged") or not self._dbg_stage2_logged:
+                        rs_norm = float(r_sw_hat.norm().item())
+                        kdp_norm = float((Ksw_hat.to(r_sw_hat) * delta_p_hat).norm().item())
+                        dsdy_med = float(ds_dy.median().item()) if ds_dy.numel() > 0 else 0.0
+                        print(f"[CPR S] ||r_s||={rs_norm:.3e}, ||Kδp||={kdp_norm:.3e}, median(ds/dy)={dsdy_med:.3e}, sw_scale={sw_scale:.3e}")
+                        self._dbg_stage2_logged = True
+                except Exception:
+                    pass
+                # Базовое приближение (Jacobi по диагонали)
+                diag_sw = (diag_SS_hat_sw.to(r_sw_hat) + 1e-30)
+                try:
+                    print(f"[CPR S] diag_SS_hat_sw: min={diag_sw.min().item():.3e} med={diag_sw.median().item():.3e} max={diag_sw.max().item():.3e}")
+                except Exception:
+                    pass
+                z_sw_hat = r_sw_corr / diag_sw
+
+                # Усиление: 2 шага Jacobi по локальному переносному оператору (7-точечный шаблон)
+                try:
+                    indptr = getattr(self, "_indptr_p", None)
+                    indices = getattr(self, "_indices_p", None)
+                    data = getattr(self, "_data_p", None)
+                    if indptr is not None and indices is not None and data is not None:
+                        # Подготовим CPU-тензоры индексов
+                        import numpy as _np
+                        import math as _math
+                        n_cpu = int(r_sw_hat.numel())
+                        indptr_t = torch.from_numpy(indptr.astype(_np.int64))
+                        indices_t = torch.from_numpy(indices.astype(_np.int64))
+                        data_t = torch.from_numpy(_np.abs(data)).to(torch.float32)
+                        # Строковые индексы для каждого nnz
+                        row_counts = indptr_t[1:] - indptr_t[:-1]
+                        row_ids = torch.repeat_interleave(torch.arange(n_cpu, dtype=torch.int64), row_counts)
+                        # off-диагонали
+                        off_mask = indices_t != row_ids
+                        row_off = row_ids[off_mask]
+                        col_off = indices_t[off_mask]
+                        w_base = data_t[off_mask]
+                        # Нормализация весов: сначала по собственной медиане, затем по λ_t (нормированной)
+                        w_med = torch.median(w_base)
+                        w_base_n = w_base / (w_med + 1e-30)
+                        lam_t = lam_w + lam_o + (lam_g if lam_g is not None else 0.0)
+                        lam_t_cl = lam_t.clamp_min(1e-12).to(torch.float32).cpu()
+                        w_lam = torch.sqrt(lam_t_cl[row_off] * lam_t_cl[col_off])
+                        w = w_base_n * (w_lam / (w_lam.median() + 1e-30))
+                        # Итерационный шаг Якоби: (D + γW) z = r
+                        gamma = float(diag_sw.median().item())
+                        wdeg = torch.zeros(n_cpu, dtype=torch.float32)
+                        wdeg.index_add_(0, row_off, w)
+                        try:
+                            if not hasattr(self, "_dbg_w_logged") or not self._dbg_w_logged:
+                                print(f"[CPR S] W stats: w|min,med,max=({w.min().item():.3e},{w.median().item():.3e},{w.max().item():.3e}), deg|min,med,max=({wdeg.min().item():.3e},{wdeg.median().item():.3e},{wdeg.max().item():.3e}), gamma={gamma:.3e}")
+                                self._dbg_w_logged = True
+                        except Exception:
+                            pass
+                        z_cpu = z_sw_hat.to(torch.float32).detach().cpu()
+                        for _ in range(2):
+                            wz = torch.zeros(n_cpu, dtype=torch.float32)
+                            wz.index_add_(0, row_off, w * z_cpu[col_off])
+                            num = r_sw_corr.to(torch.float32).cpu() + gamma * wz
+                            den = diag_sw.to(torch.float32).cpu() + gamma * wdeg + 1e-30
+                            z_cpu = num / den
+                        z_sw_hat = z_cpu.to(r_sw_hat.device, r_sw_hat.dtype)
+                except Exception:
+                    pass
+
+                # опциональный кламп в y‑пространстве (по умолчанию ОТКЛЮЧЕН для предобуславливателя)
+                if hasattr(self.simulator, 'sim_params') and getattr(self.simulator.sim_params, 'cpr_clamp_y', False):
+                    y_clip = float(getattr(self.simulator.sim_params, 'delta_y_max', 2.0))
+                    z_sw_hat = torch.clamp(z_sw_hat, -y_clip, y_clip)
+                try:
+                    z2 = float(z_sw_hat.norm().item())
+                    zinf = float(z_sw_hat.abs().max().item())
+                    rc2 = float(r_sw_corr.norm().item())
+                    print(f"[CPR S] ||z_sw_hat||2={z2:.3e}, ||z||inf={zinf:.3e}, ||r_sw_corr||2={rc2:.3e}")
+                except Exception:
+                    pass
+
+                if r_sg_hat is not None:
+                    if Ksg_hat is not None:
+                        Ksg_eff = torch.minimum(Ksg_hat.to(r_sg_hat), (beta * diag_SS_hat_sg.to(r_sg_hat) + 1e-30))
+                    else:
+                        Ksg_eff = None
+                    r_sg_corr = r_sg_hat - (Ksg_eff * delta_p_hat if Ksg_eff is not None else 0.0)
+                    z_sg_hat = r_sg_corr / (diag_SS_hat_sg.to(r_sg_hat) + 1e-30)
+                    z_sg_hat = torch.clamp(z_sg_hat, -0.05, 0.05)
+            else:
+                # Нет кеша свойств — безопасный Jacobi в hat без p–s связи
+                # (диагональ берём 1 → шаг минимальный, но стабильный)
+                z_sw_hat = r_sw_hat
+                if r_sg_hat is not None:
+                    z_sg_hat = r_sg_hat
+        except Exception as e:
+            if not hasattr(self, "_warn_geo2_hat_stage2"):
+                print(f"[CPR geo2] Stage-2 hat failed: {e}")
+                self._warn_geo2_hat_stage2 = True
+            z_sw_hat = r_sw_hat
+            if r_sg_hat is not None:
+                z_sg_hat = r_sg_hat
+
+        # ------ сборка полного ответа в hat ------
+        out = torch.zeros_like(vec_hat)
+        out[:n] = delta_p_hat
+        out[n:2*n] = z_sw_hat
+        if r_sg_hat is not None:
+            out[2*n:3*n] = z_sg_hat
+        return out

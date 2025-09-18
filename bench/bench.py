@@ -4,6 +4,9 @@ import os, sys, time, argparse, random
 import torch
 import numpy as np
 
+# Отключаем тестовые патчи trans_patch для «боевых» прогонов бенчмарка
+os.environ.setdefault("OIL_SIM_SKIP_PATCHES", "1")
+
 # путь к src
 sys.path.append(os.path.join(os.path.dirname(__file__), "..", "src"))
 
@@ -12,6 +15,13 @@ from simulator.fluid import Fluid
 from simulator.well import WellManager
 from simulator.simulation import Simulator
 from solver.cpr import CPRPreconditioner  # если вдруг требуется где-то внутри
+
+# bench/bench.py
+from tools.diag_jfnk_mg import (
+    run_jfnk_diagnostics, run_mg_diagnostics, mg_cap_levels,
+    Jv_fd_consistent
+)
+
 
 # --------------------------------------------------
 # Генерация случайных скважин
@@ -98,7 +108,7 @@ def bench_case(nx, ny, nz, *,
             "jacobian": "jfnk",
             "backend": "geo2",       # наш Geo-AMG v2
             "time_step_days": dt_days,
-            "adaptive_dt": False,    # чтобы не удлинял шаг
+            "adaptive_dt": True,    # чтобы не удлинял шаг
             "total_time_days": steps * 1.0,
             "verbose": True,
             "use_cuda": device.type == "cuda",
@@ -114,8 +124,8 @@ def bench_case(nx, ny, nz, *,
             "geo_levels": geo_levels,
 
             # безопасность
-            "line_search_min_alpha": 0.02,
-            "ptc": "auto_after=1",
+            "line_search_min_alpha": 0.0002,
+            "ptc": "always",
             "advanced_threshold": 1_000_000_000,
         }
     else:
@@ -137,7 +147,37 @@ def bench_case(nx, ny, nz, *,
     sim_params["geo_post"]      = args.geo_post
     sim_params["geo_levels"]    = args.geo_levels
 
+    # --- Хуки/обёртки для диагностики и экспериментов -----------------------
+    # 1) FD-консистентная замена Jv (можно включать/выключать без правок Solver)
+    def _override_Jv_factory(F_hat, x_hat, project, l_hat, u_hat):
+        # eps0 можно подобрать автоматом через eta-scan; пока стартуем с 1e-7
+        eps0 = float(os.getenv("FD_EPS0", "1e-7"))
+        return lambda v_hat: Jv_fd_consistent(
+            F_hat, x_hat, v_hat, project=project, l_hat=l_hat, u_hat=u_hat, eps0=eps0
+        )
+
+    # 2) Диагностика JFNK (eta-scan + сверка линейной модели)
+    def _hook_before_gmres(sim, dt_sec, newton_iter, x_hat, F_hat, project, l_hat, u_hat):
+        if int(os.getenv("JFNK_DIAG", "1")):
+            run_jfnk_diagnostics(F_hat, x_hat, project=project, l_hat=l_hat, u_hat=u_hat)
+
+    # 3) Диагностика multigrid (цепочка рестрикции, RAP, совет по числу уровней)
+    def _hook_after_mg_build(sim, mg_obj, rhs_vec):
+        if int(os.getenv("MG_DIAG", "1")):
+            run_mg_diagnostics(mg_obj, rhs_vec)
+        if int(os.getenv("MG_CAP", "0")):
+            suggested = mg_cap_levels(mg_obj, min_dim=8)
+            # если у твоего MG есть метод ограничения уровней — используем:
+            if hasattr(mg_obj, "set_max_levels"):
+                mg_obj.set_max_levels(suggested)
+
+
     sim = Simulator(res, fluid, wells, sim_params, device=device)
+
+    sim_params["hook_before_gmres"]  = _hook_before_gmres
+    sim_params["hook_after_mg_build"] = _hook_after_mg_build
+    sim_params["override_Jv_factory"] = _override_Jv_factory  # по умолчанию Solver может игнорировать
+
 
     dt_sec = sim_params["time_step_days"] * 86400.0
     if device.type == "cuda":
@@ -176,8 +216,8 @@ def parse_args():
     ap.add_argument('--cpr-backend', default='geo2')
     ap.add_argument('--geo-tol', type=float, default=1e-6)
     ap.add_argument('--geo-max-iter', type=int, default=10)
-    ap.add_argument('--gmres-tol', type=float, default=1e-3)
-    ap.add_argument('--gmres-max-iter', type=int, default=60)
+    ap.add_argument('--gmres-tol', type=float, default=1e-4)
+    ap.add_argument('--gmres-max-iter', type=int, default=300)
 
 
 

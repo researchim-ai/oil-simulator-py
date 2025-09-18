@@ -80,6 +80,11 @@ python src/main.py --config configs/medium_2d.json
 ```
 Результаты (числовые данные в `.txt`, графики в `.png`, анимации в `.gif`) будут сохранены в директорию `results/`.
 
+Запуск бенчмарка
+```bash
+OIL_DEBUG=1 CHECK_RAP=1 debug=True python bench/bench.py   --nx 60 --ny 60 --nz 30   --mode fi --steps 1   --newton 1 --jfnk 2   --geo_cycles 3   --geo_pre 3 --geo_post 3   --geo-tol 1e-6 --geo-max-iter 15
+```
+
 ## Запуск тестов
 
 Для проверки корректности работы симулятора и отслеживания регрессий используются тесты, написанные с помощью `pytest`.

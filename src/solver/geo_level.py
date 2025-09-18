@@ -212,7 +212,7 @@ class GeoLevel:  # noqa: D101
 
         # заполняем a_up / a_dn из CSR (рассматриваем только соседей ±stride_z)
         row_idx = torch.repeat_interleave(torch.arange(total, device=device), crow[1:] - crow[:-1])
-        diff = indices - row_idx
+        diff = col - row_idx
         mask_up = diff == stride_z
         mask_dn = diff == -stride_z
         if mask_up.any():

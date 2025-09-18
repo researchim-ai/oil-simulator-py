@@ -215,35 +215,29 @@ class GeoSolver:
             "diag": None,
         })
 
-        # ---------- кешируем диагональ для каждого уровня ---------------
-        for lvl_data in self.levels:
-            diag_lvl = self._compute_diag(lvl_data["kx"], lvl_data["ky"], lvl_data["kz"],
-                                           lvl_data["hx"], lvl_data["hy"], lvl_data["hz"],
-                                           lvl_data["kx"].shape)
-            lvl_data["diag"] = diag_lvl * self.A_scale
 
-        # ------------------------------------------------------------
-        # Масштабируем оператор так, чтобы медиана диагонали была ~1.
-        # Это существенно уменьшает порождённые числа и предотвращает
-        # переполнения при вычислениях λ_max и норм.
-        # ------------------------------------------------------------
-        diag0 = self._compute_diag(kx, ky, kz, hx, hy, hz, kx.shape)
-        d_med = torch.median(diag0).item()
-        if d_med < 1e-20:
-            d_med = 1e-20
+        # --- СНАЧАЛА выбираем масштаб A_scale по ТОНКОМУ уровню ---
+        lvl0 = self.levels[0]
+        diag0 = self._compute_diag(lvl0["kx"], lvl0["ky"], lvl0["kz"],
+                                lvl0["hx"], lvl0["hy"], lvl0["hz"],
+                                lvl0["kx"].shape)
+        d_med = float(torch.median(diag0).item())
+        d_med = max(d_med, 1e-20)
 
-        # Размер системы
-        n_cells = kx.numel()
+        n_cells = int(lvl0["kx"].numel())
         SIZE_THRESHOLD = 500
         if n_cells <= SIZE_THRESHOLD:
-            # На маленьких системах дополнительноe масштабирование не нужно –
-            # оно лишь усложняет условия тестов.
             self.A_scale = 1.0
         else:
-            # Масштабируем так, чтобы медиана диагонали ~1.
-            # Верхний предел снижён до 1e6 – этого достаточно, и Jacobi не
-            # порождает гигантских δp при очень маленьких |A_ii|.
             self.A_scale = min(1.0 / d_med, 1.0e6)
+
+        # --- ТЕПЕРЬ кешируем диагонали уровней с масштабом ---
+        for lvl_data in self.levels:
+            diag_lvl = self._compute_diag(lvl_data["kx"], lvl_data["ky"], lvl_data["kz"],
+                                        lvl_data["hx"], lvl_data["hy"], lvl_data["hz"],
+                                        lvl_data["kx"].shape)
+            lvl_data["diag"] = diag_lvl * self.A_scale
+
 
         # --- подготавливаем CSR-матрицу для самого тонкого уровня
         if use_cusparse:
