@@ -200,6 +200,7 @@ class CPRPreconditioner:
                 "delta_clip_factor", "clip_kappa", "debug",
                 "default_tol", "default_max_iter"
             }
+            allowed_geo2_keys = set(allowed_geo2_keys) | {"rap_check_debug", "rap_max_check_n"}
             geo2_kwargs = {k: v for k, v in geo_params.items() if k in allowed_geo2_keys}
             if geo2_kwargs:
                 print(f"🔧 CPR: GeoSolverV2 с пользовательскими параметрами: {geo2_kwargs}")
@@ -664,7 +665,12 @@ class CPRPreconditioner:
                 lam_g, c_g = props.get("lam_g"), props.get("c_g")
 
                 rho_w = props["rho_w"]
-                diag_SS = (phi * V * rho_w) / (dt + 1e-30)
+                # диагональ S-блока в phys: (PV/dt)*rho_w * ds/dy
+                dsdy = props.get("dsdy_for_prec", None)
+                if dsdy is not None:
+                    diag_SS = ((phi * V * rho_w) / (dt + 1e-30)) * dsdy.to(phi)
+                else:
+                    diag_SS = (phi * V * rho_w) / (dt + 1e-30)
                 rhs_s_phys = self.scaler.unscale_vec(vec)[n:]
 
                 if (not torch.isfinite(rhs_s_phys).all()) or (not torch.isfinite(diag_SS).all()):
@@ -683,10 +689,18 @@ class CPRPreconditioner:
                 for s in range(vp):
                     s0, s1 = s * n, (s + 1) * n
                     rhs_sat = rhs_s_phys[s0:s1]
-                    delta_sat = (rhs_sat - dFs_dp * delta_phys_full[:n].cpu().numpy()) / (diag_SS + 1e-30)
-                    # преобразуем к torch и клампим
-                    delta_sat = torch.as_tensor(delta_sat, device=vec.device, dtype=vec.dtype)
-                    delta_sat = torch.clamp(delta_sat, -0.05, 0.05)
+                    # полностью torch-путь, без numpy, с выравниванием устройств/типов
+                    dFs_dp_t = dFs_dp.to(device=rhs_sat.device, dtype=rhs_sat.dtype)
+                    diag_SS_t = diag_SS.to(device=rhs_sat.device, dtype=rhs_sat.dtype)
+                    dp_phys_t = delta_phys_full[:n].to(device=rhs_sat.device, dtype=rhs_sat.dtype)
+                    delta_sat = (rhs_sat - dFs_dp_t * dp_phys_t) / (diag_SS_t + 1e-30)
+                    # мягкий кап с защитой от выбросов: 3*IQR
+                    q1 = torch.quantile(delta_sat, 0.25)
+                    q3 = torch.quantile(delta_sat, 0.75)
+                    iqr = (q3 - q1).clamp_min(1e-12)
+                    lo = q1 - 3.0 * iqr
+                    hi = q3 + 3.0 * iqr
+                    delta_sat = torch.clamp(delta_sat, lo, hi)
                     delta_s_list.append(delta_sat)
 
                 if delta_s_list:
@@ -708,6 +722,12 @@ class CPRPreconditioner:
             chebyshev_smooth = None
 
         if assemble_full_csr is not None and chebyshev_smooth is not None:
+            # отключаем ψ-tail на больших задачах (устойчивость):
+            try:
+                if self._n_cells > 300000:
+                    assemble_full_csr = None
+            except Exception:
+                pass
             if not hasattr(self, "_full_A"):
                 n_total = vec.shape[0]
                 vars_pc = max(2, min(3, n_total // n))
@@ -775,6 +795,11 @@ class CPRPreconditioner:
         r_p_hat  = vec_hat[:n]
         r_sw_hat = vec_hat[n:2*n]
         r_sg_hat = vec_hat[2*n:3*n] if vars_per_cell == 3 else None
+        # санитация входа (предотвращаем NaN в AMG и S-блоке)
+        r_p_hat  = torch.nan_to_num(r_p_hat, nan=0.0, posinf=0.0, neginf=0.0)
+        r_sw_hat = torch.nan_to_num(r_sw_hat, nan=0.0, posinf=0.0, neginf=0.0)
+        if r_sg_hat is not None:
+            r_sg_hat = torch.nan_to_num(r_sg_hat, nan=0.0, posinf=0.0, neginf=0.0)
 
         # ------ Stage-1: давление через GeoSolverV2 в global-hat (без доп. масштабирования) ------
         if hasattr(self, "solver") and self.solver is not None:
@@ -850,6 +875,24 @@ class CPRPreconditioner:
                     dsdy_cand = props.get("dsdy_for_prec", None)
                     if sw_cand is not None and dsdy_cand is not None and sw_cand.numel() >= r_sw_hat.numel():
                         ds_dy = dsdy_cand.view(-1)[:r_sw_hat.numel()].to(r_sw_hat)
+                        # жёсткая санитация ds/dy из кеша
+                        ds_dy = torch.nan_to_num(ds_dy, nan=1e-8, posinf=1e6, neginf=1e6)
+                        # оценим «здоровость» кеша: медиана и доля значимых значений
+                        med = float(torch.median(ds_dy).item()) if ds_dy.numel() > 0 else 0.0
+                        good_frac = float((ds_dy > 1e-7).float().mean().item()) if ds_dy.numel() > 0 else 0.0
+                        if (med < 1e-6) or (good_frac < 0.8):
+                            # кеш вырожден — пересчитываем из текущего Sw по сигмоиде
+                            try:
+                                sw = self.simulator.fluid.s_w.view(-1).to(r_sw_hat)
+                            except Exception:
+                                sw = torch.full_like(r_sw_hat, 0.2)
+                            swc = float(getattr(self.simulator.fluid, 'sw_cr', 0.0))
+                            sor = float(getattr(self.simulator.fluid, 'so_r', 0.0))
+                            denom = max(1e-12, 1.0 - swc - sor)
+                            sigma = ((sw - swc) / denom).clamp(0.0, 1.0)
+                            dsdy_est = denom * (sigma * (1.0 - sigma))
+                            ds_dy = torch.maximum(ds_dy, dsdy_est)
+                        ds_dy = ds_dy.clamp_min(1e-6)
                         if not hasattr(self, "_dbg_dsdy_logged") or not self._dbg_dsdy_logged:
                             try:
                                 print(f"[CPR S] cache ds/dy: min={ds_dy.min().item():.3e} med={ds_dy.median().item():.3e} max={ds_dy.max().item():.3e}")
@@ -867,7 +910,15 @@ class CPRPreconditioner:
                 except Exception:
                     ds_dy = torch.ones_like(r_sw_hat) * 1e-3
  
+                # защитим sw_scale от вырождения
+                try:
+                    if not math.isfinite(sw_scale) or sw_scale <= 0.0:
+                        sw_scale = 1.0
+                except Exception:
+                    sw_scale = 1.0
                 diag_SS_hat_sw = ds_dy * sw_scale
+                # безопасный минимум диагонали в hat
+                diag_SS_hat_sw = torch.nan_to_num(diag_SS_hat_sw, nan=1e-4, posinf=1e6, neginf=1e6).clamp_min(1e-4)
                 diag_SS_hat_sg = diag_SS_phys if (r_sg_hat is not None) else None
 
                 # Коррекция RHS насыщенностей с учётом влияния δp
@@ -893,6 +944,8 @@ class CPRPreconditioner:
                     pass
                 # Базовое приближение (Jacobi по диагонали)
                 diag_sw = (diag_SS_hat_sw.to(r_sw_hat) + 1e-30)
+                # финальная страховка от микроскопических значений
+                diag_sw = torch.nan_to_num(diag_sw, nan=1e-6, posinf=1e6, neginf=1e6).clamp_min(1e-6)
                 try:
                     print(f"[CPR S] diag_SS_hat_sw: min={diag_sw.min().item():.3e} med={diag_sw.median().item():.3e} max={diag_sw.max().item():.3e}")
                 except Exception:
@@ -948,10 +1001,36 @@ class CPRPreconditioner:
                 except Exception:
                     pass
 
-                # опциональный кламп в y‑пространстве (по умолчанию ОТКЛЮЧЕН для предобуславливателя)
-                if hasattr(self.simulator, 'sim_params') and getattr(self.simulator.sim_params, 'cpr_clamp_y', False):
-                    y_clip = float(getattr(self.simulator.sim_params, 'delta_y_max', 2.0))
-                    z_sw_hat = torch.clamp(z_sw_hat, -y_clip, y_clip)
+                # жёсткий физический кап δs: не позволяем выйти за [swc, 1-sor]
+                try:
+                    swc = float(getattr(self.simulator.fluid, 'sw_cr', 0.0))
+                    sor = float(getattr(self.simulator.fluid, 'so_r', 0.0))
+                    denom = max(1e-12, 1.0 - swc - sor)
+                    # текущее y и соответствующее sw
+                    s_scales = getattr(self.scaler, 's_scales', [1.0])
+                    sw_scale = float(s_scales[0]) if len(s_scales) > 0 else 1.0
+                    # оценим текущий sw через кэш/сигмоиду
+                    y_hat_cur = getattr(self, '_last_y_hat', None)
+                    if y_hat_cur is None or y_hat_cur.numel() != r_sw_hat.numel():
+                        y_hat_cur = r_sw_hat * 0.0
+                    y_phys = y_hat_cur * sw_scale
+                    sigma = torch.sigmoid(y_phys)
+                    sw_curr = swc + denom * sigma
+                    dsdy_loc = ds_dy.clamp_min(1e-12)
+                    # перевод δy_hat → δs_phys
+                    delta_sw_phys = dsdy_loc * (z_sw_hat * sw_scale)
+                    # масштабирующий множитель α_sat, чтобы не выйти за пределы
+                    alpha_pos = ((1.0 - sor) - sw_curr) / (delta_sw_phys.clamp_min(1e-20))
+                    alpha_neg = (sw_curr - swc) / ((-delta_sw_phys).clamp_min(1e-20))
+                    alpha_pos = torch.where(delta_sw_phys > 0, alpha_pos, torch.full_like(alpha_pos, float('inf')))
+                    alpha_neg = torch.where(delta_sw_phys < 0, alpha_neg, torch.full_like(alpha_neg, float('inf')))
+                    alpha_sat = torch.minimum(alpha_pos, alpha_neg)
+                    alpha_sat = torch.clamp(alpha_sat, 0.0, 1.0)
+                    # где нет ограничения — ≈1; применяем минимально нужное с запасом 0.95
+                    scale_sat = torch.nan_to_num(alpha_sat, nan=1.0, posinf=1.0, neginf=0.0) * 0.95 + 0.05
+                    z_sw_hat = z_sw_hat * scale_sat.to(z_sw_hat)
+                except Exception:
+                    pass
                 try:
                     z2 = float(z_sw_hat.norm().item())
                     zinf = float(z_sw_hat.abs().max().item())
@@ -982,6 +1061,13 @@ class CPRPreconditioner:
             if r_sg_hat is not None:
                 z_sg_hat = r_sg_hat
 
+        # NaN-guard
+        if not torch.isfinite(delta_p_hat).all():
+            delta_p_hat = torch.nan_to_num(delta_p_hat, nan=0.0, posinf=0.0, neginf=0.0)
+        if not torch.isfinite(z_sw_hat).all():
+            z_sw_hat = torch.nan_to_num(z_sw_hat, nan=0.0, posinf=0.0, neginf=0.0)
+        if (r_sg_hat is not None) and (not torch.isfinite(z_sg_hat).all()):
+            z_sg_hat = torch.nan_to_num(z_sg_hat, nan=0.0, posinf=0.0, neginf=0.0)
         # ------ сборка полного ответа в hat ------
         out = torch.zeros_like(vec_hat)
         out[:n] = delta_p_hat

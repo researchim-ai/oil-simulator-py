@@ -82,7 +82,9 @@ def build_R_csr(P, child_cnt):
     fine = P_coo.indices()[0]   # строки в P
     coarse = P_coo.indices()[1] # столбцы в P
 
-    w = (1.0 / child_cnt[coarse].to(P.dtype)) * P_coo.values()
+    # защита от нулевых детей: min=1
+    cnt = child_cnt[coarse].to(P.dtype).clamp_min(1.0)
+    w = (1.0 / cnt) * P_coo.values()
     Rt_indices = torch.stack([coarse, fine], dim=0)  # транспонируем
     Rt_coo = torch.sparse_coo_tensor(Rt_indices, w,
                                      size=(P.shape[1], P.shape[0]),
@@ -113,12 +115,19 @@ def rap_pc_const_gpu(Af_csr: torch.Tensor,
     I = parent_idx[row_f.long()]   # coarse row
     J = parent_idx[col.long()]     # coarse col
 
-    # вес из R (среднее по детям соответствующей coarse-строки)
-    w = val / child_cnt[I].to(val.dtype)
+    # вес из R (среднее по детям соответствующей coarse-строки) с защитой от нулей
+    cntI = child_cnt[I].to(val.dtype).clamp_min(1.0)
+    w = val / cntI
 
     idx = torch.stack([I, J], dim=0)  # 2 x nnz
     Ac = torch.sparse_coo_tensor(idx, w, (n_c, n_c),
                                  device=device, dtype=val.dtype).coalesce().to_sparse_csr()
+    # санитация NaN/Inf
+    v = Ac.values()
+    v2 = torch.nan_to_num(v, nan=0.0, posinf=0.0, neginf=0.0)
+    if (v2 is not v) or (not torch.isfinite(v).all()):
+        Ac = torch.sparse_csr_tensor(Ac.crow_indices(), Ac.col_indices(), v2,
+                                     size=Ac.size(), device=Ac.device, dtype=Ac.dtype)
     return Ac
 
 
@@ -165,7 +174,9 @@ class GeoSolverV2:
                  max_levels: int | None = None,
                  debug: bool | None = None,
                  default_tol: float = 1e-6,
-                 default_max_iter: int = 10):
+                 default_max_iter: int = 10,
+                 rap_check_debug: bool = True,
+                 rap_max_check_n: int = 300000):
         self.device = device or ("cuda" if torch.cuda.is_available() else "cpu")
         self.omega = float(omega)
         self.cycle_type = cycle_type.upper()
@@ -179,6 +190,11 @@ class GeoSolverV2:
         self.clip_kappa = clip_kappa
         self.default_tol = default_tol
         self.default_max_iter = default_max_iter
+        self.rap_check_debug = bool(rap_check_debug)
+        try:
+            self.rap_max_check_n = int(os.environ.get("GEO_RAP_DEBUG_MAX_N", str(int(rap_max_check_n))))
+        except Exception:
+            self.rap_max_check_n = int(rap_max_check_n)
 
 
         # Режим подробного лога (env OIL_DEBUG=1 или явный debug=True)
@@ -428,17 +444,22 @@ class GeoSolverV2:
             # 2) RAP
             A_csr = rap_pc_const_gpu(fine_lvl.A_csr, parent_idx, n_c, child_cnt)
 
-            # ---- CHECK RAP -------------------------------------------------------------
-            if self.debug:
-                R = R  # уже построен
-                P = P
-                Af = fine_lvl.A_csr
-                Ac_ref = torch.sparse.mm(torch.sparse.mm(R, Af), P).to_dense()
-                Ac_dense = A_csr.to_dense()
-                diff = (Ac_ref - Ac_dense).abs()
-                rel_err = diff.sum() / (Ac_ref.abs().sum() + 1e-30)
-                print(f"[RAPCHK L{len(self.levels)}] rel_err={rel_err.item():.3e}, "
-                    f"||diff||1={diff.sum().item():.3e}")
+            # ---- CHECK RAP (без densify на больших N) ---------------------------------
+            if self.debug and self.rap_check_debug:
+                try:
+                    n_fine = fine_lvl.A_csr.size(0)
+                    if n_fine <= self.rap_max_check_n:
+                        Af = fine_lvl.A_csr
+                        Ac_ref = torch.sparse.mm(torch.sparse.mm(R, Af), P).to_dense()
+                        Ac_dense = A_csr.to_dense()
+                        diff = (Ac_ref - Ac_dense).abs()
+                        rel_err = diff.sum() / (Ac_ref.abs().sum() + 1e-30)
+                        print(f"[RAPCHK L{len(self.levels)}] rel_err={rel_err.item():.3e}, "
+                              f"||diff||1={diff.sum().item():.3e}")
+                    else:
+                        print(f"[RAPCHK L{len(self.levels)}] skip densify check (n={n_fine} > {self.rap_max_check_n})")
+                except Exception as _e:
+                    print(f"[RAPCHK] skip due to error: {_e}")
 
 
             if A_csr._nnz() == 0:
