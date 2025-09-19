@@ -1,4 +1,5 @@
 import torch
+import json
 import numpy as np
 import matplotlib.pyplot as plt
 from scipy.sparse import csc_matrix, diags, bmat, csr_matrix, identity
@@ -117,6 +118,18 @@ class Simulator:
         
         # Параметр PTC для коррекции пористости (по умолчанию 0)
         self.ptc_alpha = sim_params.get('ptc_alpha', 0.0)
+
+        # JSON-логи (структурированные)
+        self.log_json_dir = sim_params.get('log_json_dir', '') or ''
+        self.color_logs = bool(sim_params.get('color_logs', True))
+        self._json_log_path = None
+        if self.log_json_dir:
+            try:
+                os.makedirs(self.log_json_dir, exist_ok=True)
+                ts = datetime.datetime.now().strftime('%Y%m%d_%H%M%S')
+                self._json_log_path = os.path.join(self.log_json_dir, f'run_{ts}.jsonl')
+            except Exception:
+                self._json_log_path = None
         
         # Trust region параметры для autograd
         self._sw_trust_limit = 0.3
@@ -230,6 +243,11 @@ class Simulator:
         """
         Выполняет один временной шаг симуляции, выбирая нужный решатель.
         """
+        # масса ДО шага (для сводки)
+        try:
+            mass_before_total = self._compute_total_mass().item()
+        except Exception:
+            mass_before_total = None
         # --- сохранение предыдущего состояния для полно-неявной схемы ---
         self.fluid.prev_pressure = self.fluid.pressure.clone()
         self.fluid.prev_sw       = self.fluid.s_w.clone()
@@ -437,10 +455,69 @@ class Simulator:
             mass_now = self._compute_total_mass().item()
             imbalance = abs(mass_now - self._initial_mass) / (self._initial_mass + 1e-12)
             if imbalance > 0.01:  # 1 %
-                print(f"[WARN] Массовый баланс ушёл на {imbalance*100:.2f} % после {self.step_count} шагов")
+                print(f"\x1b[33m[WARN]\x1b[0m Массовый баланс ушёл на {imbalance*100:.2f} % после {self.step_count} шагов")
             self.step_count += 1
+
+        # --------------------------------------------------------------
+        # JSON сводка шага (если включено)
+        # --------------------------------------------------------------
+        try:
+            if self._json_log_path is not None:
+                summary = {
+                    "event": "step_summary",
+                    "step": int(getattr(self, 'step_count', 0)),
+                    "dt_sec": float(dt),
+                    "success": bool(success),
+                }
+                # Итерации Ньютона/GMRES и финальная ||F|| (если доступны)
+                try:
+                    fis = getattr(self, '_fisolver', None) or getattr(self, 'fi_solver', None)
+                    if fis is not None:
+                        summary.update({
+                            "newton_iters": int(getattr(fis, 'last_newton_iters', -1) or -1),
+                            "gmres_iters": int(getattr(fis, 'last_gmres_iters', -1) or -1),
+                            "F_norm": float(getattr(fis, 'last_res_norm', float('nan'))),
+                        })
+                except Exception:
+                    pass
+                # Баланс массы
+                try:
+                    if mass_before_total is not None:
+                        mass_after_total = float(self._compute_total_mass().item())
+                        summary.update({
+                            "mass_before": float(mass_before_total),
+                            "mass_after": float(mass_after_total),
+                            "mass_rel_err": float(abs(mass_after_total - mass_before_total) / (mass_before_total + 1e-12)),
+                        })
+                except Exception:
+                    pass
+                # Полевые метрики
+                try:
+                    summary.update({
+                        "p_MPa": {"min": p_min, "mean": p_mean, "max": p_max},
+                        "sw": {"min": sw_min, "mean": sw_mean, "max": sw_max},
+                    })
+                    if hasattr(self.fluid, "s_g"):
+                        summary["sg"] = {"min": sg_min, "mean": sg_mean, "max": sg_max}
+                except Exception:
+                    pass
+                self.log_json(summary)
+        except Exception:
+            pass
         
         return success
+
+    def log_json(self, event: dict):
+        """Записывает событие в JSONL-файл, если включено."""
+        if self._json_log_path is None:
+            return
+        try:
+            event = dict(event)
+            event.setdefault("t_wall", time.time())
+            with open(self._json_log_path, 'a', encoding='utf-8') as f:
+                f.write(json.dumps(event, ensure_ascii=False) + "\n")
+        except Exception:
+            pass
 
     def _fully_implicit_step(self, dt):
         """Выполняет один полностью неявный шаг (FI)."""

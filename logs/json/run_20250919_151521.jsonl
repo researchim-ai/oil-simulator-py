@@ -1,0 +1,23 @@
+{"event": "newton_iter", "iter": 0, "F_norm": 304462976.0, "F_scaled": 655100.0, "t_wall": 1758276932.5278795}
+{"event": "gmres_done", "iter": 0, "gmres_info": 0, "gmres_iters": 6, "delta_norm": 4.134409427642822, "t_wall": 1758276932.9002757}
+{"event": "pressure_cap", "iter": 0, "dp_abs_max": 10108476.0, "P_STEP_MAX": 5000000.0, "alpha_p": 0.4946344038408955, "t_wall": 1758276932.9058235}
+{"event": "sat_limiter_diag", "iter": 0, "alpha_p": 0.4946344038408955, "alpha_sat": 1.0, "t_wall": 1758276932.906317}
+{"event": "pressure_clip", "iter": 0, "dp_hat_max": 5000000.0, "p_step_ls_max": 5000000.0, "t_wall": 1758276932.923054}
+{"event": "ls_try", "iter": 0, "alpha": 1.0, "F_norm": 154379728.0, "ratio": 0.5070558332846355, "lin_err": 0.003175092628225684, "t_wall": 1758276932.9285917}
+{"event": "ls_accept", "iter": 0, "alpha": 1.0, "F_norm": 154379728.0, "t_wall": 1758276932.9286308}
+{"event": "newton_iter", "iter": 1, "F_norm": 154379744.0, "F_scaled": 332172.3125, "t_wall": 1758276932.933455}
+{"event": "gmres_done", "iter": 1, "gmres_info": 0, "gmres_iters": 6, "delta_norm": 2.098564624786377, "t_wall": 1758276933.2359734}
+{"event": "pressure_cap", "iter": 1, "dp_abs_max": 5126534.0, "P_STEP_MAX": 5000000.0, "alpha_p": 0.9753178268202259, "t_wall": 1758276933.2366664}
+{"event": "sat_limiter_diag", "iter": 1, "alpha_p": 0.9753178268202259, "alpha_sat": 1.0, "t_wall": 1758276933.237012}
+{"event": "pressure_clip", "iter": 1, "dp_hat_max": 5000000.0, "p_step_ls_max": 5000000.0, "t_wall": 1758276933.253747}
+{"event": "ls_try", "iter": 1, "alpha": 1.0, "F_norm": 4265671.5, "ratio": 0.027631031050291157, "lin_err": 0.003009894397109747, "t_wall": 1758276933.2594626}
+{"event": "ls_accept", "iter": 1, "alpha": 1.0, "F_norm": 4265671.5, "t_wall": 1758276933.2594993}
+{"event": "newton_iter", "iter": 2, "F_norm": 4265674.0, "F_scaled": 9178.2685546875, "t_wall": 1758276933.2639408}
+{"event": "gmres_done", "iter": 2, "gmres_info": 0, "gmres_iters": 6, "delta_norm": 0.058058977127075195, "t_wall": 1758276933.5692174}
+{"event": "pressure_cap", "iter": 2, "dp_abs_max": 195467.15625, "P_STEP_MAX": 3000000.0, "alpha_p": 1.0, "t_wall": 1758276933.5699286}
+{"event": "sat_limiter_diag", "iter": 2, "alpha_p": 1.0, "alpha_sat": 1.0, "t_wall": 1758276933.5705006}
+{"event": "pressure_clip", "iter": 2, "dp_hat_max": 195467.46875, "p_step_ls_max": 3000000.0, "t_wall": 1758276933.5876865}
+{"event": "ls_try", "iter": 2, "alpha": 1.0, "F_norm": 26493.52734375, "ratio": 0.006210865467860413, "lin_err": 0.1130489856004715, "t_wall": 1758276933.5939956}
+{"event": "ls_accept", "iter": 2, "alpha": 1.0, "F_norm": 26493.52734375, "t_wall": 1758276933.5940833}
+{"event": "newton_iter", "iter": 3, "F_norm": 26493.52734375, "F_scaled": 57.0049934387207, "t_wall": 1758276933.5990863}
+{"event": "step_summary", "step": 1, "dt_sec": 1728.0, "success": true, "newton_iters": 3, "gmres_iters": 18, "F_norm": 26493.52734375, "mass_before": 556415975424.0, "mass_after": 555774377984.0, "mass_rel_err": 0.0011530895379326413, "p_MPa": {"min": 9998415.429632, "mean": 19999999.655936, "max": 30002603.098112}, "sw": {"min": 0.2009868025779724, "mean": 0.2010001391172409, "max": 0.20113109052181244}, "sg": {"min": 0.0, "mean": 0.0, "max": 0.0}, "t_wall": 1758276933.6006901}

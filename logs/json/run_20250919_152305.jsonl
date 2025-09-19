@@ -1,0 +1,23 @@
+{"event": "newton_iter", "iter": 0, "F_norm": 304462976.0, "F_scaled": 655100.0, "t_wall": 1758277385.7299051}
+{"event": "gmres_done", "iter": 0, "gmres_info": 0, "gmres_iters": 3, "delta_norm": 0.08045002073049545, "t_wall": 1758277386.0329099}
+{"event": "pressure_cap", "iter": 0, "dp_abs_max": 5623.513671875, "P_STEP_MAX": 5000000.0, "alpha_p": 1.0, "t_wall": 1758277386.0367632}
+{"event": "sat_limiter_diag", "iter": 0, "alpha_p": 1.0, "alpha_sat": 0.03317718580365181, "t_wall": 1758277386.0426993}
+{"event": "pressure_clip", "iter": 0, "dp_hat_max": 5623.10205078125, "p_step_ls_max": 5000000.0, "t_wall": 1758277386.0587773}
+{"event": "ls_try", "iter": 0, "alpha": 1.0, "F_norm": 299375808.0, "ratio": 0.9832913411448754, "lin_err": 0.012138942256569862, "t_wall": 1758277386.0648875}
+{"event": "ls_accept", "iter": 0, "alpha": 1.0, "F_norm": 299375808.0, "t_wall": 1758277386.0649414}
+{"event": "newton_iter", "iter": 1, "F_norm": 299375808.0, "F_scaled": 644154.1875, "t_wall": 1758277386.070708}
+{"event": "gmres_done", "iter": 1, "gmres_info": 0, "gmres_iters": 3, "delta_norm": 1.0648030042648315, "t_wall": 1758277386.1716075}
+{"event": "pressure_cap", "iter": 1, "dp_abs_max": 323315.5, "P_STEP_MAX": 5000000.0, "alpha_p": 1.0, "t_wall": 1758277386.1723387}
+{"event": "sat_limiter_diag", "iter": 1, "alpha_p": 1.0, "alpha_sat": 0.0, "t_wall": 1758277386.1727467}
+{"event": "pressure_clip", "iter": 1, "dp_hat_max": 323315.84375, "p_step_ls_max": 5000000.0, "t_wall": 1758277386.1907191}
+{"event": "ls_try", "iter": 1, "alpha": 1.0, "F_norm": 370611904.0, "ratio": 1.2379487389976414, "lin_err": 0.03000986948609352, "t_wall": 1758277386.197846}
+{"event": "pressure_clip", "iter": 1, "dp_hat_max": 161658.53125, "p_step_ls_max": 5000000.0, "t_wall": 1758277386.2197273}
+{"event": "pressure_clip", "iter": 1, "dp_hat_max": 80829.859375, "p_step_ls_max": 5000000.0, "t_wall": 1758277386.2458239}
+{"event": "pressure_clip", "iter": 1, "dp_hat_max": 40415.52734375, "p_step_ls_max": 5000000.0, "t_wall": 1758277386.2734463}
+{"event": "pressure_clip", "iter": 1, "dp_hat_max": 20208.359375, "p_step_ls_max": 5000000.0, "t_wall": 1758277386.3004143}
+{"event": "pressure_clip", "iter": 1, "dp_hat_max": 10104.1796875, "p_step_ls_max": 5000000.0, "t_wall": 1758277386.325921}
+{"event": "pressure_clip", "iter": 1, "dp_hat_max": 5052.08984375, "p_step_ls_max": 5000000.0, "t_wall": 1758277386.354575}
+{"event": "pressure_clip", "iter": 1, "dp_hat_max": 2526.044921875, "p_step_ls_max": 5000000.0, "t_wall": 1758277386.3844202}
+{"event": "pressure_clip", "iter": 1, "dp_hat_max": 1262.4263916015625, "p_step_ls_max": 5000000.0, "t_wall": 1758277386.4104235}
+{"event": "pressure_clip", "iter": 1, "dp_hat_max": 631.8092041015625, "p_step_ls_max": 5000000.0, "t_wall": 1758277386.4370184}
+{"event": "step_summary", "step": 0, "dt_sec": 345.6, "success": false, "newton_iters": 30, "gmres_iters": 6, "F_norm": 299375808.0, "mass_before": 556415975424.0, "mass_after": 556415975424.0, "mass_rel_err": 0.0, "t_wall": 1758277386.5104377}

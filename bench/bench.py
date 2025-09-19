@@ -146,6 +146,8 @@ def bench_case(nx, ny, nz, *,
     sim_params["geo_pre"]       = args.geo_pre
     sim_params["geo_post"]      = args.geo_post
     sim_params["geo_levels"]    = args.geo_levels
+    if args.log_json_dir:
+        sim_params["log_json_dir"] = args.log_json_dir
 
     # --- Хуки/обёртки для диагностики и экспериментов -----------------------
     # 1) FD-консистентная замена Jv (можно включать/выключать без правок Solver)
@@ -213,6 +215,7 @@ def parse_args():
 
     ap.add_argument("--dt", type=float, default=0.02, help="начальный шаг (сутки)")
     ap.add_argument("--debug", action="store_true", default=True)
+    ap.add_argument('--log-json-dir', type=str, default='', help='каталог для JSON-логов (per-итерация/шаг)')
     ap.add_argument('--cpr-backend', default='geo2')
     ap.add_argument('--geo-tol', type=float, default=1e-6)
     ap.add_argument('--geo-max-iter', type=int, default=10)

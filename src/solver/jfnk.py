@@ -639,6 +639,11 @@ class FullyImplicitSolver:
 
         # основной цикл Ньютона -----------------------------------------------
         for it in range(effective_max_it):
+            # цветовой префикс
+            GREEN = "\x1b[32m" if bool(self.sim.sim_params.get('color_logs', True)) else ""
+            RED   = "\x1b[31m" if bool(self.sim.sim_params.get('color_logs', True)) else ""
+            YEL   = "\x1b[33m" if bool(self.sim.sim_params.get('color_logs', True)) else ""
+            RESET = "\x1b[0m"  if bool(self.sim.sim_params.get('color_logs', True)) else ""
             # адаптивный PTC (только давление): сильнее в начале, затухает
             if self.ptc_enabled:
                 if it == 0:
@@ -671,6 +676,15 @@ class FullyImplicitSolver:
             if init_F_scaled is None:
                 init_F_scaled = F_scaled
             print(f"  Newton #{it}: ||F||={F_norm:.3e}, ||F||_scaled={F_scaled:.3e}")
+            try:
+                self.sim.log_json({
+                    "event": "newton_iter",
+                    "iter": int(it),
+                    "F_norm": float(F_norm),
+                    "F_scaled": float(F_scaled),
+                })
+            except Exception:
+                pass
 
             # критерий сходимости (абс/относит)
             if (F_scaled < self.tol) or (F_scaled < self.rtol * init_F_scaled):
@@ -723,8 +737,18 @@ class FullyImplicitSolver:
                 deflation_basis=basis_tensor, min_iters=3
             )
             self.total_gmres_iters += gm_iters
-            print(f"[GMRES] info={info}, iters={gm_iters}, ||δ_hat||={delta.norm():.3e}, "
-                f"||δp_hat||={delta[:n].norm():.3e}, ||δs_hat||={(delta[n:].norm() if delta.numel()>n else 0.0):.3e}")
+            print((YEL if info != 0 else GREEN) + f"[GMRES] info={info}, iters={gm_iters}, ||δ_hat||={delta.norm():.3e}, "
+                f"||δp_hat||={delta[:n].norm():.3e}, ||δs_hat||={(delta[n:].norm() if delta.numel()>n else 0.0):.3e}" + RESET)
+            try:
+                self.sim.log_json({
+                    "event": "gmres_done",
+                    "iter": int(it),
+                    "gmres_info": int(info),
+                    "gmres_iters": int(gm_iters),
+                    "delta_norm": float(delta.norm()),
+                })
+            except Exception:
+                pass
 
             # защита от NaN/Inf
             if (not torch.isfinite(delta).all()) or info not in (0,):
@@ -807,6 +831,13 @@ class FullyImplicitSolver:
                 delta[:n] *= alpha_p
             try:
                 print(f"[p-cap] dp_abs_max={dp_abs_max:.3e} Pa, P_STEP_MAX={P_STEP_MAX:.3e}, alpha_p={alpha_p:.3e}")
+                self.sim.log_json({
+                    "event": "pressure_cap",
+                    "iter": int(it),
+                    "dp_abs_max": float(dp_abs_max),
+                    "P_STEP_MAX": float(P_STEP_MAX),
+                    "alpha_p": float(alpha_p),
+                })
             except Exception:
                 pass
 
@@ -836,6 +867,12 @@ class FullyImplicitSolver:
                         alpha_sat = min(alpha_sat, float(alpha_sw_neg.min()))
                     # только диагностика без сжатия шага по насыщенности
                     print(f"[limiter] alpha_p={alpha_p:.3e}, alpha_sat_diag={alpha_sat:.3e}")
+                    self.sim.log_json({
+                        "event": "sat_limiter_diag",
+                        "iter": int(it),
+                        "alpha_p": float(alpha_p),
+                        "alpha_sat": float(alpha_sat),
+                    })
             except Exception as _e:
                 print(f"[sat-limiter] предупреждение: {_e}")
 
@@ -876,7 +913,7 @@ class FullyImplicitSolver:
 
             for ls_it in range(ls_max):
                 if factor < min_factor:
-                    print(f"  LS: достигли минимального α={min_factor:.3e} — стоп")
+                    print(RED + f"  LS: достигли минимального α={min_factor:.3e} — стоп" + RESET)
                     break
 
                 if Jv_hat_ls is None:
@@ -896,6 +933,12 @@ class FullyImplicitSolver:
                     try:
                         dp_phys_inf = float((dp_hat.abs().max() * p_scale_loc))
                         print(f"[p-clip] dp_hat_max={dp_phys_inf:.3e} Pa, limit={p_step_ls_max:.3e} Pa")
+                        self.sim.log_json({
+                            "event": "pressure_clip",
+                            "iter": int(it),
+                            "dp_hat_max": float(dp_phys_inf),
+                            "p_step_ls_max": float(p_step_ls_max),
+                        })
                     except Exception:
                         pass
                 except Exception:
@@ -927,9 +970,29 @@ class FullyImplicitSolver:
                     print(f"    LS try α={factor:.3e}: ||F||={f_curr:.3e} "
                         f"(ratio={f_curr/(base_norm+1e-30):.3e}), lin_err={float(lin_err):.3e}, "
                         f"Sw_range=({sw_rng[0]:.3e},{sw_rng[1]:.3e})")
+                    try:
+                        self.sim.log_json({
+                            "event": "ls_try",
+                            "iter": int(it),
+                            "alpha": float(factor),
+                            "F_norm": float(f_curr),
+                            "ratio": float(f_curr/(base_norm+1e-30)),
+                            "lin_err": float(lin_err),
+                        })
+                    except Exception:
+                        pass
 
                 if sufficient:
-                    print(f"  Line search принял шаг α={factor:.3e}, ||F||={f_curr:.3e}")
+                    print(GREEN + f"  Line search принял шаг α={factor:.3e}, ||F||={f_curr:.3e}" + RESET)
+                    try:
+                        self.sim.log_json({
+                            "event": "ls_accept",
+                            "iter": int(it),
+                            "alpha": float(factor),
+                            "F_norm": float(f_curr),
+                        })
+                    except Exception:
+                        pass
                     x_new = x_candidate
                     success = True
                     # для forcing-term нам нужна «старая» норма
@@ -970,7 +1033,7 @@ class FullyImplicitSolver:
 
             # Fallback: демпфированный Jacobi-шаг
             if not success:
-                print("  Line search не нашёл шаг — Jacobi fallback (α=0.3)")
+                print(YEL + "  Line search не нашёл шаг — Jacobi fallback (α=0.3)" + RESET)
                 delta_fb = 0.3 * M_hat(-base_F)
                 delta_fb = _project_zero_mean_p(delta_fb)
                 # безопасные клампы
