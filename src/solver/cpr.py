@@ -101,6 +101,27 @@ class CPRPreconditioner:
                 setattr(self.scaler, "n_cells", n_cells_tot)
             except Exception:
                 pass
+            # сохраним число ячеек для внутренних порогов
+            try:
+                self._n_cells = int(n_cells_tot)
+            except Exception:
+                self._n_cells = 0
+
+        # Опциональные флаги поведения CPR из sim_params (с безопасными дефолтами)
+        sim_params = getattr(self.simulator, 'sim_params', {}) if self.simulator is not None else {}
+        try:
+            big = (self._n_cells if hasattr(self, '_n_cells') else 0) > 300000
+            self.cfg_cpr_phys_sat_cap = bool(sim_params.get('cpr_phys_sat_cap', True if big else False))
+            self.cfg_cpr_use_dsdy_hat = bool(sim_params.get('cpr_use_dsdy_hat', True if big else False))
+            self.cfg_cpr_diag_hat_sw_min = float(sim_params.get('cpr_diag_hat_sw_min', 1e-6))
+            self.cfg_cpr_disable_psi_tail_threshold = int(sim_params.get('cpr_disable_psi_tail_threshold', 300000))
+        except Exception:
+            # в случае отсутствия dict-like sim_params или неверных типов — установим дефолты
+            big = (self._n_cells if hasattr(self, '_n_cells') else 0) > 300000
+            self.cfg_cpr_phys_sat_cap = True if big else False
+            self.cfg_cpr_use_dsdy_hat = True if big else False
+            self.cfg_cpr_diag_hat_sw_min = 1e-6
+            self.cfg_cpr_disable_psi_tail_threshold = 300000
 
         # Масштаб давления (Па → hat) для безразмеризации.
         # Нужен только для геометрического AMG v2, но сохраняем всегда.
@@ -722,9 +743,14 @@ class CPRPreconditioner:
             chebyshev_smooth = None
 
         if assemble_full_csr is not None and chebyshev_smooth is not None:
-            # отключаем ψ-tail на больших задачах (устойчивость):
+            # отключаем ψ-tail на больших задачах (устойчивость),
+            # либо если явно запрещено через sim_params
             try:
-                if self._n_cells > 300000:
+                thr = int(getattr(self, 'cfg_cpr_disable_psi_tail_threshold', 300000))
+            except Exception:
+                thr = 300000
+            try:
+                if self._n_cells > thr:
                     assemble_full_csr = None
             except Exception:
                 pass
@@ -795,7 +821,8 @@ class CPRPreconditioner:
         r_p_hat  = vec_hat[:n]
         r_sw_hat = vec_hat[n:2*n]
         r_sg_hat = vec_hat[2*n:3*n] if vars_per_cell == 3 else None
-        # санитация входа (предотвращаем NaN в AMG и S-блоке)
+        # мягкая санитация входа (клиппирование по квантилям вместо полного зануления)
+        # базовая санитация: только nan/inf → 0 (без квантильного клипа по умолчанию)
         r_p_hat  = torch.nan_to_num(r_p_hat, nan=0.0, posinf=0.0, neginf=0.0)
         r_sw_hat = torch.nan_to_num(r_sw_hat, nan=0.0, posinf=0.0, neginf=0.0)
         if r_sg_hat is not None:
@@ -916,9 +943,14 @@ class CPRPreconditioner:
                         sw_scale = 1.0
                 except Exception:
                     sw_scale = 1.0
-                diag_SS_hat_sw = ds_dy * sw_scale
+                # использование ds/dy в hat делаем опциональным (для совместимости со «старым» поведением)
+                if getattr(self, 'cfg_cpr_use_dsdy_hat', False):
+                    diag_SS_hat_sw = ds_dy * sw_scale
+                else:
+                    diag_SS_hat_sw = torch.ones_like(ds_dy) * sw_scale
                 # безопасный минимум диагонали в hat
-                diag_SS_hat_sw = torch.nan_to_num(diag_SS_hat_sw, nan=1e-4, posinf=1e6, neginf=1e6).clamp_min(1e-4)
+                min_hat = float(getattr(self, 'cfg_cpr_diag_hat_sw_min', 1e-6))
+                diag_SS_hat_sw = torch.nan_to_num(diag_SS_hat_sw, nan=min_hat, posinf=1e6, neginf=1e6).clamp_min(min_hat)
                 diag_SS_hat_sg = diag_SS_phys if (r_sg_hat is not None) else None
 
                 # Коррекция RHS насыщенностей с учётом влияния δp
@@ -951,6 +983,12 @@ class CPRPreconditioner:
                 except Exception:
                     pass
                 z_sw_hat = r_sw_corr / diag_sw
+                # анти-mute: если ход по насыщенности почти нулевой относительно RHS — берём чисто диагональный шаг
+                try:
+                    if float(z_sw_hat.norm().item()) < 1e-8 * max(1e-30, float(r_sw_corr.norm().item())):
+                        z_sw_hat = r_sw_corr / (diag_sw + 1e-30)
+                except Exception:
+                    pass
 
                 # Усиление: 2 шага Jacobi по локальному переносному оператору (7-точечный шаблон)
                 try:
@@ -1001,23 +1039,22 @@ class CPRPreconditioner:
                 except Exception:
                     pass
 
-                # жёсткий физический кап δs: не позволяем выйти за [swc, 1-sor]
+                # жёсткий физический кап δs: не позволяем выйти за [swc, 1-sor] (опционально)
                 try:
+                    if not getattr(self, 'cfg_cpr_phys_sat_cap', False):
+                        raise RuntimeError('phys_cap_disabled')
                     swc = float(getattr(self.simulator.fluid, 'sw_cr', 0.0))
                     sor = float(getattr(self.simulator.fluid, 'so_r', 0.0))
                     denom = max(1e-12, 1.0 - swc - sor)
-                    # текущее y и соответствующее sw
-                    s_scales = getattr(self.scaler, 's_scales', [1.0])
-                    sw_scale = float(s_scales[0]) if len(s_scales) > 0 else 1.0
-                    # оценим текущий sw через кэш/сигмоиду
-                    y_hat_cur = getattr(self, '_last_y_hat', None)
-                    if y_hat_cur is None or y_hat_cur.numel() != r_sw_hat.numel():
-                        y_hat_cur = r_sw_hat * 0.0
-                    y_phys = y_hat_cur * sw_scale
-                    sigma = torch.sigmoid(y_phys)
-                    sw_curr = swc + denom * sigma
+                    # берём текущую насыщенность из состояния (надёжнее, чем _last_y_hat)
+                    try:
+                        sw_curr = self.simulator.fluid.s_w.view(-1)[:r_sw_hat.numel()].to(r_sw_hat)
+                    except Exception:
+                        sw_curr = torch.full_like(r_sw_hat, swc + 0.5 * denom)
                     dsdy_loc = ds_dy.clamp_min(1e-12)
                     # перевод δy_hat → δs_phys
+                    s_scales = getattr(self.scaler, 's_scales', [1.0])
+                    sw_scale = float(s_scales[0]) if len(s_scales) > 0 else 1.0
                     delta_sw_phys = dsdy_loc * (z_sw_hat * sw_scale)
                     # масштабирующий множитель α_sat, чтобы не выйти за пределы
                     alpha_pos = ((1.0 - sor) - sw_curr) / (delta_sw_phys.clamp_min(1e-20))
@@ -1026,9 +1063,16 @@ class CPRPreconditioner:
                     alpha_neg = torch.where(delta_sw_phys < 0, alpha_neg, torch.full_like(alpha_neg, float('inf')))
                     alpha_sat = torch.minimum(alpha_pos, alpha_neg)
                     alpha_sat = torch.clamp(alpha_sat, 0.0, 1.0)
-                    # где нет ограничения — ≈1; применяем минимально нужное с запасом 0.95
-                    scale_sat = torch.nan_to_num(alpha_sat, nan=1.0, posinf=1.0, neginf=0.0) * 0.95 + 0.05
+                    # применяем строгое ограничение (без искусственного «+0.05»)
+                    scale_sat = torch.nan_to_num(alpha_sat, nan=1.0, posinf=1.0, neginf=0.0)
                     z_sw_hat = z_sw_hat * scale_sat.to(z_sw_hat)
+                    # ограничим абсолютный прирост насыщенности из предобуславливателя (safety)
+                    max_dsw = 0.05
+                    dsw_phys = (dsdy_loc * (z_sw_hat * sw_scale)).abs()
+                    over = dsw_phys > max_dsw
+                    if bool(over.any()):
+                        scale_abs = (max_dsw / (dsw_phys + 1e-20)).clamp_max(1.0)
+                        z_sw_hat = z_sw_hat * scale_abs.to(z_sw_hat)
                 except Exception:
                     pass
                 try:

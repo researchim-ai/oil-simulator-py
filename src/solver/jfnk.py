@@ -441,12 +441,14 @@ class FullyImplicitSolver:
                         with torch.no_grad():
                             x[n:2*n] = x[n:2*n] * (old_sw_scale / s_scale_sw)
 
-                        self.scaler.s_scales[0] = s_scale_sw
-                        self.scaler.inv_s_scales[0] = 1.0 / s_scale_sw
+                        # стабилизация масштаба: не более ×2 за итерацию
+                        s_scale_sw_limited = min(s_scale_sw, max(0.5 * old_sw_scale, min(2.0 * old_sw_scale, s_scale_sw)))
+                        self.scaler.s_scales[0] = s_scale_sw_limited
+                        self.scaler.inv_s_scales[0] = 1.0 / s_scale_sw_limited
                         # пересоберём комбинированные массивы
                         self.scaler.scale = [self.scaler.inv_p_scale] + list(self.scaler.inv_s_scales)
                         self.scaler.inv_scale = [self.scaler.p_scale] + list(self.scaler.s_scales)
-                        print(f"[scaler] updated s_scale_sw={s_scale_sw:.3e} from median(ds/dy)={med_dsdy:.3e}")
+                        print(f"[scaler] updated s_scale_sw={s_scale_sw_limited:.3e} from median(ds/dy)={med_dsdy:.3e}")
         except Exception:
             pass
 
@@ -826,9 +828,8 @@ class FullyImplicitSolver:
                 else:
                     P_STEP_MAX = 1.0e6  # 1 МПа далее
             alpha_p = min(1.0, P_STEP_MAX / dp_abs_max)
-            if alpha_p < 1.0:
-                # масштабируем только давление в δ (в hat), насыщенности не трогаем
-                delta[:n] *= alpha_p
+            # Не масштабируем delta[:n] здесь, чтобы не ломать линейный поиск.
+            # Применим ограничение давления к candidate шагу ПОСЛЕ умножения на alpha (factor)
             try:
                 print(f"[p-cap] dp_abs_max={dp_abs_max:.3e} Pa, P_STEP_MAX={P_STEP_MAX:.3e}, alpha_p={alpha_p:.3e}")
                 self.sim.log_json({
@@ -841,7 +842,8 @@ class FullyImplicitSolver:
             except Exception:
                 pass
 
-            # лимитер по насыщенностям: только диагностика по δs (мы НЕ сжимаем шаг по y)
+            # лимитер по насыщенностям: вычисляем допустимый α по физ. границам Sw
+            alpha_sat = 1.0
             try:
                 if self.scaler is not None and delta.numel() >= 2 * n:
                     s_scales = getattr(self.scaler, "s_scales", (1.0,))
@@ -854,9 +856,7 @@ class FullyImplicitSolver:
                     dsdy = denom * (sigma * (1.0 - sigma))
                     dy_hat = delta[n:2*n]
                     delta_sw_phys = dsdy * (dy_hat * sw_scale)
-                    # оценка «доступного» alpha по границам в s (диагностика)
                     sw_curr = swc + denom * sigma
-                    alpha_sat = 1.0
                     pos_mask = (delta_sw_phys > 0)
                     if pos_mask.any():
                         alpha_sw_pos = ((1.0 - sor) - sw_curr[pos_mask]) / (delta_sw_phys[pos_mask] + 1e-30)
@@ -865,16 +865,16 @@ class FullyImplicitSolver:
                     if neg_mask.any():
                         alpha_sw_neg = (sw_curr[neg_mask] - swc) / (-delta_sw_phys[neg_mask] + 1e-30)
                         alpha_sat = min(alpha_sat, float(alpha_sw_neg.min()))
-                    # только диагностика без сжатия шага по насыщенности
-                    print(f"[limiter] alpha_p={alpha_p:.3e}, alpha_sat_diag={alpha_sat:.3e}")
+                    alpha_sat = max(1e-6, min(1.0, alpha_sat))
+                    print(f"[limiter] alpha_p={alpha_p:.3e}, alpha_sat={alpha_sat:.3e}")
                     self.sim.log_json({
-                        "event": "sat_limiter_diag",
+                        "event": "sat_limiter",
                         "iter": int(it),
                         "alpha_p": float(alpha_p),
                         "alpha_sat": float(alpha_sat),
                     })
-            except Exception as _e:
-                print(f"[sat-limiter] предупреждение: {_e}")
+            except Exception:
+                pass
 
             # ВАЖНО: глобальный шаг теперь НЕ сжимается из-за давления (мы уже масштабировали δp).
             # Оставляем factor управляться trust-region/LS.
@@ -896,36 +896,61 @@ class FullyImplicitSolver:
 
             # --- Line search (строгий Armijo и реальное снижение) ------------
             c1 = 1e-3 if it == 0 else 3e-4
-            ls_max = 10
+            ls_max = 16
 
             # не позволяем конфигом задрать min_alpha слишком высоко
             cfg_alpha = float(self.sim.sim_params.get("line_search_min_alpha", 1e-8))
-            min_factor = min(max(1e-8, cfg_alpha), 1e-5)
+            # Позволяем уходить до 1e-6 по умолчанию
+            min_factor = min(max(1e-10, cfg_alpha), 1e-6)
 
             success = False
             base_F = F
             base_norm = float(F_norm)
             Jv_hat_ls = None
-            # масштабируем только давление фактором trust-region, насыщенности оставляем как есть
-            delta_ls = delta.clone()
-            if factor < 1.0:
-                delta_ls[:n] *= factor
+            # подготовим базовый шаг; кандидата строим внутри цикла с учётом factor/лимитеров
+            delta_ls_base = delta.clone()
 
             for ls_it in range(ls_max):
                 if factor < min_factor:
                     print(RED + f"  LS: достигли минимального α={min_factor:.3e} — стоп" + RESET)
                     break
 
+                # базовый кандидат с учётом trust-region: масштабируем ВЕСЬ шаг
+                delta_ls = delta_ls_base.clone()
+                if factor < 1.0:
+                    delta_ls *= factor
+
+                # мягко соблюдаем предел по давлению: однородно сжимаем δp до p_step_ls_max
+                try:
+                    p_scale_loc = float(getattr(self.scaler, "p_scale", 1.0)) if self.scaler is not None else 1.0
+                    p_step_ls_max = float(self.sim.sim_params.get("p_step_ls_max", P_STEP_MAX))
+                    dp_clip_hat = p_step_ls_max / max(p_scale_loc, 1.0)
+                    dp_max_hat = float(delta_ls[:n].abs().max().item()) + 1e-30
+                    if dp_max_hat > dp_clip_hat:
+                        s_dp = dp_clip_hat / dp_max_hat
+                        delta_ls[:n] *= s_dp
+                        factor *= s_dp
+                    print(f"[p-clip] dp_hat_max={dp_max_hat*p_scale_loc:.3e} Pa, limit={p_step_ls_max:.3e} Pa")
+                except Exception:
+                    pass
+
+                # соблюдаем физические границы по насыщенности (равномерный масштаб δy)
+                if delta_ls.numel() >= 2 * n:
+                    if 'alpha_sat' in locals() and alpha_sat < 1.0:
+                        delta_ls[n:2*n] *= alpha_sat
+
                 if Jv_hat_ls is None:
                     Jv_hat_ls = A(delta_ls)
 
                 x_candidate = _anchor_pressure(x + delta_ls) if fix_pressure_drift else (x + delta_ls)
-                # Жёсткий колпак по давлению в HAT на этапе line-search (переменные в hat)
+                # Жёсткий колпак по давлению в HAT на этапе line-search (после применения factor)
                 try:
                     n_loc = n
                     p_scale_loc = float(getattr(self.scaler, "p_scale", 1.0)) if self.scaler is not None else 1.0
-                    # Синхронизируем с P_STEP_MAX: по умолчанию клип равен тому же лимиту
+                    # Синхронизируем с P_STEP_MAX и вводим нижнюю границу на шаг по давлению
                     p_step_ls_max = float(self.sim.sim_params.get("p_step_ls_max", P_STEP_MAX))
+                    dp_step_min = float(self.sim.sim_params.get("p_step_ls_min", 1.0e4))
+                    p_step_ls_max = max(p_step_ls_max, dp_step_min)
                     dp_clip_hat = p_step_ls_max / max(p_scale_loc, 1.0)
                     dp_hat = x_candidate[:n_loc] - x[:n_loc]
                     dp_hat = dp_hat.clamp(-dp_clip_hat, dp_clip_hat)
@@ -982,7 +1007,10 @@ class FullyImplicitSolver:
                     except Exception:
                         pass
 
-                if sufficient:
+                # Дополнительное «мягкое» условие: при очень малом шаге допускаем
+                # просто убывание (без строгого Armijo), чтобы не застревать.
+                soft_accept = (factor <= 1e-3) and (f_curr < base_norm * (1 - 1e-4))
+                if sufficient or soft_accept:
                     print(GREEN + f"  Line search принял шаг α={factor:.3e}, ||F||={f_curr:.3e}" + RESET)
                     try:
                         self.sim.log_json({
@@ -1014,22 +1042,37 @@ class FullyImplicitSolver:
                     prev_F_norm = torch.tensor(base_norm, dtype=F.dtype, device=F.device)
                     break
                 else:
-                    # уменьшаем только давление ещё раз
-                    delta_ls[:n] *= 0.5
+                    # стандартный бэктрекинг
                     factor *= 0.5
                     Jv_hat_ls = None
 
             # Если line-search не сработал — снимем диагностическую решётку φ(α)
+            # и попробуем принять лучший α из решётки, если есть хоть какая-то убыв.
             if not success and bool(self.sim.sim_params.get("ls_probe", True)):
-                alphas = [1.0, 3e-1, 1e-1, 3e-2, 1e-2, 3e-3, 1e-3, 1e-4, 1e-5]
+                alphas = [1.0, 3e-1, 1e-1, 3e-2, 1e-2, 3e-3, 1e-3, 3e-4, 1e-4, 3e-5, 1e-5]
                 vals = []
+                states = []
                 for a in alphas:
                     try:
-                        Fc = _F_hat(_anchor_pressure(x + a * delta))
+                        x_try = _anchor_pressure(x + a * delta)
+                        Fc = _F_hat(x_try)
                         vals.append(float(Fc.norm()))
+                        states.append((a, x_try, float(vals[-1])))
                     except Exception:
                         vals.append(float("nan"))
+                        states.append((a, None, float("nan")))
                 print("[LS-PROBE] " + " ".join(f"α={a:.0e}:{v:.3e}" for a, v in zip(alphas, vals)))
+                # Выбираем лучший допустимый α
+                best = None
+                for (a, x_try, v) in states:
+                    if math.isfinite(v):
+                        if (best is None) or (v < best[2]):
+                            best = (a, x_try, v)
+                if best is not None and best[1] is not None and best[2] < base_norm * (1 - 5e-4):
+                    print(GREEN + f"  LS-PROBE принял шаг α={best[0]:.3e}, ||F||={best[2]:.3e}" + RESET)
+                    x_new = best[1]
+                    success = True
+                    prev_F_norm = torch.tensor(base_norm, dtype=F.dtype, device=F.device)
 
             # Fallback: демпфированный Jacobi-шаг
             if not success:

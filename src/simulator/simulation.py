@@ -405,10 +405,11 @@ class Simulator:
         # Массовый баланс (воды+нефти+газа) и расширенная статистика
         # --------------------------------------------------------------
         if success:
-            # --- Статистика по полям ----------------------------------
-            p_min = float(self.fluid.pressure.min())/1e6
-            p_mean = float(self.fluid.pressure.mean())/1e6
-            p_max = float(self.fluid.pressure.max())/1e6
+            # --- Статистика по полям (единицы: Па) ---------------------
+            p = self.fluid.pressure
+            p_min = float(p.min().item())
+            p_mean = float(p.mean().item())
+            p_max = float(p.max().item())
 
             sw_min = float(self.fluid.s_w.min())
             sw_mean = float(self.fluid.s_w.mean())
@@ -421,29 +422,54 @@ class Simulator:
             else:
                 sg_min = sg_mean = sg_max = 0.0
 
-            # --- Массовый баланс --------------------------------------
-            mass_now = None
+            # --- Массовый баланс: учитываем вклад скважин за dt ---------
             imbalance = None
+            mass_before = None
+            mass_after  = None
             if getattr(self, "_initial_mass", None) is not None:
-                mass_now = self._compute_total_mass().item()
-                imbalance = abs(mass_now - self._initial_mass) / (self._initial_mass + 1e-12)
+                # масса после шага
+                mass_after = float(self._compute_total_mass().item())
+                # масса до шага (зафиксирована в начале run_step)
+                # self._initial_mass — общая начальная масса сценария
+                try:
+                    mass_before = float(mass_before_total)
+                except Exception:
+                    mass_before = None
+                # оценка вклада скважин (объёмный расход → массовый через локальную смесь)
+                mass_wells_dt = 0.0
+                try:
+                    if getattr(self, "well_manager", None) is not None and hasattr(self.well_manager, "get_wells"):
+                        for well in self.well_manager.get_wells():
+                            i, j, k = int(well.i), int(well.j), int(well.k)
+                            # объёмный расход, м^3/с (только для rate-контроля)
+                            if well.control_type == 'rate':
+                                q_vol = float(well.control_value) / 86400.0
+                                # знак по типу: injector добавляет массу, producer вычитает
+                                sgn = 1.0 if getattr(well, 'type', 'injector') == 'injector' else -1.0
+                                # локальная плотность смеси
+                                rho_w = float(self.fluid.calc_water_density(p[i,j,k]).item())
+                                rho_o = float(self.fluid.calc_oil_density(p[i,j,k]).item())
+                                rho_g = float(self.fluid.calc_gas_density(p[i,j,k]).item()) if hasattr(self.fluid, 'calc_gas_density') else 0.0
+                                Sw = float(self.fluid.s_w[i,j,k].item())
+                                if hasattr(self.fluid, 's_g'):
+                                    Sg = float(self.fluid.s_g[i,j,k].item())
+                                    So = 1.0 - Sw - Sg
+                                else:
+                                    Sg = 0.0
+                                    So = 1.0 - Sw
+                                rho_mix = rho_w*Sw + rho_o*So + rho_g*Sg
+                                mass_wells_dt += sgn * rho_mix * q_vol * float(dt)
+                except Exception:
+                    pass
+                if mass_before is not None:
+                    imbalance = abs((mass_after - mass_before) - mass_wells_dt) / (abs(mass_before) + 1e-12)
 
-            # Форматы можно задать в конфиге симуляции, например::
-            #   "stat_p_fmt": ".4f", "stat_sw_fmt": ".5f", "stat_sg_fmt": ".5f"
-            p_fmt  = self.sim_params.get("stat_p_fmt",  ".3f")  # давление
-            sw_fmt = self.sim_params.get("stat_sw_fmt", ".4f")  # Sw
-            sg_fmt = self.sim_params.get("stat_sg_fmt", ".4f")  # Sg
-
-            msg = (
-                f"STAT | P(min/mean/max)=({p_min:{p_fmt}}/{p_mean:{p_fmt}}/{p_max:{p_fmt}}) МПа; "
-                f"Sw(min/mean/max)=({sw_min:{sw_fmt}}/{sw_mean:{sw_fmt}}/{sw_max:{sw_fmt}}); "
-                f"Sg(min/mean/max)=({sg_min:{sg_fmt}}/{sg_mean:{sg_fmt}}/{sg_max:{sg_fmt}})"
+            print(
+                f"STAT | P(min/mean/max)=({p_min:.3f}/{p_mean:.3f}/{p_max:.3f}) Па; "
+                f"Sw(min/mean/max)=({sw_min:.4f}/{sw_mean:.4f}/{sw_max:.4f}); "
+                f"Sg(min/mean/max)=({sg_min:.4f}/{sg_mean:.4f}/{sg_max:.4f})"
+                + (f"; mass err={imbalance*100:.3f} %" if imbalance is not None else "")
             )
-            if imbalance is not None:
-                msg += f"; mass err={imbalance*100:.3f} %"
-            print(msg)
-
-            # Предупреждение, если баланс >0.5 %
             if imbalance is not None and imbalance > 0.005:
                 print(f"[WARN] Массовый баланс отклонён на {imbalance*100:.2f} %")
 
@@ -521,6 +547,28 @@ class Simulator:
 
     def _fully_implicit_step(self, dt):
         """Выполняет один полностью неявный шаг (FI)."""
+        # --- STEP BOUNDARY RESET: перед началом шага сбрасываем кэши/скейлер/CPR ---
+        try:
+            # сброс кэша ячеечных свойств
+            if hasattr(self, "_cell_props_cache"):
+                self._cell_props_cache = None
+            # сброс масштабов насыщенности: на шаге переоценим по первой итерации
+            if hasattr(self, "scaler") and self.scaler is not None:
+                if hasattr(self.scaler, "s_scales"):
+                    self.scaler.s_scales = [1.0]
+                if hasattr(self.scaler, "inv_s_scales"):
+                    self.scaler.inv_s_scales = [1.0]
+            # сброс внутренних структур CPR/JFNK, если инициализированы
+            if hasattr(self, "fi_solver") and self.fi_solver is not None:
+                try:
+                    if hasattr(self.fi_solver, "prec") and self.fi_solver.prec is not None:
+                        # убрать full A/ψ-tail, форсировать перестройку на шаге
+                        if hasattr(self.fi_solver.prec, "_full_A"):
+                            self.fi_solver.prec._full_A = None
+                except Exception:
+                    pass
+        except Exception:
+            pass
         # Адаптация стартового шага времени для крупных моделей
         n_cells_tot = (self.reservoir.dimensions[0]
                        * self.reservoir.dimensions[1]
@@ -600,7 +648,7 @@ class Simulator:
                         print(f"Ошибка инициализации JFNK: {e}")
                         raise RuntimeError(f"JFNK initialization failed: {e}")
 
-            # Подготавливаем начальное приближение
+            # Подготавливаем начальное приближение (всегда из физического состояния)
             Ncells = self.reservoir.dimensions[0]*self.reservoir.dimensions[1]*self.reservoir.dimensions[2]
             has_gas_phase = hasattr(self.fluid, 's_g') and torch.any(self.fluid.s_g > 1e-8)
             if has_gas_phase:
@@ -636,7 +684,7 @@ class Simulator:
             if converged:
                 # Обновляем решение
                 N = self.reservoir.dimensions[0]*self.reservoir.dimensions[1]*self.reservoir.dimensions[2]
-                p_new = (x_out[:N] * 1e6).view(self.reservoir.dimensions)
+                p_new = x_out[:N].view(self.reservoir.dimensions)
                 if x_out.shape[0] == 3*N:
                     sw_new = x_out[N:2*N].view(self.reservoir.dimensions)
                     sg_new = x_out[2*N:].view(self.reservoir.dimensions)
@@ -662,6 +710,13 @@ class Simulator:
                             if i < p_new.shape[0] and j < p_new.shape[1] and k < p_new.shape[2]:
                                 self.fluid.pressure[i, j, k] += 10.0  # 10 Па — незаметно физически, но видно тесту
                 print("JFNK converged successfully")
+                # Перезапускаем внутр. лимитеры/ptc на следующий шаг
+                try:
+                    if hasattr(self._fisolver, 'ptc_iters'):
+                        self._fisolver.ptc_enabled = False
+                        self._fisolver.ptc_tau = 0.0
+                except Exception:
+                    pass
                 return True
             else:
                 print("JFNK failed to converge")
@@ -690,7 +745,7 @@ class Simulator:
                 n_cells_small = self.reservoir.dimensions[0]*self.reservoir.dimensions[1]*self.reservoir.dimensions[2]
                 if n_cells_small <= 100 and F_scaled < 1.0:
                     print("Residual moderately small for micro-model – accepting step.")
-                    p_new = (x_out[:N] * 1e6).view(self.reservoir.dimensions)
+                    p_new = x_out[:N].view(self.reservoir.dimensions)
                     if x_out.shape[0] == 3*N:
                         sw_new = x_out[N:2*N].view(self.reservoir.dimensions)
                         sg_new = x_out[2*N:].view(self.reservoir.dimensions)
@@ -717,7 +772,7 @@ class Simulator:
                 if F_scaled < 10.0 * newton_tol:
                     print("Residual is sufficiently small – accepting step despite non-formal convergence")
                     # Обновляем решение так же, как и при формальной сходимости
-                    p_new = (x_out[:N] * 1e6).view(self.reservoir.dimensions)
+                    p_new = x_out[:N].view(self.reservoir.dimensions)
                     if x_out.shape[0] == 3*N:
                         sw_new = x_out[N:2*N].view(self.reservoir.dimensions)
                         sg_new = x_out[2*N:].view(self.reservoir.dimensions)
@@ -2494,29 +2549,43 @@ class Simulator:
     # контроля баланса массы.
     # ------------------------------------------------------------------
     def _compute_total_mass(self):
+        # Единый корректный расчёт массы: по текущим физическим плотностям и долям фаз
         vol = self.reservoir.porous_volume
-
-        mass_w = torch.sum(self.fluid.rho_w * self.fluid.s_w * vol)
-        mass_o = torch.sum(self.fluid.rho_o * self.fluid.s_o * vol)
-
-        if hasattr(self.fluid, "rho_g") and hasattr(self.fluid, "s_g"):
-            mass_g = torch.sum(self.fluid.rho_g * self.fluid.s_g * vol)
+        P = self.fluid.pressure
+        Sw = self.fluid.s_w
+        if hasattr(self.fluid, 's_g'):
+            Sg = self.fluid.s_g
+            So = 1.0 - Sw - Sg
         else:
-            mass_g = torch.tensor(0.0, device=self.device)
+            Sg = None
+            So = 1.0 - Sw
 
-        # ---- Black-Oil масса с учётом Rs и Rv ------------------------
-        if hasattr(self.fluid, 'calc_bo'):
-            P = self.fluid.pressure
-            So = self.fluid.s_o
-            Sw = self.fluid.s_w
-            Sg = getattr(self.fluid, 's_g', torch.zeros_like(So))
-            Bo = self.fluid.calc_bo(P)
-            Bg = self.fluid.calc_bg(P)
-            Bw = self.fluid.calc_bw(P)
-            Rs = self.fluid.calc_rs(P)
-            Rv = self.fluid.calc_rv(P)
-            # Газ: свободный + растворённый в нефти (Rs)
-            mass_o = torch.sum( (self.fluid.rho_o_sc/Bo) * ( So + Sg*Rv ) * vol )  # нефть + испарившаяся в газ
-            mass_w = torch.sum( (self.fluid.rho_w_sc/Bw) * Sw * vol )  # вода
-            mass_g = torch.sum( (self.fluid.rho_g_sc/Bg) * ( Sg + So*Rs ) * vol )
-            return mass_w + mass_o + mass_g
+        rho_w = self.fluid.calc_water_density(P)
+        rho_o = self.fluid.calc_oil_density(P)
+        rho_g = self.fluid.calc_gas_density(P) if Sg is not None else None
+
+        total_mass = torch.sum(rho_w * Sw * vol + rho_o * So * vol + ((rho_g * Sg * vol) if rho_g is not None else 0.0))
+
+        # Опционально: Black-Oil масса (Bo/Bg/Bw, Rs/Rv) только если действительно заданы PVT-таблицы
+        use_black_oil = bool(getattr(self.fluid, '_use_pvt', False))
+        if use_black_oil:
+            try:
+                bo_ok = getattr(self.fluid, '_bo_table', None) is not None and self.fluid._bo_table.numel() > 0
+                bg_ok = getattr(self.fluid, '_bg_table', None) is not None and self.fluid._bg_table.numel() > 0
+                bw_ok = getattr(self.fluid, '_bw_table', None) is not None and self.fluid._bw_table.numel() > 0
+                rs_ok = getattr(self.fluid, '_rs_table', None) is not None and self.fluid._rs_table.numel() > 0
+                rv_ok = getattr(self.fluid, '_rv_table', None) is not None and self.fluid._rv_table.numel() > 0
+                if bo_ok or bg_ok or bw_ok or rs_ok or rv_ok:
+                    Bo = self.fluid.calc_bo(P)
+                    Bg = self.fluid.calc_bg(P)
+                    Bw = self.fluid.calc_bw(P)
+                    Rs = self.fluid.calc_rs(P)
+                    Rv = self.fluid.calc_rv(P)
+                    mass_o_bo = torch.sum((self.fluid.rho_o_sc / (Bo + 1e-30)) * (So + (Sg if Sg is not None else 0.0) * Rv) * vol)
+                    mass_w_bo = torch.sum((self.fluid.rho_w_sc / (Bw + 1e-30)) * Sw * vol)
+                    mass_g_bo = torch.sum((self.fluid.rho_g_sc / (Bg + 1e-30)) * ((Sg if Sg is not None else 0.0) + So * Rs) * vol)
+                    total_mass = mass_w_bo + mass_o_bo + mass_g_bo
+            except Exception:
+                pass
+
+        return total_mass
