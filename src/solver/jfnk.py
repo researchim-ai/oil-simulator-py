@@ -698,11 +698,17 @@ class FullyImplicitSolver:
 
             # адаптивный forcing-term η_k
             if prev_F_norm is None:
-                eta_k = float(self.sim.sim_params.get("newton_eta0", 3e-5))
+                eta_k = float(self.sim.sim_params.get("newton_eta0", 5e-4))
             else:
                 ratio = (F_norm / (prev_F_norm + 1e-30)).item()
-                eta_k = 0.5 * (ratio ** 2)
-            eta_k = min(max(eta_k, 1e-5), 2e-3)
+                # Eisenstat–Walker: η_k ~ c * (||F_k||/||F_{k-1}||)^p
+                p = 1.5
+                c = 0.9
+                eta_k = c * (ratio ** p)
+            # жёсткие границы
+            eta_min = float(self.sim.sim_params.get("newton_eta_min", 1e-5))
+            eta_max = float(self.sim.sim_params.get("newton_eta_max", 2e-3))
+            eta_k = min(max(eta_k, eta_min), eta_max)
 
             # требуемая точность GMRES
             gmres_tol_min = max(5e-5, gmres_tol_base)
@@ -712,12 +718,19 @@ class FullyImplicitSolver:
             print(f"  GMRES: tol={gmres_tol:.3e}")
 
             # политика рестарта/итераций GMRES
-            if (it <= 2) or (gmres_tol <= 3e-4):
+            if (it <= 2):
                 gmres_restart = 80
                 gmres_maxiter = 120
             else:
-                gmres_restart = 30
-                gmres_maxiter = 40
+                if gmres_tol <= 3e-4:
+                    gmres_restart = 120
+                    gmres_maxiter = 160
+                elif gmres_tol <= 1e-3:
+                    gmres_restart = 100
+                    gmres_maxiter = 140
+                else:
+                    gmres_restart = 60
+                    gmres_maxiter = 80
 
             # дефляция на крупных задачах
             basis_tensor = None
@@ -752,12 +765,25 @@ class FullyImplicitSolver:
             except Exception:
                 pass
 
-            # защита от NaN/Inf
+            # защита от NaN/Inf + одна повторная попытка GMRES с ослабленными параметрами
             if (not torch.isfinite(delta).all()) or info not in (0,):
-                print("  GMRES не сошёлся/NaN — Jacobi fallback ×0.1")
-                delta = 0.1 * M_hat(-F)
-                if not torch.isfinite(delta).all():
-                    delta = torch.zeros_like(F)
+                print(YEL + "[GMRES] повторная попытка с ослабленным tol и увеличенным max_iter" + RESET)
+                delta, info2, gm_iters2 = fgmres(
+                    A, -F, M=M_hat, tol=max(gmres_tol*3.0, 1e-8),
+                    restart=int(max(80, gmres_restart*1.25)), max_iter=int(gmres_maxiter*2.0),
+                    deflation_basis=basis_tensor, min_iters=3
+                )
+                self.total_gmres_iters += gm_iters2
+                print((YEL if info2 != 0 else GREEN) + f"[GMRES-retry] info={info2}, iters={gm_iters2}, ||δ_hat||={delta.norm():.3e}" + RESET)
+                if (not torch.isfinite(delta).all()) or info2 not in (0,):
+                    # Inexact Newton: если получили конечный δ, идём в line-search.
+                    if torch.isfinite(delta).all():
+                        print(YEL + "  [GMRES] используем неточный шаг (inexact), продолжим line-search" + RESET)
+                    else:
+                        print(RED + "  GMRES не сошёлся и δ невалиден — прекращаем" + RESET)
+                        self.last_newton_iters = self.max_it
+                        self.last_gmres_iters = self.total_gmres_iters
+                        return _phys_from_hat_y(x), False
 
             # отладка: диапазоны приращений до проекций
             try:
@@ -826,7 +852,7 @@ class FullyImplicitSolver:
                 elif it <= 3:
                     P_STEP_MAX = 3.0e6  # 3 МПа
                 else:
-                    P_STEP_MAX = 1.0e6  # 1 МПа далее
+                    P_STEP_MAX = 3.0e6  # минимум 3 МПа далее, чтобы не загонять шаги в микроскопические
             alpha_p = min(1.0, P_STEP_MAX / dp_abs_max)
             # Не масштабируем delta[:n] здесь, чтобы не ломать линейный поиск.
             # Применим ограничение давления к candidate шагу ПОСЛЕ умножения на alpha (factor)
@@ -1074,32 +1100,12 @@ class FullyImplicitSolver:
                     success = True
                     prev_F_norm = torch.tensor(base_norm, dtype=F.dtype, device=F.device)
 
-            # Fallback: демпфированный Jacobi-шаг
+            # Без fallback: если LS не нашёл шаг — честно выходим неуспехом
             if not success:
-                print(YEL + "  Line search не нашёл шаг — Jacobi fallback (α=0.3)" + RESET)
-                delta_fb = 0.3 * M_hat(-base_F)
-                delta_fb = _project_zero_mean_p(delta_fb)
-                # безопасные клампы
-                delta_fb[:n] = delta_fb[:n].clamp(-P_CLIP_HAT, P_CLIP_HAT)
-                if delta_fb.numel() > n:
-                    delta_fb[n:] = delta_fb[n:].clamp(-0.05, 0.05)
-
-                x_fb = _anchor_pressure(x + delta_fb)
-                if torch.isfinite(x_fb).all():
-                    F_fb = _F_hat(x_fb)
-                    if torch.isfinite(F_fb).all():
-                        if float(F_fb.norm()) < 0.95 * base_norm:
-                            print(f"  ✅ Jacobi fallback принят, ||F||={float(F_fb.norm()):.3e}")
-                            x_new = x_fb
-                            success = True
-                            # СТАВИМ «СТАРУЮ» НОРМУ, а не норму fallback — стабильно для η_k
-                            prev_F_norm = torch.tensor(base_norm, dtype=F.dtype, device=F.device)
-
-            if not success:
-                print("  JFNK: even fallback failed – завершаем шаг неудачей")
+                print(RED + "  Line search не нашёл шаг — завершаем без fallback" + RESET)
                 self.last_newton_iters = self.max_it
                 self.last_gmres_iters = self.total_gmres_iters
-                return _phys_from_hat_y(x), False  # в phys
+                return _phys_from_hat_y(x), False
 
             # адаптация trust-region
             if trust_radius is not None:

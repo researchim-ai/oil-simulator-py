@@ -943,11 +943,8 @@ class CPRPreconditioner:
                         sw_scale = 1.0
                 except Exception:
                     sw_scale = 1.0
-                # использование ds/dy в hat делаем опциональным (для совместимости со «старым» поведением)
-                if getattr(self, 'cfg_cpr_use_dsdy_hat', False):
-                    diag_SS_hat_sw = ds_dy * sw_scale
-                else:
-                    diag_SS_hat_sw = torch.ones_like(ds_dy) * sw_scale
+                # Строго используем ds/dy для диагонали S-блока в hat (лучше кондиционирует)
+                diag_SS_hat_sw = ds_dy * sw_scale
                 # безопасный минимум диагонали в hat
                 min_hat = float(getattr(self, 'cfg_cpr_diag_hat_sw_min', 1e-6))
                 diag_SS_hat_sw = torch.nan_to_num(diag_SS_hat_sw, nan=min_hat, posinf=1e6, neginf=1e6).clamp_min(min_hat)
