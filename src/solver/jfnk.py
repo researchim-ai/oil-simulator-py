@@ -1010,26 +1010,39 @@ class FullyImplicitSolver:
                 sufficient = (f_curr <= (1 - max(c1 * factor, min_rel_drop)) * base_norm)
 
                 if ls_it == 0:
-                    # диагностический линейный прогноз
-                    lin_err = (F_cand - (base_F + factor * Jv_hat_ls)).norm() / (factor * Jv_hat_ls.norm() + 1e-30)
+                    # диагностический линейный прогноз по ФАКТИЧЕСКОМУ шагу d_eff = x_candidate - x
+                    d_eff = x_candidate - x
+                    Jd_eff = A(d_eff)
+                    Jn = Jd_eff.norm()
+                    if float(Jn) > 1e-20:
+                        lin_err = (F_cand - (base_F + Jd_eff)).norm() / (Jn + 1e-30)
+                    else:
+                        lin_err = float('nan')
                     # диапазон Sw в phys
                     x_cand_phys = _phys_from_hat_y(x_candidate)
                     sw_rng = (
                         x_cand_phys[n:2*n].min().item() if x_cand_phys.numel() >= 2*n else float('nan'),
                         x_cand_phys[n:2*n].max().item() if x_cand_phys.numel() >= 2*n else float('nan'),
                     )
-                    print(f"    LS try α={factor:.3e}: ||F||={f_curr:.3e} "
-                        f"(ratio={f_curr/(base_norm+1e-30):.3e}), lin_err={float(lin_err):.3e}, "
-                        f"Sw_range=({sw_rng[0]:.3e},{sw_rng[1]:.3e})")
+                    ratio_val = f_curr/(base_norm+1e-30)
+                    if math.isfinite(float(lin_err)):
+                        print(f"    LS try α={factor:.3e}: ||F||={f_curr:.3e} "
+                              f"(ratio={ratio_val:.3e}), lin_err={float(lin_err):.3e}, "
+                              f"Sw_range=({sw_rng[0]:.3e},{sw_rng[1]:.3e})")
+                    else:
+                        print(f"    LS try α={factor:.3e}: ||F||={f_curr:.3e} "
+                              f"(ratio={ratio_val:.3e}), Sw_range=({sw_rng[0]:.3e},{sw_rng[1]:.3e})")
                     try:
-                        self.sim.log_json({
+                        payload = {
                             "event": "ls_try",
                             "iter": int(it),
                             "alpha": float(factor),
                             "F_norm": float(f_curr),
-                            "ratio": float(f_curr/(base_norm+1e-30)),
-                            "lin_err": float(lin_err),
-                        })
+                            "ratio": float(ratio_val),
+                        }
+                        if math.isfinite(float(lin_err)):
+                            payload["lin_err"] = float(lin_err)
+                        self.sim.log_json(payload)
                     except Exception:
                         pass
 

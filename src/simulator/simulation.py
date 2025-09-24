@@ -2072,7 +2072,8 @@ class Simulator:
             )
 
         # --- Диагностика: изменение состояния между вызовами --------------
-        if hasattr(self, "_dbg_prev_p_vec"):
+        # Печатаем только если включён debug-флаг
+        if bool(self.sim_params.get('debug_diag_f', False)) and hasattr(self, "_dbg_prev_p_vec"):
             dp_max = (p_vec - self._dbg_prev_p_vec).abs().max().item()
             dsw_max = (sw_vec - self._dbg_prev_sw_vec).abs().max().item()
             print(f"[diag F] Δp_max={dp_max:.3e} Pa, ΔSw_max={dsw_max:.3e}")
