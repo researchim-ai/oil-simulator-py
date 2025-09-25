@@ -1,0 +1,10 @@
+mkdocs==1.6.0
+mkdocs-material==9.5.30
+mkdocs-mermaid2-plugin==1.1.1
+mkdocs-with-pdf==0.9.3  # legacy
+mkdocs-pdf-export-plugin==0.5.10  # legacy
+mkdocs-print-site-plugin==2.6.0
+playwright==1.55.0
+pymdown-extensions==10.9
+mkdocs-macros-plugin==1.0.5
+

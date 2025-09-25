@@ -1,0 +1,37 @@
+site_name: Oil Simulator Docs
+repo_url: https://github.com/researchim-ai/oil-simulator-py
+theme:
+  name: material
+  features:
+    - navigation.sections
+    - content.code.copy
+  palette:
+    - scheme: default
+  language: ru
+markdown_extensions:
+  - admonition
+  - codehilite
+  - toc:
+      permalink: true
+  - pymdownx.arithmatex:
+      generic: true
+  - pymdownx.superfences
+  - pymdownx.details
+plugins:
+  - search
+  - mermaid2
+  - print-site:
+      add_to_navigation: false
+extra_javascript:
+  - javascripts/mathjax.js
+  - https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js
+nav:
+  - Главная: index.md
+  - Обзор: OVERVIEW.md
+  - Архитектура: ARCHITECTURE.md
+  - Математика: NUMERICS.md
+  - Руководство пользователя: USER_GUIDE.md
+  - Справочник настроек: CONFIG_REFERENCE.md
+  - Руководство разработчика: DEVELOPER_GUIDE.md
+  - Верификация: VALIDATION.md
+
