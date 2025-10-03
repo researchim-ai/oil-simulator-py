@@ -119,17 +119,14 @@ class GeoLevel:  # noqa: D101
         # diag и inv-sqrt(diag) для эквилибрации
         vals = self.A_csr.values()
         crow = self.A_csr.crow_indices()
-        # Индексы диагональных элементов (последние в строке)
-        # diag_idx = crow[1:] - 1
-        row_starts = crow[:-1]; row_ends = crow[1:]
-        diag_idx = torch.empty_like(row_starts, dtype=torch.int64)
-        for i in range(row_starts.numel()):
-            s, e = row_starts[i].item(), row_ends[i].item()
-            row_cols = col[s:e]
-            # ищем индекс элемента, где col == i
-            pos = torch.nonzero(row_cols == i, as_tuple=False)
-            assert pos.numel() == 1, "diag not found or multiple diags"
-            diag_idx[i] = s + pos.item()
+        # Индексы диагонали в CSR (векторизованно, без Python‑цикла)
+        n_rows = crow.numel() - 1
+        row_idx = torch.repeat_interleave(torch.arange(n_rows, device=col.device), crow[1:] - crow[:-1])
+        mask = (col == row_idx)
+        pos_all = torch.nonzero(mask, as_tuple=False).squeeze(1)
+        rows = row_idx[pos_all]
+        diag_idx = torch.empty(n_rows, dtype=torch.int64, device=col.device)
+        diag_idx[rows] = pos_all
 
 
 

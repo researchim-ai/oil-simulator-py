@@ -46,6 +46,9 @@ def prolong(coarse_vec: torch.Tensor, shape_c: Tuple[int, int, int]):
 
 
 def jacobi(A, x, b, w=0.8, iters=3):
+    """Простой сглаживатель Якоби для плотных матриц.
+    Важно: ожидает dense A; на sparse тензорах использовать нельзя.
+    """
     D = torch.diag(A)
     R = A - torch.diag(D)
     for _ in range(iters):
@@ -54,6 +57,9 @@ def jacobi(A, x, b, w=0.8, iters=3):
 
 
 def v_cycle(A, b, x, shape, levels=2):
+    """V-цикл MG для учебных целей. Работает с плотными A.
+    На разрежённых матрицах не поддерживается.
+    """
     if levels == 1 or min(shape) <= 4:
         # грубая сетка — решаем напрямую
         return torch.linalg.solve(A, b)

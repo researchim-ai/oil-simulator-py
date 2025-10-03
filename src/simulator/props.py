@@ -55,7 +55,7 @@ def compute_cell_props(sim, x_hat: torch.Tensor, dt_sec: float) -> Dict[str, tor
     # ------------------------------------------------------------------
     phi0 = reservoir.porosity_ref
     c_r  = getattr(reservoir, 'rock_compressibility', 0.0)
-    p_ref = getattr(reservoir, 'pressure_ref', 20e6)
+    p_ref = getattr(reservoir, 'pressure_ref', 1e5)
     p     = p_vec.view_as(phi0)
     phi   = phi0 * (1.0 + c_r * (p - p_ref))
 

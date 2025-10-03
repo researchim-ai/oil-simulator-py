@@ -66,7 +66,7 @@ class Simulator:
         self.g = 9.81
         
         # 🔧 КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: правильное опорное давление для сжимаемости
-        self.pressure_ref = getattr(reservoir, 'pressure_ref', 20e6)
+        self.pressure_ref = float(getattr(reservoir, 'pressure_ref', 1e5))
         print(f"🔧 Опорное давление для сжимаемости: {self.pressure_ref:.0f} Па ({self.pressure_ref/1e6:.1f} МПа)")
         
         # Scaling layer shared with solvers
@@ -168,6 +168,10 @@ class Simulator:
             self.fi_solver = self._create_autograd_solver()
         else:
             raise ValueError(f"Неизвестный тип solver: {solver_type}/{jacobian_type}. Доступны: impes, jfnk, autograd")
+
+    def _create_autograd_solver(self):
+        """Заглушка для совместимости с конфигами jacobian_type==autograd."""
+        return None
             
         print(f"Solver инициализирован: {solver_type}/{jacobian_type}")
 
@@ -205,17 +209,15 @@ class Simulator:
             self._pid_target_iter = 3.0
 
     def _setup_logging(self):
-        """Настройка логирования с контролем вывода"""
+        """Настройка логирования с контролем вывода (без рекурсии)"""
+        import builtins as _bi
+        orig_print = _bi.print
+        self._original_print = orig_print
         def _log(*args, **kwargs):
             if self.verbose:
-                print(*args, **kwargs)
-        
-        # Сохраняем оригинальный print для критических сообщений
-        self._original_print = builtins.print
-        
-        # Переопределяем print для контроля вывода
+                orig_print(*args, **kwargs)
         if not self.verbose:
-            builtins.print = _log
+            _bi.print = _log
 
     def _move_data_to_device(self):
         """Переносит данные на текущее устройство (CPU или GPU)"""
@@ -325,14 +327,173 @@ class Simulator:
 
                     alpha_sat_last = getattr(self, "alpha_sat_last", 1.0)
 
-                    if sw_ok and sg_ok and (max_excess < 0.02) and (alpha_sat_last >= 1e-3):
+                    # Дополнительная проверка: массовый баланс за шаг
+                    mb_ok = True
+                    try:
+                        mb_tol = float(self.sim_params.get("mass_balance_tol", 0.05))
+                        if mass_before_total is not None:
+                            # Масса после шага (до клампов)
+                            mass_after_try = float(self._compute_total_mass().item())
+                        else:
+                            mass_after_try = None
+
+                        # Оценка вкладов скважин (та же методика, что в STAT)
+                        mass_wells_dt_try = 0.0
+                        vol_wells_dt_try = 0.0
+                        vol_err_try = None
+                        mb_err_try = None
+                        try:
+                            if getattr(self, "well_manager", None) is not None and hasattr(self.well_manager, "get_wells"):
+                                p = self.fluid.pressure
+                                Sw = self.fluid.s_w
+                                Sg = getattr(self.fluid, 's_g', None)
+                                if Sg is not None and hasattr(self.fluid, 'get_rel_perms_three'):
+                                    kro, krw, krg = self.fluid.get_rel_perms_three(Sw, Sg)
+                                else:
+                                    kro, krw = self.fluid.get_rel_perms(Sw)  # get_rel_perms -> (kro, krw)
+                                    krg = torch.zeros_like(krw)
+                                mu_w = self.fluid.mu_water
+                                mu_o = self.fluid.mu_oil
+                                mu_g = getattr(self.fluid, 'mu_gas', torch.full_like(mu_w, 1e-4))
+                                lam_w = krw/(mu_w+1e-30)
+                                lam_o = kro/(mu_o+1e-30)
+                                lam_g = krg/(mu_g+1e-30)
+                                lam_t = lam_w + lam_o + lam_g
+
+                                # Авто-лимитер λ_t для ранней оценки (как в _calculate_well_terms)
+                                lam_t_thresh = None
+                                user_lim = self.sim_params.get('well_mobility_limiter', None)
+                                if user_lim is None:
+                                    try:
+                                        auto_factor = float(self.sim_params.get('well_auto_factor', 20.0))
+                                        lam_t_thresh = torch.quantile(lam_t.view(-1), 0.99).item() * auto_factor
+                                    except Exception:
+                                        lam_t_thresh = None
+
+                                ramp_mb = 1.0
+                                try:
+                                    ramp_cfg_mb = self.sim_params.get('well_ramp_first_step', None)
+                                    if ramp_cfg_mb is not None and getattr(self, 'step_count', 0) == 0:
+                                        ramp_mb = max(0.0, min(1.0, float(ramp_cfg_mb)))
+                                except Exception:
+                                    ramp_mb = 1.0
+
+                                for well in self.well_manager.get_wells():
+                                    i, j, k = int(well.i), int(well.j), int(well.k)
+                                    if i >= p.shape[0] or j >= p.shape[1] or k >= p.shape[2]:
+                                        continue
+                                    rho_w = float(self.fluid.calc_water_density(p[i,j,k]).item())
+                                    rho_o = float(self.fluid.calc_oil_density(p[i,j,k]).item())
+                                    rho_g = float(self.fluid.calc_gas_density(p[i,j,k]).item()) if hasattr(self.fluid, 'calc_gas_density') else 0.0
+                                    sw_ijk = float(Sw[i,j,k].item())
+                                    if Sg is not None:
+                                        sg_ijk = float(Sg[i,j,k].item())
+                                        so_ijk = 1.0 - sw_ijk - sg_ijk
+                                    else:
+                                        sg_ijk = 0.0
+                                        so_ijk = 1.0 - sw_ijk
+                                    # объёмный расход (м^3/с)
+                                    if well.control_type == 'rate':
+                                        q_mag = abs(float(well.control_value)) / 86400.0
+                                        q_total = q_mag if well.type == 'injector' else -q_mag
+                                    elif well.control_type == 'bhp':
+                                        p_bhp = float(well.control_value) * 1e6
+                                        p_block = float(p[i,j,k].item())
+                                        coeff_raw = float(well.well_index) * float(lam_t[i,j,k].item())
+                                        user_lim = self.sim_params.get('well_mobility_limiter', None)
+                                        if user_lim is not None and coeff_raw > user_lim:
+                                            coeff_eff = float(user_lim)
+                                        elif lam_t_thresh is not None and lam_t[i, j, k] > lam_t_thresh:
+                                            coeff_eff = float(well.well_index) * float(lam_t_thresh)
+                                        else:
+                                            coeff_eff = coeff_raw
+                                        # Определяем знак по типу скважины, а не последующим инвертированием
+                                        if well.type == 'injector':
+                                            q_total = coeff_eff * (p_bhp - p_block)
+                                        else:
+                                            q_total = coeff_eff * (p_block - p_bhp)
+                                    else:
+                                        q_total = 0.0
+                                    q_total *= ramp_mb
+
+                                    if well.type == 'injector':
+                                        inj_phase = str(self.sim_params.get('injection_phase', 'water')).lower()
+                                        if inj_phase == 'gas' and hasattr(self.fluid, 'calc_gas_density'):
+                                            rho_inj = rho_g
+                                        elif inj_phase == 'oil':
+                                            rho_inj = rho_o
+                                        else:
+                                            rho_inj = rho_w
+                                        mass_wells_dt_try += rho_inj * q_total * float(current_dt)
+                                    else:
+                                        fw = float((lam_w[i,j,k] / (lam_t[i,j,k] + 1e-12)).item())
+                                        fo = float((lam_o[i,j,k] / (lam_t[i,j,k] + 1e-12)).item())
+                                        fg = float((lam_g[i,j,k] / (lam_t[i,j,k] + 1e-12)).item()) if Sg is not None else 0.0
+                                        rho_mix_flow = rho_w * fw + rho_o * fo + rho_g * fg
+                                        mass_wells_dt_try += rho_mix_flow * q_total * float(current_dt)
+
+                                    # Псевдо-объёмный баланс (совместим с STAT)
+                                    try:
+                                        gas_active = bool(self.sim_params.get('three_phase', False)) and hasattr(self.fluid, 's_g')
+                                        if well.type == 'injector':
+                                            vol_delta = q_total
+                                        else:
+                                            fw_ijk = float((lam_w[i,j,k] / (lam_t[i,j,k] + 1e-12)).item())
+                                            if gas_active and hasattr(self.fluid, 'calc_rs'):
+                                                Rs_cell = float(self.fluid.calc_rs(p[i,j,k]).item())
+                                                vol_delta = q_total * (1.0 + (1.0 - fw_ijk) * Rs_cell)
+                                            else:
+                                                vol_delta = q_total
+                                        vol_wells_dt_try += vol_delta * float(current_dt)
+                                    except Exception:
+                                        vol_wells_dt_try += q_total * float(current_dt)
+                        except Exception:
+                            pass
+
+                        if (mass_after_try is not None) and (mass_before_total is not None):
+                            mb_err_try = abs((mass_after_try - mass_before_total) - mass_wells_dt_try) / (abs(mass_before_total) + 1e-12)
+                            mb_ok = mb_err_try <= mb_tol
+                        else:
+                            mb_ok = True
+
+                        # Оценка volumetric error для диагностики приёмки
+                        try:
+                            if vol_before_total is not None:
+                                vol_after_try = float(self._compute_total_pseudovolume().item())
+                                vol_err_try = abs((vol_after_try - vol_before_total) - vol_wells_dt_try) / (abs(vol_before_total) + 1e-12)
+                        except Exception:
+                            vol_err_try = None
+                    except Exception:
+                        mb_ok = True
+
+                    # Диагностика баланса до решения об приёмке
+                    try:
+                        msg = "[balance] "
+                        if mb_err_try is not None:
+                            msg += f"mass err={mb_err_try*100:.3f}% (tol={mb_tol*100:.1f}%)"
+                        if vol_err_try is not None:
+                            msg += (", " if mb_err_try is not None else "") + f"vol err={vol_err_try*100:.3f}%"
+                        if mb_err_try is not None or vol_err_try is not None:
+                            print(msg)
+                    except Exception:
+                        pass
+
+                    if sw_ok and sg_ok and (max_excess < 0.02) and (alpha_sat_last >= 1e-3) and mb_ok:
                         # Всё в порядке – окончательно принимаем шаг
                         break
                     else:
-                        print(
-                            "[run_step] ❌ Отказ приёмки: Sw/Sg вне диапазона или α_sat слишком мал (α_sat="
-                            f"{alpha_sat_last:.1e}, excess={max_excess:.3f}) – откат"
-                        )
+                        reason = []
+                        if not sw_ok or not sg_ok or not (max_excess < 0.02) or not (alpha_sat_last >= 1e-3):
+                            reason.append(f"Sw/Sg вне диапазона или α_sat слишком мал (α_sat={alpha_sat_last:.1e}, excess={max_excess:.3f})")
+                        if not mb_ok:
+                            try:
+                                detail = f"mass err={mb_err_try*100:.3f}% > tol={mb_tol*100:.1f}%"
+                                if vol_err_try is not None:
+                                    detail += f", vol err={vol_err_try*100:.3f}%"
+                                print(f"[run_step] ❌ Отказ приёмки: {detail} – уменьшаем dt")
+                            except Exception:
+                                pass
+                        print("[run_step] ❌ Отказ приёмки: " + "; ".join(reason) + " – откат")
                         success = False  # будем обрабатывать как fail ниже
 
                 if success:
@@ -475,9 +636,7 @@ class Simulator:
                         if Sg is not None and hasattr(self.fluid, 'get_rel_perms_three'):
                             kro, krw, krg = self.fluid.get_rel_perms_three(Sw, Sg)
                         else:
-                            krw_only, kro_only = self.fluid.get_rel_perms(Sw)
-                            krw = krw_only
-                            kro = kro_only
+                            kro, krw = self.fluid.get_rel_perms(Sw)  # get_rel_perms -> (kro, krw)
                             krg = torch.zeros_like(krw)
                         mu_w = self.fluid.mu_water
                         mu_o = self.fluid.mu_oil
@@ -515,7 +674,9 @@ class Simulator:
 
                             # объёмный расход q_total (м³/с) со знаком из фактического контроля
                             if well.control_type == 'rate':
-                                q_total = (float(well.control_value) / 86400.0)
+                                # трактуем control_value как величину по модулю; знак задаётся типом скважины
+                                q_mag = abs(float(well.control_value)) / 86400.0
+                                q_total = q_mag if well.type == 'injector' else -q_mag
                             elif well.control_type == 'bhp':
                                 p_bhp = float(well.control_value) * 1e6
                                 p_block = float(p[i,j,k].item())
@@ -527,9 +688,10 @@ class Simulator:
                                     coeff_eff = float(well.well_index) * float(lam_t_thresh)
                                 else:
                                     coeff_eff = coeff_raw
-                                q_total = coeff_eff * (p_block - p_bhp)
-                                if well.type == 'producer':
-                                    q_total = -q_total
+                                if well.type == 'injector':
+                                    q_total = coeff_eff * (p_bhp - p_block)
+                                else:
+                                    q_total = coeff_eff * (p_block - p_bhp)
                             else:
                                 q_total = 0.0
 
@@ -537,12 +699,23 @@ class Simulator:
                             q_total *= ramp_mb
 
                             # вклад скважин: масса и псевдо‑объём (согласованный с невязкой)
-                            # Масса считаем через фазовые доли по потокам (fractional flow), а не по насыщенностям
-                            fw = float((lam_w[i,j,k] / (lam_t[i,j,k] + 1e-12)).item())
-                            fo = float((lam_o[i,j,k] / (lam_t[i,j,k] + 1e-12)).item())
-                            fg = float((lam_g[i,j,k] / (lam_t[i,j,k] + 1e-12)).item()) if Sg is not None else 0.0
-                            rho_mix_flow = rho_w * fw + rho_o * fo + rho_g * fg
-                            mass_wells_dt += rho_mix_flow * q_total * float(dt)
+                            # Продюсер: масса по фактическому составу потока (fractional flow)
+                            # Инжектор: масса по составу закачки (по умолчанию вода)
+                            if well.type == 'injector':
+                                inj_phase = str(self.sim_params.get('injection_phase', 'water')).lower()
+                                if inj_phase == 'gas' and hasattr(self.fluid, 'calc_gas_density'):
+                                    rho_inj = rho_g
+                                elif inj_phase == 'oil':
+                                    rho_inj = rho_o
+                                else:
+                                    rho_inj = rho_w
+                                mass_wells_dt += rho_inj * q_total * float(dt)
+                            else:
+                                fw = float((lam_w[i,j,k] / (lam_t[i,j,k] + 1e-12)).item())
+                                fo = float((lam_o[i,j,k] / (lam_t[i,j,k] + 1e-12)).item())
+                                fg = float((lam_g[i,j,k] / (lam_t[i,j,k] + 1e-12)).item()) if Sg is not None else 0.0
+                                rho_mix_flow = rho_w * fw + rho_o * fo + rho_g * fg
+                                mass_wells_dt += rho_mix_flow * q_total * float(dt)
                             try:
                                 # включаем Rs/Rv в объём ТОЛЬКО при активной газовой фазе (трёхфазный режим)
                                 gas_active = bool(self.sim_params.get('three_phase', False)) and hasattr(self.fluid, 's_g')
@@ -852,17 +1025,20 @@ class Simulator:
                 x_pa = x_out.clone()
                 x_pa[:N] = x_pa[:N] * 1e6  # МПа → Па
 
-                # Вычисляем полную невязку F(x) в физических единицах
-                F_phys = self._fi_residual_vec(x_pa, dt)
-                # Приводим к безразмерному виду, если включён VariableScaler
-                if self.scaler is not None:
-                    F_hat = self.scaler.scale_vec(F_phys)
-                else:
-                    F_hat = F_phys
-                F_scaled = F_hat.norm() / math.sqrt(F_hat.numel())
-                newton_tol = getattr(self._fisolver, "tol", self.sim_params.get("newton_tolerance", 1e-7))
+                # Унифицированный репорт: берём те же метрики, что и JFNK (scaled, init_scaled, MB)
+                try:
+                    F_scaled = float(getattr(self._fisolver, 'last_res_scaled'))
+                except Exception:
+                    # fallback: пересчёт как раньше
+                    F_phys = self._fi_residual_vec(x_pa, dt)
+                    F_hat = self.scaler.scale_vec(F_phys) if self.scaler is not None else F_phys
+                    F_scaled = float(F_hat.norm() / math.sqrt(F_hat.numel()))
+                init_scaled = float(getattr(self._fisolver, 'init_res_scaled', float('nan')))
+                newton_tol = float(getattr(self._fisolver, 'tol', self.sim_params.get('newton_tolerance', 1e-7)))
+                mb_max = getattr(self._fisolver, '_last_mb_max', float('nan'))
+                mb_tol = float(self.sim_params.get('mb_tol', 1e-4))
 
-                print(f"JFNK residual after failure: ||F||_scaled={F_scaled:.3e} (threshold={10*newton_tol:.3e})")
+                print(f"JFNK residual after failure: ||F||_scaled={F_scaled:.3e} (abs_tol={newton_tol:.1e}, rel_tol={self.sim_params.get('newton_rtol',1e-4):.1e}·{init_scaled:.3e}), MB[max]={mb_max:.3e} (mb_tol={mb_tol:.1e})")
 
                 # 🔥 Дополнительный критерий для микромоделей: допускаем более
                 # грубую невязку (<1e0), если число ячеек ≤100. Это устраняет
@@ -1773,8 +1949,14 @@ class Simulator:
         # 6. Обновление насыщенности с ограничением максимального изменения
         # Учёт источников/стоков от скважин (объёмные расходы м³/с)
         # q_w и q_g имеют знак: + для инжектора, − для добычи.
-        dSw = (-div_w + q_w) * dt / self.reservoir.porous_volume
-        dSg = -div_g * dt / self.reservoir.porous_volume  # q_g учитываем позже, когда появится газовый инжектор
+        # Используем PV на предыдущем шаге с учётом сжимаемости породы
+        p_ref_impes = float(getattr(self.reservoir, 'pressure_ref', 1e5))
+        phi_prev = self.reservoir.porosity_ref * (
+            1.0 + getattr(self.reservoir, 'rock_compressibility', 0.0) * (self.fluid.prev_pressure - p_ref_impes)
+        )
+        pv_prev = phi_prev * self.reservoir.cell_volume
+        dSw = (-div_w + q_w) * dt / pv_prev
+        dSg = -div_g * dt / pv_prev  # q_g учтём позже, когда появится газовый инжектор
 
         max_sw_step = self.sim_params.get("max_sw_step", 0.2)
         dSw_clamped = dSw.clamp(-max_sw_step, max_sw_step)
@@ -2004,12 +2186,10 @@ class Simulator:
         return q_wells, well_bhp_terms
 
     def _compute_residual_full(self, dt):
-        """Минимальная stub-реализация полной невязки.
+        """[LEGACY/STUB] Минимальная заглушка полной невязки.
         Возвращает нулевой вектор-невязку нужного размера, чтобы предотвратить
-        сбои при вызовах из вспомогательных функций. Для текущих модульных тестов
-        достаточно того, что метод существует и возвращает тензор корректной
-        длины без NaN/Inf; более точная физическая реализация может быть
-        добавлена позже.
+        сбои при вызовах из вспомогательных функций. Основной путь —
+        `_fi_residual_vec`.
         """
         nx, ny, nz = self.reservoir.dimensions
         N = nx * ny * nz
@@ -2035,7 +2215,6 @@ class Simulator:
         try:
             # Локальный импорт во избежание циклических зависимостей
             from .props import compute_cell_props
-            self._cell_props_cache = compute_cell_props(self, x, dt)
         except Exception as _e:
             # В диагностических целях выводим предупреждение один раз
             if not hasattr(self, "_warn_props_failed"):
@@ -2070,6 +2249,22 @@ class Simulator:
             raise ValueError(
                 f"_fi_residual_vec: unsupported vars_per_cell={vars_per_cell} (len(x)={x.numel()}, N={N})"
             )
+
+        # --- корректный x_hat для props: в физических единицах ---
+        if hasattr(self, "scaler") and self.scaler is not None:
+            x_hat = x
+        else:
+            parts = [p_vec, sw_vec]
+            if sg_vec is not None:
+                parts.append(sg_vec)
+            x_hat = torch.cat(parts)
+        try:
+            self._cell_props_cache = compute_cell_props(self, x_hat, dt)
+        except Exception as _e:
+            if not hasattr(self, "_warn_props_failed"):
+                print(f"[WARN] compute_cell_props failed: {_e}")
+                self._warn_props_failed = True
+            self._cell_props_cache = None
 
         # --- Диагностика: изменение состояния между вызовами --------------
         # Печатаем только если включён debug-флаг
@@ -2357,7 +2552,7 @@ class Simulator:
         # ------------------------------------------------------------------
         phi0 = self.reservoir.porosity_ref
         c_r  = self.reservoir.rock_compressibility
-        p_ref = getattr(self, "pressure_ref", 1e5)
+        p_ref = float(getattr(self.reservoir, 'pressure_ref', 1e5))
 
         phi_new = phi0 * (1.0 + c_r * (p - p_ref))
         phi_old = phi0 * (1.0 + c_r * (self.fluid.prev_pressure - p_ref))
@@ -2485,7 +2680,12 @@ class Simulator:
         if sg_vec is not None:
             res_g = acc_g + div_g + q_g
             F_sg = res_g.view(-1)
-        # численный вес давления
+        # численный вес давления (безопасный дефолт при отсутствии поля)
+        if not hasattr(self, "pressure_weight"):
+            try:
+                self.pressure_weight = float(self.sim_params.get('pressure_weight', 1.0))
+            except Exception:
+                self.pressure_weight = 1.0
         F_p = self.pressure_weight * F_p
         # Давление остаётся в Па; при необходимости масштабируется позже
 
@@ -2690,7 +2890,7 @@ class Simulator:
         # аккумуляцией в уравнениях (FI, Backward Euler → новое состояние)
         phi0 = self.reservoir.porosity_ref
         c_r  = getattr(self.reservoir, 'rock_compressibility', 0.0)
-        p_ref = getattr(self, 'pressure_ref', getattr(self.reservoir, 'pressure_ref', 20e6))
+        p_ref = float(getattr(self.reservoir, 'pressure_ref', 1e5))
         phiP = phi0 * (1.0 + c_r * (P - p_ref))
         vol_pore = self.reservoir.cell_volume * phiP
 
@@ -2739,7 +2939,7 @@ class Simulator:
             # В трёхфазном режиме (или при активном PVT) используем φ(P)·V и Rs/Rv
             phi0 = self.reservoir.porosity_ref
             c_r  = getattr(self.reservoir, 'rock_compressibility', 0.0)
-            p_ref = getattr(self, 'pressure_ref', getattr(self.reservoir, 'pressure_ref', 20e6))
+            p_ref = float(getattr(self.reservoir, 'pressure_ref', 1e5))
             phiP = phi0 * (1.0 + c_r * (P - p_ref))
             vol  = self.reservoir.cell_volume
             Rs = self.fluid.calc_rs(P)

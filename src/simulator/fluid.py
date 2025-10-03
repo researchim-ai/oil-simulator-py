@@ -92,11 +92,13 @@ class Fluid:
                         self._rho_o_table, self._rho_w_table, self._rho_g_table,
                         self._mu_o_table,  self._mu_w_table,  self._mu_g_table)), "PVT-таблица имеет неверную форму"
                 else:
-                    assert all(tbl.numel() == n_p for tbl in (
+                    def _ok(tbl):
+                        return tbl.numel() == 0 or tbl.numel() == n_p
+                    assert all(_ok(tbl) for tbl in (
                         self._rho_o_table, self._rho_w_table, self._rho_g_table,
                         self._mu_o_table,  self._mu_w_table,  self._mu_g_table,
                         self._bo_table,    self._bg_table,    self._bw_table,
-                        self._rs_table,    self._rv_table)), "Все PVT-таблицы должны иметь одинаковую длину"
+                        self._rs_table,    self._rv_table)), "Все непустые PVT-таблицы должны иметь длину pvt.pressure"
 
                 # Убедимся, что сетка давления отсортирована по возрастанию
                 if not torch.all(self._p_grid[1:] >= self._p_grid[:-1]):
@@ -124,8 +126,8 @@ class Fluid:
         self.gas_compressibility   = float(config.get('c_gas', 3e-4)) / 1e6
         self.rock_compressibility  = float(config.get('c_rock', 1e-5))  / 1e6
         
-        # КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: правильное опорное давление для сжимаемости
-        self.pressure_ref = getattr(reservoir, 'pressure_ref', 20e6)
+        # Единый опорный уровень давления (из пласта)
+        self.pressure_ref = float(getattr(reservoir, 'pressure_ref', 1e5))
         print(f"🔧 Опорное давление для плотности: {self.pressure_ref:.0f} Па ({self.pressure_ref/1e6:.1f} МПа)")
         
         # Совокупная сжимаемость флюида (используется в IMPES)
@@ -267,23 +269,10 @@ class Fluid:
         """
         Вычисляет производные ОФП по водонасыщенности.
         :param s_w: Тензор текущей водонасыщенности.
-        :return: (dkrw_dsw, dkro_dsw) - кортеж с производными.
+        :return: (dkro_dsw, dkrw_dsw) - производные в порядке (нефть, вода).
         """
-        s_norm = self._get_normalized_saturation(s_w)
-        dsw_norm_dsw = 1 / (1 - self.sw_cr - self.so_r)
-        
-        # d(krw)/d(sw) = d(krw)/d(s_norm) * d(s_norm)/d(sw)
-        # d(krw)/d(s_norm) = nw * s_norm^(nw-1)
-        dkrw_dsw = self.nw * (s_norm ** (self.nw - 1)) * dsw_norm_dsw
-        
-        # d(kro)/d(sw) = d(kro)/d(s_norm) * d(s_norm)/d(sw)
-        # d(kro)/d(s_norm) = -no * (1-s_norm)^(no-1)
-        dkro_dsw = -self.no * ((1 - s_norm) ** (self.no - 1)) * dsw_norm_dsw
-        
-        # Обработка особых случаев на границах
-        dkrw_dsw = torch.where(s_norm <= 0, torch.zeros_like(dkrw_dsw), dkrw_dsw)
-        dkro_dsw = torch.where(s_norm >= 1, torch.zeros_like(dkro_dsw), dkro_dsw)
-        
+        dkro_dsw = self.calc_dkro_dsw(s_w)
+        dkrw_dsw = self.calc_dkrw_dsw(s_w)
         return dkro_dsw, dkrw_dsw
 
     # ------------------------------------------------------------------
@@ -776,17 +765,7 @@ class Fluid:
                 return self._interp(pressure, self._p_grid, self._bw_table)
         return torch.ones_like(pressure)
 
-    def calc_rs(self, pressure):
-        if self._use_pvt and self._rs_table.numel() > 0:
-            if self._rs_table.dim()==2 and self._use_temp:
-                return self._interp2d(pressure, self.temperature, self._p_grid, self._t_grid, self._rs_table)
-            else:
-                return self._interp(pressure, self._p_grid, self._rs_table)
-        pb = self.pbubble
-        rs_b = self.rs_bubble
-        return torch.where(pressure >= pb,
-                           torch.full_like(pressure, rs_b),
-                           rs_b * pressure / pb)
+    # дублирующее определение calc_rs удалено
 
     def calc_rv(self, pressure):
         if self._use_pvt and self._rv_table.numel() > 0:
@@ -797,15 +776,7 @@ class Fluid:
         # По умолчанию Rv=0
         return torch.zeros_like(pressure)
 
-    # ---- плотности с учётом Bo/Bg/Bw -----------------------------------
-    def calc_oil_density(self, pressure):
-        return self.rho_oil_ref * (1.0 + self.oil_compressibility * (pressure - self.pressure_ref)) if not (self._use_pvt and self._bo_table.numel() > 0) else self.rho_o_sc / (self.calc_bo(pressure) + 1e-12)
-
-    def calc_water_density(self, pressure):
-        return self.rho_water_ref * (1.0 + self.water_compressibility * (pressure - self.pressure_ref)) if not (self._use_pvt and self._bw_table.numel() > 0) else self.rho_w_sc / (self.calc_bw(pressure) + 1e-12)
-
-    def calc_gas_density(self, pressure):
-        return self.rho_gas_ref * (1.0 + self.gas_compressibility * (pressure - self.pressure_ref)) if not (self._use_pvt and self._bg_table.numel() > 0) else self.rho_g_sc / (self.calc_bg(pressure) + 1e-12)
+    # дублирующие плотности удалены (оставлены единственные версии выше)
 
     # ------------------------------------------------------------------
     # Helper constructors

@@ -239,8 +239,13 @@ class GeoSolverV2:
             # col
             mask = (col == idx)
             val[mask] = 0.0
-            # diag (последний элемент в строке)
-            val[e-1] = 1.0
+            # diag — поставить 1.0 ровно в позицию col==idx в этой строке
+            pos = torch.nonzero(col[s:e] == idx, as_tuple=False)
+            if pos.numel() == 0:
+                # если диагональ отсутствует (крайне маловероятно), ставим в начало строки
+                val[s] = 1.0
+            else:
+                val[s + int(pos[0].item())] = 1.0
         diag_orig = base_lvl.diag
 
         # -------- Дополнительная диагностика строкового преобладания --------
@@ -286,7 +291,7 @@ class GeoSolverV2:
             s, e = int(row_starts[i]), int(row_ends[i])
             pos = torch.nonzero(col[s:e] == i, as_tuple=False)
             assert pos.numel() == 1, "diag not found or multiple diags"
-            diag_idx_tmp[i] = s + int(pos.item())
+            diag_idx_tmp[i] = s + int(pos[0].item())
 
         diag_tmp = vals[diag_idx_tmp].abs().clone()
         second_scale = 1.0 / torch.sqrt(diag_tmp.clamp_min(1e-20))  # S2
@@ -449,15 +454,11 @@ class GeoSolverV2:
                 try:
                     n_fine = fine_lvl.A_csr.size(0)
                     if n_fine <= self.rap_max_check_n:
-                        Af = fine_lvl.A_csr
-                        Ac_ref = torch.sparse.mm(torch.sparse.mm(R, Af), P).to_dense()
-                        Ac_dense = A_csr.to_dense()
-                        diff = (Ac_ref - Ac_dense).abs()
-                        rel_err = diff.sum() / (Ac_ref.abs().sum() + 1e-30)
-                        print(f"[RAPCHK L{len(self.levels)}] rel_err={rel_err.item():.3e}, "
-                              f"||diff||1={diff.sum().item():.3e}")
+                        # Без денсификации: выборочная RAP‑проверка по нескольким столбцам
+                        self._rap_check_sample(fine_lvl, A_csr, k=5)
                     else:
-                        print(f"[RAPCHK L{len(self.levels)}] skip densify check (n={n_fine} > {self.rap_max_check_n})")
+                        if self.debug:
+                            print(f"[RAPCHK L{len(self.levels)}] skip sample check (n={n_fine} > {self.rap_max_check_n})")
                 except Exception as _e:
                     print(f"[RAPCHK] skip due to error: {_e}")
 
@@ -550,7 +551,11 @@ class GeoSolverV2:
                 val[s:e] = 0.0
                 mask = (col == idx)
                 val[mask] = 0.0
-                val[e-1] = 1.0
+                pos = torch.nonzero(col[s:e] == idx, as_tuple=False)
+                if pos.numel() == 0:
+                    val[s] = 1.0
+                else:
+                    val[s + int(pos[0].item())] = 1.0
 
             _pin_rowcol_local(A_csr, anchor_c)
             # diag_c[anchor_c] = 1.0
@@ -587,10 +592,41 @@ class GeoSolverV2:
     def _to_hat(self, v):  return self.Dinv * v
     def _to_phys(self, v): return self.D * v
 
+    def _left_scale_rhs(self, v: torch.Tensor) -> torch.Tensor:
+        """Левое строковое эквилибрирование RHS: b̂ ← W_rows · b̂.
+        Должно использоваться во всех входах в AMG, так как Â = S · (W_rows · A_phys) · S.
+        """
+        return self.W_rows * v
+
     def _apply_anchor(self, v: torch.Tensor):
         # держим нулевой мод на самом тонком уровне
         v[self.anchor_fine] = 0.0
         return v
+
+    def _rap_check_sample(self, fine_lvl, Ac: torch.Tensor, k: int = 5, seed: int | None = None):
+        """Выборочная RAP‑проверка без денсификации: сравниваем несколько столбцов.
+        Печатаем относительную L1‑ошибку для k случайных единичных столбцов.
+        """
+        R, P = fine_lvl.R, fine_lvl.P
+        Af = fine_lvl.A_csr
+        n_c = int(Ac.size(0))
+        if n_c == 0:
+            return
+        if seed is not None:
+            torch.manual_seed(int(seed))
+        idx = torch.randint(0, n_c, (min(k, n_c),), device=Ac.device)
+        errs = []
+        for j in idx:
+            ej = torch.zeros(n_c, dtype=Ac.dtype, device=Ac.device)
+            ej[j] = 1.0
+            ref = torch.sparse.mm(torch.sparse.mm(R, Af), torch.sparse.mm(P, ej[:, None])).squeeze(1)
+            got = torch.sparse.mm(Ac, ej[:, None]).squeeze(1)
+            rel = (ref - got).abs().sum() / (ref.abs().sum() + 1e-30)
+            errs.append(float(rel.item()))
+        if self.debug and errs:
+            med = sorted(errs)[len(errs)//2] if len(errs) % 2 == 1 else (sorted(errs)[len(errs)//2-1] + sorted(errs)[len(errs)//2]) / 2.0
+            mx = max(errs)
+            print(f"[RAPCHK] sample rel_err median={med:.3e}, max={mx:.3e}")
 
     def _restrict_vec(self, lvl_idx: int, r_f: torch.Tensor) -> torch.Tensor:
         """r_c = R * r_f"""
@@ -604,13 +640,8 @@ class GeoSolverV2:
 
     def _check_RAP(self, fine_lvl, Ac, parent_idx, child_cnt):
         # восстановим Ac_ref = R A_f P и сравним
-        R, P = fine_lvl.R, fine_lvl.P
-        Af = fine_lvl.A_csr
-        Ac_ref = torch.sparse.mm(torch.sparse.mm(R, Af), P)
-        diff = (Ac_ref.to_dense() - Ac.to_dense()).abs()
-        rel = diff.sum() / (Ac_ref.abs().sum() + 1e-30)
-        print(f"[RAPCHK] L{len(self.levels)} rel_err={rel.item():.3e} "
-            f"||diff||1={diff.sum().item():.3e}")
+        # Лёгкая RAP‑проверка без денсификации
+        self._rap_check_sample(fine_lvl, Ac, k=5)
 
 
     def _jacobi(self, lvl_idx: int, x: torch.Tensor, b: torch.Tensor, iters: int = 2) -> torch.Tensor:
@@ -862,6 +893,10 @@ class GeoSolverV2:
         debug_any = os.environ.get("OIL_DEBUG", "0") == "1"
         debug_top = debug_any and lvl_idx == 0
 
+        # согласуем RHS с левым скейлированием текущего уровня (кроме L0, там уже сделано на входе solve)
+        if lvl_idx > 0:
+            b_vec = lvl.W_rows * b_vec
+
         # initial residual
         r_in = b_vec - self._apply_A(lvl_idx, x_vec)
 
@@ -879,7 +914,9 @@ class GeoSolverV2:
             anc = lvl.anchor
             A = lvl.A_csr.to_dense()
             A[anc, :] = 0; A[:, anc] = 0; A[anc, anc] = 1.0
-            b_fix = b_vec.clone(); b_fix[anc] = 0.0
+            # согласуем RHS с левым скейлом на данном уровне
+            b_fix = (lvl.W_rows * b_vec).clone()
+            b_fix[anc] = 0.0
             x_sol = torch.linalg.solve(A, b_fix.view(-1, 1)).squeeze(1)
             return x_sol
 
@@ -899,6 +936,8 @@ class GeoSolverV2:
 
         # ---------- restrict (Galerkin) ----------
         r_c_vec = self._restrict_vec(lvl_idx, r_pre)
+        # согласуем RHS coarse-уровня с его левым скейлингом
+        r_c_vec = self.levels[lvl_idx + 1].W_rows * r_c_vec
         # обнуляем RHS в якорной ячейке coarse-уровня
         anc_c = self.levels[lvl_idx + 1].anchor
         r_c_vec[anc_c] = 0.0
@@ -910,25 +949,12 @@ class GeoSolverV2:
         # ---------- prolong ----------
         corr_vec = self._prolong_vec(lvl_idx, x_c_vec)
 
-        # пробный шаг
-        x_try = x_vec + corr_vec
-        r_try = b_vec - self._apply_A(lvl_idx, x_try)
-        rho_tmp = r_try.norm() / (r_pre.norm() + 1e-30)
-
-        if rho_tmp > 1.0:
-            # line-search по энергии: alpha = (r_pre·corr)/(corr·A corr)
-            A_corr = self._apply_A(lvl_idx, corr_vec)
-            num = torch.dot(r_pre, corr_vec)
-            den = torch.dot(corr_vec, A_corr).clamp_min(1e-30)
-            alpha = torch.clamp(num / den, 0.0, 1.0)
-
-            x_try2 = x_vec + alpha * corr_vec
-            r_try2 = b_vec - self._apply_A(lvl_idx, x_try2)
-            if r_try2.norm() < r_pre.norm():
-                x_vec = x_try2
-            # иначе вообще не добавляем коррекцию
-        else:
-            x_vec = x_try
+        # всегда берём энерго-оптимальный шаг по грубой коррекции
+        A_corr = self._apply_A(lvl_idx, corr_vec)
+        num = torch.dot(r_pre, corr_vec)
+        den = torch.dot(corr_vec, A_corr).clamp_min(1e-30)
+        alpha = torch.clamp(num / den, 0.0, 1.0)
+        x_vec = x_vec + alpha * corr_vec
 
 
 
@@ -995,8 +1021,8 @@ class GeoSolverV2:
         """Решает A δ = rhs (rhs в физических единицах) и возвращает δ в физических единицах."""
         # Переносим rhs на устройство решателя и корректный dtype
         rhs = rhs.to(device=self.device, dtype=torch.float64)
-        # Полная согласованность: Â = S·(W·A_phys)·S, значит b̂ = W·(S·b_phys)
-        rhs_hat = self.W_rows * self._to_hat(rhs)
+        # Согласуем RHS с Â = S · (W_rows · A_phys) · S: b̂ = S · (W_rows · b_phys)
+        rhs_hat = self._to_hat(self._left_scale_rhs(rhs))
         rhs_hat[self.anchor_fine] = 0.0
 
         if self.debug:
@@ -1067,13 +1093,13 @@ class GeoSolverV2:
                 break
             if res_norm < tol:
                 break
-        # решение в hat → снимаем левый row-scale, затем обратный diag-scale
-        delta_hat  = x / self.W_rows
-        delta_phys = self._to_phys(delta_hat)
+        # решение в hat → сразу обратный diag-scale (левый row-scale не меняет неизвестные)
+        delta_phys = self._to_phys(x)
         return delta_phys.to(rhs.device)
     
     def solve_hat(self, b_hat: torch.Tensor, *, tol=None, max_iter=None):
-        # CPR preconditioner: 1–2 V-cycles is enough
+        # Приводим RHS к согласованному с левым масштабированием виду: b̂ ← W_rows · b̂
+        b_hat = self._left_scale_rhs(b_hat)
         x = torch.zeros_like(b_hat)
         r0 = b_hat
         rhs0 = torch.linalg.norm(r0)
@@ -1109,6 +1135,7 @@ class GeoSolverV2:
         Оставь только если реально нужно.
         """
         rhs_phys = rhs_phys.to(device=self.device, dtype=torch.float64)
+        # В Phys→Hat добавочный W_rows не требуется для CPR-hat интерфейса
         rhs_hat = self._to_hat(rhs_phys)
         rhs_hat[self.anchor_fine] = 0.0
 
@@ -1116,8 +1143,7 @@ class GeoSolverV2:
         if delta_hat is None:
             return None
 
-        # обратно в физические
-        delta_hat = delta_hat / self.W_rows
+        # обратно в физические (левый row-scale не применяется к неизвестным)
         delta_phys = self._to_phys(delta_hat)
         return delta_phys.to(dtype=rhs_phys.dtype, device=rhs_phys.device)
    
@@ -1131,13 +1157,14 @@ class GeoSolverV2:
         return x
     
     def apply_prec_phys(self, rhs_phys: torch.Tensor, cycles: int = 1) -> torch.Tensor:
-        rhs_hat = self._to_hat(rhs_phys.to(self.device, torch.float64))
-        rhs_hat = rhs_hat * self.W_rows        # если вы действительно оставляете row-scale
+        # b̂ = S · (W_rows · b_phys)
+        rhs_hat = self._to_hat(self._left_scale_rhs(rhs_phys.to(self.device, torch.float64)))
+        # Предобуславливатель в hat: лишний W_rows не нужен
+        rhs_hat = rhs_hat
         rhs_hat[self.anchor_fine] = 0.0
         x_hat = torch.zeros_like(rhs_hat)
         for _ in range(cycles):
             x_hat = self._v_cycle(0, x_hat, rhs_hat)
-        x_hat = x_hat / self.W_rows
         return self._to_phys(x_hat)
     
     def apply_prec_hat(self, rhs_p_hat: torch.Tensor, cycles: int = 1) -> torch.Tensor:
@@ -1146,13 +1173,12 @@ class GeoSolverV2:
         Никакого phys↔hat внутри. Anchor обнуляется.
         """
         rhs = rhs_p_hat.to(device=self.device, dtype=torch.float64).clone()
-        # согласуем с левой строковой нормировкой: b̂_geo = W_rows · b̂_global
-        rhs = rhs * self.W_rows
+        # Согласуем с левым масштабированием строк: rhs ← W_rows · rhs
+        rhs = self._left_scale_rhs(rhs)
         rhs[self.anchor_fine] = 0.0
         x = torch.zeros_like(rhs)
         for _ in range(max(1, cycles)):
             x = self._v_cycle(0, x, rhs)
-        # возвращаем обратно «без W», чтобы M ≈ Â^{-1} в исходных hat-координатах
-        x = x / self.W_rows
+        # Возвращаем приблизительное решение в тех же hat-координатах (без деления на W)
         x[self.anchor_fine] = 0.0
         return x  # HAT!

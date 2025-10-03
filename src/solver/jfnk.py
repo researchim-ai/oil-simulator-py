@@ -49,7 +49,8 @@ class FullyImplicitSolver:
         geo_tol         = sim_params.get("geo_tol", 1e-6)
         geo_max_iter    = sim_params.get("geo_max_iter", 10)
         gmres_tol       = sim_params.get("gmres_tol", 1e-3)
-        gmres_max_iter  = sim_params.get("gmres_max_iter", 60)
+        # Предпочитаем явный параметр JFNK, если он задан, иначе используем общий GMRES-лимит
+        gmres_max_iter  = sim_params.get("jfnk_max_iter", sim_params.get("gmres_max_iter", 60))
 
         self.prec = CPRPreconditioner(
             simulator,
@@ -67,16 +68,6 @@ class FullyImplicitSolver:
         self.tol = simulator.sim_params.get("newton_tolerance", 1e-7)  # абсолютная
         self.rtol = simulator.sim_params.get("newton_rtol", 1e-4)       # относительная
         self.max_it = simulator.sim_params.get("newton_max_iter", 30)
-
-        # Для очень маленьких задач гарантируем минимум 30 итераций, чтобы дать шанc уменьшить F;
-        # для крупных моделей (>500 ячеек) повышаем потолок до 25–30, иначе Ньютона
-        # часто не успевает уменьшить невязку до tol.
-        nx, ny, nz = simulator.reservoir.dimensions
-        n_cells_total = nx * ny * nz
-        if n_cells_total <= 100 and self.max_it < 30:
-            self.max_it = 30
-        elif n_cells_total > 500 and self.max_it < 25:
-            self.max_it = 25
 
         # --- Pseudo-Transient continuation (PTC) ------------------------
         self.ptc_enabled = simulator.sim_params.get("ptc", True)
@@ -452,37 +443,16 @@ class FullyImplicitSolver:
         except Exception:
             pass
 
-        # якорим среднее давление (в hat) ТОЛЬКО если нет BHP-скважин
+        # Дрейф среднего давления: по умолчанию не фиксируем, только если явно задано в конфиге
         baseline_mean_p = x[:n].mean().clone()
-        if "fix_pressure_drift" in self.sim.sim_params:
-            fix_pressure_drift = bool(self.sim.sim_params.get("fix_pressure_drift", True))
-        else:
-            has_bhp = False
-            try:
-                wm = getattr(self.sim, "well_manager", None)
-                if wm is not None and hasattr(wm, "get_wells"):
-                    for _w in wm.get_wells():
-                        if getattr(_w, "control_type", "").lower() == "bhp":
-                            has_bhp = True
-                            break
-            except Exception:
-                has_bhp = False
-            # Если есть BHP – нельзя зажимать среднее давление, иначе система переопределяется
-            fix_pressure_drift = not has_bhp
+        fix_pressure_drift = bool(self.sim.sim_params.get("fix_pressure_drift", False))
 
         def _anchor_pressure(x_hat: torch.Tensor):
-            if not fix_pressure_drift:
-                return x_hat
-            drift = x_hat[:n].mean() - baseline_mean_p
-            if torch.abs(drift) > 1e-6:
-                x_hat[:n] -= drift
+            # Отказ от принудительного якорения среднего давления
             return x_hat
 
         def _project_zero_mean_p(v_hat: torch.Tensor):
-            # проецируем компоненту давления на подпространство со средним = 0
-            v_hat = v_hat.clone()
-            if v_hat.numel() >= n:
-                v_hat[:n] -= v_hat[:n].mean()
+            # Не проецируем mean(δp) → позволяем среднему давлению меняться
             return v_hat
 
 
@@ -503,7 +473,7 @@ class FullyImplicitSolver:
             self.ptc_iters = 3
         self.ptc_enabled = True
         self.ptc_tau = self.ptc_tau0 if self.ptc_enabled else 0.0
-        x_ref = _anchor_pressure(x0.clone())  # hat
+        x_ref = x0.clone()  # hat
 
         # Trust-region базовая настройка
         nvars_guess = n_cells * 2  # (p + Sw) по умолчанию
@@ -522,8 +492,6 @@ class FullyImplicitSolver:
         # нижняя граница для точности GMRES
         gmres_tol_base = float(self.sim.sim_params.get("gmres_min_tol", 1e-7))
         effective_max_it = self.max_it
-        if n_cells <= 100 and self.max_it < 30:
-            effective_max_it = 30
 
         # локальные помощники -------------------------------------------------
         def _F_hat(x_hat: torch.Tensor) -> torch.Tensor:
@@ -534,6 +502,21 @@ class FullyImplicitSolver:
             except Exception:
                 x_phys = self._unscale_x(x_hat) if self.scaler is not None else x_hat
             F_phys = self.sim._fi_residual_vec(x_phys, dt)
+            # Физические метрики масс-баланса (давленческий блок) для критериев приёма
+            try:
+                n_loc_mb = self.scaler.n_cells if self.scaler is not None else (x_phys.numel() // 2)
+                from simulator.props import compute_cell_props
+                props_mb = compute_cell_props(self.sim, x_phys, dt)
+                phi_mb = props_mb['phi']; V_mb = props_mb['V']; dt_mb = props_mb['dt']
+                pvdt_mb = (phi_mb * V_mb) / (dt_mb + 1e-30)
+                mb_cell = (F_phys[:n_loc_mb].abs()) / (pvdt_mb.abs() + 1e-30)
+                # Главная метрика как в логах: L∞ по ячейкам
+                self._last_mb_max = float(mb_cell.max().item())
+                # Дополнительно средняя (для информации)
+                self._last_mb_l1 = float(mb_cell.mean().item())
+            except Exception:
+                self._last_mb_max = None
+                self._last_mb_l1 = None
 
             # --- ЕДИНАЯ НОРМАЛИЗАЦИЯ НЕВЯЗОК В HAT-ПРОСТРАНСТВЕ -------------
             # Давление: как раньше (делим на p_scale)
@@ -646,7 +629,7 @@ class FullyImplicitSolver:
             RED   = "\x1b[31m" if bool(self.sim.sim_params.get('color_logs', True)) else ""
             YEL   = "\x1b[33m" if bool(self.sim.sim_params.get('color_logs', True)) else ""
             RESET = "\x1b[0m"  if bool(self.sim.sim_params.get('color_logs', True)) else ""
-            # адаптивный PTC (только давление): сильнее в начале, затухает
+            # PTC: задаём τ_k ОДИН РАЗ на итерацию Ньютона и далее не переопределяем
             if self.ptc_enabled:
                 if it == 0:
                     self.ptc_tau = 20.0 * dt
@@ -656,6 +639,12 @@ class FullyImplicitSolver:
                     self.ptc_tau = 2.0 * dt
                 else:
                     self.ptc_tau = 0.0
+                # масштабируем через конфиг при необходимости
+                try:
+                    scale_tau = float(self.sim.sim_params.get("ptc_tau_scale", 1.0))
+                except Exception:
+                    scale_tau = 1.0
+                self.ptc_tau *= scale_tau
             # передаём номер итерации в CPR для динамики связи p→s
             try:
                 self.sim._newton_it = it
@@ -665,11 +654,15 @@ class FullyImplicitSolver:
             F_norm = F.norm()
             self.last_res_norm = float(F_norm)
             F_scaled = F_norm / math.sqrt(len(F))
+            # сохраняем последнюю масштабированную норму для унифицированного репорта
+            self.last_res_scaled = float(F_scaled)
 
-            # ранний приём
+            # ранний приём (с учётом физического MB)
             early_tol = float(self.sim.sim_params.get("early_accept_tol", 1e-4))
-            if F_scaled < early_tol:
-                print(f"  Newton: ||F||_scaled={F_scaled:.3e} < early_tol={early_tol:.1e} → приём")
+            mb_tol_accept = float(self.sim.sim_params.get("mb_tol", 1e-4))
+            mb_max = getattr(self, "_last_mb_max", None)
+            if (F_scaled < early_tol) and (mb_max is not None and mb_max < mb_tol_accept):
+                print(f"  Newton: ||F||_scaled={F_scaled:.3e} < early_tol={early_tol:.1e}, MBmax={mb_max:.3e} → приём")
                 self.last_newton_iters = max(1, it)
                 self.last_gmres_iters = self.total_gmres_iters
                 _anchor_pressure(x)
@@ -677,7 +670,12 @@ class FullyImplicitSolver:
 
             if init_F_scaled is None:
                 init_F_scaled = F_scaled
-            print(f"  Newton #{it}: ||F||={F_norm:.3e}, ||F||_scaled={F_scaled:.3e}")
+                # сохраняем начальную масштабированную норму для отчёта rel_tol
+                self.init_res_scaled = float(init_F_scaled)
+            mb_tol = float(self.sim.sim_params.get("mb_tol", 1e-4))
+            mb_max = getattr(self, "_last_mb_max", float('nan'))
+            mb_l1  = getattr(self, "_last_mb_l1",  float('nan'))
+            print(f"  Newton #{it}: ||F||={F_norm:.3e}, ||F||_scaled={F_scaled:.3e}, MB[max]={mb_max:.3e}, MB[mean]={mb_l1:.3e} (tol={mb_tol:.1e})")
             try:
                 self.sim.log_json({
                     "event": "newton_iter",
@@ -688,9 +686,11 @@ class FullyImplicitSolver:
             except Exception:
                 pass
 
-            # критерий сходимости (абс/относит)
-            if (F_scaled < self.tol) or (F_scaled < self.rtol * init_F_scaled):
-                print(f"  Newton сошёлся за {it} итераций.")
+            # критерий сходимости (абс/относит) + физический MB
+            mb_tol = float(self.sim.sim_params.get("mb_tol", 1e-4))
+            mb_max = getattr(self, "_last_mb_max", None)
+            if ((F_scaled < self.tol) or (F_scaled < self.rtol * init_F_scaled)) and (mb_max is not None and mb_max < mb_tol):
+                print(f"  Newton сошёлся за {it} итераций. MBmax={mb_max:.3e} < {mb_tol:.1e}")
                 self.last_newton_iters = max(1, it)
                 self.last_gmres_iters = self.total_gmres_iters
                 _anchor_pressure(x)
@@ -737,13 +737,8 @@ class FullyImplicitSolver:
             if allow_defl and self.defl_basis:
                 basis_tensor = torch.stack(self.defl_basis, dim=1)
 
-            # Актуализируем PTC-коэффициент: активен только на первых it≤ptc_iters
-            if it < self.ptc_iters:
-                self.ptc_enabled = True
-                self.ptc_tau = self.ptc_tau0
-            else:
-                self.ptc_enabled = False
-                self.ptc_tau = 0.0
+            # Не переопределяем self.ptc_tau здесь — он уже выбран выше на текущую итерацию
+            # и должен совпадать между RHS (F) и матвектором (J·v)
 
             # решаем линейную подсистему A δ = -F (в hat)
             delta, info, gm_iters = fgmres(
@@ -793,7 +788,7 @@ class FullyImplicitSolver:
             except Exception:
                 pass
 
-            delta = _project_zero_mean_p(delta)
+            # не проецируем mean(δp)
             # --- глобальные ограничители на δ --------------------------------
             # 1) давление: ±20 МПа в hat
             p_scale = float(getattr(self.scaler, "p_scale", 1.0)) if self.scaler is not None else 1.0
@@ -968,7 +963,7 @@ class FullyImplicitSolver:
                 if Jv_hat_ls is None:
                     Jv_hat_ls = A(delta_ls)
 
-                x_candidate = _anchor_pressure(x + delta_ls) if fix_pressure_drift else (x + delta_ls)
+                x_candidate = x + delta_ls
                 # Жёсткий колпак по давлению в HAT на этапе line-search (после применения factor)
                 try:
                     n_loc = n
@@ -1093,7 +1088,7 @@ class FullyImplicitSolver:
                 states = []
                 for a in alphas:
                     try:
-                        x_try = _anchor_pressure(x + a * delta)
+                        x_try = x + a * delta
                         Fc = _F_hat(x_try)
                         vals.append(float(Fc.norm()))
                         states.append((a, x_try, float(vals[-1])))
@@ -1129,7 +1124,7 @@ class FullyImplicitSolver:
                 print(f"  Trust-region: новый радиус {trust_radius:.2f}")
 
             # обновляем состояние и фиксируем дрейф среднего давления
-            x = _anchor_pressure(x_new) if fix_pressure_drift else x_new
+            x = x_new
             print(f"[DRIFT] mean_p_drift={(x[:n].mean()-baseline_mean_p).item():.3e} (hat)")
 
             # уменьшаем τ после успешного шага
@@ -1140,7 +1135,7 @@ class FullyImplicitSolver:
         print(f"  Newton не сошёлся за {effective_max_it} итераций")
         self.last_newton_iters = self.max_it
         self.last_gmres_iters = self.total_gmres_iters
-        _anchor_pressure(x)
+        # не фиксируем среднее давление на выходе
         return _phys_from_hat_y(x), False  # в phys
 
 

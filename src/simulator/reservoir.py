@@ -52,6 +52,9 @@ class Reservoir:
         self.cell_volume = self.grid_size.prod()
         self.porous_volume = self.cell_volume * self.porosity
 
+        # Единый опорный уровень давления для расчётов φ(P) и плотностей
+        self.pressure_ref = float(config.get('pressure_ref', 1e5))  # Па (по умолчанию 1 атм)
+
         # Выводим информацию
         print("Создание модели пласта...")
         print(f"  Размеры грида: {self.nx}x{self.ny}x{self.nz} ячеек")
@@ -66,7 +69,7 @@ class Reservoir:
         Возвращает тензоры проницаемости.
         
         Returns:
-            Кортеж из трех тензоров проницаемости (k_x, k_y, k_z) в мД
+            Кортеж из трех тензоров проницаемости (k_x, k_y, k_z) в м² (SI)
         """
         return self.permeability_x, self.permeability_y, self.permeability_z
         
@@ -80,7 +83,7 @@ class Reservoir:
         Returns:
             Линейный индекс ячейки
         """
-        return i + j * self.nx + k * self.nx * self.ny
+        return (i * self.ny + j) * self.nz + k
 
     @classmethod
     def from_config(cls, cfg: dict, device=None):

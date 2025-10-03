@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-import os, sys, time, argparse, random
+import os, sys, time, argparse, random, json
 import torch
 import numpy as np
 
@@ -64,88 +64,112 @@ def bench_case(nx, ny, nz, *,
                geo_post=2,
                geo_levels=6,
                dt_days=0.02,
-               debug=True):
+               debug=True,
+               config_path: str | None = None):
     n_cells = nx * ny * nz
     print(f"\n===== Case {nx}x{ny}x{nz}  (N={n_cells/1e6:.2f} M) mode={mode} =====")
 
-    if debug:
+    # Если задан путь к конфигу — используем его как единый источник правды
+    cfg = None
+    if config_path:
+        with open(config_path, 'r') as _f:
+            cfg = json.load(_f)
+        # bench не включает принудительный отладочный лог, если есть конфиг
+    elif debug:
         os.environ["OIL_DEBUG"] = "1"
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-    # --- Reservoir / Fluid -------------------------------------------------
-    res_cfg = {
-        "dimensions": [nx, ny, nz],
-        "grid_size": [20.0, 20.0, 5.0],
-        "permeability": 100.0,
-        "k_vertical_fraction": 0.1,
-        "porosity": 0.2,
-        "c_rock": 1e-5,
-    }
-    res = Reservoir(res_cfg, device=device)
-
-    fluid_cfg = {
-        "pressure": 20.0,
-        "s_w": 0.2,
-        "mu_oil": 1.0,
-        "mu_water": 0.5,
-        "mu_gas": 0.05,
-        "rho_oil": 850.0,
-        "rho_water": 1000.0,
-        "rho_gas": 150.0,
-    }
-    fluid = Fluid(fluid_cfg, res, device=device)
-
-    wells = WellManager(
-        make_wells(nx, ny, nz, n_wells=50, inj_fraction=0.3,
-                   inj_rate=8e4, prod_rate=-6e4),
-        res
-    )
-
-    if mode == "fi":
-        sim_params = {
-            "solver_type": "fully_implicit",
-            "jacobian": "jfnk",
-            "backend": "geo2",       # наш Geo-AMG v2
-            "time_step_days": dt_days,
-            "adaptive_dt": True,    # чтобы не удлинял шаг
-            "total_time_days": steps * 1.0,
-            "verbose": True,
-            "use_cuda": device.type == "cuda",
-
-            # лимиты итераций
-            "max_newton_iter": newton_max,
-            "jfnk_max_iter": jfnk_max,
-
-            # Geo-AMG настройки
-            "geo_cycles": geo_cycles,
-            "geo_pre": geo_pre,
-            "geo_post": geo_post,
-            "geo_levels": geo_levels,
-
-            # безопасность
-            "line_search_min_alpha": 0.0002,
-            "ptc": "always",
-            "advanced_threshold": 1_000_000_000,
-        }
+    # --- Reservoir / Fluid / Wells ----------------------------------------
+    if cfg is not None:
+        res = Reservoir(cfg['reservoir'], device=device)
+        fluid = Fluid(cfg['fluid'], res, device=device)
+        wells = WellManager(cfg.get('wells', []), res)
     else:
-        sim_params = {
-            "solver_type": "impes",
-            "total_time_days": steps * 1.0,
-            "time_step_days": 1.0,
-            "verbose": True,
-            "use_cuda": device.type == "cuda",
+        res_cfg = {
+            "dimensions": [nx, ny, nz],
+            "grid_size": [20.0, 20.0, 5.0],
+            "permeability": 100.0,
+            "k_vertical_fraction": 0.1,
+            "porosity": 0.2,
+            "c_rock": 1e-5,
+            "pressure_ref": 20.0e6,
         }
+        res = Reservoir(res_cfg, device=device)
 
-    sim_params["cpr_backend"]   = args.cpr_backend
-    sim_params["geo_tol"]       = args.geo_tol
-    sim_params["geo_max_iter"]  = args.geo_max_iter
-    sim_params["gmres_tol"]     = args.gmres_tol
-    sim_params["gmres_max_iter"]= args.gmres_max_iter
-    sim_params["geo_cycles"]    = args.geo_cycles
-    sim_params["geo_pre"]       = args.geo_pre
-    sim_params["geo_post"]      = args.geo_post
-    sim_params["geo_levels"]    = args.geo_levels
+        fluid_cfg = {
+            "pressure": 20.0,
+            "s_w": 0.2,
+            "mu_oil": 1.0,
+            "mu_water": 0.5,
+            "mu_gas": 0.05,
+            "rho_oil": 850.0,
+            "rho_water": 1000.0,
+            "rho_gas": 150.0,
+        }
+        fluid = Fluid(fluid_cfg, res, device=device)
+
+        wells = WellManager(
+            make_wells(nx, ny, nz, n_wells=50, inj_fraction=0.3,
+                       inj_rate=8e4, prod_rate=-6e4),
+            res
+        )
+
+    if cfg is not None:
+        sim_params = cfg.get('simulation', {}).copy()
+        # Если в конфиге не задано время, подставим из CLI для совместимости бенча
+        sim_params.setdefault("time_step_days", dt_days)
+        sim_params.setdefault("total_time_days", steps * 1.0)
+        sim_params.setdefault("solver_type", "fully_implicit" if mode == "fi" else "impes")
+        sim_params.setdefault("use_cuda", device.type == "cuda")
+    else:
+        if mode == "fi":
+            sim_params = {
+                "solver_type": "fully_implicit",
+                "jacobian": "jfnk",
+                "backend": "geo2",
+                "time_step_days": dt_days,
+                "adaptive_dt": True,
+                "total_time_days": steps * 1.0,
+                "verbose": True,
+                "use_cuda": device.type == "cuda",
+                # лимиты итераций и толерансы
+                "newton_max_iter": int(newton_max),
+                "jfnk_max_iter": int(jfnk_max),
+                "newton_tolerance": 1e-8,
+                "newton_rtol": 1e-8,
+                # Geo-AMG
+                "geo_cycles": geo_cycles,
+                "geo_pre": geo_pre,
+                "geo_post": geo_post,
+                "geo_levels": geo_levels,
+                # безопасность
+                "line_search_min_alpha": 0.0002,
+                "ptc": "always",
+                "advanced_threshold": 1_000_000_000,
+                "p_step_max": 1e9,
+                "delta_y_max": 5.0,
+            }
+        else:
+            sim_params = {
+                "solver_type": "impes",
+                "total_time_days": steps * 1.0,
+                "time_step_days": 1.0,
+                "verbose": True,
+                "use_cuda": device.type == "cuda",
+            }
+
+    # Если конфиг задан — НЕ переопределяем его параметрами CLI, кроме логов при явном запросе
+    if cfg is None:
+        sim_params["cpr_backend"]   = args.cpr_backend
+        sim_params["geo_tol"]       = args.geo_tol
+        sim_params["geo_max_iter"]  = args.geo_max_iter
+        sim_params["gmres_tol"]     = args.gmres_tol
+        sim_params["gmres_max_iter"]= args.gmres_max_iter
+        sim_params["geo_cycles"]    = args.geo_cycles
+        sim_params["geo_pre"]       = args.geo_pre
+        sim_params["geo_post"]      = args.geo_post
+        sim_params["geo_levels"]    = args.geo_levels
     if args.log_json_dir:
         sim_params["log_json_dir"] = args.log_json_dir
 
@@ -215,6 +239,7 @@ def parse_args():
 
     ap.add_argument("--dt", type=float, default=0.02, help="начальный шаг (сутки)")
     ap.add_argument("--debug", action="store_true", default=True)
+    ap.add_argument("--config", type=str, default="", help="путь к JSON-конфигу (если задан, CLI-параметры не переопределяют конфиг)")
     ap.add_argument('--log-json-dir', type=str, default='', help='каталог для JSON-логов (per-итерация/шаг)')
     ap.add_argument('--cpr-backend', default='geo2')
     ap.add_argument('--geo-tol', type=float, default=1e-6)
@@ -239,4 +264,5 @@ if __name__ == "__main__":
                geo_post=args.geo_post,
                geo_levels=args.geo_levels,
                dt_days=args.dt,
-               debug=args.debug)
+               debug=args.debug,
+               config_path=(args.config or None))
