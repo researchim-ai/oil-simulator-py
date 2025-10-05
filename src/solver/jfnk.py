@@ -214,7 +214,7 @@ class FullyImplicitSolver:
         """
         # минимальные физические приращения (можно подкрутить при необходимости):
         EPS_ABS_P   = 1e3      # Па
-        TARGET_DS   = 5e-4     # целевой физический шаг по насыщенности
+        TARGET_DS   = 1e-3     # унифицированный целевой физический шаг по насыщенности
         EPS_REL     = 1e-6     # относительное к ||v||_inf в физ. ед.
 
         ndof = int(v_hat.numel())
@@ -296,7 +296,7 @@ class FullyImplicitSolver:
             eps_p_hat = min(eps_p_hat, eps_p_cap_hat)
 
         # насыщенность (y)
-        TARGET_DS = 2e-3
+        TARGET_DS = 1e-3
         eps_y_hat = 0.0
         try:
             if ndof >= 2 * N and N > 0:
@@ -717,20 +717,21 @@ class FullyImplicitSolver:
                 gmres_tol = min(gmres_tol, 5e-4)
             print(f"  GMRES: tol={gmres_tol:.3e}")
 
-            # политика рестарта/итераций GMRES
+            # политика рестарта/итераций GMRES с точным бюджетом
+            budget_max = int(self.sim.sim_params.get("jfnk_max_iter", self.sim.sim_params.get("gmres_max_iter", 120)))
             if (it <= 2):
-                gmres_restart = 80
-                gmres_maxiter = 120
+                gmres_restart = min(80, budget_max)
+                gmres_maxiter = min(120, budget_max)
             else:
                 if gmres_tol <= 3e-4:
-                    gmres_restart = 120
-                    gmres_maxiter = 160
+                    gmres_restart = min(120, budget_max)
+                    gmres_maxiter = min(160, budget_max)
                 elif gmres_tol <= 1e-3:
-                    gmres_restart = 100
-                    gmres_maxiter = 140
+                    gmres_restart = min(100, budget_max)
+                    gmres_maxiter = min(140, budget_max)
                 else:
-                    gmres_restart = 60
-                    gmres_maxiter = 80
+                    gmres_restart = min(60, budget_max)
+                    gmres_maxiter = min(80, budget_max)
 
             # дефляция на крупных задачах
             basis_tensor = None
@@ -762,10 +763,13 @@ class FullyImplicitSolver:
 
             # защита от NaN/Inf + одна повторная попытка GMRES с ослабленными параметрами
             if (not torch.isfinite(delta).all()) or info not in (0,):
-                print(YEL + "[GMRES] повторная попытка с ослабленным tol и увеличенным max_iter" + RESET)
+                print(YEL + "[GMRES] повторная попытка с ослабленным tol, без превышения бюджета" + RESET)
+                retry_restart = min(int(max(80, gmres_restart*1.25)), budget_max)
+                retry_maxiter = budget_max - int(self.total_gmres_iters)
+                retry_maxiter = max(0, min(retry_maxiter, budget_max))
                 delta, info2, gm_iters2 = fgmres(
                     A, -F, M=M_hat, tol=max(gmres_tol*3.0, 1e-8),
-                    restart=int(max(80, gmres_restart*1.25)), max_iter=int(gmres_maxiter*2.0),
+                    restart=retry_restart, max_iter=retry_maxiter,
                     deflation_basis=basis_tensor, min_iters=3
                 )
                 self.total_gmres_iters += gm_iters2
@@ -792,8 +796,7 @@ class FullyImplicitSolver:
             # --- глобальные ограничители на δ --------------------------------
             # 1) давление: ±20 МПа в hat
             p_scale = float(getattr(self.scaler, "p_scale", 1.0)) if self.scaler is not None else 1.0
-            P_CLIP_HAT = 20.0e6 / p_scale
-            delta[:n] = delta[:n].clamp(-P_CLIP_HAT, P_CLIP_HAT)
+            # Убираем внеконтурный p-clip: давление ограничиваем только внутри LS-кандидата
 
             # 2) насыщенности (мы работаем в переменной y): |Δy| ≤ Δy_max (в hat)
             if delta.numel() >= 2 * n:
@@ -915,9 +918,11 @@ class FullyImplicitSolver:
                 factor = min(factor, trust_radius / (delta_norm_scaled + 1e-12))
                 print(f"  Trust-region: сокращаем шаг до α={factor:.3e} (R={trust_radius:.2f})")
 
-            # --- Line search (строгий Armijo и реальное снижение) ------------
+            # --- Line search (немонотонный Armijo с окном m) -----------------
             c1 = 1e-3 if it == 0 else 3e-4
             ls_max = 16
+            m_hist = int(self.sim.sim_params.get("ls_nonmonotone_m", 5))
+            hist = getattr(self, "_ls_hist", [])
 
             # не позволяем конфигом задрать min_alpha слишком высоко
             cfg_alpha = float(self.sim.sim_params.get("line_search_min_alpha", 1e-8))
@@ -1002,7 +1007,11 @@ class FullyImplicitSolver:
 
                 # требуем заметное относительное снижение (Армижо с нижним порогом)
                 min_rel_drop = 1e-3 if it <= 2 else 5e-4
-                sufficient = (f_curr <= (1 - max(c1 * factor, min_rel_drop)) * base_norm)
+                # немонотонная ссылка: допускаем рост относительно лучшего из последних m
+                F_ref = base_norm
+                if m_hist > 0 and len(hist) > 0:
+                    F_ref = max(hist[-m_hist:])
+                sufficient = (f_curr <= (1 - max(c1 * factor, min_rel_drop)) * F_ref)
 
                 if ls_it == 0:
                     # диагностический линейный прогноз по ФАКТИЧЕСКОМУ шагу d_eff = x_candidate - x
@@ -1045,6 +1054,14 @@ class FullyImplicitSolver:
                 # просто убывание (без строгого Armijo), чтобы не застревать.
                 soft_accept = (factor <= 1e-3) and (f_curr < base_norm * (1 - 1e-4))
                 if sufficient or soft_accept:
+                    # обновим историю
+                    try:
+                        hist.append(float(f_curr))
+                        if len(hist) > max(1, m_hist):
+                            hist.pop(0)
+                        self._ls_hist = hist
+                    except Exception:
+                        pass
                     print(GREEN + f"  Line search принял шаг α={factor:.3e}, ||F||={f_curr:.3e}" + RESET)
                     try:
                         self.sim.log_json({

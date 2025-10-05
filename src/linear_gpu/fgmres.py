@@ -94,6 +94,9 @@ def fgmres(A,
 
     for outer in range(max_iter // restart + 1):
         for j in range(restart):
+            # уважать общий бюджет итераций (no overshoot)
+            if total_iters >= max_iter:
+                return x, 1, total_iters
             w = _matvec(A, V[j])
             w = _deflate(w, deflation_basis)
             w = precond(w)  # flexible step: актуальный предобуславливатель
@@ -145,4 +148,6 @@ def fgmres(A,
         V = [r / beta]
         H.zero_(); cs.zero_(); sn.zero_(); g.zero_(); g[0] = beta
         total_iters += restart
+        if total_iters >= max_iter:
+            return x, 1, total_iters
     return x, 1, total_iters 

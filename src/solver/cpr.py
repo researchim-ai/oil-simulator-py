@@ -508,6 +508,187 @@ class CPRPreconditioner:
 
         return indptr[:N+1], indices[:pos], data[:pos]
 
+    # ─────────────────────────────────────────────────────────────────────
+    # Вспомогательные хелперы для geo2/FPF в hat-масштабе
+    # ─────────────────────────────────────────────────────────────────────
+    def _ensure_Ap_hat(self, device, dtype):
+        """Ленивая сборка torch.sparse_csr для Ap (pressure) в hat-единицах."""
+        if not hasattr(self, "_Ap_hat"):
+            indptr = torch.from_numpy(self._indptr_p.copy()).to(torch.int64)
+            indices = torch.from_numpy(self._indices_p.copy()).to(torch.int64)
+            data = torch.from_numpy(self._data_p.copy()).to(torch.float32)
+            n = indptr.numel() - 1
+            self._Ap_hat = torch.sparse_csr_tensor(indptr, indices, data, size=(n, n))
+        A = self._Ap_hat
+        if A.device != device or A.dtype != torch.float32:
+            A = torch.sparse_csr_tensor(A.crow_indices().to(device),
+                                        A.col_indices().to(device),
+                                        A.values().to(device),
+                                        size=A.size())
+        return A
+
+    @staticmethod
+    def _torch_csr_mv(A_csr: torch.Tensor, x: torch.Tensor) -> torch.Tensor:
+        """y = A x для CSR (x: [n], y: [n])."""
+        return torch.sparse.mm(A_csr, x.unsqueeze(1)).squeeze(1)
+
+    def _dsdy_hat(self, n: int, device, dtype) -> torch.Tensor:
+        """diag(ds/dy) в hat; берём из кеша или оцениваем по текущему Sw."""
+        props = getattr(self.simulator, "_cell_props_cache", None)
+        eps = 1e-8
+        if props is not None and "dsdy_for_prec" in props:
+            ds = props["dsdy_for_prec"].view(-1)[:n].to(device=device, dtype=dtype)
+            ds = torch.nan_to_num(ds, nan=eps, posinf=1e6, neginf=1e6).clamp_min(eps)
+            med = float(torch.median(ds).item()) if ds.numel() else 0.0
+            good = float((ds > 1e-7).float().mean().item()) if ds.numel() else 0.0
+            if med < 1e-6 or good < 0.8:
+                raise RuntimeError("degenerate dsdy cache")
+            return ds
+        try:
+            sw = self.simulator.fluid.s_w.view(-1)[:n].to(device=device, dtype=dtype)
+            swc = float(getattr(self.simulator.fluid, 'sw_cr', 0.0))
+            sor = float(getattr(self.simulator.fluid, 'so_r', 0.0))
+            denom = max(1e-12, 1.0 - swc - sor)
+            sigma = ((sw - swc) / denom).clamp(0.0, 1.0)
+            dsdy = denom * (sigma * (1.0 - sigma))
+            return dsdy.clamp_min(eps)
+        except Exception:
+            return torch.full((n,), 1e-3, device=device, dtype=dtype)
+
+    def _diag_Ass_hat(self, n: int, device, dtype, has_gas: bool):
+        """diag(A_ss_hat) для воды (и газа, если есть). Возвращает (diag_sw, diag_sg|None)."""
+        diag_sw = self._dsdy_hat(n, device, dtype)
+        diag_sg = None
+        if has_gas:
+            try:
+                props = getattr(self.simulator, "_cell_props_cache", None)
+                if props is not None and "dsdy_for_prec_g" in props:
+                    dsg = props["dsdy_for_prec_g"].view(-1)[:n].to(device=device, dtype=dtype)
+                    dsg = torch.nan_to_num(dsg, nan=1e-8, posinf=1e6, neginf=1e6).clamp_min(1e-8)
+                else:
+                    dsg = torch.full((n,), 1e-3, device=device, dtype=dtype)
+            except Exception:
+                dsg = torch.full((n,), 1e-3, device=device, dtype=dtype)
+            diag_sg = dsg
+        min_hat = float(getattr(self, 'cfg_cpr_diag_hat_sw_min', 1e-6))
+        return diag_sw.clamp_min(min_hat), (diag_sg.clamp_min(min_hat) if diag_sg is not None else None)
+
+    def _K_sp_hat(self, n: int, device, dtype, phase: str):
+        """Приближение A_sp_hat * δp ≈ (K_hat ⊙ δp), где K_hat диагонален."""
+        props = getattr(self.simulator, "_cell_props_cache", None)
+        p_scale = float(getattr(self.scaler, "p_scale", 1.0))
+        if props is None:
+            c_val = 1e-9
+            return torch.full((n,), p_scale * c_val, device=device, dtype=dtype)
+        if phase == "w":
+            c = props.get("c_w", None)
+        elif phase == "g":
+            c = props.get("c_g", None)
+        else:
+            c = None
+        if c is None:
+            c_val = 1e-9
+            return torch.full((n,), p_scale * c_val, device=device, dtype=dtype)
+        return (p_scale * c.to(device=device, dtype=dtype)).clamp_min(0.0)
+
+    def _clip_coupling(self, K_hat: torch.Tensor, diag_hat: torch.Tensor, beta: float) -> torch.Tensor:
+        """Ограничиваем связь p→s: K_eff = min(K_hat, beta * diag(A_ss_hat))."""
+        return torch.minimum(K_hat, beta * diag_hat)
+
+    @staticmethod
+    def _zero_mean(x: torch.Tensor) -> torch.Tensor:
+        """Проекция в подпространство нулевого среднего (устранение нулевого мода)."""
+        return x - x.mean()
+
+    def _pressure_solve_hat(self, r_p_hat: torch.Tensor, cycles: int = 1) -> torch.Tensor:
+        """Устойчивый solve давления в hat: zero-mean RHS → AMG → центрирование."""
+        r = torch.nan_to_num(r_p_hat, nan=0.0, posinf=0.0, neginf=0.0)
+        r = self._zero_mean(r)
+        try:
+            z = self.solver.apply_prec_hat(r, cycles=cycles)
+            if not torch.isfinite(z).all():
+                raise RuntimeError("GeoSolverV2 returned non-finite delta_p")
+        except Exception as e:
+            print(f"[CPR geo2] pressure solve failed: {e} — Jacobi fallback")
+            diag = torch.as_tensor(self.diag_inv, device=r.device, dtype=r.dtype)
+            z = diag * r
+        return self._zero_mean(z)
+
+    def apply_hat_geo2_fpf(self, vec_hat: torch.Tensor) -> torch.Tensor:
+        """FPF‑схема CPR в hat для backend='geo2'."""
+        n = self._n_cells if hasattr(self, "_n_cells") else self.diag_inv.shape[0]
+        total = vec_hat.numel()
+        if (total % n) != 0:
+            raise ValueError("CPR.apply_hat: vec length is not multiple of n_cells")
+        vpc = total // n
+        if vpc not in (2, 3):
+            raise ValueError(f"CPR.apply_hat: expected 2 or 3 vars/cell, got {vpc}")
+
+        device, dtype = vec_hat.device, vec_hat.dtype
+        r_p  = torch.nan_to_num(vec_hat[:n], nan=0.0, posinf=0.0, neginf=0.0)
+        r_sw = torch.nan_to_num(vec_hat[n:2*n], nan=0.0, posinf=0.0, neginf=0.0)
+        r_sg = torch.nan_to_num(vec_hat[2*n:3*n], nan=0.0, posinf=0.0, neginf=0.0) if vpc == 3 else None
+
+        # Диагонали S и связь p→s
+        diag_sw, diag_sg = self._diag_Ass_hat(n, device, dtype, has_gas=(vpc==3))
+        Ksw_hat = self._K_sp_hat(n, device, dtype, phase="w")
+        Ksg_hat = self._K_sp_hat(n, device, dtype, phase="g") if vpc == 3 else None
+        try:
+            itn = int(getattr(self.simulator, "_newton_it", 0))
+        except Exception:
+            itn = 0
+        beta_sched = [0.5, 0.7, 0.85]
+        beta = beta_sched[itn] if itn < len(beta_sched) else 0.9
+        Ksw_eff = self._clip_coupling(Ksw_hat, diag_sw, beta)
+        Ksg_eff = self._clip_coupling(Ksg_hat, diag_sg, beta) if (vpc == 3 and Ksg_hat is not None and diag_sg is not None) else None
+
+        # F1: давление через GeoSolverV2 (zero-mean RHS + центрирование результата)
+        z_p1 = self._pressure_solve_hat(r_p, cycles=1)
+
+        # P: насыщенности
+        r_sw_corr = r_sw - Ksw_eff * z_p1
+        z_sw = r_sw_corr / (diag_sw + 1e-30)
+        if vpc == 3:
+            if Ksg_eff is not None and r_sg is not None:
+                r_sg_corr = r_sg - Ksg_eff * z_p1
+            else:
+                r_sg_corr = r_sg
+            diag_sg_safe = (diag_sg if diag_sg is not None else torch.ones_like(r_sw))
+            z_sg = r_sg_corr / (diag_sg_safe + 1e-30)
+        else:
+            z_sg = None
+        z_sw = torch.clamp(z_sw, -0.05, 0.05)
+        if z_sg is not None:
+            z_sg = torch.clamp(z_sg, -0.05, 0.05)
+
+        # F2: давление ещё раз
+        A_p = self._ensure_Ap_hat(device, torch.float32)
+        App_zp1 = self._torch_csr_mv(A_p, z_p1.to(torch.float32)).to(dtype)
+        r_p2 = r_p - App_zp1
+        include_Aps = False
+        if include_Aps:
+            gamma_ps = 0.2
+            corr_ps = gamma_ps * (Ksw_eff * z_sw)
+            if vpc == 3 and z_sg is not None and Ksg_eff is not None:
+                corr_ps = corr_ps + gamma_ps * (Ksg_eff * z_sg)
+            r_p2 = r_p2 - corr_ps
+        z_p2 = self._pressure_solve_hat(r_p2, cycles=1)
+
+        out = torch.zeros_like(vec_hat)
+        out[:n] = z_p1 + z_p2
+        out[n:2*n] = z_sw
+        if vpc == 3 and z_sg is not None:
+            out[2*n:3*n] = z_sg
+        out = torch.nan_to_num(out, nan=0.0, posinf=0.0, neginf=0.0)
+        try:
+            rp2 = float(r_p.norm().item()); dp2 = float(out[:n].norm().item()); dpinf = float(out[:n].abs().max().item())
+            print(f"[CPR geo2/FPF] ||r_p||2={rp2:.3e}, ||δp||2={dp2:.3e}, ||δp||inf={dpinf:.3e}, "
+                  f"diag_sw[min,med,max]=({diag_sw.min().item():.2e},{diag_sw.median().item():.2e},{diag_sw.max().item():.2e}), "
+                  f"Ksw[min,med,max]=({Ksw_eff.min().item():.2e},{Ksw_eff.median().item():.2e},{Ksw_eff.max().item():.2e})")
+        except Exception:
+            pass
+        return out
+
     def apply(self, vec: torch.Tensor) -> torch.Tensor:
         """
         CPR preconditioner application.
@@ -803,6 +984,9 @@ class CPRPreconditioner:
         vec_hat: [P | Sw | (Sg)] в hat.
         Возвращает delta_hat той же длины.
         """
+        # Новый путь: чистый FPF на GeoSolverV2 в hat
+        if self.backend == "geo2":
+            return self.apply_hat_geo2_fpf(vec_hat)
         if self.backend != "geo2":
             # для остальных бэкендов оставляем старую apply (ниже), которая сама делает phys↔hat
             # но чтобы не ломать вызовы, поддержим прозрачно:

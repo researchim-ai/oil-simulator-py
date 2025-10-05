@@ -4,19 +4,25 @@ from typing import Tuple
 
 
 def _apply_poisson(x: torch.Tensor, hx: float, hy: float, hz: float) -> torch.Tensor:
-    """Applies 7-point Poisson stencil to 3-D field x with grid steps h*."""
-    # periodic = False, homogeneous Neumann at boundary (zero flux): we simply skip outside points
-    scale_x = 1.0 / (hx * hx)
-    scale_y = 1.0 / (hy * hy)
-    scale_z = 1.0 / (hz * hz)
+    """Applies 7-point Poisson stencil to 3-D field x with homogeneous Neumann BC.
 
-    r = (
-        -2.0 * (scale_x + scale_y + scale_z) * x
-        + scale_x * (torch.roll(x, shifts=1, dims=2) + torch.roll(x, shifts=-1, dims=2))
-        + scale_y * (torch.roll(x, shifts=1, dims=1) + torch.roll(x, shifts=-1, dims=1))
-        + scale_z * (torch.roll(x, shifts=1, dims=0) + torch.roll(x, shifts=-1, dims=0))
-    )
-    return -r  # без масштабирования; A_scale применяется только в методах класса
+    Реализуем дискретный оператор -div(grad x) c нулевым потоком на границах,
+    без периодизации (не используем torch.roll)."""
+    sx = 1.0 / (hx * hx)
+    sy = 1.0 / (hy * hy)
+    sz = 1.0 / (hz * hz)
+
+    y = torch.zeros_like(x)
+    # X-direction neighbors
+    y[..., 1:]  += sx * (x[..., 1:]  - x[..., :-1])
+    y[..., :-1] += sx * (x[..., :-1] - x[..., 1:])
+    # Y-direction neighbors
+    y[:, 1:, :]  += sy * (x[:, 1:, :]  - x[:, :-1, :])
+    y[:, :-1, :] += sy * (x[:, :-1, :] - x[:, 1:, :])
+    # Z-direction neighbors
+    y[1:, :, :]  += sz * (x[1:, :, :]  - x[:-1, :, :])
+    y[:-1, :, :] += sz * (x[:-1, :, :] - x[1:, :, :])
+    return y
 
 
 def _jacobi_relax(x: torch.Tensor, b: torch.Tensor, hx: float, hy: float, hz: float,
@@ -72,17 +78,22 @@ def _v_cycle(level: int, x: torch.Tensor, b: torch.Tensor, hx: float, hy: float,
 
 def mg_solve(b: torch.Tensor, hx: float = 1.0, hy: float = 1.0, hz: float = 1.0,
              cycles: int = 4, max_levels: int = 10, omega: float = 0.8,
-             pre: int = 2, post: int = 2, device: str = "cuda") -> Tuple[torch.Tensor, float]:
+             pre: int = 2, post: int = 2, device: str | None = None) -> Tuple[torch.Tensor, float]:
     """Solves Poisson equation A x = b with homogeneous Neumann BC using geometric multigrid.
 
     Returns (x, final_residual_norm)."""
-    x = torch.zeros_like(b, device=device)
+    device = device or ("cuda" if torch.cuda.is_available() else "cpu")
+    x = torch.zeros_like(b).to(device)
     b = b.to(device)
+    # Проекция RHS на подпространство нулевого среднего (Neumann → сингулярный A)
+    b = b - b.mean()
     hx = float(hx); hy = float(hy); hz = float(hz)
 
     for _ in range(cycles):
         x = _v_cycle(0, x, b, hx, hy, hz, max_levels, omega, pre, post)
     res = torch.norm(b - _apply_poisson(x, hx, hy, hz)).item()
+    # Уберём среднее из решения (без влияния на градиент)
+    x = x - x.mean()
     return x, res 
 
 
@@ -364,11 +375,13 @@ class GeoSolver:
         for _ in range(iters):
             # red sweep
             r = b - self._apply_A(x, lvl=lvl_idx)
-            x = x + omega * (r / diag) * mask_red
+            upd = omega * (r / diag)
+            x[mask_red] = x[mask_red] + upd[mask_red]
 
             # black sweep
             r = b - self._apply_A(x, lvl=lvl_idx)
-            x = x + omega * (r / diag) * mask_blk
+            upd = omega * (r / diag)
+            x[mask_blk] = x[mask_blk] + upd[mask_blk]
         return x
 
     # ------------------ Chebyshev (polynomial) ------------------------------

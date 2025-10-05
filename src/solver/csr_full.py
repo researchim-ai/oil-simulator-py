@@ -24,12 +24,11 @@ def assemble_full_csr(indptr_p: np.ndarray,
     block = vars_per_cell
     N_full = n * block
 
-    # Давление блок переносим без изменений
+    # Давление блок переносим без изменений; места достаточно под диагонали S/T
     indptr_full = np.zeros(N_full + 1, dtype=np.int64)
-    # предварительная оценка nnz: block*nnz_p + n  (saturation diag)
-    nnz_est = indices_p.size * block + n
-    indices_full = np.empty(nnz_est, dtype=np.int32)
-    data_full = np.empty(nnz_est, dtype=np.float32)
+    nnz_est = indices_p.size + n * (block - 1)
+    indices_full = np.empty(nnz_est, dtype=np.int64)
+    data_full = np.empty(nnz_est, dtype=np.float64)
 
     pos = 0
     for cell in range(n):
@@ -42,7 +41,7 @@ def assemble_full_csr(indptr_p: np.ndarray,
             indices_full[pos] = col_p
             data_full[pos] = data_p[j]
             pos += 1
-        indptr_full[row_p + 1] = pos  # заполнится далее
+        indptr_full[row_p + 1] = pos
 
         # S-строка: только диагональный элемент (упрощённо)
         row_s = row_p + 1
@@ -52,13 +51,17 @@ def assemble_full_csr(indptr_p: np.ndarray,
         pos += 1
         indptr_full[row_s + 1] = pos
 
+        if block == 3:
+            # T-строка (третья переменная): только диагональный элемент
+            row_t = row_p + 2
+            indptr_full[row_t] = pos
+            indices_full[pos] = row_t
+            data_full[pos] = diag_sat
+            pos += 1
+            indptr_full[row_t + 1] = pos
+
     # обрезаем массивы
     indices_full = indices_full[:pos]
     data_full = data_full[:pos]
-
-    # заполняем хвост indptr
-    for i in range(block * n + 1):
-        if indptr_full[i] == 0 and i > 0:
-            indptr_full[i] = indptr_full[i - 1]
 
     return indptr_full, indices_full, data_full 

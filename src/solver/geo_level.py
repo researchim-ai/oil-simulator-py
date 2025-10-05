@@ -24,8 +24,8 @@ def _harmonic(a: torch.Tensor, b: torch.Tensor, eps: float = 1e-12) -> torch.Ten
     return 2.0 * a * b / (a + b + eps)
 
 def build_level_csr(kx: torch.Tensor, ky: torch.Tensor, kz: torch.Tensor | None,
-                     hx: float, hy: float, hz: float, *, device: str = "cuda") -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
-    """Возвращает indptr, indices, data (CPU numpy) CSR оператора.
+                     hx: float, hy: float, hz: float) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+    """Возвращает indptr, indices, data как torch‑тензоры (CPU); перенос на device делается снаружи.
 
     kx, ky, kz – тензоры (nz, ny, nx), float64.  kz может быть None для 2-D.
     hx, hy, hz – размеры ячейки.
@@ -38,10 +38,15 @@ def build_level_csr(kx: torch.Tensor, ky: torch.Tensor, kz: torch.Tensor | None,
     else:
         Tz = None
 
-    indptr, indices, data = build_7pt_csr(Tx.cpu().numpy(), Ty.cpu().numpy(),
-                                          Tz.cpu().numpy() if Tz is not None else None,
-                                          kx.shape[2], kx.shape[1], kx.shape[0])
-    # build_7pt_csr уже возвращает torch tensors; передаём их дальше
+    indptr, indices, data = build_7pt_csr(
+        Tx.cpu().numpy(), Ty.cpu().numpy(),
+        Tz.cpu().numpy() if Tz is not None else None,
+        kx.shape[2], kx.shape[1], kx.shape[0]
+    )
+    if not torch.is_tensor(indptr):
+        indptr  = torch.as_tensor(indptr,  dtype=torch.int64)
+        indices = torch.as_tensor(indices, dtype=torch.int64)
+        data    = torch.as_tensor(data,    dtype=torch.float64)
     return indptr, indices, data
 
 def build_level_from_csr(A_csr: torch.Tensor,
@@ -55,8 +60,8 @@ def build_level_from_csr(A_csr: torch.Tensor,
 
     lvl = object.__new__(GeoLevel)   # обходим __init__
     lvl.kx = torch.zeros(nz, ny, nx, dtype=torch.float64, device=device)
-    lvl.ky = lvl.kx
-    lvl.kz = lvl.kx
+    lvl.ky = torch.zeros_like(lvl.kx)
+    lvl.kz = torch.zeros_like(lvl.kx)
     lvl.hx, lvl.hy, lvl.hz = float(hx), float(hy), float(hz)
     lvl.device = device
 
@@ -119,14 +124,38 @@ class GeoLevel:  # noqa: D101
         # diag и inv-sqrt(diag) для эквилибрации
         vals = self.A_csr.values()
         crow = self.A_csr.crow_indices()
-        # Индексы диагонали в CSR (векторизованно, без Python‑цикла)
-        n_rows = crow.numel() - 1
+        # Безопасный поиск диагонали: если строки без диагонали – аккуратно чиним
+        n_rows = int(crow.numel() - 1)
         row_idx = torch.repeat_interleave(torch.arange(n_rows, device=col.device), crow[1:] - crow[:-1])
-        mask = (col == row_idx)
-        pos_all = torch.nonzero(mask, as_tuple=False).squeeze(1)
-        rows = row_idx[pos_all]
-        diag_idx = torch.empty(n_rows, dtype=torch.int64, device=col.device)
-        diag_idx[rows] = pos_all
+        pos_all = torch.nonzero(col == row_idx, as_tuple=False).squeeze(1)
+        diag_idx = torch.full((n_rows,), -1, dtype=torch.int64, device=col.device)
+        if pos_all.numel() > 0:
+            rows = row_idx[pos_all]
+            diag_idx[rows] = pos_all
+
+        if (diag_idx < 0).any():
+            miss = torch.nonzero(diag_idx < 0, as_tuple=False).squeeze(1)
+            for i in miss.tolist():
+                s = int(crow[i].item()); e = int(crow[i+1].item())
+                if e == s:
+                    raise RuntimeError(f"Empty CSR row {i} — add diagonal before building GeoLevel")
+                # Мягкая починка диагонали без зануления строки
+                row_slice = slice(s, e)
+                row_abs = vals[row_slice].abs()
+                rel = torch.nonzero(col[row_slice] == i, as_tuple=False)
+                if rel.numel():
+                    j = s + int(rel[0])
+                    # поднимем до безопасного уровня, но не обнуляя связи
+                    safe_min = torch.clamp(row_abs.sum() * 1e-12, min=torch.tensor(1e-30, device=vals.device, dtype=vals.dtype))
+                    vals[j] = torch.sign(vals[j]) * torch.clamp(vals[j].abs(), min=safe_min)
+                    diag_idx[i] = j
+                else:
+                    # перепрофилируем наименее значимый элемент под диагональ
+                    k_rel = int(torch.argmin(row_abs).item())
+                    j = s + k_rel
+                    col[j] = i
+                    vals[j] = torch.clamp(row_abs.sum(), min=torch.tensor(1e-30, device=vals.device, dtype=vals.dtype))
+                    diag_idx[i] = j
 
 
 
@@ -158,6 +187,7 @@ class GeoLevel:  # noqa: D101
         row_idx = torch.repeat_interleave(torch.arange(self.diag.numel(), device=device), row_counts)
         row_abs_sum = torch.zeros_like(self.diag)
         row_abs_sum.index_add_(0, row_idx, vals.abs())
+        self.row_abs_sum = row_abs_sum
 
         # ---- Изолированные строки: Σ|A_ij| < 1e-8 -----------------------
 
@@ -172,6 +202,19 @@ class GeoLevel:  # noqa: D101
         self.inv_l1 = 1.0 / safe_sum
         # Jacobi не должен менять изолированные ячейки
         self.inv_l1[iso_mask] = 0.0
+
+        # -------- Гибридная диагональ релаксации (L1-Jacobi / diag) ----
+        # Если диагональ доминирует: invD = 1/|A_ii|, иначе 1/Σ|A_ij|
+        tau = 0.2
+        diag_abs = self.diag
+        off_sum = (row_abs_sum - diag_abs).clamp_min(0.0)
+        use_diag = diag_abs >= tau * off_sum
+        invD = torch.empty_like(diag_abs)
+        invD[use_diag] = 1.0 / diag_abs[use_diag].clamp_min(1e-30)
+        invD[~use_diag] = 1.0 / row_abs_sum[~use_diag].clamp_min(1e-30)
+        invD[iso_mask] = 0.0
+        # Позволим релаксации быть сильнее единицы для слабозаселённых строк
+        self.inv_relax = invD.clamp_max(4.0)
 
         if os.environ.get("OIL_DEBUG", "0") == "1":
             n_iso = iso_mask.sum().item()
