@@ -94,7 +94,14 @@ def compute_cell_props(sim, x_hat: torch.Tensor, dt_sec: float) -> Dict[str, tor
     else:
         c_g = None
 
-    c_t = c_w + c_o + (c_g if c_g is not None else 0.0) + c_r
+    # Взвешенная насыщенностями суммарная сжимаемость (для CPR coarse)
+    sw_flat = s_w.reshape(-1)
+    so_flat = s_o.reshape(-1)
+    if s_g is not None:
+        sg_flat = s_g.reshape(-1)
+        c_t = sw_flat * c_w + so_flat * c_o + sg_flat * c_g + c_r
+    else:
+        c_t = sw_flat * c_w + so_flat * c_o + c_r
 
     # ------------------------------------------------------------------
     # Сборка выходного словаря

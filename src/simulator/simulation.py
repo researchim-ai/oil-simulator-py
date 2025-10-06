@@ -3,7 +3,7 @@ import json
 import numpy as np
 import matplotlib.pyplot as plt
 from scipy.sparse import csc_matrix, diags, bmat, csr_matrix, identity
-from scipy.sparse.linalg import cg, LinearOperator, bicgstab, spsolve, gmres, spilu
+from scipy.sparse.linalg import cg, LinearOperator, bicgstab, spsolve, gmres as gmres_scipy, spilu
 import time
 import os
 import datetime
@@ -169,31 +169,19 @@ class Simulator:
         else:
             raise ValueError(f"Неизвестный тип solver: {solver_type}/{jacobian_type}. Доступны: impes, jfnk, autograd")
 
-    def _create_autograd_solver(self):
-        """Заглушка для совместимости с конфигами jacobian_type==autograd."""
-        return None
-            
+        # ---- финальная инициализация, ранее находившаяся после return в _create_autograd_solver ----
         print(f"Solver инициализирован: {solver_type}/{jacobian_type}")
 
-        # --------------------------------------------------------------
-        # Контроль масс-баланса: считаем начальную массу всех фаз.
-        # --------------------------------------------------------------
+        # Контроль масс-баланса: начальная масса
         try:
             self._initial_mass = self._compute_total_mass().item()
         except Exception:
             self._initial_mass = None
 
-        # --------------------------------------------------------------
         # Масштаб давления для балансировки уравнений
-        # --------------------------------------------------------------
-        # По-умолчанию берём инверсию p_scale (1/1e6) – соответствует
-        # прежнему «ручному» весу, но теперь явно задаётся.
-        # В объёмной формуле FI давление и насыщенность должны иметь сопоставимые масштабы.
-        # Искусственное занижение давления ломает баланс. По умолчанию = 1.0.
         self.pressure_weight = self.sim_params.get('pressure_weight', 1.0)
 
-        dt_sec = self.dt
-        # -------- PID контроллер шага времени (опционально) ----------
+        # PID-контроллер шага времени (опционально)
         pid_cfg = self.sim_params.get("pid", None)
         if pid_cfg is not None:
             from utils import PIDController
@@ -202,11 +190,14 @@ class Simulator:
                                       kd=pid_cfg.get("kd", 0.0),
                                       dt_min=pid_cfg.get("dt_min", 3600.0),
                                       dt_max=pid_cfg.get("dt_max", 86400.0 * 10))
-            # Сколько итераций Ньютона считаем «идеальным»
             self._pid_target_iter = pid_cfg.get("target_iter", 3.0)
         else:
             self._pid = None
             self._pid_target_iter = 3.0
+
+    def _create_autograd_solver(self):
+        """Заглушка для совместимости с конфигами jacobian_type==autograd."""
+        return None
 
     def _setup_logging(self):
         """Настройка логирования с контролем вывода (без рекурсии)"""

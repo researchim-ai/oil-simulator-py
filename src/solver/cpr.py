@@ -1015,6 +1015,8 @@ class CPRPreconditioner:
         # ------ Stage-1: давление через GeoSolverV2 в global-hat (без доп. масштабирования) ------
         if hasattr(self, "solver") and self.solver is not None:
             try:
+                # Убедимся, что в AMG прилетает корректный hat‑масштаб (S·(W·b_phys))
+                # Здесь r_p_hat уже в глобальном hat‑пространстве; просто зовём apply_prec_hat
                 delta_p_hat = self.solver.apply_prec_hat(r_p_hat, cycles=1)
             except Exception as e:
                 print(f"[CPR geo2] GeoSolverV2.apply_prec_hat failed: {e} — using Jacobi fallback")

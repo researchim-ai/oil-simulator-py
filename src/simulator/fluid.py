@@ -130,9 +130,14 @@ class Fluid:
         self.pressure_ref = float(getattr(reservoir, 'pressure_ref', 1e5))
         print(f"🔧 Опорное давление для плотности: {self.pressure_ref:.0f} Па ({self.pressure_ref/1e6:.1f} МПа)")
         
-        # Совокупная сжимаемость флюида (используется в IMPES)
-        total_c = (self.oil_compressibility + self.water_compressibility + self.gas_compressibility + self.rock_compressibility) / 2
-        self.cf = torch.full(self.dimensions, total_c, device=self.device)
+        # Совокупная сжимаемость на стартовом состоянии:
+        # c_t0 = So*c_o + Sw*c_w + Sg*c_g + c_rock
+        so0 = 1.0 - initial_sw - initial_sg
+        c_t0 = (so0 * self.oil_compressibility
+                + initial_sw * self.water_compressibility
+                + initial_sg * self.gas_compressibility
+                + self.rock_compressibility)
+        self.cf = torch.full(self.dimensions, c_t0, device=self.device)
         
         # Параметры модели относительной проницаемости
         rp_cfg = config.get('relative_permeability', {})
@@ -237,22 +242,18 @@ class Fluid:
         """Плотность газа при текущем давлении"""
         return self.calc_gas_density(self.pressure)
 
-    def _get_normalized_saturation(self, s_w):
+    def _normalized_sw_and_derivative(self, s_w):
         """
-        Вычисляет нормализованную водонасыщенность с мягкими градиентами.
+        Возвращает (s_norm, ds_norm/dSw) для плавной (сигмоидальной) нормировки.
         """
-        # ИСПРАВЛЕНО: более мягкий переход для стабильных градиентов
-        eps = 0.02  # более мягкий переход чем 1e-1
-
-        # Нормализуем в исходный диапазон [0,1]
-        s_norm_raw = (s_w - self.sw_cr) / (1 - self.sw_cr - self.so_r + 1e-10)
-
-        # ИСПРАВЛЕНО: используем более стабильную сигмоидальную функцию
-        # Ограничиваем входные значения для избежания overflow
-        sigmoid_input = torch.clamp((s_norm_raw - 0.5) / eps, -10.0, 10.0)
-        s_norm = torch.sigmoid(sigmoid_input)
-
-        return s_norm
+        eps = 0.02
+        denom = (1 - self.sw_cr - self.so_r + 1e-12)
+        s_norm_raw = (s_w - self.sw_cr) / denom
+        x = torch.clamp((s_norm_raw - 0.5) / eps, -10.0, 10.0)
+        s_norm = torch.sigmoid(x)
+        # dsigmoid/dx = s*(1-s); dx/dSw = (1/eps)*(1/denom)
+        ds_norm_dsw = s_norm * (1.0 - s_norm) * (1.0/eps) * (1.0/denom)
+        return s_norm, ds_norm_dsw
 
     def get_rel_perms(self, s_w):
         """
@@ -287,7 +288,7 @@ class Fluid:
         if self.pc_scale == 0.0:
             return torch.zeros_like(s_w)
 
-        s_norm = self._get_normalized_saturation(s_w)
+        s_norm, _ = self._normalized_sw_and_derivative(s_w)
 
         # --- Drainage curve (baseline) ---------------------------------
         pc_drain = self.pc_scale * (1.0 - s_norm + 1e-6) ** (-self.pc_exponent)
@@ -307,12 +308,11 @@ class Fluid:
         if self.pc_scale == 0.0:
             return torch.zeros_like(s_w)
 
-        s_norm = self._get_normalized_saturation(s_w)
-        dsw_norm_dsw = 1 / (1 - self.sw_cr - self.so_r)
+        s_norm, ds_norm_dsw = self._normalized_sw_and_derivative(s_w)
 
         # Drainage derivative (with negative sign)
         dpc_dsn = -self.pc_scale * self.pc_exponent * (1.0 - s_norm + 1e-6) ** (-self.pc_exponent - 1)
-        dpc_dsw_drain = dpc_dsn * dsw_norm_dsw
+        dpc_dsw_drain = dpc_dsn * ds_norm_dsw
 
         # Land factor and its derivative
         land_factor = torch.clamp((1.0 - self.sw_max) / (1.0 - s_w + 1e-6), 0.0, 1.0)

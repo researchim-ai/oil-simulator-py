@@ -168,8 +168,19 @@ class GeoLevel:  # noqa: D101
         #  порог до 1e-20 (≈ машинный эпсилон для float64) либо, что лучше,
         #  используем относительный: <1e-12 * median(|diag|).
         dmed = diag_vals.median()
-        thr = torch.clamp(1e-6 * dmed, min=1e-30)
-        zero_mask = diag_vals < thr
+        # Аккуратный порог: минимум из 1e-6*median и 1‑го перцентиля,
+        # и только для действительно «тонких» строк по L1‑норме
+        p1 = torch.quantile(diag_vals, 0.01)
+        thr = torch.clamp(torch.minimum(1e-6 * dmed, p1), min=torch.tensor(1e-30, device=diag_vals.device, dtype=diag_vals.dtype))
+        # Требуем одновременно малую диагональ и малую L1‑сумму строки
+        row_abs_sum = self.row_abs_sum if hasattr(self, 'row_abs_sum') else None
+        if row_abs_sum is None:
+            row_counts = crow[1:] - crow[:-1]
+            row_idx = torch.repeat_interleave(torch.arange(int(crow.numel()-1), device=vals.device), row_counts)
+            row_abs_sum = torch.zeros_like(diag_vals)
+            row_abs_sum.index_add_(0, row_idx, vals.abs())
+        l1med = row_abs_sum.median().clamp_min(torch.tensor(1e-30, device=row_abs_sum.device, dtype=row_abs_sum.dtype))
+        zero_mask = (diag_vals < thr) & (row_abs_sum < 1e-12 * l1med)
 
         if zero_mask.any():
             # Задаём A_ii = 1, off-diag оставляем как есть (они уже ~0)

@@ -120,6 +120,7 @@ def build_R_csr(P, child_cnt, *, weights: torch.Tensor | None = None,
             w_child = w_child.pow(gamma)
         denom = torch.zeros(P.shape[1], device=P.device, dtype=vals.dtype)
         denom.index_add_(0, coarse, w_child)
+        denom = torch.clamp(denom, min=1e-30)
         w = (w_child / denom[coarse]) * vals
     else:
         cnt = child_cnt[coarse].to(vals.dtype).clamp_min(1.0)
@@ -229,7 +230,10 @@ class GeoSolverV2:
                  restrict_mode: str = "weighted",
                  semicoarsen: bool = True,
                  kcycle: bool = True,
-                 cheby_kappa: float = 80.0):
+                 cheby_kappa: float = 80.0,
+                 smooth_prolong: bool = True,
+                 prolong_omega: float = 0.67,
+                 prolong_sweeps: int = 1):
         self.device = device or ("cuda" if torch.cuda.is_available() else "cpu")
         self.omega = float(omega)
         self.cycle_type = cycle_type.upper()
@@ -259,6 +263,17 @@ class GeoSolverV2:
             self.restrict_gamma = 1.5
         self.project_const = True
         self._rho_hist: dict[int, float] = {}
+        # Smoothed prolongation (on-the-fly SA)
+        self.smooth_prolong = bool(smooth_prolong)
+        self.prolong_omega = float(prolong_omega)
+        self.prolong_sweeps = int(max(1, prolong_sweeps))
+
+        # Если активен левый row-scale (по умолчанию да) — Chebyshev может быть нестабилен.
+        # Переведём сглаживатель на RBGS по умолчанию.
+        if self.smoother_fine == "chebyshev":
+            if os.environ.get("OIL_DEBUG", "0") == "1":
+                print("[geo2] Chebyshev отключён (левый row-scale ломает SPD). Переключаемся на RBGS.")
+            self.smoother_fine = "rbgs"
 
 
         # Режим подробного лога (env OIL_DEBUG=1 или явный debug=True)
@@ -357,9 +372,12 @@ class GeoSolverV2:
 
         diag_final = vals[diag_idx_tmp].abs().clone()
         base_lvl.diag = diag_final  # теперь diag ≈ 1
+        # сохраним «физическую» диагональ до симм‑масштаба для последующих весов/anchor
+        base_lvl.diag_phys = diag_tmp.clone()
 
         # === PIN null mode AFTER equilibration ===
-        self.anchor_fine = int(base_lvl.diag.argmax().item())   # берем самую «жесткую» ячейку
+        # Anchor выбираем по «физической» диагонали ДО симм‑масштаба
+        self.anchor_fine = int(base_lvl.diag_phys.argmax().item())
         _pin_rowcol(base_lvl.A_csr, self.anchor_fine)
         base_lvl.anchor = self.anchor_fine
         base_lvl.diag[self.anchor_fine] = 1.0
@@ -505,16 +523,32 @@ class GeoSolverV2:
             row_abs_f.index_add_(0, ridx_f, val_f)
             fine_lvl.row_abs_sum = row_abs_f
 
-            # детектор вертикальной анизотропии и выбор полу-коарсенинга
-            try:
-                vert = (fine_lvl.a_up.abs() + fine_lvl.a_dn.abs()).sum()
-                tot = row_abs_f.sum().clamp_min(1e-30)
-                vert_ratio = float((vert / tot).item())
-            except Exception:
-                vert_ratio = 0.0
-            use_semi = self.semicoarsen and (nz_f >= 3) and (vert_ratio > 0.6)
-            coarsen = (1, 2, 2) if use_semi else (2, 2, 2)
-            fine_lvl.use_line = use_semi
+            # Анизотропно-осознанный выбор оси для semi-coarsening
+            stride_x, stride_y, stride_z = 1, nx_f, nx_f * ny_f
+            crow_f = fine_lvl.A_csr.crow_indices()
+            col_f  = fine_lvl.A_csr.col_indices()
+            val_fa = fine_lvl.A_csr.values().abs()
+            rc_f   = crow_f[1:] - crow_f[:-1]
+            ridx_f = torch.repeat_interleave(torch.arange(rc_f.numel(), device=self.device), rc_f)
+            diff   = (col_f - ridx_f).abs()
+            sum_x  = val_fa[(diff == stride_x)].sum()
+            sum_y  = val_fa[(diff == stride_y)].sum()
+            sum_z  = val_fa[(diff == stride_z)].sum()
+            tot    = row_abs_f.sum().clamp_min(1e-30)
+            rx, ry, rz = float((sum_x/tot).item()), float((sum_y/tot).item()), float((sum_z/tot).item())
+            axis = max((rx,'x'), (ry,'y'), (rz,'z'))[1]
+            thr  = 0.55
+            use_semi = self.semicoarsen and ((axis=='z' and rz>thr and nz_f>=3) or
+                                             (axis=='y' and ry>thr and ny_f>=3) or
+                                             (axis=='x' and rx>thr and nx_f>=3))
+            if use_semi:
+                coarsen = (1, 2, 2) if axis == 'z' else ((2, 1, 2) if axis == 'y' else (2, 2, 1))
+            else:
+                coarsen = (2, 2, 2)
+            # line-GS пока только по z
+            fine_lvl.use_line = use_semi and (axis == 'z')
+            if os.environ.get('OIL_DEBUG','0') == '1':
+                print(f"[ANISO] rx={rx:.2f} ry={ry:.2f} rz={rz:.2f} → coarsen={coarsen}")
 
             # 1) строим маппинг (с учётом выбранного coarsen)
             P, parent_idx, n_c, child_cnt, shape_c = build_P_csr((nz_f, ny_f, nx_f), self.device, coarsen=coarsen)
@@ -531,25 +565,28 @@ class GeoSolverV2:
                 break
 
             # если прошли проверки — строим R (weighted/uniform) и сохраняем операторы
+            # Энергетические веса: Σ_j |A_ij| (если есть), иначе phys‑diag на L0
             weights_row = getattr(fine_lvl, 'row_abs_sum', None)
-            # Fallback для weighted при отсутствии weights_row
-            restrict_mode = getattr(self, 'restrict_mode', 'uniform')
-            if restrict_mode == 'weighted' and (weights_row is None):
-                if os.environ.get('OIL_DEBUG','0') == '1':
-                    print("[R] weights=None → fallback to uniform")
-                restrict_mode = 'uniform'
-            R = build_R_csr(P, child_cnt, weights=weights_row, mode=restrict_mode, gamma=getattr(self, 'restrict_gamma', 1.5))
+            if weights_row is None:
+                weights_row = getattr(fine_lvl, 'diag_phys', None)
+            # gamma берём из self.restrict_gamma (можно задавать через env GEO_R_GAMMA)
+            R_w = build_R_csr(P, child_cnt, weights=weights_row, mode='weighted', gamma=getattr(self, 'restrict_gamma', 1.5))
+            R_u = build_R_csr(P, child_cnt, weights=None,       mode='uniform')
             fine_lvl.P = P
-            fine_lvl.R = R         
+            fine_lvl.R_weighted = R_w
+            fine_lvl.R_uniform  = R_u
+            fine_lvl.R = R_w         
 
             # 2) RAP
-            rap_mode = getattr(self, 'restrict_mode', 'uniform')
+            rap_mode = 'weighted' if (weights_row is not None) else 'uniform'
             if rap_mode == 'weighted' and (weights_row is None):
                 if os.environ.get('OIL_DEBUG','0') == '1':
                     print("[RAP] weights_row=None → fallback to uniform")
                 rap_mode = 'uniform'
             A_csr = rap_pc_const_gpu(fine_lvl.A_csr, parent_idx, n_c, child_cnt,
                                      weights_row=weights_row, mode=rap_mode)
+            # Мягкая починка диагонали на coarse после RAP
+            A_csr = self._ensure_csr_diagonal_(A_csr)
 
             # ---- CHECK RAP (без densify на больших N) ---------------------------------
             if self.debug and self.rap_check_debug:
@@ -622,7 +659,7 @@ class GeoSolverV2:
                     f"A[min,max]=({val.min():.3e},{val.max():.3e})")
 
 
-            # пересчёт inv_l1 после эквилибрирования
+            # пересчёт inv_l1 после эквилибрирования (относительный порог)
             crow = lvl.A_csr.crow_indices(); col = lvl.A_csr.col_indices(); vals = lvl.A_csr.values().abs()
             rc = crow[1:] - crow[:-1]
             ridx = torch.repeat_interleave(torch.arange(lvl.n_cells, device=self.device), rc)
@@ -634,11 +671,7 @@ class GeoSolverV2:
             thr_c = torch.clamp(1e-6 * med_c, min=torch.tensor(1e-30, device=row_abs.device))
             iso = row_abs < thr_c
             safe = row_abs.clone(); safe[iso] = 1.0
-            med_l = row_abs.median()
-            thr_l = torch.clamp(1e-6 * med_l, min=torch.tensor(1e-30, device=row_abs.device))
-            iso = row_abs < thr_l
-            safe = row_abs.clone(); safe[iso] = 1.0
-            lvl.inv_l1 = (1.0 / safe)
+            lvl.inv_l1 = 1.0 / safe
             lvl.inv_l1[iso] = 0.0
 
             # --- inv_relax для уровня lvl (после эквилибрирования) ---
@@ -762,6 +795,55 @@ class GeoSolverV2:
         P = self.levels[lvl_idx].P
         return torch.sparse.mm(P, e_c.view(-1, 1)).squeeze(1)
 
+    def _prolong_vec_smoothed(self, lvl_idx: int, e_c_hat: torch.Tensor) -> torch.Tensor:
+        """
+        Smoothed Aggregation пролонгация на лету:
+        1) e_f0_hat = D_f^{-1} · P · (D_c · e_c_hat)
+        2) e_f_hat  = e_f0_hat − ω · invD_f · (A_f · e_f0_hat) [× sweeps]
+        invD_f берём из inv_relax (L1-Jacobi surrogate).
+        """
+        lvl_f = self.levels[lvl_idx]
+        lvl_c = self.levels[lvl_idx + 1]
+        # Базовая P-инъекция с корректными межуровневыми масштабами
+        e_c_phys = lvl_c.D * e_c_hat
+        e_f_phys0 = self._prolong_vec(lvl_idx, e_c_phys)
+        e_f_hat = lvl_f.Dinv * e_f_phys0
+        invD = getattr(lvl_f, 'inv_relax', lvl_f.inv_l1)
+        for _ in range(self.prolong_sweeps):
+            Ae = self._apply_A(lvl_idx, e_f_hat)
+            e_f_hat = e_f_hat - self.prolong_omega * (invD * Ae)
+        # Нейтрализуем якорь для нулевого модуса
+        if hasattr(lvl_f, 'anchor'):
+            try:
+                e_f_hat[lvl_f.anchor] = 0.0
+            except Exception:
+                pass
+        return e_f_hat
+
+    @staticmethod
+    def _ensure_csr_diagonal_(A: torch.Tensor) -> torch.Tensor:
+        """Гарантирует наличие диагонали в каждой строке CSR. Мягко чинит при отсутствии.
+        Меняет только col/val, структуру indptr не трогает.
+        """
+        crow = A.crow_indices(); col = A.col_indices(); val = A.values()
+        n = int(crow.numel() - 1)
+        row_idx = torch.repeat_interleave(torch.arange(n, device=col.device), crow[1:] - crow[:-1])
+        pos_all = torch.nonzero(col == row_idx, as_tuple=False).squeeze(1)
+        has_diag = torch.zeros(n, device=col.device, dtype=torch.bool)
+        if pos_all.numel() > 0:
+            has_diag[row_idx[pos_all]] = True
+        miss = torch.nonzero(~has_diag, as_tuple=False).squeeze(1)
+        for i in miss.tolist():
+            s = int(crow[i].item()); e = int(crow[i+1].item())
+            if e == s:
+                continue  # пустая строка — оставим как есть
+            row_abs = val[s:e].abs()
+            jrel = int(torch.argmin(row_abs).item())
+            j = s + jrel
+            col[j] = i
+            val[j] = torch.clamp(row_abs.sum(), min=torch.tensor(1e-30, device=val.device, dtype=val.dtype))
+        return torch.sparse_csr_tensor(crow, col, val, size=A.size(), device=A.device, dtype=A.dtype)
+
     def _check_RAP(self, fine_lvl, Ac, parent_idx, child_cnt):
         # восстановим Ac_ref = R A_f P и сравним
         # Лёгкая RAP‑проверка без денсификации
@@ -788,7 +870,8 @@ class GeoSolverV2:
                 )
 
             # --- динамический clip только на самом тонком уровне ---
-            if init_clip is not None and lvl_idx == 0:
+            # пропускаем клип первые 2 итерации на L0, чтобы не душить апдейты
+            if init_clip is not None and lvl_idx == 0 and k >= 2:
                 dyn_clip = self.clip_kappa * (x.abs().max().item() + 1e-12)
                 clip_val = max(init_clip, dyn_clip)
                 x = torch.clamp(x, -clip_val, clip_val)
@@ -887,8 +970,8 @@ class GeoSolverV2:
                 print(f"[SMOOTH L{lvl_idx}] k={k} μ={mu.item():.3e} "
                     f"||r||₂_before={r_before.norm().item():.3e} after={r_after.norm().item():.3e}")
 
-            # dynamic clip only on finest
-            if init_clip is not None and lvl_idx == 0:
+            # dynamic clip only on finest — пропустим первые 2 итерации
+            if init_clip is not None and lvl_idx == 0 and k >= 2:
                 dyn_clip = self.clip_kappa * (x.abs().max() + 1e-12)
                 clip_val = torch.maximum(init_clip, dyn_clip)
                 # посчитаем до clamp:
@@ -1046,7 +1129,7 @@ class GeoSolverV2:
             x_sol = torch.linalg.solve(A, b_fix.view(-1, 1)).squeeze(1)
             return x_sol
         elif lvl.n_cells <= 5000:
-            # Улучшенный CSR-CG: гоним до относительного 1e-2 (не фикс. 20 итераций)
+            # Усилим coarse‑решатель: более строгий критерий 1e-3
             x_sol = torch.zeros_like(b_vec)
             invD = getattr(lvl, 'inv_relax', lvl.inv_l1)
             r = b_vec - self._apply_A(lvl_idx, x_sol)
@@ -1060,7 +1143,7 @@ class GeoSolverV2:
                 alpha = rz_old / denom
                 x_sol = x_sol + alpha * p
                 r = r - alpha * Ap
-                if r.norm() <= 1e-2 * r0:
+                if r.norm() <= 1e-3 * r0:
                     break
                 z = invD * r
                 rz_new = torch.dot(r, z)
@@ -1097,7 +1180,13 @@ class GeoSolverV2:
         # r_c_hat = S_c · R · (D_f · r_f_hat)
         lvl_f = self.levels[lvl_idx]
         lvl_c = self.levels[lvl_idx + 1]
-        r_c_vec = torch.sparse.mm(lvl_f.R, (lvl_f.D * r_pre).view(-1, 1)).squeeze(1)
+        # если пред-сглаживание слабо — можно использовать uniform рестрикцию
+        R_use = getattr(lvl_f, 'R_weighted', None)
+        if (mu_pre.item() > 0.85) and hasattr(lvl_f, 'R_uniform'):
+            R_use = lvl_f.R_uniform
+        if R_use is None:
+            R_use = lvl_f.R
+        r_c_vec = torch.sparse.mm(R_use, (lvl_f.D * r_pre).view(-1, 1)).squeeze(1)
         r_c_vec = lvl_c.Dinv * r_c_vec
         # обнуляем RHS в якорной ячейке coarse-уровня
         anc_c = lvl_c.anchor
@@ -1112,17 +1201,20 @@ class GeoSolverV2:
                 x_c_vec = self._v_cycle(lvl_idx + 1, x_c_vec, r_c_vec)
 
         # ---------- prolong с межуровневыми масштабами ----------
-        # corr_f_hat = S_f · P · (D_c · e_c_hat)
-        corr_phys_c = lvl_c.D * x_c_vec
-        corr_phys_f = self._prolong_vec(lvl_idx, corr_phys_c)
-        corr_vec = lvl_f.Dinv * corr_phys_f
+        # По умолчанию применяем сглаженную пролонгацию (on-the-fly SA)
+        if self.smooth_prolong and (lvl_idx < len(self.levels) - 1):
+            corr_vec = self._prolong_vec_smoothed(lvl_idx, x_c_vec)
+        else:
+            corr_phys_c = lvl_c.D * x_c_vec
+            corr_phys_f = self._prolong_vec(lvl_idx, corr_phys_c)
+            corr_vec = lvl_f.Dinv * corr_phys_f
 
-        # всегда берём резидуально-оптимальный шаг (минимизирует ||r - α A corr||)
+        # Энергетический шаг: α = (r, e) / (e, A e) — устойчивее при mismatch масштаба
         A_corr = self._apply_A(lvl_idx, corr_vec)
-        num = torch.dot(r_pre, A_corr)
-        den = torch.dot(A_corr, A_corr).clamp_min(1e-30)
+        num = torch.dot(r_pre, corr_vec)
+        den = torch.dot(corr_vec, A_corr).clamp_min(1e-30)
         alpha_unclamped = num / den
-        alpha = torch.clamp(alpha_unclamped, 0.0, 1.2)
+        alpha = torch.clamp(alpha_unclamped, 0.0, 2.5)
 
         # Диагностика геометрии шага: α*, cosθ, cap
         if debug_any or debug_top:
@@ -1171,12 +1263,15 @@ class GeoSolverV2:
             r_c2[lvl_c.anchor] = 0.0
             x_c2 = torch.zeros_like(r_c2)
             x_c2 = self._v_cycle(lvl_idx + 1, x_c2, r_c2)
-            corr2 = lvl_f.Dinv * self._prolong_vec(lvl_idx, (lvl_c.D * x_c2))
+            if self.smooth_prolong:
+                corr2 = self._prolong_vec_smoothed(lvl_idx, x_c2)
+            else:
+                corr2 = lvl_f.Dinv * self._prolong_vec(lvl_idx, (lvl_c.D * x_c2))
             A_corr2 = self._apply_A(lvl_idx, corr2)
-            num2 = torch.dot(r_mid, A_corr2)
-            den2 = torch.dot(A_corr2, A_corr2).clamp_min(1e-30)
+            num2 = torch.dot(r_mid, corr2)
+            den2 = torch.dot(corr2, A_corr2).clamp_min(1e-30)
             alpha2_unclamped = num2 / den2
-            alpha2 = torch.clamp(alpha2_unclamped, 0.0, 1.0)
+            alpha2 = torch.clamp(alpha2_unclamped, 0.0, 2.5)
             # Диагностика второго шага
             if debug_any or debug_top:
                 rt2 = num2
@@ -1202,11 +1297,14 @@ class GeoSolverV2:
             r_c3 = lvl_c.Dinv * r_c3
             r_c3[lvl_c.anchor] = 0.0
             x_c3 = self._v_cycle(lvl_idx + 1, torch.zeros_like(r_c3), r_c3)
-            corr3 = lvl_f.Dinv * self._prolong_vec(lvl_idx, (lvl_c.D * x_c3))
+            if self.smooth_prolong:
+                corr3 = self._prolong_vec_smoothed(lvl_idx, x_c3)
+            else:
+                corr3 = lvl_f.Dinv * self._prolong_vec(lvl_idx, (lvl_c.D * x_c3))
             A_corr3 = self._apply_A(lvl_idx, corr3)
             num3 = torch.dot(r_mid2, A_corr3)
             den3 = torch.dot(A_corr3, A_corr3).clamp_min(1e-30)
-            alpha3 = torch.clamp(num3 / den3, 0.0, 1.0)
+            alpha3 = torch.clamp(num3 / den3, 0.0, 2.0)
             x_vec = x_vec + alpha3 * corr3
 
         # ---------- post-smooth ----------
@@ -1368,8 +1466,8 @@ class GeoSolverV2:
         Оставь только если реально нужно.
         """
         rhs_phys = rhs_phys.to(device=self.device, dtype=torch.float64)
-        # В Phys→Hat добавочный W_rows не требуется для CPR-hat интерфейса
-        rhs_hat = self._to_hat(rhs_phys)
+        # Согласуем RHS с эквилибрированной матрицей: b̂ = S · (W_rows · b_phys)
+        rhs_hat = self._to_hat(self._left_scale_rhs(rhs_phys))
         rhs_hat[self.anchor_fine] = 0.0
 
         delta_hat = self.solve_hat(rhs_hat, tol=tol, max_iter=max_iter)
