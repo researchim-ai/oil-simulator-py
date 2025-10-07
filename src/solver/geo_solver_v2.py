@@ -104,11 +104,17 @@ def build_P_csr(shape_f, device, coarsen=(2, 2, 2)):
 
 
 def build_R_csr(P, child_cnt, *, weights: torch.Tensor | None = None,
-                mode: str = "uniform", gamma: float = 1.0):
+                mode: str = "galerkin", gamma: float = 1.0):
     """Restriction R = W · P^T:
-    - mode="uniform": W = diag(1/child_cnt)
+    - mode="galerkin": R = P^T (чистый Galerkin, сохраняет SPD)
+    - mode="uniform": W = diag(1/child_cnt) (Petrov-Galerkin)
     - mode="weighted": W = diag( w_child / sum_coarse(w_child) ), где w_child берём из `weights` (L1-сумма строки или |Aii|)
     """
+    # Режим galerkin: чистый R = P^T без весов
+    if mode == "galerkin":
+        return P.transpose(0, 1).to_sparse_csr()
+    
+    # Остальные режимы (для экспериментов, не рекомендуются для SPD)
     P_coo = P.to_sparse_coo()
     fine = P_coo.indices()[0]
     coarse = P_coo.indices()[1]
@@ -140,9 +146,15 @@ def rap_pc_const_gpu(Af_csr: torch.Tensor,
                      child_cnt,
                      *,
                      weights_row: torch.Tensor | None = None,
-                     mode: str = "uniform") -> torch.Tensor:
+                     mode: str = "galerkin") -> torch.Tensor:
     """
-    Ac = R Af P для piecewise-constant P и усредняющего R = diag(1/child_cnt) · Pᵀ.
+    Ac = R Af P для piecewise-constant P.
+    
+    Режимы:
+    - mode="galerkin": Ac = P^T Af P (чистая сумма, сохраняет SPD)
+    - mode="uniform": R = diag(1/child_cnt) · P^T (Petrov-Galerkin)
+    - mode="weighted": R с энергетическими весами (Petrov-Galerkin)
+    
     GPU: агрегируем строки/столбцы Af по parent_idx.
     """
     device = Af_csr.device
@@ -159,13 +171,18 @@ def rap_pc_const_gpu(Af_csr: torch.Tensor,
     I = parent_idx[row_f.long()]   # coarse row
     J = parent_idx[col.long()]     # coarse col
 
-    # вес из R по строке coarse I
-    if mode == "weighted" and weights_row is not None:
+    # выбор весов в зависимости от режима
+    if mode == "galerkin":
+        # Чистый Galerkin: просто суммируем без деления
+        w = val
+    elif mode == "weighted" and weights_row is not None:
+        # Weighted Petrov-Galerkin (не рекомендуется для SPD)
         w_child = weights_row[row_f.long()].to(val.dtype).clamp_min(1e-30)
         denom = torch.zeros(n_c, device=device, dtype=val.dtype)
         denom.index_add_(0, I, w_child)
         w = (w_child / denom[I]) * val
     else:
+        # Uniform Petrov-Galerkin (не рекомендуется для SPD)
         cntI = child_cnt[I].to(val.dtype).clamp_min(1.0)
         w = val / cntI
 
@@ -180,6 +197,18 @@ def rap_pc_const_gpu(Af_csr: torch.Tensor,
                                      size=Ac.size(), device=Ac.device, dtype=Ac.dtype)
     return Ac
 
+
+def _sym_err_l1(A: torch.Tensor) -> float:
+    """Вычисляет ||A - A^T||_1 / ||A||_1 корректно через COO."""
+    Acoo  = A.to_sparse_coo().coalesce()
+    ATcoo = A.transpose(0, 1).to_sparse_coo().coalesce()
+    # Склеиваем A и -A^T и коалесим
+    idx = torch.cat([Acoo.indices(), ATcoo.indices()], dim=1)
+    val = torch.cat([Acoo.values(), -ATcoo.values()])
+    diff = torch.sparse_coo_tensor(idx, val, size=A.size(), device=A.device, dtype=A.dtype).coalesce()
+    num = diff.values().abs().sum()
+    den = Acoo.values().abs().sum().clamp_min(1e-30)
+    return float((num/den).item())
 
 def _stats(name, x):
     import torch, numpy as np
@@ -564,37 +593,61 @@ class GeoSolverV2:
             if (child_cnt == 0).any():
                 break
 
-            # если прошли проверки — строим R (weighted/uniform) и сохраняем операторы
-            # Энергетические веса: Σ_j |A_ij| (если есть), иначе phys‑diag на L0
+            # === GALERKIN RAP: строим единый R = P^T для RAP и V-cycle ===
+            # Основной режим: чистый Galerkin (R = P^T)
+            R_galerkin = build_R_csr(P, child_cnt, mode='galerkin')
+            
+            # Сохраняем также weighted/uniform для экспериментов (но по умолчанию НЕ используем)
             weights_row = getattr(fine_lvl, 'row_abs_sum', None)
             if weights_row is None:
                 weights_row = getattr(fine_lvl, 'diag_phys', None)
-            # gamma берём из self.restrict_gamma (можно задавать через env GEO_R_GAMMA)
             R_w = build_R_csr(P, child_cnt, weights=weights_row, mode='weighted', gamma=getattr(self, 'restrict_gamma', 1.5))
-            R_u = build_R_csr(P, child_cnt, weights=None,       mode='uniform')
+            R_u = build_R_csr(P, child_cnt, weights=None, mode='uniform')
+            
+            # Назначаем операторы
             fine_lvl.P = P
-            fine_lvl.R_weighted = R_w
-            fine_lvl.R_uniform  = R_u
-            fine_lvl.R = R_w         
+            fine_lvl.R = R_galerkin           # ← ОСНОВНОЙ: используется и в RAP, и в V-cycle
+            fine_lvl.R_weighted = R_w         # для экспериментов
+            fine_lvl.R_uniform  = R_u         # для экспериментов
 
-            # 2) RAP
-            rap_mode = 'weighted' if (weights_row is not None) else 'uniform'
-            if rap_mode == 'weighted' and (weights_row is None):
-                if os.environ.get('OIL_DEBUG','0') == '1':
-                    print("[RAP] weights_row=None → fallback to uniform")
-                rap_mode = 'uniform'
+            # 2) RAP в режиме Galerkin: Ac = P^T A_f P
             A_csr = rap_pc_const_gpu(fine_lvl.A_csr, parent_idx, n_c, child_cnt,
-                                     weights_row=weights_row, mode=rap_mode)
+                                     weights_row=None, mode='galerkin')
+            
             # Мягкая починка диагонали на coarse после RAP
             A_csr = self._ensure_csr_diagonal_(A_csr)
+            
+            # 3) Энергетическая коррекция τ (опционально)
+            tau = self._energy_tau(fine_lvl, A_csr, k=8)
+            if abs(tau - 1.0) > 1e-3:
+                if os.environ.get('OIL_DEBUG', '0') == '1':
+                    print(f"[RAP L{len(self.levels)}→{len(self.levels)+1}] Энергетическая коррекция: τ={tau:.3e}")
+                # Применяем τ-масштабирование к Ac
+                A_csr = torch.sparse_csr_tensor(
+                    A_csr.crow_indices(), 
+                    A_csr.col_indices(),
+                    A_csr.values() * tau, 
+                    size=A_csr.size(),
+                    device=A_csr.device, 
+                    dtype=A_csr.dtype
+                )
 
-            # ---- CHECK RAP (без densify на больших N) ---------------------------------
+            # ---- CHECK RAP и симметрии (без densify на больших N) ----------
             if self.debug and self.rap_check_debug:
                 try:
                     n_fine = fine_lvl.A_csr.size(0)
                     if n_fine <= self.rap_max_check_n:
                         # Без денсификации: выборочная RAP‑проверка по нескольким столбцам
                         self._rap_check_sample(fine_lvl, A_csr, k=5)
+                        
+                        # ИСПРАВЛЕНО: правильная проверка симметрии через COO
+                        sym_err = _sym_err_l1(A_csr)
+                        print(f"[RAPCHK L{len(self.levels)}→{len(self.levels)+1}] Симметрия: ||Ac-Ac^T||_1/||Ac||_1 = {sym_err:.3e}")
+                        if sym_err < 1e-12:
+                            print(f"  ✓ Отличная симметрия Galerkin RAP (err < 1e-12)")
+                        elif sym_err > 1e-6:
+                            print(f"  ⚠ Потеря симметрии (err = {sym_err:.3e} > 1e-6)")
+                        
                     else:
                         if self.debug:
                             print(f"[RAPCHK L{len(self.levels)}] skip sample check (n={n_fine} > {self.rap_max_check_n})")
@@ -724,10 +777,18 @@ class GeoSolverV2:
                 print(f"[GeoSolverV2] built level {len(self.levels)} (Galerkin): n={lvl.n_cells}")
             self.levels.append(lvl)
 
+        # SPD-проверка на всех уровнях (быстрая)
         if self.debug:
-            vtest = torch.randn(self.levels[0].n_cells, dtype=torch.float64, device=self.device)
-            Av = self._apply_A(0, vtest)
-            print(f"[SPD?] <v,Av>={torch.dot(vtest, Av).item():.3e}")
+            for i in range(len(self.levels)):
+                e_min = self._spd_probe(lvl_idx=i, k=3)
+                status = "✓" if e_min > 0 else "✗"
+                print(f"[SPD L{i}] min <v,Av> = {e_min:.3e} {status}")
+                if e_min <= 0:
+                    print(f"  ⚠ ВНИМАНИЕ: уровень L{i} не является SPD!")
+        
+        # Итоговое сообщение об успешном построении иерархии
+        print(f"✓ GeoSolverV2: построено {len(self.levels)} уровней с GALERKIN RAP (R=P^T, Ac=P^T·A·P)")
+        print(f"  └─ Это сохраняет SPD свойство и улучшает coarse-grid correction")
 
 
     # ------------------------------------------------------------------
@@ -820,29 +881,128 @@ class GeoSolverV2:
                 pass
         return e_f_hat
 
+    def _energy_tau(self, fine_lvl, Ac: torch.Tensor, k: int = 8) -> float:
+        """
+        Энергетическая коррекция τ для Ac.
+        
+        Вычисляет τ такое, что τ·Ac лучше соответствует энергии fine-оператора.
+        Для k случайных единичных векторов вычисляем:
+            τ_j = <e_j, P^T A_f P e_j> / <e_j, A_c e_j>
+        
+        ИСПРАВЛЕНО: используем полное скалярное произведение для более стабильной оценки.
+        
+        Возвращает медиану τ_j.
+        """
+        n_c = int(Ac.size(0))
+        if n_c == 0:
+            return 1.0
+        
+        # Выбираем min(k, n_c) случайных индексов
+        idx = torch.randint(0, n_c, (min(k, n_c),), device=Ac.device)
+        taus = []
+        
+        for j in idx:
+            # Единичный вектор на coarse
+            ej = torch.zeros(n_c, dtype=Ac.dtype, device=Ac.device)
+            ej[j] = 1.0
+            
+            # Пролонгируем на fine: u = P * e_j
+            u = torch.sparse.mm(fine_lvl.P, ej[:, None])  # (n_f, 1)
+            
+            # Энергия на fine: <u, A_f u>
+            Au = torch.sparse.mm(fine_lvl.A_csr, u)  # (n_f, 1)
+            num = torch.dot(u.squeeze(1), Au.squeeze(1)).clamp_min(1e-30)
+            
+            # ИСПРАВЛЕНО: энергия на coarse через полное скалярное произведение
+            Ac_ej = torch.sparse.mm(Ac, ej[:, None]).squeeze(1)
+            den = torch.dot(ej, Ac_ej).clamp_min(1e-30)  # <e_j, A_c e_j> (стабильнее)
+            
+            tau_j = (num / den).item()
+            taus.append(tau_j)
+        
+        if not taus:
+            return 1.0
+        
+        # Возвращаем медиану
+        import numpy as np
+        return float(np.median(taus))
+
     @staticmethod
     def _ensure_csr_diagonal_(A: torch.Tensor) -> torch.Tensor:
-        """Гарантирует наличие диагонали в каждой строке CSR. Мягко чинит при отсутствии.
-        Меняет только col/val, структуру indptr не трогает.
         """
-        crow = A.crow_indices(); col = A.col_indices(); val = A.values()
-        n = int(crow.numel() - 1)
-        row_idx = torch.repeat_interleave(torch.arange(n, device=col.device), crow[1:] - crow[:-1])
-        pos_all = torch.nonzero(col == row_idx, as_tuple=False).squeeze(1)
-        has_diag = torch.zeros(n, device=col.device, dtype=torch.bool)
-        if pos_all.numel() > 0:
-            has_diag[row_idx[pos_all]] = True
-        miss = torch.nonzero(~has_diag, as_tuple=False).squeeze(1)
-        for i in miss.tolist():
-            s = int(crow[i].item()); e = int(crow[i+1].item())
-            if e == s:
-                continue  # пустая строка — оставим как есть
-            row_abs = val[s:e].abs()
-            jrel = int(torch.argmin(row_abs).item())
-            j = s + jrel
-            col[j] = i
-            val[j] = torch.clamp(row_abs.sum(), min=torch.tensor(1e-30, device=val.device, dtype=val.dtype))
-        return torch.sparse_csr_tensor(crow, col, val, size=A.size(), device=A.device, dtype=A.dtype)
+        Гарантирует наличие диагонали в каждой строке CSR.
+        ИСПРАВЛЕНО: обрабатывает пустые строки через COO (добавление диагонали).
+        """
+        n = A.size(0)
+        Acoo = A.to_sparse_coo().coalesce()
+        I, J = Acoo.indices()
+        V    = Acoo.values()
+
+        # Проверяем наличие диагонали
+        has_diag = torch.zeros(n, dtype=torch.bool, device=A.device)
+        diag_mask = (I == J)
+        if diag_mask.any():
+            has_diag.index_put_((I[diag_mask],), torch.ones_like(I[diag_mask], dtype=torch.bool), accumulate=False)
+
+        missing = (~has_diag).nonzero(as_tuple=False).view(-1)
+        if missing.numel() == 0:
+            return A  # уже ок
+
+        # Для стабильности: ставим на диагонали surrogate по L1-норме строки или 1e-30
+        row_l1 = torch.zeros(n, dtype=V.dtype, device=A.device)
+        row_l1.index_add_(0, I, V.abs())
+        diag_vals = torch.clamp(row_l1[missing], min=torch.tensor(1e-30, dtype=V.dtype, device=V.device))
+
+        # Добавляем недостающие диагональные элементы
+        add_I = missing
+        add_J = missing
+        add_V = diag_vals
+
+        I2 = torch.cat([I, add_I])
+        J2 = torch.cat([J, add_J])
+        V2 = torch.cat([V, add_V])
+        B  = torch.sparse_coo_tensor(
+            torch.stack([I2, J2], 0), V2, 
+            size=A.size(), device=A.device, dtype=A.dtype
+        ).coalesce()
+        return B.to_sparse_csr()
+
+    def _spd_probe(self, lvl_idx: int = 0, k: int = 3) -> float:
+        """
+        SPD-проверка: вычисляет <v, A v> для k случайных векторов.
+        Возвращает минимальное значение (должно быть > 0 для SPD).
+        """
+        lvl = self.levels[lvl_idx]
+        A = lvl.A_csr
+        n = A.size(0)
+        
+        energies = []
+        for _ in range(k):
+            v = torch.randn(n, dtype=A.dtype, device=A.device)
+            v = v - v.mean()  # убираем null-mode
+            v = v / (v.norm() + 1e-30)  # нормализуем
+            Av = torch.sparse.mm(A, v[:, None]).squeeze(1)
+            e = torch.dot(v, Av).item()
+            energies.append(e)
+        
+        return min(energies)
+    
+    def _check_rap_and_symmetry(self, fine_lvl, Ac: torch.Tensor):
+        """Комплексная проверка RAP: симметрия + выборочная точность + SPD."""
+        # 1) Симметрия
+        sym_err = _sym_err_l1(Ac)
+        print(f"  [TEST] Симметрия: ||Ac-Ac^T||_1/||Ac||_1 = {sym_err:.3e}")
+        assert sym_err < 1e-12, f"Потеря симметрии: {sym_err:.3e}"
+        
+        # 2) Выборочная RAP-проверка
+        self._rap_check_sample(fine_lvl, Ac, k=5)
+        
+        # 3) SPD-проверка
+        e_min = self._spd_probe(lvl_idx=len(self.levels), k=3)
+        print(f"  [TEST] SPD: min <v,Av> = {e_min:.3e}")
+        assert e_min > 0, f"Матрица не положительно определена: min_energy={e_min:.3e}"
+        
+        print("  ✓ Все RAP-проверки пройдены")
 
     def _check_RAP(self, fine_lvl, Ac, parent_idx, child_cnt):
         # восстановим Ac_ref = R A_f P и сравним
@@ -1120,13 +1280,13 @@ class GeoSolverV2:
 
         # Coarsest grid
         if lvl_idx == len(self.levels) - 1 or lvl.n_cells <= 128:
-            anc = lvl.anchor
-            A = lvl.A_csr.to_dense()
-            A[anc, :] = 0; A[:, anc] = 0; A[anc, anc] = 1.0
+            # ИСПРАВЛЕНО: якорь уже прикреплён при построении уровня, не дублируем
             # RHS уже согласован ранее
             b_fix = b_vec.clone()
-            b_fix[anc] = 0.0
+            b_fix[lvl.anchor] = 0.0
+            A = lvl.A_csr.to_dense()
             x_sol = torch.linalg.solve(A, b_fix.view(-1, 1)).squeeze(1)
+            x_sol[lvl.anchor] = 0.0  # на всякий случай
             return x_sol
         elif lvl.n_cells <= 5000:
             # Усилим coarse‑решатель: более строгий критерий 1e-3
@@ -1159,11 +1319,13 @@ class GeoSolverV2:
         if getattr(lvl, 'use_line', False):
             x_vec = self._line_gs_z(lvl_idx, x_vec, b_vec, iters=max(1, self.pre_smooth // 2))
         else:
-            if self.smoother_fine == "chebyshev":
+            # ИСПРАВЛЕНО: запрещаем Chebyshev на row-scaled уровнях (ломает SPD)
+            use_cheby = (self.smoother_fine == "chebyshev" and not getattr(lvl, '_row_scaled', False))
+            if use_cheby:
                 x_vec = self._chebyshev(lvl_idx, x_vec, b_vec, iters=max(3, self.pre_smooth))
             elif self.smoother_fine == "jacobi":
                 x_vec = self._jacobi(lvl_idx, x_vec, b_vec, iters=self.pre_smooth)
-            else:  # rbgs
+            else:  # rbgs (по умолчанию для row-scaled)
                 x_vec = self._rb_gs(lvl_idx, x_vec, b_vec, iters=self.pre_smooth)
 
         r_pre = b_vec - self._apply_A(lvl_idx, x_vec)
@@ -1180,12 +1342,8 @@ class GeoSolverV2:
         # r_c_hat = S_c · R · (D_f · r_f_hat)
         lvl_f = self.levels[lvl_idx]
         lvl_c = self.levels[lvl_idx + 1]
-        # если пред-сглаживание слабо — можно использовать uniform рестрикцию
-        R_use = getattr(lvl_f, 'R_weighted', None)
-        if (mu_pre.item() > 0.85) and hasattr(lvl_f, 'R_uniform'):
-            R_use = lvl_f.R_uniform
-        if R_use is None:
-            R_use = lvl_f.R
+        # Используем ЕДИНЫЙ R = P^T для всех случаев (согласованность с RAP)
+        R_use = lvl_f.R  # это Galerkin R = P^T
         r_c_vec = torch.sparse.mm(R_use, (lvl_f.D * r_pre).view(-1, 1)).squeeze(1)
         r_c_vec = lvl_c.Dinv * r_c_vec
         # обнуляем RHS в якорной ячейке coarse-уровня
@@ -1225,7 +1383,13 @@ class GeoSolverV2:
             cos_theta = (rt / (rr.sqrt() * tt.sqrt().clamp_min(1e-30))).item()
             hit_cap = bool((alpha - alpha_unclamped).abs() > 1e-12)
             try:
-                print(f"[CCorr L{lvl_idx}] alpha*={alpha_star.item():.3e} alpha={alpha.item():.3e} cosθ={cos_theta:.3f} hit_cap={hit_cap}")
+                # Расширенная диагностика для Galerkin RAP
+                print(f"[CCorr L{lvl_idx}] α*={alpha_star.item():.3e} α={alpha.item():.3e} cosθ={cos_theta:.3f} "
+                      f"hit_cap={hit_cap} [Galerkin]")
+                if cos_theta > 0.3:
+                    print(f"  ✓ Хорошая геометрия коррекции (cosθ={cos_theta:.3f} > 0.3)")
+                elif cos_theta < 0.1:
+                    print(f"  ⚠ Слабая геометрия коррекции (cosθ={cos_theta:.3f} < 0.1)")
             except Exception:
                 pass
         x_vec = x_vec + alpha * corr_vec
@@ -1311,7 +1475,9 @@ class GeoSolverV2:
         if getattr(lvl, 'use_line', False):
             x_vec = self._line_gs_z(lvl_idx, x_vec, b_vec, iters=max(1, self.post_smooth // 2))
         else:
-            if self.smoother_fine == "chebyshev":
+            # ИСПРАВЛЕНО: запрещаем Chebyshev на row-scaled уровнях
+            use_cheby = (self.smoother_fine == "chebyshev" and not getattr(lvl, '_row_scaled', False))
+            if use_cheby:
                 x_vec = self._chebyshev(lvl_idx, x_vec, b_vec, iters=max(3, self.post_smooth))
             elif self.smoother_fine == "jacobi":
                 x_vec = self._jacobi(lvl_idx, x_vec, b_vec, iters=self.post_smooth)
@@ -1323,15 +1489,17 @@ class GeoSolverV2:
             if getattr(lvl, 'use_line', False):
                 x_vec = self._line_gs_z(lvl_idx, x_vec, b_vec, iters=1)
             else:
-                if self.smoother_fine == "chebyshev":
+                use_cheby_extra = (self.smoother_fine == "chebyshev" and not getattr(lvl, '_row_scaled', False))
+                if use_cheby_extra:
                     x_vec = self._chebyshev(lvl_idx, x_vec, b_vec, iters=1)
                 elif self.smoother_fine == "jacobi":
                     x_vec = self._jacobi(lvl_idx, x_vec, b_vec, iters=1)
                 else:
                     x_vec = self._rb_gs(lvl_idx, x_vec, b_vec, iters=1)
 
-        # Chebyshev tail
-        if lvl_idx == 0 and self.cheby_tail > 0 and self.smoother_fine != "chebyshev":
+        # Chebyshev tail — ИСПРАВЛЕНО: только если L0 НЕ row-scaled
+        lvl0_safe_for_cheby = not getattr(self.levels[0], '_row_scaled', False)
+        if lvl_idx == 0 and self.cheby_tail > 0 and self.smoother_fine != "chebyshev" and lvl0_safe_for_cheby:
             x_vec = self._chebyshev(lvl_idx, x_vec, b_vec, iters=self.cheby_tail)
 
         if lvl_idx == 0:
