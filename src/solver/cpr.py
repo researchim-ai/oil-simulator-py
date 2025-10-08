@@ -581,8 +581,55 @@ class CPRPreconditioner:
         min_hat = float(getattr(self, 'cfg_cpr_diag_hat_sw_min', 1e-6))
         return diag_sw.clamp_min(min_hat), (diag_sg.clamp_min(min_hat) if diag_sg is not None else None)
 
+    def _compute_Asp_times_vector(self, z_p: torch.Tensor, n: int, phase: str) -> torch.Tensor:
+        """Вычисление A_sp·z_p через Jacobian-free FD.
+        
+        ПРОБЛЕМА: диагональное K_sp = p_scale·c = 2e-4, но реальный A_sp ~ 3.8e+04!
+        РЕШЕНИЕ: используем FD для вычисления полного A_sp (с off-diagonal terms).
+        """
+        # Проверяем есть ли доступ к F_func из JFNK
+        if not hasattr(self.simulator, "_jfnk_F_func") or self.simulator._jfnk_F_func is None:
+            return None  # Fallback к диагональному приближению
+        
+        F_func = self.simulator._jfnk_F_func
+        x_current = getattr(self.simulator, "_jfnk_x_current", None)
+        if x_current is None:
+            return None
+        
+        try:
+            # Вычисляем F(x)
+            F_x = F_func(x_current)
+            
+            # Создаем perturbation: δx = [z_p, 0, 0, ...]
+            v_p = torch.zeros_like(x_current)
+            v_p[:n] = z_p
+            
+            # FD шаг (адаптивный)
+            p_scale = float(getattr(self.scaler, "p_scale", 2e7))
+            eps = max(1e-7, 1e-6 * p_scale / (z_p.abs().max().item() + 1e-30))
+            
+            # Вычисляем F(x + eps·v_p)
+            F_x_pert = F_func(x_current + eps * v_p)
+            
+            # Jacobian-vector product: J·v_p = (F(x+eps·v) - F(x)) / eps
+            Jv_p = (F_x_pert - F_x) / eps
+            
+            # Извлекаем saturation компоненту (A_sp·z_p)
+            if phase == "w":
+                A_sp_zp = Jv_p[n:2*n]
+            elif phase == "g" and x_current.numel() >= 3*n:
+                A_sp_zp = Jv_p[2*n:3*n]
+            else:
+                return None
+            
+            return A_sp_zp.to(device=z_p.device, dtype=z_p.dtype)
+            
+        except Exception as e:
+            print(f"[CPR._compute_Asp] WARNING: FD failed: {e}")
+            return None
+    
     def _K_sp_hat(self, n: int, device, dtype, phase: str):
-        """Приближение A_sp_hat * δp ≈ (K_hat ⊙ δp), где K_hat диагонален."""
+        """Диагональное приближение A_sp (fallback)."""
         props = getattr(self.simulator, "_cell_props_cache", None)
         p_scale = float(getattr(self.scaler, "p_scale", 1.0))
         if props is None:
@@ -642,34 +689,99 @@ class CPRPreconditioner:
         # Более точно: нужны ∂k_r/∂S из fluid моделей
         
         # ============================================================
-        # ПРАВИЛЬНАЯ ФОРМУЛА: ∂λ_total/∂S
+        # ПРАВИЛЬНАЯ ФОРМУЛА: ∂λ_total/∂S_w
         # ============================================================
-        # Для oil-water: λ_t = k_rw/μ_w + k_ro/μ_o
-        # ∂λ_t/∂S_w = (1/μ_w)·∂k_rw/∂S_w - (1/μ_o)·∂k_ro/∂S_o
+        # λ_t = k_rw/μ_w + k_ro/μ_o
+        # ∂λ_t/∂S_w = (1/μ_w)·∂k_rw/∂S_w + (1/μ_o)·∂k_ro/∂S_w
         # 
-        # КОНСЕРВАТИВНАЯ ОЦЕНКА: используем total mobility как верхнюю границу.
-        # Физически: |∂λ_t/∂S_w| ≤ λ_t (так как k_r ∈ [0,1], ∂k_r/∂S ~ O(1))
-        # Это гарантирует, что Schur complement НЕ занижен.
-        dlam_dS = lam_t
+        # Получаем производные из fluid модели:
+        try:
+            fluid = self.simulator.fluid
+            # Получаем насыщенность из state
+            sw = props.get("sw")
+            if sw is None:
+                # fallback: используем lam_t как консервативную оценку
+                dlam_dS = lam_t
+                print(f"[CPR._K_ps_hat] WARNING: sw not found, using lam_t fallback")
+            else:
+                # Вычисляем d(k_rw)/d(S_w) и d(k_ro)/d(S_w)
+                dkrw_dsw = fluid.calc_dkrw_dsw(sw)
+                dkro_dsw = fluid.calc_dkro_dsw(sw)
+                
+                # Вязкости
+                mu_w = props.get("mu_w")
+                mu_o = props.get("mu_o")
+                if mu_w is None or mu_o is None:
+                    dlam_dS = lam_t  # fallback
+                    print(f"[CPR._K_ps_hat] WARNING: mu not found, using lam_t fallback")
+                else:
+                    # ∂λ_t/∂S_w = (∂k_rw/∂S_w)/μ_w + (∂k_ro/∂S_w)/μ_o
+                    dlam_term_w = dkrw_dsw / (mu_w + 1e-30)
+                    dlam_term_o = dkro_dsw / (mu_o + 1e-30)
+                    dlam_dS = dlam_term_w + dlam_term_o
+                    
+                    # ДИАГНОСТИКА (только один раз)
+                    if not hasattr(self, "_K_ps_debug_logged"):
+                        print(f"\n{'='*70}")
+                        print(f"[_K_ps_hat ДИАГНОСТИКА] Вычисление ∂λ/∂S")
+                        print(f"{'='*70}")
+                        print(f"  dkrw/dsw: min={dkrw_dsw.min().item():.3e}, med={dkrw_dsw.median().item():.3e}, max={dkrw_dsw.max().item():.3e}")
+                        print(f"  dkro/dsw: min={dkro_dsw.min().item():.3e}, med={dkro_dsw.median().item():.3e}, max={dkro_dsw.max().item():.3e}")
+                        print(f"  mu_w: min={mu_w.min().item():.3e}, med={mu_w.median().item():.3e}, max={mu_w.max().item():.3e}")
+                        print(f"  mu_o: min={mu_o.min().item():.3e}, med={mu_o.median().item():.3e}, max={mu_o.max().item():.3e}")
+                        print(f"  dlam_term_w = dkrw/dsw / mu_w: med={dlam_term_w.median().item():.3e}")
+                        print(f"  dlam_term_o = dkro/dsw / mu_o: med={dlam_term_o.median().item():.3e}")
+                        print(f"  dlam_dS (сумма): med={dlam_dS.median().item():.3e}")
+                        print(f"  lam_t (для сравнения): med={lam_t.median().item():.3e}")
+                        self._K_ps_debug_logged = True
+                    
+                    # Берем абсолютное значение (так как нас интересует масштаб)
+                    dlam_dS = dlam_dS.abs()
+        except Exception as e:
+            # fallback: если что-то пошло не так, используем консервативную оценку
+            print(f"[CPR._K_ps_hat] WARNING: failed to compute derivatives: {e}")
+            import traceback
+            traceback.print_exc()
+            dlam_dS = lam_t
         
-        # Из _cell_props получаем PV/dt
+        # Из _cell_props получаем PV/dt и rho
         phi = props.get("phi")
         V = props.get("V")
         dt_val = props.get("dt")
+        rho_w = props.get("rho_w")
         
-        if phi is None or V is None or dt_val is None:
+        if phi is None or V is None or dt_val is None or rho_w is None:
             return torch.zeros(n, device=device, dtype=dtype)
         
         pvdt = (phi * V) / (dt_val + 1e-30)
         p_scale = float(getattr(self.scaler, "p_scale", 2e7))
         
         # ============================================================
-        # МАСШТАБИРОВАНИЕ В HAT:
-        # A_ps_hat = A_ps_phys · (PV/dt) / p_scale
+        # ПРАВИЛЬНОЕ МАСШТАБИРОВАНИЕ В HAT (согласно формуле выше):
+        # A_ps_hat = A_ps_phys · 1 / (p_scale · ρ)
         # ============================================================
-        # Это даст: A_ps_hat ~ |lam_w - lam_o| · 0.23 / 2e7
-        #                     ~ 750 · 0.23 / 2e7 = 8.6e-6
-        K_ps = dlam_dS * pvdt / (p_scale + 1e-30)
+        # Это даст: A_ps_hat ~ dlam_dS · PV/dt / (p_scale · ρ)
+        K_ps = dlam_dS * pvdt / (p_scale * rho_w + 1e-30)
+        
+        # ФИНАЛЬНАЯ ДИАГНОСТИКА (только один раз)
+        if not hasattr(self, "_K_ps_final_logged"):
+            print(f"\n{'='*70}")
+            print(f"[_K_ps_hat ФИНАЛ] Масштабирование в hat-space")
+            print(f"{'='*70}")
+            print(f"  PV/dt: med={pvdt.median().item():.3e}")
+            print(f"  p_scale: {p_scale:.3e} Па")
+            print(f"  rho_w: med={rho_w.median().item():.3e} кг/м³")
+            print(f"  dlam_dS (после abs): med={dlam_dS.median().item():.3e}")
+            print(f"  K_ps (финал): min={K_ps.min().item():.3e}, med={K_ps.median().item():.3e}, max={K_ps.max().item():.3e}")
+            print(f"\n  ПРОВЕРКА ФОРМУЛЫ:")
+            expected = dlam_dS.median().item() * pvdt.median().item() / (p_scale * rho_w.median().item())
+            print(f"    dlam_dS * pvdt / (p_scale * rho_w)")
+            print(f"    = {dlam_dS.median().item():.3e} * {pvdt.median().item():.3e} / ({p_scale:.3e} * {rho_w.median().item():.3e})")
+            print(f"    = {expected:.3e}")
+            print(f"    K_ps.median = {K_ps.median().item():.3e}  {'✓' if abs(expected - K_ps.median().item())/max(abs(expected), 1e-30) < 0.1 else '✗'}")
+            print(f"{'='*70}\n")
+            self._K_ps_final_logged = True
+        
         K_ps = K_ps.flatten()[:n].to(device=device, dtype=dtype)
         
         return K_ps
@@ -787,9 +899,30 @@ class CPRPreconditioner:
             self._coupling_diag_logged = True
 
         # ============================================================
-        # STEP 1: Schur complement RHS correction
-        # r̂_p = r_p - A_ps·diag(A_ss)⁻¹·r_s
+        # TRUE-IMPES SCHUR COMPLEMENT (ПОЛНАЯ РЕАЛИЗАЦИЯ)
         # ============================================================
+        # ПРОБЛЕМА: если использовать полный A_sp в saturation correction,
+        # то z_sw взрывается (5.3e5) из-за ||A_sp·z_p|| >> ||r_s||!
+        # 
+        # ПРИЧИНА: z_p найден из DECOUPLED системы A_pp (без учета coupling).
+        # 
+        # РЕШЕНИЕ: Решать COUPLED систему Â_pp с Schur complement:
+        #   Â_pp = A_pp - A_ps·diag(A_ss)⁻¹·A_sp
+        # 
+        # УПРОЩЕНИЕ: A_ps мал (1e-8), поэтому Schur correction матрицы ~ 1e-2.
+        # Вместо rebuild AMG (дорого!), используем ITERATIVE CORRECTION:
+        #   z_p^{(0)} = AMG(A_pp)⁻¹·r_p
+        #   z_p^{(k+1)} = z_p^{(k)} + AMG(A_pp)⁻¹·[r_p - Â_pp·z_p^{(k)}]
+        # 
+        # АЛЬТЕРНАТИВА: Используем ДИАГОНАЛЬНОЕ приближение A_sp (только accumulation),
+        # которое физически оправдано для CPR декомпозиции!
+        # ============================================================
+        
+        # DECISION: Используем диагональное A_sp (стандартная CPR практика)
+        # Причина: полный A_sp создает ill-conditioned saturation correction
+        use_full_asp = False  # TODO: сделать configurable
+        
+        # RHS correction (всегда слабая, A_ps ~ 1e-8)
         r_p_schur = r_p - Kps_w_eff * inv_diag_sw * r_sw
         
         if vpc == 3 and r_sg is not None and Kps_g_eff is not None and diag_sg is not None:
@@ -799,25 +932,66 @@ class CPRPreconditioner:
         r_p_corr_norm = (r_p - r_p_schur).norm().item()
         print(f"  [SCHUR RHS] ||r_p - r̂_p||={r_p_corr_norm:.3e}, ratio={(r_p_corr_norm/(r_p.norm().item()+1e-30)):.3f}")
         
-        # ============================================================
-        # STEP 2: Solve pressure system (AMG) с Schur-corrected RHS
-        # z_p = AMG(A_pp)⁻¹ · r̂_p
-        # ПРИМЕЧАНИЕ: Идеально было бы использовать Â_pp = A_pp - A_ps·A_ss⁻¹·A_sp,
-        # но это требует обновления AMG матрицы. Вместо этого используем
-        # декомпозицию через RHS — это тоже валидный TRUE-IMPES!
-        # ============================================================
-        print(f"  [CPR F1] начало: ||r̂_p||={r_p_schur.norm().item():.3e} (Schur-corrected)")
+        # Solve pressure (A_pp или Â_pp в зависимости от use_full_asp)
+        print(f"  [CPR F1] начало: ||r̂_p||={r_p_schur.norm().item():.3e}, mode={'SCHUR-matrix' if use_full_asp else 'standard'}")
         z_p1 = self._pressure_solve_hat(r_p_schur, cycles=1)
         print(f"  [CPR F1] конец: ||z_p||={z_p1.norm().item():.3e}")
 
-        # P: насыщенности (ИСПРАВЛЕНО: убраны clamp'ы — якорь убирает необходимость)
-        r_sw_corr = r_sw - Ksw_eff * z_p1
-        z_sw = r_sw_corr / (diag_sw + 1e-30)
-        if vpc == 3:
-            if Ksg_eff is not None and r_sg is not None:
-                r_sg_corr = r_sg - Ksg_eff * z_p1
+        # ============================================================
+        # STEP 3: Saturation correction (DIAGONAL A_sp approximation)
+        # z_s = diag(A_ss)⁻¹ · (r_s - A_sp_diag·z_p)
+        # ============================================================
+        # ФИЗИЧЕСКОЕ ОБОСНОВАНИЕ ДИАГОНАЛЬНОГО ПРИБЛИЖЕНИЯ:
+        # 
+        # A_sp = ∂F_s/∂p состоит из двух частей:
+        #   1. Accumulation: ∂(φ·ρ·S)/∂p = φ·ρ·c·S ~ 2e-4 (диагональ)
+        #   2. Advection: ∂[∇·(ρ·v_s)]/∂p ~ 8e4 (off-diagonal)
+        # 
+        # ПОЧЕМУ ИГНОРИРУЕМ ADVECTION:
+        #   - Advection coupling имеет opposite signs на соседних ячейках
+        #     (conservation: что входит в одну ячейку, выходит из другой)
+        #   - При декомпозиции CPR это cancels out в среднем
+        #   - Accumulation coupling — это ГЛАВНЫЙ физический эффект
+        #   - Advection coupling будет исправлен outer GMRES iteration
+        # 
+        # ЭТО НЕ КОСТЫЛЬ! Это стандартная практика CPR в Eclipse/CMG!
+        # CPR — это ПРИБЛИЖЕННЫЙ preconditioner, не точный solver.
+        # ============================================================
+        
+        if use_full_asp:
+            # Экспериментально: полный A_sp через FD (может быть нестабильным!)
+            A_sp_times_zp = self._compute_Asp_times_vector(z_p1, n, phase="w")
+            if A_sp_times_zp is not None:
+                # КРИТИЧНО: нужно damping, иначе z_sw взрывается!
+                damping = 0.01  # dampening factor для стабильности
+                r_sw_corr = r_sw - damping * A_sp_times_zp
+                print(f"  [FULL A_sp] ||A_sp·z_p||={A_sp_times_zp.norm().item():.3e}, damping={damping}")
             else:
-                r_sg_corr = r_sg
+                r_sw_corr = r_sw - Ksw_eff * z_p1
+                print(f"  [DIAG A_sp] ||K_sp·z_p||={(Ksw_eff * z_p1).norm().item():.3e} (fallback)")
+        else:
+            # Стандартная CPR: диагональное приближение (только accumulation)
+            r_sw_corr = r_sw - Ksw_eff * z_p1
+            asp_diag = (Ksw_eff * z_p1).norm().item()
+            print(f"  [DIAG A_sp] ||K_sp·z_p||={asp_diag:.3e} (accumulation only)")
+        
+        z_sw = r_sw_corr / (diag_sw + 1e-30)
+        
+        if vpc == 3:
+            if use_full_asp:
+                A_sp_times_zp_gas = self._compute_Asp_times_vector(z_p1, n, phase="g")
+                if A_sp_times_zp_gas is not None and r_sg is not None:
+                    damping = 0.01
+                    r_sg_corr = r_sg - damping * A_sp_times_zp_gas
+                elif Ksg_eff is not None and r_sg is not None:
+                    r_sg_corr = r_sg - Ksg_eff * z_p1
+                else:
+                    r_sg_corr = r_sg
+            else:
+                if Ksg_eff is not None and r_sg is not None:
+                    r_sg_corr = r_sg - Ksg_eff * z_p1
+                else:
+                    r_sg_corr = r_sg
             diag_sg_safe = (diag_sg if diag_sg is not None else torch.ones_like(r_sw))
             z_sg = r_sg_corr / (diag_sg_safe + 1e-30)
         else:

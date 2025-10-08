@@ -134,6 +134,16 @@ def compute_cell_props(sim, x_hat: torch.Tensor, dt_sec: float) -> Dict[str, tor
         'lam_g': lam_g.reshape(-1) if lam_g is not None else None,
         'lam_t': lam_t.reshape(-1),  # NEW: total mobility для TRUE-IMPES
 
+        # Вязкости (для вычисления ∂λ/∂S в TRUE-IMPES)
+        'mu_w': mu_w.reshape(-1),
+        'mu_o': mu_o.reshape(-1),
+        'mu_g': mu_g.reshape(-1) if mu_g is not None else None,
+
+        # Насыщенности (для вычисления производных ∂k_r/∂S)
+        'sw': sw_flat,
+        'so': so_flat,
+        'sg': sg_flat if s_g is not None else None,
+
         # Сжимаемости
         'c_w': c_w,
         'c_o': c_o,
