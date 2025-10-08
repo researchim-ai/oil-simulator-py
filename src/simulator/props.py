@@ -117,6 +117,11 @@ def compute_cell_props(sim, x_hat: torch.Tensor, dt_sec: float) -> Dict[str, tor
     dt_floor = float(sim.sim_params.get('dt_floor_sec', 300.0))  # 5 минут по умолчанию
     dt_eff   = max(float(dt_sec), dt_floor)
 
+    # Суммарная мобильность (для TRUE-IMPES CPR)
+    lam_t = lam_w + lam_o
+    if lam_g is not None:
+        lam_t = lam_t + lam_g
+
     props = {
         # Геометрия
         'phi': phi.reshape(-1),                               # (N,)
@@ -127,6 +132,7 @@ def compute_cell_props(sim, x_hat: torch.Tensor, dt_sec: float) -> Dict[str, tor
         'lam_w': lam_w.reshape(-1),
         'lam_o': lam_o.reshape(-1),
         'lam_g': lam_g.reshape(-1) if lam_g is not None else None,
+        'lam_t': lam_t.reshape(-1),  # NEW: total mobility для TRUE-IMPES
 
         # Сжимаемости
         'c_w': c_w,

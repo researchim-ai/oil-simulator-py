@@ -557,16 +557,36 @@ class FullyImplicitSolver:
                     n_loc_ptc = x_hat.numel() // 2
                 Fh = Fh.clone()
                 Fh[:n_loc_ptc] = Fh[:n_loc_ptc] + (self.ptc_tau / dt) * (x_hat[:n_loc_ptc] - x_ref[:n_loc_ptc])
-            # Одноразовая диагностика масштабов PV/dt и кривых krw
+            # КРИТИЧЕСКАЯ ДИАГНОСТИКА: проверим масштабы один раз
             if not hasattr(self, "_dbg_scales_logged"):
                 try:
                     from simulator.props import compute_cell_props
                     props_dbg = compute_cell_props(self.sim, x_phys, dt)
                     phi_dbg = props_dbg['phi']; V_dbg = props_dbg['V']; dt_dbg = props_dbg['dt']
+                    rho_dbg = props_dbg.get('rho_w', torch.ones_like(phi_dbg))
                     pvdt = (phi_dbg * V_dbg) / (dt_dbg + 1e-30)
-                    print(f"[scales] PV/dt: min={pvdt.min().item():.3e}, max={pvdt.max().item():.3e}, median={pvdt.median().item():.3e}")
-                except Exception:
-                    pass
+                    sat_sc = pvdt * rho_dbg
+                    
+                    print(f"\n{'='*70}")
+                    print(f"[МАСШТАБЫ] Анализ согласованности масштабирования")
+                    print(f"{'='*70}")
+                    print(f"[Переменные x] p_scale = {self.scaler.p_scale:.3e} Па, s_scale = {self.scaler.s_scales}")
+                    print(f"[Невязки F] PV/dt = {pvdt.median().item():.3e}, sat_scale = {sat_sc.median().item():.3e}")
+                    print(f"[Якобиан A_sp] масштаб = (p_scale) / (sat_scale_F) = {self.scaler.p_scale / sat_sc.median().item():.3e}")
+                    print(f"  ⚠️  ЕСЛИ это число >> 1, то coupling блок A_sp раздут!")
+                    print(f"\n[ФИЗИЧЕСКИЙ СМЫСЛ]")
+                    print(f"  F_p: баланс объёма [м³/с], масштаб PV/dt")
+                    print(f"  F_s: баланс массы [кг/с], масштаб PV/dt·ρ")
+                    print(f"  p: давление [Па], масштаб p_scale")
+                    print(f"  S: насыщенность [безразм], масштаб s_scale=1")
+                    print(f"\n[ЯКОБИАН]")
+                    print(f"  A_pp ~ ∂F_p/∂p ~ (∂F_p [м³/с]) / (∂p [Па]) / масштабы")
+                    print(f"  A_sp ~ ∂F_s/∂p ~ (∂F_s [кг/с]) / (∂p [Па]) / масштабы")
+                    print(f"  A_sp_hat = A_sp_phys * (p_scale / sat_scale)")
+                    print(f"           = A_sp_phys * {self.scaler.p_scale / sat_sc.median().item():.3e}")
+                    print(f"{'='*70}\n")
+                except Exception as e:
+                    print(f"[scales] ошибка диагностики: {e}")
                 self._dbg_scales_logged = True
             if not hasattr(self, "_dbg_kr_logged"):
                 try:
@@ -590,7 +610,11 @@ class FullyImplicitSolver:
             return self._matvec(x, v_hat)
 
         def M_hat(r_hat: torch.Tensor) -> torch.Tensor:
-            # CPR в hat (для geo2 используем apply_hat)
+            """
+            Правый предобуславливатель для FGMRES в HAT-пространстве.
+            ИСПРАВЛЕНО: работает строго в hat→hat, без повторного скейлинга.
+            """
+            # Обновляем кеш свойств ячеек для CPR
             try:
                 from simulator.props import compute_cell_props
                 x_phys_curr = _phys_from_hat_y(x)
@@ -617,10 +641,74 @@ class FullyImplicitSolver:
             except Exception:
                 self.sim._cell_props_cache = None
 
+            # Применяем CPR: hat → hat (без повторного скейлинга!)
+            n = int(self.scaler.n_cells)
+            z = torch.zeros_like(r_hat)
+            
+            # Stage-1: pressure preconditioner (AMG) — hat→hat
             if getattr(self.prec, "backend", "") == "geo2" and hasattr(self.prec, "apply_hat"):
-                return self.prec.apply_hat(r_hat)
+                z_full = self.prec.apply_hat(r_hat)
+                z = z_full  # уже содержит и давление, и насыщенности
             else:
-                return self.prec.apply(r_hat)
+                # Fallback для других бэкендов
+                z = self.prec.apply(r_hat)
+            
+            # Диагностика эффективности CPR (один раз на итерацию Ньютона)
+            if getattr(self, "_dbg_cpr_iter", -1) != it:
+                rp = r_hat[:n]
+                zp = z[:n]
+                # КРИТИЧЕСКАЯ ДИАГНОСТИКА saturations
+                if r_hat.numel() >= 2*n:
+                    rsw = r_hat[n:2*n]
+                    zsw = z[n:2*n]
+                    rsw_norm = rsw.norm().item()
+                    zsw_norm = zsw.norm().item()
+                    zsw_max = zsw.abs().max().item()
+                    prec_ratio_sw = zsw_norm / (rsw_norm + 1e-30)
+                    print(f"[M_hat saturations] ||r_sw||={rsw_norm:.3e}, ||z_sw||={zsw_norm:.3e}, max={zsw_max:.3e}")
+                    print(f"  [эффективность] ||z_sw||/||r_sw|| = {prec_ratio_sw:.3e} (должно быть > 0.1)")
+                    if prec_ratio_sw < 0.01:
+                        print(f"  ⚠️  КРИТИЧНО: прекондиционер saturations почти не работает!")
+                
+                # ПРАВИЛЬНАЯ ПРОВЕРКА: используем ПОЛНЫЙ вектор z (с saturations!)
+                Az_full = self._matvec(x, z)
+                Az_p = Az_full[:n]  # блок давления
+                
+                # КРИТИЧЕСКАЯ ДИАГНОСТИКА: декомпозиция coupling
+                # Проверим, КАКОЙ блок Якобиана создает огромную норму
+                zsw = z[n:2*n] if z.numel() >= 2*n else torch.zeros(n, device=z.device, dtype=z.dtype)
+                
+                # 1) Только A_pp·z_p (из GeoSolver — изолированный pressure блок)
+                try:
+                    if hasattr(self.prec, 'solver') and hasattr(self.prec.solver, '_apply_A'):
+                        Azp_geo = self.prec.solver._apply_A(0, zp.to(torch.float64)).to(zp.dtype)
+                        print(f"  [COUPLING-1] A_pp·z_p (isolate): ||·||={Azp_geo.norm().item():.3e}, cosθ={torch.dot(Azp_geo, rp).item()/(Azp_geo.norm()*rp.norm() + 1e-30):.3f}")
+                except:
+                    pass
+                
+                # 2) Полный A·[z_p, z_sw] — все блоки
+                Az_full = self._matvec(x, z)
+                Az_full_p = Az_full[:n]  # pressure результат
+                Az_full_s = Az_full[n:2*n] if Az_full.numel() >= 2*n else torch.zeros(n, device=Az_full.device, dtype=Az_full.dtype)
+                
+                # 3) A·[z_p, 0] — только давление (покажет A_sp·z_p)
+                z_only_p = torch.zeros_like(z)
+                z_only_p[:n] = zp
+                Az_only_p = self._matvec(x, z_only_p)
+                Az_only_p_s = Az_only_p[n:2*n] if Az_only_p.numel() >= 2*n else torch.zeros(n, device=Az_only_p.device, dtype=Az_only_p.dtype)
+                
+                print(f"  [COUPLING-2] A·[z_p,0]_saturation: ||A_sp·z_p||={Az_only_p_s.norm().item():.3e} ← coupling влияние!")
+                print(f"  [COUPLING-3] A·[z_p,z_sw]_pressure: ||·||={Az_full_p.norm().item():.3e}, cosθ={torch.dot(Az_full_p, rp).item()/(Az_full_p.norm()*rp.norm() + 1e-30):.3f}")
+                print(f"  [COUPLING-4] A·[z_p,z_sw]_saturation: ||·||={Az_full_s.norm().item():.3e}")
+                print(f"  [COUPLING-5] Нормы: ||z_p||={zp.norm().item():.3e}, ||z_sw||={zsw.norm().item():.3e}, ||r_p||={rp.norm().item():.3e}, ||r_sw||={r_hat[n:2*n].norm().item():.3e}")
+                
+                # Итоговая эффективность
+                r_after = r_hat - Az_full
+                rho_cpr = r_after.norm().item() / (r_hat.norm().item() + 1e-30)
+                print(f"  [COUPLING ИТОГО] ρ_CPR={rho_cpr:.3e} (хорошо если < 0.5)")
+                self._dbg_cpr_iter = it
+            
+            return z
 
         # основной цикл Ньютона -----------------------------------------------
         for it in range(effective_max_it):
@@ -697,17 +785,18 @@ class FullyImplicitSolver:
                 return _phys_from_hat_y(x), True  # ВОЗВРАТ В ФИЗИЧЕСКИХ ЕДИНИЦАХ
 
             # адаптивный forcing-term η_k
+            # ИСПРАВЛЕНО: улучшенный Eisenstat-Walker II форсинг
             if prev_F_norm is None:
-                eta_k = float(self.sim.sim_params.get("newton_eta0", 5e-4))
+                eta_k = float(self.sim.sim_params.get("newton_eta0", 0.25))
             else:
                 ratio = (F_norm / (prev_F_norm + 1e-30)).item()
-                # Eisenstat–Walker: η_k ~ c * (||F_k||/||F_{k-1}||)^p
-                p = 1.5
-                c = 0.9
-                eta_k = c * (ratio ** p)
-            # жёсткие границы
+                # Eisenstat–Walker II: η_k = c * (||F_k||/||F_{k-1}||)^α
+                alpha = float(self.sim.sim_params.get("ew_alpha", 1.5))
+                c = float(self.sim.sim_params.get("ew_c", 0.9))
+                eta_k = c * (ratio ** alpha)
+            # жёсткие границы (более мягкие для FGMRES)
             eta_min = float(self.sim.sim_params.get("newton_eta_min", 1e-5))
-            eta_max = float(self.sim.sim_params.get("newton_eta_max", 2e-3))
+            eta_max = float(self.sim.sim_params.get("newton_eta_max", 0.25))
             eta_k = min(max(eta_k, eta_min), eta_max)
 
             # требуемая точность GMRES
@@ -715,23 +804,23 @@ class FullyImplicitSolver:
             gmres_tol = max(gmres_tol_min, eta_k)
             if it <= 2:
                 gmres_tol = min(gmres_tol, 5e-4)
-            print(f"  GMRES: tol={gmres_tol:.3e}")
+            print(f"  [JFNK] GMRES tol={gmres_tol:.3e}, eta_k={eta_k:.3e}, min={gmres_tol_min:.3e}")
 
-            # политика рестарта/итераций GMRES с точным бюджетом
-            budget_max = int(self.sim.sim_params.get("jfnk_max_iter", self.sim.sim_params.get("gmres_max_iter", 120)))
+            # ИСПРАВЛЕНО: увеличен restart для FGMRES (лучше работает с переменным предобуславливателем)
+            budget_max = int(self.sim.sim_params.get("jfnk_max_iter", self.sim.sim_params.get("gmres_max_iter", 400)))
             if (it <= 2):
-                gmres_restart = min(80, budget_max)
-                gmres_maxiter = min(120, budget_max)
+                gmres_restart = min(120, budget_max)
+                gmres_maxiter = min(200, budget_max)
             else:
                 if gmres_tol <= 3e-4:
-                    gmres_restart = min(120, budget_max)
-                    gmres_maxiter = min(160, budget_max)
+                    gmres_restart = min(150, budget_max)
+                    gmres_maxiter = min(300, budget_max)
                 elif gmres_tol <= 1e-3:
-                    gmres_restart = min(100, budget_max)
-                    gmres_maxiter = min(140, budget_max)
+                    gmres_restart = min(120, budget_max)
+                    gmres_maxiter = min(250, budget_max)
                 else:
-                    gmres_restart = min(60, budget_max)
-                    gmres_maxiter = min(80, budget_max)
+                    gmres_restart = min(100, budget_max)
+                    gmres_maxiter = min(200, budget_max)
 
             # дефляция на крупных задачах
             basis_tensor = None
@@ -792,12 +881,18 @@ class FullyImplicitSolver:
             except Exception:
                 pass
 
-            # не проецируем mean(δp)
+            # ИСПРАВЛЕНО: Trust-region по HAT для защиты от перешага
             # --- глобальные ограничители на δ --------------------------------
-            # 1) давление: ±20 МПа в hat
-            p_scale = float(getattr(self.scaler, "p_scale", 1.0)) if self.scaler is not None else 1.0
-            # Убираем внеконтурный p-clip: давление ограничиваем только внутри LS-кандидата
-
+            
+            # 1) Давление: ограничиваем блок давлений в hat
+            dp_inf_hat = float(delta[:n].abs().max().item())
+            DP_CAP_HAT = float(self.sim.sim_params.get("dp_cap_hat", 50.0))  # безопасное: 50 в hat ~ 5e6 Па при p_scale=1e5
+            if dp_inf_hat > DP_CAP_HAT:
+                scale_factor = DP_CAP_HAT / (dp_inf_hat + 1e-30)
+                delta[:n] *= scale_factor
+                if os.environ.get("OIL_DEBUG", "0") == "1":
+                    print(f"[TRUST] Pressure cap: ||δp||∞={dp_inf_hat:.3e} > {DP_CAP_HAT:.1e}, масштаб={scale_factor:.3e}")
+            
             # 2) насыщенности (мы работаем в переменной y): |Δy| ≤ Δy_max (в hat)
             if delta.numel() >= 2 * n:
                 dy_cap = float(self.sim.sim_params.get("delta_y_max", 2.0))

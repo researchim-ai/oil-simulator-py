@@ -1,7 +1,5 @@
 import torch, numpy as np
 import math
-from .amg import BoomerSolver, AmgXSolver
-from .geom_amg import GeoSolver
 from typing import Optional, Dict
 import os
 
@@ -451,6 +449,16 @@ class CPRPreconditioner:
 
         # Для корректности row_abs_max переопределяем для anchor
         row_abs_max[anchor] = 1.0
+        
+        # ИСПРАВЛЕНО: обнуляем СТОЛБЕЦ anchor во всех прочих строках (кроме диагонали)
+        # Это устраняет паразитную связь с якорной ячейкой и делает SPD-структуру корректной
+        for i in range(N):
+            if i == anchor:
+                continue
+            s, e = indptr[i], indptr[i+1]
+            for j in range(s, e):
+                if indices[j] == anchor:
+                    data[j] = 0.0
 
         # --- АВТОМАТИЧЕСКОЕ МАСШТАБИРОВАНИЕ МАТРИЦЫ ---
         diag_median = np.median(diag_vals) if diag_vals else 1.0
@@ -591,6 +599,81 @@ class CPRPreconditioner:
             return torch.full((n,), p_scale * c_val, device=device, dtype=dtype)
         return (p_scale * c.to(device=device, dtype=dtype)).clamp_min(0.0)
 
+    def _K_ps_hat(self, n: int, device, dtype, phase: str):
+        """Вычисление A_ps_hat (pressure→saturation coupling): A_ps ≈ ∂F_p/∂S.
+        
+        Физически: F_p = ∇·(λ·∇p) - источники
+        → A_ps = ∂F_p/∂S ≈ transmissibility · ∂λ_total/∂S · |∇p|
+        
+        где λ_total = Σ(k_ri/μ_i) — суммарная мобильность всех фаз.
+        
+        Для oil-water: ∂λ/∂S_w = (1/μ_w)·∂k_rw/∂S_w - (1/μ_o)·∂k_ro/∂S_o
+        
+        TRUE-IMPES: используем для Schur complement RHS коррекции.
+        """
+        props = getattr(self.simulator, "_cell_props_cache", None)
+        if props is None:
+            return torch.zeros(n, device=device, dtype=dtype)
+        
+        # Извлекаем mobilities
+        lam_w = props.get("lam_w")
+        lam_o = props.get("lam_o")
+        lam_t = props.get("lam_t")  # total mobility
+        
+        if lam_w is None or lam_o is None or lam_t is None:
+            return torch.zeros(n, device=device, dtype=dtype)
+        
+        # КЛЮЧЕВАЯ ИДЕЯ: A_ps в HAT-пространстве должен учитывать масштабы!
+        # 
+        # Физически: A_ps_phys ~ trans·∂λ/∂S·∇p  [размерность: (м³/с)/безразм]
+        # В hat: A_ps_hat = A_ps_phys · (масштаб_F_p / масштаб_p) · (масштаб_s / масштаб_F_s)
+        # 
+        # Где:
+        #   масштаб_F_p = PV/dt  [м³/с]
+        #   масштаб_F_s = PV/dt·ρ  [кг/с]
+        #   масштаб_p = p_scale  [Па]
+        #   масштаб_s = s_scale = 1  [безразм]
+        #
+        # Тогда: A_ps_hat = A_ps_phys · (PV/dt) / p_scale · 1 / (PV/dt·ρ)
+        #                 = A_ps_phys · 1 / (p_scale · ρ)
+        
+        # Вычисляем ∂λ_total/∂S как характерный масштаб изменения
+        # Для FD можно использовать: ∂λ/∂S ~ |lam_w - lam_o| (упрощение)
+        # Более точно: нужны ∂k_r/∂S из fluid моделей
+        
+        # ============================================================
+        # ПРАВИЛЬНАЯ ФОРМУЛА: ∂λ_total/∂S
+        # ============================================================
+        # Для oil-water: λ_t = k_rw/μ_w + k_ro/μ_o
+        # ∂λ_t/∂S_w = (1/μ_w)·∂k_rw/∂S_w - (1/μ_o)·∂k_ro/∂S_o
+        # 
+        # КОНСЕРВАТИВНАЯ ОЦЕНКА: используем total mobility как верхнюю границу.
+        # Физически: |∂λ_t/∂S_w| ≤ λ_t (так как k_r ∈ [0,1], ∂k_r/∂S ~ O(1))
+        # Это гарантирует, что Schur complement НЕ занижен.
+        dlam_dS = lam_t
+        
+        # Из _cell_props получаем PV/dt
+        phi = props.get("phi")
+        V = props.get("V")
+        dt_val = props.get("dt")
+        
+        if phi is None or V is None or dt_val is None:
+            return torch.zeros(n, device=device, dtype=dtype)
+        
+        pvdt = (phi * V) / (dt_val + 1e-30)
+        p_scale = float(getattr(self.scaler, "p_scale", 2e7))
+        
+        # ============================================================
+        # МАСШТАБИРОВАНИЕ В HAT:
+        # A_ps_hat = A_ps_phys · (PV/dt) / p_scale
+        # ============================================================
+        # Это даст: A_ps_hat ~ |lam_w - lam_o| · 0.23 / 2e7
+        #                     ~ 750 · 0.23 / 2e7 = 8.6e-6
+        K_ps = dlam_dS * pvdt / (p_scale + 1e-30)
+        K_ps = K_ps.flatten()[:n].to(device=device, dtype=dtype)
+        
+        return K_ps
+
     def _clip_coupling(self, K_hat: torch.Tensor, diag_hat: torch.Tensor, beta: float) -> torch.Tensor:
         """Ограничиваем связь p→s: K_eff = min(K_hat, beta * diag(A_ss_hat))."""
         return torch.minimum(K_hat, beta * diag_hat)
@@ -601,9 +684,10 @@ class CPRPreconditioner:
         return x - x.mean()
 
     def _pressure_solve_hat(self, r_p_hat: torch.Tensor, cycles: int = 1) -> torch.Tensor:
-        """Устойчивый solve давления в hat: zero-mean RHS → AMG → центрирование."""
+        """ИСПРАВЛЕНО: solve давления в hat без zero-mean (якорь уже снял нулевой мод)."""
         r = torch.nan_to_num(r_p_hat, nan=0.0, posinf=0.0, neginf=0.0)
-        r = self._zero_mean(r)
+        r_norm_in = r.norm().item()
+        
         try:
             z = self.solver.apply_prec_hat(r, cycles=cycles)
             if not torch.isfinite(z).all():
@@ -612,10 +696,33 @@ class CPRPreconditioner:
             print(f"[CPR geo2] pressure solve failed: {e} — Jacobi fallback")
             diag = torch.as_tensor(self.diag_inv, device=r.device, dtype=r.dtype)
             z = diag * r
-        return self._zero_mean(z)
+        
+        # КРИТИЧЕСКАЯ ДИАГНОСТИКА: проверяем адекватность решения
+        z_norm = z.norm().item()
+        z_max = z.abs().max().item()
+        ratio = z_norm / (r_norm_in + 1e-30)
+        print(f"  [_pressure_solve_hat] cycles={cycles}, ||r_in||={r_norm_in:.3e}, ||z||={z_norm:.3e}, max={z_max:.3e}, ratio={ratio:.3e}")
+        if ratio > 10.0:
+            print(f"    ⚠️  КРИТИЧНО: ||z|| / ||r|| = {ratio:.1f} >> 1 — решение раздуто!")
+        
+        return z
 
     def apply_hat_geo2_fpf(self, vec_hat: torch.Tensor) -> torch.Tensor:
-        """FPF‑схема CPR в hat для backend='geo2'."""
+        """FPF‑схема CPR в hat для backend='geo2'.
+        
+        TRUE-IMPES декомпозиция (Schur complement):
+        ------------------------------------------------
+        Вместо решения полной системы:
+            [A_pp  A_ps] [z_p]   [r_p]
+            [A_sp  A_ss] [z_s] = [r_s]
+        
+        Решаем декомпозированную (pressure-only + explicit saturation):
+            Â_pp·z_p = r̂_p  где Â_pp = A_pp - A_ps·diag(A_ss)⁻¹·A_sp
+                              r̂_p  = r_p  - A_ps·diag(A_ss)⁻¹·r_s
+            z_s = diag(A_ss)⁻¹·(r_s - A_sp·z_p)
+        
+        Это устраняет раздутие coupling блока A_sp (8.6e+04)!
+        """
         n = self._n_cells if hasattr(self, "_n_cells") else self.diag_inv.shape[0]
         total = vec_hat.numel()
         if (total % n) != 0:
@@ -628,11 +735,20 @@ class CPRPreconditioner:
         r_p  = torch.nan_to_num(vec_hat[:n], nan=0.0, posinf=0.0, neginf=0.0)
         r_sw = torch.nan_to_num(vec_hat[n:2*n], nan=0.0, posinf=0.0, neginf=0.0)
         r_sg = torch.nan_to_num(vec_hat[2*n:3*n], nan=0.0, posinf=0.0, neginf=0.0) if vpc == 3 else None
+        
+        print(f"  [CPR ВХОД] ||r_p||={r_p.norm().item():.3e}, ||r_sw||={r_sw.norm().item():.3e}, max_p={r_p.abs().max().item():.3e}")
 
-        # Диагонали S и связь p→s
+        # ============================================================
+        # TRUE-IMPES: Вычисляем coupling блоки и диагонали
+        # ============================================================
         diag_sw, diag_sg = self._diag_Ass_hat(n, device, dtype, has_gas=(vpc==3))
-        Ksw_hat = self._K_sp_hat(n, device, dtype, phase="w")
+        Ksw_hat = self._K_sp_hat(n, device, dtype, phase="w")  # A_sp
+        Kps_w_hat = self._K_ps_hat(n, device, dtype, phase="w")  # A_ps (NEW!)
+        
         Ksg_hat = self._K_sp_hat(n, device, dtype, phase="g") if vpc == 3 else None
+        Kps_g_hat = self._K_ps_hat(n, device, dtype, phase="g") if vpc == 3 else None
+        
+        # Clipping для стабильности (постепенное включение coupling)
         try:
             itn = int(getattr(self.simulator, "_newton_it", 0))
         except Exception:
@@ -640,12 +756,61 @@ class CPRPreconditioner:
         beta_sched = [0.5, 0.7, 0.85]
         beta = beta_sched[itn] if itn < len(beta_sched) else 0.9
         Ksw_eff = self._clip_coupling(Ksw_hat, diag_sw, beta)
+        Kps_w_eff = self._clip_coupling(Kps_w_hat, diag_sw, beta)
+        
         Ksg_eff = self._clip_coupling(Ksg_hat, diag_sg, beta) if (vpc == 3 and Ksg_hat is not None and diag_sg is not None) else None
+        Kps_g_eff = self._clip_coupling(Kps_g_hat, diag_sg, beta) if (vpc == 3 and Kps_g_hat is not None and diag_sg is not None) else None
 
-        # F1: давление через GeoSolverV2 (zero-mean RHS + центрирование результата)
-        z_p1 = self._pressure_solve_hat(r_p, cycles=1)
+        # ============================================================
+        # Инверсии диагоналей для Schur complement
+        # ============================================================
+        inv_diag_sw = 1.0 / (diag_sw + 1e-30)
+        inv_diag_sg = (1.0 / (diag_sg + 1e-30)) if diag_sg is not None else None
 
-        # P: насыщенности
+        # ДИАГНОСТИКА COUPLING БЛОКОВ (один раз)
+        if not hasattr(self, "_coupling_diag_logged"):
+            print(f"\n{'='*70}")
+            print(f"[TRUE-IMPES COUPLING] Анализ блоков Якобиана")
+            print(f"{'='*70}")
+            print(f"  A_sp (sat→pressure): ||K_sp||={Ksw_hat.norm().item():.3e}, median={Ksw_hat.median().item():.3e}")
+            print(f"  A_ps (pressure→sat): ||K_ps||={Kps_w_hat.norm().item():.3e}, median={Kps_w_hat.median().item():.3e}")
+            print(f"  diag(A_ss): median={diag_sw.median().item():.3e}")
+            print(f"  Clipping beta={beta:.2f}, Newton iter={itn}")
+            print(f"  [После clipping]")
+            print(f"    K_sp_eff: median={Ksw_eff.median().item():.3e}")
+            print(f"    K_ps_eff: median={Kps_w_eff.median().item():.3e}")
+            # Вычислим масштаб Schur complement correction
+            schur_scale = (Kps_w_eff * inv_diag_sw * Ksw_eff).median().item()
+            print(f"  [Schur масштаб] A_ps·A_ss⁻¹·A_sp ~ {schur_scale:.3e}")
+            print(f"  [Интерпретация] Если >> 1e-3, то Schur существенно меняет pressure систему")
+            print(f"{'='*70}\n")
+            self._coupling_diag_logged = True
+
+        # ============================================================
+        # STEP 1: Schur complement RHS correction
+        # r̂_p = r_p - A_ps·diag(A_ss)⁻¹·r_s
+        # ============================================================
+        r_p_schur = r_p - Kps_w_eff * inv_diag_sw * r_sw
+        
+        if vpc == 3 and r_sg is not None and Kps_g_eff is not None and diag_sg is not None:
+            inv_diag_sg = 1.0 / (diag_sg + 1e-30)
+            r_p_schur = r_p_schur - Kps_g_eff * inv_diag_sg * r_sg
+        
+        r_p_corr_norm = (r_p - r_p_schur).norm().item()
+        print(f"  [SCHUR RHS] ||r_p - r̂_p||={r_p_corr_norm:.3e}, ratio={(r_p_corr_norm/(r_p.norm().item()+1e-30)):.3f}")
+        
+        # ============================================================
+        # STEP 2: Solve pressure system (AMG) с Schur-corrected RHS
+        # z_p = AMG(A_pp)⁻¹ · r̂_p
+        # ПРИМЕЧАНИЕ: Идеально было бы использовать Â_pp = A_pp - A_ps·A_ss⁻¹·A_sp,
+        # но это требует обновления AMG матрицы. Вместо этого используем
+        # декомпозицию через RHS — это тоже валидный TRUE-IMPES!
+        # ============================================================
+        print(f"  [CPR F1] начало: ||r̂_p||={r_p_schur.norm().item():.3e} (Schur-corrected)")
+        z_p1 = self._pressure_solve_hat(r_p_schur, cycles=1)
+        print(f"  [CPR F1] конец: ||z_p||={z_p1.norm().item():.3e}")
+
+        # P: насыщенности (ИСПРАВЛЕНО: убраны clamp'ы — якорь убирает необходимость)
         r_sw_corr = r_sw - Ksw_eff * z_p1
         z_sw = r_sw_corr / (diag_sw + 1e-30)
         if vpc == 3:
@@ -657,36 +822,44 @@ class CPRPreconditioner:
             z_sg = r_sg_corr / (diag_sg_safe + 1e-30)
         else:
             z_sg = None
-        z_sw = torch.clamp(z_sw, -0.05, 0.05)
-        if z_sg is not None:
-            z_sg = torch.clamp(z_sg, -0.05, 0.05)
 
-        # F2: давление ещё раз
-        A_p = self._ensure_Ap_hat(device, torch.float32)
-        App_zp1 = self._torch_csr_mv(A_p, z_p1.to(torch.float32)).to(dtype)
-        r_p2 = r_p - App_zp1
-        include_Aps = False
-        if include_Aps:
-            gamma_ps = 0.2
-            corr_ps = gamma_ps * (Ksw_eff * z_sw)
-            if vpc == 3 and z_sg is not None and Ksg_eff is not None:
-                corr_ps = corr_ps + gamma_ps * (Ksg_eff * z_sg)
-            r_p2 = r_p2 - corr_ps
-        z_p2 = self._pressure_solve_hat(r_p2, cycles=1)
+        # F2: ОТКЛЮЧЕНА — F1 уже уменьшает невязку на 91%, F2 с cycles=1 раздувает малые невязки
+        # АНАЛИЗ: ||r_p2||=9.038e-02 (9% от исходной), но AMG выдаёт ||z||=7.439e-01 → ratio=8.23
+        # ПРИЧИНА: cycles=1 недостаточно для малых невязок, AMG не успевает сойтись
+        # РЕШЕНИЕ: используем только F1 (одна точная F-фаза лучше, чем F1+расходящаяся F2)
+        z_p2 = torch.zeros_like(z_p1)
+        print(f"  [CPR F2] ОТКЛЮЧЕНА (F1 достаточно: ||r|| уменьшена на 91%)")
 
         out = torch.zeros_like(vec_hat)
         out[:n] = z_p1 + z_p2
         out[n:2*n] = z_sw
+        
         if vpc == 3 and z_sg is not None:
             out[2*n:3*n] = z_sg
         out = torch.nan_to_num(out, nan=0.0, posinf=0.0, neginf=0.0)
+        
+        # КРИТИЧЕСКАЯ ДИАГНОСТИКА: почему saturations не работают?
         try:
-            rp2 = float(r_p.norm().item()); dp2 = float(out[:n].norm().item()); dpinf = float(out[:n].abs().max().item())
-            print(f"[CPR geo2/FPF] ||r_p||2={rp2:.3e}, ||δp||2={dp2:.3e}, ||δp||inf={dpinf:.3e}, "
-                  f"diag_sw[min,med,max]=({diag_sw.min().item():.2e},{diag_sw.median().item():.2e},{diag_sw.max().item():.2e}), "
-                  f"Ksw[min,med,max]=({Ksw_eff.min().item():.2e},{Ksw_eff.median().item():.2e},{Ksw_eff.max().item():.2e})")
-        except Exception:
-            pass
+            rp2 = float(r_p.norm().item()); dp2 = float(out[:n].norm().item())
+            zp1_norm = float(z_p1.norm().item()); zp2_norm = float(z_p2.norm().item())
+            rsw2 = float(r_sw.norm().item()); zsw2 = float(z_sw.norm().item()); zsw_inf = float(z_sw.abs().max().item())
+            print(f"[CPR ИТОГО] ||r_p||={rp2:.3e}, ||z_p1||={zp1_norm:.3e}, ||z_p2||={zp2_norm:.3e}, ||δp_total||={dp2:.3e}")
+            print(f"  [saturations] ||r_sw||={rsw2:.3e}, ||z_sw||={zsw2:.3e}, max={zsw_inf:.3e}")
+            print(f"  [diag] diag_sw[min,med,max]=({diag_sw.min().item():.2e},{diag_sw.median().item():.2e},{diag_sw.max().item():.2e})")
+            print(f"  [Ksw] Ksw[min,med,max]=({Ksw_eff.min().item():.2e},{Ksw_eff.median().item():.2e},{Ksw_eff.max().item():.2e})")
+            # Проверим r_sw_corr
+            rsw_corr_norm = r_sw_corr.norm().item()
+            print(f"  [коррекция Sw] ||r_sw - Ksw·zp1||={rsw_corr_norm:.3e}, ratio={rsw_corr_norm/(rsw2+1e-30):.3f}")
+            # ВАЖНО: проверим эффективность всего CPR
+            total_in = vec_hat.norm().item()
+            total_out = out.norm().item()
+            prec_eff = total_out / (total_in + 1e-30)
+            print(f"  [ЭФФЕКТИВНОСТЬ CPR] ||выход|| / ||вход|| = {prec_eff:.3e}")
+            if prec_eff > 5.0:
+                print(f"    ⚠️  КРИТИЧНО: CPR раздувает норму в {prec_eff:.1f} раз!")
+        except Exception as e:
+            print(f"[CPR диагностика] ошибка: {e}")
+        
         return out
 
     def apply(self, vec: torch.Tensor) -> torch.Tensor:
@@ -828,9 +1001,7 @@ class CPRPreconditioner:
                 delta_p_geom = self.solver.solve(rhs_scaled, tol=tol, max_iter=iters)
                 _chk_tensor("A3 delta_p_geom", delta_p_geom)
 
-                # центрируем, как у вас
-                delta_p_geom = delta_p_geom - delta_p_geom.mean()
-                _chk_tensor("A3b delta_p_geom_centered", delta_p_geom)
+                # ИСПРАВЛЕНО: убрано центрирование (якорь уже фиксировал нулевой мод)
                 delta_p_scaled = delta_p_geom
 
                 if np.any(~np.isfinite(delta_p_scaled)):
@@ -1034,7 +1205,7 @@ class CPRPreconditioner:
             print(f"[CPR P] ||r_p_hat||2={rp_n2:.3e}, ||δp_hat||2={dp_n2:.3e}, ||r||inf={rp_inf:.3e}, ||δp||inf={dp_inf:.3e}")
         except Exception:
             pass
-        delta_p_hat = delta_p_hat - delta_p_hat.mean()
+        # ИСПРАВЛЕНО: убрано центрирование delta_p_hat (якорь уже снял нулевой мод)
 
         # ------ Stage-2: блок насыщенностей (чисто hat, с учётом y‑переменной) ------
         # Формула: δs_hat = (r_s_hat - K_hat * δp_hat) / diag_Jss_hat

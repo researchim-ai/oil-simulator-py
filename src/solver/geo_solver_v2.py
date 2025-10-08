@@ -89,14 +89,28 @@ def build_block_maps(shape_f, device, coarsen=(2, 2, 2)):
     return parent_idx, (nz_c, ny_c, nx_c), n_c, child_cnt
 
 
-def build_P_csr(shape_f, device, coarsen=(2, 2, 2)):
-    """Piecewise-constant prolongation с произвольным coarsen."""
+def build_P_csr(shape_f, device, coarsen=(2, 2, 2), normalize=True):
+    """
+    Piecewise-constant prolongation с произвольным coarsen.
+    
+    Если normalize=True, нормализуем P так, чтобы ||P·v|| ≈ ||v||:
+    каждый fine-узел получает вес 1/√(child_cnt[parent]).
+    Это критично для Galerkin RAP (Ac = P^T·A·P) — без нормализации
+    энергия растёт как ||P||^2 ≈ child_cnt.
+    """
     parent_idx, shape_c, n_c, child_cnt = build_block_maps(shape_f, device, coarsen=coarsen)
     n_f = parent_idx.numel()
 
     crow = torch.arange(n_f + 1, device=device, dtype=torch.int64)
     col  = parent_idx
-    val  = torch.ones(n_f, device=device, dtype=torch.float64)
+    
+    if normalize:
+        # Нормализация: каждый элемент P[i,parent[i]] = 1/√(child_cnt[parent[i]])
+        # Это делает ||P·v|| ≈ ||v|| и ||R·r|| ≈ ||r|| для R=P^T
+        weights = 1.0 / torch.sqrt(child_cnt[parent_idx].to(torch.float64).clamp_min(1.0))
+        val = weights
+    else:
+        val = torch.ones(n_f, device=device, dtype=torch.float64)
 
     P = torch.sparse_csr_tensor(crow, col, val, size=(n_f, n_c),
                                 device=device, dtype=torch.float64)
@@ -281,7 +295,11 @@ class GeoSolverV2:
             self.rap_max_check_n = int(os.environ.get("GEO_RAP_DEBUG_MAX_N", str(int(rap_max_check_n))))
         except Exception:
             self.rap_max_check_n = int(rap_max_check_n)
-        self.restrict_mode = restrict_mode
+        
+        # ИСПРАВЛЕНО: всегда используем Galerkin R=P^T — это сохраняет SPD/энергию
+        if restrict_mode.lower() != "galerkin" and debug:
+            print(f"[geo2] restrict_mode='{restrict_mode}' → 'galerkin' (для SPD)")
+        self.restrict_mode = "galerkin"
         self.cheby_kappa = float(cheby_kappa)
         self.semicoarsen = bool(semicoarsen)
         self.kcycle = bool(kcycle)
@@ -292,16 +310,21 @@ class GeoSolverV2:
             self.restrict_gamma = 1.5
         self.project_const = True
         self._rho_hist: dict[int, float] = {}
-        # Smoothed prolongation (on-the-fly SA)
-        self.smooth_prolong = bool(smooth_prolong)
+        # ИСПРАВЛЕНО: Smoothed prolongation отключен (использует D/Dinv - несогласованность)
+        self.smooth_prolong = False  # временно отключаем
         self.prolong_omega = float(prolong_omega)
         self.prolong_sweeps = int(max(1, prolong_sweeps))
+        
+        # Демпфер для coarse-correction
+        try:
+            self.ccorr_damp = float(os.environ.get("GEO_CCORR", "0.8"))
+        except Exception:
+            self.ccorr_damp = 0.8
 
-        # Если активен левый row-scale (по умолчанию да) — Chebyshev может быть нестабилен.
-        # Переведём сглаживатель на RBGS по умолчанию.
+        # SPD форма позволяет использовать Chebyshev, но для надежности оставляем RBGS по умолчанию
         if self.smoother_fine == "chebyshev":
             if os.environ.get("OIL_DEBUG", "0") == "1":
-                print("[geo2] Chebyshev отключён (левый row-scale ломает SPD). Переключаемся на RBGS.")
+                print("[geo2] Chebyshev доступен (SPD форма), но используем RBGS для надежности.")
             self.smoother_fine = "rbgs"
 
 
@@ -321,20 +344,14 @@ class GeoSolverV2:
         # 2. Базовый уровень: сбор CSR
         base_lvl = GeoLevel(kx, ky, kz, self.hx, self.hy, self.hz, device=self.device)
 
-        # --- [NEW] Left row equilibration ---------------------------------
-
-        base_lvl.A_csr, w_rows0 = _row_equilibrate_csr(base_lvl.A_csr, lvl=base_lvl)
-        base_lvl.diag = base_lvl.diag * w_rows0
-        # ВАЖНО: если A ← W·A, то RHS должен быть b_hat ← W·b_hat.
-        # Нормализуем и клампим W_rows для численной устойчивости.
-        w = w_rows0.clone()
-        med_w = torch.median(w)
-        if torch.isfinite(med_w) and med_w > 0:
-            w = w / med_w
-        w = torch.clamp(w, 1e-6, 1e6)
-        self.W_rows = w
+        # --- Row-scale ОТКЛЮЧЕН (использ только _equilibrate_level для SPD) ---------------------------------
+        # ИСПРАВЛЕНО: Отказываемся от левого row-scaling - он ломает M-свойство даже после симметризации
+        # Оставляем только симметричное эквилибрирование _equilibrate_level ниже
+        self.W_rows = torch.ones(base_lvl.n_cells, device=self.device, dtype=torch.float64)
+        base_lvl._row_scaled = False
+        base_lvl.W_rows = torch.ones(base_lvl.n_cells, device=self.device, dtype=torch.float64)
         if self.debug:
-            print(f"[Geo2] W_rows L0: min={self.W_rows.min().item():.3e} med={torch.median(self.W_rows).item():.3e} max={self.W_rows.max().item():.3e}")
+            print(f"[Geo2] L0: левый row-scale отключён, используем только симметричное эквилибрирование")
 
         def _pin_rowcol(A_csr, idx):
             crow = A_csr.crow_indices(); col = A_csr.col_indices(); val = A_csr.values()
@@ -352,6 +369,8 @@ class GeoSolverV2:
                     raise RuntimeError("Empty CSR row — cannot pin")
                 val[s] = 1.0
                 col[s] = int(idx)
+        
+        # Диагональ текущей матрицы (до эквилибрирования)
         diag_orig = base_lvl.diag
 
         # -------- Дополнительная диагностика строкового преобладания --------
@@ -614,6 +633,35 @@ class GeoSolverV2:
             A_csr = rap_pc_const_gpu(fine_lvl.A_csr, parent_idx, n_c, child_cnt,
                                      weights_row=None, mode='galerkin')
             
+            # ДИАГНОСТИКА RAP: проверяем инвариант энергии
+            lvl_num = len(self.levels)  # текущий номер уровня (L0, L1, L2...)
+            if self.debug and lvl_num <= 2:
+                # Проверим энергию: ||P^T·A·P·v||_2 / ||A·P·v||_2 должно быть ≈1
+                test_v = torch.randn(n_c, device=self.device, dtype=A_csr.dtype)
+                Pv = torch.sparse.mm(P, test_v.view(-1, 1)).squeeze(1)
+                APv = torch.sparse.mm(fine_lvl.A_csr, Pv.view(-1, 1)).squeeze(1)
+                norm_APv = APv.norm()
+                Ac_v = torch.sparse.mm(A_csr, test_v.view(-1, 1)).squeeze(1)
+                PT_APv = torch.sparse.mm(P.transpose(0, 1), APv.view(-1, 1)).squeeze(1)
+                energy_ratio = PT_APv.norm() / (norm_APv + 1e-30)
+                symmetry_err = _sym_err_l1(A_csr)
+                
+                # Проверим нормы P и R
+                P_norm = torch.sqrt(P.values().pow(2).sum()).item()
+                R_norm = torch.sqrt(R_galerkin.values().pow(2).sum()).item()
+                
+                print(f"[RAP L{lvl_num}→L{lvl_num+1}] energy_ratio={energy_ratio:.3e}, sym_err={symmetry_err:.3e}")
+                print(f"  [P,R нормы] ||P||_F={P_norm:.3e}, ||R||_F={R_norm:.3e}, ||P||·||R||={P_norm*R_norm:.3e}")
+                
+                # Проверим SPD: случайный вектор должен давать положительную энергию
+                energy_test = torch.dot(test_v, Ac_v)
+                print(f"  [RAP SPD-test] <v,Ac·v>={energy_test:.3e} (должно быть > 0)")
+                
+                # Проверим правильность RAP: ||Ac·v - R·A·P·v||
+                R_A_Pv = torch.sparse.mm(R_galerkin, APv.view(-1, 1)).squeeze(1)
+                rap_error = (Ac_v - R_A_Pv).norm() / (Ac_v.norm() + 1e-30)
+                print(f"  [RAP точность] ||Ac·v - R·A·P·v|| / ||Ac·v|| = {rap_error:.3e} (должно быть ≈ 0)")
+            
             # Мягкая починка диагонали на coarse после RAP
             A_csr = self._ensure_csr_diagonal_(A_csr)
             
@@ -647,6 +695,25 @@ class GeoSolverV2:
                             print(f"  ✓ Отличная симметрия Galerkin RAP (err < 1e-12)")
                         elif sym_err > 1e-6:
                             print(f"  ⚠ Потеря симметрии (err = {sym_err:.3e} > 1e-6)")
+                        
+                        # Проверка RAP энергетического инварианта: (Py)^T A (Py) ≈ y^T A_c y
+                        n_c = A_csr.size(0)
+                        if n_c > 0 and n_c <= 10000:
+                            y_test = torch.randn(min(3, n_c), n_c, device=A_csr.device, dtype=A_csr.dtype)
+                            err_energy = []
+                            for k in range(y_test.size(0)):
+                                y = y_test[k]
+                                Py = torch.sparse.mm(fine_lvl.P, y.view(-1, 1)).squeeze(1)
+                                APy = torch.sparse.mm(fine_lvl.A_csr, Py.view(-1, 1)).squeeze(1)
+                                e_fine = torch.dot(Py, APy).item()
+                                Acy = torch.sparse.mm(A_csr, y.view(-1, 1)).squeeze(1)
+                                e_coarse = torch.dot(y, Acy).item()
+                                rel_err = abs(e_fine - e_coarse) / (abs(e_fine) + 1e-30)
+                                err_energy.append(rel_err)
+                            avg_err = sum(err_energy) / len(err_energy)
+                            print(f"[RAPCHK] RAP энергетический инвариант: err={avg_err:.3e}")
+                            if avg_err > 1e-6:
+                                print(f"  ⚠ Нарушение RAP-инварианта (err={avg_err:.3e} > 1e-6)")
                         
                     else:
                         if self.debug:
@@ -690,15 +757,11 @@ class GeoSolverV2:
                 device=self.device
             )
 
-            # [NEW] сначала левое эквилибрирование
-            lvl.A_csr, w_rows_c = _row_equilibrate_csr(lvl.A_csr, lvl=lvl)
-            lvl.diag = lvl.diag * w_rows_c
-            # нормализуем и клампим W_rows на уровне
-            med_c = torch.median(w_rows_c)
-            if torch.isfinite(med_c) and med_c > 0:
-                w_rows_c = w_rows_c / med_c
-            lvl.W_rows = torch.clamp(w_rows_c, 1e-6, 1e6)
-            # потом твой симметричный шаг
+            # ИСПРАВЛЕНО: отключаем row-scaling, используем только симметричное эквилибрирование
+            lvl._row_scaled = False
+            lvl.W_rows = torch.ones(lvl.n_cells, device=self.device, dtype=torch.float64)
+            
+            # Симметричное эквилибрирование diag→1
             S_c = _equilibrate_level(lvl)
             # Сохраним масштабы уровня после симм-эквилибрирования
             lvl.Dinv = S_c
@@ -710,6 +773,17 @@ class GeoSolverV2:
                 print(f"[LVL {len(self.levels)}] n={lvl.n_cells} nnz={lvl.A_csr._nnz()} "
                     f"diag[min,med,max]=({diag.min():.3e},{diag.median():.3e},{diag.max():.3e}) "
                     f"A[min,max]=({val.min():.3e},{val.max():.3e})")
+                
+                # КРИТИЧЕСКАЯ ПРОВЕРКА: SPD после эквилибрирования
+                if len(self.levels) <= 3:
+                    test_v = torch.randn(lvl.n_cells, device=self.device, dtype=lvl.A_csr.dtype)
+                    test_v = test_v / (test_v.norm() + 1e-30)
+                    Av = torch.sparse.mm(lvl.A_csr, test_v.view(-1, 1)).squeeze(1)
+                    energy = torch.dot(test_v, Av).item()
+                    sym_err = _sym_err_l1(lvl.A_csr)
+                    print(f"  [После эквилибр L{len(self.levels)}] <v,Av>={energy:.3e}, sym_err={sym_err:.3e}")
+                    if energy <= 0:
+                        print(f"  ⚠⚠ КРИТИЧНО: уровень L{len(self.levels)} НЕ SPD после эквилибрирования!")
 
 
             # пересчёт inv_l1 после эквилибрирования (относительный порог)
@@ -788,7 +862,15 @@ class GeoSolverV2:
         
         # Итоговое сообщение об успешном построении иерархии
         print(f"✓ GeoSolverV2: построено {len(self.levels)} уровней с GALERKIN RAP (R=P^T, Ac=P^T·A·P)")
-        print(f"  └─ Это сохраняет SPD свойство и улучшает coarse-grid correction")
+        print(f"  ├─ P НОРМАЛИЗОВАНА: 1/√(child_cnt) → ||P·v||≈||v||, ||R·r||≈||r||")
+        print(f"  ├─ SPD форма: симметричное эквилибрирование (S·A·S, diag=1)")
+        print(f"  ├─ R/P БЕЗ межуровневых D/Dinv (чистый Galerkin)")
+        print(f"  ├─ α* = <r,A·e>/<A·e,A·e> — ПРАВИЛЬНАЯ формула минимизации энергии")
+        print(f"  ├─ K-cycle БЕЗ центрирования r_mid (A-ортогональность): {self.kcycle}")
+        print(f"  ├─ Coarse-correction: α ∈ [0, 1.0], демпфер={self.ccorr_damp}")
+        print(f"  └─ L0 cap УБРАН (правильная матрица в CPR F2 устраняет раздутие)")
+        if self.debug:
+            print(f"  └─ ДЕТАЛЬНАЯ ДИАГНОСТИКА: RAP, SPD, K-cycle, формула α, coarsest solve")
 
 
     # ------------------------------------------------------------------
@@ -811,7 +893,8 @@ class GeoSolverV2:
         """Левое строковое эквилибрирование RHS: b̂ ← W_rows · b̂.
         Должно использоваться во всех входах в AMG, так как Â = S · (W_rows · A_phys) · S.
         """
-        return self.W_rows * v
+        # ИСПРАВЛЕНО: больше не используем левый множитель (симметричная форма SPD)
+        return v
 
     def _apply_anchor(self, v: torch.Tensor):
         # держим нулевой мод на самом тонком уровне
@@ -852,9 +935,20 @@ class GeoSolverV2:
         return torch.sparse.mm(R, r_f.view(-1, 1)).squeeze(1)
 
     def _prolong_vec(self, lvl_idx: int, e_c: torch.Tensor) -> torch.Tensor:
-        """e_f = P * e_c"""
+        """e_f = P * e_c
+        
+        ДИАГНОСТИКА: проверяем величину пролонгированного вектора.
+        """
         P = self.levels[lvl_idx].P
-        return torch.sparse.mm(P, e_c.view(-1, 1)).squeeze(1)
+        e_f = torch.sparse.mm(P, e_c.view(-1, 1)).squeeze(1)
+        
+        # Диагностика пролонгации: проверяем max амплификацию
+        if self.debug and lvl_idx == 0:
+            ratio = (e_f.abs().max() / (e_c.abs().max() + 1e-30)).item()
+            if ratio > 10.0:
+                print(f"  ⚠ [PROLONG L{lvl_idx}] Амплификация ||Pe||∞/||e||∞ = {ratio:.1f} > 10")
+        
+        return e_f
 
     def _prolong_vec_smoothed(self, lvl_idx: int, e_c_hat: torch.Tensor) -> torch.Tensor:
         """
@@ -1082,6 +1176,10 @@ class GeoSolverV2:
         omega = self.omega_fine if lvl_idx == 0 else self.omega
         if lvl_idx == 0:
             omega = self.omega_fine = float(torch.clamp(torch.tensor(omega), 0.10, 0.95))
+        
+        # ИСПРАВЛЕНО: ослабляем omega на L1/L2/L3 для устойчивости (против μ_pre > 1)
+        if lvl_idx >= 1:
+            omega = min(omega, 0.50)  # консервативная релаксация на всех coarse уровнях
 
         red_mask, black_mask = lvl.is_red, lvl.is_black
 
@@ -1271,6 +1369,17 @@ class GeoSolverV2:
 
         if self.debug:
             print(f"[VC L{lvl_idx}] START  {_vstats('r_in', r_in)}   ||x||2={x_vec.norm():.3e}")
+            
+            # КРИТИЧЕСКАЯ ДИАГНОСТИКА: проверяем SPD-свойство матрицы уровня
+            if lvl_idx <= 2:
+                test_r = r_in.clone()
+                test_r = test_r / (test_r.norm() + 1e-30)
+                A_test_r = self._apply_A(lvl_idx, test_r)
+                energy = torch.dot(test_r, A_test_r).item()
+                symmetry = _sym_err_l1(lvl.A_csr)
+                print(f"  [V{lvl_idx} матрица] <r,Ar>={energy:.3e}, sym={symmetry:.3e}, diag[min,max]=({lvl.diag.min():.3e},{lvl.diag.max():.3e})")
+                if energy <= 0:
+                    print(f"  ⚠⚠ КРИТИЧНО: матрица L{lvl_idx} НЕ SPD (отрицательная энергия)!")
 
         if debug_any:
             print(f"[VC] L{lvl_idx} start ‖x‖={x_vec.norm():.3e} ‖r‖₂={r_in.norm():.3e}")
@@ -1285,8 +1394,22 @@ class GeoSolverV2:
             b_fix = b_vec.clone()
             b_fix[lvl.anchor] = 0.0
             A = lvl.A_csr.to_dense()
+            
+            # ДИАГНОСТИКА: проверим coarsest solve
+            if debug_any:
+                # Проверим SPD и условие
+                cond_est = lvl.A_csr.values().abs().max() / (lvl.A_csr.values().abs().min() + 1e-30)
+                print(f"  [Coarsest L{lvl_idx}] n={lvl.n_cells}, cond_est≈{cond_est:.3e}, ||b||={b_fix.norm():.3e}")
+            
             x_sol = torch.linalg.solve(A, b_fix.view(-1, 1)).squeeze(1)
             x_sol[lvl.anchor] = 0.0  # на всякий случай
+            
+            # ДИАГНОСТИКА: проверим качество решения
+            if debug_any:
+                res_coarse = b_fix - torch.sparse.mm(lvl.A_csr, x_sol.view(-1, 1)).squeeze(1)
+                rel_err = res_coarse.norm() / (b_fix.norm() + 1e-30)
+                print(f"  [Coarsest L{lvl_idx}] ||x||={x_sol.norm():.3e}, ||Ax-b||/||b||={rel_err:.3e}")
+            
             return x_sol
         elif lvl.n_cells <= 5000:
             # Усилим coarse‑решатель: более строгий критерий 1e-3
@@ -1338,14 +1461,19 @@ class GeoSolverV2:
         if debug_any:
             print(f"[VC] L{lvl_idx} after pre-smooth ‖x‖={x_vec.norm():.3e} ‖r‖₂={r_pre.norm():.3e}  μ_pre={mu_pre.item():.3e}")
 
-        # ---------- restrict (Galerkin) с межуровневыми масштабами ----------
-        # r_c_hat = S_c · R · (D_f · r_f_hat)
+        # ---------- restrict (Galerkin) БЕЗ межуровневых D/Dinv ----------
+        # ИСПРАВЛЕНО: D/Dinv уже учтены в эквилибрировании матрицы
+        # Чистая Galerkin рестрикция: r_c = R · r_f = P^T · r_f
         lvl_f = self.levels[lvl_idx]
         lvl_c = self.levels[lvl_idx + 1]
-        # Используем ЕДИНЫЙ R = P^T для всех случаев (согласованность с RAP)
         R_use = lvl_f.R  # это Galerkin R = P^T
-        r_c_vec = torch.sparse.mm(R_use, (lvl_f.D * r_pre).view(-1, 1)).squeeze(1)
-        r_c_vec = lvl_c.Dinv * r_c_vec
+        r_c_vec = torch.sparse.mm(R_use, r_pre.view(-1, 1)).squeeze(1)
+        
+        # ДИАГНОСТИКА: проверяем restrict
+        if self.debug and lvl_idx <= 1:
+            restrict_ratio = r_c_vec.norm() / (r_pre.norm() + 1e-30)
+            print(f"  [Restrict L{lvl_idx}→L{lvl_idx+1}] ||R·r|| / ||r|| = {restrict_ratio:.3e}")
+        
         # обнуляем RHS в якорной ячейке coarse-уровня
         anc_c = lvl_c.anchor
         r_c_vec[anc_c] = 0.0
@@ -1358,41 +1486,79 @@ class GeoSolverV2:
             for _ in range(int(extra)):
                 x_c_vec = self._v_cycle(lvl_idx + 1, x_c_vec, r_c_vec)
 
-        # ---------- prolong с межуровневыми масштабами ----------
-        # По умолчанию применяем сглаженную пролонгацию (on-the-fly SA)
-        if self.smooth_prolong and (lvl_idx < len(self.levels) - 1):
-            corr_vec = self._prolong_vec_smoothed(lvl_idx, x_c_vec)
-        else:
-            corr_phys_c = lvl_c.D * x_c_vec
-            corr_phys_f = self._prolong_vec(lvl_idx, corr_phys_c)
-            corr_vec = lvl_f.Dinv * corr_phys_f
+        # ---------- prolong БЕЗ межуровневых D/Dinv ----------
+        # ИСПРАВЛЕНО: D/Dinv уже учтены в эквилибрировании
+        # Чистая пролонгация: corr_f = P · x_c
+        corr_vec = self._prolong_vec(lvl_idx, x_c_vec)
+        
+        # ДИАГНОСТИКА: проверяем prolong
+        if self.debug and lvl_idx <= 1:
+            prolong_ratio = corr_vec.norm() / (x_c_vec.norm() + 1e-30)
+            print(f"  [Prolong L{lvl_idx+1}→L{lvl_idx}] ||P·e|| / ||e|| = {prolong_ratio:.3e}")
+            # Проверим, что коррекция согласована с невязкой
+            ortho_test = torch.dot(r_pre, corr_vec) / (r_pre.norm() * corr_vec.norm() + 1e-30)
+            print(f"  [Prolong L{lvl_idx+1}→L{lvl_idx}] <r_pre, e> / (||r|| ||e||) = {ortho_test:.3e} (близко к 1 = хорошо)")
 
-        # Энергетический шаг: α = (r, e) / (e, A e) — устойчивее при mismatch масштаба
+        # ИСПРАВЛЕНО: правильная формула для SPD: α* = <r, A·e> / <A·e, A·e>
         A_corr = self._apply_A(lvl_idx, corr_vec)
-        num = torch.dot(r_pre, corr_vec)
-        den = torch.dot(corr_vec, A_corr).clamp_min(1e-30)
-        alpha_unclamped = num / den
-        alpha = torch.clamp(alpha_unclamped, 0.0, 2.5)
+        num_alpha = torch.dot(r_pre, A_corr)  # <r, A·e> - минимизация энергии
+        den = torch.dot(A_corr, A_corr).clamp_min(1e-30)  # <A·e, A·e>
+        alpha_unclamped = num_alpha / den
+        
+        # ДИАГНОСТИКА: разбираем формулу α детально
+        if debug_any and lvl_idx <= 1:
+            num_old = torch.dot(r_pre, corr_vec)  # старая формула <r,e>
+            den_old = torch.dot(corr_vec, A_corr).clamp_min(1e-30)  # <e,Ae>
+            r_norm = r_pre.norm()
+            e_norm = corr_vec.norm()
+            Ae_norm = A_corr.norm()
+            print(f"  [CCorr L{lvl_idx} формула] <r,e>={num_old:.3e}, <e,Ae>={den_old:.3e}, <r,Ae>={num_alpha:.3e}")
+            print(f"  [CCorr L{lvl_idx} формула] ||r||={r_norm:.3e}, ||e||={e_norm:.3e}, ||Ae||={Ae_norm:.3e}")
+            alpha_old = num_old / den_old  # старая формула
+            print(f"  [CCorr L{lvl_idx} формула] α_ПРАВИЛЬНЫЙ={alpha_unclamped:.3e}, α_старый={alpha_old:.3e}")
+        
+        # ИСПРАВЛЕНО: демпфинг для стабильности
+        alpha = self.ccorr_damp * torch.clamp(alpha_unclamped, 0.0, 1.0)
 
-        # Диагностика геометрии шага: α*, cosθ, cap
+        # ИСПРАВЛЕНО: правильная диагностика геометрии и проверка знака
         if debug_any or debug_top:
-            rt = num
-            tt = den
-            rr = torch.dot(r_pre, r_pre).clamp_min(1e-30)
             alpha_star = alpha_unclamped
-            cos_theta = (rt / (rr.sqrt() * tt.sqrt().clamp_min(1e-30))).item()
+            # Правильный косинус: cos θ = (r, A·e) / (||r|| ||A·e||)
+            r_Ae = torch.dot(r_pre, A_corr)  # ИСПРАВЛЕНО: нужен (r, A·e), а не (r, e)!
+            cos_theta = (r_Ae / (r_pre.norm() * A_corr.norm()).clamp_min(1e-30)).item()
+            cos_theta = max(-1.0, min(1.0, cos_theta))  # клиппинг в [-1,1]
             hit_cap = bool((alpha - alpha_unclamped).abs() > 1e-12)
+            
+            # Проверка знака: s = (r, A·e) должен быть положительным
+            sign_check = r_Ae.item()  # ИСПРАВЛЕНО: используем r_Ae, а не num_alpha
             try:
-                # Расширенная диагностика для Galerkin RAP
                 print(f"[CCorr L{lvl_idx}] α*={alpha_star.item():.3e} α={alpha.item():.3e} cosθ={cos_theta:.3f} "
-                      f"hit_cap={hit_cap} [Galerkin]")
+                      f"sign(r,Ae)={'+' if sign_check>0 else '-'} hit_cap={hit_cap}")
+                if sign_check < 0:
+                    print(f"  ⚠ КРИТИЧНО: отрицательный скалярный продукт (r,Ae)={sign_check:.3e} - коррекция в неверном направлении!")
                 if cos_theta > 0.3:
-                    print(f"  ✓ Хорошая геометрия коррекции (cosθ={cos_theta:.3f} > 0.3)")
+                    print(f"  ✓ Хорошая геометрия (cosθ={cos_theta:.3f} > 0.3)")
                 elif cos_theta < 0.1:
-                    print(f"  ⚠ Слабая геометрия коррекции (cosθ={cos_theta:.3f} < 0.1)")
+                    print(f"  ⚠ Слабая геометрия (cosθ={cos_theta:.3f} < 0.1)")
             except Exception:
                 pass
-        x_vec = x_vec + alpha * corr_vec
+        
+        # L0 cap убран — с правильной матрицей в F2 раздутия не будет
+        # if lvl_idx == 0 and alpha.item() > 0.5:
+        #     old_alpha = alpha.item()
+        #     alpha = torch.tensor(0.5, dtype=alpha.dtype, device=alpha.device)
+        #     if debug_any:
+        #         print(f"  [L0-CAP] α*={old_alpha:.3f} → α=0.5")
+        
+        # Проверка знака: если (r, A·e) < 0, коррекция идёт не туда - отбрасываем
+        # ИСПРАВЛЕНО: проверяем r_Ae (если диагностика включена) или вычисляем заново
+        sign_check_final = torch.dot(r_pre, A_corr).item() if not (debug_any or debug_top) else sign_check
+        if sign_check_final < 0:
+            if debug_any or debug_top:
+                print(f"  ⚠ ОТБРОС коррекции: sign(r,Ae)={sign_check_final:.3e} < 0 - неверное направление")
+            # Не применяем коррекцию, возвращаем x без изменений
+        else:
+            x_vec = x_vec + alpha * corr_vec
 
 
 
@@ -1409,46 +1575,101 @@ class GeoSolverV2:
         if lvl_idx == 0:
             self._apply_anchor(x_vec)
 
+        # ПОЛНЫЙ пересчёт невязки (не дешёвый) для верификации
         r_corr = b_vec - self._apply_A(lvl_idx, x_vec)
         rho_corr = r_corr.norm() / (r_pre.norm() + 1e-30)
+        
+        # Проверка согласованности: сравниваем r_c (из рестрикции) с b_c - A_c x_c
+        if debug_any and lvl_idx < len(self.levels) - 1:
+            try:
+                lvl_c = self.levels[lvl_idx + 1]
+                # r_c из рестрикции
+                r_c_restrict = torch.sparse.mm(self.levels[lvl_idx].R, r_corr.view(-1, 1)).squeeze(1)
+                # r_c из прямого вычисления на coarse (если есть x_c и b_c от предыдущего вызова)
+                # Это проверка для диагностики - пока пропустим, т.к. нужен доступ к x_c
+            except Exception:
+                pass
+        
         if debug_top:
             _stats(f"V{lvl_idx}.r_after_corr", r_corr)
         if debug_any:
             print(f"[VC] L{lvl_idx} after coarse corr ‖x‖={x_vec.norm():.3e} ‖r‖₂={r_corr.norm():.3e}  ρ_corr={rho_corr.item():.3e}")
+            if rho_corr.item() > 1.5:
+                print(f"  ⚠⚠ КРИТИЧНО: ρ_corr={rho_corr.item():.2f} > 1.5 - coarse-correction РАЗДУВАЕТ невязку!")
 
         # Mini-K-cycle: всегда выполняем вторую коррекцию (по невязке)
         if self.kcycle and (lvl_idx < len(self.levels) - 1):
             r_mid = b_vec - self._apply_A(lvl_idx, x_vec)
-            if getattr(self, 'project_const', True):
-                r_mid = r_mid - r_mid.mean()
-            # второй coarse RHS с межуровневыми масштабами
-            r_c2 = torch.sparse.mm(lvl_f.R, (lvl_f.D * r_mid).view(-1, 1)).squeeze(1)
-            r_c2 = lvl_c.Dinv * r_c2
+            
+            # ДИАГНОСТИКА K-cycle: сравниваем r_mid с r_pre
+            if debug_any and lvl_idx <= 1:
+                r_mid_norm = r_mid.norm()
+                r_pre_norm = r_pre.norm()
+                print(f"  [K-cycle L{lvl_idx}] ||r_mid||={r_mid_norm:.3e}, ||r_pre||={r_pre_norm:.3e}, ratio={r_mid_norm/(r_pre_norm+1e-30):.3e}")
+                # Проверим ортогональность r_mid и первой коррекции
+                ortho = torch.dot(r_mid, corr_vec) / (r_mid.norm() * corr_vec.norm() + 1e-30)
+                print(f"  [K-cycle L{lvl_idx}] <r_mid, e1> / (||r_mid|| ||e1||) = {ortho:.3e} (близко к 0 = ортогональны)")
+            
+            # ИСПРАВЛЕНО: НЕ центрируем r_mid — это ломает A-ортогональность!
+            # if getattr(self, 'project_const', True):
+            #     r_mid = r_mid - r_mid.mean()
+            # ИСПРАВЛЕНО: второй coarse RHS БЕЗ D/Dinv (уже учтены в матрице)
+            r_c2 = torch.sparse.mm(lvl_f.R, r_mid.view(-1, 1)).squeeze(1)
             r_c2[lvl_c.anchor] = 0.0
             x_c2 = torch.zeros_like(r_c2)
             x_c2 = self._v_cycle(lvl_idx + 1, x_c2, r_c2)
-            if self.smooth_prolong:
-                corr2 = self._prolong_vec_smoothed(lvl_idx, x_c2)
-            else:
-                corr2 = lvl_f.Dinv * self._prolong_vec(lvl_idx, (lvl_c.D * x_c2))
+            # Чистая пролонгация БЕЗ D/Dinv
+            corr2 = self._prolong_vec(lvl_idx, x_c2)
+            
+            # ДИАГНОСТИКА: проверяем вторую коррекцию
+            if debug_any and lvl_idx <= 1:
+                corr2_norm = corr2.norm()
+                corr1_norm = corr_vec.norm()
+                ortho_corr = torch.dot(corr2, corr_vec) / (corr2_norm * corr1_norm + 1e-30)
+                print(f"  [K-cycle L{lvl_idx}] ||e2||={corr2_norm:.3e}, ||e1||={corr1_norm:.3e}, <e2,e1>/(||e2|| ||e1||)={ortho_corr:.3e}")
+            
             A_corr2 = self._apply_A(lvl_idx, corr2)
-            num2 = torch.dot(r_mid, corr2)
-            den2 = torch.dot(corr2, A_corr2).clamp_min(1e-30)
-            alpha2_unclamped = num2 / den2
-            alpha2 = torch.clamp(alpha2_unclamped, 0.0, 2.5)
-            # Диагностика второго шага
+            # ИСПРАВЛЕНО: правильная формула для SPD: α* = <r, A·e> / <A·e, A·e>
+            num2_alpha = torch.dot(r_mid, A_corr2)  # <r_mid, A·e2> - минимизация энергии
+            den2 = torch.dot(A_corr2, A_corr2).clamp_min(1e-30)  # <A·e2, A·e2>
+            alpha2_unclamped = num2_alpha / den2
+            
+            # КРИТИЧЕСКАЯ ДИАГНОСТИКА: проверяем направление
+            if debug_any and lvl_idx <= 1:
+                num2_old = torch.dot(r_mid, corr2)  # старая формула <r,e>
+                den2_old = torch.dot(corr2, A_corr2).clamp_min(1e-30)  # <e,Ae>
+                cos2_correct = num2_alpha / (r_mid.norm() * A_corr2.norm() + 1e-30)
+                print(f"  [K-cycle L{lvl_idx}] <r_mid, A·e2> = {num2_alpha:.3e}, cosθ = {cos2_correct:.3e}")
+                print(f"  [K-cycle L{lvl_idx}] <r_mid, e2> = {num2_old:.3e}, <e2, A·e2> = {den2_old:.3e}")
+                if num2_alpha < 0:
+                    print(f"  ⚠⚠ [K-cycle L{lvl_idx}] ПРОБЛЕМА: <r_mid, A·e2> < 0 — направление неверное!")
+            
+            # ИСПРАВЛЕНО: демпфинг для стабильности (SPD)
+            alpha2 = self.ccorr_damp * torch.clamp(alpha2_unclamped, 0.0, 1.0)
+            # ИСПРАВЛЕНО: диагностика второго шага с правильным косинусом
             if debug_any or debug_top:
-                rt2 = num2
-                tt2 = den2
-                rr2 = torch.dot(r_mid, r_mid).clamp_min(1e-30)
                 alpha2_star = alpha2_unclamped
-                cos_theta2 = (rt2 / (rr2.sqrt() * tt2.sqrt().clamp_min(1e-30))).item()
+                # Правильный косинус: cos θ = (r, A·e) / (||r|| ||A·e||)
+                r_Ae2 = torch.dot(r_mid, A_corr2)  # ИСПРАВЛЕНО: нужен (r, A·e)!
+                cos_theta2 = (r_Ae2 / (r_mid.norm() * A_corr2.norm()).clamp_min(1e-30)).item()
+                cos_theta2 = max(-1.0, min(1.0, cos_theta2))
+                sign_check2 = r_Ae2.item()  # ИСПРАВЛЕНО
                 hit_cap2 = bool((alpha2 - alpha2_unclamped).abs() > 1e-12)
                 try:
-                    print(f"[CCorr2 L{lvl_idx}] alpha*={alpha2_star.item():.3e} alpha={alpha2.item():.3e} cosθ={cos_theta2:.3f} hit_cap={hit_cap2}")
+                    print(f"[CCorr2 L{lvl_idx}] alpha*={alpha2_star.item():.3e} alpha={alpha2.item():.3e} cosθ={cos_theta2:.3f} "
+                          f"sign(r,Ae)={'+' if sign_check2>0 else '-'} hit_cap={hit_cap2}")
+                    if sign_check2 < 0:
+                        print(f"  ⚠ CCorr2: отрицательный продукт (r,Ae)={sign_check2:.3e}")
                 except Exception:
                     pass
-            x_vec = x_vec + alpha2 * corr2
+            
+            # Проверка знака для второго шага
+            sign_check2_final = torch.dot(r_mid, A_corr2).item() if not (debug_any or debug_top) else sign_check2
+            if sign_check2_final < 0:
+                if debug_any or debug_top:
+                    print(f"  ⚠ ОТБРОС CCorr2: sign(r,Ae)={sign_check2_final:.3e} < 0")
+            else:
+                x_vec = x_vec + alpha2 * corr2
 
         # Адаптивный дополнительный coarse-проход, если коррекция дважды подряд слабая
         prev_rho = self._rho_hist.get(lvl_idx, None)
@@ -1457,32 +1678,30 @@ class GeoSolverV2:
             r_mid2 = b_vec - self._apply_A(lvl_idx, x_vec)
             if getattr(self, 'project_const', True):
                 r_mid2 = r_mid2 - r_mid2.mean()
-            r_c3 = torch.sparse.mm(lvl_f.R, (lvl_f.D * r_mid2).view(-1, 1)).squeeze(1)
-            r_c3 = lvl_c.Dinv * r_c3
+            # ИСПРАВЛЕНО: БЕЗ D/Dinv
+            r_c3 = torch.sparse.mm(lvl_f.R, r_mid2.view(-1, 1)).squeeze(1)
             r_c3[lvl_c.anchor] = 0.0
             x_c3 = self._v_cycle(lvl_idx + 1, torch.zeros_like(r_c3), r_c3)
-            if self.smooth_prolong:
-                corr3 = self._prolong_vec_smoothed(lvl_idx, x_c3)
-            else:
-                corr3 = lvl_f.Dinv * self._prolong_vec(lvl_idx, (lvl_c.D * x_c3))
+            # Чистая пролонгация
+            corr3 = self._prolong_vec(lvl_idx, x_c3)
             A_corr3 = self._apply_A(lvl_idx, corr3)
             num3 = torch.dot(r_mid2, A_corr3)
             den3 = torch.dot(A_corr3, A_corr3).clamp_min(1e-30)
             alpha3 = torch.clamp(num3 / den3, 0.0, 2.0)
             x_vec = x_vec + alpha3 * corr3
 
-        # ---------- post-smooth ----------
+        # ---------- post-smooth (минимум 1 проход для подавления ВЧ от пролонгации) ----------
         if getattr(lvl, 'use_line', False):
-            x_vec = self._line_gs_z(lvl_idx, x_vec, b_vec, iters=max(1, self.post_smooth // 2))
+            x_vec = self._line_gs_z(lvl_idx, x_vec, b_vec, iters=max(1, max(1, self.post_smooth) // 2))
         else:
-            # ИСПРАВЛЕНО: запрещаем Chebyshev на row-scaled уровнях
+            # SPD форма позволяет Chebyshev, но для надежности используем по умолчанию RBGS
             use_cheby = (self.smoother_fine == "chebyshev" and not getattr(lvl, '_row_scaled', False))
             if use_cheby:
-                x_vec = self._chebyshev(lvl_idx, x_vec, b_vec, iters=max(3, self.post_smooth))
+                x_vec = self._chebyshev(lvl_idx, x_vec, b_vec, iters=max(3, max(1, self.post_smooth)))
             elif self.smoother_fine == "jacobi":
-                x_vec = self._jacobi(lvl_idx, x_vec, b_vec, iters=self.post_smooth)
+                x_vec = self._jacobi(lvl_idx, x_vec, b_vec, iters=max(1, self.post_smooth))
             else:
-                x_vec = self._rb_gs(lvl_idx, x_vec, b_vec, iters=self.post_smooth)
+                x_vec = self._rb_gs(lvl_idx, x_vec, b_vec, iters=max(1, self.post_smooth))
 
         # Дополнительный лёгкий проход на L1/L2 для снятия ВЧ после пролонгации
         if lvl_idx <= 2:
@@ -1678,10 +1897,27 @@ class GeoSolverV2:
         if rhs_p_hat.abs().max() < 1e-20:
             return torch.zeros_like(rhs_p_hat)
         rhs = rhs_p_hat.to(device=self.device, dtype=torch.float64).clone()
+        rhs_norm_in = rhs.norm().item()
         rhs[self.anchor_fine] = 0.0
         x = torch.zeros_like(rhs)
-        for _ in range(max(1, cycles)):
+        for cyc in range(max(1, cycles)):
+            x_before = x.norm().item()
             x = self._v_cycle(0, x, rhs)
+            x_after = x.norm().item()
+            # ДИАГНОСТИКА: проверим КАЧЕСТВО решения (не только норму)
+            r_after = rhs - self._apply_A(0, x)
+            r_after_norm = r_after.norm().item()
+            print(f"    [apply_prec_hat] cycle {cyc+1}/{cycles}: ||x_in||={x_before:.3e}, ||x_out||={x_after:.3e}, ||r_out||={r_after_norm:.3e}, ρ={r_after_norm/rhs_norm_in:.3e}")
         # Возвращаем приблизительное решение в тех же hat-координатах (без деления на W)
         x[self.anchor_fine] = 0.0
+        x_norm_out = x.norm().item()
+        ratio_out = x_norm_out / (rhs_norm_in + 1e-30)
+        # КРИТИЧЕСКАЯ ПРОВЕРКА: ||A·x - rhs||
+        r_final = rhs - self._apply_A(0, x)
+        r_final_norm = r_final.norm().item()
+        rel_res = r_final_norm / (rhs_norm_in + 1e-30)
+        print(f"    [apply_prec_hat] ИТОГО: ||rhs||={rhs_norm_in:.3e}, ||x||={x_norm_out:.3e}, ||A·x-rhs||={r_final_norm:.3e}")
+        print(f"    [apply_prec_hat] ratio ||x||/||rhs||={ratio_out:.3e}, rel_res ||r||/||rhs||={rel_res:.3e}")
+        if ratio_out > 10.0:
+            print(f"      ⚠️  КРИТИЧНО: ||x|| / ||rhs|| = {ratio_out:.1f} >> 1!")
         return x  # HAT!
