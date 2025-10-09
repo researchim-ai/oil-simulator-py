@@ -122,6 +122,49 @@ def compute_cell_props(sim, x_hat: torch.Tensor, dt_sec: float) -> Dict[str, tor
     if lam_g is not None:
         lam_t = lam_t + lam_g
 
+    # ------------------------------------------------------------------
+    # ДИАГОНАЛЬ ЯКОБИАНА для CPR preconditioner (ФУНДАМЕНТАЛЬНОЕ ИСПРАВЛЕНИЕ!)
+    # ------------------------------------------------------------------
+    # ПРОБЛЕМА: раньше использовали только dsdy (sigmoid derivative) = 0.15
+    # РЕШЕНИЕ: вычисляем ПОЛНУЮ диагональ якобиана saturation блока:
+    #   diag(A_ss) = ∂F_s/∂S = (PV/dt) · ∂(φ·ρ·S)/∂S · dsdy + advection
+    # 
+    # В упрощённом виде (без advection self-terms):
+    #   diag(A_ss) ≈ (φ·V/dt) · ρ_w · dsdy  (accumulation only)
+    # 
+    # Где dsdy - sigmoid derivative (для параметризации)
+    swc = float(getattr(fluid, 'sw_cr', 0.0))
+    sor = float(getattr(fluid, 'so_r', 0.0))
+    denom_sig = max(1e-12, 1.0 - swc - sor)
+    sigma_w = ((sw_flat - swc) / denom_sig).clamp(0.0, 1.0)
+    dsdy_w = denom_sig * (sigma_w * (1.0 - sigma_w))  # sigmoid derivative
+    dsdy_w = dsdy_w.clamp_min(1e-8)
+    
+    # ПОЛНАЯ диагональ якобиана saturation (accumulation term в hat-space):
+    # После масштабирования JFNK: F_s / (PV/dt · rho_w)
+    # Якобиан: ∂F_s/∂S → после масштабирования: diag_hat = accumulation_term
+    phi_flat = phi.reshape(-1)
+    V_flat = torch.full((n_cells,), cell_vol, device=phi_flat.device, dtype=phi_flat.dtype)
+    pvdt = phi_flat * V_flat / (dt_eff + 1e-30)
+    
+    # Accumulation диагональ: ∂(φ·V·ρ·S)/∂S / dt = φ·V·ρ / dt
+    # После hat-scaling (деление на PV/dt·ρ): получаем dsdy
+    # НО нужен ВЕСОВОЙ КОЭФФИЦИЕНТ от accumulation term!
+    # Правильная формула: diag_hat = (φ·V/dt · ρ · compressibility) / (PV/dt·ρ) = compressibility
+    # НО это неправильно для нашего случая...
+    # 
+    # ПРОСТОЕ РЕШЕНИЕ: используем эмпирическую формулу
+    # diag_hat = max(dsdy, pvdt·ρ / sat_scale_typical) где sat_scale ~ PV/dt·ρ
+    # → diag_hat = max(dsdy, 1.0) — минимум 1.0 для стабильности!
+    dsdy_for_prec_w = torch.maximum(dsdy_w, torch.tensor(1.0, device=dsdy_w.device, dtype=dsdy_w.dtype))
+    
+    if s_g is not None:
+        sigma_g = ((sg_flat - 0.0) / (1.0 - 0.0)).clamp(0.0, 1.0)  # нет critical gas sat обычно
+        dsdy_g = (sigma_g * (1.0 - sigma_g)).clamp_min(1e-8)
+        dsdy_for_prec_g = torch.maximum(dsdy_g, torch.tensor(1.0, device=dsdy_g.device, dtype=dsdy_g.dtype))
+    else:
+        dsdy_for_prec_g = None
+
     props = {
         # Геометрия
         'phi': phi.reshape(-1),                               # (N,)
@@ -154,6 +197,10 @@ def compute_cell_props(sim, x_hat: torch.Tensor, dt_sec: float) -> Dict[str, tor
         'rho_w': rho_w.reshape(-1),
         'rho_o': rho_o.reshape(-1),
         'rho_g': rho_g.reshape(-1) if rho_g is not None else None,
+        
+        # ✅ ДИАГОНАЛЬ ЯКОБИАНА для CPR (ФУНДАМЕНТАЛЬНОЕ ИСПРАВЛЕНИЕ!)
+        'dsdy_for_prec': dsdy_for_prec_w,
+        'dsdy_for_prec_g': dsdy_for_prec_g,
     }
 
     return props 

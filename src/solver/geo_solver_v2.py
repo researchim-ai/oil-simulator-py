@@ -276,7 +276,13 @@ class GeoSolverV2:
                  cheby_kappa: float = 80.0,
                  smooth_prolong: bool = True,
                  prolong_omega: float = 0.67,
-                 prolong_sweeps: int = 1):
+                 prolong_sweeps: int = 1,
+                 custom_matvec: callable | None = None):
+        # ✅ MATRIX-FREE SCHUR COMPLEMENT SUPPORT
+        self.custom_matvec = custom_matvec
+        if custom_matvec is not None:
+            print(f"[Geo2] Using custom matrix-vector operator (Schur complement)")
+        
         self.device = device or ("cuda" if torch.cuda.is_available() else "cpu")
         self.omega = float(omega)
         self.cycle_type = cycle_type.upper()
@@ -875,9 +881,29 @@ class GeoSolverV2:
 
     # ------------------------------------------------------------------
     def _apply_A(self, lvl_idx: int, x: torch.Tensor) -> torch.Tensor:
-        lvl = self.levels[lvl_idx]
-        Ax = torch.sparse.mm(lvl.A_csr, x.view(-1, 1)).squeeze(1)
-        return Ax
+        """Применить матрицу A к вектору x.
+        
+        Если задан custom_matvec и lvl_idx==0, используем его (Schur complement).
+        Иначе используем стандартный CSR matvec.
+        """
+        if lvl_idx == 0 and self.custom_matvec is not None:
+            # Matrix-free Schur complement для базового уровня
+            return self.custom_matvec(x)
+        else:
+            # Стандартный CSR для coarse уровней
+            lvl = self.levels[lvl_idx]
+            Ax = torch.sparse.mm(lvl.A_csr, x.view(-1, 1)).squeeze(1)
+            
+            # ДИАГНОСТИКА: проверяем <x,Ax> на L0 для первых 3 вызовов
+            if lvl_idx == 0 and self.debug:
+                if not hasattr(self, '_matvec_call_count'):
+                    self._matvec_call_count = 0
+                self._matvec_call_count += 1
+                if self._matvec_call_count <= 3:
+                    xAx = torch.dot(x, Ax).item()
+                    print(f"  [V{lvl_idx} матрица #{self._matvec_call_count}] <x,Ax>={xAx:.3e}, ||x||={x.norm().item():.3e}, ||Ax||={Ax.norm().item():.3e}")
+            
+            return Ax
 
     def _vec2vol(self, lvl_idx: int, v: torch.Tensor) -> torch.Tensor:
         nz, ny, nx = self.levels[lvl_idx].kx.shape
@@ -1173,13 +1199,17 @@ class GeoSolverV2:
         """Red-Black Gauss–Seidel smoother (GPU-friendly)."""
         lvl = self.levels[lvl_idx]
         inv_diag = getattr(lvl, 'inv_relax', lvl.inv_l1)
-        omega = self.omega_fine if lvl_idx == 0 else self.omega
-        if lvl_idx == 0:
-            omega = self.omega_fine = float(torch.clamp(torch.tensor(omega), 0.10, 0.95))
         
-        # ИСПРАВЛЕНО: ослабляем omega на L1/L2/L3 для устойчивости (против μ_pre > 1)
-        if lvl_idx >= 1:
-            omega = min(omega, 0.50)  # консервативная релаксация на всех coarse уровнях
+        # ИСПРАВЛЕНО: ФИКСИРОВАННЫЙ omega для L0 (well cells требуют консервативной релаксации)
+        # Проблема: omega динамически увеличивается между итерациями → divergence!
+        # Решение: ЖЁСТКО задаём omega=0.54 для L0 (независимо от self.omega_fine)
+        if lvl_idx == 0:
+            omega = 0.15  # ЭКСТРЕМАЛЬНО МАЛОЕ для well cells (даже 0.30 → divergence!)
+        elif lvl_idx >= 1:
+            # Coarse levels: используем консервативное значение
+            omega = min(self.omega, 0.50)
+        else:
+            omega = self.omega
 
         red_mask, black_mask = lvl.is_red, lvl.is_black
 
@@ -1207,20 +1237,17 @@ class GeoSolverV2:
 
             mu = r_after.norm() / (r_before.norm() + 1e-30)
 
-            # --- адаптация шага только на самом тонком уровне ------------
-            if lvl_idx == 0:
-                # жёсткие пределы, чтобы ω не «умирал» и не зашкаливал
-                MIN_OMEGA, MAX_OMEGA = 0.10, 0.95
+            # --- адаптация шага ОТКЛЮЧЕНА для L0 (используем фиксированный omega) ---
+            # ИСПРАВЛЕНО: адаптивный omega был источником divergence!
+            # Оставляем адаптацию только для coarse levels (где omega не критичен)
+            if lvl_idx >= 1:
+                # Coarse levels: можно использовать адаптацию (но ограничиваем max=0.50)
+                MIN_OMEGA, MAX_OMEGA = 0.10, 0.50
 
-                # если сглаживание почти не работает (μ ≳ 0.9) — УВЕЛИЧИВАЕМ ω
                 if mu > 0.9:
-                    self.omega_fine = min(self.omega_fine * 1.25 + 1e-3, MAX_OMEGA)
-                # если и так хорошо сглаживает (μ ≲ 0.5) — слегка ПРИЖИМАЕМ ω (устойчивость)
+                    omega = min(omega * 1.1, MAX_OMEGA)
                 elif mu < 0.5:
-                    self.omega_fine = max(self.omega_fine * 0.9, MIN_OMEGA)
-
-                # используем обновлённый шаг прямо в текущей итерации
-                omega = self.omega_fine
+                    omega = max(omega * 0.95, MIN_OMEGA)
 
         
             if self.debug and lvl_idx == 0:

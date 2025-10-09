@@ -41,14 +41,14 @@ def make_wells(nx, ny, nz, *, n_wells=50,
         wells.append(dict(
             name=f"INJ{i+1}", type="injector",
             i=rnd(nx), j=rnd(ny), k=rnd(nz),
-            radius={"radius": 0.1, "well_index": 1e-3},
+            radius={"radius": 0.1, "well_index": 1e-12},  # ИСПРАВЛЕНО: реалистичный WI
             control_type="bhp", control_value=30.0  # МПа
         ))
     for i in range(n_prod):
         wells.append(dict(
             name=f"PROD{i+1}", type="producer",
             i=rnd(nx), j=rnd(ny), k=rnd(nz),
-            radius={"radius": 0.1, "well_index": 1e-3},
+            radius={"radius": 0.1, "well_index": 1e-12},  # ИСПРАВЛЕНО: реалистичный WI
             control_type="bhp", control_value=10.0  # МПа
         ))
     return wells

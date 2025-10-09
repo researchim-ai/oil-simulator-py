@@ -127,6 +127,11 @@ def fgmres(A,
             total_iters += 1
             j_last = j
             
+            # ✅ ДИАГНОСТИКА: логируем residual каждые 5 итераций
+            if total_iters % 5 == 0 or total_iters <= 3:
+                rel_res = (resid / b_norm).item()
+                print(f"    [GMRES iter {total_iters}] rel_res={rel_res:.3e}, ||r||={resid.item():.3e}, ||b||={b_norm.item():.3e}")
+            
             # Стандартная проверка сходимости по g[j+1]
             if (resid / b_norm < tol) and (total_iters >= min_iters):
                 y = _robust_solve(H[:j + 1, :j + 1], g[:j + 1])

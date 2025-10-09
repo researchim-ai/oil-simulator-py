@@ -245,6 +245,20 @@ class Simulator:
             vol_before_total = self._compute_total_pseudovolume().item()
         except Exception:
             vol_before_total = None
+        # ============================================================
+        # ДИАГНОСТИКА: ЧТО ПРОИСХОДИТ С СОСТОЯНИЕМ?
+        # ============================================================
+        if not hasattr(self, "_run_step_state_logged"):
+            print(f"\n{'='*70}")
+            print(f"[RUN_STEP НАЧАЛО] Состояние ПЕРЕД сохранением prev")
+            print(f"{'='*70}")
+            print(f"  self.fluid.pressure: min={self.fluid.pressure.min().item():.6e}, max={self.fluid.pressure.max().item():.6e}")
+            print(f"  self.fluid.s_w:      min={self.fluid.s_w.min().item():.6f}, max={self.fluid.s_w.max().item():.6f}")
+            print(f"  self.fluid.prev_pressure (from __init__): min={self.fluid.prev_pressure.min().item():.6e}, max={self.fluid.prev_pressure.max().item():.6e}")
+            print(f"  self.fluid.prev_sw (from __init__):       min={self.fluid.prev_sw.min().item():.6f}, max={self.fluid.prev_sw.max().item():.6f}")
+            print(f"{'='*70}\n")
+            self._run_step_state_logged = True
+        
         # --- сохранение предыдущего состояния для полно-неявной схемы ---
         self.fluid.prev_pressure = self.fluid.pressure.clone()
         self.fluid.prev_sw       = self.fluid.s_w.clone()
@@ -937,6 +951,23 @@ class Simulator:
                         print(f"Ошибка инициализации JFNK: {e}")
                         raise RuntimeError(f"JFNK initialization failed: {e}")
 
+            # ============================================================
+            # ДИАГНОСТИКА: НАЧАЛЬНОЕ СОСТОЯНИЕ ДЛЯ NEWTON
+            # ============================================================
+            if not hasattr(self, "_x0_logged"):
+                print(f"\n{'='*70}")
+                print(f"[X0 ДИАГНОСТИКА] Состояние перед Newton")
+                print(f"{'='*70}")
+                print(f"  pressure: min={self.fluid.pressure.min().item():.3e}, max={self.fluid.pressure.max().item():.3e}")
+                print(f"  prev_pressure: min={self.fluid.prev_pressure.min().item():.3e}, max={self.fluid.prev_pressure.max().item():.3e}")
+                print(f"  s_w: min={self.fluid.s_w.min().item():.6f}, max={self.fluid.s_w.max().item():.6f}")
+                print(f"  prev_sw: min={self.fluid.prev_sw.min().item():.6f}, max={self.fluid.prev_sw.max().item():.6f}")
+                print(f"  DELTA: Δp={(self.fluid.pressure - self.fluid.prev_pressure).abs().max().item():.3e}")
+                print(f"  DELTA: Δsw={(self.fluid.s_w - self.fluid.prev_sw).abs().max().item():.6f}")
+                print(f"  dt={dt:.6f} сек = {dt/86400:.6f} дней")
+                print(f"{'='*70}\n")
+                self._x0_logged = True
+            
             # Подготавливаем начальное приближение (всегда из физического состояния)
             Ncells = self.reservoir.dimensions[0]*self.reservoir.dimensions[1]*self.reservoir.dimensions[2]
             has_gas_phase = hasattr(self.fluid, 's_g') and torch.any(self.fluid.s_g > 1e-8)
@@ -2421,21 +2452,42 @@ class Simulator:
         # ------------------------------------------------------------------
         # Fluxes per face (upwind)
         # ------------------------------------------------------------------
+        # FREEZE LINEARIZATION: используем замороженные upwind флаги для J·v
+        # Это критично для JFNK! Иначе конечные разности схватывают разрывы.
+        frozen_upwind = getattr(self, '_frozen_upwind_flags', None)
+        
         dp_x = p[:-1, :, :] - p[1:, :, :]
-        lam_w_x = torch.where(dp_x > 0, lam_w[:-1, :, :], lam_w[1:, :, :])
-        lam_o_x = torch.where(dp_x > 0, lam_o[:-1, :, :], lam_o[1:, :, :])
+        if frozen_upwind is not None and 'upwind_x' in frozen_upwind:
+            # Используем замороженное направление апвинда
+            upwind_x_mask = frozen_upwind['upwind_x']
+            lam_w_x = torch.where(upwind_x_mask, lam_w[:-1, :, :], lam_w[1:, :, :])
+            lam_o_x = torch.where(upwind_x_mask, lam_o[:-1, :, :], lam_o[1:, :, :])
+        else:
+            # Стандартный upwind (пересчитываем по текущему dp)
+            lam_w_x = torch.where(dp_x > 0, lam_w[:-1, :, :], lam_w[1:, :, :])
+            lam_o_x = torch.where(dp_x > 0, lam_o[:-1, :, :], lam_o[1:, :, :])
         flow_w_x = Tx * lam_w_x * dp_x
         flow_o_x = Tx * lam_o_x * dp_x
 
         dp_y = p[:, :-1, :] - p[:, 1:, :]
-        lam_w_y = torch.where(dp_y > 0, lam_w[:, :-1, :], lam_w[:, 1:, :])
-        lam_o_y = torch.where(dp_y > 0, lam_o[:, :-1, :], lam_o[:, 1:, :])
+        if frozen_upwind is not None and 'upwind_y' in frozen_upwind:
+            upwind_y_mask = frozen_upwind['upwind_y']
+            lam_w_y = torch.where(upwind_y_mask, lam_w[:, :-1, :], lam_w[:, 1:, :])
+            lam_o_y = torch.where(upwind_y_mask, lam_o[:, :-1, :], lam_o[:, 1:, :])
+        else:
+            lam_w_y = torch.where(dp_y > 0, lam_w[:, :-1, :], lam_w[:, 1:, :])
+            lam_o_y = torch.where(dp_y > 0, lam_o[:, :-1, :], lam_o[:, 1:, :])
         flow_w_y = Ty * lam_w_y * dp_y
         flow_o_y = Ty * lam_o_y * dp_y
 
         dp_z = p[:, :, :-1] - p[:, :, 1:]
-        lam_w_z = torch.where(dp_z > 0, lam_w[:, :, :-1], lam_w[:, :, 1:])
-        lam_o_z = torch.where(dp_z > 0, lam_o[:, :, :-1], lam_o[:, :, 1:])
+        if frozen_upwind is not None and 'upwind_z' in frozen_upwind:
+            upwind_z_mask = frozen_upwind['upwind_z']
+            lam_w_z = torch.where(upwind_z_mask, lam_w[:, :, :-1], lam_w[:, :, 1:])
+            lam_o_z = torch.where(upwind_z_mask, lam_o[:, :, :-1], lam_o[:, :, 1:])
+        else:
+            lam_w_z = torch.where(dp_z > 0, lam_w[:, :, :-1], lam_w[:, :, 1:])
+            lam_o_z = torch.where(dp_z > 0, lam_o[:, :, :-1], lam_o[:, :, 1:])
 
         _, _, dz = self.reservoir.grid_size
         if dz > 0 and nz > 1:
@@ -2633,9 +2685,12 @@ class Simulator:
                     else:
                         coeff_eff = coeff_raw
                     q_total = coeff_eff * (p_block - p_bhp)
-                    # Продюсер (p_bhp < p_block) должен извлекать флюид → отрицательный дебит
-                    if well.type == 'producer':
-                        q_total = -q_total
+                    
+                    # ФИЗИКА BHP control:
+                    # - Injector: p_bhp > p_block → q=(p_block-p_bhp) < 0, нужен знак "-" → q > 0 (закачка)
+                    # - Producer: p_bhp < p_block → q=(p_block-p_bhp) > 0, нужен знак "-" → q < 0 (добыча)
+                    # ИСПРАВЛЕНО: для injector тоже инвертируем знак!
+                    q_total = -q_total  # инвертируем для ОБОИХ типов
                 else:
                     q_total = 0.0
 
@@ -2664,6 +2719,26 @@ class Simulator:
         res_w = acc_w + div_w + q_w
         res_o = acc_o + div_o + q_o
         res_p = res_w + res_o  # total (pressure) equation
+
+        # ============================================================
+        # ДИАГНОСТИКА: ДЕКОМПОЗИЦИЯ НЕВЯЗКИ
+        # ============================================================
+        if not hasattr(self, "_res_decomp_logged"):
+            print(f"\n{'='*70}")
+            print(f"[RESIDUAL ДЕКОМПОЗИЦИЯ] Источник огромной невязки")
+            print(f"{'='*70}")
+            print(f"  PRESSURE (total = water + oil):")
+            print(f"    ||acc_w||={acc_w.norm().item():.3e}, ||div_w||={div_w.norm().item():.3e}, ||q_w||={q_w.norm().item():.3e}")
+            print(f"    ||acc_o||={acc_o.norm().item():.3e}, ||div_o||={div_o.norm().item():.3e}, ||q_o||={q_o.norm().item():.3e}")
+            print(f"    ||res_w||={res_w.norm().item():.3e}, ||res_o||={res_o.norm().item():.3e}, ||res_p||={res_p.norm().item():.3e}")
+            print(f"  SATURATION (water):")
+            print(f"    res_sw = res_w (same as pressure water component)")
+            print(f"\n  WELLS:")
+            print(f"    q_w: min={q_w.min().item():.3e}, max={q_w.max().item():.3e}, sum={q_w.sum().item():.3e}")
+            print(f"    q_o: min={q_o.min().item():.3e}, max={q_o.max().item():.3e}, sum={q_o.sum().item():.3e}")
+            print(f"    q_total (w+o): sum={(q_w + q_o).sum().item():.3e} (должно ≈ 0 для closed system)")
+            print(f"{'='*70}\n")
+            self._res_decomp_logged = True
 
         F_p = res_p.view(-1)
         F_sw = res_w.view(-1)

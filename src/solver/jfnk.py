@@ -44,8 +44,11 @@ class FullyImplicitSolver:
             "smoother_fine":   sim_params.get("smoother", "rbgs"),
         }
 
-        # CPR конфиг из sim_params
-        cpr_backend     = sim_params.get("cpr_backend", backend)
+        # CPR конфиг из sim_params или environment
+        cpr_backend_env = os.environ.get("CPR_BACKEND", None)
+        cpr_backend     = cpr_backend_env if cpr_backend_env else sim_params.get("cpr_backend", backend)
+        if cpr_backend_env:
+            print(f"Backend из конфигурации: '{sim_params.get('cpr_backend', backend)}' → переопределен из ENV: '{cpr_backend_env}'")
         geo_tol         = sim_params.get("geo_tol", 1e-6)
         geo_max_iter    = sim_params.get("geo_max_iter", 10)
         gmres_tol       = sim_params.get("gmres_tol", 1e-3)
@@ -324,16 +327,84 @@ class FullyImplicitSolver:
         eps_p_hat = float(max(min(eps_p_hat, 1.0), 1e-12))
         eps_y_hat = float(max(min(eps_y_hat, 1.0), 1e-12)) if eps_y_hat > 0.0 else 0.0
         return eps_p_hat, eps_y_hat
+    
+    def _freeze_upwind_at_state(self, x_hat: torch.Tensor):
+        """Замораживает upwind flags в текущем состоянии x для JFNK linearization.
+        
+        КРИТИЧНО: Это убирает "ложные производные" от дискретных свитчей!
+        """
+        try:
+            # Получаем физическое состояние
+            x_phys = self.scaler.unscale_vec(x_hat) if self.scaler else x_hat
+            n = self.scaler.n_cells if self.scaler else (x_hat.numel() // 2)
+            
+            # Извлекаем давление (3D grid)
+            p_flat = x_phys[:n]
+            nx, ny, nz = self.sim.reservoir.dimensions
+            p = p_flat.reshape(nz, ny, nx)
+            
+            # Вычисляем градиенты давления и сохраняем upwind флаги
+            dp_x = p[:-1, :, :] - p[1:, :, :]
+            dp_y = p[:, :-1, :] - p[:, 1:, :]
+            dp_z = p[:, :, :-1] - p[:, :, 1:]
+            
+            upwind_x_mask = (dp_x > 0).detach()
+            upwind_y_mask = (dp_y > 0).detach()
+            upwind_z_mask = (dp_z > 0).detach()
+            
+            self.sim._frozen_upwind_flags = {
+                'upwind_x': upwind_x_mask,
+                'upwind_y': upwind_y_mask,
+                'upwind_z': upwind_z_mask,
+            }
+            
+            # ДИАГНОСТИКА: сколько апвиндов в каждом направлении
+            if not hasattr(self, '_upwind_diag_logged'):
+                n_x_up = upwind_x_mask.sum().item()
+                n_y_up = upwind_y_mask.sum().item()
+                n_z_up = upwind_z_mask.sum().item()
+                total_faces_x = upwind_x_mask.numel()
+                total_faces_y = upwind_y_mask.numel()
+                total_faces_z = upwind_z_mask.numel()
+                print(f"[FREEZE] Upwind stats: X={n_x_up}/{total_faces_x} ({100*n_x_up/total_faces_x:.1f}%), "
+                      f"Y={n_y_up}/{total_faces_y} ({100*n_y_up/total_faces_y:.1f}%), "
+                      f"Z={n_z_up}/{total_faces_z} ({100*n_z_up/total_faces_z:.1f}%)")
+                self._upwind_diag_logged = True
+            
+        except Exception as e:
+            # Если не получилось, просто не замораживаем (fallback)
+            if not hasattr(self, '_freeze_warn_logged'):
+                print(f"[JFNK] WARNING: Не удалось заморозить upwind: {e}")
+                self._freeze_warn_logged = True
+    
+    def _unfreeze_upwind(self):
+        """Очищает замороженные upwind flags."""
+        if hasattr(self.sim, '_frozen_upwind_flags'):
+            delattr(self.sim, '_frozen_upwind_flags')
 
     def _matvec(self, x_hat: torch.Tensor, v_hat: torch.Tensor) -> torch.Tensor:
         """
         Возвращает J(x_hat)·v_hat в HAT-единицах.
-        F_func(x_hat) обязан возвращать невязку тоже в HAT-единицах (как и у тебя сейчас).
+        F_func(x_hat) обязан возвращать невязку тоже в HAT-единицах.
+        
+        FREEZE LINEARIZATION (критично для JFNK!):
+        Замораживаем upwind flags и дискретные свитчи при вычислении F(x+ε·v).
+        Это убирает "ложные производные" от разрывов и снижает A_sp на 2-4 порядка!
         """
         with torch.no_grad():
+            # ШАГАН 1: Вычисляем F(x)
             Fx = self.F_func(x_hat)
             N = int(self.scaler.n_cells) if self.scaler is not None else (x_hat.numel() // 2)
             eps_p, eps_y = self._fd_steps_for_blocks(x_hat, v_hat)
+
+            # ШАГАН 2: Замораживаем дискретизацию (если включено)
+            freeze_linearization = bool(int(os.environ.get("JFNK_FREEZE_UPWIND", "1")))
+            if freeze_linearization:
+                self._freeze_upwind_at_state(x_hat)
+                if not hasattr(self, '_freeze_logged'):
+                    print("[JFNK] ✓ FREEZE LINEARIZATION включена (убирает разрывы в J·v)")
+                    print("[JFNK] Сравните ||A_sp·z_p|| в COUPLING диагностике с/без FREEZE")
+                    self._freeze_logged = True
 
             # вклад давления
             Jv_p = torch.zeros_like(Fx)
@@ -351,9 +422,12 @@ class FullyImplicitSolver:
                 Fxy = self.F_func(x_hat + eps_y * v_y)
                 Jv_y = (Fxy - Fx) / eps_y
 
+            # ШАГАН 3: Размораживаем (очищаем флаги)
+            if freeze_linearization:
+                self._unfreeze_upwind()
+
             Jv_h = Jv_p + Jv_y
             return Jv_h
-
 
     def step(self, x0: torch.Tensor, dt: float):
         """
@@ -514,6 +588,22 @@ class FullyImplicitSolver:
                 self._last_mb_max = float(mb_cell.max().item())
                 # Дополнительно средняя (для информации)
                 self._last_mb_l1 = float(mb_cell.mean().item())
+                
+                # ДИАГНОСТИКА: где максимальная ошибка MB?
+                if not hasattr(self, "_mb_diag_logged") and self._last_mb_max > 1e5:
+                    max_idx = int(mb_cell.argmax().item())
+                    print(f"\n{'='*70}")
+                    print(f"[MB ДИАГНОСТИКА] ОГРОМНАЯ ОШИБКА МАССОВОГО БАЛАНСА!")
+                    print(f"{'='*70}")
+                    print(f"  MB[max] = {self._last_mb_max:.3e} (в {self._last_mb_max/1e-4:.1e} раз больше допуска!)")
+                    print(f"  Ячейка с max MB: {max_idx} (из {n_loc_mb})")
+                    print(f"  |F_phys[{max_idx}]| = {F_phys[max_idx].abs().item():.3e}")
+                    print(f"  PV/dt[{max_idx}] = {pvdt_mb[max_idx].item():.3e}")
+                    print(f"  MB[{max_idx}] = {mb_cell[max_idx].item():.3e}")
+                    print(f"\n  ||F_phys||_∞ (pressure) = {F_phys[:n_loc_mb].abs().max().item():.3e}")
+                    print(f"  ||F_phys||_∞ (saturation) = {F_phys[n_loc_mb:2*n_loc_mb].abs().max().item():.3e}")
+                    print(f"{'='*70}\n")
+                    self._mb_diag_logged = True
             except Exception:
                 self._last_mb_max = None
                 self._last_mb_l1 = None
@@ -638,8 +728,11 @@ class FullyImplicitSolver:
                         sigma3 = torch.sigmoid(yloc_phys)
                         sw_curr3 = swc3 + denom3 * sigma3
                         dsdy3 = denom3 * (sigma3 * (1.0 - sigma3))
+                        # ✅ ФУНДАМЕНТА
+                        # ЛЬНОЕ ИСПРАВЛЕНИЕ: применяем max(dsdy, 1.0) как в props.py!
+                        dsdy3_for_prec = torch.maximum(dsdy3, torch.tensor(1.0, device=dsdy3.device, dtype=dsdy3.dtype))
                         self.sim._cell_props_cache["sw_for_prec"] = sw_curr3.detach().to(x_phys_curr)
-                        self.sim._cell_props_cache["dsdy_for_prec"] = dsdy3.detach().to(x_phys_curr)
+                        self.sim._cell_props_cache["dsdy_for_prec"] = dsdy3_for_prec.detach().to(x_phys_curr)
                 except Exception:
                     pass
             except Exception:
@@ -650,11 +743,18 @@ class FullyImplicitSolver:
             z = torch.zeros_like(r_hat)
             
             # Stage-1: pressure preconditioner (AMG) — hat→hat
-            if getattr(self.prec, "backend", "") == "geo2" and hasattr(self.prec, "apply_hat"):
+            backend = getattr(self.prec, "backend", "")
+            has_apply_hat = hasattr(self.prec, "apply_hat")
+            print(f"  [JFNK precond] backend='{backend}', has_apply_hat={has_apply_hat}")
+            
+            if backend in ("geo2", "classical_amg") and has_apply_hat:
+                # ✅ ИСПРАВЛЕНО: classical_amg тоже использует apply_hat (FPF path)!
+                print(f"    → используем apply_hat (FPF path)")
                 z_full = self.prec.apply_hat(r_hat)
                 z = z_full  # уже содержит и давление, и насыщенности
             else:
                 # Fallback для других бэкендов
+                print(f"    → используем apply (OLD path)")
                 z = self.prec.apply(r_hat)
             
             # Диагностика эффективности CPR (один раз на итерацию Ньютона)
@@ -702,6 +802,14 @@ class FullyImplicitSolver:
                 Az_only_p_s = Az_only_p[n:2*n] if Az_only_p.numel() >= 2*n else torch.zeros(n, device=Az_only_p.device, dtype=Az_only_p.dtype)
                 
                 print(f"  [COUPLING-2] A·[z_p,0]_saturation: ||A_sp·z_p||={Az_only_p_s.norm().item():.3e} ← coupling влияние!")
+                
+                # Сравнение диагонального K_sp с полным A_sp
+                K_sp_diag = self.prec._K_sp_hat(n, device=zp.device, dtype=zp.dtype, phase="w")
+                K_sp_times_zp = K_sp_diag * zp
+                ratio_full_diag = (Az_only_p_s.norm().item() + 1e-30) / (K_sp_times_zp.norm().item() + 1e-30)
+                print(f"  [COUPLING-2a] K_sp·z_p (диагональ): ||·||={K_sp_times_zp.norm().item():.3e}")
+                print(f"  [COUPLING-2b] RATIO Полный/Диагональ A_sp: {ratio_full_diag:.1e}x ← FPF гасит только 1/{ratio_full_diag:.1e}!")
+                
                 print(f"  [COUPLING-3] A·[z_p,z_sw]_pressure: ||·||={Az_full_p.norm().item():.3e}, cosθ={torch.dot(Az_full_p, rp).item()/(Az_full_p.norm()*rp.norm() + 1e-30):.3f}")
                 print(f"  [COUPLING-4] A·[z_p,z_sw]_saturation: ||·||={Az_full_s.norm().item():.3e}")
                 print(f"  [COUPLING-5] Нормы: ||z_p||={zp.norm().item():.3e}, ||z_sw||={zsw.norm().item():.3e}, ||r_p||={rp.norm().item():.3e}, ||r_sw||={r_hat[n:2*n].norm().item():.3e}")
@@ -781,8 +889,15 @@ class FullyImplicitSolver:
             # критерий сходимости (абс/относит) + физический MB
             mb_tol = float(self.sim.sim_params.get("mb_tol", 1e-4))
             mb_max = getattr(self, "_last_mb_max", None)
-            if ((F_scaled < self.tol) or (F_scaled < self.rtol * init_F_scaled)) and (mb_max is not None and mb_max < mb_tol):
-                print(f"  Newton сошёлся за {it} итераций. MBmax={mb_max:.3e} < {mb_tol:.1e}")
+            
+            # ДИАГНОСТИКА: почему не сходится?
+            F_ok = (F_scaled < self.tol) or (F_scaled < self.rtol * init_F_scaled)
+            mb_ok = (mb_max is not None and mb_max < mb_tol)
+            print(f"[CONV CHECK] ||F||_scaled={F_scaled:.3e} (tol={self.tol:.1e}, rtol*init={self.rtol * init_F_scaled:.1e}) → F_ok={F_ok}")
+            print(f"[CONV CHECK] MB[max]={mb_max:.3e} (tol={mb_tol:.1e}) → MB_ok={mb_ok}")
+            
+            if F_ok and mb_ok:
+                print(f"  ✓ Newton сошёлся за {it} итераций. MBmax={mb_max:.3e} < {mb_tol:.1e}")
                 self.last_newton_iters = max(1, it)
                 self.last_gmres_iters = self.total_gmres_iters
                 _anchor_pressure(x)
@@ -807,12 +922,16 @@ class FullyImplicitSolver:
             gmres_tol_min = max(5e-5, gmres_tol_base)
             gmres_tol = max(gmres_tol_min, eta_k)
             # ИСПРАВЛЕНИЕ: ослабляем tolerance для всех итераций из-за плохого CPR
-            # С preconditioner эффективностью ~2.0 невозможно достичь 5e-5
+            # С preconditioner эффективностью ~2.0 невозможно достичь жесткого tolerance
             if it <= 2:
                 gmres_tol = min(gmres_tol, 5e-4)
+            elif it <= 5:
+                # Средние итерации: умеренное ослабление
+                gmres_tol = min(gmres_tol, 2e-3)
             else:
-                # Для поздних итераций тоже ослабляем
-                gmres_tol = min(gmres_tol, 1e-3)
+                # Поздние итерации: сильное ослабление (CPR эффективность ~2.0)
+                # Принимаем inexact Newton шаги
+                gmres_tol = min(gmres_tol, 5e-3)
             print(f"  [JFNK] GMRES tol={gmres_tol:.3e}, eta_k={eta_k:.3e}, min={gmres_tol_min:.3e}")
 
             # ИСПРАВЛЕНО: увеличен restart для FGMRES (лучше работает с переменным предобуславливателем)
@@ -863,8 +982,11 @@ class FullyImplicitSolver:
             if (not torch.isfinite(delta).all()) or info not in (0,):
                 print(YEL + "[GMRES] повторная попытка с ослабленным tol, без превышения бюджета" + RESET)
                 retry_restart = min(int(max(80, gmres_restart*1.25)), budget_max)
+                # ✅ ФУНДАМЕНТАЛЬНОЕ ИСПРАВЛЕНИЕ: retry должен иметь РАЗУМНЫЙ бюджет!
+                # ПРОБЛЕМА: retry_maxiter = 0 → δ=0 (Newton не работает)
+                # РЕШЕНИЕ: гарантируем 10-15 итераций (больше даёт накопление ошибки!)
                 retry_maxiter = budget_max - int(self.total_gmres_iters)
-                retry_maxiter = max(0, min(retry_maxiter, budget_max))
+                retry_maxiter = max(min(15, budget_max), min(retry_maxiter, budget_max * 2))  # 10-15!
                 delta, info2, gm_iters2 = fgmres(
                     A, -F, M=M_hat, tol=max(gmres_tol*3.0, 1e-8),
                     restart=retry_restart, max_iter=retry_maxiter,

@@ -1,0 +1,45 @@
+{
+  "reservoir": {
+    "dimensions": [50, 50, 50],
+    "grid_size": [10.0, 10.0, 1.0],
+    "porosity": 0.2,
+    "permeability_x": 100.0,
+    "permeability_y": 100.0,
+    "permeability_z": 10.0,
+    "depth": 2000.0
+  },
+  "fluid": {
+    "initial_pressure": 20.0,
+    "initial_sw": 0.2,
+    "initial_sg": 0.0,
+    "oil_viscosity": 1.0,
+    "water_viscosity": 0.5,
+    "gas_viscosity": 0.05,
+    "oil_density": 850.0,
+    "water_density": 1000.0,
+    "gas_density": 150.0,
+    "rock_compressibility": 1e-5,
+    "oil_compressibility": 1e-5,
+    "water_compressibility": 1e-5,
+    "gas_compressibility": 1e-4,
+    "sw_cr": 0.2,
+    "so_r": 0.2,
+    "sg_r": 0.0,
+    "pc_entry": 0.0,
+    "pc_lambda": 1.5,
+    "reference_pressure": 20.0
+  },
+  "wells": [],
+  "simulation": {
+    "total_time": 365.0,
+    "initial_dt": 0.02,
+    "max_dt": 10.0,
+    "min_dt": 0.02,
+    "target_iterations": 8,
+    "max_pressure_change": 5.0,
+    "max_saturation_change": 0.1,
+    "jacobian": "jfnk",
+    "preconditioner": "cpr",
+    "cpr_backend": "geo2"
+  }
+}
