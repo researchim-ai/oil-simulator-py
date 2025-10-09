@@ -291,7 +291,7 @@ class CPRPreconditioner:
                                              device=device_amg, dtype=torch.float64)
             
             theta_amg = float(os.environ.get("AMG_THETA", "0.25"))
-            self.solver = ClassicalAMG(A_torch, max_coarse=100, theta=theta_amg, max_levels=10)
+            self.solver = ClassicalAMG(A_torch, theta=theta_amg, max_levels=10, coarsest_size=100)
             print(f"✅ CPR: Classical AMG готов (theta={theta_amg:.2f})")
         elif backend in ("hypre", "boomer", "cpu"):  # BoomerAMG на CPU
             try:
@@ -1008,7 +1008,7 @@ class CPRPreconditioner:
                 z = self.solver.apply_prec_hat(r, cycles=cycles)
             elif hasattr(self.solver, 'solve'):
                 # ClassicalAMG
-                z = self.solver.solve(r, x0=None, max_iter=cycles, pre_smooth=3, post_smooth=3)
+                z = self.solver.solve(r, x0=None, max_iter=cycles, tol=1e-6)
             else:
                 raise RuntimeError(f"Unknown solver type: {type(self.solver)}")
             

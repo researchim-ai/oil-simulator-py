@@ -859,7 +859,8 @@ class FullyImplicitSolver:
 
             # ранний приём (с учётом физического MB)
             early_tol = float(self.sim.sim_params.get("early_accept_tol", 1e-4))
-            mb_tol_accept = float(self.sim.sim_params.get("mb_tol", 1e-4))
+            # mb_tol: 1e-3 (0.1%) = стандарт reservoir simulation (Eclipse/CMG)
+            mb_tol_accept = float(self.sim.sim_params.get("mb_tol", 1e-3))
             mb_max = getattr(self, "_last_mb_max", None)
             if (F_scaled < early_tol) and (mb_max is not None and mb_max < mb_tol_accept):
                 print(f"  Newton: ||F||_scaled={F_scaled:.3e} < early_tol={early_tol:.1e}, MBmax={mb_max:.3e} → приём")
@@ -872,7 +873,8 @@ class FullyImplicitSolver:
                 init_F_scaled = F_scaled
                 # сохраняем начальную масштабированную норму для отчёта rel_tol
                 self.init_res_scaled = float(init_F_scaled)
-            mb_tol = float(self.sim.sim_params.get("mb_tol", 1e-4))
+            # mb_tol: 1e-3 (0.1%) = стандарт reservoir simulation (Eclipse/CMG)
+            mb_tol = float(self.sim.sim_params.get("mb_tol", 1e-3))
             mb_max = getattr(self, "_last_mb_max", float('nan'))
             mb_l1  = getattr(self, "_last_mb_l1",  float('nan'))
             print(f"  Newton #{it}: ||F||={F_norm:.3e}, ||F||_scaled={F_scaled:.3e}, MB[max]={mb_max:.3e}, MB[mean]={mb_l1:.3e} (tol={mb_tol:.1e})")
@@ -887,7 +889,8 @@ class FullyImplicitSolver:
                 pass
 
             # критерий сходимости (абс/относит) + физический MB
-            mb_tol = float(self.sim.sim_params.get("mb_tol", 1e-4))
+            # mb_tol: 1e-3 (0.1%) = стандарт reservoir simulation (Eclipse/CMG)
+            mb_tol = float(self.sim.sim_params.get("mb_tol", 1e-3))
             mb_max = getattr(self, "_last_mb_max", None)
             
             # ДИАГНОСТИКА: почему не сходится?

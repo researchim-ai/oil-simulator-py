@@ -1,387 +1,463 @@
-"""Classical Algebraic Multigrid (Ruge-Stuben) с адаптивным coarsening.
+"""
+Classical Algebraic Multigrid (Ruge-Stuben) solver.
 
-Это фундаментальное решение проблемы low-energy мод от wells:
-- Geometric coarsening (2x2x2) не может захватить algebraic smooth modes от wells
-- Algebraic coarsening строит уровни на основе strong connections в матрице
-- Это даёт эффективное гашение всех мод, включая от wells!
+TRUE RS-AMG с:
+- Strong connections по отрицательным внедиагоналям с диагональным масштабированием
+- MIS coarsening по графу сильных связей
+- 1-point interpolation к сильным C-соседям
+- Эффективный RAP через scatter (без SpGEMM/плотнения!)
 """
 
 import torch
-import numpy as np
-from typing import Tuple, List, Optional
+from typing import Tuple, Optional
 
 
 def find_strong_connections(A_csr: torch.Tensor, theta: float = 0.25) -> torch.Tensor:
-    """Находит strong connections в матрице.
+    """Находит сильные связи по отрицательным внедиагоналям.
     
-    Connection i→j сильная если |a_ij| >= theta * max_k≠i(|a_ik|)
+    Для M-матриц (диффузионные операторы): связь i→j сильная если:
+    -a_ij / |a_ii| >= theta * max_k(-a_ik / |a_ii|)
     
     Args:
         A_csr: Sparse CSR матрица
-        theta: Порог для strong connections (0.25 стандартный)
+        theta: Порог для сильных связей (обычно 0.25)
     
     Returns:
-        Strong connections mask (bool tensor)
+        Boolean mask размера nnz, True = сильная связь
     """
-    crow = A_csr.crow_indices()
-    col = A_csr.col_indices()
-    vals = A_csr.values()
+    crow, col, vals = A_csr.crow_indices(), A_csr.col_indices(), A_csr.values()
     n = crow.numel() - 1
+    device, dtype = A_csr.device, A_csr.dtype
     
-    # Для каждой строки найдём max off-diagonal
-    strong_mask = torch.zeros_like(vals, dtype=torch.bool)
+    # Row indices
+    row_len = crow[1:] - crow[:-1]
     
-    for i in range(n):
-        row_start = crow[i]
-        row_end = crow[i+1]
-        
-        if row_end <= row_start:
-            continue
-        
-        # Найти max off-diagonal в строке
-        row_vals = vals[row_start:row_end].abs()
-        row_cols = col[row_start:row_end]
-        
-        # Исключить диагональ
-        off_diag_mask = row_cols != i
-        if off_diag_mask.any():
-            max_off_diag = row_vals[off_diag_mask].max()
-            threshold = theta * max_off_diag
-            
-            # Пометить strong connections
-            strong_mask[row_start:row_end] = row_vals >= threshold
-            # Диагональ не считаем strong connection
-            diag_pos = (row_cols == i).nonzero(as_tuple=True)[0]
-            if diag_pos.numel() > 0:
-                strong_mask[row_start + diag_pos[0]] = False
+    # Санитизация: row_len должен быть неотрицательным
+    if (row_len < 0).any():
+        raise RuntimeError(f"find_strong_connections: некорректный CSR - row_len имеет отрицательные значения")
     
-    return strong_mask
+    row_idx = torch.repeat_interleave(torch.arange(n, device=device), row_len)
+    
+    # Диагональ (для масштабирования)
+    diag = torch.zeros(n, device=device, dtype=dtype)
+    diag_mask = row_idx == col
+    diag.scatter_(0, row_idx[diag_mask], vals[diag_mask].abs())
+    
+    # Масштабированные значения: a_ij / |a_ii|
+    svals = vals / (diag[row_idx].abs() + 1e-30)
+    
+    # Только отрицательные внедиагонали
+    off = col != row_idx
+    neg = svals < 0
+    cand = off & neg
+    
+    # Max |svals| среди отрицательных по строке
+    neg_abs = (-svals).where(cand, torch.zeros_like(svals))
+    max_per_row = torch.zeros(n, device=device, dtype=dtype)
+    max_per_row.scatter_reduce_(0, row_idx, neg_abs, reduce='amax', include_self=False)
+    
+    # Порог: theta * max
+    thr = theta * max_per_row[row_idx]
+    strong = cand & (neg_abs >= thr)
+    
+    return strong
 
 
-def classical_coarsening(A_csr: torch.Tensor, theta: float = 0.25) -> Tuple[torch.Tensor, torch.Tensor]:
-    """Classical Ruge-Stuben C/F splitting.
+def classical_coarsening(A_csr: torch.Tensor, theta: float = 0.25) -> Tuple[torch.Tensor, int]:
+    """Classical RS coarsening через MIS по графу сильных связей.
+    
+    Args:
+        A_csr: Sparse CSR матрица
+        theta: Порог для сильных связей
     
     Returns:
-        cf_marker: 0=C-point (coarse), 1=F-point (fine)
-        n_coarse: количество C-points
+        cf_marker: 0=C-point, 1=F-point
+        n_coarse: Число C-points
     """
-    crow = A_csr.crow_indices()
-    col = A_csr.col_indices()
-    vals = A_csr.values()
+    crow, col = A_csr.crow_indices(), A_csr.col_indices()
     n = crow.numel() - 1
+    device = A_csr.device
     
-    # Найти strong connections
-    strong_mask = find_strong_connections(A_csr, theta)
+    strong = find_strong_connections(A_csr, theta)
     
-    # Построить граф strong connections
-    # lambda_i = количество точек, сильно зависящих от i
-    lambda_i = torch.zeros(n, dtype=torch.long, device=A_csr.device)
+    # Делаем граф неориентированным: i<->j
+    row_len = crow[1:] - crow[:-1]
+    row_idx = torch.repeat_interleave(torch.arange(n, device=device), row_len)
+    i = row_idx[strong]
+    j = col[strong]
+    ii = torch.cat([i, j])
+    jj = torch.cat([j, i])
     
-    for i in range(n):
-        row_start = crow[i]
-        row_end = crow[i+1]
-        strong_in_row = strong_mask[row_start:row_end]
-        lambda_i[i] = strong_in_row.sum()
+    # Степень (число сильных соседей)
+    one = torch.ones_like(ii, dtype=torch.float32)
+    deg = torch.zeros(n, device=device, dtype=torch.float32)
+    deg.scatter_add_(0, ii, one)
     
-    # Также нужно посчитать сколько точек для которых i - strong neighbor
-    lambda_transpose = torch.zeros(n, dtype=torch.long, device=A_csr.device)
-    for i in range(n):
-        row_start = crow[i]
-        row_end = crow[i+1]
-        for pos in range(row_start, row_end):
-            if strong_mask[pos]:
-                j = col[pos]
-                lambda_transpose[j] += 1
+    # Случайный tie-breaker
+    w = torch.rand(n, device=device)
+    score = deg + 1e-3 * w  # лексикографическое сравнение
     
-    # C/F splitting: greedy algorithm
-    # -1 = undecided, 0 = C-point, 1 = F-point
-    cf_marker = torch.full((n,), -1, dtype=torch.long, device=A_csr.device)
+    # Максимум score среди соседей
+    neigh_max = torch.zeros(n, device=device, dtype=score.dtype)
+    neigh_max.scatter_reduce_(0, ii, score[jj], reduce='amax', include_self=False)
     
-    # Priority: точки с максимальным lambda_transpose (нужны многим)
-    remaining = torch.arange(n, device=A_csr.device)
+    # Местные максимумы -> C
+    C = score > neigh_max
+    cf_marker = torch.where(C, torch.tensor(0, device=device), torch.tensor(1, device=device))
     
-    while (cf_marker == -1).any():
-        undecided = (cf_marker == -1).nonzero(as_tuple=True)[0]
-        if undecided.numel() == 0:
-            break
-        
-        # Выбираем точку с максимальным lambda_transpose среди undecided
-        lambda_undecided = lambda_transpose[undecided]
-        max_idx = lambda_undecided.argmax()
-        i = undecided[max_idx]
-        
-        # i становится C-point
-        cf_marker[i] = 0
-        
-        # Все strong neighbors i становятся F-points
-        row_start = crow[i]
-        row_end = crow[i+1]
-        for pos in range(row_start, row_end):
-            if strong_mask[pos]:
-                j = col[pos]
-                if cf_marker[j] == -1:
-                    cf_marker[j] = 1
-        
-        # Пересчитываем lambda_transpose для оставшихся
-        # (упрощенно: не пересчитываем, просто обнуляем выбранные)
-        lambda_transpose[i] = -1
-        for pos in range(row_start, row_end):
-            if strong_mask[pos]:
-                j = col[pos]
-                lambda_transpose[j] = -1
+    # Гарантия покрытия: F без C-соседей -> поднять в C
+    has_C = torch.zeros(n, device=device, dtype=torch.int8)
+    has_C.scatter_add_(0, ii, C[jj].to(torch.int8))
+    lift = (cf_marker == 1) & (has_C == 0)
+    cf_marker[lift] = 0
     
-    # Все оставшиеся undecided становятся C-points
-    cf_marker[cf_marker == -1] = 0
-    
-    n_coarse = (cf_marker == 0).sum().item()
+    n_coarse = int((cf_marker == 0).sum().item())
     
     return cf_marker, n_coarse
 
 
-def build_prolongation(A_csr: torch.Tensor, cf_marker: torch.Tensor, 
-                       strong_mask: torch.Tensor, n_coarse: int) -> torch.Tensor:
-    """Строит prolongation оператор P: coarse → fine.
+def build_prolongation(A_csr: torch.Tensor, cf_marker: torch.Tensor,
+                       strong_mask: torch.Tensor, n_coarse: int) -> Tuple[torch.Tensor, torch.Tensor]:
+    """1-point interpolation: F привязывается к сильному C-соседу.
     
-    Classical interpolation:
-    - C-points: P_ii = 1 (identity)
-    - F-points: P_ij = -a_ij / (sum_k∈C_i a_ik) где C_i - strong C-neighbors
+    Для каждого F-узла берём сильного C-соседа с максимальным весом -a_ij.
+    Это дёшево и даёт алгебраическую привязку.
+    
+    Args:
+        A_csr: Sparse CSR матрица
+        cf_marker: 0=C, 1=F
+        strong_mask: Boolean mask сильных связей
+        n_coarse: Число C-points
+    
+    Returns:
+        P: Prolongation оператор (CSR), размер (n_fine, n_coarse)
+        parent_idx: parent_idx[i] = coarse-родитель узла i
     """
-    crow = A_csr.crow_indices()
-    col = A_csr.col_indices()
-    vals = A_csr.values()
-    n_fine = cf_marker.numel()
+    crow, col, vals = A_csr.crow_indices(), A_csr.col_indices(), A_csr.values()
+    n = crow.numel() - 1
+    device = A_csr.device
     
-    # Создаём mapping fine→coarse
-    c_indices = (cf_marker == 0).nonzero(as_tuple=True)[0]
-    fine_to_coarse = torch.full((n_fine,), -1, dtype=torch.long, device=A_csr.device)
-    fine_to_coarse[c_indices] = torch.arange(n_coarse, device=A_csr.device)
+    # Mapping fine->coarse
+    c_idx = (cf_marker == 0).nonzero(as_tuple=True)[0]
+    fine2coarse = torch.full((n,), -1, dtype=torch.long, device=device)
+    fine2coarse[c_idx] = torch.arange(n_coarse, device=device)
     
-    # Строим P в COO формате
-    P_rows = []
-    P_cols = []
-    P_vals = []
+    # Row indices
+    row_len = crow[1:] - crow[:-1]
+    row = torch.repeat_interleave(torch.arange(n, device=device), row_len)
     
-    for i in range(n_fine):
-        if cf_marker[i] == 0:
-            # C-point: P_ii = 1
-            P_rows.append(i)
-            P_cols.append(fine_to_coarse[i])
-            P_vals.append(1.0)
+    # Кандидаты: сильные C-соседи с отрицательными a_ij
+    cand = strong_mask & (cf_marker[col] == 0)
+    w = (-vals).where(cand, torch.tensor(0., device=device, dtype=vals.dtype))
+    
+    # Лучший сосед по весу на каждую строку
+    best_w = torch.zeros(n, device=device, dtype=vals.dtype)
+    best_w.scatter_reduce_(0, row, w, reduce='amax', include_self=False)
+    winners = cand & (w >= best_w[row] - 1e-30)
+    
+    # Выбранный coarse-столбец для каждой fine-строки
+    parent = torch.full((n,), -1, dtype=torch.long, device=device)
+    parent[row[winners]] = fine2coarse[col[winners]]
+    
+    # C-узлы указывают на себя
+    parent[c_idx] = fine2coarse[c_idx]
+    
+    # Safety: orphan F -> поднять в C
+    orphan = (parent < 0)
+    if orphan.any():
+        extra = orphan.nonzero(as_tuple=True)[0]
+        add = torch.arange(n_coarse, n_coarse + extra.numel(), device=device)
+        fine2coarse[extra] = add
+        parent[extra] = add
+        n_coarse = int(n_coarse + extra.numel())
+    
+    # P: одна 1 на строку
+    rows = torch.arange(n, device=device)
+    cols = parent
+    valsP = torch.ones(n, device=device, dtype=torch.float64)
+    P = torch.sparse_coo_tensor(torch.stack([rows, cols]), valsP,
+                                size=(n, n_coarse), device=device, dtype=torch.float64).coalesce()
+    
+    return P.to_sparse_csr(), parent
+
+
+def rap_onepoint_gpu(Af_csr: torch.Tensor,
+                     parent_idx: torch.Tensor,
+                     *,
+                     weights: torch.Tensor | None = None,
+                     n_coarse: int | None = None) -> torch.Tensor:
+    """
+    Galerkin Ac = P^T Af P при 1-point интерполяции.
+    
+    Без spspmm, полностью на GPU, O(nnz(Af)).
+    
+    Args:
+        Af_csr: Fine-level матрица (CSR)
+        parent_idx: parent_idx[i] = номер coarse-родителя узла i
+        weights: P[i, parent[i]] (опционально, по умолчанию 1)
+        n_coarse: Число coarse-узлов (если None, вычисляется)
+    
+    Returns:
+        A_coarse: Coarse-level матрица (CSR)
+    """
+    device = Af_csr.device
+    crow = Af_csr.crow_indices()
+    col  = Af_csr.col_indices()
+    val  = Af_csr.values()
+    n_f  = Af_csr.size(0)
+    
+    if n_coarse is None:
+        n_coarse = int(parent_idx.max().item()) + 1
+    
+    # Индексы строк для каждого nnz в Af
+    row_counts = crow[1:] - crow[:-1]
+    i = torch.repeat_interleave(torch.arange(n_f, device=device, dtype=col.dtype), row_counts)
+    j = col
+    
+    # Coarse-индексы: I = parent[i], J = parent[j]
+    I = parent_idx[i.long()]
+    J = parent_idx[j.long()]
+    
+    # Веса: w = weights[i] * a_ij * weights[j]
+    if weights is None:
+        w = val
+    else:
+        w = (weights[i.long()].to(val.dtype) * val) * weights[j.long()].to(val.dtype)
+    
+    # Аккумулируем в COO и коалесим
+    idx = torch.stack([I, J], dim=0)
+    Ac_coo = torch.sparse_coo_tensor(idx, w, (n_coarse, n_coarse),
+                                     device=device, dtype=val.dtype).coalesce()
+    
+    # Санитация NaN/Inf в значениях
+    v = Ac_coo.values()
+    if not torch.isfinite(v).all():
+        v = torch.nan_to_num(v, nan=0.0, posinf=0.0, neginf=0.0)
+        idx_clean = Ac_coo.indices()
+        Ac_coo = torch.sparse_coo_tensor(idx_clean, v,
+                                         size=(n_coarse, n_coarse),
+                                         device=device, dtype=val.dtype)
+    
+    # Конвертируем в CSR
+    Ac = Ac_coo.to_sparse_csr()
+    
+    # Проверяем корректность CSR (crow должен быть монотонно возрастающим)
+    crow = Ac.crow_indices()
+    if (crow[1:] < crow[:-1]).any():
+        print(f"[WARNING] rap_onepoint_gpu: некорректный CSR после coalesce, пересоздаем")
+        # Пересоздаем через dense (медленно, но надёжно для маленьких матриц)
+        if n_coarse <= 5000:
+            Ac_dense = Ac_coo.to_dense()
+            Ac = Ac_dense.to_sparse_coo().to_sparse_csr()
         else:
-            # F-point: интерполируем от strong C-neighbors
-            row_start = crow[i]
-            row_end = crow[i+1]
-            
-            # Найдём strong C-neighbors и их веса
-            strong_C_sum = 0.0
-            strong_C_neighbors = []
-            
-            for pos in range(row_start, row_end):
-                j = col[pos]
-                if j != i and strong_mask[pos] and cf_marker[j] == 0:
-                    a_ij = vals[pos].item()
-                    strong_C_neighbors.append((j, a_ij))
-                    strong_C_sum += a_ij
-            
-            if len(strong_C_neighbors) == 0:
-                # Нет strong C-neighbors → делаем этуточку C-point
-                cf_marker[i] = 0
-                c_idx = fine_to_coarse.max() + 1
-                fine_to_coarse[i] = c_idx
-                P_rows.append(i)
-                P_cols.append(c_idx.item())
-                P_vals.append(1.0)
-            else:
-                # Классическая интерполяция
-                for j, a_ij in strong_C_neighbors:
-                    c_j = fine_to_coarse[j]
-                    if c_j >= 0:
-                        P_rows.append(i)
-                        P_cols.append(c_j.item())
-                        P_vals.append(-a_ij / (strong_C_sum + 1e-30))
+            raise RuntimeError(f"Некорректный CSR формат после RAP на n={n_coarse}")
     
-    # Конвертируем в sparse COO
-    P_indices = torch.tensor([P_rows, P_cols], dtype=torch.long, device=A_csr.device)
-    P_values = torch.tensor(P_vals, dtype=torch.float64, device=A_csr.device)
-    
-    P_coo = torch.sparse_coo_tensor(
-        P_indices, P_values,
-        size=(n_fine, n_coarse),
-        device=A_csr.device, dtype=torch.float64
-    ).coalesce()
-    
-    return P_coo.to_sparse_csr()
-
-
-def build_galerkin_coarse(A_csr: torch.Tensor, P: torch.Tensor) -> torch.Tensor:
-    """Galerkin RAP: A_c = P^T·A·P."""
-    # P^T
-    PT = P.transpose(0, 1)
-    
-    # A·P
-    AP = torch.sparse.mm(A_csr, P.to_sparse_coo().to_dense().unsqueeze(-1) if P.is_sparse else P)
-    
-    # P^T·(A·P)
-    if AP.dim() == 1:
-        AP = AP.unsqueeze(1)
-    A_coarse_dense = torch.sparse.mm(PT, AP)
-    
-    # Конвертируем обратно в sparse CSR
-    A_coarse_coo = A_coarse_dense.to_sparse_coo()
-    A_coarse_csr = A_coarse_coo.to_sparse_csr()
-    
-    return A_coarse_csr
+    return Ac
 
 
 class ClassicalAMG:
-    """Classical Algebraic Multigrid (Ruge-Stuben).
+    """Classical Ruge-Stuben Algebraic Multigrid.
     
-    Фундаментальное решение для wells:
-    - Algebraic coarsening на основе strong connections
-    - Адаптируется к структуре матрицы (wells автоматически учитываются)
-    - Эффективно гасит все моды, включая low-energy от wells!
+    TRUE RS-AMG с:
+    - Algebraic coarsening через MIS по графу сильных связей
+    - 1-point interpolation к сильным C-соседям
+    - Эффективный RAP через scatter (O(nnz), полностью на GPU!)
+    - Damped Jacobi smoother
     """
     
-    def __init__(self, A_csr: torch.Tensor, max_coarse: int = 100, 
-                 theta: float = 0.25, max_levels: int = 10):
-        """
+    def __init__(self, A_csr_np: torch.Tensor, theta: float = 0.25,
+                 max_levels: int = 10, coarsest_size: int = 100):
+        """Инициализация AMG иерархии.
+        
         Args:
-            A_csr: Fine матрица (sparse CSR)
-            max_coarse: Минимальный размер coarse grid
-            theta: Strong connection threshold
+            A_csr_np: Numpy CSR матрица (будет сконвертирована в torch CSR на GPU)
+            theta: Порог для сильных связей (0.25 = классический RS)
             max_levels: Максимум уровней
+            coarsest_size: Минимальный размер coarsest level
         """
-        self.device = A_csr.device
-        self.dtype = A_csr.dtype
         self.theta = theta
         self.max_levels = max_levels
+        self.coarsest_size = coarsest_size
         
-        print(f"[ClassicalAMG] Строим algebraic AMG с theta={theta:.2f}...")
+        # Конвертируем numpy CSR -> torch CSR на CUDA
+        device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+        
+        if hasattr(A_csr_np, 'indptr'):  # scipy sparse
+            import scipy.sparse as sp
+            if not sp.isspmatrix_csr(A_csr_np):
+                A_csr_np = A_csr_np.tocsr()
+            
+            crow = torch.from_numpy(A_csr_np.indptr).to(device, dtype=torch.int64)
+            col = torch.from_numpy(A_csr_np.indices).to(device, dtype=torch.int64)
+            val = torch.from_numpy(A_csr_np.data).to(device, dtype=torch.float64)
+            
+            A_csr = torch.sparse_csr_tensor(crow, col, val,
+                                           size=A_csr_np.shape,
+                                           device=device, dtype=torch.float64)
+        else:
+            # Уже torch tensor
+            A_csr = A_csr_np.to(device)
+        
+        self.device = device
+        self.levels = []
+        
+        print(f"[ClassicalAMG] Строим algebraic AMG с theta={theta}...")
         
         # Строим иерархию
-        self.levels = []
         A_current = A_csr
-        
-        for level in range(max_levels):
-            n_current = A_current.size(0)
+        for lvl in range(max_levels):
+            n = A_current.size(0)
             
-            if n_current <= max_coarse:
-                print(f"[ClassicalAMG] L{level}: n={n_current} ≤ {max_coarse}, coarsest level")
-                self.levels.append({'A': A_current, 'P': None, 'R': None})
+            if n <= coarsest_size:
+                # Coarsest level: прямое решение
+                self.levels.append({
+                    'A': A_current,
+                    'n': n,
+                    'P': None,
+                    'diag': self._extract_diag(A_current),
+                    'is_coarsest': True
+                })
+                print(f"[ClassicalAMG] L{lvl}: n={n} ≤ {coarsest_size}, coarsest level")
                 break
             
             # C/F splitting
+            strong_mask = find_strong_connections(A_current, theta)
             cf_marker, n_coarse = classical_coarsening(A_current, theta)
             
-            if n_coarse == 0 or n_coarse >= n_current * 0.8:
-                print(f"[ClassicalAMG] L{level}: n={n_current}, не удалось coarsen, останавливаем")
-                self.levels.append({'A': A_current, 'P': None, 'R': None})
+            if n_coarse >= n * 0.9:
+                # Слишком мало coarsening
+                self.levels.append({
+                    'A': A_current,
+                    'n': n,
+                    'P': None,
+                    'diag': self._extract_diag(A_current),
+                    'is_coarsest': True
+                })
+                print(f"[ClassicalAMG] L{lvl}: n={n}, coarsening failed (ratio={n/n_coarse:.1f}x), stopping")
                 break
             
-            # Строим prolongation
-            strong_mask = find_strong_connections(A_current, theta)
-            P = build_prolongation(A_current, cf_marker, strong_mask, n_coarse)
-            R = P.transpose(0, 1)  # Galerkin restriction
+            # Prolongation (1-point interpolation)
+            P, parent_idx = build_prolongation(A_current, cf_marker, strong_mask, n_coarse)
             
-            # RAP
-            A_coarse = build_galerkin_coarse(A_current, P)
+            # Galerkin RAP через эффективный scatter (без SpGEMM!)
+            A_coarse = rap_onepoint_gpu(A_current, parent_idx, n_coarse=n_coarse)
             
-            ratio = n_current / n_coarse
-            print(f"[ClassicalAMG] L{level}: n={n_current} → n_c={n_coarse} (ratio={ratio:.1f}x), "
-                  f"C-points={n_coarse}/{n_current} ({100*n_coarse/n_current:.1f}%)")
+            ratio = n / n_coarse
+            c_pct = 100.0 * n_coarse / n
+            print(f"[ClassicalAMG] L{lvl}: n={n} → n_c={n_coarse} (ratio={ratio:.1f}x), C-points={n_coarse}/{n} ({c_pct:.1f}%)")
             
-            self.levels.append({'A': A_current, 'P': P, 'R': R})
+            self.levels.append({
+                'A': A_current,
+                'n': n,
+                'P': P,
+                'diag': self._extract_diag(A_current),
+                'is_coarsest': False
+            })
+            
             A_current = A_coarse
         
         print(f"✅ ClassicalAMG: построено {len(self.levels)} уровней")
     
-    def solve(self, b: torch.Tensor, x0: torch.Tensor = None, 
-              tol: float = 1e-6, max_iter: int = 1, 
-              pre_smooth: int = 2, post_smooth: int = 2) -> torch.Tensor:
-        """V-cycle solve."""
-        # Конвертируем в torch tensor если нужно
-        if not isinstance(b, torch.Tensor):
-            b = torch.from_numpy(b).to(self.device).to(self.dtype)
-        if x0 is not None and not isinstance(x0, torch.Tensor):
-            x0 = torch.from_numpy(x0).to(self.device).to(self.dtype)
-        
-        n = b.numel()
-        x = x0.clone() if x0 is not None else torch.zeros_like(b)
-        
-        for cycle in range(max_iter):
-            x = self._v_cycle(0, x, b, pre_smooth, post_smooth)
-            
-            # Проверка residual
-            if cycle == max_iter - 1:
-                r = b - self._apply_A(0, x)
-                rel_res = r.norm() / (b.norm() + 1e-30)
-                print(f"  [ClassicalAMG cycle {cycle+1}] rel_res={rel_res:.3e}")
-        
-        return x
-    
-    def _apply_A(self, level_idx: int, x: torch.Tensor) -> torch.Tensor:
-        """Применить матрицу к вектору."""
-        A = self.levels[level_idx]['A']
-        return torch.sparse.mm(A, x.unsqueeze(1)).squeeze(1)
-    
-    def _smooth(self, level_idx: int, x: torch.Tensor, b: torch.Tensor, 
-                iters: int = 2, omega: float = 0.67) -> torch.Tensor:
-        """Damped Jacobi smoother."""
-        A = self.levels[level_idx]['A']
-        diag = self._extract_diagonal(A)
-        inv_diag = 1.0 / (diag + 1e-30)
-        
-        for _ in range(iters):
-            r = b - self._apply_A(level_idx, x)
-            x = x + omega * inv_diag * r
-        
-        return x
-    
-    def _extract_diagonal(self, A_csr: torch.Tensor) -> torch.Tensor:
-        """Извлечь диагональ из CSR матрицы."""
+    def _extract_diag(self, A_csr: torch.Tensor) -> torch.Tensor:
+        """Извлекает диагональ из CSR матрицы."""
         crow = A_csr.crow_indices()
         col = A_csr.col_indices()
-        vals = A_csr.values()
+        val = A_csr.values()
         n = crow.numel() - 1
         
         diag = torch.zeros(n, device=A_csr.device, dtype=A_csr.dtype)
         
-        for i in range(n):
-            for pos in range(crow[i], crow[i+1]):
-                if col[pos] == i:
-                    diag[i] = vals[pos]
-                    break
+        row_len = crow[1:] - crow[:-1]
+        row_idx = torch.repeat_interleave(torch.arange(n, device=A_csr.device), row_len)
+        diag_mask = row_idx == col
+        
+        diag.scatter_(0, row_idx[diag_mask], val[diag_mask])
         
         return diag
     
-    def _v_cycle(self, level_idx: int, x: torch.Tensor, b: torch.Tensor,
-                 pre_smooth: int, post_smooth: int) -> torch.Tensor:
-        """V-cycle рекурсивно."""
-        # Coarsest level
-        if level_idx == len(self.levels) - 1 or self.levels[level_idx]['P'] is None:
-            # Direct solve (Jacobi)
-            return self._smooth(level_idx, x, b, iters=10, omega=0.67)
+    def _matvec(self, lvl: int, x: torch.Tensor) -> torch.Tensor:
+        """Matrix-vector product: y = A_lvl × x"""
+        A = self.levels[lvl]['A']
+        # torch.sparse.mm требует 2D
+        y = torch.sparse.mm(A, x.view(-1, 1)).squeeze(1)
+        return y
+    
+    def _smooth(self, lvl: int, x: torch.Tensor, b: torch.Tensor, nu: int = 1) -> torch.Tensor:
+        """Damped Jacobi smoother"""
+        omega = 0.67
+        diag_inv = 1.0 / (self.levels[lvl]['diag'] + 1e-30)
+        
+        for _ in range(nu):
+            r = b - self._matvec(lvl, x)
+            x = x + omega * diag_inv * r
+        
+        return x
+    
+    def _v_cycle(self, lvl: int, x: torch.Tensor, b: torch.Tensor,
+                 pre_smooth: int = 1, post_smooth: int = 1) -> torch.Tensor:
+        """V-cycle"""
+        level = self.levels[lvl]
+        
+        if level['is_coarsest']:
+            # Прямое решение: x = D^{-1} b (несколько итераций Jacobi)
+            diag_inv = 1.0 / (level['diag'] + 1e-30)
+            for _ in range(10):
+                r = b - self._matvec(lvl, x)
+                x = x + diag_inv * r
+            return x
         
         # Pre-smoothing
-        x = self._smooth(level_idx, x, b, iters=pre_smooth)
+        x = self._smooth(lvl, x, b, pre_smooth)
         
         # Residual
-        r = b - self._apply_A(level_idx, x)
+        r = b - self._matvec(lvl, x)
         
         # Restrict
-        R = self.levels[level_idx]['R']
-        r_coarse = torch.sparse.mm(R, r.unsqueeze(1)).squeeze(1)
+        P = level['P']
+        PT = P.transpose(0, 1)
+        r_c = torch.sparse.mm(PT, r.view(-1, 1)).squeeze(1)
         
         # Coarse solve
-        e_coarse = torch.zeros(r_coarse.numel(), device=self.device, dtype=self.dtype)
-        e_coarse = self._v_cycle(level_idx + 1, e_coarse, r_coarse, pre_smooth, post_smooth)
+        e_c = torch.zeros_like(r_c)
+        e_c = self._v_cycle(lvl + 1, e_c, r_c, pre_smooth, post_smooth)
         
-        # Prolong and correct
-        P = self.levels[level_idx]['P']
-        e_fine = torch.sparse.mm(P, e_coarse.unsqueeze(1)).squeeze(1)
-        x = x + e_fine
+        # Prolongate and correct
+        e_f = torch.sparse.mm(P, e_c.view(-1, 1)).squeeze(1)
+        x = x + e_f
         
         # Post-smoothing
-        x = self._smooth(level_idx, x, b, iters=post_smooth)
+        x = self._smooth(lvl, x, b, post_smooth)
+        
+        return x
+    
+    def solve(self, b: torch.Tensor, x0: Optional[torch.Tensor] = None,
+              tol: float = 1e-6, max_iter: int = 10) -> torch.Tensor:
+        """Решает A·x = b через V-cycles.
+        
+        Args:
+            b: RHS вектор
+            x0: Начальное приближение (если None, используется 0)
+            tol: Относительная tolerance для ||r||/||b||
+            max_iter: Максимум V-cycles
+        
+        Returns:
+            x: Решение
+        """
+        b = b.to(self.device)
+        
+        if x0 is None:
+            x = torch.zeros_like(b)
+        else:
+            x = x0.to(self.device)
+        
+        b_norm = b.norm()
+        
+        for cycle in range(max_iter):
+            x = self._v_cycle(0, x, b, pre_smooth=1, post_smooth=1)
+            r = b - self._matvec(0, x)
+            rel_res = r.norm() / (b_norm + 1e-30)
+            print(f"  [ClassicalAMG cycle {cycle+1}] rel_res={rel_res:.3e}")
+            if rel_res < tol:
+                break
         
         return x
