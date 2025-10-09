@@ -81,25 +81,35 @@ def classical_coarsening(A_csr: torch.Tensor, theta: float = 0.25) -> Tuple[torc
     strong = find_strong_connections(A_csr, theta)
     
     # Делаем граф неориентированным: i<->j
+    # Уникализируем рёбра {min(i,j), max(i,j)} чтобы избежать дублей
     row_len = crow[1:] - crow[:-1]
     row_idx = torch.repeat_interleave(torch.arange(n, device=device), row_len)
     i = row_idx[strong]
     j = col[strong]
-    ii = torch.cat([i, j])
-    jj = torch.cat([j, i])
     
-    # Степень (число сильных соседей)
-    one = torch.ones_like(ii, dtype=torch.float32)
+    # Уникализация: ребро {min,max}
+    e0 = torch.minimum(i, j)
+    e1 = torch.maximum(i, j)
+    E = torch.stack([e0, e1], 0)  # 2 x m
+    G = torch.sparse_coo_tensor(E, torch.ones_like(e0, dtype=torch.float32, device=device),
+                                size=(n, n)).coalesce()
+    
+    # Извлекаем уникальные рёбра
+    ii, jj = G.indices()
+    
+    # Степень (число сильных соседей) - считаем для обоих направлений
     deg = torch.zeros(n, device=device, dtype=torch.float32)
-    deg.scatter_add_(0, ii, one)
+    deg.scatter_add_(0, ii, torch.ones_like(ii, dtype=torch.float32))
+    deg.scatter_add_(0, jj, torch.ones_like(jj, dtype=torch.float32))
     
     # Случайный tie-breaker
     w = torch.rand(n, device=device)
     score = deg + 1e-3 * w  # лексикографическое сравнение
     
-    # Максимум score среди соседей
+    # Максимум score среди соседей (для обоих направлений)
     neigh_max = torch.zeros(n, device=device, dtype=score.dtype)
     neigh_max.scatter_reduce_(0, ii, score[jj], reduce='amax', include_self=False)
+    neigh_max.scatter_reduce_(0, jj, score[ii], reduce='amax', include_self=False)
     
     # Местные максимумы -> C
     C = score > neigh_max
@@ -108,6 +118,7 @@ def classical_coarsening(A_csr: torch.Tensor, theta: float = 0.25) -> Tuple[torc
     # Гарантия покрытия: F без C-соседей -> поднять в C
     has_C = torch.zeros(n, device=device, dtype=torch.int8)
     has_C.scatter_add_(0, ii, C[jj].to(torch.int8))
+    has_C.scatter_add_(0, jj, C[ii].to(torch.int8))
     lift = (cf_marker == 1) & (has_C == 0)
     cf_marker[lift] = 0
     
@@ -117,7 +128,8 @@ def classical_coarsening(A_csr: torch.Tensor, theta: float = 0.25) -> Tuple[torc
 
 
 def build_prolongation(A_csr: torch.Tensor, cf_marker: torch.Tensor,
-                       strong_mask: torch.Tensor, n_coarse: int) -> Tuple[torch.Tensor, torch.Tensor]:
+                       strong_mask: torch.Tensor, n_coarse: int, 
+                       deterministic: bool = False, normalize: bool = True) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, int]:
     """1-point interpolation: F привязывается к сильному C-соседу.
     
     Для каждого F-узла берём сильного C-соседа с максимальным весом -a_ij.
@@ -128,10 +140,14 @@ def build_prolongation(A_csr: torch.Tensor, cf_marker: torch.Tensor,
         cf_marker: 0=C, 1=F
         strong_mask: Boolean mask сильных связей
         n_coarse: Число C-points
+        deterministic: Если True, используем медленный но детерминированный выбор родителя
+        normalize: Если True, нормируем P: w_i = 1/sqrt(child_count) для энергетики
     
     Returns:
-        P: Prolongation оператор (CSR), размер (n_fine, n_coarse)
+        P: Prolongation оператор (CSR), размер (n_fine, n_coarse_actual)
         parent_idx: parent_idx[i] = coarse-родитель узла i
+        weights: weights[i] = 1/sqrt(child_count) для RAP (или None если normalize=False)
+        n_coarse_actual: Фактическое число coarse-узлов (может быть больше если были orphans)
     """
     crow, col, vals = A_csr.crow_indices(), A_csr.col_indices(), A_csr.values()
     n = crow.numel() - 1
@@ -150,14 +166,27 @@ def build_prolongation(A_csr: torch.Tensor, cf_marker: torch.Tensor,
     cand = strong_mask & (cf_marker[col] == 0)
     w = (-vals).where(cand, torch.tensor(0., device=device, dtype=vals.dtype))
     
-    # Лучший сосед по весу на каждую строку
-    best_w = torch.zeros(n, device=device, dtype=vals.dtype)
-    best_w.scatter_reduce_(0, row, w, reduce='amax', include_self=False)
-    winners = cand & (w >= best_w[row] - 1e-30)
-    
-    # Выбранный coarse-столбец для каждой fine-строки
     parent = torch.full((n,), -1, dtype=torch.long, device=device)
-    parent[row[winners]] = fine2coarse[col[winners]]
+    
+    if deterministic:
+        # ДЕТЕРМИНИРОВАННЫЙ выбор ОДНОГО родителя (argmax по строке)
+        # Медленнее, но гарантирует ровно 1 родителя на строку
+        for i in range(n):
+            s, e = int(crow[i].item()), int(crow[i+1].item())
+            if s == e:
+                continue
+            cols_i = col[s:e]
+            w_i = w[s:e]
+            cand_i = cand[s:e]
+            if cand_i.any():
+                k = torch.argmax(w_i * cand_i.to(w_i.dtype))
+                parent[i] = fine2coarse[cols_i[int(k)]]
+    else:
+        # ВЕКТОРИЗОВАННЫЙ выбор (быстро, но недетерминированный при tie-break)
+        best_w = torch.zeros(n, device=device, dtype=vals.dtype)
+        best_w.scatter_reduce_(0, row, w, reduce='amax', include_self=False)
+        winners = cand & (w >= best_w[row] - 1e-30)
+        parent[row[winners]] = fine2coarse[col[winners]]
     
     # C-узлы указывают на себя
     parent[c_idx] = fine2coarse[c_idx]
@@ -171,14 +200,26 @@ def build_prolongation(A_csr: torch.Tensor, cf_marker: torch.Tensor,
         parent[extra] = add
         n_coarse = int(n_coarse + extra.numel())
     
-    # P: одна 1 на строку
+    # Нормировка P (опционально)
+    if normalize:
+        # w_i = 1 / sqrt(child_count) для энергетической устойчивости
+        # Улучшает сходимость на гетерогенных задачах
+        child_cnt = torch.bincount(parent, minlength=n_coarse)
+        weights = 1.0 / torch.sqrt(child_cnt[parent].to(torch.float64).clamp_min(1.0))
+        valsP = weights
+    else:
+        # Единичная интерполяция (по умолчанию)
+        # Проще, не уменьшает диагональ A_coarse
+        weights = None
+        valsP = torch.ones(n, device=device, dtype=torch.float64)
+    
+    # P: интерполяция (нормированная или единичная)
     rows = torch.arange(n, device=device)
     cols = parent
-    valsP = torch.ones(n, device=device, dtype=torch.float64)
     P = torch.sparse_coo_tensor(torch.stack([rows, cols]), valsP,
                                 size=(n, n_coarse), device=device, dtype=torch.float64).coalesce()
     
-    return P.to_sparse_csr(), parent
+    return P.to_sparse_csr(), parent, weights, n_coarse
 
 
 def rap_onepoint_gpu(Af_csr: torch.Tensor,
@@ -244,13 +285,29 @@ def rap_onepoint_gpu(Af_csr: torch.Tensor,
     # Проверяем корректность CSR (crow должен быть монотонно возрастающим)
     crow = Ac.crow_indices()
     if (crow[1:] < crow[:-1]).any():
-        print(f"[WARNING] rap_onepoint_gpu: некорректный CSR после coalesce, пересоздаем")
-        # Пересоздаем через dense (медленно, но надёжно для маленьких матриц)
-        if n_coarse <= 5000:
-            Ac_dense = Ac_coo.to_dense()
-            Ac = Ac_dense.to_sparse_coo().to_sparse_csr()
-        else:
-            raise RuntimeError(f"Некорректный CSR формат после RAP на n={n_coarse}")
+        print(f"[WARNING] rap_onepoint_gpu: некорректный CSR после coalesce, используем SciPy")
+        # PyTorch CSR bug на больших матрицах - используем SciPy
+        import scipy.sparse as sp
+        
+        # COO -> SciPy
+        indices_np = Ac_coo.indices().cpu().numpy()
+        values_np = Ac_coo.values().cpu().numpy()
+        Ac_sp = sp.coo_matrix((values_np, (indices_np[0], indices_np[1])), 
+                              shape=(n_coarse, n_coarse)).tocsr()
+        
+        # SciPy -> PyTorch CSR
+        crow_fixed = torch.from_numpy(Ac_sp.indptr).to(device).to(torch.int64)
+        col_fixed = torch.from_numpy(Ac_sp.indices).to(device).to(torch.int64)
+        val_fixed = torch.from_numpy(Ac_sp.data).to(device).to(val.dtype)
+        
+        Ac = torch.sparse_csr_tensor(crow_fixed, col_fixed, val_fixed,
+                                     size=(n_coarse, n_coarse),
+                                     device=device, dtype=val.dtype)
+    
+    # Проверка финального размера
+    if Ac.size(0) != n_coarse or Ac.size(1) != n_coarse:
+        print(f"[ERROR] rap_onepoint_gpu: A_coarse size mismatch! Expected ({n_coarse},{n_coarse}), got ({Ac.size(0)},{Ac.size(1)})")
+        raise RuntimeError(f"A_coarse size mismatch: expected {n_coarse}, got {Ac.size(0)}x{Ac.size(1)}")
     
     return Ac
 
@@ -303,6 +360,33 @@ class ClassicalAMG:
         
         print(f"[ClassicalAMG] Строим algebraic AMG с theta={theta}...")
         
+        # ═══════════════════════════════════════════════════════════════
+        # EQUILIBRATION: Симметричное диагональное масштабирование
+        # ═══════════════════════════════════════════════════════════════
+        # Преобразуем A → D^(-1/2) A D^(-1/2), где D = diag(A)
+        # Результат: diag ≈ 1, что критично для устойчивости Jacobi
+        # ═══════════════════════════════════════════════════════════════
+        diag_orig = self._extract_diag(A_csr).abs().clamp_min(1e-30)
+        Dhalf_inv = 1.0 / torch.sqrt(diag_orig)  # D^(-1/2)
+        
+        # Применяем масштабирование: vals[i,j] *= Dhalf_inv[i] * Dhalf_inv[j]
+        crow = A_csr.crow_indices()
+        col = A_csr.col_indices()
+        vals = A_csr.values().clone()  # clone для изменения
+        
+        row_len = crow[1:] - crow[:-1]
+        row_idx = torch.repeat_interleave(torch.arange(crow.numel()-1, device=device), row_len)
+        vals = vals * Dhalf_inv[row_idx] * Dhalf_inv[col]
+        
+        A_csr = torch.sparse_csr_tensor(crow, col, vals, size=A_csr.size(), 
+                                        device=device, dtype=torch.float64)
+        
+        # Сохраняем для обратного масштабирования решения
+        self.Dhalf_inv = Dhalf_inv
+        
+        diag_scaled = self._extract_diag(A_csr).abs()
+        print(f"[ClassicalAMG] Equilibration: diag {diag_orig.min():.2e}..{diag_orig.max():.2e} → {diag_scaled.min():.2e}..{diag_scaled.max():.2e}")
+        
         # Строим иерархию
         A_current = A_csr
         for lvl in range(max_levels):
@@ -310,11 +394,18 @@ class ClassicalAMG:
             
             if n <= coarsest_size:
                 # Coarsest level: прямое решение
+                diag_abs = self._extract_diag(A_current).abs()
+                row_abs = self._row_abs_sum(A_current)
+                beta = 0.3  # L1-Jacobi параметр
+                denom = torch.maximum(diag_abs, beta * row_abs).clamp_min(1e-30)
+                inv_relax = (1.0 / denom).clamp(max=1e2)  # Мягкая страховка
+                
                 self.levels.append({
                     'A': A_current,
                     'n': n,
                     'P': None,
-                    'diag': self._extract_diag(A_current),
+                    'diag': diag_abs,
+                    'inv_relax': inv_relax,
                     'is_coarsest': True
                 })
                 print(f"[ClassicalAMG] L{lvl}: n={n} ≤ {coarsest_size}, coarsest level")
@@ -326,35 +417,77 @@ class ClassicalAMG:
             
             if n_coarse >= n * 0.9:
                 # Слишком мало coarsening
+                diag_abs = self._extract_diag(A_current).abs()
+                row_abs = self._row_abs_sum(A_current)
+                beta = 0.3
+                denom = torch.maximum(diag_abs, beta * row_abs).clamp_min(1e-30)
+                inv_relax = (1.0 / denom).clamp(max=1e2)
+                
                 self.levels.append({
                     'A': A_current,
                     'n': n,
                     'P': None,
-                    'diag': self._extract_diag(A_current),
+                    'diag': diag_abs,
+                    'inv_relax': inv_relax,
                     'is_coarsest': True
                 })
                 print(f"[ClassicalAMG] L{lvl}: n={n}, coarsening failed (ratio={n/n_coarse:.1f}x), stopping")
                 break
             
             # Prolongation (1-point interpolation)
-            P, parent_idx = build_prolongation(A_current, cf_marker, strong_mask, n_coarse)
+            # normalize=False по умолчанию: проще, не раздувает решение при плохо обусловленных матрицах
+            # deterministic=False: быстрый векторизованный выбор родителя
+            P, parent_idx, weights, n_coarse_actual = build_prolongation(
+                A_current, cf_marker, strong_mask, n_coarse, 
+                deterministic=False, normalize=False
+            )
             
             # Galerkin RAP через эффективный scatter (без SpGEMM!)
-            A_coarse = rap_onepoint_gpu(A_current, parent_idx, n_coarse=n_coarse)
+            A_coarse = rap_onepoint_gpu(A_current, parent_idx, weights=weights, n_coarse=n_coarse_actual)
             
-            ratio = n / n_coarse
-            c_pct = 100.0 * n_coarse / n
-            print(f"[ClassicalAMG] L{lvl}: n={n} → n_c={n_coarse} (ratio={ratio:.1f}x), C-points={n_coarse}/{n} ({c_pct:.1f}%)")
+            ratio = n / n_coarse_actual
+            c_pct = 100.0 * n_coarse_actual / n
+            orphan_count = n_coarse_actual - n_coarse
+            if orphan_count > 0:
+                print(f"[ClassicalAMG] L{lvl}: n={n} → n_c={n_coarse_actual} (ratio={ratio:.1f}x), C-points={n_coarse}+{orphan_count} orphans/{n} ({c_pct:.1f}%)")
+            else:
+                print(f"[ClassicalAMG] L{lvl}: n={n} → n_c={n_coarse_actual} (ratio={ratio:.1f}x), C-points={n_coarse_actual}/{n} ({c_pct:.1f}%)")
+            
+            diag_abs = self._extract_diag(A_current).abs()
+            row_abs = self._row_abs_sum(A_current)
+            beta = 0.3
+            denom = torch.maximum(diag_abs, beta * row_abs).clamp_min(1e-30)
+            inv_relax = (1.0 / denom).clamp(max=1e2)
             
             self.levels.append({
                 'A': A_current,
                 'n': n,
                 'P': P,
-                'diag': self._extract_diag(A_current),
+                'diag': diag_abs,
+                'inv_relax': inv_relax,
                 'is_coarsest': False
             })
             
             A_current = A_coarse
+        
+        # Если цикл завершился по max_levels, добавляем A_current как coarsest
+        if len(self.levels) == 0 or not self.levels[-1]['is_coarsest']:
+            n_c = A_current.size(0)
+            diag_abs = self._extract_diag(A_current).abs()
+            row_abs = self._row_abs_sum(A_current)
+            beta = 0.3
+            denom = torch.maximum(diag_abs, beta * row_abs).clamp_min(1e-30)
+            inv_relax = (1.0 / denom).clamp(max=1e2)
+            
+            self.levels.append({
+                'A': A_current,
+                'n': n_c,
+                'P': None,
+                'diag': diag_abs,
+                'inv_relax': inv_relax,
+                'is_coarsest': True
+            })
+            print(f"[ClassicalAMG] L{len(self.levels)-1}: reached max_levels → coarsest, n={n_c}")
         
         print(f"✅ ClassicalAMG: построено {len(self.levels)} уровней")
     
@@ -375,89 +508,208 @@ class ClassicalAMG:
         
         return diag
     
+    def _row_abs_sum(self, A_csr: torch.Tensor) -> torch.Tensor:
+        """Сумма |A_ij| по строкам для L1-Jacobi.
+        
+        Используется для вычисления робастного знаменателя:
+        denom = max(|a_ii|, β·∑|a_ij|)
+        """
+        crow = A_csr.crow_indices()
+        col = A_csr.col_indices()
+        val = A_csr.values().abs()
+        n = crow.numel() - 1
+        
+        row_len = crow[1:] - crow[:-1]
+        row_idx = torch.repeat_interleave(torch.arange(n, device=A_csr.device), row_len)
+        
+        row_abs = torch.zeros(n, device=A_csr.device, dtype=val.dtype)
+        row_abs.scatter_add_(0, row_idx, val)
+        
+        return row_abs
+    
+    def _spmv_csr(self, A_csr: torch.Tensor, x: torch.Tensor, transpose: bool = False) -> torch.Tensor:
+        """Sparse matrix-vector product через CSR индексы.
+        
+        Args:
+            A_csr: Sparse CSR matrix
+            x: Dense vector
+            transpose: If True, compute A^T * x
+        
+        Returns:
+            y = A*x или y = A^T*x
+        """
+        crow = A_csr.crow_indices()
+        col = A_csr.col_indices()
+        val = A_csr.values()
+        n_rows = crow.numel() - 1
+        
+        if not transpose:
+            # y = A * x: стандартный SpMV
+            row_len = crow[1:] - crow[:-1]
+            row_idx = torch.repeat_interleave(torch.arange(n_rows, device=A_csr.device, dtype=torch.int64), row_len)
+            prod = val * x[col]
+            y = torch.zeros(n_rows, device=A_csr.device, dtype=A_csr.dtype)
+            y.scatter_add_(0, row_idx, prod)
+        else:
+            # y = A^T * x: transpose SpMV
+            # A^T[j,i] = A[i,j], поэтому y[j] += A[i,j] * x[i]
+            row_len = crow[1:] - crow[:-1]
+            row_idx = torch.repeat_interleave(torch.arange(n_rows, device=A_csr.device, dtype=torch.int64), row_len)
+            prod = val * x[row_idx]
+            n_cols = A_csr.size(1)
+            y = torch.zeros(n_cols, device=A_csr.device, dtype=A_csr.dtype)
+            y.scatter_add_(0, col, prod)
+        
+        return y
+    
     def _matvec(self, lvl: int, x: torch.Tensor) -> torch.Tensor:
         """Matrix-vector product: y = A_lvl × x"""
         A = self.levels[lvl]['A']
-        # torch.sparse.mm требует 2D
-        y = torch.sparse.mm(A, x.view(-1, 1)).squeeze(1)
-        return y
+        return self._spmv_csr(A, x, transpose=False)
     
-    def _smooth(self, lvl: int, x: torch.Tensor, b: torch.Tensor, nu: int = 1) -> torch.Tensor:
-        """Damped Jacobi smoother"""
-        omega = 0.67
-        diag_inv = 1.0 / (self.levels[lvl]['diag'] + 1e-30)
+    def _smooth(self, lvl: int, x: torch.Tensor, b: torch.Tensor, nu: int = 1, debug: bool = False) -> torch.Tensor:
+        """L1-Jacobi smoother: denom = max(|a_ii|, β·∑|a_ij|).
         
-        for _ in range(nu):
+        Использует предвычисленный inv_relax из уровня, что обеспечивает
+        локальную адаптивность и устойчивость без глобальных clamp.
+        """
+        omega = 0.7
+        inv_relax = self.levels[lvl]['inv_relax']
+        
+        if debug:
+            print(f"    [SMOOTH L{lvl}] inv_relax: min={inv_relax.min():.3e}, med={inv_relax.median():.3e}, max={inv_relax.max():.3e}")
+        
+        for it in range(nu):
             r = b - self._matvec(lvl, x)
-            x = x + omega * diag_inv * r
+            delta = omega * inv_relax * r
+            x = x + delta
+            if debug:
+                print(f"    [SMOOTH L{lvl} iter{it+1}] ||r||={r.norm():.3e}, ||δ||={delta.norm():.3e}, ||x||={x.norm():.3e}, max|δ|={delta.abs().max():.3e}")
         
         return x
     
     def _v_cycle(self, lvl: int, x: torch.Tensor, b: torch.Tensor,
-                 pre_smooth: int = 1, post_smooth: int = 1) -> torch.Tensor:
+                 pre_smooth: int = 1, post_smooth: int = 1, debug: bool = False, cycle_num: int = 0) -> torch.Tensor:
         """V-cycle"""
         level = self.levels[lvl]
         
+        if debug:
+            print(f"  [V-CYCLE L{lvl}] ВХОД: ||x||={x.norm():.3e}, ||b||={b.norm():.3e}, n={level['n']}")
+        
         if level['is_coarsest']:
-            # Прямое решение: x = D^{-1} b (несколько итераций Jacobi)
-            diag_inv = 1.0 / (level['diag'] + 1e-30)
-            for _ in range(10):
-                r = b - self._matvec(lvl, x)
-                x = x + diag_inv * r
+            # Прямое решение на coarsest уровне
+            n = level['n']
+            
+            if n <= 500:
+                # Точное решение через плотную алгебру (быстро для малых систем)
+                A_dense = level['A'].to_dense()
+                try:
+                    x = torch.linalg.solve(A_dense, b)
+                    if debug:
+                        print(f"  [COARSEST L{lvl}] ТОЧНОЕ решение (n={n}), ||x||={x.norm():.3e}")
+                except RuntimeError:
+                    # Если система плохо обусловлена, используем lstsq
+                    x = torch.linalg.lstsq(A_dense, b.unsqueeze(1)).solution.squeeze(1)
+                    if debug:
+                        print(f"  [COARSEST L{lvl}] LSTSQ решение (n={n}), ||x||={x.norm():.3e}")
+            else:
+                # Для больших систем: L1-Jacobi iterations
+                inv_relax = level['inv_relax']
+                omega = 0.7
+                if debug:
+                    print(f"  [COARSEST L{lvl}] L1-Jacobi (n={n})")
+                for it in range(50):
+                    r = b - self._matvec(lvl, x)
+                    delta = omega * inv_relax * r
+                    x = x + delta
+                    if debug and it < 2:
+                        print(f"  [COARSEST L{lvl} iter{it+1}] ||δ||={delta.norm():.3e}, ||x||={x.norm():.3e}")
+            
+            if debug:
+                r_final = b - self._matvec(lvl, x)
+                print(f"  [COARSEST L{lvl}] ВЫХОД: ||x||={x.norm():.3e}, ||r||={r_final.norm():.3e}")
             return x
         
         # Pre-smoothing
-        x = self._smooth(lvl, x, b, pre_smooth)
+        x = self._smooth(lvl, x, b, pre_smooth, debug=debug)
+        if debug:
+            print(f"  [V-CYCLE L{lvl}] ПОСЛЕ pre-smooth: ||x||={x.norm():.3e}")
         
         # Residual
         r = b - self._matvec(lvl, x)
+        if debug:
+            print(f"  [V-CYCLE L{lvl}] residual: ||r||={r.norm():.3e}")
         
-        # Restrict
+        # Restrict: r_c = P^T * r
         P = level['P']
-        PT = P.transpose(0, 1)
-        r_c = torch.sparse.mm(PT, r.view(-1, 1)).squeeze(1)
+        r_c = self._spmv_csr(P, r, transpose=True)
+        if debug:
+            print(f"  [V-CYCLE L{lvl}] RESTRICT: ||r||={r.norm():.3e} → ||r_c||={r_c.norm():.3e}")
         
         # Coarse solve
         e_c = torch.zeros_like(r_c)
-        e_c = self._v_cycle(lvl + 1, e_c, r_c, pre_smooth, post_smooth)
+        e_c = self._v_cycle(lvl + 1, e_c, r_c, pre_smooth, post_smooth, debug=debug, cycle_num=cycle_num)
+        if debug:
+            print(f"  [V-CYCLE L{lvl}] COARSE возвращает: ||e_c||={e_c.norm():.3e}, max|e_c|={e_c.abs().max():.3e}")
         
-        # Prolongate and correct
-        e_f = torch.sparse.mm(P, e_c.view(-1, 1)).squeeze(1)
+        # Prolongate: e_f = P * e_c
+        e_f = self._spmv_csr(P, e_c, transpose=False)
+        if debug:
+            print(f"  [V-CYCLE L{lvl}] PROLONGATE: ||e_c||={e_c.norm():.3e} → ||e_f||={e_f.norm():.3e}, max|e_f|={e_f.abs().max():.3e}")
         x = x + e_f
+        if debug:
+            print(f"  [V-CYCLE L{lvl}] ПОСЛЕ коррекции: ||x||={x.norm():.3e}")
         
         # Post-smoothing
-        x = self._smooth(lvl, x, b, post_smooth)
+        x = self._smooth(lvl, x, b, post_smooth, debug=debug)
+        if debug:
+            print(f"  [V-CYCLE L{lvl}] ВЫХОД: ||x||={x.norm():.3e}")
         
         return x
     
     def solve(self, b: torch.Tensor, x0: Optional[torch.Tensor] = None,
               tol: float = 1e-6, max_iter: int = 10) -> torch.Tensor:
-        """Решает A·x = b через V-cycles.
+        """Решает A·x = b через V-cycles с equilibration.
+        
+        Внутренне решается масштабированная система:
+        D^(-1/2) A D^(-1/2) · (D^(1/2) x) = D^(-1/2) b
         
         Args:
-            b: RHS вектор
-            x0: Начальное приближение (если None, используется 0)
+            b: RHS вектор (физический)
+            x0: Начальное приближение (физическое, если None → 0)
             tol: Относительная tolerance для ||r||/||b||
             max_iter: Максимум V-cycles
         
         Returns:
-            x: Решение
+            x: Решение (физическое)
         """
         b = b.to(self.device)
         
-        if x0 is None:
-            x = torch.zeros_like(b)
-        else:
-            x = x0.to(self.device)
+        # Масштабируем RHS: b̃ = D^(-1/2) b
+        b_scaled = self.Dhalf_inv * b
         
-        b_norm = b.norm()
+        # Начальное приближение
+        if x0 is None:
+            x_scaled = torch.zeros_like(b_scaled)
+        else:
+            # Масштабируем начальное приближение: x̃ = D^(1/2) x
+            x_scaled = x0.to(self.device) / self.Dhalf_inv
+        
+        b_norm = b_scaled.norm()
         
         for cycle in range(max_iter):
-            x = self._v_cycle(0, x, b, pre_smooth=1, post_smooth=1)
-            r = b - self._matvec(0, x)
+            # Диагностика ТОЛЬКО для первого цикла
+            debug = (cycle == 0)
+            x_scaled = self._v_cycle(0, x_scaled, b_scaled, pre_smooth=1, post_smooth=1, 
+                                    debug=debug, cycle_num=cycle+1)
+            r = b_scaled - self._matvec(0, x_scaled)
             rel_res = r.norm() / (b_norm + 1e-30)
-            print(f"  [ClassicalAMG cycle {cycle+1}] rel_res={rel_res:.3e}")
+            x_ratio = x_scaled.norm() / (b_norm + 1e-30)
+            print(f"  [ClassicalAMG cycle {cycle+1}] rel_res={rel_res:.3e}, ||x||/||b||={x_ratio:.2e}")
             if rel_res < tol:
                 break
+        
+        # Обратное масштабирование: x = D^(-1/2) x̃
+        x = self.Dhalf_inv * x_scaled
         
         return x

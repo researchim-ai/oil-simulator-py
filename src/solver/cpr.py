@@ -543,10 +543,10 @@ class CPRPreconditioner:
         # float32 и не приводит к переполнению, но существенно улучшает кондиционирование.
         N_cells = nx * ny * nz
 
-        # 🔧 НОВОЕ: для микросеток (<100 ячеек) полностью отключаем scale,
-        # чтобы избежать гигантских δp после восстановления.
-        if self.backend == "geo2":
-            scale = 1.0
+        # 🔧 РЕШЕНИЕ: Geo2 работает с физической матрицей (scale=1) и не раздувает!
+        # Classical AMG должен делать ТО ЖЕ САМОЕ.
+        if self.backend in ("geo2", "classical_amg"):
+            scale = 1.0  # Работаем с физической матрицей, без автомасштабирования
         else:
             MAX_SCALE = 1e8
             if N_cells <= 100:
@@ -582,6 +582,18 @@ class CPRPreconditioner:
 
         print(f"🎯 CPR: Автомасштабирование — median(|diag|)={diag_median:.3e}, scale={scale:.3e}")
         print(f"🎯 CPR: Диапазон элементов после масштабирования: min={data[:pos].min():.3e}, max={data[:pos].max():.3e}")
+        
+        # ДИАГНОСТИКА: диагональ после масштабирования
+        diag_after = []
+        for i in range(min(N, 100)):  # Проверяем первые 100 элементов
+            for j in range(indptr[i], indptr[i+1] if i < N-1 else pos):
+                if indices[j] == i:
+                    diag_after.append(abs(data[j]))
+                    break
+        if diag_after:
+            diag_arr = sorted(diag_after)
+            diag_min, diag_med, diag_max = diag_arr[0], diag_arr[len(diag_arr)//2], diag_arr[-1]
+            print(f"🔍 CPR: Диагональ после scale: min={diag_min:.3e}, med={diag_med:.3e}, max={diag_max:.3e}")
 
         return indptr[:N+1], indices[:pos], data[:pos]
 
@@ -999,15 +1011,14 @@ class CPRPreconditioner:
     def _pressure_solve_hat(self, r_p_hat: torch.Tensor, cycles: int = 1) -> torch.Tensor:
         """ИСПРАВЛЕНО: solve давления в hat без zero-mean (якорь уже снял нулевой мод)."""
         r = torch.nan_to_num(r_p_hat, nan=0.0, posinf=0.0, neginf=0.0)
-        r_norm_in = r.norm().item()
         
         try:
             # Проверяем тип solver
             if hasattr(self.solver, 'apply_prec_hat'):
-                # GeoSolverV2
+                # GeoSolverV2 - работает напрямую в hat-space, без доп. масштабирования
                 z = self.solver.apply_prec_hat(r, cycles=cycles)
             elif hasattr(self.solver, 'solve'):
-                # ClassicalAMG
+                # ClassicalAMG - тоже работает напрямую (как geo2)
                 z = self.solver.solve(r, x0=None, max_iter=cycles, tol=1e-6)
             else:
                 raise RuntimeError(f"Unknown solver type: {type(self.solver)}")
@@ -1022,14 +1033,6 @@ class CPRPreconditioner:
             print(f"[CPR] → используем Jacobi fallback")
             diag = torch.as_tensor(self.diag_inv, device=r.device, dtype=r.dtype)
             z = diag * r
-        
-        # КРИТИЧЕСКАЯ ДИАГНОСТИКА: проверяем адекватность решения
-        z_norm = z.norm().item()
-        z_max = z.abs().max().item()
-        ratio = z_norm / (r_norm_in + 1e-30)
-        print(f"  [_pressure_solve_hat] cycles={cycles}, ||r_in||={r_norm_in:.3e}, ||z||={z_norm:.3e}, max={z_max:.3e}, ratio={ratio:.3e}")
-        if ratio > 10.0:
-            print(f"    ⚠️  КРИТИЧНО: ||z|| / ||r|| = {ratio:.1f} >> 1 — решение раздуто!")
         
         return z
 
@@ -1197,7 +1200,10 @@ class CPRPreconditioner:
         
         # STEP 1: Pressure solve (AMG)
         print(f"  [CPR F1] начало: ||r̂_p||={r_p_schur.norm().item():.3e}, mode={'FPF' if use_fpf else 'standard'}")
-        z_p1 = self._pressure_solve_hat(r_p_schur, cycles=1)
+        # Для больших сеток нужно больше V-cycles
+        n_cells = r_p_schur.numel()
+        n_cycles = 10 if n_cells > 100000 else 3
+        z_p1 = self._pressure_solve_hat(r_p_schur, cycles=n_cycles)
         print(f"  [CPR F1] конец: ||z_p||={z_p1.norm().item():.3e}")
 
         # ============================================================

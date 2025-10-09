@@ -1058,7 +1058,7 @@ class Simulator:
                 init_scaled = float(getattr(self._fisolver, 'init_res_scaled', float('nan')))
                 newton_tol = float(getattr(self._fisolver, 'tol', self.sim_params.get('newton_tolerance', 1e-7)))
                 mb_max = getattr(self._fisolver, '_last_mb_max', float('nan'))
-                mb_tol = float(self.sim_params.get('mb_tol', 1e-4))
+                mb_tol = float(self.sim_params.get('mb_tol', 1e-3))
 
                 print(f"JFNK residual after failure: ||F||_scaled={F_scaled:.3e} (abs_tol={newton_tol:.1e}, rel_tol={self.sim_params.get('newton_rtol',1e-4):.1e}·{init_scaled:.3e}), MB[max]={mb_max:.3e} (mb_tol={mb_tol:.1e})")
 
