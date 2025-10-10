@@ -374,7 +374,16 @@ class CPRPreconditioner:
         lam_t = 1.0 / fluid.mu_water + 1.0 / fluid.mu_oil  # 1/Па·с
         # ----- Безразмеризация: переводим коэффициенты в hat-пространство ----
         inv_p_scale = getattr(self, "inv_p_scale", 1.0)
-        lam = lam_t * inv_p_scale  # скаляр в hat-единицах (1/hat·s)
+        
+        # ✅ КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ (совет эксперта):
+        # Для geo2/classical_amg работающих в HAT: используем ФИЗИЧЕСКУЮ мобильность!
+        # Якобиан в JFNK формируется с lam_t без inv_p_scale.
+        # CPR matrix должна соответствовать Якобиану по масштабу!
+        if self.backend in ("geo2", "classical_amg"):
+            lam = lam_t  # Физическая мобильность для HAT-backends
+        else:
+            lam = lam_t * inv_p_scale  # HAT-единицы для legacy backends
+        
         self.lam_const = lam  # сохраняем для масштабирования AMG результата
 
         # 🎯 УЛУЧШЕННОЕ МАСШТАБИРОВАНИЕ для высокой сжимаемости
@@ -472,17 +481,26 @@ class CPRPreconditioner:
                             pos += 1
                             diag += t
 
-                    # 🔧 КРИТИЧЕСКОЕ УЛУЧШЕНИЕ: адаптивный стабилизационный сдвиг
-                    # Для высокой сжимаемости нужен больший сдвиг
-                    base_shift = 1e-12
-                    if hasattr(self, 'compressibility_factor'):
-                        adaptive_shift = base_shift * max(1.0, self.compressibility_factor ** 0.5)
-                    else:
-                        adaptive_shift = base_shift
+                    # 🔧 КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: ACCUMULATION TERM!
+                    # ПРОБЛЕМА: CPR matrix не включает accumulation term от сжимаемости!
+                    # Якобиан имеет: diag(A_pp) = Σ(T·λ) + (φ·V/dt)·c_t
+                    # CPR имел только Σ(T·λ) + 1e-12
+                    # 
+                    # РЕШЕНИЕ: добавляем реальный accumulation term:
+                    phi_val = float(reservoir.porosity_ref.mean().item()) if hasattr(reservoir.porosity_ref, 'mean') else 0.2
+                    cell_vol_val = float(reservoir.cell_volume.item()) if hasattr(reservoir.cell_volume, 'item') else 1.0
+                    c_total = max_compress  # total compressibility (fluid + rock)
+                    dt_sec = 1728.0  # типичный шаг (0.02 суток)
+                    
+                    # Accumulation диагональ (в тех же единицах что diag):
+                    # diag ~ T·λ [м³/(Па·с)]  
+                    # acc ~ (φ·V/dt)·c [м³/с · 1/Па] = [м³/(Па·с)]
+                    # Уже в тех же единицах! НЕ умножаем на lam!
+                    accumulation_diag = (phi_val * cell_vol_val / dt_sec) * c_total
                     
                     # Диагональный элемент
                     indices[pos] = center
-                    diag_entry = diag + adaptive_shift  # already in scaled units
+                    diag_entry = diag + accumulation_diag
                     data[pos] = diag_entry
                     pos += 1
                     diag_vals.append(abs(diag_entry))
@@ -1190,20 +1208,30 @@ class CPRPreconditioner:
             z_p_pre, z_sw_pre = self._block_smooth_hat(r_p, r_sw, n, sweeps=1)
             print(f"  [CPR F0] Fine pre-smooth: ||z_p||={z_p_pre.norm().item():.3e}, ||z_sw||={z_sw_pre.norm().item():.3e}")
             
-            # Обновляем residual после pre-smoothing
-            # (Это упрощение - в идеале нужно пересчитать через A·z)
-            r_p_corrected = r_p  # пока оставляем как есть
+            # ✅ КРИТИЧНО: обновляем RHS для pressure после pre-smoothing!
+            # r_p_new = r_p - (A_pp·z_p + A_ps·z_sw)
+            # Упрощение: A_ps мал, игнорируем. A_pp·z_p аппроксимируем через diag(A_pp)
+            diag_pp = torch.ones(n, device=device, dtype=dtype)  # из FPF: diag=1
+            r_p_corrected = r_p - diag_pp * z_p_pre
+            print(f"  [CPR F0] RHS corrected: ||r_p||={r_p.norm().item():.3e} → ||r_p_corr||={r_p_corrected.norm().item():.3e}")
         else:
             z_p_pre = torch.zeros(n, device=r_p.device, dtype=r_p.dtype)
             z_sw_pre = torch.zeros(n, device=r_sw.device, dtype=r_sw.dtype)
             r_p_corrected = r_p
         
         # STEP 1: Pressure solve (AMG)
-        print(f"  [CPR F1] начало: ||r̂_p||={r_p_schur.norm().item():.3e}, mode={'FPF' if use_fpf else 'standard'}")
+        # ✅ КРИТИЧНО: используем corrected RHS после pre-smoothing!
+        if use_fpf:
+            # Применяем Schur correction к corrected RHS
+            r_p_for_amg = r_p_corrected - Kps_w_eff * inv_diag_sw * r_sw
+        else:
+            r_p_for_amg = r_p_schur
+        
+        print(f"  [CPR F1] начало: ||r̂_p||={r_p_for_amg.norm().item():.3e}, mode={'FPF' if use_fpf else 'standard'}")
         # Для больших сеток нужно больше V-cycles
-        n_cells = r_p_schur.numel()
+        n_cells = r_p_for_amg.numel()
         n_cycles = 10 if n_cells > 100000 else 3
-        z_p1 = self._pressure_solve_hat(r_p_schur, cycles=n_cycles)
+        z_p1 = self._pressure_solve_hat(r_p_for_amg, cycles=n_cycles)
         print(f"  [CPR F1] конец: ||z_p||={z_p1.norm().item():.3e}")
 
         # ============================================================

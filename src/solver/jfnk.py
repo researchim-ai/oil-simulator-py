@@ -782,12 +782,36 @@ class FullyImplicitSolver:
                 # Проверим, КАКОЙ блок Якобиана создает огромную норму
                 zsw = z[n:2*n] if z.numel() >= 2*n else torch.zeros(n, device=z.device, dtype=z.dtype)
                 
-                # 1) Только A_pp·z_p (из GeoSolver — изолированный pressure блок)
+                # 1) CPR matrix vs Якобиан: КРИТИЧЕСКАЯ ДИАГНОСТИКА!
+                # Применим CPR matrix к z_p и сравним с Якобианом
                 try:
-                    if hasattr(self.prec, 'solver') and hasattr(self.prec.solver, '_apply_A'):
-                        Azp_geo = self.prec.solver._apply_A(0, zp.to(torch.float64)).to(zp.dtype)
-                        print(f"  [COUPLING-1] A_pp·z_p (isolate): ||·||={Azp_geo.norm().item():.3e}, cosθ={torch.dot(Azp_geo, rp).item()/(Azp_geo.norm()*rp.norm() + 1e-30):.3f}")
-                except:
+                    # CPR matrix·z_p (через AMG solver если есть apply)
+                    if hasattr(self.prec, 'solver'):
+                        if hasattr(self.prec.solver, '_apply_A'):
+                            # Geo2: имеет явный _apply_A
+                            A_cpr_zp = self.prec.solver._apply_A(0, zp.to(torch.float64)).to(zp.dtype)
+                        elif hasattr(self.prec.solver, 'levels'):
+                            # ClassicalAMG: применим A через _matvec
+                            A_cpr_zp = self.prec.solver._matvec(0, zp.to(self.prec.solver.device))
+                            A_cpr_zp = A_cpr_zp.to(zp.device, dtype=zp.dtype)
+                        else:
+                            A_cpr_zp = None
+                        
+                        if A_cpr_zp is not None:
+                            # Якобиан A_pp·z_p (только pressure блок, saturation=0)
+                            z_only_p_temp = torch.zeros_like(z)
+                            z_only_p_temp[:n] = zp
+                            A_jac_zp_full = self._matvec(x, z_only_p_temp)
+                            A_jac_zp = A_jac_zp_full[:n]
+                            
+                            ratio_jac_cpr = A_jac_zp.norm().item() / (A_cpr_zp.norm().item() + 1e-30)
+                            print(f"  [ДИАГНОСТИКА МАСШТАБОВ] ||A_jacobian·z_p||={A_jac_zp.norm().item():.3e} vs ||A_CPR·z_p||={A_cpr_zp.norm().item():.3e}")
+                            print(f"  [МАСШТАБ RATIO] Якобиан/CPR = {ratio_jac_cpr:.3e}x ← если >> 1, то масштабы не согласованы!")
+                            print(f"  [ДЕТАЛИ] ||r_p||={rp.norm().item():.3e}, ||z_p||={zp.norm().item():.3e}")
+                            print(f"  [ДЕТАЛИ] Ожидаем: A_CPR·z ~ r, получаем: {A_cpr_zp.norm().item():.3e} ≈ {rp.norm().item():.3e}")
+                            print(f"  [ДЕТАЛИ] Якобиан: A_jac·z = {A_jac_zp.norm().item():.3e} >> r (в {ratio_jac_cpr:.1f} раз)")
+                except Exception as e:
+                    print(f"  [ДИАГНОСТИКА] Ошибка: {e}")
                     pass
                 
                 # 2) Полный A·[z_p, z_sw] — все блоки

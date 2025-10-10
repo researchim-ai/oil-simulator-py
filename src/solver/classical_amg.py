@@ -709,7 +709,8 @@ class ClassicalAMG:
             if rel_res < tol:
                 break
         
-        # Обратное масштабирование: x = D^(-1/2) x̃
-        x = self.Dhalf_inv * x_scaled
+        # Обратное масштабирование: x = z / D^(-1/2) = z * D^(1/2)
+        # Dhalf_inv = D^(-1/2), поэтому x = x_scaled / Dhalf_inv
+        x = x_scaled / self.Dhalf_inv
         
         return x
