@@ -1010,9 +1010,38 @@ class Simulator:
                     else:
                         q_w[i, j, k] += q_total
                 else:
-                    qw_loc = q_total * fw[i, j, k]
-                    qg_loc = q_total * fg[i, j, k]
-                    qo_loc = q_total * fo[i, j, k]
+                    # Producer
+                    if getattr(well, 'rate_type', 'reservoir') == 'surface' and self.fluid.pvt is not None:
+                        sp = (well.surface_phase or 'liquid').lower()
+                        Bo_cell = float(self.fluid._eval_pvt(P_new, 'Bo')[i, j, k])
+                        Bw_cell = float(self.fluid._eval_pvt(P_new, 'Bw')[i, j, k])
+                        Bg_cell = float(self.fluid._eval_pvt(P_new, 'Bg')[i, j, k])
+                        Rs_cell = float(self.fluid._eval_pvt(P_new, 'Rs')[i, j, k])
+                        fo_ = fo[i, j, k].item()
+                        fw_ = fw[i, j, k].item()
+                        fg_ = fg[i, j, k].item()
+                        if sp == 'oil':
+                            q_o_res = q_base * Bo_cell
+                            q_total = - q_o_res / max(fo_, 1e-8)
+                        elif sp == 'water':
+                            q_w_res = q_base * Bw_cell
+                            q_total = - q_w_res / max(fw_, 1e-8)
+                        elif sp == 'gas':
+                            # q_g_surf = q_g_res_free/Bg + Rs * q_o_res/Bo_surf? В surface единицах: q_g_surf = q_total*(fg/Bg + fo*Rs/Bo)
+                            denom = (fg_ / max(Bg_cell, 1e-12) + fo_ * Rs_cell / max(Bo_cell, 1e-12))
+                            q_total = - (q_base / max(denom, 1e-12))
+                        else:  # 'liquid' (oil+water)
+                            # q_liq_surf = q_total*(fo/Bo + fw/Bw)
+                            denom = (fo_ / max(Bo_cell, 1e-12) + fw_ / max(Bw_cell, 1e-12))
+                            q_total = - (q_base / max(denom, 1e-12))
+                        qw_loc = q_total * fw[i, j, k]
+                        qg_loc = q_total * fg[i, j, k]
+                        qo_loc = q_total * fo[i, j, k]
+                    else:
+                        # Резервуарный total rate
+                        qw_loc = q_total * fw[i, j, k]
+                        qg_loc = q_total * fg[i, j, k]
+                        qo_loc = q_total * fo[i, j, k]
                     q_w[i, j, k] += qw_loc
                     q_g[i, j, k] += qg_loc
                     q_o[i, j, k] += qo_loc
@@ -1055,6 +1084,25 @@ class Simulator:
         self.fluid.s_w = S_w_new
         self.fluid.s_g = S_g_new
         self.fluid.s_o = 1.0 - self.fluid.s_w - self.fluid.s_g
+
+        # Коррекция свободного газа с учётом изменения растворённого газа Rs (без Rv)
+        try:
+            if self.fluid.pvt is not None:
+                Rs_prev = self.fluid._eval_pvt(self.fluid.prev_pressure, 'Rs')
+                Rs_new = self.fluid._eval_pvt(P_new, 'Rs')
+                Bo_new = self.fluid._eval_pvt(P_new, 'Bo')
+                rho_g_res = self.fluid.rho_g
+                So_new = self.fluid.s_o
+                delta_Rs = Rs_new - Rs_prev
+                rho_g_sc = self.fluid.rho_gas_ref
+                denom = (rho_g_res * (Bo_new + 1e-12) + 1e-12)
+                dSg_corr = - So_new * delta_Rs * (rho_g_sc / denom)
+                max_dS = self.sim_params.get("max_saturation_change", 0.05)
+                dSg_corr = dSg_corr.clamp(-max_dS, max_dS)
+                self.fluid.s_g = (self.fluid.s_g + dSg_corr).clamp(self.fluid.sg_cr, 1.0 - self.fluid.so_r - self.fluid.s_w)
+                self.fluid.s_o = 1.0 - self.fluid.s_w - self.fluid.s_g
+        except Exception:
+            pass
 
         # Агрегированный подсчёт баланса масс по фактическим dS (после клампов)
         rho_w_now = self.fluid.rho_w

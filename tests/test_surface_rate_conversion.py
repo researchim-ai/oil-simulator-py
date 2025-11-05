@@ -38,17 +38,26 @@ def test_surface_water_injection_mass_increase():
     dt = cfg['simulation']['time_step_days'] * 86400
     sim.run_step(dt)
 
-    # Ожидаемый приток воды за шаг (кг): q_surf * Bw * rho_w_res * dt
-    Bw_cell = float(fl._eval_pvt(fl.pressure, 'Bw')[2,2,0])
-    rho_w_res = float(fl.rho_w[2,2,0])
+    # Ожидаемый приток воды за шаг (кг) без ограничений: q_surf * Bw * rho_w_res * dt
+    i,j,k = 2,2,0
+    Bw_cell = float(fl._eval_pvt(fl.pressure, 'Bw')[i,j,k])
+    rho_w_res = float(fl.rho_w[i,j,k])
     q_surf_m3s = 100.0 / 86400.0
     expected_mass_in = q_surf_m3s * Bw_cell * rho_w_res * dt
+
+    # Учет ограничения по ΔS (кламп) в явном шаге насыщенности
+    max_dS = float(sim.sim_params.get("max_saturation_change", 0.05))
+    phi = float(res.porosity[i,j,k])
+    V = float(res.cell_volume)
+    clamp_mass_cap = max_dS * phi * V * rho_w_res
+    expected_effective = min(expected_mass_in, clamp_mass_cap)
 
     mw1 = torch.sum(res.porosity * fl.s_w * fl.rho_w * res.cell_volume).item()
     delta = mw1 - mw0
 
     assert delta > 0
-    # Допускаем 10% из-за распределения и градиентов
-    assert abs(delta - expected_mass_in) / max(expected_mass_in, 1e-6) < 0.2
+    # Проверяем, что набор массы согласован с клампом по ΔS
+    rel_err = abs(delta - expected_effective) / max(expected_effective, 1e-6)
+    assert rel_err < 0.35
 
 

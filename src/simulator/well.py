@@ -7,7 +7,7 @@ class Well:
     Класс для представления скважины в резервуаре.
     """
     
-    def __init__(self, name, well_type, i, j, k, radius, control_type, control_value, reservoir_dimensions, injected_phase: str = 'water', rate_type: str = 'reservoir'):
+    def __init__(self, name, well_type, i, j, k, radius, control_type, control_value, reservoir_dimensions, injected_phase: str = 'water', rate_type: str = 'reservoir', surface_phase: str = None):
         """
         Инициализирует скважину.
         
@@ -30,6 +30,7 @@ class Well:
         self.control_value = control_value
         self.injected_phase = injected_phase
         self.rate_type = rate_type  # 'reservoir' | 'surface'
+        self.surface_phase = surface_phase  # for producers: 'oil'|'water'|'gas'|'liquid'
         
         nx, ny, nz = reservoir_dimensions
         self.cell_index = (i, j, k)
@@ -93,7 +94,8 @@ class WellManager:
                 control_value=control_value,
                 reservoir_dimensions=reservoir.dimensions,
                 injected_phase=w.get('injected_phase', 'water'),
-                rate_type=w.get('rate_type', 'reservoir')
+                rate_type=w.get('rate_type', 'reservoir'),
+                surface_phase=w.get('surface_phase')
             )
             self.wells.append(well)
             print(f"  > Скважина '{well.name}' добавлена в менеджер.")
