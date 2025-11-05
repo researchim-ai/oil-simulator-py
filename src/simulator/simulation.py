@@ -1040,11 +1040,76 @@ class Simulator:
                             # q_liq_surf = q_total*(fo/Bo + fg*Rv/Bg + fw/Bw)
                             denom = (fo_ / max(Bo_cell, 1e-12) + fg_ * Rv_cell / max(Bg_cell, 1e-12) + fw_ / max(Bw_cell, 1e-12))
                             q_total = - (q_base / max(denom, 1e-12))
+                        # Фазовые лимиты в surface-единицах (м3/сут) — при необходимости троттлинг по |q_total|
+                        lim = getattr(well, 'limits', None) or {}
+                        if lim:
+                            denom_o = fo_ / max(Bo_cell, 1e-12) + fg_ * Rv_cell / max(Bg_cell, 1e-12)
+                            denom_w = fw_ / max(Bw_cell, 1e-12)
+                            denom_g = fg_ / max(Bg_cell, 1e-12) + fo_ * Rs_cell / max(Bo_cell, 1e-12)
+                            denom_l = denom_o + denom_w
+                            candidates = []
+                            if 'wopr' in lim and denom_o > 0:
+                                candidates.append((lim['wopr'] / 86400.0) / denom_o)
+                            if 'wlpr' in lim and denom_w > 0:
+                                candidates.append((lim['wlpr'] / 86400.0) / denom_w)
+                            if 'wgpr' in lim and denom_g > 0:
+                                candidates.append((lim['wgpr'] / 86400.0) / denom_g)
+                            if 'liqr' in lim and denom_l > 0:
+                                candidates.append((lim['liqr'] / 86400.0) / denom_l)
+                            if candidates:
+                                max_abs_q = min(candidates)
+                                if abs(q_total) > max_abs_q:
+                                    q_total = -max_abs_q
+                        # Диагностика per-well: сохранить surface-скорости (м3/сут)
+                        oil_surf = abs(q_total) * (fo_ / max(Bo_cell, 1e-12) + fg_ * Rv_cell / max(Bg_cell, 1e-12)) * 86400.0
+                        wat_surf = abs(q_total) * (fw_ / max(Bw_cell, 1e-12)) * 86400.0
+                        gas_surf = abs(q_total) * (fg_ / max(Bg_cell, 1e-12) + fo_ * Rs_cell / max(Bo_cell, 1e-12)) * 86400.0
+                        liq_surf = oil_surf + wat_surf
+                        well.last_surface_rates = {"oil": oil_surf, "water": wat_surf, "gas": gas_surf, "liquid": liq_surf}
+                        well.last_q_total = float(q_total)
                         qw_loc = q_total * fw[i, j, k]
                         qg_loc = q_total * fg[i, j, k]
                         qo_loc = q_total * fo[i, j, k]
                     else:
                         # Резервуарный total rate
+                        # Возможные surface-лимиты также применим, если есть PVT
+                        if self.fluid.pvt is not None:
+                            Bo_cell = float(self.fluid._eval_pvt(P_new, 'Bo')[i, j, k])
+                            Bw_cell = float(self.fluid._eval_pvt(P_new, 'Bw')[i, j, k])
+                            Bg_cell = float(self.fluid._eval_pvt(P_new, 'Bg')[i, j, k])
+                            Rs_cell = float(self.fluid._eval_pvt(P_new, 'Rs')[i, j, k])
+                            try:
+                                Rv_cell = float(self.fluid._eval_pvt(P_new, 'Rv')[i, j, k])
+                            except Exception:
+                                Rv_cell = 0.0
+                            fo_ = fo[i, j, k].item()
+                            fw_ = fw[i, j, k].item()
+                            fg_ = fg[i, j, k].item()
+                            lim = getattr(well, 'limits', None) or {}
+                            if lim:
+                                denom_o = fo_ / max(Bo_cell, 1e-12) + fg_ * Rv_cell / max(Bg_cell, 1e-12)
+                                denom_w = fw_ / max(Bw_cell, 1e-12)
+                                denom_g = fg_ / max(Bg_cell, 1e-12) + fo_ * Rs_cell / max(Bo_cell, 1e-12)
+                                denom_l = denom_o + denom_w
+                                candidates = []
+                                if 'wopr' in lim and denom_o > 0:
+                                    candidates.append((lim['wopr'] / 86400.0) / denom_o)
+                                if 'wlpr' in lim and denom_w > 0:
+                                    candidates.append((lim['wlpr'] / 86400.0) / denom_w)
+                                if 'wgpr' in lim and denom_g > 0:
+                                    candidates.append((lim['wgpr'] / 86400.0) / denom_g)
+                                if 'liqr' in lim and denom_l > 0:
+                                    candidates.append((lim['liqr'] / 86400.0) / denom_l)
+                                if candidates:
+                                    max_abs_q = min(candidates)
+                                    if abs(q_total) > max_abs_q:
+                                        q_total = -max_abs_q
+                            oil_surf = abs(q_total) * (fo_ / max(Bo_cell, 1e-12) + fg_ * Rv_cell / max(Bg_cell, 1e-12)) * 86400.0
+                            wat_surf = abs(q_total) * (fw_ / max(Bw_cell, 1e-12)) * 86400.0
+                            gas_surf = abs(q_total) * (fg_ / max(Bg_cell, 1e-12) + fo_ * Rs_cell / max(Bo_cell, 1e-12)) * 86400.0
+                            liq_surf = oil_surf + wat_surf
+                            well.last_surface_rates = {"oil": oil_surf, "water": wat_surf, "gas": gas_surf, "liquid": liq_surf}
+                            well.last_q_total = float(q_total)
                         qw_loc = q_total * fw[i, j, k]
                         qg_loc = q_total * fg[i, j, k]
                         qo_loc = q_total * fo[i, j, k]
@@ -1212,6 +1277,23 @@ class Simulator:
             if well.control_type == 'rate':
                 # Знак источника зависит от типа скважины: положительный для инжектора, отрицательный для продуктора
                 rate_si = well.control_value / 86400.0 * (1 if well.type == 'injector' else -1)
+                # Авто-переключение на BHP при ограничении bhp_min (для продакшенов)
+                if well.type == 'producer' and well.bhp_min is not None:
+                    p_block = P_prev.view(-1)[idx]
+                    mob_t_well = mob_t.view(-1)[idx]
+                    wi = well.well_index
+                    # Требуемый BHP для обеспечения заданного rate
+                    # q = wi * mob_t * (p_block - p_bhp) => p_bhp_req = p_block - q/(wi*mob_t)
+                    denom = wi * mob_t_well + 1e-12
+                    p_bhp_req = p_block - rate_si / denom
+                    p_bhp_min = well.bhp_min * 1e6
+                    if p_bhp_req < p_bhp_min:
+                        # Переключаемся на BHP-контроль на этом шаге
+                        well.last_mode = 'bhp'
+                        well_bhp_terms[idx] += wi * mob_t_well
+                        q_wells[idx] += wi * mob_t_well * p_bhp_min
+                        continue
+                well.last_mode = 'rate'
                 q_wells[idx] += rate_si
             elif well.control_type == 'bhp':
                 well_index_val = well.well_index

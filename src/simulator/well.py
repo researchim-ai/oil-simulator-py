@@ -7,7 +7,7 @@ class Well:
     Класс для представления скважины в резервуаре.
     """
     
-    def __init__(self, name, well_type, i, j, k, radius, control_type, control_value, reservoir_dimensions, injected_phase: str = 'water', rate_type: str = 'reservoir', surface_phase: str = None):
+    def __init__(self, name, well_type, i, j, k, radius, control_type, control_value, reservoir_dimensions, injected_phase: str = 'water', rate_type: str = 'reservoir', surface_phase: str = None, limits: dict = None, bhp_min: float = None):
         """
         Инициализирует скважину.
         
@@ -31,6 +31,9 @@ class Well:
         self.injected_phase = injected_phase
         self.rate_type = rate_type  # 'reservoir' | 'surface'
         self.surface_phase = surface_phase  # for producers: 'oil'|'water'|'gas'|'liquid'
+        # Лимиты фаз (м3/сутки) и минимальный забой (МПа)
+        self.limits = limits or {}
+        self.bhp_min = bhp_min  # МПа, если задано
         
         nx, ny, nz = reservoir_dimensions
         self.cell_index = (i, j, k)
@@ -46,6 +49,10 @@ class Well:
         # Индекс скважины по модели Писмана (k заменим позже при гетерогенности)
         k_h_assumed = 100.0  # мД
         self.well_index = 2 * math.pi * k_h_assumed / (math.log(ro / radius) + 1e-12)
+        # Диагностика последнего шага
+        self.last_q_total = None           # м3/с (знак: + инжекция, - отбор)
+        self.last_surface_rates = {}       # {'oil','water','gas','liquid'} в м3/сутки
+        self.last_mode = None              # 'rate' | 'bhp'
         
     def __str__(self):
         return f"Well(name={self.name}, type={self.type}, pos=({self.i},{self.j},{self.k}), control={self.control_type}:{self.control_value})"
@@ -95,7 +102,9 @@ class WellManager:
                 reservoir_dimensions=reservoir.dimensions,
                 injected_phase=w.get('injected_phase', 'water'),
                 rate_type=w.get('rate_type', 'reservoir'),
-                surface_phase=w.get('surface_phase')
+                surface_phase=w.get('surface_phase'),
+                limits=w.get('limits'),
+                bhp_min=w.get('bhp_min')
             )
             self.wells.append(well)
             print(f"  > Скважина '{well.name}' добавлена в менеджер.")
