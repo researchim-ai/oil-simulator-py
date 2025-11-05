@@ -47,6 +47,7 @@ def generate_black_oil_pvt(params: PVTParams) -> Dict:
     mu_w = []
     mu_g = []
     Rs = []
+    Rv = []
 
     # Базовые значения вязкостей при p ~ p_min
     mu_od = 2.5  # dead oil, cP (синтетика)
@@ -61,6 +62,11 @@ def generate_black_oil_pvt(params: PVTParams) -> Dict:
         else:
             rs = rs_max
         Rs.append(rs)
+
+        # Простейшая синтетика для Rv (конденсация нефти в газе):
+        # Небольшие значения, растущие при высоких давлениях. Это лишь тестовая кривая.
+        rv = 0.02 * (p / params.p_max_mpa)
+        Rv.append(rv)
 
         # Bo: до Pb падает от ~1.2 к ~Bo(Pb), выше Pb — слабая компрессия
         if p <= params.bubble_point_mpa:
@@ -113,6 +119,7 @@ def generate_black_oil_pvt(params: PVTParams) -> Dict:
         "mu_w_cP": mu_w,
         "mu_g_cP": mu_g,
         "Rs_m3m3": Rs,
+        "Rv_m3m3": Rv,
         "meta": {
             "temperature_C": params.temperature_c,
             "oil_API": params.oil_api,

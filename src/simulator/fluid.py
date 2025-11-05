@@ -150,7 +150,12 @@ class Fluid:
         if self.pvt is None:
             return self.calc_gas_density(self.pressure)
         bg = self._eval_pvt(self.pressure, key='Bg')
-        return self.rho_gas_ref / (bg + 1e-12)
+        # Учет Rv (впаривание нефти в газ): ρ_g^res ≈ (ρ_g_sc + Rv * ρ_o_sc) / Bg
+        try:
+            rv = self._eval_pvt(self.pressure, key='Rv')
+        except KeyError:
+            rv = torch.zeros_like(bg)
+        return (self.rho_gas_ref + rv * self.rho_oil_ref) / (bg + 1e-12)
         
     @property
     def mu_w(self):

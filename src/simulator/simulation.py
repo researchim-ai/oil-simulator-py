@@ -1017,12 +1017,18 @@ class Simulator:
                         Bw_cell = float(self.fluid._eval_pvt(P_new, 'Bw')[i, j, k])
                         Bg_cell = float(self.fluid._eval_pvt(P_new, 'Bg')[i, j, k])
                         Rs_cell = float(self.fluid._eval_pvt(P_new, 'Rs')[i, j, k])
+                        # Rv может отсутствовать — в этом случае считаем 0
+                        try:
+                            Rv_cell = float(self.fluid._eval_pvt(P_new, 'Rv')[i, j, k])
+                        except Exception:
+                            Rv_cell = 0.0
                         fo_ = fo[i, j, k].item()
                         fw_ = fw[i, j, k].item()
                         fg_ = fg[i, j, k].item()
                         if sp == 'oil':
-                            q_o_res = q_base * Bo_cell
-                            q_total = - q_o_res / max(fo_, 1e-8)
+                            # q_o_surf = q_total*(fo/Bo + fg*Rv/Bg)
+                            denom = (fo_ / max(Bo_cell, 1e-12) + fg_ * Rv_cell / max(Bg_cell, 1e-12))
+                            q_total = - (q_base / max(denom, 1e-12))
                         elif sp == 'water':
                             q_w_res = q_base * Bw_cell
                             q_total = - q_w_res / max(fw_, 1e-8)
@@ -1031,8 +1037,8 @@ class Simulator:
                             denom = (fg_ / max(Bg_cell, 1e-12) + fo_ * Rs_cell / max(Bo_cell, 1e-12))
                             q_total = - (q_base / max(denom, 1e-12))
                         else:  # 'liquid' (oil+water)
-                            # q_liq_surf = q_total*(fo/Bo + fw/Bw)
-                            denom = (fo_ / max(Bo_cell, 1e-12) + fw_ / max(Bw_cell, 1e-12))
+                            # q_liq_surf = q_total*(fo/Bo + fg*Rv/Bg + fw/Bw)
+                            denom = (fo_ / max(Bo_cell, 1e-12) + fg_ * Rv_cell / max(Bg_cell, 1e-12) + fw_ / max(Bw_cell, 1e-12))
                             q_total = - (q_base / max(denom, 1e-12))
                         qw_loc = q_total * fw[i, j, k]
                         qg_loc = q_total * fg[i, j, k]
