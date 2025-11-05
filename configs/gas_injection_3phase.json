@@ -1,0 +1,96 @@
+{
+  "reservoir": {
+    "dimensions": [20, 20, 3],
+    "grid_size": [10.0, 10.0, 5.0],
+    "porosity": 0.25,
+    "permeability": 150.0,
+    "k_vertical_fraction": 0.1,
+    "c_rock": 1e-5
+  },
+  "fluid": {
+    "pressure": 25.0,
+    "s_w": 0.2,
+    "s_g": 0.05,
+    "mu_oil": 2.0,
+    "mu_water": 0.5,
+    "mu_gas": 0.02,
+    "rho_oil": 850.0,
+    "rho_water": 1000.0,
+    "rho_gas": 1.2,
+    "c_oil": 1e-5,
+    "c_water": 5e-6,
+    "c_gas": 1e-3,
+    "c_rock": 1e-5,
+    "relative_permeability": {
+      "nw": 2.0,
+      "no": 2.0,
+      "ng": 2.5,
+      "sw_cr": 0.15,
+      "so_r": 0.2,
+      "sg_cr": 0.02
+    },
+    "capillary_pressure": {
+      "pc_scale": 0.0,
+      "pc_exponent": 1.5,
+      "pc_threshold": 0.01
+    }
+  },
+  "wells": [
+    {
+      "name": "INJ-GAS",
+      "type": "injector",
+      "i": 2,
+      "j": 10,
+      "k": 1,
+      "radius": 0.1,
+      "control_type": "rate",
+      "control_value": 50.0,
+      "injected_phase": "gas"
+    },
+    {
+      "name": "INJ-WATER",
+      "type": "injector",
+      "i": 17,
+      "j": 10,
+      "k": 1,
+      "radius": 0.1,
+      "control_type": "rate",
+      "control_value": 50.0,
+      "injected_phase": "water"
+    },
+    {
+      "name": "PROD-1",
+      "type": "producer",
+      "i": 10,
+      "j": 5,
+      "k": 1,
+      "radius": 0.1,
+      "control_type": "bhp",
+      "control_value": 20.0
+    },
+    {
+      "name": "PROD-2",
+      "type": "producer",
+      "i": 10,
+      "j": 15,
+      "k": 1,
+      "radius": 0.1,
+      "control_type": "bhp",
+      "control_value": 20.0
+    }
+  ],
+  "simulation": {
+    "solver_type": "impes",
+    "total_time_days": 200,
+    "time_step_days": 1.0,
+    "max_time_step_attempts": 3,
+    "dt_reduction_factor": 2.0,
+    "cg_tolerance": 1e-6,
+    "cg_max_iter": 1000,
+    "max_saturation_change": 0.05,
+    "save_interval": 20,
+    "animation_fps": 5
+  }
+}
+
+

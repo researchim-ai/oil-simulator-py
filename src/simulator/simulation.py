@@ -79,6 +79,13 @@ class Simulator:
         # Гравитационная постоянная для IMPES
         self.g = 9.81
         
+        # Трекер баланса масс по фазам (кг)
+        self.mass_balance = {
+            'water': {'in': 0.0, 'out': 0.0},
+            'oil': {'in': 0.0, 'out': 0.0},
+            'gas': {'in': 0.0, 'out': 0.0},
+        }
+        
     def _move_data_to_device(self):
         """Переносит данные на текущее устройство (CPU или GPU)"""
         # Переносим данные из резервуара
@@ -844,13 +851,16 @@ class Simulator:
         P_prev = self.fluid.pressure
         S_w = self.fluid.s_w
 
-        kro, krw = self.fluid.get_rel_perms(S_w)
-        mu_o_pas = self.fluid.mu_oil
-        mu_w_pas = self.fluid.mu_water
+        kro, krw, krg = self.fluid.get_rel_perms(S_w)
+        # Вязкости фаз из PVT (если доступны) при P_prev
+        mu_o_pas = self.fluid._eval_pvt(P_prev, 'mu_o') * 1e-3 if self.fluid.pvt else self.fluid.mu_oil
+        mu_w_pas = self.fluid._eval_pvt(P_prev, 'mu_w') * 1e-3 if self.fluid.pvt else self.fluid.mu_water
+        mu_g_pas = self.fluid._eval_pvt(P_prev, 'mu_g') * 1e-3 if self.fluid.pvt else self.fluid.mu_gas
 
         mob_w = krw / mu_w_pas
         mob_o = kro / mu_o_pas
-        mob_t = mob_w + mob_o
+        mob_g = krg / mu_g_pas
+        mob_t = mob_w + mob_o + mob_g
 
         # 2. Трансмиссивности с учётом апстрима
         dp_x_prev = P_prev[:-1,:,:] - P_prev[1:,:,:]
@@ -870,7 +880,7 @@ class Simulator:
 
         # 4. Сборка матрицы и RHS
         A, A_diag = self._build_pressure_matrix_vectorized(Tx_t, Ty_t, Tz_t, dt, well_bhp_terms)
-        Q = self._build_pressure_rhs(dt, P_prev, mob_w, mob_o, q_wells, dp_x_prev, dp_y_prev, dp_z_prev)
+        Q = self._build_pressure_rhs(dt, P_prev, mob_w, mob_o, mob_g, q_wells, dp_x_prev, dp_y_prev, dp_z_prev)
 
         # 5. Параметры CG из конфигурации
         cg_tol_base = self.sim_params.get("cg_tolerance", 1e-6)
@@ -894,14 +904,18 @@ class Simulator:
     def _impes_saturation_step(self, P_new, dt):
         """ Явный шаг для обновления насыщенности в схеме IMPES. """
         S_w_old = self.fluid.s_w
+        S_g_old = self.fluid.s_g
 
-        kro, krw = self.fluid.get_rel_perms(S_w_old)
-        mu_o_pas = self.fluid.mu_oil
-        mu_w_pas = self.fluid.mu_water
+        kro, krw, krg = self.fluid.get_rel_perms(S_w_old)
+        # Вязкости фаз при новом давлении (для флюксов на шаге насыщенности)
+        mu_o_pas = self.fluid._eval_pvt(P_new, 'mu_o') * 1e-3 if self.fluid.pvt else self.fluid.mu_oil
+        mu_w_pas = self.fluid._eval_pvt(P_new, 'mu_w') * 1e-3 if self.fluid.pvt else self.fluid.mu_water
+        mu_g_pas = self.fluid._eval_pvt(P_new, 'mu_g') * 1e-3 if self.fluid.pvt else self.fluid.mu_gas
 
         mob_w = krw / mu_w_pas
         mob_o = kro / mu_o_pas
-        mob_t = mob_w + mob_o
+        mob_g = krg / mu_g_pas
+        mob_t = mob_w + mob_o + mob_g
 
         # 1. Градиенты давления и апстрим мобильностей
         dp_x = P_new[:-1,:,:] - P_new[1:,:,:]
@@ -912,58 +926,154 @@ class Simulator:
         mob_w_y = torch.where(dp_y > 0, mob_w[:,:-1,:], mob_w[:,1:,:])
         mob_w_z = torch.where(dp_z > 0, mob_w[:,:,:-1], mob_w[:,:,1:])
 
+        mob_g_x = torch.where(dp_x > 0, mob_g[:-1,:,:], mob_g[1:,:,:])
+        mob_g_y = torch.where(dp_y > 0, mob_g[:,:-1,:], mob_g[:,1:,:])
+        mob_g_z = torch.where(dp_z > 0, mob_g[:,:,:-1], mob_g[:,:,1:])
+
         # 2. Потенциалы с учётом гравитации
         _, _, dz = self.reservoir.grid_size
         if dz > 0 and self.reservoir.nz > 1:
             rho_w_avg = 0.5 * (self.fluid.rho_w[:,:,:-1] + self.fluid.rho_w[:,:,1:])
-            pot_z = dp_z + self.g * rho_w_avg * dz
+            rho_g_avg = 0.5 * (self.fluid.rho_g[:,:,:-1] + self.fluid.rho_g[:,:,1:])
+            pot_w_z = dp_z + self.g * rho_w_avg * dz
+            pot_g_z = dp_z + self.g * rho_g_avg * dz
         else:
-            pot_z = dp_z
+            pot_w_z = dp_z
+            pot_g_z = dp_z
 
         # 3. Расходы воды
         flow_w_x = self.T_x * mob_w_x * dp_x
         flow_w_y = self.T_y * mob_w_y * dp_y
-        flow_w_z = self.T_z * mob_w_z * pot_z
+        flow_w_z = self.T_z * mob_w_z * pot_w_z
+
+        # Капиллярное давление нефть-газ: корректируем потенциал газа
+        if getattr(self.fluid, 'pc_og_scale', 0.0) > 0:
+            pcog = self.fluid.get_capillary_pressure_og(self.fluid.s_g)
+            dpcg_x = pcog[1:,:,:] - pcog[:-1,:,:]
+            dpcg_y = pcog[:,1:,:] - pcog[:,:-1,:]
+            dpcg_z = pcog[:,:,1:] - pcog[:,:,:-1]
+            flow_g_x = self.T_x * mob_g_x * (dp_x - dpcg_x)
+            flow_g_y = self.T_y * mob_g_y * (dp_y - dpcg_y)
+            flow_g_z = self.T_z * mob_g_z * (pot_g_z - dpcg_z)
+        else:
+            flow_g_x = self.T_x * mob_g_x * dp_x
+            flow_g_y = self.T_y * mob_g_y * dp_y
+            flow_g_z = self.T_z * mob_g_z * pot_g_z
 
         # 4. Дивергенция
-        div_flow = torch.zeros_like(S_w_old)
-        div_flow[:-1, :, :] += flow_w_x
-        div_flow[1:, :, :]  -= flow_w_x
-        div_flow[:, :-1, :] += flow_w_y
-        div_flow[:, 1:, :]  -= flow_w_y
-        div_flow[:, :, :-1] += flow_w_z
-        div_flow[:, :, 1:]  -= flow_w_z
+        div_w = torch.zeros_like(S_w_old)
+        div_w[:-1, :, :] += flow_w_x
+        div_w[1:, :, :]  -= flow_w_x
+        div_w[:, :-1, :] += flow_w_y
+        div_w[:, 1:, :]  -= flow_w_y
+        div_w[:, :, :-1] += flow_w_z
+        div_w[:, :, 1:]  -= flow_w_z
+
+        div_g = torch.zeros_like(S_g_old)
+        div_g[:-1, :, :] += flow_g_x
+        div_g[1:, :, :]  -= flow_g_x
+        div_g[:, :-1, :] += flow_g_y
+        div_g[:, 1:, :]  -= flow_g_y
+        div_g[:, :, :-1] += flow_g_z
+        div_g[:, :, 1:]  -= flow_g_z
 
         # 5. Источники/стоки воды от скважин
         q_w = torch.zeros_like(S_w_old)
+        q_g = torch.zeros_like(S_g_old)
+        q_o = torch.zeros_like(S_w_old)
         fw = mob_w / (mob_t + 1e-10)
+        fg = mob_g / (mob_t + 1e-10)
+        fo = mob_o / (mob_t + 1e-10)
         for well in self.well_manager.get_wells():
             i, j, k = well.i, well.j, well.k
             if i >= self.reservoir.nx or j >= self.reservoir.ny or k >= self.reservoir.nz:
                 continue
 
             if well.control_type == 'rate':
-                q_total = well.control_value / 86400.0 * (1 if well.type == 'injector' else -1)
-                q_w[i, j, k] += q_total if well.type == 'injector' else q_total * fw[i, j, k]
+                # Базовый дебит в м3/с
+                q_base = well.control_value / 86400.0
+                # Конверсия surface->reservoir для инжектора
+                if well.type == 'injector' and getattr(well, 'rate_type', 'reservoir') == 'surface' and self.fluid.pvt is not None:
+                    if well.injected_phase == 'gas':
+                        Bg_cell = float(self.fluid._eval_pvt(P_new, 'Bg')[i, j, k])
+                        q_total = q_base * Bg_cell
+                    else:
+                        Bw_cell = float(self.fluid._eval_pvt(P_new, 'Bw')[i, j, k])
+                        q_total = q_base * Bw_cell
+                else:
+                    q_total = q_base
+                q_total *= (1 if well.type == 'injector' else -1)
+                if well.type == 'injector':
+                    injected_phase = getattr(well, 'injected_phase', 'water')
+                    if injected_phase == 'gas':
+                        q_g[i, j, k] += q_total
+                    else:
+                        q_w[i, j, k] += q_total
+                else:
+                    qw_loc = q_total * fw[i, j, k]
+                    qg_loc = q_total * fg[i, j, k]
+                    qo_loc = q_total * fo[i, j, k]
+                    q_w[i, j, k] += qw_loc
+                    q_g[i, j, k] += qg_loc
+                    q_o[i, j, k] += qo_loc
             elif well.control_type == 'bhp':
                 p_bhp = well.control_value * 1e6
                 p_block = P_new[i, j, k]
                 q_total = well.well_index * mob_t[i, j, k] * (p_block - p_bhp)
-                q_w[i, j, k] += (-q_total) if well.type == 'injector' else (-q_total * fw[i, j, k])
+                if well.type == 'injector':
+                    injected_phase = getattr(well, 'injected_phase', 'water')
+                    if injected_phase == 'gas':
+                        q_g[i, j, k] += (-q_total)
+                    else:
+                        q_w[i, j, k] += (-q_total)
+                else:
+                    qw_loc = (-q_total) * fw[i, j, k]
+                    qg_loc = (-q_total) * fg[i, j, k]
+                    qo_loc = (-q_total) * fo[i, j, k]
+                    q_w[i, j, k] += qw_loc
+                    q_g[i, j, k] += qg_loc
+                    q_o[i, j, k] += qo_loc
+
+        # Агрегированный баланс масс будет посчитан после применения dS и обновления насыщенностей ниже
 
         # 6. Обновление насыщенности с ограничением максимального изменения
-        dSw = (dt / self.porous_volume) * (q_w - div_flow)
-        max_dSw = self.sim_params.get("max_saturation_change", 0.05)
-        dSw_clamped = dSw.clamp(-max_dSw, max_dSw)
+        dSw = (dt / self.porous_volume) * (q_w - div_w)
+        dSg = (dt / self.porous_volume) * (q_g - div_g)
+        max_dS = self.sim_params.get("max_saturation_change", 0.05)
+        dSw_clamped = dSw.clamp(-max_dS, max_dS)
+        dSg_clamped = dSg.clamp(-max_dS, max_dS)
 
-        S_w_new = (S_w_old + dSw_clamped).clamp(self.fluid.sw_cr, 1.0 - self.fluid.so_r)
+        S_w_new = S_w_old + dSw_clamped
+        S_g_new = S_g_old + dSg_clamped
+
+        # Клампы с учетом остаточной нефти (min/max как тензоры одинаковой формы)
+        S_w_new = S_w_new.clamp(self.fluid.sw_cr, 1.0 - self.fluid.so_r)
+        sg_min = torch.full_like(S_g_new, float(self.fluid.sg_cr))
+        sg_max = (1.0 - self.fluid.so_r - S_w_new)
+        S_g_new = torch.clamp(S_g_new, min=sg_min, max=sg_max)
 
         self.fluid.s_w = S_w_new
-        self.fluid.s_o = 1.0 - self.fluid.s_w
+        self.fluid.s_g = S_g_new
+        self.fluid.s_o = 1.0 - self.fluid.s_w - self.fluid.s_g
+
+        # Агрегированный подсчёт баланса масс по фактическим dS (после клампов)
+        rho_w_now = self.fluid.rho_w
+        rho_g_now = self.fluid.rho_g
+        rho_o_now = self.fluid.rho_o
+        mw_eff = dSw_clamped * self.porous_volume * rho_w_now
+        mg_eff = dSg_clamped * self.porous_volume * rho_g_now
+        mo_eff = (-(dSw_clamped + dSg_clamped)) * self.porous_volume * rho_o_now
+        self.mass_balance['water']['in'] += float(mw_eff.clamp(min=0).sum().item())
+        self.mass_balance['water']['out'] += float((-mw_eff.clamp(max=0)).sum().item())
+        self.mass_balance['gas']['in'] += float(mg_eff.clamp(min=0).sum().item())
+        self.mass_balance['gas']['out'] += float((-mg_eff.clamp(max=0)).sum().item())
+        self.mass_balance['oil']['in'] += float(mo_eff.clamp(min=0).sum().item())
+        self.mass_balance['oil']['out'] += float((-mo_eff.clamp(max=0)).sum().item())
 
         affected_cells = torch.sum(torch.abs(dSw) > 1e-8).item()
         print(
-            f"P̄ = {P_new.mean()/1e6:.2f} МПа, Sw(min/max) = {self.fluid.s_w.min():.3f}/{self.fluid.s_w.max():.3f}, ΔSw ограничено до ±{max_dSw}, ячеек изм.: {affected_cells}"
+            f"P̄ = {P_new.mean()/1e6:.2f} МПа, Sw(min/max) = {self.fluid.s_w.min():.3f}/{self.fluid.s_w.max():.3f}, "
+            f"Sg(min/max) = {self.fluid.s_g.min():.3f}/{self.fluid.s_g.max():.3f}, ΔS ограничено до ±{max_dS}, ячеек изм.: {affected_cells}"
         )
 
     def _build_pressure_matrix_vectorized(self, Tx, Ty, Tz, dt, well_bhp_terms):
@@ -986,7 +1096,12 @@ class Simulator:
         rows = torch.cat([row_x, col_x, row_y, col_y, row_z, col_z])
         cols = torch.cat([col_x, row_x, col_y, row_y, col_z, row_z])
         vals = torch.cat([-vals_x, -vals_x, -vals_y, -vals_y, -vals_z, -vals_z])
-        acc_term = (self.porous_volume.view(-1) * self.fluid.cf.view(-1) / dt)
+        # Совокупная сжимаемость из PVT (если доступна)
+        try:
+            ct_tensor = self.fluid.calc_total_compressibility(self.fluid.pressure, self.fluid.s_w, self.fluid.s_g)
+            acc_term = (self.porous_volume.view(-1) * ct_tensor.view(-1) / dt)
+        except Exception:
+            acc_term = (self.porous_volume.view(-1) * self.fluid.cf.view(-1) / dt)
         diag_vals = torch.zeros(N, device=self.device)
         diag_vals.scatter_add_(0, rows, -vals)
         diag_vals += acc_term
@@ -997,7 +1112,7 @@ class Simulator:
         A = torch.sparse_coo_tensor(torch.stack([final_rows, final_cols]), final_vals, (N, N))
         return A.coalesce(), diag_vals
 
-    def _build_pressure_rhs(self, dt, P_prev, mob_w, mob_o, q_wells, dp_x_prev, dp_y_prev, dp_z_prev):
+    def _build_pressure_rhs(self, dt, P_prev, mob_w, mob_o, mob_g, q_wells, dp_x_prev, dp_y_prev, dp_z_prev):
         """ Собирает правую часть Q для СЛАУ IMPES. """
         N = self.reservoir.nx * self.reservoir.ny * self.reservoir.nz
         compressibility_term = (self.porous_volume.view(-1) * self.fluid.cf.view(-1) / dt) * P_prev.view(-1)
@@ -1006,9 +1121,11 @@ class Simulator:
         if dz > 0 and self.reservoir.nz > 1:
             mob_w_z = torch.where(dp_z_prev > 0, mob_w[:,:,:-1], mob_w[:,:,1:])
             mob_o_z = torch.where(dp_z_prev > 0, mob_o[:,:,:-1], mob_o[:,:,1:])
+            mob_g_z = torch.where(dp_z_prev > 0, mob_g[:,:,:-1], mob_g[:,:,1:])
             rho_w_z = torch.where(dp_z_prev > 0, self.fluid.rho_w[:,:,:-1], self.fluid.rho_w[:,:,1:])
             rho_o_z = torch.where(dp_z_prev > 0, self.fluid.rho_o[:,:,:-1], self.fluid.rho_o[:,:,1:])
-            grav_flow = self.T_z * self.g * dz * (mob_w_z * rho_w_z + mob_o_z * rho_o_z)
+            rho_g_z = torch.where(dp_z_prev > 0, self.fluid.rho_g[:,:,:-1], self.fluid.rho_g[:,:,1:])
+            grav_flow = self.T_z * self.g * dz * (mob_w_z * rho_w_z + mob_o_z * rho_o_z + mob_g_z * rho_g_z)
             Q_g[:,:,:-1] -= grav_flow
             Q_g[:,:,1:]  += grav_flow
         Q_pc = torch.zeros_like(P_prev)
@@ -1575,34 +1692,73 @@ class Simulator:
             if (i + 1) % save_interval == 0 and save_interval < num_steps:
                 p_current = self.fluid.pressure.cpu().numpy()
                 sw_current = self.fluid.s_w.cpu().numpy()
+                sg_current = self.fluid.s_g.cpu().numpy()
                 
                 time_info = f"День {int((i + 1) * time_step_days)}"
                 filename = f"{output_filename}_step_{i+1}.png"
                 filepath = os.path.join(intermediate_results_dir, filename)
                 
-                plotter.save_plots(p_current, sw_current, filepath, time_info=time_info)
+                plotter.save_plots(p_current, sw_current, filepath, time_info=time_info, gas_saturation=sg_current)
         
         print("\nСимуляция завершена.")
         
         # Сохранение и визуализация финальных результатов
         p_final = self.fluid.pressure.cpu().numpy()
         sw_final = self.fluid.s_w.cpu().numpy()
+        sg_final = self.fluid.s_g.cpu().numpy()
+        so_final = self.fluid.s_o.cpu().numpy()
         
         print(f"Итоговое давление: Мин={p_final.min()/1e6:.2f} МПа, Макс={p_final.max()/1e6:.2f} МПа")
         print(f"Итоговая водонасыщенность: Мин={sw_final.min():.4f}, Макс={sw_final.max():.4f}")
+        print(f"Итоговая газонасыщенность: Мин={sg_final.min():.4f}, Макс={sg_final.max():.4f}")
+        print(f"Итоговая нефтенасыщенность: Мин={so_final.min():.4f}, Макс={so_final.max():.4f}")
         
-        # Сохранение числовых данных
+        # Сохранение числовых данных (сводка и опционально полные массивы)
         results_txt_path = os.path.join(results_dir, f"{output_filename}.txt")
+        write_full_arrays_txt = self.sim_params.get('write_full_arrays_txt', False)
+        save_npz = self.sim_params.get('save_npz', True)
+
         with open(results_txt_path, 'w') as f:
-            f.write("Final Pressure (MPa):\n")
-            f.write(np.array2string(p_final/1e6, threshold=np.inf, formatter={'float_kind':lambda x: "%.2f" % x}))
-            f.write("\n\nFinal Water Saturation:\n")
-            f.write(np.array2string(sw_final, threshold=np.inf, formatter={'float_kind':lambda x: "%.4f" % x}))
+            # Сводные метрики
+            f.write("=== SUMMARY (final) ===\n")
+            f.write(f"Pressure MPa: min={p_final.min()/1e6:.2f}, max={p_final.max()/1e6:.2f}, mean={p_final.mean()/1e6:.2f}\n")
+            f.write(f"Sw: min={sw_final.min():.4f}, max={sw_final.max():.4f}, mean={sw_final.mean():.4f}\n")
+            f.write(f"Sg: min={sg_final.min():.4f}, max={sg_final.max():.4f}, mean={sg_final.mean():.4f}\n")
+            f.write(f"So: min={so_final.min():.4f}, max={so_final.max():.4f}, mean={so_final.mean():.4f}\n")
+
+            # Баланс масс
+            mb = self.mass_balance
+            net_w = mb['water']['in'] - mb['water']['out']
+            net_g = mb['gas']['in'] - mb['gas']['out']
+            net_o = mb['oil']['in'] - mb['oil']['out']
+            f.write("\n=== MASS BALANCE (kg) ===\n")
+            f.write(f"water: in={mb['water']['in']:.6e}, out={mb['water']['out']:.6e}, net={net_w:.6e}\n")
+            f.write(f"gas:   in={mb['gas']['in']:.6e}, out={mb['gas']['out']:.6e}, net={net_g:.6e}\n")
+            f.write(f"oil:   in={mb['oil']['in']:.6e}, out={mb['oil']['out']:.6e}, net={net_o:.6e}\n")
+            f.write(f"total net={net_w+net_g+net_o:.6e}\n")
+
+            # Полные массивы (опционально в txt — крайне большие)
+            if write_full_arrays_txt:
+                f.write("\n\nFinal Pressure (MPa):\n")
+                f.write(np.array2string(p_final/1e6, threshold=np.inf, formatter={'float_kind':lambda x: "%.2f" % x}))
+                f.write("\n\nFinal Water Saturation:\n")
+                f.write(np.array2string(sw_final, threshold=np.inf, formatter={'float_kind':lambda x: "%.4f" % x}))
+                f.write("\n\nFinal Gas Saturation:\n")
+                f.write(np.array2string(sg_final, threshold=np.inf, formatter={'float_kind':lambda x: "%.4f" % x}))
+                f.write("\n\nFinal Oil Saturation:\n")
+                f.write(np.array2string(so_final, threshold=np.inf, formatter={'float_kind':lambda x: "%.4f" % x}))
+
         print(f"Числовые результаты сохранены в файл {results_txt_path}")
+
+        # Сохранение полных массивов в сжатом формате
+        if save_npz:
+            npz_path = os.path.join(results_dir, f"{output_filename}.npz")
+            np.savez_compressed(npz_path, pressure=p_final, sw=sw_final, sg=sg_final, so=so_final)
+            print(f"Полные поля сохранены в {npz_path} (npz)")
         
         # Сохранение финальных графиков
         final_plot_path = os.path.join(results_dir, f"{output_filename}_final.png")
-        plotter.save_plots(p_final, sw_final, final_plot_path, time_info=f"День {total_time_days} (Final)")
+        plotter.save_plots(p_final, sw_final, final_plot_path, time_info=f"День {total_time_days} (Final)", gas_saturation=sg_final)
         print(f"Финальные графики сохранены в файл {final_plot_path}")
         
         # Сохранение результатов в VTK (если указано)
