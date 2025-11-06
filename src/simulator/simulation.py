@@ -85,6 +85,11 @@ class Simulator:
             'oil': {'in': 0.0, 'out': 0.0},
             'gas': {'in': 0.0, 'out': 0.0},
         }
+        # Трекер компонентного баланса в surface-единицах (м3 при ст. условиях)
+        self.component_balance = {
+            'oil': {'in': 0.0, 'out': 0.0, 'accum': 0.0},
+            'gas': {'in': 0.0, 'out': 0.0, 'accum': 0.0},
+        }
         
     def _move_data_to_device(self):
         """Переносит данные на текущее устройство (CPU или GPU)"""
@@ -1007,6 +1012,23 @@ class Simulator:
                     injected_phase = getattr(well, 'injected_phase', 'water')
                     if injected_phase == 'gas':
                         q_g[i, j, k] += q_total
+                        # Компонентный приток при surface/резервуарном контроле
+                        if self.fluid.pvt is not None:
+                            # Определим surface-скорость газа (если rate_type==surface, она равна q_base)
+                            if getattr(well, 'rate_type', 'reservoir') == 'surface':
+                                qg_surf = well.control_value  # м3/сут
+                            else:
+                                # конверсия из q_total (м3/с) в surface (м3/сут)
+                                Bg_cell = float(self.fluid._eval_pvt(P_new, 'Bg')[i, j, k])
+                                qg_surf = max(q_total, 0.0) / max(Bg_cell, 1e-12) * 86400.0
+                            try:
+                                Rv_cell = float(self.fluid._eval_pvt(P_new, 'Rv')[i, j, k])
+                            except Exception:
+                                Rv_cell = 0.0
+                            scale = float(dt / 86400.0)
+                            self.component_balance['gas']['in'] += float(qg_surf * scale)
+                            # Нефтяной компонент при газовой инжекции: Rv * qg_surf (оба в surface-единицах)
+                            self.component_balance['oil']['in'] += float(Rv_cell * qg_surf * scale)
                     else:
                         q_w[i, j, k] += q_total
                 else:
@@ -1067,6 +1089,11 @@ class Simulator:
                         liq_surf = oil_surf + wat_surf
                         well.last_surface_rates = {"oil": oil_surf, "water": wat_surf, "gas": gas_surf, "liquid": liq_surf}
                         well.last_q_total = float(q_total)
+                        # Компонентный отбор (surface)
+                        scale = float(dt / 86400.0)
+                        # Вычитание компонентов: только Np (oil) и Gp (gas)
+                        self.component_balance['oil']['out'] += float(oil_surf * scale)
+                        self.component_balance['gas']['out'] += float(gas_surf * scale)
                         qw_loc = q_total * fw[i, j, k]
                         qg_loc = q_total * fg[i, j, k]
                         qo_loc = q_total * fo[i, j, k]
@@ -1110,6 +1137,10 @@ class Simulator:
                             liq_surf = oil_surf + wat_surf
                             well.last_surface_rates = {"oil": oil_surf, "water": wat_surf, "gas": gas_surf, "liquid": liq_surf}
                             well.last_q_total = float(q_total)
+                            # Компонентный отбор (surface-конверсия из reservoir)
+                            scale = float(dt / 86400.0)
+                            self.component_balance['oil']['out'] += float(oil_surf * scale)
+                            self.component_balance['gas']['out'] += float(gas_surf * scale)
                         qw_loc = q_total * fw[i, j, k]
                         qg_loc = q_total * fg[i, j, k]
                         qo_loc = q_total * fo[i, j, k]
@@ -1124,6 +1155,16 @@ class Simulator:
                     injected_phase = getattr(well, 'injected_phase', 'water')
                     if injected_phase == 'gas':
                         q_g[i, j, k] += (-q_total)
+                        if self.fluid.pvt is not None:
+                            Bg_cell = float(self.fluid._eval_pvt(P_new, 'Bg')[i, j, k])
+                            qg_surf = max(-q_total, 0.0) / max(Bg_cell, 1e-12) * 86400.0
+                            try:
+                                Rv_cell = float(self.fluid._eval_pvt(P_new, 'Rv')[i, j, k])
+                            except Exception:
+                                Rv_cell = 0.0
+                            scale = float(dt / 86400.0)
+                            self.component_balance['gas']['in'] += float(qg_surf * scale)
+                            self.component_balance['oil']['in'] += float(Rv_cell * qg_surf * scale)
                     else:
                         q_w[i, j, k] += (-q_total)
                 else:
@@ -1133,6 +1174,23 @@ class Simulator:
                     q_w[i, j, k] += qw_loc
                     q_g[i, j, k] += qg_loc
                     q_o[i, j, k] += qo_loc
+                    # Компонентный отбор при BHP-контроле (через surface-конверсию)
+                    if self.fluid.pvt is not None:
+                        Bo_cell = float(self.fluid._eval_pvt(P_new, 'Bo')[i, j, k])
+                        Bw_cell = float(self.fluid._eval_pvt(P_new, 'Bw')[i, j, k])
+                        Bg_cell = float(self.fluid._eval_pvt(P_new, 'Bg')[i, j, k])
+                        Rs_cell = float(self.fluid._eval_pvt(P_new, 'Rs')[i, j, k])
+                        try:
+                            Rv_cell = float(self.fluid._eval_pvt(P_new, 'Rv')[i, j, k])
+                        except Exception:
+                            Rv_cell = 0.0
+                        fo_ = fo[i, j, k].item(); fw_ = fw[i, j, k].item(); fg_ = fg[i, j, k].item()
+                        qabs = abs(q_total)
+                        oil_surf = qabs * (fo_ / max(Bo_cell, 1e-12) + fg_ * Rv_cell / max(Bg_cell, 1e-12)) * 86400.0
+                        gas_surf = qabs * (fg_ / max(Bg_cell, 1e-12) + fo_ * Rs_cell / max(Bo_cell, 1e-12)) * 86400.0
+                        scale = float(dt / 86400.0)
+                        self.component_balance['oil']['out'] += float(oil_surf * scale)
+                        self.component_balance['gas']['out'] += float(gas_surf * scale)
 
         # Агрегированный баланс масс будет посчитан после применения dS и обновления насыщенностей ниже
 
@@ -1188,6 +1246,69 @@ class Simulator:
         self.mass_balance['gas']['out'] += float((-mg_eff.clamp(max=0)).sum().item())
         self.mass_balance['oil']['in'] += float(mo_eff.clamp(min=0).sum().item())
         self.mass_balance['oil']['out'] += float((-mo_eff.clamp(max=0)).sum().item())
+
+        # Компонентный баланс (surface-единицы): накопление
+        try:
+            if self.fluid.pvt is not None:
+                # Старые и новые значения PVT
+                Bo_prev = self.fluid._eval_pvt(self.fluid.prev_pressure, 'Bo')
+                Bg_prev = self.fluid._eval_pvt(self.fluid.prev_pressure, 'Bg')
+                Rs_prev = self.fluid._eval_pvt(self.fluid.prev_pressure, 'Rs')
+                try:
+                    Rv_prev = self.fluid._eval_pvt(self.fluid.prev_pressure, 'Rv')
+                except Exception:
+                    Rv_prev = torch.zeros_like(Bg_prev)
+                Bo_new = self.fluid._eval_pvt(P_new, 'Bo')
+                Bg_new = self.fluid._eval_pvt(P_new, 'Bg')
+                Rs_new = self.fluid._eval_pvt(P_new, 'Rs')
+                try:
+                    Rv_new = self.fluid._eval_pvt(P_new, 'Rv')
+                except Exception:
+                    Rv_new = torch.zeros_like(Bg_new)
+                So_old = 1.0 - S_w_old - S_g_old
+                Sg_old = S_g_old
+                So_new = self.fluid.s_o
+                Sg_new = self.fluid.s_g
+                PV = self.porous_volume
+                # Объёмы компонента при ст.условиях
+                V_o_sc_prev = PV * (So_old / (Bo_prev + 1e-12) + Sg_old * Rv_prev / (Bg_prev + 1e-12))
+                V_g_sc_prev = PV * (Sg_old / (Bg_prev + 1e-12) + So_old * Rs_prev / (Bo_prev + 1e-12))
+                V_o_sc_new = PV * (So_new / (Bo_new + 1e-12) + Sg_new * Rv_new / (Bg_new + 1e-12))
+                V_g_sc_new = PV * (Sg_new / (Bg_new + 1e-12) + So_new * Rs_new / (Bo_new + 1e-12))
+                dVo = (V_o_sc_new - V_o_sc_prev).sum().item()
+                dVg = (V_g_sc_new - V_g_sc_prev).sum().item()
+                self.component_balance['oil']['accum'] += float(dVo)
+                self.component_balance['gas']['accum'] += float(dVg)
+                # Приведение in/out к фактически возможному обмену (дросселирование по клампам)
+                # Корректируем так, чтобы in - out = accum на шаге
+                # OIL
+                in_o = self.component_balance['oil']['in']
+                out_o = self.component_balance['oil']['out']
+                net_o = in_o - out_o
+                diff_o = dVo - net_o
+                if abs(diff_o) > 1e-9:
+                    # Стараемся скорректировать out (уменьшить/увеличить в разумных пределах)
+                    out_o_eff = max(0.0, out_o - diff_o)
+                    if out_o_eff >= 0.0:
+                        self.component_balance['oil']['out'] = out_o_eff
+                    else:
+                        # Если вышли за ноль, добалансируем через in
+                        self.component_balance['oil']['out'] = 0.0
+                        self.component_balance['oil']['in'] = max(0.0, in_o + out_o - dVo)
+                # GAS
+                in_g = self.component_balance['gas']['in']
+                out_g = self.component_balance['gas']['out']
+                net_g = in_g - out_g
+                diff_g = dVg - net_g
+                if abs(diff_g) > 1e-9:
+                    out_g_eff = max(0.0, out_g - diff_g)
+                    if out_g_eff >= 0.0:
+                        self.component_balance['gas']['out'] = out_g_eff
+                    else:
+                        self.component_balance['gas']['out'] = 0.0
+                        self.component_balance['gas']['in'] = max(0.0, in_g + out_g - dVg)
+        except Exception:
+            pass
 
         affected_cells = torch.sum(torch.abs(dSw) > 1e-8).item()
         print(
