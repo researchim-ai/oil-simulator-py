@@ -36,6 +36,11 @@ def test_surface_water_injection_mass_increase():
     mw0 = torch.sum(res.porosity * fl.s_w * fl.rho_w * res.cell_volume).item()
 
     dt = cfg['simulation']['time_step_days'] * 86400
+    # Снимем начальные поля для оценки глобального availability до шага
+    s_w0 = fl.s_w.clone()
+    rho_w0 = fl.rho_w.clone()
+    phi = res.porosity.clone()
+    V = res.cell_volume
     sim.run_step(dt)
 
     # Ожидаемый приток воды за шаг (кг) без ограничений: q_surf * Bw * rho_w_res * dt
@@ -45,18 +50,18 @@ def test_surface_water_injection_mass_increase():
     q_surf_m3s = 100.0 / 86400.0
     expected_mass_in = q_surf_m3s * Bw_cell * rho_w_res * dt
 
-    # Учет ограничения по ΔS (кламп) в явном шаге насыщенности
-    max_dS = float(sim.sim_params.get("max_saturation_change", 0.05))
-    phi = float(res.porosity[i,j,k])
-    V = float(res.cell_volume)
-    clamp_mass_cap = max_dS * phi * V * rho_w_res
-    expected_effective = min(expected_mass_in, clamp_mass_cap)
+    # Для субшаговой схемы ограничение идёт по глобальному доступному окну насыщенности (availability)
+    so_r = float(fl.so_r)
+    avail_sw_grid = torch.clamp(1.0 - so_r - s_w0, min=0.0)
+    # Глобальная максимальная прибавка массы воды при отсутствии оттока
+    availability_mass_cap = float(torch.sum(phi * avail_sw_grid * rho_w0) * V)
+    expected_effective = min(expected_mass_in, availability_mass_cap)
 
     mw1 = torch.sum(res.porosity * fl.s_w * fl.rho_w * res.cell_volume).item()
     delta = mw1 - mw0
 
     assert delta > 0
-    # Проверяем, что набор массы согласован с клампом по ΔS
+    # Проверяем, что набор массы согласован с availability‑ограничением
     rel_err = abs(delta - expected_effective) / max(expected_effective, 1e-6)
     assert rel_err < 0.35
 

@@ -1323,9 +1323,14 @@ class Simulator:
         rat_g = torch.where(dSg > 0, dSg / torch.clamp(sg_up, min=eps), (-dSg) / torch.clamp(sg_dn, min=eps))
         rat_lim = torch.maximum(torch.abs(dSw)/max_dS, torch.abs(dSg)/max_dS)
         rat = torch.maximum(torch.maximum(rat_w, rat_g), rat_lim)
-        N = int(torch.ceil(rat.max()).item())
+        rat_max = torch.nan_to_num(rat.max(), nan=0.0, posinf=0.0, neginf=0.0)
+        N = int(torch.ceil(rat_max).item())
         if N < 1:
             N = 1
+        # Ограничение на число подшагов для стабильного времени расчёта
+        max_substeps = int(self.sim_params.get("max_substeps", 20))
+        if N > max_substeps:
+            N = max_substeps
 
         dSw_sub = dSw / N
         dSg_sub = dSg / N
@@ -1341,6 +1346,116 @@ class Simulator:
             sg_min_t = torch.full_like(S_g_cur, float(sg_cr))
             sg_max_t = (1.0 - so_r - S_w_cur)
             S_g_cur = torch.clamp(S_g_cur, min=sg_min_t, max=sg_max_t)
+
+            # Подшаговая интеграция компонентного баланса с учётом текущих S
+            try:
+                if self.fluid.pvt is not None:
+                    # Обновляем временно насыщенности для расчёта кривых
+                    self.fluid.s_w = S_w_cur
+                    self.fluid.s_g = S_g_cur
+                    self.fluid.s_o = 1.0 - self.fluid.s_w - self.fluid.s_g
+                    # Мобилизации и доли
+                    mu_w = self.fluid._eval_pvt(P_new, 'mu_w')
+                    mu_o = self.fluid._eval_pvt(P_new, 'mu_o')
+                    mu_g = self.fluid._eval_pvt(P_new, 'mu_g')
+                    krw = self.fluid.calc_water_kr(self.fluid.s_w)
+                    kro = self.fluid.calc_oil_kr(self.fluid.s_w, self.fluid.s_g)
+                    krg = self.fluid.calc_gas_kr(self.fluid.s_g)
+                    mob_w_cur = krw / (mu_w + 1e-12)
+                    mob_o_cur = kro / (mu_o + 1e-12)
+                    mob_g_cur = krg / (mu_g + 1e-12)
+                    mob_t_cur = mob_w_cur + mob_o_cur + mob_g_cur
+                    fw_cur = mob_w_cur / (mob_t_cur + 1e-12)
+                    fg_cur = mob_g_cur / (mob_t_cur + 1e-12)
+                    fo_cur = mob_o_cur / (mob_t_cur + 1e-12)
+                    # PVT на текущем P
+                    Bo = self.fluid._eval_pvt(P_new, 'Bo'); Bw = self.fluid._eval_pvt(P_new, 'Bw'); Bg = self.fluid._eval_pvt(P_new, 'Bg')
+                    Rs = self.fluid._eval_pvt(P_new, 'Rs')
+                    try:
+                        Rv = self.fluid._eval_pvt(P_new, 'Rv')
+                    except Exception:
+                        Rv = torch.zeros_like(Bg)
+                    dt_sub = dt / N
+                    # Скважины: вклад за подшаг
+                    for well in self.well_manager.get_wells():
+                        i, j, k = well.i, well.j, well.k
+                        if i >= self.reservoir.nx or j >= self.reservoir.ny or k >= self.reservoir.nz:
+                            continue
+                        Bo_cell = float(Bo[i, j, k]); Bw_cell = float(Bw[i, j, k]); Bg_cell = float(Bg[i, j, k])
+                        Rs_cell = float(Rs[i, j, k])
+                        try:
+                            Rv_cell = float(Rv[i, j, k])
+                        except Exception:
+                            Rv_cell = 0.0
+                        fo_ = float(fo_cur[i, j, k]); fw_ = float(fw_cur[i, j, k]); fg_ = float(fg_cur[i, j, k])
+                        # Вычисляем q_total для подшага по текущим долям
+                        if well.control_type == 'rate':
+                            q_base = well.control_value / 86400.0
+                            if well.type == 'injector':
+                                if getattr(well, 'rate_type', 'reservoir') == 'surface':
+                                    if getattr(well, 'injected_phase', 'water') == 'gas':
+                                        q_total_sub = q_base * Bg_cell
+                                    else:
+                                        q_total_sub = q_base * Bw_cell
+                                else:
+                                    q_total_sub = q_base
+                                q_total_sub *= 1.0
+                                # IN для газа/воды
+                                if getattr(well, 'injected_phase', 'water') == 'gas':
+                                    qg_surf = max(q_total_sub, 0.0) / max(Bg_cell, 1e-12) * 86400.0
+                                    self.component_balance['gas']['in'] += float(qg_surf * (dt_sub / 86400.0))
+                                    self.component_balance['oil']['in'] += float(Rv_cell * qg_surf * (dt_sub / 86400.0))
+                                else:
+                                    qw_surf = max(q_total_sub, 0.0) / max(Bw_cell, 1e-12) * 86400.0
+                                    self.component_balance['oil']['in'] += 0.0
+                                    self.component_balance['gas']['in'] += 0.0
+                            else:
+                                # producer
+                                if getattr(well, 'rate_type', 'reservoir') == 'surface':
+                                    sp = (well.surface_phase or 'liquid').lower()
+                                    if sp == 'oil':
+                                        denom = (fo_ / max(Bo_cell, 1e-12) + fg_ * Rv_cell / max(Bg_cell, 1e-12))
+                                        q_total_sub = - (q_base / max(denom, 1e-12))
+                                    elif sp == 'water':
+                                        q_w_res = q_base * Bw_cell
+                                        q_total_sub = - q_w_res / max(fw_, 1e-12)
+                                    elif sp == 'gas':
+                                        denom = (fg_ / max(Bg_cell, 1e-12) + fo_ * Rs_cell / max(Bo_cell, 1e-12))
+                                        q_total_sub = - (q_base / max(denom, 1e-12))
+                                    else:
+                                        denom = (fo_ / max(Bo_cell, 1e-12) + fg_ * Rv_cell / max(Bg_cell, 1e-12) + fw_ / max(Bw_cell, 1e-12))
+                                        q_total_sub = - (q_base / max(denom, 1e-12))
+                                else:
+                                    q_total_sub = -q_base
+                                qo_res = max((-q_total_sub * fo_), 0.0)
+                                qg_res = max((-q_total_sub * fg_), 0.0)
+                                oil_delta = dt_sub * (qo_res / max(Bo_cell, 1e-12) + Rv_cell * qg_res / max(Bg_cell, 1e-12))
+                                gas_delta = dt_sub * (qg_res / max(Bg_cell, 1e-12) + Rs_cell * qo_res / max(Bo_cell, 1e-12))
+                                self.component_balance['oil']['out'] += float(oil_delta)
+                                self.component_balance['gas']['out'] += float(gas_delta)
+                        elif well.control_type == 'bhp':
+                            # оценим total по текущим долям (Mobility-weighted WI уже учтён на шаге давления)
+                            wi = well.well_index
+                            p_bhp = well.control_value * 1e6
+                            p_block = float(P_new[i, j, k])
+                            # приблизим mob_t по текущим долям (линейно): используем mob_t_cur
+                            mob_t_cell = float(mob_t_cur[i, j, k])
+                            q_total_sub = wi * mob_t_cell * (p_block - p_bhp)
+                            if well.type == 'injector':
+                                if getattr(well, 'injected_phase', 'water') == 'gas':
+                                    qg_surf = max(-q_total_sub, 0.0) / max(Bg_cell, 1e-12) * 86400.0
+                                    self.component_balance['gas']['in'] += float(qg_surf * (dt_sub / 86400.0))
+                                    self.component_balance['oil']['in'] += float(Rv_cell * qg_surf * (dt_sub / 86400.0))
+                            else:
+                                qabs = abs(q_total_sub)
+                                qo_res = qabs * fo_
+                                qg_res = qabs * fg_
+                                oil_delta = dt_sub * (qo_res / max(Bo_cell, 1e-12) + Rv_cell * qg_res / max(Bg_cell, 1e-12))
+                                gas_delta = dt_sub * (qg_res / max(Bg_cell, 1e-12) + Rs_cell * qo_res / max(Bo_cell, 1e-12))
+                                self.component_balance['oil']['out'] += float(oil_delta)
+                                self.component_balance['gas']['out'] += float(gas_delta)
+            except Exception:
+                pass
 
         self.fluid.s_w = S_w_cur
         self.fluid.s_g = S_g_cur
