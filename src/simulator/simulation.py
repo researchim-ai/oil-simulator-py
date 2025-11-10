@@ -901,7 +901,34 @@ class Simulator:
         A, A_diag = self._build_pressure_matrix_vectorized(Tx_t, Ty_t, Tz_t, dt, well_bhp_terms)
         Q = self._build_pressure_rhs(dt, P_prev, mob_w, mob_o, mob_g, q_wells, dp_x_prev, dp_y_prev, dp_z_prev)
 
-        # 5. Параметры CG из конфигурации
+        # 5. Выбор решателя давления: CG (по умолчанию) или AMG
+        pressure_solver = self.sim_params.get("pressure_solver", "cg")
+        if pressure_solver == "amg":
+            # Параметры AMG
+            amg_cfg = self.sim_params.get("amg", {}) or {}
+            amg_tol = float(amg_cfg.get("tol", self.sim_params.get("cg_tolerance", 1e-6)))
+            amg_max_cycles = int(amg_cfg.get("max_cycles", 20))
+            amg_theta = float(amg_cfg.get("theta", 0.25))
+            amg_max_levels = int(amg_cfg.get("max_levels", 10))
+            amg_coarsest = int(amg_cfg.get("coarsest_size", 200))
+            amg_device = amg_cfg.get("device", "auto")
+            # Импорт локально, чтобы не тянуть зависимости при CG
+            from solver.pressure_amg import amg_solve
+            # Решаем напрямую AMG V-cycles (внутри float64 и auto device)
+            P_new_flat = amg_solve(
+                A, Q,
+                tol=amg_tol,
+                max_cycles=amg_max_cycles,
+                theta=amg_theta,
+                max_levels=amg_max_levels,
+                coarsest_size=amg_coarsest,
+                device=amg_device,
+            )
+            converged = True
+            P_new = P_new_flat.view(self.reservoir.dimensions)
+            return P_new, converged
+
+        # 5. Параметры CG из конфигурации (по умолчанию)
         cg_tol_base = self.sim_params.get("cg_tolerance", 1e-6)
         cg_max_iter_base = self.sim_params.get("cg_max_iter", 500)
 
@@ -1555,7 +1582,13 @@ class Simulator:
     def _build_pressure_rhs(self, dt, P_prev, mob_w, mob_o, mob_g, q_wells, dp_x_prev, dp_y_prev, dp_z_prev):
         """ Собирает правую часть Q для СЛАУ IMPES. """
         N = self.reservoir.nx * self.reservoir.ny * self.reservoir.nz
-        compressibility_term = (self.porous_volume.view(-1) * self.fluid.cf.view(-1) / dt) * P_prev.view(-1)
+        # ВАЖНО: использовать тот же коэффициент аккумуляции, что и в матрице:
+        # ct(P,Sw,Sg) из PVT (или fallback на self.fluid.cf), иначе возможен дрейф среднего давления.
+        try:
+            ct_tensor_rhs = self.fluid.calc_total_compressibility(self.fluid.pressure, self.fluid.s_w, self.fluid.s_g)
+        except Exception:
+            ct_tensor_rhs = self.fluid.cf
+        compressibility_term = (self.porous_volume.view(-1) * ct_tensor_rhs.view(-1) / dt) * P_prev.view(-1)
         Q_g = torch.zeros_like(P_prev)
         _, _, dz = self.reservoir.grid_size
         if dz > 0 and self.reservoir.nz > 1:
