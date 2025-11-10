@@ -906,16 +906,34 @@ class Simulator:
         cg_max_iter_base = self.sim_params.get("cg_max_iter", 500)
 
         # 6. Первая попытка решения CG
-        P_new_flat, converged = self._solve_pressure_cg_pytorch(A, Q, M_diag=A_diag, tol=cg_tol_base, max_iter=cg_max_iter_base)
+        if bool(self.sim_params.get('pressure_float64', False)):
+            A64 = torch.sparse_coo_tensor(A.indices(), A.values().double(), A.size(), device=A.device).coalesce()
+            Q64 = Q.double()
+            M64 = A_diag.double() if A_diag is not None else None
+            x64, converged = self._solve_pressure_cg_pytorch(A64, Q64, M_diag=M64, tol=cg_tol_base, max_iter=cg_max_iter_base)
+            P_new_flat = x64.float()
+        else:
+            P_new_flat, converged = self._solve_pressure_cg_pytorch(A, Q, M_diag=A_diag, tol=cg_tol_base, max_iter=cg_max_iter_base)
 
         # 7. При неуспехе пробуем ещё раз с расслабленными параметрами
         if not converged:
             print("  CG не сошёлся: увеличиваем max_iter и ослабляем tol")
-            P_new_flat, converged = self._solve_pressure_cg_pytorch(
-                A, Q, M_diag=A_diag,
-                tol=cg_tol_base * 10.0,
-                max_iter=cg_max_iter_base * 4
-            )
+            if bool(self.sim_params.get('pressure_float64', False)):
+                A64 = torch.sparse_coo_tensor(A.indices(), A.values().double(), A.size(), device=A.device).coalesce()
+                Q64 = Q.double()
+                M64 = A_diag.double() if A_diag is not None else None
+                x64, converged = self._solve_pressure_cg_pytorch(
+                    A64, Q64, M_diag=M64,
+                    tol=cg_tol_base * 10.0,
+                    max_iter=cg_max_iter_base * 4
+                )
+                P_new_flat = x64.float()
+            else:
+                P_new_flat, converged = self._solve_pressure_cg_pytorch(
+                    A, Q, M_diag=A_diag,
+                    tol=cg_tol_base * 10.0,
+                    max_iter=cg_max_iter_base * 4
+                )
 
         P_new = P_new_flat.view(self.reservoir.dimensions)
         return P_new, converged
@@ -1010,7 +1028,8 @@ class Simulator:
 
             if well.control_type == 'rate':
                 # Базовый дебит в м3/с
-                q_base = well.control_value / 86400.0
+                rate_scale = float(self.sim_params.get('global_rate_scale', 1.0))
+                q_base = (well.control_value * rate_scale) / 86400.0
                 # Конверсия surface->reservoir для инжектора
                 if well.type == 'injector' and getattr(well, 'rate_type', 'reservoir') == 'surface' and self.fluid.pvt is not None:
                     if well.injected_phase == 'gas':
@@ -1390,7 +1409,8 @@ class Simulator:
                         fo_ = float(fo_cur[i, j, k]); fw_ = float(fw_cur[i, j, k]); fg_ = float(fg_cur[i, j, k])
                         # Вычисляем q_total для подшага по текущим долям
                         if well.control_type == 'rate':
-                            q_base = well.control_value / 86400.0
+                            rate_scale = float(self.sim_params.get('global_rate_scale', 1.0))
+                            q_base = (well.control_value * rate_scale) / 86400.0
                             if well.type == 'injector':
                                 if getattr(well, 'rate_type', 'reservoir') == 'surface':
                                     if getattr(well, 'injected_phase', 'water') == 'gas':
@@ -1577,7 +1597,8 @@ class Simulator:
             well.cell_index_flat = idx
             if well.control_type == 'rate':
                 # Знак источника зависит от типа скважины: положительный для инжектора, отрицательный для продуктора
-                rate_si = well.control_value / 86400.0 * (1 if well.type == 'injector' else -1)
+                rate_scale = float(self.sim_params.get('global_rate_scale', 1.0))
+                rate_si = (well.control_value * rate_scale) / 86400.0 * (1 if well.type == 'injector' else -1)
                 # Авто-переключение на BHP при ограничении bhp_min (для продакшенов)
                 if well.type == 'producer' and well.bhp_min is not None:
                     p_block = P_prev.view(-1)[idx]
