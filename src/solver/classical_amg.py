@@ -480,6 +480,35 @@ def rap_torch(A_csr: torch.Tensor, P_csr: torch.Tensor, device: torch.device) ->
     return P_coarse.to_sparse_csr().to(device)
 
 
+def _apply_reference_fix(A_csr: torch.Tensor, anchor_idx: int, anchor_value: float = 0.0) -> torch.Tensor:
+    """Фиксирует одну степень свободы (anchor_idx), ставя Dirichlet-условие A[ii]=1."""
+    device = A_csr.device
+    dtype = A_csr.dtype
+    A_coo = A_csr.to_sparse_coo().coalesce()
+    row, col = A_coo.indices()
+    val = A_coo.values().clone()
+
+    mask_row = (row == anchor_idx)
+    mask_col = (col == anchor_idx)
+    keep_mask = ~(mask_row | mask_col)
+    keep_mask = keep_mask | (mask_row & mask_col)
+
+    row_new = row[keep_mask]
+    col_new = col[keep_mask]
+    val_new = val[keep_mask]
+
+    diag_mask = (row_new == anchor_idx) & (col_new == anchor_idx)
+    if diag_mask.any():
+        val_new[diag_mask] = torch.tensor(1.0, dtype=dtype, device=device)
+    else:
+        row_new = torch.cat([row_new, torch.tensor([anchor_idx], device=device)])
+        col_new = torch.cat([col_new, torch.tensor([anchor_idx], device=device)])
+        val_new = torch.cat([val_new, torch.tensor([1.0], dtype=dtype, device=device)])
+
+    A_fixed = torch.sparse_coo_tensor(torch.stack([row_new, col_new]), val_new, A_csr.size(), device=device, dtype=dtype).coalesce().to_sparse_csr()
+    return A_fixed
+
+
 class ClassicalAMG:
     """Classical Ruge-Stuben Algebraic Multigrid.
     
@@ -491,18 +520,22 @@ class ClassicalAMG:
     """
     
     def __init__(self, A_csr_np: torch.Tensor, theta: float = 0.25,
-                 max_levels: int = 10, coarsest_size: int = 100):
+                 max_levels: int = 10, coarsest_size: int = 100,
+                 anchor_idx: int | None = None):
         """Инициализация AMG иерархии.
-        
+
         Args:
             A_csr_np: Numpy CSR матрица (будет сконвертирована в torch CSR на GPU)
             theta: Порог для сильных связей (0.25 = классический RS)
             max_levels: Максимум уровней
             coarsest_size: Минимальный размер coarsest level
+            anchor_idx: Индекс ячейки для Dirichlet-фикса (опционально). Если None – матрица используется как есть.
         """
         self.theta = theta
         self.max_levels = max_levels
         self.coarsest_size = coarsest_size
+        self.anchor_idx = anchor_idx
+        self.debug_cycles = False
         
         # Конвертируем numpy CSR -> torch CSR на CUDA
         device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -548,22 +581,21 @@ class ClassicalAMG:
         if use_equilibration:
             # Применяем equilibration: A → D^(-1/2) A D^(-1/2)
             Dhalf_inv = 1.0 / torch.sqrt(diag_orig)  # D^(-1/2)
-            
             crow = A_csr.crow_indices()
             col = A_csr.col_indices()
             vals = A_csr.values().clone()
-            
             row_len = crow[1:] - crow[:-1]
             row_idx = torch.repeat_interleave(torch.arange(crow.numel()-1, device=device), row_len)
             vals = vals * Dhalf_inv[row_idx] * Dhalf_inv[col]
-            
-            A_csr = torch.sparse_csr_tensor(crow, col, vals, size=A_csr.size(), 
+            A_csr = torch.sparse_csr_tensor(crow, col, vals, size=A_csr.size(),
                                             device=device, dtype=torch.float64)
-            
             self.Dhalf_inv = Dhalf_inv
         else:
             # Equilibration не нужен - матрица уже хорошо масштабирована
             self.Dhalf_inv = None
+
+        if self.anchor_idx is not None:
+            A_csr = _apply_reference_fix(A_csr, int(self.anchor_idx))
         
         diag_scaled = self._extract_diag(A_csr).abs()
         print(f"[ClassicalAMG] Equilibration: diag {diag_orig.min():.2e}..{diag_orig.max():.2e} → {diag_scaled.min():.2e}..{diag_scaled.max():.2e}")
@@ -595,6 +627,8 @@ class ClassicalAMG:
             # C/F splitting
             strong_mask = find_strong_connections(A_current, theta)
             cf_marker, n_coarse = classical_coarsening(A_current, theta)
+            if self.anchor_idx is not None and self.anchor_idx < n:
+                cf_marker[self.anchor_idx] = 0
             
             if n_coarse >= n * 0.9:
                 # Слишком мало coarsening
@@ -862,7 +896,7 @@ class ClassicalAMG:
             x_scaled = torch.zeros_like(b_scaled) if x0 is None else x0.to(self.device) / self.Dhalf_inv
         else:
             # Без equilibration - работаем напрямую
-            b_scaled = b
+            b_scaled = b.clone()
             x_scaled = torch.zeros_like(b) if x0 is None else x0.to(self.device)
         
         b_norm = b_scaled.norm()
@@ -884,7 +918,6 @@ class ClassicalAMG:
             x = self.Dhalf_inv * x_scaled
         else:
             x = x_scaled
-        
         return x
 
     def apply(self, b: torch.Tensor, cycles: int = 1, pre_smooth: int = 3, post_smooth: int = 2) -> torch.Tensor:
@@ -894,7 +927,7 @@ class ClassicalAMG:
             b_scaled = self.Dhalf_inv * b
             x_scaled = torch.zeros_like(b_scaled)
         else:
-            b_scaled = b
+            b_scaled = b.clone()
             x_scaled = torch.zeros_like(b)
 
         for _ in range(cycles):

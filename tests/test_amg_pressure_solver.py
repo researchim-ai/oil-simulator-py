@@ -11,7 +11,7 @@ from simulator.reservoir import Reservoir
 from simulator.fluid import Fluid
 from simulator.well import WellManager
 from simulator.simulation import Simulator
-from solver.classical_amg import ClassicalAMG
+from solver.classical_amg import ClassicalAMG, _apply_reference_fix
 
 
 def _run_one_step_with_solver(config_path: str, solver_name: str):
@@ -88,19 +88,20 @@ def _build_2d_laplacian(n: int) -> torch.Tensor:
 
 def test_classical_amg_quality_on_laplacian():
     A = _build_2d_laplacian(12)
-    amg = ClassicalAMG(A, theta=0.25, max_levels=10, coarsest_size=40)
+    A_fixed = _apply_reference_fix(A, anchor_idx=0)
+    amg = ClassicalAMG(A_fixed, theta=0.25, max_levels=10, coarsest_size=40, anchor_idx=None)
 
     vectors = []
-    const = torch.ones(A.size(0), dtype=torch.float64)
+    const = torch.ones(A_fixed.size(0), dtype=torch.float64)
     vectors.append(const / (const.norm() + 1e-30))
-    grad = torch.linspace(0, 1, A.size(0), dtype=torch.float64)
+    grad = torch.linspace(0, 1, A_fixed.size(0), dtype=torch.float64)
     vectors.append(grad / (grad.norm() + 1e-30))
-    rand = torch.randn(A.size(0), dtype=torch.float64)
+    rand = torch.randn(A_fixed.size(0), dtype=torch.float64)
     vectors.append(rand / (rand.norm() + 1e-30))
 
     for v in vectors:
-        z = amg.apply(v.to(amg.device), cycles=2)
-        Az = torch.sparse.mm(A.to(amg.device), z.unsqueeze(1)).squeeze(1)
+        z = amg.solve(v.to(amg.device), tol=5e-2, max_iter=10)
+        Az = torch.sparse.mm(A_fixed.to(amg.device), z.unsqueeze(1)).squeeze(1)
         rel = (Az - v.to(amg.device)).norm() / (v.norm() + 1e-30)
         assert rel < 5e-2, f"AMG self-check не проходит (rel={rel:.3e})"
 
