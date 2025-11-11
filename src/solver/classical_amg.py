@@ -12,6 +12,7 @@ import torch
 import numpy as np
 import scipy.sparse as sp
 from typing import Tuple, Optional
+import time
 
 
 def _torch_csr_to_scipy(A: torch.Tensor) -> sp.csr_matrix:
@@ -153,207 +154,276 @@ def build_prolongation_rs_full(
     blend: float = 0.0,
     ls_reg: float = 1e-7,
 ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
-    orig_device = A_csr.device
-    A_cpu = A_csr.to('cpu')
-    cf = cf_marker.to('cpu').clone()
-    strong = strong_mask.to('cpu')
+    device = A_csr.device
+    dtype = A_csr.dtype
 
-    basis_cpu = None
-    if basis is not None and basis.numel() > 0:
-        basis_cpu = basis.to(torch.float64)
-        if basis_cpu.dim() == 1:
-            basis_cpu = basis_cpu.unsqueeze(1)
-        basis_cpu = orthonormalize_columns(basis_cpu)
-
-    crow = A_cpu.crow_indices()
-    col = A_cpu.col_indices()
-    val = A_cpu.values().to(torch.float64)
+    crow = A_csr.crow_indices()
+    col = A_csr.col_indices()
+    val = A_csr.values()
     n = crow.numel() - 1
 
-    row_neigh = []
-    row_vals = []
-    row_strong = []
-    row_val_dict = []
-    for i in range(n):
-        start = crow[i].item()
-        end = crow[i + 1].item()
-        neigh_i = col[start:end].tolist()
-        vals_i = val[start:end].tolist()
-        strong_i = strong[start:end].tolist()
-        row_neigh.append(neigh_i)
-        row_vals.append(vals_i)
-        row_strong.append(strong_i)
-        row_val_dict.append({int(c): float(v) for c, v in zip(neigh_i, vals_i)})
+    cf = cf_marker.to(device=device, dtype=torch.int8).clone()
+    strong = strong_mask.to(device=device)
 
-    diag = torch.zeros(n, dtype=torch.float64)
-    for i in range(n):
-        for c, v in zip(row_neigh[i], row_vals[i]):
-            if c == i:
-                diag[i] = v
-                break
-        if diag[i].abs() < 1e-14:
-            diag[i] = 1.0
+    row_counts = crow[1:] - crow[:-1]
+    row_idx = torch.repeat_interleave(torch.arange(n, device=device, dtype=torch.int64), row_counts)
 
+    diag = torch.zeros(n, device=device, dtype=dtype)
+    diag_mask = (row_idx == col)
+    if diag_mask.any():
+        diag.scatter_add_(0, row_idx[diag_mask], val[diag_mask])
+    diag = torch.where(diag.abs() > 1e-14, diag, torch.ones_like(diag))
+
+    # Promote orphan F-points that have no strong C-neighbours
     promoted = True
+    off_mask_global = (col != row_idx)
     while promoted:
-        promoted = False
-        F_nodes = torch.where(cf == 1)[0]
-        for i in F_nodes.tolist():
-            neigh_i = row_neigh[i]
-            strong_i = row_strong[i]
-            has_c = False
-            for c, s in zip(neigh_i, strong_i):
-                if c != i and s and cf[c] == 0:
-                    has_c = True
-                    break
-            if not has_c:
-                cf[i] = 0
-                promoted = True
+        coarse_mask_iter = (cf == 0)
+        strong_C_iter = strong & off_mask_global & coarse_mask_iter[col]
+        strong_C_counts = torch.zeros(n, device=device, dtype=torch.int64)
+        if strong_C_iter.any():
+            strong_C_counts.scatter_add_(0, row_idx[strong_C_iter], torch.ones_like(row_idx[strong_C_iter]))
+        orphan_mask = (cf == 1) & (strong_C_counts == 0)
+        promoted = bool(orphan_mask.any().item())
+        if promoted:
+            cf[orphan_mask] = 0
 
-    coarse_nodes = torch.where(cf == 0)[0]
-    fine2coarse = -torch.ones(n, dtype=torch.int64)
-    fine2coarse[coarse_nodes] = torch.arange(coarse_nodes.numel(), dtype=torch.int64)
-    F_nodes_cpu = torch.where(cf == 1)[0]
+    coarse_mask = (cf == 0)
+    F_mask = ~coarse_mask
 
-    strong_C = []
-    for i in range(n):
-        neigh_i = row_neigh[i]
-        strong_i = row_strong[i]
-        C_list = []
-        for c, s in zip(neigh_i, strong_i):
-            if c != i and s and cf[c] == 0:
-                C_list.append(int(c))
-        strong_C.append(C_list)
+    coarse_nodes = torch.nonzero(coarse_mask, as_tuple=False).view(-1)
+    fine2coarse = torch.full((n,), -1, device=device, dtype=torch.int64)
+    if coarse_nodes.numel() > 0:
+        fine2coarse[coarse_nodes] = torch.arange(coarse_nodes.numel(), device=device, dtype=torch.int64)
 
-    rows, cols_out, data = [], [], []
+    strong_C_mask = strong & off_mask_global & coarse_mask[col] & F_mask[row_idx]
+    weak_C_mask = (~strong) & off_mask_global & coarse_mask[col] & F_mask[row_idx]
+    strong_F_mask = strong & off_mask_global & F_mask[col] & F_mask[row_idx]
+    weak_F_mask = (~strong) & off_mask_global & F_mask[col] & F_mask[row_idx]
 
-    # C-точки -> единичная строка
-    for c in coarse_nodes.tolist():
-        rows.append(c)
-        cols_out.append(int(fine2coarse[c]))
-        data.append(1.0)
+    sum_strong = torch.zeros(n, device=device, dtype=dtype)
+    if strong_C_mask.any():
+        sum_strong.scatter_add_(0, row_idx[strong_C_mask], (-val[strong_C_mask]).to(dtype))
 
-    for i in F_nodes_cpu.tolist():
-        C_i = strong_C[i]
-        if not C_i:
-            rows.append(i)
-            cols_out.append(int(fine2coarse[i]))
-            data.append(1.0)
-            continue
+    weak_C_sum = torch.zeros(n, device=device, dtype=dtype)
+    if weak_C_mask.any():
+        weak_C_sum.scatter_add_(0, row_idx[weak_C_mask], (-val[weak_C_mask]).to(dtype))
 
-        diag_i = diag[i].item()
-        neigh_i = row_neigh[i]
-        vals_i = row_vals[i]
-        strong_i = row_strong[i]
+    F_weak_sum = torch.zeros(n, device=device, dtype=dtype)
+    if weak_F_mask.any():
+        F_weak_sum.scatter_add_(0, row_idx[weak_F_mask], (-val[weak_F_mask]).to(dtype))
 
-        weights_dict: dict[int, float] = {}
-        sum_strong = 0.0
-        for c in C_i:
-            a_ic = row_val_dict[i].get(c, 0.0)
-            weights_dict[c] = weights_dict.get(c, 0.0) - a_ic / diag_i
-            sum_strong += -a_ic
+    strong_C_counts_final = torch.zeros(n, device=device, dtype=torch.int64)
+    if strong_C_mask.any():
+        strong_C_counts_final.scatter_add_(0, row_idx[strong_C_mask], torch.ones_like(row_idx[strong_C_mask]))
 
-        weak_C_sum = 0.0
-        F_strong: list[tuple[int, float]] = []
-        F_weak_sum = 0.0
-        for nbr, a_in, s in zip(neigh_i, vals_i, strong_i):
-            if nbr == i:
+    # CSR-like structure for strong C edges
+    strong_C_row_ptr = torch.zeros(n + 1, device=device, dtype=torch.int64)
+    if strong_C_counts_final.numel() > 0:
+        strong_C_row_ptr[1:] = torch.cumsum(strong_C_counts_final, dim=0)
+
+    jc_indices = torch.nonzero(strong_C_mask, as_tuple=False).view(-1)
+    jc_coarse = fine2coarse[col[jc_indices]]
+    denom_rows = sum_strong[row_idx[jc_indices]]
+    jc_weights = torch.zeros_like(denom_rows, dtype=dtype)
+    denom_positive = denom_rows > 1e-14
+    if denom_positive.any():
+        jc_weights[denom_positive] = (-val[jc_indices][denom_positive]) / denom_rows[denom_positive]
+
+    # Direct RS weights
+    rows_direct = row_idx[strong_C_mask]
+    cols_direct = jc_coarse
+    vals_direct = torch.zeros_like(rows_direct, dtype=dtype)
+    if rows_direct.numel() > 0:
+        vals_direct = (-val[strong_C_mask]) / diag[rows_direct]
+        vals_direct = torch.nan_to_num(vals_direct, nan=0.0, posinf=0.0, neginf=0.0)
+
+    # F-F contributions
+    ff_rows = row_idx[strong_F_mask]
+    ff_cols = col[strong_F_mask]
+    ff_vals = val[strong_F_mask]
+    ff_factor = torch.zeros_like(ff_vals, dtype=dtype)
+    if ff_rows.numel() > 0:
+        ff_factor = (-ff_vals) / diag[ff_rows]
+        ff_factor = torch.nan_to_num(ff_factor, nan=0.0, posinf=0.0, neginf=0.0)
+
+    counts_j = strong_C_counts_final[ff_cols] if ff_cols.numel() > 0 else torch.empty(0, device=device, dtype=torch.int64)
+    denom_j = sum_strong[ff_cols] if ff_cols.numel() > 0 else torch.empty(0, device=device, dtype=dtype)
+    valid_ff = (
+        (ff_rows.numel() > 0)
+        and (counts_j.numel() > 0)
+    )
+    rows_contrib = torch.empty(0, device=device, dtype=torch.int64)
+    cols_contrib = torch.empty(0, device=device, dtype=torch.int64)
+    vals_contrib = torch.empty(0, device=device, dtype=dtype)
+
+    if valid_ff:
+        valid_mask = (counts_j > 0) & (denom_j > 1e-14)
+        if valid_mask.any():
+            ff_rows_valid = ff_rows[valid_mask]
+            ff_cols_valid = ff_cols[valid_mask]
+            ff_factor_valid = ff_factor[valid_mask]
+            counts_valid = counts_j[valid_mask]
+            starts_valid = strong_C_row_ptr[ff_cols_valid]
+            total = int(counts_valid.sum().item())
+            if total > 0:
+                cum_counts = torch.cumsum(counts_valid, dim=0)
+                base = cum_counts - counts_valid
+                start_rep = torch.repeat_interleave(starts_valid, counts_valid)
+                base_rep = torch.repeat_interleave(base, counts_valid)
+                intra = torch.arange(total, device=device, dtype=torch.int64) - base_rep
+                jc_pos = start_rep + intra
+                rows_contrib = torch.repeat_interleave(ff_rows_valid, counts_valid)
+                cols_contrib = jc_coarse[jc_pos]
+                weights_contrib = jc_weights[jc_pos]
+                factor_rep = torch.repeat_interleave(ff_factor_valid, counts_valid)
+                vals_contrib = factor_rep * weights_contrib
+
+        invalid_mask = ~valid_mask if counts_j.numel() > 0 else torch.empty(0, device=device, dtype=torch.bool)
+        if invalid_mask.numel() > 0 and invalid_mask.any():
+            F_weak_sum.scatter_add_(0, ff_rows[invalid_mask], (-ff_vals[invalid_mask]).to(dtype))
+
+    # Weak connection correction
+    total_weak = weak_C_sum + F_weak_sum
+    corr = torch.zeros(n, device=device, dtype=dtype)
+    mask_corr = (sum_strong > 1e-14) & F_mask
+    if mask_corr.any():
+        corr[mask_corr] = total_weak[mask_corr] / sum_strong[mask_corr]
+
+    if vals_direct.numel() > 0:
+        vals_direct = vals_direct * (1.0 + corr[rows_direct])
+
+    vals_direct = torch.clamp(vals_direct, min=0.0)
+    vals_contrib = torch.clamp(vals_contrib, min=0.0)
+
+    rows_F = rows_direct
+    cols_F = cols_direct
+    vals_F = vals_direct
+    if vals_contrib.numel() > 0:
+        rows_F = torch.cat([rows_F, rows_contrib])
+        cols_F = torch.cat([cols_F, cols_contrib])
+        vals_F = torch.cat([vals_F, vals_contrib])
+
+    coarse_rows = coarse_nodes
+    coarse_cols = fine2coarse[coarse_nodes] if coarse_nodes.numel() > 0 else torch.empty(0, device=device, dtype=torch.int64)
+    coarse_vals = torch.ones(coarse_nodes.numel(), device=device, dtype=dtype)
+
+    rows_total = torch.cat([coarse_rows, rows_F]) if rows_F.numel() > 0 else coarse_rows
+    cols_total = torch.cat([coarse_cols, cols_F]) if cols_F.numel() > 0 else coarse_cols
+    vals_total = torch.cat([coarse_vals, vals_F]) if vals_F.numel() > 0 else coarse_vals
+
+    if rows_total.numel() == 0:
+        P_csr = torch.sparse_csr_tensor(
+            torch.arange(n + 1, device=device, dtype=torch.int64),
+            torch.zeros(0, device=device, dtype=torch.int64),
+            torch.zeros(0, device=device, dtype=dtype),
+            size=(n, 1),
+            device=device,
+            dtype=dtype,
+        )
+    else:
+        P_coo = torch.sparse_coo_tensor(
+            torch.stack([rows_total, cols_total], dim=0),
+            vals_total,
+            size=(n, max(int(fine2coarse.max().item()) + 1 if coarse_nodes.numel() > 0 else 1, 1)),
+            device=device,
+            dtype=dtype,
+        ).coalesce()
+        P_csr = P_coo.to_sparse_csr()
+
+    # Row normalization for F-points
+    crow_P = P_csr.crow_indices()
+    col_P = P_csr.col_indices()
+    val_P = P_csr.values()
+    if val_P.numel() > 0:
+        row_lengths = crow_P[1:] - crow_P[:-1]
+        row_idx_P = torch.repeat_interleave(torch.arange(n, device=device, dtype=torch.int64), row_lengths)
+        row_sums = torch.zeros(n, device=device, dtype=dtype)
+        if row_idx_P.numel() > 0:
+            row_sums.scatter_add_(0, row_idx_P, val_P)
+        scale = torch.ones(n, device=device, dtype=dtype)
+        mask_F_rows = F_mask & (row_sums > 1e-14)
+        if mask_F_rows.any():
+            scale[mask_F_rows] = 1.0 / row_sums[mask_F_rows]
+        zero_rows = F_mask & (row_sums <= 1e-14)
+        if zero_rows.any():
+            # fallback: inject to first coarse neighbour (strong or weak)
+            fallback_nodes = torch.nonzero(zero_rows, as_tuple=False).view(-1)
+            for node in fallback_nodes.tolist():
+                start = crow[node].item()
+                end = crow[node + 1].item()
+                neigh = col[start:end]
+                coarse_neigh = neigh[coarse_mask[neigh]]
+                if coarse_neigh.numel() == 0:
+                    continue
+                target_c = fine2coarse[coarse_neigh[0]]
+                crow_insert = torch.empty(n + 1, device=device, dtype=torch.int64)
+                col_insert = torch.empty(val_P.numel() + 1, device=device, dtype=torch.int64)
+                val_insert = torch.empty(val_P.numel() + 1, device=device, dtype=dtype)
+                crow_insert[: node + 1] = crow_P[: node + 1]
+                crow_insert[node + 1 :] = crow_P[node + 1 :] + 1
+                if crow_P[node] > 0:
+                    col_insert[: crow_P[node]] = col_P[: crow_P[node]]
+                    val_insert[: crow_P[node]] = val_P[: crow_P[node]]
+                col_insert[crow_P[node]] = target_c
+                val_insert[crow_P[node]] = 1.0
+                if crow_P[node] < val_P.numel():
+                    col_insert[crow_P[node] + 1 :] = col_P[crow_P[node] :]
+                    val_insert[crow_P[node] + 1 :] = val_P[crow_P[node] :]
+                crow_P = crow_insert
+                col_P = col_insert
+                val_P = val_insert
+                row_lengths = crow_P[1:] - crow_P[:-1]
+                row_idx_P = torch.repeat_interleave(torch.arange(n, device=device, dtype=torch.int64), row_lengths)
+                row_sums = torch.zeros(n, device=device, dtype=dtype)
+                if row_idx_P.numel() > 0:
+                    row_sums.scatter_add_(0, row_idx_P, val_P)
+                scale = torch.ones(n, device=device, dtype=dtype)
+                mask_F_rows = F_mask & (row_sums > 1e-14)
+                if mask_F_rows.any():
+                    scale[mask_F_rows] = 1.0 / row_sums[mask_F_rows]
+
+        val_P = val_P * scale[row_idx_P]
+        val_P = torch.clamp(val_P, min=0.0)
+        P_csr = torch.sparse_csr_tensor(crow_P, col_P, val_P, size=P_csr.size(), device=device, dtype=dtype)
+
+    # Energy-minimizing blending (optional)
+    basis_dev = None
+    if basis is not None and basis.numel() > 0 and blend > 0.0:
+        basis_dev = basis.to(device=device, dtype=dtype)
+        if basis_dev.dim() == 1:
+            basis_dev = basis_dev.unsqueeze(1)
+        basis_dev = orthonormalize_columns(basis_dev)
+
+    if basis_dev is not None and blend > 0.0:
+        crow_P = P_csr.crow_indices()
+        col_P = P_csr.col_indices()
+        val_P = P_csr.values()
+        for node in torch.nonzero(F_mask, as_tuple=False).view(-1).tolist():
+            start = crow_P[node].item()
+            end = crow_P[node + 1].item()
+            if end <= start:
                 continue
-            if cf[nbr] == 0:
-                if not s:
-                    weak_C_sum += float(-a_in)
-            else:
-                if s:
-                    F_strong.append((int(nbr), float(a_in)))
-                else:
-                    F_weak_sum += float(-a_in)
-
-        for nbr, a_in in F_strong:
-            C_k = strong_C[nbr]
-            if not C_k:
-                F_weak_sum += float(-a_in)
+            idx = slice(start, end)
+            cols_row = col_P[idx]
+            vals_row = val_P[idx]
+            if cols_row.numel() == 0:
                 continue
-            denom = 0.0
-            contributions = []
-            for c_k in C_k:
-                a_kc = row_val_dict[nbr].get(c_k, 0.0)
-                denom += -a_kc
-                contributions.append((c_k, a_kc))
-            if denom <= 1e-14:
-                F_weak_sum += float(-a_in)
+            B_c = basis_dev[cols_row].T
+            target = basis_dev[node]
+            if B_c.numel() == 0 or B_c.shape[0] == 0:
                 continue
-            factor = -a_in / diag_i
-            for c_k, a_kc in contributions:
-                weights_dict[c_k] = weights_dict.get(c_k, 0.0) + factor * (-a_kc / denom)
-                if c_k not in C_i:
-                    C_i.append(c_k)
+            w_rs = vals_row
+            w_new = solve_energy_weights(B_c, target, w_rs, blend, ls_reg)
+            val_P[idx] = w_new.to(dtype)
+        P_csr = torch.sparse_csr_tensor(crow_P, col_P, val_P, size=P_csr.size(), device=device, dtype=dtype)
 
-        total_weak = weak_C_sum + F_weak_sum
-        if total_weak > 0.0 and sum_strong > 1e-14:
-            correction = total_weak / sum_strong
-            for c in C_i:
-                a_ic = row_val_dict[i].get(c, 0.0)
-                weights_dict[c] = weights_dict.get(c, 0.0) + correction * (-a_ic / diag_i)
-
-        weights_items = [(c_node, weights_dict.get(c_node, 0.0)) for c_node in C_i if abs(weights_dict.get(c_node, 0.0)) > 1e-16]
-        if not weights_items:
-            rows.append(i)
-            cols_out.append(int(fine2coarse[i]))
-            data.append(1.0)
-            continue
-
-        weights_vec = torch.tensor([weights_dict.get(c_node, 0.0) for c_node, _ in weights_items], dtype=torch.float64)
-        weights_vec = torch.clamp(weights_vec, min=0.0)
-        sum_weights = weights_vec.sum().item()
-        if sum_weights < 1e-12:
-            rows.append(i)
-            cols_out.append(int(fine2coarse[i]))
-            data.append(1.0)
-            continue
-        w_rs = weights_vec / sum_weights
-        w_final = w_rs.clone()
-
-        if basis_cpu is not None and blend > 0.0:
-            dim_basis = basis_cpu.shape[1]
-            if dim_basis > 0 and len(weights_items) >= dim_basis:
-                B_c = torch.stack([basis_cpu[c] for c, _ in weights_items], dim=1)
-                target = basis_cpu[i]
-                w_final = solve_energy_weights(B_c, target, w_rs, blend, ls_reg)
-
-        w_final = torch.clamp(w_final, min=0.0)
-        sum_final = w_final.sum().item()
-        if sum_final <= 1e-12:
-            rows.append(i)
-            cols_out.append(int(fine2coarse[i]))
-            data.append(1.0)
-            continue
-        w_final = w_final / sum_final
-
-        for (c_node, _), w_val in zip(weights_items, w_final.tolist()):
-            rows.append(i)
-            cols_out.append(int(fine2coarse[c_node]))
-            data.append(float(w_val))
-
-    n_coarse_actual = int(fine2coarse.max().item() + 1) if coarse_nodes.numel() > 0 else 0
-    if n_coarse_actual == 0:
-        n_coarse_actual = 1
-
-    rows_tensor = torch.tensor(rows, dtype=torch.int64)
-    cols_tensor = torch.tensor(cols_out, dtype=torch.int64)
-    data_tensor = torch.tensor(data, dtype=torch.float64)
-
-    P_coo = torch.sparse_coo_tensor(
-        torch.stack([rows_tensor, cols_tensor]),
-        data_tensor,
-        size=(n, n_coarse_actual),
-    ).coalesce()
-    P_csr = P_coo.to_sparse_csr().to(orig_device)
     return (
         P_csr,
-        cf.to(orig_device),
-        fine2coarse.to(orig_device),
-        coarse_nodes.to(orig_device),
-        F_nodes_cpu.to(orig_device, dtype=torch.int64),
+        cf,
+        fine2coarse,
+        coarse_nodes.to(dtype=torch.int64),
+        torch.nonzero(F_mask, as_tuple=False).view(-1).to(dtype=torch.int64),
     )
 
 
@@ -446,69 +516,145 @@ def rap_onepoint_gpu(Af_csr: torch.Tensor,
     return Ac
 
 
-def rap_torch(A_csr: torch.Tensor, P_csr: torch.Tensor, device: torch.device) -> torch.Tensor:
-    A_cpu = A_csr.to('cpu')
-    P_coo = P_csr.to('cpu').to_sparse_coo().coalesce()
+def _csr_spmm(left: torch.Tensor, right: torch.Tensor, block_rows: int = 64) -> torch.Tensor:
+    """Sparse CSR x CSR → CSR using blockwise gather/scatter на устройстве с минимальной пиковой памятью."""
+    device = left.device
+    dtype = left.dtype
 
-    A_crow = A_cpu.crow_indices()
-    A_col = A_cpu.col_indices()
-    A_val = A_cpu.values()
-    n_fine = A_cpu.size(0)
-    n_coarse = P_csr.size(1)
+    left_crow = left.crow_indices()
+    left_col = left.col_indices()
+    left_val = left.values()
+    right_crow = right.crow_indices()
+    right_col = right.col_indices()
+    right_val = right.values()
 
-    # Строим списки значений P для каждой строки
-    P_rows_cols = [[] for _ in range(n_fine)]
-    P_rows_vals = [[] for _ in range(n_fine)]
-    rows_idx, cols_idx = P_coo.indices()
-    vals = P_coo.values()
-    for r, c, w in zip(rows_idx.tolist(), cols_idx.tolist(), vals.tolist()):
-        P_rows_cols[r].append(c)
-        P_rows_vals[r].append(w)
+    n_rows = left.size(0)
+    n_cols = right.size(1)
 
-    from collections import defaultdict
-    accum = defaultdict(float)
-
-    for i in range(n_fine):
-        row_cols_i = P_rows_cols[i]
-        row_vals_i = P_rows_vals[i]
-        if not row_cols_i:
-            continue
-        start = A_crow[i].item()
-        end = A_crow[i + 1].item()
-        for idx in range(start, end):
-            j = A_col[idx].item()
-            a_val = A_val[idx].item()
-            row_cols_j = P_rows_cols[j]
-            row_vals_j = P_rows_vals[j]
-            if not row_cols_j:
-                continue
-            for c1, w1 in zip(row_cols_i, row_vals_i):
-                for c2, w2 in zip(row_cols_j, row_vals_j):
-                    accum[(c1, c2)] += w1 * a_val * w2
-
-    if not accum:
+    if left_val.numel() == 0 or right_val.numel() == 0:
+        crow_zero = torch.zeros(n_rows + 1, device=device, dtype=torch.int64)
         return torch.sparse_csr_tensor(
-            torch.arange(n_coarse + 1, dtype=torch.int64, device=device),
-            torch.zeros(0, dtype=torch.int64, device=device),
-            torch.zeros(0, dtype=torch.float64, device=device),
-            size=(n_coarse, n_coarse),
+            crow_zero,
+            torch.zeros(0, device=device, dtype=torch.int64),
+            torch.zeros(0, device=device, dtype=dtype),
+            size=(n_rows, n_cols),
+            device=device,
+            dtype=dtype,
         )
 
-    rows_out = []
-    cols_out = []
-    vals_out = []
-    for (c1, c2), v in accum.items():
-        if abs(v) > 0.0:
-            rows_out.append(c1)
-            cols_out.append(c2)
-            vals_out.append(v)
+    right_row_counts = right_crow[1:] - right_crow[:-1]
 
-    P_coarse = torch.sparse_coo_tensor(
-        torch.tensor([rows_out, cols_out], dtype=torch.int64),
-        torch.tensor(vals_out, dtype=torch.float64),
-        size=(n_coarse, n_coarse),
-    ).coalesce()
-    return P_coarse.to_sparse_csr().to(device)
+    crow_out = torch.zeros(n_rows + 1, device=device, dtype=torch.int64)
+    col_blocks: list[torch.Tensor] = []
+    val_blocks: list[torch.Tensor] = []
+    nnz_total = 0
+
+    for row_start in range(0, n_rows, block_rows):
+        row_end = min(row_start + block_rows, n_rows)
+        if row_start >= row_end:
+            continue
+
+        nz_start = int(left_crow[row_start].item())
+        nz_end = int(left_crow[row_end].item())
+        if nz_start == nz_end:
+            crow_out[row_start:row_end] = nnz_total
+            continue
+
+        block_cols = left_col[nz_start:nz_end]
+        block_vals = left_val[nz_start:nz_end]
+        block_row_counts = left_crow[row_start + 1 : row_end + 1] - left_crow[row_start:row_end]
+        local_range = row_end - row_start
+        local_rows = torch.arange(local_range, device=device, dtype=torch.int64)
+        block_row_idx = torch.repeat_interleave(local_rows, block_row_counts)
+
+        counts = right_row_counts[block_cols]
+        mask = counts > 0
+        if not mask.any():
+            crow_out[row_start:row_end] = nnz_total
+            continue
+
+        counts = counts[mask]
+        block_rows_nz = block_row_idx[mask]
+        block_cols_nz = block_cols[mask]
+        block_vals_nz = block_vals[mask]
+        starts = right_crow[block_cols_nz]
+
+        total = int(counts.sum().item())
+        if total == 0:
+            crow_out[row_start:row_end] = nnz_total
+            continue
+
+        cum_counts = torch.cumsum(counts, dim=0)
+        base = cum_counts - counts
+        start_rep = torch.repeat_interleave(starts, counts)
+        base_rep = torch.repeat_interleave(base, counts)
+        intra = torch.arange(total, device=device, dtype=torch.int64) - base_rep
+        right_positions = start_rep + intra
+
+        rows_chunk = torch.repeat_interleave(block_rows_nz, counts)
+        cols_chunk = right_col[right_positions]
+        right_vals_flat = right_val[right_positions]
+        left_vals_rep = torch.repeat_interleave(block_vals_nz, counts)
+        vals_chunk = left_vals_rep * right_vals_flat
+
+        if rows_chunk.numel() == 0:
+            crow_out[row_start:row_end] = nnz_total
+            continue
+
+        keys = rows_chunk.to(torch.int64) * n_cols + cols_chunk
+        keys_sorted, order = torch.sort(keys)
+        vals_sorted = vals_chunk[order]
+        unique_keys, inverse = torch.unique_consecutive(keys_sorted, return_inverse=True)
+        vals_reduced = torch.zeros(unique_keys.size(0), device=device, dtype=dtype)
+        vals_reduced.scatter_add_(0, inverse, vals_sorted)
+
+        rows_unique = torch.div(unique_keys, n_cols, rounding_mode='floor')
+        cols_unique = unique_keys - rows_unique * n_cols
+
+        row_counts = torch.bincount(rows_unique, minlength=local_range)
+        block_crow = torch.zeros(local_range + 1, device=device, dtype=torch.int64)
+        block_crow[1:] = torch.cumsum(row_counts, dim=0)
+
+        crow_out[row_start:row_end] = nnz_total + block_crow[:-1]
+        nnz_block = int(block_crow[-1].item())
+        nnz_total += nnz_block
+
+        if nnz_block > 0:
+            block_cols_out = cols_unique
+            block_vals_out = vals_reduced
+            col_blocks.append(block_cols_out)
+            val_blocks.append(block_vals_out)
+
+    crow_out[n_rows] = nnz_total
+
+    if nnz_total == 0 or not col_blocks:
+        crow_zero = torch.zeros(n_rows + 1, device=device, dtype=torch.int64)
+        return torch.sparse_csr_tensor(
+            crow_zero,
+            torch.zeros(0, device=device, dtype=torch.int64),
+            torch.zeros(0, device=device, dtype=dtype),
+            size=(n_rows, n_cols),
+            device=device,
+            dtype=dtype,
+        )
+
+    col_final = torch.cat(col_blocks)
+    val_final = torch.cat(val_blocks)
+    return torch.sparse_csr_tensor(
+        crow_out,
+        col_final,
+        val_final,
+        size=(n_rows, n_cols),
+        device=device,
+        dtype=dtype,
+    )
+
+
+def rap_torch(A_csr: torch.Tensor, P_csr: torch.Tensor, device: torch.device) -> torch.Tensor:
+    AP = _csr_spmm(A_csr, P_csr)
+    PT = P_csr.transpose(0, 1).to_sparse_csr()
+    Ac = _csr_spmm(PT, AP)
+    return Ac.to(device=device)
 
 
 def _apply_reference_fix(A_csr: torch.Tensor, anchor_idx: int, anchor_value: float = 0.0) -> torch.Tensor:
@@ -650,7 +796,9 @@ class ClassicalAMG:
         # Строим иерархию
         A_current = A_csr
         basis_current = generate_nullspace(A_current, self.nullspace_dim)
+        build_start = time.perf_counter()
         for lvl in range(max_levels):
+            level_start = time.perf_counter()
             n = A_current.size(0)
             
             if n <= coarsest_size:
@@ -676,6 +824,8 @@ class ClassicalAMG:
             # C/F splitting
             strong_mask = find_strong_connections(A_current, theta)
             cf_marker, n_coarse = classical_coarsening(A_current, theta)
+            stage_after_cf = time.perf_counter()
+            print(f"[ClassicalAMG] L{lvl} timings: strong+coarsen={stage_after_cf - level_start:.3f}s")
             if self.anchor_idx is not None and self.anchor_idx < n:
                 cf_marker[self.anchor_idx] = 0
             
@@ -709,6 +859,8 @@ class ClassicalAMG:
             P, cf_marker, fine2coarse_map, coarse_nodes, F_nodes = build_prolongation_rs_full(
                 A_current, cf_marker, strong_mask, basis_current, blend=blend, ls_reg=self.nullspace_reg
             )
+            stage_after_prol = time.perf_counter()
+            print(f"[ClassicalAMG] L{lvl} timings: prolongation={stage_after_prol - stage_after_cf:.3f}s")
             if P.device != self.device:
                 P = P.to(self.device)
             fine2coarse_map = fine2coarse_map.to(self.device)
@@ -718,6 +870,9 @@ class ClassicalAMG:
             interp_metrics = self._analyze_prolongation(lvl, P, coarse_nodes, F_nodes, node_coords_current)
 
             A_coarse = rap_torch(A_current, P, self.device)
+            stage_after_rap = time.perf_counter()
+            print(f"[ClassicalAMG] L{lvl} timings: RAP={stage_after_rap - stage_after_prol:.3f}s")
+            print(f"[ClassicalAMG] L{lvl} total build time={stage_after_rap - level_start:.3f}s")
 
             n_coarse_actual = P.size(1)
             num_coarse_marked = int((cf_marker == 0).sum().item())
@@ -779,7 +934,8 @@ class ClassicalAMG:
             })
             print(f"[ClassicalAMG] L{len(self.levels)-1}: reached max_levels → coarsest, n={n_c}")
         
-        print(f"✅ ClassicalAMG: построено {len(self.levels)} уровней")
+        total_build = time.perf_counter() - build_start
+        print(f"✅ ClassicalAMG: построено {len(self.levels)} уровней за {total_build:.2f} c")
     
     def _extract_diag(self, A_csr: torch.Tensor) -> torch.Tensor:
         """Извлекает диагональ из CSR матрицы."""
@@ -1322,11 +1478,13 @@ def solve_energy_weights(
     m, k = B_c.shape
     if k == 0:
         return w_rs
-    ones_row = torch.ones(1, k, dtype=torch.float64)
+    device = B_c.device
+    dtype = B_c.dtype
+    ones_row = torch.ones(1, k, dtype=dtype, device=device)
     A_ls = torch.vstack([B_c, ones_row])
-    y = torch.cat([target, torch.tensor([1.0], dtype=torch.float64)])
+    y = torch.cat([target, torch.tensor([1.0], dtype=dtype, device=device)])
     At = A_ls.T
-    ATA = At @ A_ls + ls_reg * torch.eye(k, dtype=torch.float64)
+    ATA = At @ A_ls + ls_reg * torch.eye(k, dtype=dtype, device=device)
     RHS = At @ y
     try:
         w_ls = torch.linalg.solve(ATA, RHS)
