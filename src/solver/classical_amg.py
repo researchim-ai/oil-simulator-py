@@ -149,20 +149,27 @@ def build_prolongation_rs_full(
     A_csr: torch.Tensor,
     cf_marker: torch.Tensor,
     strong_mask: torch.Tensor,
-    node_coords: torch.Tensor,
+    basis: torch.Tensor | None,
+    blend: float = 0.0,
+    ls_reg: float = 1e-7,
 ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
-    """Строит RS-интерполяцию с F–F коррекцией и P·1 = 1."""
     orig_device = A_csr.device
     A_cpu = A_csr.to('cpu')
     cf = cf_marker.to('cpu').clone()
     strong = strong_mask.to('cpu')
+
+    basis_cpu = None
+    if basis is not None and basis.numel() > 0:
+        basis_cpu = basis.to(torch.float64)
+        if basis_cpu.dim() == 1:
+            basis_cpu = basis_cpu.unsqueeze(1)
+        basis_cpu = orthonormalize_columns(basis_cpu)
 
     crow = A_cpu.crow_indices()
     col = A_cpu.col_indices()
     val = A_cpu.values().to(torch.float64)
     n = crow.numel() - 1
 
-    # Преобразуем в python-списки для удобства
     row_neigh = []
     row_vals = []
     row_strong = []
@@ -178,7 +185,6 @@ def build_prolongation_rs_full(
         row_strong.append(strong_i)
         row_val_dict.append({int(c): float(v) for c, v in zip(neigh_i, vals_i)})
 
-    # Диагональ A
     diag = torch.zeros(n, dtype=torch.float64)
     for i in range(n):
         for c, v in zip(row_neigh[i], row_vals[i]):
@@ -188,7 +194,6 @@ def build_prolongation_rs_full(
         if diag[i].abs() < 1e-14:
             diag[i] = 1.0
 
-    # Продвигаем сирот
     promoted = True
     while promoted:
         promoted = False
@@ -210,7 +215,6 @@ def build_prolongation_rs_full(
     fine2coarse[coarse_nodes] = torch.arange(coarse_nodes.numel(), dtype=torch.int64)
     F_nodes_cpu = torch.where(cf == 1)[0]
 
-    # Предвычисляем сильные C для каждого узла
     strong_C = []
     for i in range(n):
         neigh_i = row_neigh[i]
@@ -221,10 +225,7 @@ def build_prolongation_rs_full(
                 C_list.append(int(c))
         strong_C.append(C_list)
 
-    # Копим данные для P
-    rows: list[int] = []
-    cols_out: list[int] = []
-    data: list[float] = []
+    rows, cols_out, data = [], [], []
 
     # C-точки -> единичная строка
     for c in coarse_nodes.tolist():
@@ -246,25 +247,53 @@ def build_prolongation_rs_full(
         strong_i = row_strong[i]
 
         weights_dict: dict[int, float] = {}
+        sum_strong = 0.0
         for c in C_i:
             a_ic = row_val_dict[i].get(c, 0.0)
             weights_dict[c] = weights_dict.get(c, 0.0) - a_ic / diag_i
+            sum_strong += -a_ic
 
+        weak_C_sum = 0.0
+        F_strong: list[tuple[int, float]] = []
+        F_weak_sum = 0.0
         for nbr, a_in, s in zip(neigh_i, vals_i, strong_i):
-            if nbr == i or cf[nbr] != 1 or not s:
+            if nbr == i:
                 continue
+            if cf[nbr] == 0:
+                if not s:
+                    weak_C_sum += float(-a_in)
+            else:
+                if s:
+                    F_strong.append((int(nbr), float(a_in)))
+                else:
+                    F_weak_sum += float(-a_in)
+
+        for nbr, a_in in F_strong:
             C_k = strong_C[nbr]
-            denom = 0.0
-            for c_k in C_k:
-                denom += -row_val_dict[nbr].get(c_k, 0.0)
-            if denom <= 1e-14:
+            if not C_k:
+                F_weak_sum += float(-a_in)
                 continue
-            factor = -a_in / diag_i
+            denom = 0.0
+            contributions = []
             for c_k in C_k:
                 a_kc = row_val_dict[nbr].get(c_k, 0.0)
+                denom += -a_kc
+                contributions.append((c_k, a_kc))
+            if denom <= 1e-14:
+                F_weak_sum += float(-a_in)
+                continue
+            factor = -a_in / diag_i
+            for c_k, a_kc in contributions:
                 weights_dict[c_k] = weights_dict.get(c_k, 0.0) + factor * (-a_kc / denom)
                 if c_k not in C_i:
                     C_i.append(c_k)
+
+        total_weak = weak_C_sum + F_weak_sum
+        if total_weak > 0.0 and sum_strong > 1e-14:
+            correction = total_weak / sum_strong
+            for c in C_i:
+                a_ic = row_val_dict[i].get(c, 0.0)
+                weights_dict[c] = weights_dict.get(c, 0.0) + correction * (-a_ic / diag_i)
 
         weights_items = [(c_node, weights_dict.get(c_node, 0.0)) for c_node in C_i if abs(weights_dict.get(c_node, 0.0)) > 1e-16]
         if not weights_items:
@@ -273,16 +302,34 @@ def build_prolongation_rs_full(
             data.append(1.0)
             continue
 
-        sum_weights = sum(w for _, w in weights_items)
-        if abs(sum_weights) < 1e-12:
+        weights_vec = torch.tensor([weights_dict.get(c_node, 0.0) for c_node, _ in weights_items], dtype=torch.float64)
+        weights_vec = torch.clamp(weights_vec, min=0.0)
+        sum_weights = weights_vec.sum().item()
+        if sum_weights < 1e-12:
             rows.append(i)
             cols_out.append(int(fine2coarse[i]))
             data.append(1.0)
             continue
-        scale = 1.0 / sum_weights
-        weights_items = [(c_node, w_val * scale) for c_node, w_val in weights_items]
+        w_rs = weights_vec / sum_weights
+        w_final = w_rs.clone()
 
-        for c_node, w_val in weights_items:
+        if basis_cpu is not None and blend > 0.0:
+            dim_basis = basis_cpu.shape[1]
+            if dim_basis > 0 and len(weights_items) >= dim_basis:
+                B_c = torch.stack([basis_cpu[c] for c, _ in weights_items], dim=1)
+                target = basis_cpu[i]
+                w_final = solve_energy_weights(B_c, target, w_rs, blend, ls_reg)
+
+        w_final = torch.clamp(w_final, min=0.0)
+        sum_final = w_final.sum().item()
+        if sum_final <= 1e-12:
+            rows.append(i)
+            cols_out.append(int(fine2coarse[i]))
+            data.append(1.0)
+            continue
+        w_final = w_final / sum_final
+
+        for (c_node, _), w_val in zip(weights_items, w_final.tolist()):
             rows.append(i)
             cols_out.append(int(fine2coarse[c_node]))
             data.append(float(w_val))
@@ -506,7 +553,9 @@ class ClassicalAMG:
     def __init__(self, A_csr_np: torch.Tensor, theta: float = 0.25,
                  max_levels: int = 10, coarsest_size: int = 100,
                  anchor_idx: int | None = None,
-                 node_coords: torch.Tensor | None = None):
+                 nullspace_dim: int = 3,
+                 nullspace_blend: float = 0.6,
+                 nullspace_reg: float = 1e-6):
         """Инициализация AMG иерархии.
 
         Args:
@@ -515,12 +564,19 @@ class ClassicalAMG:
             max_levels: Максимум уровней
             coarsest_size: Минимальный размер coarsest level
             anchor_idx: Индекс ячейки для Dirichlet-фикса (опционально). Если None – матрица используется как есть.
-            node_coords: (N, d) координаты узлов (опционально). Если None, используется 1D индекс.
+            nullspace_dim: Количество near-nullspace мод (0 отключает energy-minimizing корректировку)
+            nullspace_blend: Вес смешивания RS и energy-minimizing весов (0..1)
+            nullspace_reg: Tikhonov-регуляризация в energy-minimizing LS
         """
         self.theta = theta
         self.max_levels = max_levels
         self.coarsest_size = coarsest_size
         self.anchor_idx = anchor_idx
+        self.nullspace_dim = max(0, nullspace_dim)
+        self.nullspace_blend = float(max(0.0, min(1.0, nullspace_blend)))
+        self.nullspace_reg = float(max(1e-10, nullspace_reg))
+        self.apply_tol = 5e-2
+        self.apply_max_cycles = 8
         self.debug_cycles = False
         
         # Конвертируем numpy CSR -> torch CSR на CUDA
@@ -590,6 +646,7 @@ class ClassicalAMG:
         
         # Строим иерархию
         A_current = A_csr
+        basis_current = generate_nullspace(A_current, self.nullspace_dim)
         for lvl in range(max_levels):
             n = A_current.size(0)
             
@@ -607,6 +664,7 @@ class ClassicalAMG:
                     'P': None,
                     'diag': diag_abs,
                     'inv_relax': inv_relax,
+                    'basis': basis_current,
                     'is_coarsest': True
                 })
                 print(f"[ClassicalAMG] L{lvl}: n={n} ≤ {coarsest_size}, coarsest level")
@@ -632,6 +690,9 @@ class ClassicalAMG:
                     'P': None,
                     'fine2coarse': None,
                     'coarse_nodes': None,
+                    'F_nodes': None,
+                    'node_coords': node_coords_current,
+                    'basis': basis_current,
                     'interp_metrics': None,
                     'diag': diag_abs,
                     'inv_relax': inv_relax,
@@ -641,7 +702,10 @@ class ClassicalAMG:
                 break
             
             # Prolongation: RS-интерполяция с F–F коррекцией (P·1=1)
-            P, cf_marker, fine2coarse_map, coarse_nodes, F_nodes = build_prolongation_rs_full(A_current, cf_marker, strong_mask, node_coords_current)
+            blend = self.nullspace_blend if basis_current is not None else 0.0
+            P, cf_marker, fine2coarse_map, coarse_nodes, F_nodes = build_prolongation_rs_full(
+                A_current, cf_marker, strong_mask, basis_current, blend=blend, ls_reg=self.nullspace_reg
+            )
             if P.device != self.device:
                 P = P.to(self.device)
             fine2coarse_map = fine2coarse_map.to(self.device)
@@ -674,6 +738,7 @@ class ClassicalAMG:
                 'coarse_nodes': coarse_nodes,
                 'F_nodes': F_nodes,
                 'node_coords': node_coords_current,
+                'basis': basis_current,
                 'interp_metrics': interp_metrics,
                 'diag': diag_abs,
                 'inv_relax': inv_relax,
@@ -681,6 +746,14 @@ class ClassicalAMG:
             })
             
             node_coords_current = node_coords_current[coarse_nodes]
+            if basis_current is not None:
+                basis_gpu = basis_current.to(P.device)
+                basis_coarse = torch.sparse.mm(P.transpose(0, 1), basis_gpu)
+                basis_coarse = basis_coarse.to('cpu')
+                basis_coarse = orthonormalize_columns(basis_coarse)
+                basis_current = basis_coarse
+            else:
+                basis_current = None
             A_current = A_coarse
         
         # Если цикл завершился по max_levels, добавляем A_current как coarsest
@@ -696,13 +769,9 @@ class ClassicalAMG:
                 'A': A_current,
                 'n': n_c,
                 'P': None,
-                'fine2coarse': None,
-                'coarse_nodes': None,
-                'F_nodes': None,
-                'node_coords': node_coords_current,
-                'interp_metrics': None,
                 'diag': diag_abs,
                 'inv_relax': inv_relax,
+                'basis': basis_current,
                 'is_coarsest': True
             })
             print(f"[ClassicalAMG] L{len(self.levels)-1}: reached max_levels → coarsest, n={n_c}")
@@ -931,13 +1000,21 @@ class ClassicalAMG:
         b = b.to(self.device)
         if self.Dhalf_inv is not None:
             b_scaled = self.Dhalf_inv * b
-            x_scaled = torch.zeros_like(b_scaled)
         else:
             b_scaled = b.clone()
-            x_scaled = torch.zeros_like(b)
+        x_scaled = torch.zeros_like(b_scaled)
 
-        for _ in range(cycles):
-            x_scaled = self._v_cycle(0, x_scaled, b_scaled, pre_smooth=pre_smooth, post_smooth=post_smooth, debug=False)
+        tol = getattr(self, "apply_tol", 5e-2)
+        max_cycles = getattr(self, "apply_max_cycles", max(3, cycles))
+        cycle = 0
+        rel_res = float('inf')
+        while cycle < max_cycles:
+            x_scaled = self._v_cycle(0, x_scaled, b_scaled, pre_smooth=3, post_smooth=2, debug=False, cycle_num=cycle)
+            cycle += 1
+            r = b_scaled - self._matvec(0, x_scaled)
+            rel_res = r.norm().item() / (b_scaled.norm().item() + 1e-30)
+            if cycle >= cycles and rel_res < tol:
+                break
 
         if self.Dhalf_inv is not None:
             return self.Dhalf_inv * x_scaled
@@ -1001,3 +1078,167 @@ class ClassicalAMG:
             'worst_const_rows': worst_const_rows,
             'worst_grad_rows': worst_grad_rows,
         }
+
+    def _orthonormalize_columns(self, B: torch.Tensor) -> torch.Tensor:
+        cols = []
+        for j in range(B.shape[1]):
+            v = B[:, j].clone()
+            for q in cols:
+                v = v - torch.dot(v, q) * q
+            norm = v.norm()
+            if norm > 1e-10:
+                cols.append(v / norm)
+        if not cols:
+            v = torch.ones(B.shape[0], dtype=B.dtype, device=B.device)
+            cols.append(v / (v.norm() + 1e-30))
+        return torch.stack(cols, dim=1)
+
+    def _generate_nullspace(self, A_csr: torch.Tensor, dim: int = 3) -> torch.Tensor | None:
+        if dim <= 0:
+            return None
+        n = A_csr.size(0)
+        device = A_csr.device
+        basis = []
+        const = torch.ones(n, dtype=torch.float64, device=device)
+        basis.append(const / (const.norm() + 1e-30))
+        rng = torch.Generator(device=device)
+        diag = A_csr.diag().to(torch.float64)
+        inv_diag = torch.where(diag.abs() > 1e-12, 1.0 / diag, torch.zeros_like(diag))
+        for _ in range(max(0, dim - 1)):
+            v = torch.randn(n, generator=rng, dtype=torch.float64, device=device)
+            x = torch.zeros_like(v)
+            for _ in range(4):
+                r = v - torch.sparse.mm(A_csr, x.unsqueeze(1)).squeeze(1)
+                x = x + inv_diag * r
+            v = x
+            for b in basis:
+                v = v - torch.dot(v, b) * b
+            norm = v.norm()
+            if norm > 1e-8:
+                basis.append(v / norm)
+        B = torch.stack(basis, dim=1)
+        B = B.to('cpu')
+        return orthonormalize_columns(B)
+
+    def _smooth_vector(self, A_csr: torch.Tensor, v: torch.Tensor, sweeps: int = 4) -> torch.Tensor:
+        diag = self._extract_diag(A_csr).to(v.dtype)
+        inv_diag = torch.where(diag.abs() > 1e-12, 1.0 / diag, torch.zeros_like(diag))
+        x = torch.zeros_like(v)
+        for _ in range(sweeps):
+            r = v - self._spmv_csr(A_csr, x)
+            x = x + inv_diag * r
+        return x
+
+    def _solve_least_squares(self, M: torch.Tensor, target: torch.Tensor) -> torch.Tensor:
+        try:
+            sol = torch.linalg.lstsq(M, target).solution
+        except RuntimeError:
+            sol = torch.linalg.pinv(M) @ target
+        return sol
+
+
+def orthonormalize_columns(B: torch.Tensor) -> torch.Tensor:
+    cols: list[torch.Tensor] = []
+    for j in range(B.shape[1]):
+        v = B[:, j].clone()
+        for q in cols:
+            v = v - torch.dot(v, q) * q
+        norm = v.norm()
+        if norm > 1e-10:
+            cols.append(v / norm)
+    if not cols:
+        v = torch.ones(B.shape[0], dtype=B.dtype)
+        cols.append(v / (v.norm() + 1e-30))
+    return torch.stack(cols, dim=1)
+
+
+def _extract_diag_cpu(A_csr: torch.Tensor) -> torch.Tensor:
+    crow = A_csr.crow_indices()
+    col = A_csr.col_indices()
+    val = A_csr.values()
+    n = crow.numel() - 1
+    diag = torch.zeros(n, dtype=val.dtype)
+    for i in range(n):
+        start = crow[i].item()
+        end = crow[i + 1].item()
+        for idx in range(start, end):
+            if col[idx].item() == i:
+                diag[i] = val[idx]
+                break
+    return diag
+
+
+def generate_nullspace(A_csr: torch.Tensor, dim: int = 3) -> torch.Tensor | None:
+    if dim <= 0:
+        return None
+    A_cpu = A_csr.to('cpu')
+    n = A_cpu.size(0)
+    basis: list[torch.Tensor] = []
+    const = torch.ones(n, dtype=torch.float64)
+    basis.append(const / (const.norm() + 1e-30))
+
+    coords = torch.linspace(0.0, 1.0, n, dtype=torch.float64)
+    centered = coords - coords.mean()
+    if centered.norm() > 1e-8 and len(basis) < dim:
+        basis.append(centered / centered.norm())
+    poly = coords ** 2 - (coords ** 2).mean()
+    if poly.norm() > 1e-8 and len(basis) < dim:
+        poly = poly - sum(torch.dot(poly, b) * b for b in basis)
+        if poly.norm() > 1e-8:
+            basis.append(poly / poly.norm())
+
+    diag = _extract_diag_cpu(A_cpu).to(torch.float64)
+    inv_diag = torch.where(diag.abs() > 1e-12, 1.0 / diag, torch.zeros_like(diag))
+    rng = torch.Generator(device='cpu')
+    rng.manual_seed(0)
+    while len(basis) < dim:
+        v = torch.randn(n, generator=rng, dtype=torch.float64)
+        x = torch.zeros_like(v)
+        for _ in range(6):
+            r = torch.sparse.mm(A_cpu, x.unsqueeze(1)).squeeze(1)
+            r = v - r
+            x = x + inv_diag * r
+        v = x
+        for b in basis:
+            v = v - torch.dot(v, b) * b
+        norm = v.norm()
+        if norm > 1e-8:
+            basis.append(v / norm)
+        else:
+            break
+
+    B = torch.stack(basis, dim=1)
+    return orthonormalize_columns(B)
+
+
+def solve_energy_weights(
+    B_c: torch.Tensor,
+    target: torch.Tensor,
+    w_rs: torch.Tensor,
+    blend: float,
+    ls_reg: float,
+) -> torch.Tensor:
+    if B_c is None or B_c.numel() == 0 or blend <= 0.0:
+        return w_rs
+    m, k = B_c.shape
+    if k == 0:
+        return w_rs
+    ones_row = torch.ones(1, k, dtype=torch.float64)
+    A_ls = torch.vstack([B_c, ones_row])
+    y = torch.cat([target, torch.tensor([1.0], dtype=torch.float64)])
+    At = A_ls.T
+    ATA = At @ A_ls + ls_reg * torch.eye(k, dtype=torch.float64)
+    RHS = At @ y
+    try:
+        w_ls = torch.linalg.solve(ATA, RHS)
+    except RuntimeError:
+        try:
+            w_ls = torch.linalg.lstsq(A_ls, y).solution
+        except RuntimeError:
+            return w_rs
+    w_ls = torch.clamp(w_ls, min=0.0)
+    sum_ls = w_ls.sum().item()
+    if sum_ls <= 1e-12:
+        return w_rs
+    w_ls = w_ls / sum_ls
+    return (1.0 - blend) * w_rs + blend * w_ls

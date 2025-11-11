@@ -100,7 +100,7 @@ def test_classical_amg_quality_on_laplacian():
     vectors.append(rand / (rand.norm() + 1e-30))
 
     for v in vectors:
-        z = amg.solve(v.to(amg.device), tol=5e-2, max_iter=10)
+        z = amg.apply(v.to(amg.device), cycles=3)
         Az = torch.sparse.mm(A_fixed.to(amg.device), z.unsqueeze(1)).squeeze(1)
         rel = (Az - v.to(amg.device)).norm() / (v.norm() + 1e-30)
         assert rel < 5e-2, f"AMG self-check не проходит (rel={rel:.3e})"
