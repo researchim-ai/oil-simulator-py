@@ -149,7 +149,8 @@ def build_prolongation_rs_full(
     A_csr: torch.Tensor,
     cf_marker: torch.Tensor,
     strong_mask: torch.Tensor,
-) -> Tuple[torch.Tensor, torch.Tensor]:
+    node_coords: torch.Tensor,
+) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
     """Строит RS-интерполяцию с F–F коррекцией и P·1 = 1."""
     orig_device = A_csr.device
     A_cpu = A_csr.to('cpu')
@@ -207,15 +208,15 @@ def build_prolongation_rs_full(
     coarse_nodes = torch.where(cf == 0)[0]
     fine2coarse = -torch.ones(n, dtype=torch.int64)
     fine2coarse[coarse_nodes] = torch.arange(coarse_nodes.numel(), dtype=torch.int64)
+    F_nodes_cpu = torch.where(cf == 1)[0]
 
-    # Предвычисляем сильные C и beta для каждого узла
+    # Предвычисляем сильные C для каждого узла
     strong_C = []
     for i in range(n):
         neigh_i = row_neigh[i]
-        vals_i = row_vals[i]
         strong_i = row_strong[i]
         C_list = []
-        for c, v, s in zip(neigh_i, vals_i, strong_i):
+        for c, s in zip(neigh_i, strong_i):
             if c != i and s and cf[c] == 0:
                 C_list.append(int(c))
         strong_C.append(C_list)
@@ -231,8 +232,7 @@ def build_prolongation_rs_full(
         cols_out.append(int(fine2coarse[c]))
         data.append(1.0)
 
-    F_nodes = torch.where(cf == 1)[0]
-    for i in F_nodes.tolist():
+    for i in F_nodes_cpu.tolist():
         C_i = strong_C[i]
         if not C_i:
             rows.append(i)
@@ -246,51 +246,27 @@ def build_prolongation_rs_full(
         strong_i = row_strong[i]
 
         weights_dict: dict[int, float] = {}
-        sum_strong = 0.0
         for c in C_i:
             a_ic = row_val_dict[i].get(c, 0.0)
-            weights_dict[c] = -a_ic / diag_i
-            sum_strong += -a_ic
+            weights_dict[c] = weights_dict.get(c, 0.0) - a_ic / diag_i
 
-        weak_C_sum = 0.0
-        F_strong: list[tuple[int, float]] = []
-        F_weak_sum = 0.0
         for nbr, a_in, s in zip(neigh_i, vals_i, strong_i):
-            if nbr == i:
+            if nbr == i or cf[nbr] != 1 or not s:
                 continue
-            if cf[nbr] == 0:
-                if not s:
-                    weak_C_sum += float(-a_in)
-            else:
-                if s:
-                    F_strong.append((int(nbr), float(a_in)))
-                else:
-                    F_weak_sum += float(-a_in)
-
-        for k, a_ik in F_strong:
-            C_k = strong_C[k]
-            if not C_k:
-                F_weak_sum += float(-a_ik)
-                continue
+            C_k = strong_C[nbr]
             denom = 0.0
             for c_k in C_k:
-                denom += -row_val_dict[k].get(c_k, 0.0)
+                denom += -row_val_dict[nbr].get(c_k, 0.0)
             if denom <= 1e-14:
-                F_weak_sum += float(-a_ik)
                 continue
-            factor = -a_ik / denom
+            factor = -a_in / diag_i
             for c_k in C_k:
-                a_kc = row_val_dict[k].get(c_k, 0.0)
-                weights_dict[c_k] = weights_dict.get(c_k, 0.0) + factor * (-a_kc / diag_i)
+                a_kc = row_val_dict[nbr].get(c_k, 0.0)
+                weights_dict[c_k] = weights_dict.get(c_k, 0.0) + factor * (-a_kc / denom)
+                if c_k not in C_i:
+                    C_i.append(c_k)
 
-        total_weak = weak_C_sum + F_weak_sum
-        if total_weak > 0.0 and sum_strong > 0.0:
-            correction = total_weak / sum_strong
-            for c in C_i:
-                a_ic = row_val_dict[i].get(c, 0.0)
-                weights_dict[c] = weights_dict.get(c, 0.0) + correction * (-a_ic / diag_i)
-
-        weights_items = [(c_node, w_val) for c_node, w_val in weights_dict.items() if abs(w_val) > 1e-16]
+        weights_items = [(c_node, weights_dict.get(c_node, 0.0)) for c_node in C_i if abs(weights_dict.get(c_node, 0.0)) > 1e-16]
         if not weights_items:
             rows.append(i)
             cols_out.append(int(fine2coarse[i]))
@@ -298,11 +274,13 @@ def build_prolongation_rs_full(
             continue
 
         sum_weights = sum(w for _, w in weights_items)
-        if abs(sum_weights) > 1e-12:
-            weights_items = [(c_node, w_val / sum_weights) for c_node, w_val in weights_items]
-        else:
-            equal_w = 1.0 / len(weights_items)
-            weights_items = [(c_node, equal_w) for c_node, _ in weights_items]
+        if abs(sum_weights) < 1e-12:
+            rows.append(i)
+            cols_out.append(int(fine2coarse[i]))
+            data.append(1.0)
+            continue
+        scale = 1.0 / sum_weights
+        weights_items = [(c_node, w_val * scale) for c_node, w_val in weights_items]
 
         for c_node, w_val in weights_items:
             rows.append(i)
@@ -323,7 +301,13 @@ def build_prolongation_rs_full(
         size=(n, n_coarse_actual),
     ).coalesce()
     P_csr = P_coo.to_sparse_csr().to(orig_device)
-    return P_csr, cf.to(orig_device)
+    return (
+        P_csr,
+        cf.to(orig_device),
+        fine2coarse.to(orig_device),
+        coarse_nodes.to(orig_device),
+        F_nodes_cpu.to(orig_device, dtype=torch.int64),
+    )
 
 
 def rap_onepoint_gpu(Af_csr: torch.Tensor,
@@ -521,7 +505,8 @@ class ClassicalAMG:
     
     def __init__(self, A_csr_np: torch.Tensor, theta: float = 0.25,
                  max_levels: int = 10, coarsest_size: int = 100,
-                 anchor_idx: int | None = None):
+                 anchor_idx: int | None = None,
+                 node_coords: torch.Tensor | None = None):
         """Инициализация AMG иерархии.
 
         Args:
@@ -530,6 +515,7 @@ class ClassicalAMG:
             max_levels: Максимум уровней
             coarsest_size: Минимальный размер coarsest level
             anchor_idx: Индекс ячейки для Dirichlet-фикса (опционально). Если None – матрица используется как есть.
+            node_coords: (N, d) координаты узлов (опционально). Если None, используется 1D индекс.
         """
         self.theta = theta
         self.max_levels = max_levels
@@ -561,6 +547,8 @@ class ClassicalAMG:
         
         print(f"[ClassicalAMG] Строим algebraic AMG с theta={theta}...")
         
+        node_coords_current = torch.arange(A_csr.size(0), dtype=torch.float64, device=self.device)
+
         # ═══════════════════════════════════════════════════════════════
         # АДАПТИВНОЕ EQUILIBRATION
         # ═══════════════════════════════════════════════════════════════
@@ -642,6 +630,9 @@ class ClassicalAMG:
                     'A': A_current,
                     'n': n,
                     'P': None,
+                    'fine2coarse': None,
+                    'coarse_nodes': None,
+                    'interp_metrics': None,
                     'diag': diag_abs,
                     'inv_relax': inv_relax,
                     'is_coarsest': True
@@ -650,20 +641,24 @@ class ClassicalAMG:
                 break
             
             # Prolongation: RS-интерполяция с F–F коррекцией (P·1=1)
-            P, cf_marker = build_prolongation_rs_full(A_current, cf_marker, strong_mask)
-            n_coarse_actual = P.size(1)
+            P, cf_marker, fine2coarse_map, coarse_nodes, F_nodes = build_prolongation_rs_full(A_current, cf_marker, strong_mask, node_coords_current)
             if P.device != self.device:
                 P = P.to(self.device)
+            fine2coarse_map = fine2coarse_map.to(self.device)
+            coarse_nodes = coarse_nodes.to(self.device, dtype=torch.int64)
+            F_nodes = F_nodes.to(self.device, dtype=torch.int64)
+
+            interp_metrics = self._analyze_prolongation(lvl, P, coarse_nodes, F_nodes, node_coords_current)
 
             A_coarse = rap_torch(A_current, P, self.device)
 
-            ratio = n / n_coarse_actual
+            n_coarse_actual = P.size(1)
+            num_coarse_marked = int((cf_marker == 0).sum().item())
+            ratio = n / max(n_coarse_actual, 1)
             c_pct = 100.0 * n_coarse_actual / n
-            orphan_count = n_coarse_actual - n_coarse
-            if orphan_count > 0:
-                print(f"[ClassicalAMG] L{lvl}: n={n} → n_c={n_coarse_actual} (ratio={ratio:.1f}x), C-points={n_coarse}+{orphan_count} orphans/{n} ({c_pct:.1f}%)")
-            else:
-                print(f"[ClassicalAMG] L{lvl}: n={n} → n_c={n_coarse_actual} (ratio={ratio:.1f}x), C-points={n_coarse_actual}/{n} ({c_pct:.1f}%)")
+            orphan_count = n_coarse_actual - num_coarse_marked
+
+            print(f"[ClassicalAMG] L{lvl}: n={n} → n_c={n_coarse_actual} (ratio={ratio:.1f}x), C-points={num_coarse_marked}+{orphan_count} orphans/{n} ({c_pct:.1f}%)")
             
             diag_abs = self._extract_diag(A_current).abs()
             row_abs = self._row_abs_sum(A_current)
@@ -675,11 +670,17 @@ class ClassicalAMG:
                 'A': A_current,
                 'n': n,
                 'P': P,
+                'fine2coarse': fine2coarse_map,
+                'coarse_nodes': coarse_nodes,
+                'F_nodes': F_nodes,
+                'node_coords': node_coords_current,
+                'interp_metrics': interp_metrics,
                 'diag': diag_abs,
                 'inv_relax': inv_relax,
                 'is_coarsest': False
             })
             
+            node_coords_current = node_coords_current[coarse_nodes]
             A_current = A_coarse
         
         # Если цикл завершился по max_levels, добавляем A_current как coarsest
@@ -695,6 +696,11 @@ class ClassicalAMG:
                 'A': A_current,
                 'n': n_c,
                 'P': None,
+                'fine2coarse': None,
+                'coarse_nodes': None,
+                'F_nodes': None,
+                'node_coords': node_coords_current,
+                'interp_metrics': None,
                 'diag': diag_abs,
                 'inv_relax': inv_relax,
                 'is_coarsest': True
@@ -936,3 +942,62 @@ class ClassicalAMG:
         if self.Dhalf_inv is not None:
             return self.Dhalf_inv * x_scaled
         return x_scaled
+
+    def _analyze_prolongation(self, lvl: int, P: torch.Tensor, coarse_nodes: torch.Tensor, F_nodes: torch.Tensor, node_coords_fine: torch.Tensor) -> dict:
+        """Вычисляет диагностические метрики для оператора продолбжения."""
+        P_coo = P.to_sparse_coo().coalesce()
+        row_idx = P_coo.indices()[0]
+        vals = P_coo.values()
+        device = P.device
+        dtype = torch.float64
+
+        row_sum = torch.zeros(P.size(0), dtype=dtype, device=device)
+        row_sum.scatter_add_(0, row_idx, vals)
+        ones_f = torch.ones_like(row_sum)
+        const_err = row_sum - ones_f
+        row_err_abs = const_err.abs()
+        row_err_max = row_err_abs.max().item()
+        const_rel = const_err.norm() / (ones_f.norm() + 1e-30)
+
+        coords_fine = node_coords_fine.to(device, dtype=dtype)
+        coords_coarse = coords_fine[coarse_nodes.long()]
+        grad_recon = torch.sparse.mm(P, coords_coarse.unsqueeze(1)).squeeze(1)
+        grad_err = grad_recon - coords_fine
+        grad_err_abs = grad_err.abs()
+        grad_rel = grad_err.norm() / (coords_fine.norm() + 1e-30)
+
+        neg_vals = vals[vals < -1e-12]
+        pos_vals = vals[vals > 1e-12]
+        min_w = vals.min().item() if vals.numel() > 0 else 0.0
+        max_w = vals.max().item() if vals.numel() > 0 else 0.0
+
+        worst_const_rows = []
+        worst_grad_rows = []
+        if F_nodes.numel() > 0:
+            topk = min(5, F_nodes.numel())
+            f_const_vals, f_const_idx = torch.topk(row_err_abs[F_nodes], k=topk)
+            f_grad_vals, f_grad_idx = torch.topk(grad_err_abs[F_nodes], k=topk)
+            worst_const_rows = [(int(F_nodes[f_const_idx[j]].item()), f_const_vals[j].item()) for j in range(topk)]
+            worst_grad_rows = [(int(F_nodes[f_grad_idx[j]].item()), f_grad_vals[j].item()) for j in range(topk)]
+            print(f"[ClassicalAMG] L{lvl} worst const rows: {worst_const_rows}")
+            print(f"[ClassicalAMG] L{lvl} worst grad  rows: {worst_grad_rows}")
+
+        print(
+            f"[ClassicalAMG] L{lvl} prolong diag: row_err_max={row_err_max:.2e}, "
+            f"const_rel={const_rel:.2e}, grad_rel={grad_rel:.2e}, "
+            f"neg_w={neg_vals.numel()}, pos_w={pos_vals.numel()}, min_w={min_w:.2e}, max_w={max_w:.2e}"
+        )
+
+        return {
+            'row_err_max': row_err_max,
+            'const_rel': const_rel.item(),
+            'grad_rel': grad_rel.item(),
+            'row_sum_min': row_sum.min().item(),
+            'row_sum_max': row_sum.max().item(),
+            'neg_count': int(neg_vals.numel()),
+            'pos_count': int(pos_vals.numel()),
+            'min_w': min_w,
+            'max_w': max_w,
+            'worst_const_rows': worst_const_rows,
+            'worst_grad_rows': worst_grad_rows,
+        }
