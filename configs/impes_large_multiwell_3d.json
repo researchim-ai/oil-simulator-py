@@ -18,7 +18,15 @@
     "max_time_step_attempts": 6,
 
     "max_saturation_change": 0.05,
-    "use_cuda": true
+    "use_cuda": true,
+    "pressure_solver": "amg",
+    "amg": {
+      "theta": 0.2,
+      "max_levels": 12,
+      "coarsest_size": 160,
+      "tol": 5e-3,
+      "max_cycles": 40
+    }
   },
 
   "reservoir": {

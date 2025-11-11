@@ -1,8 +1,11 @@
 import torch
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, Tuple
 
 # Local import of the vendored ClassicalAMG implementation
 from .classical_amg import ClassicalAMG
+
+
+_AMG_CACHE: Dict[Tuple[Any, ...], ClassicalAMG] = {}
 
 
 def _to_csr_double(A: torch.Tensor, device: Optional[torch.device] = None) -> torch.Tensor:
@@ -58,12 +61,27 @@ def amg_solve(
     b64 = b.to(target_device, dtype=torch.float64)
 
     # Build AMG hierarchy (equilibration is auto-detected inside ClassicalAMG)
-    amg = ClassicalAMG(
-        A_csr64,
-        theta=theta,
-        max_levels=max_levels,
-        coarsest_size=coarsest_size,
+    cache_key = (
+        A_csr64.size(),
+        float(theta),
+        int(max_levels),
+        int(coarsest_size),
+        str(target_device)
     )
+
+    amg = _AMG_CACHE.get(cache_key)
+    if amg is None:
+        print(f"[AMG solve] building hierarchy (cache miss) key={cache_key}")
+        amg = ClassicalAMG(
+            A_csr64,
+            theta=theta,
+            max_levels=max_levels,
+            coarsest_size=coarsest_size,
+        )
+        _AMG_CACHE[cache_key] = amg
+    else:
+        print(f"[AMG solve] reusing hierarchy (cache hit) key={cache_key}")
+        amg.update_matrix(A_csr64)
     # Solve with V-cycles until tol
     x64 = amg.solve(b64, x0=None, tol=tol, max_iter=max_cycles)
 

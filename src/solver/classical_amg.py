@@ -578,6 +578,8 @@ class ClassicalAMG:
         self.apply_tol = 5e-2
         self.apply_max_cycles = 8
         self.debug_cycles = False
+        self.equilibration_threshold = 1e-6
+        self.use_equilibration = False
         
         # Конвертируем numpy CSR -> torch CSR на CUDA
         device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -618,6 +620,7 @@ class ClassicalAMG:
         # Порог для equilibration: если диагональ слишком мала
         EQUILIBRATION_THRESHOLD = 1e-6
         use_equilibration = (diag_median < EQUILIBRATION_THRESHOLD)
+        self.use_equilibration = use_equilibration
         
         print(f"🔍 [ClassicalAMG] diag: min={diag_orig.min():.3e}, median={diag_median:.3e}, max={diag_orig.max():.3e}")
         print(f"🔍 [ClassicalAMG] Equilibration: {'ON' if use_equilibration else 'OFF'} (threshold={EQUILIBRATION_THRESHOLD:.0e})")
@@ -1135,6 +1138,102 @@ class ClassicalAMG:
         except RuntimeError:
             sol = torch.linalg.pinv(M) @ target
         return sol
+
+    def _update_level_metrics(self, lvl: int) -> None:
+        A_lvl = self.levels[lvl]['A']
+        diag_abs = self._extract_diag(A_lvl).abs()
+        row_abs = self._row_abs_sum(A_lvl)
+        beta = 0.3
+        denom = torch.maximum(diag_abs, beta * row_abs).clamp_min(1e-30)
+        inv_relax = (1.0 / denom).clamp(max=1e2)
+        self.levels[lvl]['diag'] = diag_abs
+        self.levels[lvl]['inv_relax'] = inv_relax
+
+    def update_matrix(self, A_csr_np: torch.Tensor) -> None:
+        """Обновляет значения матрицы, сохраняя построенную иерархию."""
+        if hasattr(A_csr_np, 'indptr'):  # scipy sparse
+            import scipy.sparse as sp
+            if not sp.isspmatrix_csr(A_csr_np):
+                A_csr_np = A_csr_np.tocsr()
+            crow = torch.from_numpy(A_csr_np.indptr).to(self.device, dtype=torch.int64)
+            col = torch.from_numpy(A_csr_np.indices).to(self.device, dtype=torch.int64)
+            val = torch.from_numpy(A_csr_np.data).to(self.device, dtype=torch.float64)
+            A_csr = torch.sparse_csr_tensor(crow, col, val, size=A_csr_np.shape, device=self.device, dtype=torch.float64)
+        else:
+            A_csr = A_csr_np.to(self.device)
+            if A_csr.layout == torch.sparse_coo:
+                A_csr = A_csr.coalesce().to_sparse_csr()
+            elif A_csr.layout != torch.sparse_csr:
+                A_csr = A_csr.to_sparse().coalesce().to_sparse_csr()
+            if A_csr.dtype != torch.float64:
+                A_csr = torch.sparse_csr_tensor(
+                    A_csr.crow_indices(),
+                    A_csr.col_indices(),
+                    A_csr.values().to(dtype=torch.float64),
+                    size=A_csr.size(),
+                    device=self.device,
+                    dtype=torch.float64,
+                )
+
+        diag_orig = self._extract_diag(A_csr).abs().clamp_min(1e-30)
+        diag_median = diag_orig.median().item()
+        use_equilibration = (diag_median < self.equilibration_threshold)
+        self.use_equilibration = use_equilibration
+        print(
+            f"[ClassicalAMG] update: diag min={diag_orig.min():.3e}, "
+            f"median={diag_median:.3e}, max={diag_orig.max():.3e}, "
+            f"equil={'ON' if use_equilibration else 'OFF'}"
+        )
+
+        if use_equilibration:
+            Dhalf_inv = 1.0 / torch.sqrt(diag_orig)
+            crow = A_csr.crow_indices()
+            col = A_csr.col_indices()
+            vals = A_csr.values().clone()
+            row_len = crow[1:] - crow[:-1]
+            row_idx = torch.repeat_interleave(torch.arange(crow.numel() - 1, device=self.device), row_len)
+            vals = vals * Dhalf_inv[row_idx] * Dhalf_inv[col]
+            A_csr = torch.sparse_csr_tensor(crow, col, vals, size=A_csr.size(), device=self.device, dtype=torch.float64)
+            self.Dhalf_inv = Dhalf_inv
+        else:
+            self.Dhalf_inv = None
+
+        if self.anchor_idx is not None:
+            A_csr = _apply_reference_fix(A_csr, int(self.anchor_idx))
+
+        diag_scaled = self._extract_diag(A_csr).abs()
+        print(
+            f"[ClassicalAMG] update: diag scaled range {diag_orig.min():.2e}..{diag_orig.max():.2e} → "
+            f"{diag_scaled.min():.2e}..{diag_scaled.max():.2e}"
+        )
+
+        if A_csr.size(0) != self.levels[0]['n']:
+            raise ValueError(f"AMG hierarchy built for n={self.levels[0]['n']}, получена матрица n={A_csr.size(0)}")
+
+        self.levels[0]['A'] = A_csr
+        basis_current = generate_nullspace(A_csr, self.nullspace_dim)
+        self.levels[0]['basis'] = basis_current
+        self._update_level_metrics(0)
+
+        A_current = A_csr
+        for lvl in range(len(self.levels) - 1):
+            P = self.levels[lvl].get('P')
+            if P is None:
+                self._update_level_metrics(lvl + 1)
+                continue
+            if basis_current is not None:
+                basis_gpu = basis_current.to(P.device)
+                basis_coarse = torch.sparse.mm(P.transpose(0, 1), basis_gpu).to('cpu')
+                basis_coarse = orthonormalize_columns(basis_coarse)
+            else:
+                basis_coarse = None
+            A_current = rap_torch(A_current, P, self.device)
+            self.levels[lvl + 1]['A'] = A_current
+            self.levels[lvl + 1]['basis'] = basis_coarse
+            self._update_level_metrics(lvl + 1)
+            basis_current = basis_coarse
+
+        print(f"[ClassicalAMG] Иерархия обновлена без перестроения структуры (diag median={diag_median:.3e})")
 
 
 def orthonormalize_columns(B: torch.Tensor) -> torch.Tensor:
