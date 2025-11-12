@@ -92,7 +92,7 @@ async def export_pdf() -> bool:
             display_header_footer=True,
             header_template=(
                 '<div style="font-size:9pt; width:100%; text-align:center; color:#666;">'
-                "Oil Simulator IMPES — документация</div>"
+                "Oil Simulator — документация</div>"
             ),
             footer_template=(
                 '<div style="font-size:9pt; width:100%; text-align:center; color:#666;">'

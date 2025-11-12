@@ -1,5 +1,20 @@
 /* Дополнительные стили для документации */
 
+.hero-image-wrapper {
+    text-align: center;
+    margin-bottom: 1.5rem;
+}
+
+.hero-image {
+    width: 70%;
+    max-width: 420px;
+    height: auto;
+    display: inline-block;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+    border-radius: 12px;
+}
+
+/* Улучшенное отображение таблиц */
 table {
     border-collapse: collapse;
     width: 100%;
@@ -56,6 +71,11 @@ code {
     body {
         font-size: 11pt;
         line-height: 1.5;
+    }
+
+    .hero-image {
+        width: 55%;
+        max-width: 320px;
     }
 
     h1 {

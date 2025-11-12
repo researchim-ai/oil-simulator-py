@@ -1,6 +1,8 @@
 # Документация по проекту Oil Simulator (IMPES + AMG)
 
-![Oil Simulator](images/oil-sim.png)
+<div class="hero-image-wrapper">
+  <img src="images/oil-sim.png" alt="Oil Simulator" class="hero-image" />
+</div>
 
 Добро пожаловать в официальную документацию по проекту **oil-simulator-py-impes**. Здесь собраны описание постановки физических задач, математической основы, архитектуры кода и инструкций по эксплуатации симулятора, в том числе GPU-ускоренного решателя давления на базе Algebraic Multigrid (AMG).
 

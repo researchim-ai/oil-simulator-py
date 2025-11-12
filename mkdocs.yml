@@ -1,9 +1,9 @@
-site_name: Oil Simulator IMPES - Документация
-site_description: GPU-ускоренный симулятор нефтяного пласта с AMG решателем
+site_name: Oil Simulator - Документация
+site_description: симулятор нефтяного пласта с AMG решателем на pytorch
 site_author: researchim-ai
 site_url: https://github.com/researchim-ai/oil-simulator-py
 
-repo_name: oil-simulator-py-impes
+repo_name: oil-simulator-py
 repo_url: https://github.com/researchim-ai/oil-simulator-py
 edit_uri: edit/main/docs/
 
@@ -114,7 +114,7 @@ nav:
       - Математические модели: MATHEMATICS.md
       - Физические модели: PHYSICS_MODELS.md
       - Продвинутые возможности: ADVANCED_FEATURES.md
-  - Производство:
+  - Производительность:
       - Производительность: PERFORMANCE.md
       - Сводка проекта: PROJECT_SUMMARY.md
       - История изменений: CHANGELOG.md
