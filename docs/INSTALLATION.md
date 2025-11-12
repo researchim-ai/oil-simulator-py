@@ -3,7 +3,7 @@
 ## 1. Клонирование репозитория
 
 ```bash
-git clone https://github.com/<your-org>/oil-simulator-py-impes.git
+git clone https://github.com/researchim-ai/oil-simulator-py.git
 cd oil-simulator-py-impes
 ```
 
