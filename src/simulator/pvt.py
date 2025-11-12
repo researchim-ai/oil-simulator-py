@@ -1,23 +1,32 @@
 import json
+import pathlib
 import numpy as np
+from typing import Dict, Any
+from .deck import load_pvt_from_deck
 
 
 class PVTTable:
     """
-    Простой загрузчик/интерполятор PVT-таблиц (Black-Oil) из JSON.
+    Загрузчик/интерполятор PVT-таблиц (Black-Oil).
 
-    Ожидаемые поля JSON:
-      pressure_MPa: [P]
-      Bo, Bw, Bg: []
-      mu_o_cP, mu_w_cP, mu_g_cP: []
-      Rs_m3m3: []
-      Rv_m3m3: [] (опционально)
-      units: { pressure: MPa, ... }
+    Поддерживаемые форматы:
+      * JSON с полями pressure_MPa, Bo, Bw, Bg, mu_o_cP, mu_w_cP, mu_g_cP, Rs_m3m3, Rv_m3m3
+      * Deck-файлы (Eclipse/CMG) с секциями PVTO/PVTW/PVDG.
+      * Прямой словарь с эквивалентными полями.
     """
 
-    def __init__(self, json_path: str):
-        with open(json_path, "r", encoding="utf-8") as f:
-            data = json.load(f)
+    def __init__(self, source: Any):
+        if isinstance(source, dict):
+            data = source
+        else:
+            path = pathlib.Path(source)
+            if not path.exists():
+                raise FileNotFoundError(f"PVT: файл '{source}' не найден")
+            if path.suffix.lower() in {".json", ".jsn"}:
+                with open(path, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+            else:
+                data = load_pvt_from_deck(str(path))
 
         self.P = np.asarray(data["pressure_MPa"], dtype=np.float64)
         self.Bo = np.asarray(data.get("Bo", []), dtype=np.float64)
@@ -33,7 +42,6 @@ class PVTTable:
         else:
             self.Rv = np.asarray(rv_raw, dtype=np.float64)
 
-        # Базовые проверки
         n = len(self.P)
         for arr, name in [
             (self.Bo, "Bo"), (self.Bw, "Bw"), (self.Bg, "Bg"),

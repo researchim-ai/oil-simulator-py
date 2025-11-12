@@ -1,6 +1,9 @@
 import torch
 import numpy as np
+from pathlib import Path
 from .pvt import PVTTable
+from .deck import load_pvt_from_deck, load_relperm_tables_from_deck
+
 
 class Fluid:
     """
@@ -50,29 +53,48 @@ class Fluid:
         # PVT таблицы (опционально)
         self.pvt = None
         pvt_path = config.get('pvt_path') or config.get('pvt', {}).get('path')
+        deck_relperm_tables = None
         if pvt_path:
             try:
-                self.pvt = PVTTable(pvt_path)
-                print(f"  PVT: загружен {pvt_path}")
+                path_obj = Path(pvt_path)
+                if path_obj.exists() and path_obj.suffix.lower() not in {'.json', '.jsn'}:
+                    deck_data = load_pvt_from_deck(pvt_path)
+                    self.pvt = PVTTable(deck_data)
+                    deck_relperm_tables = load_relperm_tables_from_deck(pvt_path)
+                    print(f"  PVT: загружен deck {pvt_path}")
+                else:
+                    self.pvt = PVTTable(pvt_path)
+                    print(f"  PVT: загружен {pvt_path}")
             except Exception as e:
                 print(f"  PVT: не удалось загрузить '{pvt_path}': {e}")
         
         # Параметры модели относительной проницаемости
         rp_cfg = config.get('relative_permeability', {})
         self.relperm_model = rp_cfg.get('model', 'corey')
-        self.nw    = rp_cfg.get('nw', 2)           # Показатель Кори для воды
-        self.no    = rp_cfg.get('no', 2)           # Показатель Кори для нефти (oil-water)
-        self.ng    = rp_cfg.get('ng', 2)           # Показатель Кори для газа
-        # Stone II параметры (по умолчанию 1.0/ядра Corey)
-        self.ko_end_w = rp_cfg.get('ko_end_w', 1.0)
-        self.ko_end_g = rp_cfg.get('ko_end_g', 1.0)
-        self.now = rp_cfg.get('now', float(self.no))
-        self.nog = rp_cfg.get('nog', float(self.ng))
-        self.krw_end = rp_cfg.get('krw_end', 1.0)
-        self.krg_end = rp_cfg.get('krg_end', 1.0)
-        self.sw_cr = rp_cfg.get('sw_cr', 0.2)      # Связанная водонасыщенность
-        self.so_r  = rp_cfg.get('so_r', 0.2)       # Остаточная нефтенасыщенность
-        self.sg_cr = rp_cfg.get('sg_cr', 0.0)      # Критическая газонасыщенность
+        self.relperm_tables = None
+        if self.relperm_model == 'table':
+            table_path = rp_cfg.get('path')
+            tables = None
+            if table_path:
+                tables = load_relperm_tables_from_deck(table_path)
+            elif deck_relperm_tables:
+                tables = deck_relperm_tables
+            if not tables:
+                raise ValueError("relative_permeability 'table' требует указать path или использовать deck вместе с PVT")
+            self._init_relperm_tables(tables)
+        else:
+            self.nw    = rp_cfg.get('nw', 2)
+            self.no    = rp_cfg.get('no', 2)
+            self.ng    = rp_cfg.get('ng', 2)
+            self.ko_end_w = rp_cfg.get('ko_end_w', 1.0)
+            self.ko_end_g = rp_cfg.get('ko_end_g', 1.0)
+            self.now = rp_cfg.get('now', float(self.no))
+            self.nog = rp_cfg.get('nog', float(self.ng))
+            self.krw_end = rp_cfg.get('krw_end', 1.0)
+            self.krg_end = rp_cfg.get('krg_end', 1.0)
+            self.sw_cr = rp_cfg.get('sw_cr', 0.2)
+            self.so_r  = rp_cfg.get('so_r', 0.2)
+            self.sg_cr = rp_cfg.get('sg_cr', 0.0)
         
         # Инициализация полей
         self.pressure = torch.full(self.dimensions, initial_pressure, device=self.device)
@@ -124,6 +146,71 @@ class Fluid:
         print(f"  Капиллярное давление: {self.pc_scale/1e6:.2e} МПа, показатель {self.pc_exponent}")
         print(f"  Связанная водонасыщенность: {self.sw_cr}, остаточная нефтенасыщенность: {self.so_r}")
         print(f"  Тензоры флюидов размещены на: {self.device}")
+
+    def _init_relperm_tables(self, tables):
+        """Инициализация таблиц SWOF/SGOF для табличной модели относительной проницаемости."""
+        self.relperm_tables = {}
+
+        def _as_np(seq):
+            return np.asarray(seq, dtype=np.float64)
+
+        def _compute_slopes(x, y):
+            slopes = np.zeros_like(y)
+            if len(x) < 2:
+                return slopes
+            dx = np.diff(x)
+            dy = np.diff(y)
+            slopes[:-1] = dy / (dx + 1e-12)
+            slopes[-1] = slopes[-2] if len(slopes) > 1 else 0.0
+            return slopes
+
+        if "swof" in tables:
+            tbl = tables["swof"]
+            sw = _as_np(tbl["sw"])
+            krw = _as_np(tbl["krw"])
+            kro = _as_np(tbl["kro"])
+            pcow = _as_np(tbl.get("pcow", [0.0] * len(sw))) * 6894.75729  # psi -> Pa
+            self.relperm_tables["swof"] = {
+                "sw": sw,
+                "krw": krw,
+                "kro": kro,
+                "pcow": pcow,
+                "dkrw_dsw": _compute_slopes(sw, krw),
+                "dkro_dsw": _compute_slopes(sw, kro),
+                "dpcow_dsw": _compute_slopes(sw, pcow),
+            }
+            self.sw_cr = sw[0]
+            self.so_r = max(0.0, 1.0 - sw[-1])
+        else:
+            self.sw_cr = 0.2
+            self.so_r = 0.2
+
+        if "sgof" in tables:
+            tbl = tables["sgof"]
+            sg = _as_np(tbl["sg"])
+            krg = _as_np(tbl["krg"])
+            kro = _as_np(tbl["kro"])
+            pcog = _as_np(tbl.get("pcog", [0.0] * len(sg))) * 6894.75729
+            self.relperm_tables["sgof"] = {
+                "sg": sg,
+                "krg": krg,
+                "kro": kro,
+                "pcog": pcog,
+                "dkrg_dsg": _compute_slopes(sg, krg),
+                "dkro_dsg": _compute_slopes(sg, kro),
+                "dpcog_dsg": _compute_slopes(sg, pcog),
+            }
+            self.sg_cr = sg[0]
+        else:
+            self.sg_cr = 0.0
+
+        # При табличной модели отключаем степенной Pc по параметрам
+        self.pc_scale = 0.0
+        self.pc_og_scale = 0.0
+
+    def _interp_table(self, tensor: torch.Tensor, x: np.ndarray, y: np.ndarray) -> torch.Tensor:
+        values = np.interp(tensor.detach().cpu().numpy(), x, y, left=y[0], right=y[-1])
+        return torch.from_numpy(values).to(self.device, dtype=torch.float32)
 
     # Свойства для совместимости со старым кодом IMPES
     @property
@@ -188,114 +275,99 @@ class Fluid:
         return torch.from_numpy(vals).to(self.device, dtype=torch.float32).reshape(self.dimensions)
 
     def calc_total_compressibility(self, pressure: torch.Tensor, s_w: torch.Tensor, s_g: torch.Tensor) -> torch.Tensor:
-        """Оценка суммарной сжимаемости ct(P,Sw,Sg) из PVT (пер Па). Fallback на self.cf.
-
-        ct ≈ c_rock + Sw*cw + So*co + Sg*cg, где cα ≈ - (1/Bα) dBα/dP.
-        """
+        """Оценка суммарной сжимаемости ct(P,Sw,Sg) из PVT (пер Па). Fallback на self.cf."""
         if self.pvt is None:
             return self.cf
-        # Давление в MPa
-        P = pressure
-        P_mpa = P / 1e6
-        delta_mpa = 0.1
-        Pp = P_mpa + delta_mpa
-        Pm = P_mpa - delta_mpa
 
-        Bw = self._eval_pvt(P_mpa * 1e6, 'Bw')
-        Bo = self._eval_pvt(P_mpa * 1e6, 'Bo')
-        Bg = self._eval_pvt(P_mpa * 1e6, 'Bg')
-        Bw_p = self._eval_pvt(Pp * 1e6, 'Bw')
-        Bw_m = self._eval_pvt(Pm * 1e6, 'Bw')
-        Bo_p = self._eval_pvt(Pp * 1e6, 'Bo')
-        Bo_m = self._eval_pvt(Pm * 1e6, 'Bo')
-        Bg_p = self._eval_pvt(Pp * 1e6, 'Bg')
-        Bg_m = self._eval_pvt(Pm * 1e6, 'Bg')
-        dBw_dP_mpa = (Bw_p - Bw_m) / (2 * delta_mpa)
-        dBo_dP_mpa = (Bo_p - Bo_m) / (2 * delta_mpa)
-        dBg_dP_mpa = (Bg_p - Bg_m) / (2 * delta_mpa)
-        # Перевод к 1/Pa
-        c_w = - (dBw_dP_mpa / (Bw + 1e-12)) / 1e6
-        c_o = - (dBo_dP_mpa / (Bo + 1e-12)) / 1e6
-        c_g = - (dBg_dP_mpa / (Bg + 1e-12)) / 1e6
+        dP_mpa = 0.1
+        dP_pa = dP_mpa * 1e6
+
+        P = pressure
+        P_plus = torch.clamp(P + dP_pa, min=1e3)
+        P_minus = torch.clamp(P - dP_pa, min=1e3)
+
+        Bw = self._eval_pvt(P, 'Bw')
+        Bo = self._eval_pvt(P, 'Bo')
+        Bg = self._eval_pvt(P, 'Bg')
+
+        Bw_p = self._eval_pvt(P_plus, 'Bw')
+        Bw_m = self._eval_pvt(P_minus, 'Bw')
+        Bo_p = self._eval_pvt(P_plus, 'Bo')
+        Bo_m = self._eval_pvt(P_minus, 'Bo')
+        Bg_p = self._eval_pvt(P_plus, 'Bg')
+        Bg_m = self._eval_pvt(P_minus, 'Bg')
+
+        dBw_dP_mpa = (Bw_p - Bw_m) / (2 * dP_mpa)
+        dBo_dP_mpa = (Bo_p - Bo_m) / (2 * dP_mpa)
+        dBg_dP_mpa = (Bg_p - Bg_m) / (2 * dP_mpa)
+
+        c_w = -(dBw_dP_mpa / (Bw + 1e-12)) / 1e6
+        c_o = -(dBo_dP_mpa / (Bo + 1e-12)) / 1e6
+        c_g = -(dBg_dP_mpa / (Bg + 1e-12)) / 1e6
+
         s_o = 1.0 - s_w - s_g
         ct = self.rock_compressibility + s_w * c_w + s_o * c_o + s_g * c_g
         return ct.to(self.device)
 
     def _get_normalized_saturation(self, s_w):
-        """
-        Вычисляет нормализованную водонасыщенность.
-        """
+        if self.relperm_model == 'table' and 'swof' in self.relperm_tables:
+            sw_table = self.relperm_tables['swof']['sw']
+            sw_min, sw_max = sw_table[0], sw_table[-1]
+            return torch.clamp((s_w - sw_min) / (sw_max - sw_min + 1e-12), 0.0, 1.0)
         s_norm = (s_w - self.sw_cr) / (1 - self.sw_cr - self.so_r)
         return torch.clamp(s_norm, 0.0, 1.0)
 
     def get_rel_perms(self, s_w, s_g=None):
-        """
-        Вычисляет относительные фазовые проницаемости для воды, нефти и газа по модели Кори.
-        :param s_w: Тензор текущей водонасыщенности.
-        :param s_g: Тензор текущей газонасыщенности (опционально).
-        :return: (kro, krw, krg) - кортеж с тензорами ОФП для трех фаз.
-        """
-        # Нефть: в Stone II зависит и от Sw, и от Sg
         kro = self.calc_oil_kr(s_w, s_g)
         krw = self.calc_water_kr(s_w)
-        
-        # Если газонасыщенность не передана, используем сохраненное значение
         if s_g is None:
             s_g = self.s_g
-        
         krg = self.calc_gas_kr(s_g)
-        
         return kro, krw, krg
 
     def get_rel_perms_derivatives(self, s_w):
-        """
-        Вычисляет производные ОФП по водонасыщенности.
-        :param s_w: Тензор текущей водонасыщенности.
-        :return: (dkrw_dsw, dkro_dsw) - кортеж с производными.
-        """
+        if self.relperm_model == 'table' and 'swof' in self.relperm_tables:
+            table = self.relperm_tables['swof']
+            sw = table['sw']
+            dkrw = table['dkrw_dsw']
+            dkro = table['dkro_dsw']
+            dkrw_tensor = self._interp_table(s_w, sw, dkrw)
+            dkro_tensor = self._interp_table(s_w, sw, dkro)
+            return dkro_tensor, dkrw_tensor
         s_norm = self._get_normalized_saturation(s_w)
         dsw_norm_dsw = 1 / (1 - self.sw_cr - self.so_r)
-        
-        # d(krw)/d(sw) = d(krw)/d(s_norm) * d(s_norm)/d(sw)
-        # d(krw)/d(s_norm) = nw * s_norm^(nw-1)
         dkrw_dsw = self.nw * (s_norm ** (self.nw - 1)) * dsw_norm_dsw
-        
-        # d(kro)/d(sw) = d(kro)/d(s_norm) * d(s_norm)/d(sw)
-        # d(kro)/d(s_norm) = -no * (1-s_norm)^(no-1)
         dkro_dsw = -self.no * ((1 - s_norm) ** (self.no - 1)) * dsw_norm_dsw
-        
-        # Обработка особых случаев на границах
         dkrw_dsw = torch.where(s_norm <= 0, torch.zeros_like(dkrw_dsw), dkrw_dsw)
         dkro_dsw = torch.where(s_norm >= 1, torch.zeros_like(dkro_dsw), dkro_dsw)
-        
         return dkro_dsw, dkrw_dsw
 
     def get_capillary_pressure(self, s_w):
-        """
-        Вычисляет капиллярное давление по простой степенной модели.
-        :param s_w: Тензор текущей водонасыщенности.
-        :return: Тензор капиллярного давления (в Па).
-        """
+        if self.relperm_model == 'table' and 'swof' in self.relperm_tables:
+            table = self.relperm_tables['swof']
+            return self._interp_table(s_w, table['sw'], table['pcow'])
         if self.pc_scale == 0.0:
             return torch.zeros_like(s_w)
-            
         s_norm = self._get_normalized_saturation(s_w)
-        
-        # Простая степенная модель Pc = scale * (1-s_norm)^-exponent
-        # Добавляем эпсилон для стабильности, если s_norm = 1
         pc = self.pc_scale * (1.0 - s_norm + 1e-6) ** (-self.pc_exponent)
         return pc
+
     def get_capillary_pressure_og(self, s_g):
-        """Капиллярное давление нефть-газ Pc_og(sg)."""
+        if self.relperm_model == 'table' and 'sgof' in self.relperm_tables:
+            table = self.relperm_tables['sgof']
+            return self._interp_table(s_g, table['sg'], table['pcog'])
         if self.pc_og_scale == 0.0:
             return torch.zeros_like(s_g)
-        # Нормировка по газу: от sg_cr до (1 - sw_cr - so_r)
         denom = 1 - self.sw_cr - self.so_r
         sg_norm = torch.clamp(s_g / (denom + 1e-12), 0.0, 1.0)
         pcog = self.pc_og_scale * (1.0 - sg_norm + 1e-6) ** (-self.pc_og_exponent)
         return pcog
 
     def get_capillary_pressure_og_derivative(self, s_g):
+        if self.relperm_model == 'table' and 'sgof' in self.relperm_tables:
+            table = self.relperm_tables['sgof']
+            dpc = table['dpcog_dsg']
+            return self._interp_table(s_g, table['sg'], dpc)
         if self.pc_og_scale == 0.0:
             return torch.zeros_like(s_g)
         denom = 1 - self.sw_cr - self.so_r
@@ -306,23 +378,16 @@ class Fluid:
         dpc_dsg = torch.where(sg_norm >= 1, torch.zeros_like(dpc_dsg), dpc_dsg)
         return dpc_dsg
 
-
     def get_capillary_pressure_derivative(self, s_w):
-        """
-        Вычисляет производную капиллярного давления по водонасыщенности.
-        :param s_w: Тензор текущей водонасыщенности.
-        :return: Тензор d(Pc)/d(Sw).
-        """
+        if self.relperm_model == 'table' and 'swof' in self.relperm_tables:
+            table = self.relperm_tables['swof']
+            dpc = table['dpcow_dsw']
+            return self._interp_table(s_w, table['sw'], dpc)
         if self.pc_scale == 0.0:
             return torch.zeros_like(s_w)
-            
         s_norm = self._get_normalized_saturation(s_w)
         dsw_norm_dsw = 1 / (1 - self.sw_cr - self.so_r)
-
-        # d(Pc)/d(sw) = d(Pc)/d(s_norm) * d(s_norm)/d(sw)
-        # d(Pc)/d(s_norm) = pc_scale * (-exponent) * (1-s_norm)^(-exponent-1) * (-1)
         dpc_dsn = self.pc_scale * self.pc_exponent * (1.0 - s_norm + 1e-6) ** (-self.pc_exponent - 1)
-        
         dpc_dsw = dpc_dsn * dsw_norm_dsw
         dpc_dsw = torch.where(s_norm >= 1, torch.zeros_like(dpc_dsw), dpc_dsw)
         return dpc_dsw
@@ -375,133 +440,84 @@ class Fluid:
         return self.rho_gas_ref * (1.0 + self.gas_compressibility * (pressure - 1e5))
 
     def calc_water_kr(self, s_w):
-        """
-        Вычисляет относительную проницаемость воды по модели Кори.
-        
-        Args:
-            s_w: Тензор водонасыщенности
-            
-        Returns:
-            Тензор относительной проницаемости воды
-        """
+        if self.relperm_model == 'table' and 'swof' in self.relperm_tables:
+            table = self.relperm_tables['swof']
+            return self._interp_table(s_w, table['sw'], table['krw'])
         s_norm = self._get_normalized_saturation(s_w)
         return s_norm**self.nw
 
     def calc_oil_kr(self, s_w, s_g=None):
-        """
-        Вычисляет относительную проницаемость нефти по модели Кори.
-        Вариант Stone II, если включен, учитывает газовую насыщенность.
-        
-        Args:
-            s_w: Тензор водонасыщенности
-            
-        Returns:
-            Тензор относительной проницаемости нефти
-        """
+        if self.relperm_model == 'table':
+            kro_components = []
+            if 'swof' in self.relperm_tables:
+                tbl = self.relperm_tables['swof']
+                kro_components.append(self._interp_table(s_w, tbl['sw'], tbl['kro']))
+            if 'sgof' in self.relperm_tables:
+                if s_g is None:
+                    s_g = self.s_g
+                tbl = self.relperm_tables['sgof']
+                kro_components.append(self._interp_table(s_g, tbl['sg'], tbl['kro']))
+            if kro_components:
+                result = kro_components[0]
+                for comp in kro_components[1:]:
+                    result = torch.minimum(result, comp)
+                return result
         if self.relperm_model == 'stone2':
             if s_g is None:
                 s_g = self.s_g
-            # Двухфазные нормировки
             denom_w = 1.0 - self.sw_cr - self.so_r
             swn = torch.clamp((s_w - self.sw_cr) / (denom_w + 1e-12), 0.0, 1.0)
             denom_g = 1.0 - self.sg_cr - self.so_r
             sgn = torch.clamp((s_g - self.sg_cr) / (denom_g + 1e-12), 0.0, 1.0)
-            # Двухфазные кривые
             krow = self.ko_end_w * (1.0 - swn) ** self.now
             krog = self.ko_end_g * (1.0 - sgn) ** self.nog
             kro = krow + krog - min(self.ko_end_w, self.ko_end_g)
             return torch.clamp(kro, min=0.0)
-        # Corey (двухфазный oil-water)
         s_norm = self._get_normalized_saturation(s_w)
         return (1 - s_norm) ** self.no
-    
+
     def calc_gas_kr(self, s_g):
-        """
-        Вычисляет относительную проницаемость газа по модели Кори.
-        
-        Args:
-            s_g: Тензор газонасыщенности
-            
-        Returns:
-            Тензор относительной проницаемости газа
-        """
-        # Нормализуем газонасыщенность
-        # Газ движется в диапазоне от 0 до (1 - sw_cr - so_r)
+        if self.relperm_model == 'table' and 'sgof' in self.relperm_tables:
+            tbl = self.relperm_tables['sgof']
+            return self._interp_table(s_g, tbl['sg'], tbl['krg'])
         s_g_norm = s_g / (1.0 - self.sw_cr - self.so_r + 1e-10)
         s_g_norm = torch.clamp(s_g_norm, 0.0, 1.0)
-        
-        # Используем показатель Кори для газа (обычно 2-3)
-        ng = getattr(self, 'ng', 2.0)  # Показатель Кори для газа
+        ng = getattr(self, 'ng', 2.0)
         return s_g_norm**ng
 
     def calc_dkrw_dsw(self, s_w):
-        """
-        Вычисляет производную относительной проницаемости воды по водонасыщенности.
-        
-        Args:
-            s_w: Тензор водонасыщенности
-            
-        Returns:
-            Тензор производной относительной проницаемости воды
-        """
+        if self.relperm_model == 'table' and 'swof' in self.relperm_tables:
+            tbl = self.relperm_tables['swof']
+            return self._interp_table(s_w, tbl['sw'], tbl['dkrw_dsw'])
         s_norm = self._get_normalized_saturation(s_w)
         normalized_range = 1.0 - self.sw_cr - self.so_r
-        
-        # Проверяем, находится ли насыщенность в допустимом диапазоне
         mask = (s_w > self.sw_cr) & (s_w < 1.0 - self.so_r)
-        
-        # Производная dkrw/dsw = dkrw/ds_norm * ds_norm/dsw
         result = torch.zeros_like(s_w)
         result[mask] = self.nw * s_norm[mask]**(self.nw - 1) / normalized_range
-        
         return result
 
     def calc_dkro_dsw(self, s_w):
-        """
-        Вычисляет производную относительной проницаемости нефти по водонасыщенности.
-        
-        Args:
-            s_w: Тензор водонасыщенности
-            
-        Returns:
-            Тензор производной относительной проницаемости нефти
-        """
+        if self.relperm_model == 'table' and 'swof' in self.relperm_tables:
+            tbl = self.relperm_tables['swof']
+            return self._interp_table(s_w, tbl['sw'], tbl['dkro_dsw'])
         s_norm = self._get_normalized_saturation(s_w)
         normalized_range = 1.0 - self.sw_cr - self.so_r
-        
-        # Проверяем, находится ли насыщенность в допустимом диапазоне
         mask = (s_w > self.sw_cr) & (s_w < 1.0 - self.so_r)
-        
-        # Производная dkro/dsw = dkro/ds_norm * ds_norm/dsw
         result = torch.zeros_like(s_w)
         result[mask] = -self.no * (1 - s_norm[mask])**(self.no - 1) / normalized_range
-        
         return result
-    
+
     def calc_dkrg_dsg(self, s_g):
-        """
-        Вычисляет производную относительной проницаемости газа по газонасыщенности.
-        
-        Args:
-            s_g: Тензор газонасыщенности
-            
-        Returns:
-            Тензор производной относительной проницаемости газа
-        """
+        if self.relperm_model == 'table' and 'sgof' in self.relperm_tables:
+            tbl = self.relperm_tables['sgof']
+            return self._interp_table(s_g, tbl['sg'], tbl['dkrg_dsg'])
         ng = getattr(self, 'ng', 2.0)
         normalized_range = 1.0 - self.sw_cr - self.so_r
-        
-        # Нормализованная газонасыщенность
         s_g_norm = s_g / (normalized_range + 1e-10)
         s_g_norm = torch.clamp(s_g_norm, 0.0, 1.0)
-        
-        # Проверяем, находится ли насыщенность в допустимом диапазоне
         mask = (s_g > 0.0) & (s_g < normalized_range)
-        
-        # Производная dkrg/dsg = ng * s_g_norm^(ng-1) / normalized_range
         result = torch.zeros_like(s_g)
         result[mask] = ng * s_g_norm[mask]**(ng - 1) / normalized_range
-        
         return result
 
     # ---- Алиасы для обратной совместимости со старым кодом ----

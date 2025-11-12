@@ -107,19 +107,48 @@ class Simulator:
         
     def _move_data_to_device(self):
         """Переносит данные на текущее устройство (CPU или GPU)"""
-        # Переносим данные из резервуара
-        self.reservoir.perm_h = self.reservoir.perm_h.to(self.device)
-        self.reservoir.perm_v = self.reservoir.perm_v.to(self.device)
-        self.reservoir.porous_volume = self.reservoir.porous_volume.to(self.device)
-        
-        # Переносим данные из флюида
-        self.fluid.pressure = self.fluid.pressure.to(self.device)
-        self.fluid.s_w = self.fluid.s_w.to(self.device)
-        self.fluid.s_o = self.fluid.s_o.to(self.device)
-        self.fluid.cf = self.fluid.cf.to(self.device)
+        # Резервуар
+        attrs = [
+            "permeability_x",
+            "permeability_y",
+            "permeability_z",
+            "porosity",
+            "porous_volume",
+            "grid_size",
+        ]
+        for name in attrs:
+            tensor = getattr(self.reservoir, name, None)
+            if tensor is not None and hasattr(tensor, "to"):
+                setattr(self.reservoir, name, tensor.to(self.device))
+        if hasattr(self.reservoir, "cell_volume"):
+            self.reservoir.cell_volume = self.reservoir.cell_volume.to(self.device)
+
+        # Флюид
+        fluid_attrs = [
+            "pressure",
+            "s_w",
+            "s_o",
+            "cf",
+            "prev_pressure",
+            "prev_sw",
+            "prev_sg",
+        ]
+        for name in fluid_attrs:
+            tensor = getattr(self.fluid, name, None)
+            if tensor is not None and hasattr(tensor, "to"):
+                setattr(self.fluid, name, tensor.to(self.device))
+        if hasattr(self.fluid, "s_g") and self.fluid.s_g is not None:
+            self.fluid.s_g = self.fluid.s_g.to(self.device)
+        if hasattr(self.fluid, "prev_sg") and self.fluid.prev_sg is not None:
+            self.fluid.prev_sg = self.fluid.prev_sg.to(self.device)
+        if hasattr(self.fluid, "prev_oil_mass") and self.fluid.prev_oil_mass is not None:
+            self.fluid.prev_oil_mass = self.fluid.prev_oil_mass.to(self.device)
+        if hasattr(self.fluid, "prev_water_mass") and self.fluid.prev_water_mass is not None:
+            self.fluid.prev_water_mass = self.fluid.prev_water_mass.to(self.device)
+        if hasattr(self.fluid, "prev_gas_mass") and self.fluid.prev_gas_mass is not None:
+            self.fluid.prev_gas_mass = self.fluid.prev_gas_mass.to(self.device)
+
         self.fluid.device = self.device
-        
-        # Обновляем устройство для резервуара и скважин
         self.reservoir.device = self.device
         self.well_manager.device = self.device
 
