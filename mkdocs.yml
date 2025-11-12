@@ -102,6 +102,9 @@ extra_css:
 
 nav:
   - Главная: index.md
+  - Введение:
+      - Отрасль: INDUSTRY_OVERVIEW.md
+      - Для чего проект: USE_CASES.md
   - Начало работы:
       - Быстрый старт: QUICKSTART.md
       - Установка: INSTALLATION.md
