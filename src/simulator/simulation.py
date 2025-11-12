@@ -104,6 +104,10 @@ class Simulator:
             with open(self.debug_log_path, 'w') as f:
                 f.write('# Component balance debug log\n')
                 f.write(f'# started {ts}\n')
+
+        # Геометрия ячеек для AMG near-nullspace
+        self._pressure_cell_centers = self._compute_pressure_cell_centers()
+        self._pressure_near_nullspace = self._build_pressure_near_nullspace(self._pressure_cell_centers)
         
     def _move_data_to_device(self):
         """Переносит данные на текущее устройство (CPU или GPU)"""
@@ -844,6 +848,45 @@ class Simulator:
         # Используем тот же порядок, что и при flatten(): z – самая быстрая координата
         return (i * ny + j) * self.reservoir.nz + k
 
+    def _compute_pressure_cell_centers(self) -> torch.Tensor:
+        """
+        Вычисляет координаты центров ячеек (нормированные на [0,1]) в порядке flatten().
+        """
+        nx, ny, nz = self.reservoir.dimensions
+        if hasattr(self.reservoir.grid_size, "detach"):
+            dx, dy, dz = [float(val) for val in self.reservoir.grid_size.detach().cpu().tolist()]
+        else:
+            dx, dy, dz = map(float, self.reservoir.grid_size)
+
+        lx = max(dx * nx, 1e-12)
+        ly = max(dy * ny, 1e-12)
+        lz = max(dz * nz, 1e-12)
+
+        x_coords = ((torch.arange(nx, dtype=torch.float64) + 0.5) * dx) / lx
+        y_coords = ((torch.arange(ny, dtype=torch.float64) + 0.5) * dy) / ly
+        z_coords = ((torch.arange(nz, dtype=torch.float64) + 0.5) * dz) / lz
+
+        grid = torch.meshgrid(x_coords, y_coords, z_coords, indexing='ij')
+        coords = torch.stack(grid, dim=-1).reshape(-1, 3)
+        return coords
+
+    def _build_pressure_near_nullspace(self, coords: torch.Tensor) -> torch.Tensor:
+        """
+        Формирует near-nullspace (константа + линейные координаты) для AMG.
+        """
+        n = coords.size(0)
+        columns = [torch.ones(n, 1, dtype=torch.float64)]
+        for dim in range(coords.size(1)):
+            column = coords[:, dim:dim+1]
+            if (column.max() - column.min()) > 1e-8:
+                centered = column - column.mean()
+                norm = centered.norm()
+                if norm > 1e-10:
+                    columns.append(centered / norm)
+        if len(columns) == 1:
+            columns.append(torch.arange(n, dtype=torch.float64).unsqueeze(1) / max(n - 1, 1))
+        return torch.cat(columns, dim=1)
+
     # ==================================================================
     # ==                        СХЕМА IMPES                         ==
     # ==================================================================
@@ -952,6 +995,8 @@ class Simulator:
                 max_levels=amg_max_levels,
                 coarsest_size=amg_coarsest,
                 device=amg_device,
+                near_nullspace=self._pressure_near_nullspace,
+                node_coords=self._pressure_cell_centers,
             )
             converged = True
             P_new = P_new_flat.view(self.reservoir.dimensions)

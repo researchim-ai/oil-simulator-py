@@ -43,6 +43,8 @@ def amg_solve(
     coarsest_size: int = 200,
     device: Optional[str] = "auto",
     enable_equilibration: Optional[bool] = None,
+    near_nullspace: Optional[torch.Tensor] = None,
+    node_coords: Optional[torch.Tensor] = None,
 ) -> torch.Tensor:
     """
     Solve A x = b using Classical RS-AMG V-cycles.
@@ -56,9 +58,34 @@ def amg_solve(
     else:
         target_device = torch.device(device)
 
+    # Prepare optional geometry / near-nullspace
+    basis_tensor: Optional[torch.Tensor] = None
+    if near_nullspace is not None:
+        basis_tensor = near_nullspace
+        if basis_tensor.dim() == 1:
+            basis_tensor = basis_tensor.unsqueeze(1)
+        basis_tensor = basis_tensor.to(dtype=torch.float64, device='cpu')
+
+    coords_tensor: Optional[torch.Tensor] = None
+    if node_coords is not None:
+        coords_tensor = node_coords
+        if coords_tensor.dim() == 1:
+            coords_tensor = coords_tensor.unsqueeze(1)
+        coords_tensor = coords_tensor.to(dtype=torch.float64, device='cpu')
+
     # Prepare matrix and RHS in double on target device
     A_csr64 = _to_csr_double(A, device=target_device)
     b64 = b.to(target_device, dtype=torch.float64)
+
+    n_total = A_csr64.size(0)
+    if basis_tensor is not None and basis_tensor.size(0) != n_total:
+        raise ValueError(
+            f"near_nullspace size mismatch: expected {n_total}, got {basis_tensor.size(0)}"
+        )
+    if coords_tensor is not None and coords_tensor.size(0) != n_total:
+        raise ValueError(
+            f"node_coords size mismatch: expected {n_total}, got {coords_tensor.size(0)}"
+        )
 
     # Build AMG hierarchy (equilibration is auto-detected inside ClassicalAMG)
     cache_key = (
@@ -66,7 +93,9 @@ def amg_solve(
         float(theta),
         int(max_levels),
         int(coarsest_size),
-        str(target_device)
+        str(target_device),
+        int(basis_tensor.size(1)) if basis_tensor is not None else 0,
+        int(coords_tensor.size(1)) if coords_tensor is not None else 0,
     )
 
     amg = _AMG_CACHE.get(cache_key)
@@ -77,11 +106,13 @@ def amg_solve(
             theta=theta,
             max_levels=max_levels,
             coarsest_size=coarsest_size,
+            near_nullspace=basis_tensor,
+            node_coords=coords_tensor,
         )
         _AMG_CACHE[cache_key] = amg
     else:
         print(f"[AMG solve] reusing hierarchy (cache hit) key={cache_key}")
-        amg.update_matrix(A_csr64)
+        amg.update_matrix(A_csr64, near_nullspace=basis_tensor, node_coords=coords_tensor)
     # Solve with V-cycles until tol
     x64 = amg.solve(b64, x0=None, tol=tol, max_iter=max_cycles)
 

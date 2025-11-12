@@ -153,9 +153,20 @@ def build_prolongation_rs_full(
     basis: torch.Tensor | None,
     blend: float = 0.0,
     ls_reg: float = 1e-7,
+    node_coords: torch.Tensor | None = None,
 ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
     device = A_csr.device
     dtype = A_csr.dtype
+    coords = None
+    coord_dim = 0
+    if node_coords is not None:
+        coords = node_coords
+        if coords.dim() == 1:
+            coords = coords.unsqueeze(1)
+        if coords.size(0) != A_csr.size(0):
+            raise ValueError("node_coords размер не соответствует матрице")
+        coords = coords.to(device=device, dtype=dtype)
+        coord_dim = coords.size(1)
 
     crow = A_csr.crow_indices()
     col = A_csr.col_indices()
@@ -390,32 +401,69 @@ def build_prolongation_rs_full(
     # Energy-minimizing blending (optional)
     basis_dev = None
     if basis is not None and basis.numel() > 0 and blend > 0.0:
-        basis_dev = basis.to(device=device, dtype=dtype)
+        basis_dev = basis
         if basis_dev.dim() == 1:
             basis_dev = basis_dev.unsqueeze(1)
-        basis_dev = orthonormalize_columns(basis_dev)
+        if basis_dev.size(0) != n:
+            raise ValueError("basis размер не соответствует числу узлов")
+        basis_dev = basis_dev.to(device=device, dtype=dtype)
+        # обеспечиваем ортонормированность столбцов
+        basis_dev = orthonormalize_columns(basis_dev.to('cpu')).to(device=device, dtype=dtype)
 
     if basis_dev is not None and blend > 0.0:
         crow_P = P_csr.crow_indices()
         col_P = P_csr.col_indices()
         val_P = P_csr.values()
-        for node in torch.nonzero(F_mask, as_tuple=False).view(-1).tolist():
-            start = crow_P[node].item()
-            end = crow_P[node + 1].item()
-            if end <= start:
-                continue
-            idx = slice(start, end)
-            cols_row = col_P[idx]
-            vals_row = val_P[idx]
-            if cols_row.numel() == 0:
-                continue
-            B_c = basis_dev[cols_row].T
-            target = basis_dev[node]
-            if B_c.numel() == 0 or B_c.shape[0] == 0:
-                continue
-            w_rs = vals_row
-            w_new = solve_energy_weights(B_c, target, w_rs, blend, ls_reg)
-            val_P[idx] = w_new.to(dtype)
+        row_lengths = crow_P[1:] - crow_P[:-1]
+        F_rows = torch.nonzero(F_mask, as_tuple=False).view(-1)
+        if F_rows.numel() > 0:
+            F_lengths = row_lengths[F_rows]
+            unique_k = torch.unique(F_lengths)
+            for k in unique_k.tolist():
+                if k <= 0:
+                    continue
+                rows_mask = F_lengths == k
+                if not rows_mask.any():
+                    continue
+                rows_sel = F_rows[rows_mask]
+                starts = crow_P[rows_sel]
+                offsets = torch.arange(k, device=device, dtype=torch.int64)
+                idx_matrix = starts.unsqueeze(1) + offsets.unsqueeze(0)
+                cols_matrix = col_P[idx_matrix]
+                rs_weights = val_P[idx_matrix]
+
+                coarse_global = coarse_nodes[cols_matrix]
+                B_c = basis_dev[coarse_global].transpose(1, 2)  # (num_rows, m, k)
+                target = basis_dev[rows_sel].unsqueeze(2)  # (num_rows, m, 1)
+
+                ones = torch.ones(B_c.size(0), 1, k, dtype=dtype, device=device)
+                M = torch.cat([B_c, ones], dim=1)  # (num_rows, m+1, k)
+                rhs = torch.cat(
+                    [target, torch.ones(B_c.size(0), 1, 1, dtype=dtype, device=device)],
+                    dim=1
+                )  # (num_rows, m+1, 1)
+
+                M_t = M.transpose(1, 2)  # (num_rows, k, m+1)
+                ATA = torch.matmul(M_t, M)
+                if ls_reg > 0:
+                    eye = torch.eye(k, dtype=dtype, device=device).unsqueeze(0).expand_as(ATA)
+                    ATA = ATA + ls_reg * eye
+                ATy = torch.matmul(M_t, rhs)
+                try:
+                    w_ls = torch.linalg.solve(ATA, ATy).squeeze(2)
+                except RuntimeError:
+                    # fallback к RS весам, если система вырождена
+                    continue
+
+                w_ls = torch.clamp(w_ls, min=0.0)
+                w_sum = w_ls.sum(dim=1, keepdim=True).clamp_min(1e-12)
+                w_ls = w_ls / w_sum
+
+                w_blend = (1.0 - blend) * rs_weights + blend * w_ls
+                w_blend = torch.clamp(w_blend, min=0.0)
+                w_blend = w_blend / w_blend.sum(dim=1, keepdim=True).clamp_min(1e-12)
+
+                val_P[idx_matrix] = w_blend
         P_csr = torch.sparse_csr_tensor(crow_P, col_P, val_P, size=P_csr.size(), device=device, dtype=dtype)
 
     return (
@@ -701,7 +749,9 @@ class ClassicalAMG:
                  anchor_idx: int | None = None,
                  nullspace_dim: int = 3,
                  nullspace_blend: float = 0.6,
-                 nullspace_reg: float = 1e-6):
+                 nullspace_reg: float = 1e-6,
+                 near_nullspace: torch.Tensor | None = None,
+                 node_coords: torch.Tensor | None = None):
         """Инициализация AMG иерархии.
 
         Args:
@@ -713,6 +763,8 @@ class ClassicalAMG:
             nullspace_dim: Количество near-nullspace мод (0 отключает energy-minimizing корректировку)
             nullspace_blend: Вес смешивания RS и energy-minimizing весов (0..1)
             nullspace_reg: Tikhonov-регуляризация в energy-minimizing LS
+            near_nullspace: Пользовательский near-nullspace (n x m), перекрывает generate_nullspace
+            node_coords: Геометрия узлов (n x d), используется для диагностики и energy-minimizing интерполяции
         """
         self.theta = theta
         self.max_levels = max_levels
@@ -721,6 +773,8 @@ class ClassicalAMG:
         self.nullspace_dim = max(0, nullspace_dim)
         self.nullspace_blend = float(max(0.0, min(1.0, nullspace_blend)))
         self.nullspace_reg = float(max(1e-10, nullspace_reg))
+        self._external_nullspace = near_nullspace
+        self._external_coords = node_coords
         self.apply_tol = 5e-2
         self.apply_max_cycles = 8
         self.debug_cycles = False
@@ -751,7 +805,19 @@ class ClassicalAMG:
         
         print(f"[ClassicalAMG] Строим algebraic AMG с theta={theta}...")
         
-        node_coords_current = torch.arange(A_csr.size(0), dtype=torch.float64, device=self.device)
+        n_total = A_csr.size(0)
+        if self._external_coords is not None:
+            coords_ext = self._external_coords
+            if coords_ext.dim() == 1:
+                coords_ext = coords_ext.unsqueeze(1)
+            if coords_ext.size(0) != n_total:
+                raise ValueError(
+                    f"node_coords size mismatch: expected {n_total}, got {coords_ext.size(0)}"
+                )
+            coords_ext = coords_ext.to(device=self.device, dtype=torch.float64)
+            node_coords_current = coords_ext
+        else:
+            node_coords_current = torch.arange(n_total, dtype=torch.float64, device=self.device).unsqueeze(1)
 
         # ═══════════════════════════════════════════════════════════════
         # АДАПТИВНОЕ EQUILIBRATION
@@ -760,6 +826,35 @@ class ClassicalAMG:
         # - Если median(diag) >> 1e-6: матрица хорошо масштабирована, equilibration НЕ НУЖЕН
         # - Если median(diag) << 1e-6: матрица плохая, equilibration КРИТИЧЕН
         # ═══════════════════════════════════════════════════════════════
+        if near_nullspace is not None:
+            self._external_nullspace = near_nullspace
+        if node_coords is not None:
+            self._external_coords = node_coords
+
+        n_total = A_csr.size(0)
+
+        n_total = A_csr.size(0)
+
+        n_total = A_csr.size(0)
+
+        n_total = A_csr.size(0)
+
+        n_total = A_csr.size(0)
+
+        if near_nullspace is not None:
+            self._external_nullspace = near_nullspace
+        if node_coords is not None:
+            self._external_coords = node_coords
+
+        n_total = A_csr.size(0)
+
+        if near_nullspace is not None:
+            self._external_nullspace = near_nullspace
+        if node_coords is not None:
+            self._external_coords = node_coords
+
+        n_total = A_csr.size(0)
+
         diag_orig = self._extract_diag(A_csr).abs().clamp_min(1e-30)
         diag_median = diag_orig.median().item()
         
@@ -795,7 +890,17 @@ class ClassicalAMG:
         
         # Строим иерархию
         A_current = A_csr
-        basis_current = generate_nullspace(A_current, self.nullspace_dim)
+        if self._external_nullspace is not None:
+            basis_ext = self._external_nullspace
+            if basis_ext.dim() == 1:
+                basis_ext = basis_ext.unsqueeze(1)
+            if basis_ext.size(0) != n_total:
+                raise ValueError(
+                    f"near_nullspace size mismatch: expected {n_total}, got {basis_ext.size(0)}"
+                )
+            basis_current = orthonormalize_columns(basis_ext.to(dtype=torch.float64, device='cpu'))
+        else:
+            basis_current = generate_nullspace(A_current, self.nullspace_dim)
         build_start = time.perf_counter()
         for lvl in range(max_levels):
             level_start = time.perf_counter()
@@ -857,7 +962,13 @@ class ClassicalAMG:
             # Prolongation: RS-интерполяция с F–F коррекцией (P·1=1)
             blend = self.nullspace_blend if basis_current is not None else 0.0
             P, cf_marker, fine2coarse_map, coarse_nodes, F_nodes = build_prolongation_rs_full(
-                A_current, cf_marker, strong_mask, basis_current, blend=blend, ls_reg=self.nullspace_reg
+                A_current,
+                cf_marker,
+                strong_mask,
+                basis_current,
+                blend=blend,
+                ls_reg=self.nullspace_reg,
+                node_coords=node_coords_current,
             )
             stage_after_prol = time.perf_counter()
             print(f"[ClassicalAMG] L{lvl} timings: prolongation={stage_after_prol - stage_after_cf:.3f}s")
@@ -1196,11 +1307,23 @@ class ClassicalAMG:
         const_rel = const_err.norm() / (ones_f.norm() + 1e-30)
 
         coords_fine = node_coords_fine.to(device, dtype=dtype)
-        coords_coarse = coords_fine[coarse_nodes.long()]
-        grad_recon = torch.sparse.mm(P, coords_coarse.unsqueeze(1)).squeeze(1)
-        grad_err = grad_recon - coords_fine
-        grad_err_abs = grad_err.abs()
-        grad_rel = grad_err.norm() / (coords_fine.norm() + 1e-30)
+        if coords_fine.dim() == 1 or coords_fine.size(-1) == 1:
+            coords_vec = coords_fine.view(-1)
+            coords_coarse = coords_vec[coarse_nodes.long()]
+            grad_recon = torch.sparse.mm(P, coords_coarse.unsqueeze(1)).squeeze(1)
+            grad_err = grad_recon - coords_vec
+            grad_err_abs = grad_err.abs()
+            grad_rel = grad_err.norm() / (coords_vec.norm() + 1e-30)
+        else:
+            coords_mat = coords_fine
+            coords_coarse = coords_mat[coarse_nodes.long()]
+            grad_components = []
+            for d in range(coords_mat.size(1)):
+                recon = torch.sparse.mm(P, coords_coarse[:, d].unsqueeze(1)).squeeze(1)
+                grad_components.append(recon - coords_mat[:, d])
+            grad_err_stack = torch.stack(grad_components, dim=1)
+            grad_err_abs = torch.linalg.norm(grad_err_stack, dim=1)
+            grad_rel = grad_err_stack.norm() / (coords_mat.norm() + 1e-30)
 
         neg_vals = vals[vals < -1e-12]
         pos_vals = vals[vals > 1e-12]
@@ -1305,8 +1428,15 @@ class ClassicalAMG:
         self.levels[lvl]['diag'] = diag_abs
         self.levels[lvl]['inv_relax'] = inv_relax
 
-    def update_matrix(self, A_csr_np: torch.Tensor) -> None:
+    def update_matrix(self, A_csr_np: torch.Tensor,
+                      near_nullspace: torch.Tensor | None = None,
+                      node_coords: torch.Tensor | None = None) -> None:
         """Обновляет значения матрицы, сохраняя построенную иерархию."""
+        if near_nullspace is not None:
+            self._external_nullspace = near_nullspace
+        if node_coords is not None:
+            self._external_coords = node_coords
+
         if hasattr(A_csr_np, 'indptr'):  # scipy sparse
             import scipy.sparse as sp
             if not sp.isspmatrix_csr(A_csr_np):
@@ -1330,6 +1460,8 @@ class ClassicalAMG:
                     device=self.device,
                     dtype=torch.float64,
                 )
+
+        n_total = A_csr.size(0)
 
         diag_orig = self._extract_diag(A_csr).abs().clamp_min(1e-30)
         diag_median = diag_orig.median().item()
@@ -1367,7 +1499,31 @@ class ClassicalAMG:
             raise ValueError(f"AMG hierarchy built for n={self.levels[0]['n']}, получена матрица n={A_csr.size(0)}")
 
         self.levels[0]['A'] = A_csr
-        basis_current = generate_nullspace(A_csr, self.nullspace_dim)
+
+        if self._external_coords is not None:
+            coords_root = self._external_coords
+            if coords_root.dim() == 1:
+                coords_root = coords_root.unsqueeze(1)
+            if coords_root.size(0) != n_total:
+                raise ValueError(
+                    f"node_coords size mismatch: expected {n_total}, got {coords_root.size(0)}"
+                )
+            coords_dev = coords_root.to(device=self.device, dtype=torch.float64)
+            self.levels[0]['node_coords'] = coords_dev
+        elif 'node_coords' in self.levels[0]:
+            del self.levels[0]['node_coords']
+
+        if self._external_nullspace is not None:
+            basis_ext = self._external_nullspace
+            if basis_ext.dim() == 1:
+                basis_ext = basis_ext.unsqueeze(1)
+            if basis_ext.size(0) != n_total:
+                raise ValueError(
+                    f"near_nullspace size mismatch: expected {n_total}, got {basis_ext.size(0)}"
+                )
+            basis_current = orthonormalize_columns(basis_ext.to(dtype=torch.float64, device='cpu'))
+        else:
+            basis_current = generate_nullspace(A_csr, self.nullspace_dim)
         self.levels[0]['basis'] = basis_current
         self._update_level_metrics(0)
 
