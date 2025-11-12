@@ -154,6 +154,7 @@ def build_prolongation_rs_full(
     blend: float = 0.0,
     ls_reg: float = 1e-7,
     node_coords: torch.Tensor | None = None,
+    drop_tol: float = 0.0,
 ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
     device = A_csr.device
     dtype = A_csr.dtype
@@ -395,6 +396,18 @@ def build_prolongation_rs_full(
                     scale[mask_F_rows] = 1.0 / row_sums[mask_F_rows]
 
         val_P = val_P * scale[row_idx_P]
+        if drop_tol > 0.0:
+            drop_mask = val_P.abs() < drop_tol
+            if drop_mask.any():
+                val_P = torch.where(drop_mask, torch.zeros_like(val_P), val_P)
+                row_sums = torch.zeros(n, device=device, dtype=dtype)
+                row_sums.scatter_add_(0, row_idx_P, val_P)
+                rescale = torch.ones(n, device=device, dtype=dtype)
+                mask_rows = F_mask & (row_sums > 1e-14)
+                if mask_rows.any():
+                    rescale[mask_rows] = 1.0 / row_sums[mask_rows]
+                val_P = val_P * rescale[row_idx_P]
+
         val_P = torch.clamp(val_P, min=0.0)
         P_csr = torch.sparse_csr_tensor(crow_P, col_P, val_P, size=P_csr.size(), device=device, dtype=dtype)
 
@@ -773,6 +786,16 @@ class ClassicalAMG:
         self.nullspace_dim = max(0, nullspace_dim)
         self.nullspace_blend = float(max(0.0, min(1.0, nullspace_blend)))
         self.nullspace_reg = float(max(1e-10, nullspace_reg))
+        self.theta_decay = 0.90
+        self.theta_min = max(0.05, min(theta, 0.12))
+        self.blend_growth = 1.15
+        self.blend_cap = 0.85
+        self.coarsest_fraction = 1e-3
+        self.coarsening_retry_factor = 0.7
+        self.coarsening_max_retries = 3
+        self.coarsening_target_cf = 0.35
+        self.coarsening_max_fraction = 0.6
+        self.drop_tolerance = 1e-6
         self._external_nullspace = near_nullspace
         self._external_coords = node_coords
         self.apply_tol = 5e-2
@@ -806,6 +829,10 @@ class ClassicalAMG:
         print(f"[ClassicalAMG] Строим algebraic AMG с theta={theta}...")
         
         n_total = A_csr.size(0)
+        self.n_initial = n_total
+        dynamic_target = int(max(1, n_total * self.coarsest_fraction))
+        self.coarsest_target = max(self.coarsest_size, dynamic_target)
+        print(f"[ClassicalAMG] Целевой размер coarsest уровня: {self.coarsest_target} (из {self.coarsest_size})")
         if self._external_coords is not None:
             coords_ext = self._external_coords
             if coords_ext.dim() == 1:
@@ -826,28 +853,6 @@ class ClassicalAMG:
         # - Если median(diag) >> 1e-6: матрица хорошо масштабирована, equilibration НЕ НУЖЕН
         # - Если median(diag) << 1e-6: матрица плохая, equilibration КРИТИЧЕН
         # ═══════════════════════════════════════════════════════════════
-        if near_nullspace is not None:
-            self._external_nullspace = near_nullspace
-        if node_coords is not None:
-            self._external_coords = node_coords
-
-        n_total = A_csr.size(0)
-
-        n_total = A_csr.size(0)
-
-        n_total = A_csr.size(0)
-
-        n_total = A_csr.size(0)
-
-        n_total = A_csr.size(0)
-
-        if near_nullspace is not None:
-            self._external_nullspace = near_nullspace
-        if node_coords is not None:
-            self._external_coords = node_coords
-
-        n_total = A_csr.size(0)
-
         if near_nullspace is not None:
             self._external_nullspace = near_nullspace
         if node_coords is not None:
@@ -906,7 +911,9 @@ class ClassicalAMG:
             level_start = time.perf_counter()
             n = A_current.size(0)
             
-            if n <= coarsest_size:
+            theta_lvl = max(self.theta_min, self.theta * (self.theta_decay ** lvl))
+            blend_lvl = min(self.blend_cap, self.nullspace_blend * (self.blend_growth ** max(0, lvl - 6)))
+            if n <= self.coarsest_target:
                 # Coarsest level: прямое решение
                 diag_abs = self._extract_diag(A_current).abs()
                 row_abs = self._row_abs_sum(A_current)
@@ -926,52 +933,84 @@ class ClassicalAMG:
                 print(f"[ClassicalAMG] L{lvl}: n={n} ≤ {coarsest_size}, coarsest level")
                 break
             
-            # C/F splitting
-            strong_mask = find_strong_connections(A_current, theta)
-            cf_marker, n_coarse = classical_coarsening(A_current, theta)
+            # C/F splitting с адаптивным theta
+            theta_eff = theta_lvl
+            retries = 0
+            strong_mask = None
+            cf_marker = None
+            n_coarse = n
+            c_fraction = 1.0
+            while True:
+                strong_mask = find_strong_connections(A_current, theta_eff)
+                cf_marker, n_coarse = classical_coarsening(A_current, theta_eff)
+                c_fraction = n_coarse / max(n, 1)
+                if (
+                    c_fraction <= self.coarsening_target_cf
+                    or theta_eff <= self.theta_min + 1e-8
+                    or retries >= self.coarsening_max_retries
+                ):
+                    break
+                theta_eff = max(self.theta_min, theta_eff * self.coarsening_retry_factor)
+                retries += 1
+
             stage_after_cf = time.perf_counter()
-            print(f"[ClassicalAMG] L{lvl} timings: strong+coarsen={stage_after_cf - level_start:.3f}s")
+            print(
+                f"[ClassicalAMG] L{lvl} timings: strong+coarsen={stage_after_cf - level_start:.3f}s "
+                f"(theta={theta_eff:.3f}, c_frac={c_fraction:.3f}, retries={retries})"
+            )
             if self.anchor_idx is not None and self.anchor_idx < n:
                 cf_marker[self.anchor_idx] = 0
-            
-            if n_coarse >= n * 0.9:
-                # Слишком мало coarsening
-                diag_abs = self._extract_diag(A_current).abs()
-                row_abs = self._row_abs_sum(A_current)
-                beta = 0.3
-                denom = torch.maximum(diag_abs, beta * row_abs).clamp_min(1e-30)
-                inv_relax = (1.0 / denom).clamp(max=1e2)
-                
-                self.levels.append({
-                    'A': A_current,
-                    'n': n,
-                    'P': None,
-                    'fine2coarse': None,
-                    'coarse_nodes': None,
-                    'F_nodes': None,
-                    'node_coords': node_coords_current,
-                    'basis': basis_current,
-                    'interp_metrics': None,
-                    'diag': diag_abs,
-                    'inv_relax': inv_relax,
-                    'is_coarsest': True
-                })
-                print(f"[ClassicalAMG] L{lvl}: n={n}, coarsening failed (ratio={n/n_coarse:.1f}x), stopping")
-                break
+
+            fallback_used = False
+            if n_coarse >= n * 0.95:
+                fallback_used = True
+                coarse_mask = torch.zeros(n, dtype=torch.bool, device=self.device)
+                coarse_mask[::2] = True
+                coarse_mask[-1] = True
+                cf_marker = torch.ones(n, dtype=torch.int8, device=self.device)
+                cf_marker[coarse_mask] = 0
+                if self.anchor_idx is not None and self.anchor_idx < n:
+                    cf_marker[self.anchor_idx] = 0
+                n_coarse = int((cf_marker == 0).sum().item())
+                c_fraction = n_coarse / max(n, 1)
+                print(
+                    f"[ClassicalAMG] L{lvl}: fallback coarsening applied (c_frac={c_fraction:.3f})"
+                )
+            else:
+                coarse_mask = (cf_marker == 0)
+                c_fraction_actual = coarse_mask.to(torch.float64).mean().item()
+                if c_fraction_actual > self.coarsening_max_fraction:
+                    fallback_used = True
+                    stride = max(2, int(1.0 / max(1e-6, self.coarsening_target_cf)))
+                    coarse_mask = torch.zeros(n, dtype=torch.bool, device=self.device)
+                    coarse_mask[::stride] = True
+                    coarse_mask[-1] = True
+                    cf_marker = torch.ones(n, dtype=torch.int8, device=self.device)
+                    cf_marker[coarse_mask] = 0
+                    if self.anchor_idx is not None and self.anchor_idx < n:
+                        cf_marker[self.anchor_idx] = 0
+                    n_coarse = int((cf_marker == 0).sum().item())
+                    c_fraction = n_coarse / max(n, 1)
+                    print(
+                        f"[ClassicalAMG] L{lvl}: uniform stride fallback applied (stride={stride}, c_frac={c_fraction:.3f})"
+                    )
             
             # Prolongation: RS-интерполяция с F–F коррекцией (P·1=1)
-            blend = self.nullspace_blend if basis_current is not None else 0.0
             P, cf_marker, fine2coarse_map, coarse_nodes, F_nodes = build_prolongation_rs_full(
                 A_current,
                 cf_marker,
                 strong_mask,
                 basis_current,
-                blend=blend,
+                blend=blend_lvl if basis_current is not None else 0.0,
                 ls_reg=self.nullspace_reg,
                 node_coords=node_coords_current,
+                drop_tol=self.drop_tolerance,
             )
             stage_after_prol = time.perf_counter()
-            print(f"[ClassicalAMG] L{lvl} timings: prolongation={stage_after_prol - stage_after_cf:.3f}s")
+            print(
+                f"[ClassicalAMG] L{lvl} timings: prolongation={stage_after_prol - stage_after_cf:.3f}s "
+                f"(blend={blend_lvl:.2f}, fallback={fallback_used})"
+            )
             if P.device != self.device:
                 P = P.to(self.device)
             fine2coarse_map = fine2coarse_map.to(self.device)
