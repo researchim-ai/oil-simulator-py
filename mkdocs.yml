@@ -1,0 +1,123 @@
+site_name: Oil Simulator IMPES - Документация
+site_description: GPU-ускоренный симулятор нефтяного пласта с AMG решателем
+site_author: researchim-ai
+site_url: https://github.com/<your-org>/oil-simulator-py-impes
+
+repo_name: oil-simulator-py-impes
+repo_url: https://github.com/<your-org>/oil-simulator-py-impes
+edit_uri: edit/main/docs/
+
+theme:
+  name: material
+  language: ru
+  palette:
+    - scheme: default
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/brightness-7
+        name: Темная тема
+    - scheme: slate
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/brightness-4
+        name: Светлая тема
+  features:
+    - navigation.instant
+    - navigation.tracking
+    - navigation.tabs
+    - navigation.sections
+    - navigation.expand
+    - navigation.top
+    - search.suggest
+    - search.highlight
+    - content.code.copy
+    - content.code.annotate
+  icon:
+    repo: fontawesome/brands/github
+
+plugins:
+  - search:
+      lang: ru
+  - mermaid2:
+      arguments:
+        theme: neutral
+        securityLevel: loose
+  - print-site:
+      add_to_navigation: true
+      print_page_title: 'Печать документации'
+      add_print_site_banner: false
+      add_table_of_contents: true
+      toc_title: 'Содержание'
+      toc_depth: 3
+      add_full_urls: false
+      enumerate_headings: true
+      enumerate_figures: true
+      add_cover_page: true
+      cover_page_template: ""
+      path_to_pdf: "pdf/OilSimulatorDocs.pdf"
+      enabled: true
+
+markdown_extensions:
+  - pymdownx.highlight:
+      anchor_linenums: true
+      line_spans: __span
+      pygments_lang_class: true
+  - pymdownx.inlinehilite
+  - pymdownx.snippets
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:mermaid2.fence_mermaid
+  - pymdownx.tabbed:
+      alternate_style: true
+  - pymdownx.arithmatex:
+      generic: true
+  - pymdownx.details
+  - pymdownx.critic
+  - pymdownx.caret
+  - pymdownx.keys
+  - pymdownx.mark
+  - pymdownx.tilde
+  - admonition
+  - attr_list
+  - def_list
+  - footnotes
+  - md_in_html
+  - tables
+  - toc:
+      permalink: true
+      toc_depth: 3
+
+extra_javascript:
+  - javascripts/mathjax.js
+  - https://polyfill.io/v3/polyfill.min.js?features=es6
+  - https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js
+  - https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js
+
+extra_css:
+  - stylesheets/extra.css
+
+nav:
+  - Главная: index.md
+  - Начало работы:
+      - Быстрый старт: QUICKSTART.md
+      - Установка: INSTALLATION.md
+      - Генерация PDF: HOW_TO_GENERATE_PDF.md
+  - Основы:
+      - Основные понятия: BASIC_CONCEPTS.md
+      - Глоссарий: GLOSSARY.md
+  - Технические детали:
+      - Архитектура: ARCHITECTURE.md
+      - Математические модели: MATHEMATICS.md
+      - Физические модели: PHYSICS_MODELS.md
+      - Продвинутые возможности: ADVANCED_FEATURES.md
+  - Производство:
+      - Производительность: PERFORMANCE.md
+      - Сводка проекта: PROJECT_SUMMARY.md
+      - История изменений: CHANGELOG.md
+  - Разработка:
+      - Руководство по вкладу: CONTRIBUTING.md
+
