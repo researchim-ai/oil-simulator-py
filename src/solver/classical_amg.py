@@ -711,10 +711,39 @@ def _csr_spmm(left: torch.Tensor, right: torch.Tensor, block_rows: int = 64) -> 
     )
 
 
-def rap_torch(A_csr: torch.Tensor, P_csr: torch.Tensor, device: torch.device) -> torch.Tensor:
+def _drop_small_entries_csr(A_csr: torch.Tensor, tol: float) -> torch.Tensor:
+    if tol <= 0.0 or A_csr.values().numel() == 0:
+        return A_csr
+
+    coo = A_csr.to_sparse_coo().coalesce()
+    idx = coo.indices()
+    val = coo.values()
+    diag_mask = idx[0] == idx[1]
+    keep_mask = (val.abs() >= tol) | diag_mask
+
+    if keep_mask.all():
+        return A_csr
+
+    idx_keep = idx[:, keep_mask]
+    val_keep = val[keep_mask]
+
+    if idx_keep.numel() == 0:
+        return A_csr
+
+    A_keep = torch.sparse_coo_tensor(idx_keep, val_keep, A_csr.size(), device=A_csr.device, dtype=A_csr.dtype).coalesce()
+    A_csr_new = A_keep.to_sparse_csr()
+    crow = A_csr_new.crow_indices()
+    if (crow[1:] == crow[:-1]).any():
+        return A_csr
+    return A_csr_new
+
+
+def rap_torch(A_csr: torch.Tensor, P_csr: torch.Tensor, device: torch.device, drop_tol: float = 0.0) -> torch.Tensor:
     AP = _csr_spmm(A_csr, P_csr)
     PT = P_csr.transpose(0, 1).to_sparse_csr()
     Ac = _csr_spmm(PT, AP)
+    if drop_tol > 0.0:
+        Ac = _drop_small_entries_csr(Ac, drop_tol)
     return Ac.to(device=device)
 
 
@@ -796,6 +825,7 @@ class ClassicalAMG:
         self.coarsening_target_cf = 0.35
         self.coarsening_max_fraction = 0.6
         self.drop_tolerance = 1e-6
+        self.rap_drop_tol = 1e-7
         self._external_nullspace = near_nullspace
         self._external_coords = node_coords
         self.apply_tol = 5e-2
@@ -940,17 +970,21 @@ class ClassicalAMG:
             cf_marker = None
             n_coarse = n
             c_fraction = 1.0
+            theta_lower = self.theta_min
+            theta_upper = max(0.95, theta_eff)
             while True:
                 strong_mask = find_strong_connections(A_current, theta_eff)
                 cf_marker, n_coarse = classical_coarsening(A_current, theta_eff)
                 c_fraction = n_coarse / max(n, 1)
                 if (
-                    c_fraction <= self.coarsening_target_cf
-                    or theta_eff <= self.theta_min + 1e-8
+                    self.coarsening_target_cf <= c_fraction <= self.coarsening_max_fraction
                     or retries >= self.coarsening_max_retries
                 ):
                     break
-                theta_eff = max(self.theta_min, theta_eff * self.coarsening_retry_factor)
+                if c_fraction < self.coarsening_target_cf:
+                    theta_eff = min(theta_upper, theta_eff * 1.4 + 1e-3)
+                else:
+                    theta_eff = max(theta_lower, theta_eff * self.coarsening_retry_factor)
                 retries += 1
 
             stage_after_cf = time.perf_counter()
@@ -962,7 +996,22 @@ class ClassicalAMG:
                 cf_marker[self.anchor_idx] = 0
 
             fallback_used = False
-            if n_coarse >= n * 0.95:
+            if c_fraction < self.coarsening_target_cf:
+                fallback_used = True
+                stride = max(1, int(1.0 / max(self.coarsening_target_cf, 1e-3)))
+                coarse_mask = torch.zeros(n, dtype=torch.bool, device=self.device)
+                coarse_mask[::stride] = True
+                coarse_mask[-1] = True
+                cf_marker = torch.ones(n, dtype=torch.int8, device=self.device)
+                cf_marker[coarse_mask] = 0
+                if self.anchor_idx is not None and self.anchor_idx < n:
+                    cf_marker[self.anchor_idx] = 0
+                n_coarse = int((cf_marker == 0).sum().item())
+                c_fraction = n_coarse / max(n, 1)
+                print(
+                    f"[ClassicalAMG] L{lvl}: stride fallback (stride={stride}) → c_frac={c_fraction:.3f}"
+                )
+            elif n_coarse >= n * 0.95:
                 fallback_used = True
                 coarse_mask = torch.zeros(n, dtype=torch.bool, device=self.device)
                 coarse_mask[::2] = True
@@ -981,7 +1030,7 @@ class ClassicalAMG:
                 c_fraction_actual = coarse_mask.to(torch.float64).mean().item()
                 if c_fraction_actual > self.coarsening_max_fraction:
                     fallback_used = True
-                    stride = max(2, int(1.0 / max(1e-6, self.coarsening_target_cf)))
+                    stride = max(2, int(1.0 / max(self.coarsening_target_cf, 1e-3)))
                     coarse_mask = torch.zeros(n, dtype=torch.bool, device=self.device)
                     coarse_mask[::stride] = True
                     coarse_mask[-1] = True
@@ -992,7 +1041,7 @@ class ClassicalAMG:
                     n_coarse = int((cf_marker == 0).sum().item())
                     c_fraction = n_coarse / max(n, 1)
                     print(
-                        f"[ClassicalAMG] L{lvl}: uniform stride fallback applied (stride={stride}, c_frac={c_fraction:.3f})"
+                        f"[ClassicalAMG] L{lvl}: uniform stride fallback (stride={stride}) → c_frac={c_fraction:.3f}"
                     )
             
             # Prolongation: RS-интерполяция с F–F коррекцией (P·1=1)
@@ -1019,7 +1068,7 @@ class ClassicalAMG:
 
             interp_metrics = self._analyze_prolongation(lvl, P, coarse_nodes, F_nodes, node_coords_current)
 
-            A_coarse = rap_torch(A_current, P, self.device)
+            A_coarse = rap_torch(A_current, P, self.device, drop_tol=self.rap_drop_tol)
             stage_after_rap = time.perf_counter()
             print(f"[ClassicalAMG] L{lvl} timings: RAP={stage_after_rap - stage_after_prol:.3f}s")
             print(f"[ClassicalAMG] L{lvl} total build time={stage_after_rap - level_start:.3f}s")
@@ -1578,7 +1627,7 @@ class ClassicalAMG:
                 basis_coarse = orthonormalize_columns(basis_coarse)
             else:
                 basis_coarse = None
-            A_current = rap_torch(A_current, P, self.device)
+            A_current = rap_torch(A_current, P, self.device, drop_tol=self.rap_drop_tol)
             self.levels[lvl + 1]['A'] = A_current
             self.levels[lvl + 1]['basis'] = basis_coarse
             self._update_level_metrics(lvl + 1)
