@@ -14,7 +14,15 @@
     "global_rate_scale": 0.05,
     "cg_tolerance": 5e-6,
     "cg_max_iter": 8000,
-    "pressure_float64": true
+    "pressure_float64": true,
+    "pressure_solver": "amg",
+    "amg": {
+      "theta": 0.2,
+      "max_levels": 20,
+      "coarsest_size": 120,
+      "tol": 1e-3,
+      "max_cycles": 40
+    }
   },
 
   "reservoir": {
