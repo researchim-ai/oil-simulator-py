@@ -40,9 +40,24 @@ async def export_pdf() -> bool:
         await page.evaluate(
             """
             async () => {
-                if (window.MathJax) {
-                    await window.MathJax.typesetPromise();
-                    console.log('MathJax typeset complete');
+                if (!window.MathJax) {
+                    return;
+                }
+                const mj = window.MathJax;
+                if (typeof mj.typesetPromise === "function") {
+                    await mj.typesetPromise();
+                    console.log('MathJax v3 typeset complete');
+                    return;
+                }
+                if (mj.Hub && typeof mj.Hub.Queue === "function") {
+                    await new Promise((resolve) => {
+                        mj.Hub.Queue(["Typeset", mj.Hub, () => {
+                            console.log('MathJax v2 typeset complete');
+                            resolve();
+                        }]);
+                    });
+                } else {
+                    console.warn("MathJax detected, but no typeset API available.");
                 }
             }
         """
