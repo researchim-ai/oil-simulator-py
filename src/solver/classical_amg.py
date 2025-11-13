@@ -8,6 +8,7 @@ TRUE RS-AMG с:
 - Эффективный RAP через scatter (без SpGEMM/плотнения!)
 """
 
+import math
 import torch
 import numpy as np
 import scipy.sparse as sp
@@ -143,6 +144,69 @@ def classical_coarsening(A_csr: torch.Tensor, theta: float = 0.25) -> Tuple[torc
     
     n_coarse = int((cf_marker == 0).sum().item())
     
+    return cf_marker, n_coarse
+
+
+def pmis_coarsening(A_csr: torch.Tensor, strong_mask: torch.Tensor) -> Tuple[torch.Tensor, int]:
+    crow = A_csr.crow_indices()
+    col = A_csr.col_indices()
+    n = crow.numel() - 1
+    device = A_csr.device
+
+    row_len = crow[1:] - crow[:-1]
+    row_idx = torch.repeat_interleave(torch.arange(n, device=device), row_len)
+
+    edges_i = row_idx[strong_mask]
+    edges_j = col[strong_mask]
+
+    if edges_i.numel() == 0:
+        cf_marker = torch.zeros(n, dtype=torch.int8, device=device)
+        return cf_marker, n
+
+    edges_i_sym = torch.cat([edges_i, edges_j])
+    edges_j_sym = torch.cat([edges_j, edges_i])
+
+    deg = torch.zeros(n, dtype=torch.float32, device=device)
+    deg.scatter_add_(0, edges_i_sym, torch.ones_like(edges_i_sym, dtype=torch.float32))
+
+    states = torch.zeros(n, dtype=torch.int8, device=device)
+    eps = 1e-9
+    iteration = 0
+    max_iter = 10
+    while (states == 0).any() and iteration < max_iter:
+        undecided = states == 0
+        if not undecided.any():
+            break
+
+        priorities = torch.rand(n, device=device)
+        priorities = priorities + deg * 1e-3 + iteration * 1e-6
+        priorities[~undecided] = -1e9
+
+        mask_edges = undecided[edges_i_sym] & undecided[edges_j_sym]
+        neigh_max = torch.full((n,), -1e9, device=device)
+        if mask_edges.any():
+            neigh_max.scatter_reduce_(0, edges_i_sym[mask_edges], priorities[edges_j_sym[mask_edges]],
+                                      reduce='amax', include_self=False)
+
+        new_C = undecided & (priorities >= neigh_max - eps)
+        if not new_C.any():
+            idx = torch.nonzero(undecided, as_tuple=False)[0, 0]
+            new_C[idx] = True
+
+        states[new_C] = 1
+
+        if new_C.any():
+            mask_edges_c = new_C[edges_j_sym]
+            if mask_edges_c.any():
+                targets = edges_i_sym[mask_edges_c]
+                current = states[targets]
+                states[targets] = torch.where(current == 0, torch.full_like(current, -1), current)
+
+        iteration += 1
+
+    cf_marker = torch.ones(n, dtype=torch.int8, device=device)
+    cf_marker[states == 1] = 0
+    n_coarse = int((cf_marker == 0).sum().item())
     return cf_marker, n_coarse
 
 
@@ -420,6 +484,23 @@ def build_prolongation_rs_full(
         if basis_dev.size(0) != n:
             raise ValueError("basis размер не соответствует числу узлов")
         basis_dev = basis_dev.to(device=device, dtype=dtype)
+        extra_terms: list[torch.Tensor] = []
+        if coords is not None and coords.size(1) > 0:
+            for d in range(coords.size(1)):
+                term = coords[:, d] * coords[:, d]
+                term = term - term.mean()
+                if term.norm() > 1e-8:
+                    extra_terms.append(term.unsqueeze(1))
+            if coords.size(1) > 1:
+                for d0 in range(coords.size(1)):
+                    for d1 in range(d0 + 1, coords.size(1)):
+                        term = coords[:, d0] * coords[:, d1]
+                        term = term - term.mean()
+                        if term.norm() > 1e-8:
+                            extra_terms.append(term.unsqueeze(1))
+        if extra_terms:
+            extra_mat = torch.cat(extra_terms, dim=1)
+            basis_dev = torch.cat([basis_dev, extra_mat], dim=1)
         # обеспечиваем ортонормированность столбцов
         basis_dev = orthonormalize_columns(basis_dev.to('cpu')).to(device=device, dtype=dtype)
 
@@ -793,7 +874,8 @@ class ClassicalAMG:
                  nullspace_blend: float = 0.6,
                  nullspace_reg: float = 1e-6,
                  near_nullspace: torch.Tensor | None = None,
-                 node_coords: torch.Tensor | None = None):
+                 node_coords: torch.Tensor | None = None,
+                 coarsening_method: str = "pmis"):
         """Инициализация AMG иерархии.
 
         Args:
@@ -807,14 +889,17 @@ class ClassicalAMG:
             nullspace_reg: Tikhonov-регуляризация в energy-minimizing LS
             near_nullspace: Пользовательский near-nullspace (n x m), перекрывает generate_nullspace
             node_coords: Геометрия узлов (n x d), используется для диагностики и energy-minimizing интерполяции
+            coarsening_method: 'rs' или 'pmis' (по умолчанию pmis для более агрессивного сжатия)
         """
         self.theta = theta
         self.max_levels = max_levels
         self.coarsest_size = coarsest_size
         self.anchor_idx = anchor_idx
         self.nullspace_dim = max(0, nullspace_dim)
-        self.nullspace_blend = float(max(0.0, min(1.0, nullspace_blend)))
+        self.base_nullspace_blend = float(max(0.0, min(1.0, nullspace_blend)))
+        self.nullspace_blend = 0.18
         self.nullspace_reg = float(max(1e-10, nullspace_reg))
+        self.coarsening_method = coarsening_method.lower()
         self.theta_decay = 0.90
         self.theta_min = max(0.05, min(theta, 0.12))
         self.blend_growth = 1.15
@@ -823,7 +908,7 @@ class ClassicalAMG:
         self.coarsening_retry_factor = 0.7
         self.coarsening_max_retries = 3
         self.coarsening_target_cf = 0.35
-        self.coarsening_max_fraction = 0.6
+        self.coarsening_max_fraction = 0.55
         self.drop_tolerance = 1e-6
         self.rap_drop_tol = 1e-7
         self._external_nullspace = near_nullspace
@@ -942,15 +1027,14 @@ class ClassicalAMG:
             n = A_current.size(0)
             
             theta_lvl = max(self.theta_min, self.theta * (self.theta_decay ** lvl))
-            blend_lvl = min(self.blend_cap, self.nullspace_blend * (self.blend_growth ** max(0, lvl - 6)))
+            dynam_blend = self.base_nullspace_blend * (self.blend_growth ** max(0, lvl - 4))
+            blend_lvl = min(self.blend_cap, self.nullspace_blend + dynam_blend)
             if n <= self.coarsest_target:
-                # Coarsest level: прямое решение
                 diag_abs = self._extract_diag(A_current).abs()
                 row_abs = self._row_abs_sum(A_current)
-                beta = 0.3  # L1-Jacobi параметр
+                beta = 0.3
                 denom = torch.maximum(diag_abs, beta * row_abs).clamp_min(1e-30)
-                inv_relax = (1.0 / denom).clamp(max=1e2)  # Мягкая страховка
-                
+                inv_relax = (1.0 / denom).clamp(max=3e1)
                 self.levels.append({
                     'A': A_current,
                     'n': n,
@@ -961,9 +1045,9 @@ class ClassicalAMG:
                     'is_coarsest': True
                 })
                 print(f"[ClassicalAMG] L{lvl}: n={n} ≤ {coarsest_size}, coarsest level")
+                self._update_level_metrics(len(self.levels) - 1)
                 break
             
-            # C/F splitting с адаптивным theta
             theta_eff = theta_lvl
             retries = 0
             strong_mask = None
@@ -974,7 +1058,10 @@ class ClassicalAMG:
             theta_upper = max(0.95, theta_eff)
             while True:
                 strong_mask = find_strong_connections(A_current, theta_eff)
-                cf_marker, n_coarse = classical_coarsening(A_current, theta_eff)
+                if (self.coarsening_method == "pmis" and lvl >= 2):
+                    cf_marker, n_coarse = pmis_coarsening(A_current, strong_mask)
+                else:
+                    cf_marker, n_coarse = classical_coarsening(A_current, theta_eff)
                 c_fraction = n_coarse / max(n, 1)
                 if (
                     self.coarsening_target_cf <= c_fraction <= self.coarsening_max_fraction
@@ -1085,7 +1172,7 @@ class ClassicalAMG:
             row_abs = self._row_abs_sum(A_current)
             beta = 0.3
             denom = torch.maximum(diag_abs, beta * row_abs).clamp_min(1e-30)
-            inv_relax = (1.0 / denom).clamp(max=1e2)
+            inv_relax = (1.0 / denom).clamp(max=3e1)
             
             self.levels.append({
                 'A': A_current,
@@ -1101,6 +1188,7 @@ class ClassicalAMG:
                 'inv_relax': inv_relax,
                 'is_coarsest': False
             })
+            self._update_level_metrics(len(self.levels) - 1)
             
             node_coords_current = node_coords_current[coarse_nodes]
             if basis_current is not None:
@@ -1132,6 +1220,7 @@ class ClassicalAMG:
                 'is_coarsest': True
             })
             print(f"[ClassicalAMG] L{len(self.levels)-1}: reached max_levels → coarsest, n={n_c}")
+            self._update_level_metrics(len(self.levels) - 1)
         
         total_build = time.perf_counter() - build_start
         print(f"✅ ClassicalAMG: построено {len(self.levels)} уровней за {total_build:.2f} c")
@@ -1213,24 +1302,46 @@ class ClassicalAMG:
         return self._spmv_csr(A, x, transpose=False)
     
     def _smooth(self, lvl: int, x: torch.Tensor, b: torch.Tensor, nu: int = 1, debug: bool = False) -> torch.Tensor:
-        """L1-Jacobi smoother: denom = max(|a_ii|, β·∑|a_ij|).
-        
-        Использует предвычисленный inv_relax из уровня, что обеспечивает
-        локальную адаптивность и устойчивость без глобальных clamp.
-        """
+        level = self.levels[lvl]
+        if level.get('use_chebyshev', False):
+            return self._chebyshev_smooth(lvl, x, b, nu=nu, debug=debug)
+        return self._jacobi_smooth(lvl, x, b, nu=nu, debug=debug)
+
+    def _jacobi_smooth(self, lvl: int, x: torch.Tensor, b: torch.Tensor, nu: int = 1, debug: bool = False) -> torch.Tensor:
         omega = 0.7
         inv_relax = self.levels[lvl]['inv_relax']
-        
-        if debug:
-            print(f"    [SMOOTH L{lvl}] inv_relax: min={inv_relax.min():.3e}, med={inv_relax.median():.3e}, max={inv_relax.max():.3e}")
-        
         for it in range(nu):
             r = b - self._matvec(lvl, x)
             delta = omega * inv_relax * r
             x = x + delta
             if debug:
-                print(f"    [SMOOTH L{lvl} iter{it+1}] ||r||={r.norm():.3e}, ||δ||={delta.norm():.3e}, ||x||={x.norm():.3e}, max|δ|={delta.abs().max():.3e}")
-        
+                print(f"    [Jacobi L{lvl} iter{it+1}] ||r||={r.norm():.3e}, ||δ||={delta.norm():.3e}")
+        return x
+
+    def _chebyshev_smooth(self, lvl: int, x: torch.Tensor, b: torch.Tensor, nu: int = 2, debug: bool = False) -> torch.Tensor:
+        level = self.levels[lvl]
+        lambda_max = level.get('lambda_max', None)
+        lambda_min = level.get('lambda_min', None)
+        if lambda_max is None or lambda_min is None or lambda_max <= lambda_min or lambda_max <= 1e-8:
+            return self._jacobi_smooth(lvl, x, b, nu=nu, debug=debug)
+
+        d = 0.5 * (lambda_max + lambda_min)
+        c = 0.5 * (lambda_max - lambda_min)
+        if d <= 0 or c <= 0:
+            return self._jacobi_smooth(lvl, x, b, nu=nu, debug=debug)
+
+        inv_diag = level['inv_diag_cheb']
+        p = torch.zeros_like(x)
+        for it in range(nu):
+            r = b - self._matvec(lvl, x)
+            if it == 0:
+                beta = 0.0
+            else:
+                beta = (c / (2.0 * d)) ** 2
+            p = inv_diag * r + beta * p
+            x = x + (1.0 / d) * p
+            if debug:
+                print(f"    [Chebyshev L{lvl} iter{it+1}] ||r||={r.norm():.3e}")
         return x
     
     def _v_cycle(self, lvl: int, x: torch.Tensor, b: torch.Tensor,
@@ -1253,7 +1364,7 @@ class ClassicalAMG:
                 A_dense[0, 0] = 1.0
                 b_local[0] = 0.0
 
-            if n <= 500:
+            if n <= 2000:
                 try:
                     x = torch.linalg.solve(A_dense, b_local)
                 except RuntimeError:
@@ -1512,9 +1623,18 @@ class ClassicalAMG:
         row_abs = self._row_abs_sum(A_lvl)
         beta = 0.3
         denom = torch.maximum(diag_abs, beta * row_abs).clamp_min(1e-30)
-        inv_relax = (1.0 / denom).clamp(max=1e2)
+        inv_relax = (1.0 / denom).clamp(max=3e1)
         self.levels[lvl]['diag'] = diag_abs
         self.levels[lvl]['inv_relax'] = inv_relax
+        ratio = row_abs / diag_abs.clamp_min(1e-30)
+        lambda_max = float(torch.max(ratio).item())
+        if not math.isfinite(lambda_max) or lambda_max <= 1e-8:
+            lambda_max = 1.0
+        lambda_min = max(0.05 * lambda_max, 1e-6)
+        self.levels[lvl]['lambda_max'] = lambda_max
+        self.levels[lvl]['lambda_min'] = lambda_min
+        self.levels[lvl]['inv_diag_cheb'] = 1.0 / diag_abs.clamp_min(1e-30)
+        self.levels[lvl]['use_chebyshev'] = self.levels[lvl]['n'] > 5000
 
     def update_matrix(self, A_csr_np: torch.Tensor,
                       near_nullspace: torch.Tensor | None = None,
