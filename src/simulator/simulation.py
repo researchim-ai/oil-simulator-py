@@ -6,6 +6,7 @@ from scipy.sparse.linalg import cg, LinearOperator, bicgstab, spsolve
 import time
 import os
 import datetime
+import copy
 
 class Simulator:
     """
@@ -922,6 +923,12 @@ class Simulator:
         max_attempts = self.sim_params.get("max_time_step_attempts", 5)
         dt_reduction_factor = self.sim_params.get("dt_reduction_factor", 2.0)
         dt_increase_factor = self.sim_params.get("dt_increase_factor", 1.25)
+        cfl_safety_factor = float(self.sim_params.get("cfl_safety_factor", 0.9))
+        cfl_safety_factor = min(max(cfl_safety_factor, 0.1), 0.99)
+        cfl_retry_cap = float(self.sim_params.get("cfl_retry_cap", 50.0))
+        cfl_retry_cap = max(cfl_retry_cap, 1.0)
+        mass_tol_rel = float(self.sim_params.get("mass_balance_tolerance", 1e-3))
+        mass_tol_abs = float(self.sim_params.get("mass_balance_tolerance_abs", 1e-2))
 
         consecutive_success = 0
         last_dt_increased = False
@@ -933,8 +940,60 @@ class Simulator:
 
             if converged:
                 # Обновляем давление и выполняем шаг насыщенности
+                prev_pressure_state = self.fluid.pressure.clone()
+                prev_sw_state = self.fluid.s_w.clone()
+                prev_sg_state = self.fluid.s_g.clone()
+                prev_so_state = self.fluid.s_o.clone()
+                prev_mass_balance = copy.deepcopy(self.mass_balance)
+                prev_component_balance = copy.deepcopy(self.component_balance)
+
                 self.fluid.pressure = P_new
-                self._impes_saturation_step(P_new, current_dt)
+                sat_info = self._impes_saturation_step(P_new, current_dt)
+
+                for msg in sat_info.get("log_messages", []):
+                    print(msg)
+
+                rat_max = sat_info.get("rat_max", 1.0)
+                max_substeps = sat_info.get("max_substeps", 20)
+                if rat_max > max_substeps:
+                    print(f"  ⚠ Насыщенность потребовала > max_substeps ({rat_max:.2f} > {sat_info.get('max_substeps', 20)}).")
+
+                recommended_dt = sat_info.get("recommended_dt", current_dt)
+                if recommended_dt <= 0:
+                    recommended_dt = current_dt / dt_reduction_factor
+                need_retry = (
+                    rat_max > max_substeps
+                    and rat_max < max_substeps * cfl_retry_cap
+                    and recommended_dt < current_dt * cfl_safety_factor
+                )
+                if need_retry:
+                    print(f"  ⚠ CFL: рекомендуемый шаг {recommended_dt/86400:.3f} дн., текущий {current_dt/86400:.3f} дн. Повторяем шаг с меньшим dt.")
+                    self.fluid.pressure = prev_pressure_state
+                    self.fluid.s_w = prev_sw_state
+                    self.fluid.s_g = prev_sg_state
+                    self.fluid.s_o = prev_so_state
+                    self.mass_balance = prev_mass_balance
+                    self.component_balance = prev_component_balance
+                    current_dt = max(recommended_dt, current_dt / dt_reduction_factor)
+                    consecutive_success = 0
+                    last_dt_increased = False
+                    continue
+
+                # Проверяем насыщенности на клампы
+                clamp_counts = sat_info.get("clamp_counts", {})
+                if clamp_counts.get("sw_low", 0) or clamp_counts.get("sw_high", 0) or clamp_counts.get("sg_low", 0) or clamp_counts.get("sg_high", 0):
+                    print(f"  ℹ Клампы насыщенности: Sw[{clamp_counts.get('sw_low',0)} низ / {clamp_counts.get('sw_high',0)} верх], "
+                          f"Sg[{clamp_counts.get('sg_low',0)} низ / {clamp_counts.get('sg_high',0)} верх]")
+
+                # Анализ баланса масс
+                mass_report = sat_info.get("mass_balance", {})
+                for phase, info in mass_report.items():
+                    imbalance = abs(info.get("imbalance", 0.0))
+                    scale = abs(info.get("in", 0.0)) + abs(info.get("out", 0.0)) + abs(info.get("accum", 0.0))
+                    threshold = max(mass_tol_abs, mass_tol_rel * max(scale, 1.0))
+                    if imbalance > threshold:
+                        print(f"  ⚠ Массовый баланс ({phase}): in={info.get('in',0):.4e}, out={info.get('out',0):.4e}, "
+                              f"accum={info.get('accum',0):.4e}, imbalance={info.get('imbalance',0):.4e} > {threshold:.2e}")
 
                 # Сохраняем предыдущие состояния для следующего шага
                 self.fluid.prev_pressure = self.fluid.pressure.clone()
@@ -1075,6 +1134,8 @@ class Simulator:
         """ Явный шаг для обновления насыщенности в схеме IMPES. """
         S_w_old = self.fluid.s_w
         S_g_old = self.fluid.s_g
+        log_messages: list[str] = []
+        mass_before = copy.deepcopy(self.mass_balance)
 
         kro, krw, krg = self.fluid.get_rel_perms(S_w_old)
         # Вязкости фаз при новом давлении (для флюксов на шаге насыщенности)
@@ -1225,7 +1286,12 @@ class Simulator:
                             alpha = min(alpha, sg_up / max(dSg_well, 1e-12))
                         else:
                             alpha = min(alpha, (sg - sg_min) / max(abs(dSg_well), 1e-12))
-                        q_total *= max(0.0, min(1.0, alpha))
+                        alpha = max(0.0, min(1.0, alpha))
+                        if alpha < 0.999:
+                            log_messages.append(
+                                f"  ℹ Availability choke: {well.name} inj_gas alpha={alpha:.3f} ячейка ({i},{j},{k})"
+                            )
+                        q_total *= alpha
                         q_g[i, j, k] += q_total
                         # Компоненты (surface) — считаем по фактическому q_total после choke
                         if self.fluid.pvt is not None:
@@ -1254,8 +1320,13 @@ class Simulator:
                             alpha = min(alpha, sw_up / max(dSw_well, 1e-12))
                         else:
                             alpha = min(alpha, (sw - sw_min) / max(abs(dSw_well), 1e-12))
-                        q_total *= max(0.0, min(1.0, alpha))
-                        q_w[i, j, k] += q_total
+                        alpha = max(0.0, min(1.0, alpha))
+                        if alpha < 0.999:
+                            log_messages.append(
+                                f"  ℹ Availability choke: {well.name} inj_water alpha={alpha:.3f} ячейка ({i},{j},{k})"
+                            )
+                        q_total *= alpha
+                    q_w[i, j, k] += q_total
                 else:
                     # Producer
                     if getattr(well, 'rate_type', 'reservoir') == 'surface' and self.fluid.pvt is not None:
@@ -1310,6 +1381,10 @@ class Simulator:
                         else:
                             alpha = min(alpha, sg_dn / max(abs(dSg_well), 1e-12))
                         alpha = max(0.0, min(1.0, alpha))
+                        if alpha < 0.999:
+                            log_messages.append(
+                                f"  ℹ Availability choke: {well.name} surface alpha={alpha:.3f} ячейка ({i},{j},{k})"
+                            )
                         q_total *= alpha
 
                         # Фазовые лимиты в surface-единицах (м3/сут) — при необходимости троттлинг по |q_total|
@@ -1331,6 +1406,9 @@ class Simulator:
                             if candidates:
                                 max_abs_q = min(candidates)
                                 if abs(q_total) > max_abs_q:
+                                    log_messages.append(
+                                        f"  ⚠ Скважина {well.name} ограничена лимитом surface {max_abs_q*86400:.2f} м³/сут (фазы: {list(lim.keys())})"
+                                    )
                                     q_total = -max_abs_q
                         # Диагностика per-well: сохранить surface-скорости (м3/сут)
                         oil_surf = abs(q_total) * (fo_ / max(Bo_cell, 1e-12) + fg_ * Rv_cell / max(Bg_cell, 1e-12)) * 86400.0
@@ -1389,6 +1467,10 @@ class Simulator:
                             else:
                                 alpha = min(alpha, sg_dn / max(abs(dSg_well), 1e-12))
                             alpha = max(0.0, min(1.0, alpha))
+                            if alpha < 0.999:
+                                log_messages.append(
+                                    f"  ℹ Availability choke: {well.name} reservoir alpha={alpha:.3f} ячейка ({i},{j},{k})"
+                                )
                             q_total *= alpha
                             lim = getattr(well, 'limits', None) or {}
                             if lim:
@@ -1408,6 +1490,9 @@ class Simulator:
                                 if candidates:
                                     max_abs_q = min(candidates)
                                     if abs(q_total) > max_abs_q:
+                                        log_messages.append(
+                                            f"  ⚠ Скважина {well.name} ограничена лимитом reservoir {max_abs_q*86400:.2f} м³/сут (фазы: {list(lim.keys())})"
+                                        )
                                         q_total = -max_abs_q
                             oil_surf = abs(q_total) * (fo_ / max(Bo_cell, 1e-12) + fg_ * Rv_cell / max(Bg_cell, 1e-12)) * 86400.0
                             wat_surf = abs(q_total) * (fw_ / max(Bw_cell, 1e-12)) * 86400.0
@@ -1519,6 +1604,9 @@ class Simulator:
         # Ограничение на число подшагов для стабильного времени расчёта
         max_substeps = int(self.sim_params.get("max_substeps", 20))
         if N > max_substeps:
+            log_messages.append(
+                f"  ⚠ Требуемые подшаги ({N}) превышают max_substeps={max_substeps}, применяется ограничение."
+            )
             N = max_substeps
 
         dSw_sub = dSw / N
@@ -1688,6 +1776,41 @@ class Simulator:
                 f"GAS in={cb['gas']['in']:.6e} out={cb['gas']['out']:.6e} accum={cb['gas']['accum']:.6e} residual={gas_res:.6e}"
         )
 
+        clamp_counts = {
+            "sw_low": int((self.fluid.s_w <= float(sw_cr) + 1e-6).sum().item()),
+            "sw_high": int((self.fluid.s_w >= (1.0 - float(so_r) - self.fluid.s_g) - 1e-6).sum().item()),
+            "sg_low": int((self.fluid.s_g <= float(sg_cr) + 1e-6).sum().item()),
+            "sg_high": int((self.fluid.s_g >= (1.0 - float(so_r) - self.fluid.s_w) - 1e-6).sum().item()),
+        }
+
+        recommended_dt = dt if rat_max <= 1.0 else dt / max(rat_max, 1e-12)
+
+        accum_values = {
+            "water": float(mw_eff.sum().item()),
+            "gas": float(mg_eff.sum().item()),
+            "oil": float(mo_eff.sum().item()),
+        }
+        mass_report = {}
+        for phase in ("water", "gas", "oil"):
+            in_step = self.mass_balance[phase]['in'] - mass_before[phase]['in']
+            out_step = self.mass_balance[phase]['out'] - mass_before[phase]['out']
+            accum = accum_values[phase]
+            mass_report[phase] = {
+                "in": float(in_step),
+                "out": float(out_step),
+                "accum": accum,
+                "imbalance": float(in_step - out_step - accum),
+            }
+
+        return {
+            "recommended_dt": recommended_dt,
+            "rat_max": float(rat_max),
+            "max_substeps": max_substeps,
+            "clamp_counts": clamp_counts,
+            "mass_balance": mass_report,
+            "log_messages": log_messages,
+        }
+
     def _build_pressure_matrix_vectorized(self, Tx, Ty, Tz, dt, well_bhp_terms):
         """ Векторизованная сборка матрицы давления для IMPES. """
         nx, ny, nz = self.reservoir.dimensions
@@ -1790,6 +1913,9 @@ class Simulator:
                     p_bhp_min = well.bhp_min * 1e6
                     if p_bhp_req < p_bhp_min:
                         # Переключаемся на BHP-контроль на этом шаге
+                        print(
+                            f"  ℹ Скважина {well.name}: авто-переключение на BHP ({p_bhp_req/1e6:.2f} < bhp_min {well.bhp_min:.2f} МПа)"
+                        )
                         well.last_mode = 'bhp'
                         well_bhp_terms[idx] += wi * mob_t_well
                         q_wells[idx] += wi * mob_t_well * p_bhp_min

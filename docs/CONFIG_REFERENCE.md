@@ -46,6 +46,8 @@
 | `global_rate_scale` | `float`, default `1.0` | Масштабирование всех заданных дебитов (удобно для чувствительности). |
 | `max_substeps` | `int`, default `20` | Верхний лимит подшагов насыщенности (IMPES). |
 | `max_saturation_change` | `float`, default `0.05` | Максимальное изменение насыщенности за подшаг (IMPES). |
+| `cfl_safety_factor` | `float`, default `0.9` | Если рекомендуемый `dt` после CFL-мониторинга меньше `cfl_safety_factor · dt`, шаг повторяется с понижением. Значение зажато в диапазоне `[0.1, 0.99]`. |
+| `cfl_retry_cap` | `float`, default `50.0` | Ограничивает агрессивность CFL: повторный запуск выполняется только если `rat_max < max_substeps · cfl_retry_cap`. При больших нарушениях шаг считается принудительно зафиксированным (с клампами). |
 | `use_capillary_potentials` | `bool`, default `false` | Включает апстрим по полным потенциалам $p \pm p_c \pm ρgΔz$. При `true` рекомендуется уменьшить `time_step_days`. |
 | `save_interval` | `int`, default `10` | Шаг сохранения промежуточных PNG в `results/.../intermediate`. |
 | `animation_fps` | `int`, default `5` | Частота кадров итоговой анимации (при `save_interval < num_steps`). |
@@ -53,6 +55,14 @@
 | `save_npz` | `bool`, default `true` | Сохранять ли финальные поля в `npz`. |
 | `debug_component_balance` | `bool`, default `false` | Включает детальный лог компонентного баланса. |
 | `debug_log_path` | `string`, optional | Пользовательский путь для debug-лога; если не указан, создаётся `results/component_debug_*.log`. |
+| `mass_balance_tolerance` | `float`, default `1e-3` | Относительный допуск для проверки массового баланса на шаге. Порог = `max(mass_balance_tolerance_abs, tol · (|in|+|out|+|accum|))`. |
+| `mass_balance_tolerance_abs` | `float`, default `1e-2` | Абсолютный допуск (кг) для проверки баланса. |
+
+При выполнении шага IMPES симулятор автоматически:
+
+- оценивает требуемый `dt` по CFL (по величине подшагов насыщенности) и при необходимости повторяет шаг с уменьшенным `dt`;
+- логирует choke по насыщенности, срабатывания `bhp_min`, а также факты троттлинга по лимитам `wopr/wlpr/wgpr/liqr`;
+- проверяет массовый баланс по каждой фазе и выводит предупреждение, если остаток превышает заданные пороги.
 
 ### 2.1 Параметры AMG (`simulation.amg`)
 
