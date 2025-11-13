@@ -51,7 +51,7 @@ class Simulator:
         # Инициализация проводимостей для IMPES схемы
         if self.solver_type == 'impes':
             # Получаем размеры ячеек и проницаемости
-            dx, dy, dz = self.reservoir.grid_size
+            dx_mean, dy_mean, dz_mean = self.reservoir.grid_size
             k_x, k_y, k_z = self.reservoir.permeability_tensors
             nx, ny, nz = self.reservoir.dimensions
             
@@ -59,25 +59,37 @@ class Simulator:
             self.T_x = torch.zeros((nx-1, ny, nz), device=self.device)
             self.T_y = torch.zeros((nx, ny-1, nz), device=self.device)
             self.T_z = torch.zeros((nx, ny, nz-1), device=self.device)
-            
+            dx_vec = self.reservoir.dx_vector.to(self.device, dtype=torch.float64)
+            dy_vec = self.reservoir.dy_vector.to(self.device, dtype=torch.float64)
+            dz_vec = self.reservoir.dz_vector.to(self.device, dtype=torch.float64)
+            dx_face = self.reservoir.dx_face.to(self.device, dtype=torch.float64)
+            dy_face = self.reservoir.dy_face.to(self.device, dtype=torch.float64)
+            dz_face = self.reservoir.dz_face.to(self.device, dtype=torch.float64)
+
             # Расчет проводимостей
-            for i in range(nx-1):
-                k_harmonic = 2 * k_x[i, :, :] * k_x[i+1, :, :] / (k_x[i, :, :] + k_x[i+1, :, :] + 1e-15)
-                self.T_x[i, :, :] = k_harmonic * dy * dz / dx
-            
-            for j in range(ny-1):
-                k_harmonic = 2 * k_y[:, j, :] * k_y[:, j+1, :] / (k_y[:, j, :] + k_y[:, j+1, :] + 1e-15)
-                self.T_y[:, j, :] = k_harmonic * dx * dz / dy
-            
-            for k in range(nz-1):
-                k_harmonic = 2 * k_z[:, :, k] * k_z[:, :, k+1] / (k_z[:, :, k] + k_z[:, :, k+1] + 1e-15)
-                self.T_z[:, :, k] = k_harmonic * dx * dy / dz
+            if nx > 1:
+                area_yz = (dy_vec.view(1, ny, 1) * dz_vec.view(1, 1, nz)).to(self.device)
+                kx_local = k_x.to(self.device)
+                k_harmonic = 2 * kx_local[:-1, :, :] * kx_local[1:, :, :] / (kx_local[:-1, :, :] + kx_local[1:, :, :] + 1e-15)
+                self.T_x = k_harmonic * area_yz / (dx_face.view(-1, 1, 1) + 1e-15)
+            if ny > 1:
+                area_xz = (dx_vec.view(nx, 1, 1) * dz_vec.view(1, 1, nz)).to(self.device)
+                ky_local = k_y.to(self.device)
+                k_harmonic = 2 * ky_local[:, :-1, :] * ky_local[:, 1:, :] / (ky_local[:, :-1, :] + ky_local[:, 1:, :] + 1e-15)
+                self.T_y = k_harmonic * area_xz / (dy_face.view(1, -1, 1) + 1e-15)
+            if nz > 1:
+                area_xy = (dx_vec.view(nx, 1, 1) * dy_vec.view(1, ny, 1)).to(self.device)
+                kz_local = k_z.to(self.device)
+                k_harmonic = 2 * kz_local[:, :, :-1] * kz_local[:, :, 1:] / (kz_local[:, :, :-1] + kz_local[:, :, 1:] + 1e-15)
+                self.T_z = k_harmonic * area_xy / (dz_face.view(1, 1, -1) + 1e-15)
         
         # Объем пористой среды для расчетов IMPES
         self.porous_volume = self.reservoir.porous_volume
         
         # Гравитационная постоянная для IMPES
         self.g = 9.81
+
+        self.use_capillary_potentials = bool(self.sim_params.get("use_capillary_potentials", False))
         
         # Трекер баланса масс по фазам (кг)
         self.mass_balance = {
@@ -119,13 +131,23 @@ class Simulator:
             "porosity",
             "porous_volume",
             "grid_size",
+            "dx_vector",
+            "dy_vector",
+            "dz_vector",
+            "dx_face",
+            "dy_face",
+            "dz_face",
+            "cell_volume",
+            "cell_volume_flat",
+            "x_centers",
+            "y_centers",
+            "z_centers",
+            "domain_lengths",
         ]
         for name in attrs:
             tensor = getattr(self.reservoir, name, None)
             if tensor is not None and hasattr(tensor, "to"):
                 setattr(self.reservoir, name, tensor.to(self.device))
-        if hasattr(self.reservoir, "cell_volume"):
-            self.reservoir.cell_volume = self.reservoir.cell_volume.to(self.device)
 
         # Флюид
         fluid_attrs = [
@@ -266,6 +288,8 @@ class Simulator:
         
         # Инициализация параметров для оптимизации
         nx, ny, nz = self.reservoir.dimensions
+        if not self.reservoir.is_uniform_grid:
+            raise NotImplementedError("Fast residual assembly поддерживает только равномерную сетку")
         num_cells = nx * ny * nz
         
         # Устанавливаем устройство в зависимости от доступности CUDA
@@ -364,7 +388,7 @@ class Simulator:
             
             # Сохраняем предыдущие массы флюидов, если еще не сохранены
             if iter_idx == 0:
-                cell_volume = dx * dy * dz
+                cell_volume = self.reservoir.cell_volume_flat.to(self.fluid.device)
                 self.fluid.prev_water_mass = phi_vec * self.fluid.prev_sw.reshape(-1) * \
                                             self.fluid.calc_water_density(self.fluid.prev_pressure.reshape(-1)) * \
                                             cell_volume
@@ -853,18 +877,18 @@ class Simulator:
         Вычисляет координаты центров ячеек (нормированные на [0,1]) в порядке flatten().
         """
         nx, ny, nz = self.reservoir.dimensions
-        if hasattr(self.reservoir.grid_size, "detach"):
-            dx, dy, dz = [float(val) for val in self.reservoir.grid_size.detach().cpu().tolist()]
-        else:
-            dx, dy, dz = map(float, self.reservoir.grid_size)
+        x_centers = self.reservoir.x_centers.detach().cpu().double()
+        y_centers = self.reservoir.y_centers.detach().cpu().double()
+        z_centers = self.reservoir.z_centers.detach().cpu().double()
 
-        lx = max(dx * nx, 1e-12)
-        ly = max(dy * ny, 1e-12)
-        lz = max(dz * nz, 1e-12)
+        lengths = self.reservoir.domain_lengths.detach().cpu().double()
+        lx = max(lengths[0].item(), 1e-12)
+        ly = max(lengths[1].item(), 1e-12)
+        lz = max(lengths[2].item(), 1e-12)
 
-        x_coords = ((torch.arange(nx, dtype=torch.float64) + 0.5) * dx) / lx
-        y_coords = ((torch.arange(ny, dtype=torch.float64) + 0.5) * dy) / ly
-        z_coords = ((torch.arange(nz, dtype=torch.float64) + 0.5) * dz) / lz
+        x_coords = x_centers / lx
+        y_coords = y_centers / ly
+        z_coords = z_centers / lz
 
         grid = torch.meshgrid(x_coords, y_coords, z_coords, indexing='ij')
         coords = torch.stack(grid, dim=-1).reshape(-1, 3)
@@ -1068,43 +1092,80 @@ class Simulator:
         dp_y = P_new[:,:-1,:] - P_new[:,1:,:]
         dp_z = P_new[:,:,:-1] - P_new[:,:,1:]
 
-        mob_w_x = torch.where(dp_x > 0, mob_w[:-1,:,:], mob_w[1:,:,:])
-        mob_w_y = torch.where(dp_y > 0, mob_w[:,:-1,:], mob_w[:,1:,:])
-        mob_w_z = torch.where(dp_z > 0, mob_w[:,:,:-1], mob_w[:,:,1:])
+        if self.use_capillary_potentials:
+            pcow = self.fluid.get_capillary_pressure(S_w_old) if hasattr(self.fluid, 'get_capillary_pressure') else torch.zeros_like(S_w_old)
+            dpcow_x = pcow[1:,:,:] - pcow[:-1,:,:]
+            dpcow_y = pcow[:,1:,:] - pcow[:,:-1,:]
+            dpcow_z = pcow[:,:,1:] - pcow[:,:,:-1]
+            pot_w_x = dp_x - dpcow_x
+            pot_w_y = dp_y - dpcow_y
+            pcog = self.fluid.get_capillary_pressure_og(self.fluid.s_g) if hasattr(self.fluid, 'get_capillary_pressure_og') else torch.zeros_like(self.fluid.s_g)
+            dpcog_x = pcog[1:,:,:] - pcog[:-1,:,:]
+            dpcog_y = pcog[:,1:,:] - pcog[:,:-1,:]
+            dpcog_z = pcog[:,:,1:] - pcog[:,:,:-1]
+            pot_g_x = dp_x - dpcog_x
+            pot_g_y = dp_y - dpcog_y
 
-        mob_g_x = torch.where(dp_x > 0, mob_g[:-1,:,:], mob_g[1:,:,:])
-        mob_g_y = torch.where(dp_y > 0, mob_g[:,:-1,:], mob_g[:,1:,:])
-        mob_g_z = torch.where(dp_z > 0, mob_g[:,:,:-1], mob_g[:,:,1:])
+            if self.reservoir.nz > 1:
+                rho_w_avg = 0.5 * (self.fluid.rho_w[:,:,:-1] + self.fluid.rho_w[:,:,1:])
+                rho_g_avg = 0.5 * (self.fluid.rho_g[:,:,:-1] + self.fluid.rho_g[:,:,1:])
+                dz_face = self.reservoir.dz_face.to(self.device, dtype=torch.float64).view(1, 1, -1)
+                pot_w_z = dp_z - dpcow_z + self.g * rho_w_avg * dz_face
+                pot_g_z = dp_z - dpcog_z + self.g * rho_g_avg * dz_face
+            else:
+                pot_w_z = dp_z - dpcow_z
+                pot_g_z = dp_z - dpcog_z
 
-        # 2. Потенциалы с учётом гравитации
-        _, _, dz = self.reservoir.grid_size
-        if dz > 0 and self.reservoir.nz > 1:
-            rho_w_avg = 0.5 * (self.fluid.rho_w[:,:,:-1] + self.fluid.rho_w[:,:,1:])
-            rho_g_avg = 0.5 * (self.fluid.rho_g[:,:,:-1] + self.fluid.rho_g[:,:,1:])
-            pot_w_z = dp_z + self.g * rho_w_avg * dz
-            pot_g_z = dp_z + self.g * rho_g_avg * dz
-        else:
-            pot_w_z = dp_z
-            pot_g_z = dp_z
+            mob_w_x = torch.where(pot_w_x > 0, mob_w[:-1,:,:], mob_w[1:,:,:])
+            mob_w_y = torch.where(pot_w_y > 0, mob_w[:,:-1,:], mob_w[:,1:,:])
+            mob_w_z = torch.where(pot_w_z > 0, mob_w[:,:,:-1], mob_w[:,:,1:])
 
-        # 3. Расходы воды
-        flow_w_x = self.T_x * mob_w_x * dp_x
-        flow_w_y = self.T_y * mob_w_y * dp_y
-        flow_w_z = self.T_z * mob_w_z * pot_w_z
+            mob_g_x = torch.where(pot_g_x > 0, mob_g[:-1,:,:], mob_g[1:,:,:])
+            mob_g_y = torch.where(pot_g_y > 0, mob_g[:,:-1,:], mob_g[:,1:,:])
+            mob_g_z = torch.where(pot_g_z > 0, mob_g[:,:,:-1], mob_g[:,:,1:])
 
-        # Капиллярное давление нефть-газ: корректируем потенциал газа
-        if getattr(self.fluid, 'pc_og_scale', 0.0) > 0:
-            pcog = self.fluid.get_capillary_pressure_og(self.fluid.s_g)
-            dpcg_x = pcog[1:,:,:] - pcog[:-1,:,:]
-            dpcg_y = pcog[:,1:,:] - pcog[:,:-1,:]
-            dpcg_z = pcog[:,:,1:] - pcog[:,:,:-1]
-            flow_g_x = self.T_x * mob_g_x * (dp_x - dpcg_x)
-            flow_g_y = self.T_y * mob_g_y * (dp_y - dpcg_y)
-            flow_g_z = self.T_z * mob_g_z * (pot_g_z - dpcg_z)
-        else:
-            flow_g_x = self.T_x * mob_g_x * dp_x
-            flow_g_y = self.T_y * mob_g_y * dp_y
+            flow_w_x = self.T_x * mob_w_x * pot_w_x
+            flow_w_y = self.T_y * mob_w_y * pot_w_y
+            flow_w_z = self.T_z * mob_w_z * pot_w_z
+
+            flow_g_x = self.T_x * mob_g_x * pot_g_x
+            flow_g_y = self.T_y * mob_g_y * pot_g_y
             flow_g_z = self.T_z * mob_g_z * pot_g_z
+        else:
+            mob_w_x = torch.where(dp_x > 0, mob_w[:-1,:,:], mob_w[1:,:,:])
+            mob_w_y = torch.where(dp_y > 0, mob_w[:,:-1,:], mob_w[:,1:,:])
+            mob_w_z = torch.where(dp_z > 0, mob_w[:,:,:-1], mob_w[:,:,1:])
+
+            mob_g_x = torch.where(dp_x > 0, mob_g[:-1,:,:], mob_g[1:,:,:])
+            mob_g_y = torch.where(dp_y > 0, mob_g[:,:-1,:], mob_g[:,1:,:])
+            mob_g_z = torch.where(dp_z > 0, mob_g[:,:,:-1], mob_g[:,:,1:])
+
+            if self.reservoir.nz > 1:
+                rho_w_avg = 0.5 * (self.fluid.rho_w[:,:,:-1] + self.fluid.rho_w[:,:,1:])
+                rho_g_avg = 0.5 * (self.fluid.rho_g[:,:,:-1] + self.fluid.rho_g[:,:,1:])
+                dz_face = self.reservoir.dz_face.to(self.device, dtype=torch.float64).view(1, 1, -1)
+                pot_w_z = dp_z + self.g * rho_w_avg * dz_face
+                pot_g_z = dp_z + self.g * rho_g_avg * dz_face
+            else:
+                pot_w_z = dp_z
+                pot_g_z = dp_z
+
+            flow_w_x = self.T_x * mob_w_x * dp_x
+            flow_w_y = self.T_y * mob_w_y * dp_y
+            flow_w_z = self.T_z * mob_w_z * pot_w_z
+
+            if getattr(self.fluid, 'pc_og_scale', 0.0) > 0 or (self.fluid.relperm_model == 'table' and 'sgof' in getattr(self.fluid, 'relperm_tables', {})):
+                pcog = self.fluid.get_capillary_pressure_og(self.fluid.s_g)
+                dpcg_x = pcog[1:,:,:] - pcog[:-1,:,:]
+                dpcg_y = pcog[:,1:,:] - pcog[:,:-1,:]
+                dpcg_z = pcog[:,:,1:] - pcog[:,:,:-1]
+                flow_g_x = self.T_x * mob_g_x * (dp_x - dpcg_x)
+                flow_g_y = self.T_y * mob_g_y * (dp_y - dpcg_y)
+                flow_g_z = self.T_z * mob_g_z * (pot_g_z - dpcg_z)
+            else:
+                flow_g_x = self.T_x * mob_g_x * dp_x
+                flow_g_y = self.T_y * mob_g_y * dp_y
+                flow_g_z = self.T_z * mob_g_z * pot_g_z
 
         # 4. Дивергенция
         div_w = torch.zeros_like(S_w_old)
@@ -1470,9 +1531,11 @@ class Simulator:
             # мягкие клампы на случай численной погрешности (min/max как тензоры одной формы)
             sw_min_t = torch.full_like(S_w_cur, float(sw_cr))
             sw_max_t = (1.0 - so_r - S_g_cur)
+            sw_max_t = torch.maximum(sw_max_t, sw_min_t)
             S_w_cur = torch.clamp(S_w_cur, min=sw_min_t, max=sw_max_t)
             sg_min_t = torch.full_like(S_g_cur, float(sg_cr))
             sg_max_t = (1.0 - so_r - S_w_cur)
+            sg_max_t = torch.maximum(sg_max_t, sg_min_t)
             S_g_cur = torch.clamp(S_g_cur, min=sg_min_t, max=sg_max_t)
 
             # Подшаговая интеграция компонентного баланса с учётом текущих S
@@ -1651,7 +1714,8 @@ class Simulator:
             acc_term = (self.porous_volume.view(-1) * ct_tensor.view(-1) / dt)
         except Exception:
             acc_term = (self.porous_volume.view(-1) * self.fluid.cf.view(-1) / dt)
-        diag_vals = torch.zeros(N, device=self.device)
+        diag_dtype = vals.dtype if vals.numel() > 0 else torch.float64
+        diag_vals = torch.zeros(N, device=self.device, dtype=diag_dtype)
         diag_vals.scatter_add_(0, rows, -vals)
         diag_vals += acc_term
         diag_vals += well_bhp_terms
@@ -1788,6 +1852,8 @@ class Simulator:
         Векторизованная сборка остаточной невязки и якобиана для полностью неявной схемы.
         Оптимизированная версия с максимальным использованием векторизации.
         """
+        if not self.reservoir.is_uniform_grid:
+            raise NotImplementedError("Fully implicit схема поддерживает только равномерную сетку")
         num_cells = nx * ny * nz
         cell_volume = dx * dy * dz
         device = self.fluid.device

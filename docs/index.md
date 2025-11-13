@@ -31,6 +31,7 @@
 - [Установка](INSTALLATION.md)
 - [Математическая модель](MATHEMATICS.md)
 - [Физические предпосылки](PHYSICS_MODELS.md)
+- [Справочник конфигурации](CONFIG_REFERENCE.md)
 - [Архитектура кода](ARCHITECTURE.md)
 - [Производительность и ограничения](PERFORMANCE.md)
 - [Генерация документации в PDF](HOW_TO_GENERATE_PDF.md)

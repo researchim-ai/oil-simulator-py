@@ -112,6 +112,7 @@ nav:
   - Основы:
       - Основные понятия: BASIC_CONCEPTS.md
       - Глоссарий: GLOSSARY.md
+      - Справочник конфигурации: CONFIG_REFERENCE.md
   - Технические детали:
       - Архитектура: ARCHITECTURE.md
       - Математические модели: MATHEMATICS.md

@@ -54,7 +54,7 @@ def test_surface_water_injection_mass_increase():
     so_r = float(fl.so_r)
     avail_sw_grid = torch.clamp(1.0 - so_r - s_w0, min=0.0)
     # Глобальная максимальная прибавка массы воды при отсутствии оттока
-    availability_mass_cap = float(torch.sum(phi * avail_sw_grid * rho_w0) * V)
+    availability_mass_cap = float(torch.sum(phi * avail_sw_grid * rho_w0 * V))
     expected_effective = min(expected_mass_in, availability_mass_cap)
 
     mw1 = torch.sum(res.porosity * fl.s_w * fl.rho_w * res.cell_volume).item()
