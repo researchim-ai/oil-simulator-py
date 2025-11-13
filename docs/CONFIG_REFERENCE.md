@@ -23,6 +23,8 @@
 | `description`       | `string`, optional          | Свободный комментарий, отображается в логах. |
 | `output_filename`   | `string`, optional (default: timestamp) | Базовое имя каталога и отчётных файлов в `results/`. |
 | `save_vtk`          | `bool`, default `false`     | Если `true`, финальное состояние записывается в VTK (`.vtr`). |
+| `save_vtk_intermediate` | `bool`, default `false` | Сохранять VTK на промежуточных шагах (каждые `save_interval`). |
+| `save_plotly_3d`    | `bool`, default `false`     | Создавать интерактивные 3D визуализации через Plotly (HTML файлы). |
 | `simulation`        | `dict`, required            | Настройки временной схемы, решателей и вывода. |
 | `reservoir`         | `dict`, required            | Геометрия, пористость, проницаемость, стохастические поля. |
 | `fluid`             | `dict`, required            | Начальные условия и модели PVT/относительных проницаемостей. |
@@ -200,10 +202,18 @@
 - Все результаты сохраняются в `results/<output_filename>_<timestamp>/`.
 - Доступные опции:
   - `save_vtk`: финальное состояние в формате `.vtr` (поддерживает ParaView).
+  - `save_vtk_intermediate`: VTK файлы на промежуточных шагах (каждые `save_interval`).
+  - `save_plotly_3d`: интерактивные 3D визуализации через Plotly:
+    - `*_3d_volume.html` — объёмная визуализация с изоповерхностями (давление, насыщенности).
+    - `*_3d_slices.html` — интерактивный просмотрщик срезов с слайдером по Z.
+    - `*_3d_animation.html` / `*_3d_animation_sw.html` — анимации давления и насыщенности (если есть несколько кадров).
+    - Для больших сеток (>500k ячеек) автоматически применяется разреженная выборка для производительности.
   - `simulation.write_full_arrays_txt`: полный дамп массивов в текстовый файл (осторожно, очень большие файлы).
   - `simulation.save_npz`: финальные поля (`pressure`, `sw`, `sg`, `so`) в сжатом `npz`.
   - `simulation.save_interval`, `simulation.animation_fps`: промежуточные PNG и итоговая анимация.
   - `simulation.debug_component_balance` / `debug_log_path`: подробный лог компонентных балансов по шагам, удобен для аудита.
+
+> **Примечание**: Для использования `save_plotly_3d` требуется установленный `plotly` (см. `requirements.txt`). HTML файлы можно открыть в любом браузере и интерактивно вращать, масштабировать, изменять срезы.
 
 ---
 

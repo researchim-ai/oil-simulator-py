@@ -120,5 +120,10 @@
     {"name": "PROD-55", "type": "producer", "i": 80, "j": 40, "k": 70,  "radius": 0.15, "control_type": "rate", "control_value": 3600, "rate_type": "surface", "surface_phase": "gas"},
     {"name": "PROD-56", "type": "producer", "i": 80, "j": 60, "k": 70,  "radius": 0.15, "control_type": "rate", "control_value": 3600, "rate_type": "surface", "surface_phase": "liquid"},
     {"name": "PROD-57", "type": "producer", "i": 80, "j": 80, "k": 70,  "radius": 0.15, "control_type": "rate", "control_value": 3600, "rate_type": "surface", "surface_phase": "oil"}
-  ]
+  ],
+  "save_plotly_3d": true,
+  "save_vtk_intermediate": true,
+  "simulation": {
+    "save_interval": 10
+  }
 }

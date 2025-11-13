@@ -2392,13 +2392,15 @@ class Simulator:
                 jacobian[2*idx+1, 2*idx] -= dq_o_dp
                 jacobian[2*idx+1, 2*idx+1] -= dq_o_dsw
 
-    def run(self, output_filename, save_vtk=False):
+    def run(self, output_filename, save_vtk=False, save_vtk_intermediate=False, save_plotly_3d=False):
         """
         Запускает полную симуляцию.
         
         Args:
             output_filename: Имя файла для сохранения результатов
-            save_vtk: Флаг для сохранения результатов в формате VTK
+            save_vtk: Флаг для сохранения результатов в формате VTK (финальный)
+            save_vtk_intermediate: Сохранять VTK на промежуточных шагах
+            save_plotly_3d: Сохранять интерактивные 3D визуализации через Plotly
         """
         # Импорт необходимых модулей
         import os
@@ -2438,6 +2440,17 @@ class Simulator:
         # Создаем объект для визуализации
         plotter = Plotter(self.reservoir)
         
+        # Инициализация Plotly 3D визуализатора (если нужно)
+        plotly_3d = None
+        plotly_frames = []
+        if save_plotly_3d:
+            try:
+                from ..plotting.plotly_3d import Plotly3DVisualizer
+                plotly_3d = Plotly3DVisualizer(self.reservoir, device=self.device)
+            except ImportError:
+                print("  ⚠ Plotly не установлен, 3D визуализация отключена")
+                save_plotly_3d = False
+        
         # Основной цикл симуляции
         for i in tqdm(range(num_steps), desc="Симуляция"):
             # Выполняем один шаг
@@ -2464,6 +2477,24 @@ class Simulator:
                 filepath = os.path.join(intermediate_results_dir, filename)
                 
                 plotter.save_plots(p_current, sw_current, filepath, time_info=time_info, gas_saturation=sg_current)
+                
+                # VTK промежуточные шаги
+                if save_vtk_intermediate:
+                    try:
+                        from ..output.vtk_writer import save_to_vtk
+                        vtk_filename = os.path.join(intermediate_results_dir, f"{output_filename}_step_{i+1}")
+                        save_to_vtk(self.reservoir, self.fluid, vtk_filename)
+                    except Exception as e:
+                        print(f"  ⚠ Не удалось сохранить VTK для шага {i+1}: {e}")
+                
+                # Plotly 3D кадры
+                if save_plotly_3d and plotly_3d:
+                    plotly_frames.append({
+                        'pressure': p_current,
+                        'sw': sw_current,
+                        'sg': sg_current if hasattr(self.fluid, 's_g') else None,
+                        'time': (i + 1) * time_step_days
+                    })
         
         print("\nСимуляция завершена.")
         
@@ -2529,9 +2560,63 @@ class Simulator:
         # Сохранение результатов в VTK (если указано)
         if save_vtk:
             try:
-                self._save_to_vtk(output_filename)
-            except ImportError:
-                print("Не удалось сохранить в формате VTK: отсутствуют необходимые модули.")
+                from ..output.vtk_writer import save_to_vtk
+                vtk_path = os.path.join(results_dir, output_filename)
+                save_to_vtk(self.reservoir, self.fluid, vtk_path)
+            except Exception as e:
+                print(f"Не удалось сохранить в формате VTK: {e}")
+        
+        # Создание интерактивных 3D визуализаций через Plotly
+        if save_plotly_3d and plotly_3d and plotly_frames:
+            try:
+                print("\nСоздание интерактивных 3D визуализаций...")
+                
+                # Финальная объёмная визуализация
+                final_frame = plotly_frames[-1]
+                fig_volume = plotly_3d.create_volume_plot(
+                    final_frame['pressure'],
+                    final_frame['sw'],
+                    final_frame['sg'],
+                    title=f"3D Визуализация - Финальное состояние (День {int(total_time_days)})"
+                )
+                volume_path = os.path.join(results_dir, f"{output_filename}_3d_volume.html")
+                plotly_3d.save_html(fig_volume, volume_path)
+                
+                # Просмотрщик срезов
+                fig_slices = plotly_3d.create_slice_viewer(
+                    final_frame['pressure'],
+                    final_frame['sw'],
+                    final_frame['sg'],
+                    title=f"Интерактивные срезы - Финальное состояние"
+                )
+                slices_path = os.path.join(results_dir, f"{output_filename}_3d_slices.html")
+                plotly_3d.save_html(fig_slices, slices_path)
+                
+                # Анимация (если есть несколько кадров)
+                if len(plotly_frames) > 1:
+                    print(f"  Создание анимации из {len(plotly_frames)} кадров...")
+                    fig_anim = plotly_3d.create_animation_frames(
+                        plotly_frames,
+                        field_name='pressure',
+                        title="Анимация давления"
+                    )
+                    anim_path = os.path.join(results_dir, f"{output_filename}_3d_animation.html")
+                    plotly_3d.save_html(fig_anim, anim_path)
+                    
+                    # Анимация насыщенности
+                    fig_anim_sw = plotly_3d.create_animation_frames(
+                        plotly_frames,
+                        field_name='sw',
+                        title="Анимация водонасыщенности"
+                    )
+                    anim_sw_path = os.path.join(results_dir, f"{output_filename}_3d_animation_sw.html")
+                    plotly_3d.save_html(fig_anim_sw, anim_sw_path)
+                
+                print(f"  ✅ 3D визуализации сохранены в {results_dir}/")
+            except Exception as e:
+                print(f"  ⚠ Ошибка при создании 3D визуализаций: {e}")
+                import traceback
+                traceback.print_exc()
         
         # Создание анимации (если нужно)
         if save_interval < num_steps and animation_fps > 0:

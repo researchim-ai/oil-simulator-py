@@ -54,9 +54,13 @@ def save_to_vtk(reservoir, fluid, filename="simulation_results"):
             "Bg": Bg,
         })
 
-    results_dir = "results"
-    os.makedirs(results_dir, exist_ok=True)
-    filepath = os.path.join(results_dir, filename)
+    # Определяем директорию из пути файла
+    file_dir = os.path.dirname(filename) if os.path.dirname(filename) else "results"
+    os.makedirs(file_dir, exist_ok=True)
+    
+    # Базовое имя файла без расширения
+    base_name = os.path.basename(filename) if os.path.basename(filename) else filename
+    filepath = os.path.join(file_dir, base_name)
 
     gridToVTK(filepath, x, y, z, cellData=cell_data)
     print(f"Результаты успешно сохранены в файл {filepath}.vtr") 

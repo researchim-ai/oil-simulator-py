@@ -118,6 +118,7 @@ nav:
       - Математические модели: MATHEMATICS.md
       - Физические модели: PHYSICS_MODELS.md
       - Продвинутые возможности: ADVANCED_FEATURES.md
+      - 3D Визуализация: 3D_VISUALIZATION.md
   - Производительность:
       - Производительность: PERFORMANCE.md
       - Сводка проекта: PROJECT_SUMMARY.md
