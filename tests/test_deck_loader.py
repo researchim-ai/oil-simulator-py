@@ -1,5 +1,6 @@
 import os
 import sys
+import numpy as np
 import pytest
 import torch
 from pathlib import Path
@@ -8,6 +9,7 @@ sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'src'))
 
 from simulator.deck import load_pvt_from_deck, load_relperm_tables_from_deck
 from simulator.fluid import Fluid
+from simulator.pvt import PVTTable
 
 
 class DummyReservoir:
@@ -22,6 +24,75 @@ def test_load_pvt_from_deck(tmp_path):
     assert data["Bo"][0] == pytest.approx(1.05)
     assert data["mu_o_cP"][-1] == pytest.approx(1.40)
     assert data["Bg"][0] == pytest.approx(0.005)
+    assert "extended" in data
+    oil_ext = data["extended"]["oil"]
+    assert oil_ext["rs_values"][0] == pytest.approx(0.0)
+    assert "tables" in oil_ext and pytest.approx(0.01) == oil_ext["tables"][0.0]["pressure_MPa"][0]
+
+
+def test_load_pvt_extended_sections(tmp_path):
+    deck_content = """PVTO
+    0.0  10.0  1.05  1.20  0.00 /
+    0.0  20.0  1.02  1.40  0.00 /
+    80.0 10.0  1.10  2.00  0.05 /
+    80.0 20.0  1.06  2.20  0.05 /
+/
+PVDO
+    10.0  1.04  1.10 /
+    20.0  1.01  1.30 /
+/
+PVTW
+    10.0  1.00  0.50  1.0e-05  5.0e-06 /
+    20.0  0.98  0.60  1.0e-05  5.0e-06 /
+/
+PVDG
+    10.0  0.005  0.020 /
+    20.0  0.004  0.025 /
+/
+PLYROCK
+    0.0  1.0 /
+    0.5  0.8 /
+/
+PLYVISC
+    0.0  1.0 /
+    0.5  2.0 /
+/
+PLYADS
+    0.0  0.0 /
+    0.5  0.1 /
+/
+SURFROCK
+    0.0  1.0 /
+    0.5  0.9 /
+/
+SURFADS
+    0.0  0.0 /
+    0.4  0.05 /
+/
+THERM
+    50.0  10.0  1.0 /
+/
+DENSITY
+    850.0  1000.0  1.1 /
+/
+"""
+    deck_file = tmp_path / "extended.inc"
+    deck_file.write_text(deck_content)
+    data = load_pvt_from_deck(str(deck_file))
+    ext = data["extended"]
+    oil_ext = ext["oil"]
+    assert pytest.approx(0.0) == oil_ext["rs_values"][0]
+    assert pytest.approx(80.0) == oil_ext["rs_values"][1]
+    rs_table = oil_ext["tables"][80.0]
+    assert pytest.approx(1.10) == rs_table["Bo"][0]
+    assert "polymer" in ext and "viscosity" in ext["polymer"]
+    assert ext["polymer"]["viscosity"]["multiplier"][-1] == pytest.approx(2.0)
+    assert "surfactant" in ext and "adsorption" in ext["surfactant"]
+    pvt = PVTTable(data)
+    oil_rs = pvt.eval_oil(np.array([0.02]), np.array([80.0]))
+    assert oil_rs["Bo"][0] == pytest.approx(1.06)
+    assert pvt.get_polymer_viscosity_multiplier(0.5) == pytest.approx(2.0)
+    assert pvt.get_polymer_adsorption(0.5) == pytest.approx(0.1)
 
 
 def test_load_relperm_from_deck():
