@@ -984,6 +984,10 @@ class Simulator:
             amg_max_levels = int(amg_cfg.get("max_levels", 10))
             amg_coarsest = int(amg_cfg.get("coarsest_size", 200))
             amg_device = amg_cfg.get("device", "auto")
+            amg_mixed_precision = bool(amg_cfg.get("mixed_precision", False))
+            amg_mixed_start = int(amg_cfg.get("mixed_start_level", 2))
+            amg_cpu_offload = bool(amg_cfg.get("cpu_offload", False))
+            amg_offload_level = max(0, int(amg_cfg.get("offload_level", max(3, amg_mixed_start))))
             # Импорт локально, чтобы не тянуть зависимости при CG
             from solver.pressure_amg import amg_solve
             # Решаем напрямую AMG V-cycles (внутри float64 и auto device)
@@ -997,6 +1001,10 @@ class Simulator:
                 device=amg_device,
                 near_nullspace=self._pressure_near_nullspace,
                 node_coords=self._pressure_cell_centers,
+                mixed_precision=amg_mixed_precision,
+                mixed_start_level=amg_mixed_start,
+                cpu_offload=amg_cpu_offload,
+                offload_level=amg_offload_level,
             )
             converged = True
             P_new = P_new_flat.view(self.reservoir.dimensions)
@@ -1615,7 +1623,7 @@ class Simulator:
             self._dbg(
                 f"SUMMARY OIL in={cb['oil']['in']:.6e} out={cb['oil']['out']:.6e} accum={cb['oil']['accum']:.6e} residual={oil_res:.6e}",
                 f"GAS in={cb['gas']['in']:.6e} out={cb['gas']['out']:.6e} accum={cb['gas']['accum']:.6e} residual={gas_res:.6e}"
-            )
+        )
 
     def _build_pressure_matrix_vectorized(self, Tx, Ty, Tz, dt, well_bhp_terms):
         """ Векторизованная сборка матрицы давления для IMPES. """

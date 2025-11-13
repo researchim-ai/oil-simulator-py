@@ -49,20 +49,20 @@ GPU-ускоренный симулятор для трёхфазной филь
 
 ## Установка
 
-```bash
-git clone https://github.com/researchim-ai/oil-simulator-py.git
-cd oil-simulator-py
+   ```bash
+   git clone https://github.com/researchim-ai/oil-simulator-py.git
+   cd oil-simulator-py
 pip install -r requirements.txt
-```
+   ```
 
 *Примечание: устанавливайте CUDA-сборку PyTorch, если планируете запуск на GPU.*
 
 Дополнительно для документации:
 
-```bash
+   ```bash
 pip install -r requirements-docs.txt
 playwright install chromium
-```
+   ```
 
 ## Запуск симуляции
 

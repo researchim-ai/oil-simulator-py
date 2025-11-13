@@ -45,6 +45,10 @@ def amg_solve(
     enable_equilibration: Optional[bool] = None,
     near_nullspace: Optional[torch.Tensor] = None,
     node_coords: Optional[torch.Tensor] = None,
+    mixed_precision: bool = False,
+    mixed_start_level: int = 2,
+    cpu_offload: bool = False,
+    offload_level: int = 3,
 ) -> torch.Tensor:
     """
     Solve A x = b using Classical RS-AMG V-cycles.
@@ -96,6 +100,10 @@ def amg_solve(
         str(target_device),
         int(basis_tensor.size(1)) if basis_tensor is not None else 0,
         int(coords_tensor.size(1)) if coords_tensor is not None else 0,
+        bool(mixed_precision),
+        int(max(0, mixed_start_level)),
+        bool(cpu_offload),
+        int(max(0, offload_level)),
     )
 
     amg = _AMG_CACHE.get(cache_key)
@@ -108,6 +116,10 @@ def amg_solve(
             coarsest_size=coarsest_size,
             near_nullspace=basis_tensor,
             node_coords=coords_tensor,
+            mixed_precision=mixed_precision,
+            mixed_start_level=mixed_start_level,
+            cpu_offload=cpu_offload,
+            offload_level=offload_level,
         )
         _AMG_CACHE[cache_key] = amg
     else:

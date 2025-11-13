@@ -475,7 +475,7 @@ class Fluid:
             return torch.clamp(kro, min=0.0)
         s_norm = self._get_normalized_saturation(s_w)
         return (1 - s_norm) ** self.no
-
+    
     def calc_gas_kr(self, s_g):
         if self.relperm_model == 'table' and 'sgof' in self.relperm_tables:
             tbl = self.relperm_tables['sgof']
@@ -506,7 +506,7 @@ class Fluid:
         result = torch.zeros_like(s_w)
         result[mask] = -self.no * (1 - s_norm[mask])**(self.no - 1) / normalized_range
         return result
-
+    
     def calc_dkrg_dsg(self, s_g):
         if self.relperm_model == 'table' and 'sgof' in self.relperm_tables:
             tbl = self.relperm_tables['sgof']

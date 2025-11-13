@@ -12,7 +12,7 @@ def save_to_vtk(reservoir, fluid, filename="simulation_results"):
     :param filename: Базовое имя выходного файла (без расширения).
     """
     print("\nСохранение результатов в формате VTK...")
-
+    
     nx, ny, nz = reservoir.dimensions
     grid_size = reservoir.grid_size.detach().cpu().numpy() if hasattr(reservoir.grid_size, "detach") else np.asarray(reservoir.grid_size)
     dx, dy, dz = grid_size

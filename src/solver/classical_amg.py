@@ -875,7 +875,11 @@ class ClassicalAMG:
                  nullspace_reg: float = 1e-6,
                  near_nullspace: torch.Tensor | None = None,
                  node_coords: torch.Tensor | None = None,
-                 coarsening_method: str = "pmis"):
+                 coarsening_method: str = "pmis",
+                 mixed_precision: bool = False,
+                 mixed_start_level: int = 2,
+                 cpu_offload: bool = False,
+                 offload_level: int = 3):
         """Инициализация AMG иерархии.
 
         Args:
@@ -890,6 +894,10 @@ class ClassicalAMG:
             near_nullspace: Пользовательский near-nullspace (n x m), перекрывает generate_nullspace
             node_coords: Геометрия узлов (n x d), используется для диагностики и energy-minimizing интерполяции
             coarsening_method: 'rs' или 'pmis' (по умолчанию pmis для более агрессивного сжатия)
+            mixed_precision: Переводить ли глубинные уровни (>= mixed_start_level) в float32
+            mixed_start_level: Уровень, начиная с которого применяется mixed precision
+            cpu_offload: Переносить ли уровни (>= offload_level) на CPU после сборки
+            offload_level: Первый уровень, который переводится на CPU (при cpu_offload=True)
         """
         self.theta = theta
         self.max_levels = max_levels
@@ -900,6 +908,10 @@ class ClassicalAMG:
         self.nullspace_blend = 0.18
         self.nullspace_reg = float(max(1e-10, nullspace_reg))
         self.coarsening_method = coarsening_method.lower()
+        self.mixed_precision = bool(mixed_precision)
+        self.mixed_start_level = max(0, int(mixed_start_level))
+        self.cpu_offload = bool(cpu_offload)
+        self.offload_level = max(0, int(offload_level))
         self.theta_decay = 0.90
         self.theta_min = max(0.05, min(theta, 0.12))
         self.blend_growth = 1.15
@@ -918,9 +930,13 @@ class ClassicalAMG:
         self.debug_cycles = False
         self.equilibration_threshold = 1e-6
         self.use_equilibration = False
+        self.root_dtype = torch.float64
+        if not torch.cuda.is_available():
+            self.cpu_offload = False
         
         # Конвертируем numpy CSR -> torch CSR на CUDA
         device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+        self.primary_device = device
         
         if hasattr(A_csr_np, 'indptr'):  # scipy sparse
             import scipy.sparse as sp
@@ -1046,6 +1062,7 @@ class ClassicalAMG:
                 })
                 print(f"[ClassicalAMG] L{lvl}: n={n} ≤ {coarsest_size}, coarsest level")
                 self._update_level_metrics(len(self.levels) - 1)
+                self._apply_memory_policy(len(self.levels) - 1)
                 break
             
             theta_eff = theta_lvl
@@ -1189,10 +1206,11 @@ class ClassicalAMG:
                 'is_coarsest': False
             })
             self._update_level_metrics(len(self.levels) - 1)
+            self._apply_memory_policy(len(self.levels) - 1)
             
             node_coords_current = node_coords_current[coarse_nodes]
             if basis_current is not None:
-                basis_gpu = basis_current.to(P.device)
+                basis_gpu = basis_current.to(device=P.device, dtype=P.dtype)
                 basis_coarse = torch.sparse.mm(P.transpose(0, 1), basis_gpu)
                 basis_coarse = basis_coarse.to('cpu')
                 basis_coarse = orthonormalize_columns(basis_coarse)
@@ -1221,6 +1239,7 @@ class ClassicalAMG:
             })
             print(f"[ClassicalAMG] L{len(self.levels)-1}: reached max_levels → coarsest, n={n_c}")
             self._update_level_metrics(len(self.levels) - 1)
+            self._apply_memory_policy(len(self.levels) - 1)
         
         total_build = time.perf_counter() - build_start
         print(f"✅ ClassicalAMG: построено {len(self.levels)} уровней за {total_build:.2f} c")
@@ -1348,6 +1367,12 @@ class ClassicalAMG:
                  pre_smooth: int = 3, post_smooth: int = 2, debug: bool = False, cycle_num: int = 0) -> torch.Tensor:
         """V-cycle"""
         level = self.levels[lvl]
+        level_device = level.get('device', self.device)
+        level_dtype = level.get('dtype', torch.float64)
+        if x.device != level_device or x.dtype != level_dtype:
+            x = x.to(device=level_device, dtype=level_dtype)
+        if b.device != level_device or b.dtype != level_dtype:
+            b = b.to(device=level_device, dtype=level_dtype)
         
         if debug:
             print(f"  [V-CYCLE L{lvl}] ВХОД: ||x||={x.norm():.3e}, ||b||={b.norm():.3e}, n={level['n']}")
@@ -1391,6 +1416,11 @@ class ClassicalAMG:
         # Restrict: r_c = P^T * r
         P = level['P']
         r_c = self._spmv_csr(P, r, transpose=True)
+        child = self.levels[lvl + 1]
+        child_device = child.get('device', self.device)
+        child_dtype = child.get('dtype', torch.float64)
+        if r_c.device != child_device or r_c.dtype != child_dtype:
+            r_c = r_c.to(device=child_device, dtype=child_dtype)
         if debug:
             print(f"  [V-CYCLE L{lvl}] RESTRICT: ||r||={r.norm():.3e} → ||r_c||={r_c.norm():.3e}")
         
@@ -1401,6 +1431,8 @@ class ClassicalAMG:
             print(f"  [V-CYCLE L{lvl}] COARSE возвращает: ||e_c||={e_c.norm():.3e}, max|e_c|={e_c.abs().max():.3e}")
         
         # Prolongate: e_f = P * e_c
+        if e_c.device != level_device or e_c.dtype != level_dtype:
+            e_c = e_c.to(device=level_device, dtype=level_dtype)
         e_f = self._spmv_csr(P, e_c, transpose=False)
         if debug:
             print(f"  [V-CYCLE L{lvl}] PROLONGATE: ||e_c||={e_c.norm():.3e} → ||e_f||={e_f.norm():.3e}, max|e_f|={e_f.abs().max():.3e}")
@@ -1431,23 +1463,29 @@ class ClassicalAMG:
         Returns:
             x: Решение (физическое)
         """
-        b = b.to(self.device)
+        root_device = self.levels[0].get('device', self.device)
+        root_dtype = self.levels[0].get('dtype', self.root_dtype if hasattr(self, "root_dtype") else torch.float64)
+        b = b.to(root_device, dtype=root_dtype)
+        self.device = root_device
+        self.root_dtype = root_dtype
         
         # Проверяем нужно ли equilibration
         if self.Dhalf_inv is not None:
             # С equilibration
             b_scaled = self.Dhalf_inv * b
-            x_scaled = torch.zeros_like(b_scaled) if x0 is None else x0.to(self.device) / self.Dhalf_inv
+            x_scaled = torch.zeros_like(b_scaled) if x0 is None else x0.to(root_device, dtype=root_dtype) / self.Dhalf_inv
         else:
             # Без equilibration - работаем напрямую
             b_scaled = b.clone()
-            x_scaled = torch.zeros_like(b) if x0 is None else x0.to(self.device)
+            x_scaled = torch.zeros_like(b) if x0 is None else x0.to(root_device, dtype=root_dtype)
         
         b_norm = b_scaled.norm()
         
         for cycle in range(max_iter):
             x_scaled = self._v_cycle(0, x_scaled, b_scaled, pre_smooth=3, post_smooth=2,
                                      debug=self.debug_cycles, cycle_num=cycle)
+            if x_scaled.device != root_device or x_scaled.dtype != root_dtype:
+                x_scaled = x_scaled.to(device=root_device, dtype=root_dtype)
             r = b_scaled - self._matvec(0, x_scaled)
             rel_res = r.norm() / (b_norm + 1e-30)
             x_ratio = x_scaled.norm() / (b_norm + 1e-30)
@@ -1466,7 +1504,9 @@ class ClassicalAMG:
 
     def apply(self, b: torch.Tensor, cycles: int = 1, pre_smooth: int = 3, post_smooth: int = 2) -> torch.Tensor:
         """Неполный solve: N V-циклов"""
-        b = b.to(self.device)
+        root_device = self.levels[0].get('device', self.device)
+        root_dtype = self.levels[0].get('dtype', self.root_dtype if hasattr(self, "root_dtype") else torch.float64)
+        b = b.to(root_device, dtype=root_dtype)
         if self.Dhalf_inv is not None:
             b_scaled = self.Dhalf_inv * b
         else:
@@ -1487,7 +1527,7 @@ class ClassicalAMG:
 
         if self.Dhalf_inv is not None:
             return self.Dhalf_inv * x_scaled
-        return x_scaled
+        return x_scaled.to(device=root_device, dtype=root_dtype)
 
     def _analyze_prolongation(self, lvl: int, P: torch.Tensor, coarse_nodes: torch.Tensor, F_nodes: torch.Tensor, node_coords_fine: torch.Tensor) -> dict:
         """Вычисляет диагностические метрики для оператора продолбжения."""
@@ -1636,6 +1676,68 @@ class ClassicalAMG:
         self.levels[lvl]['inv_diag_cheb'] = 1.0 / diag_abs.clamp_min(1e-30)
         self.levels[lvl]['use_chebyshev'] = self.levels[lvl]['n'] > 5000
 
+    @staticmethod
+    def _convert_sparse_tensor(tensor: torch.Tensor | None,
+                               device: torch.device,
+                               dtype: torch.dtype) -> torch.Tensor | None:
+        if tensor is None:
+            return None
+        if tensor.device == device and tensor.dtype == dtype:
+            return tensor
+        return torch.sparse_csr_tensor(
+            tensor.crow_indices().to(device),
+            tensor.col_indices().to(device),
+            tensor.values().to(device=device, dtype=dtype),
+            size=tensor.size(),
+            device=device,
+            dtype=dtype,
+        )
+
+    def _policy_device_dtype(self, lvl: int) -> tuple[torch.device, torch.dtype]:
+        target_device = self.primary_device
+        if self.cpu_offload and self.primary_device.type == 'cuda' and lvl >= self.offload_level:
+            target_device = torch.device('cpu')
+        target_dtype = torch.float64
+        if self.mixed_precision and lvl >= self.mixed_start_level:
+            target_dtype = torch.float32
+        return target_device, target_dtype
+
+    def _convert_level_storage(self, lvl: int,
+                               target_device: torch.device,
+                               target_dtype: torch.dtype) -> None:
+        level = self.levels[lvl]
+        level['A'] = self._convert_sparse_tensor(level['A'], target_device, target_dtype)
+        if level.get('P') is not None:
+            level['P'] = self._convert_sparse_tensor(level['P'], target_device, target_dtype)
+        if 'diag' in level:
+            level['diag'] = level['diag'].to(device=target_device, dtype=target_dtype)
+        if 'inv_relax' in level:
+            level['inv_relax'] = level['inv_relax'].to(device=target_device, dtype=target_dtype)
+        if 'inv_diag_cheb' in level:
+            level['inv_diag_cheb'] = level['inv_diag_cheb'].to(device=target_device, dtype=target_dtype)
+        if 'basis' in level and level['basis'] is not None:
+            level['basis'] = level['basis'].to(device=target_device, dtype=target_dtype)
+        if 'node_coords' in level and level['node_coords'] is not None:
+            level['node_coords'] = level['node_coords'].to(device=target_device, dtype=target_dtype)
+        if 'fine2coarse' in level:
+            level['fine2coarse'] = level['fine2coarse'].to(device=target_device, dtype=torch.int64)
+        if 'coarse_nodes' in level:
+            level['coarse_nodes'] = level['coarse_nodes'].to(device=target_device, dtype=torch.int64)
+        if 'F_nodes' in level:
+            level['F_nodes'] = level['F_nodes'].to(device=target_device, dtype=torch.int64)
+
+    def _apply_memory_policy(self, lvl: int) -> None:
+        target_device, target_dtype = self._policy_device_dtype(lvl)
+        self._convert_level_storage(lvl, target_device, target_dtype)
+        level = self.levels[lvl]
+        level['device'] = target_device
+        level['dtype'] = target_dtype
+        if lvl == 0:
+            self.device = target_device
+            self.root_dtype = target_dtype
+            if self.Dhalf_inv is not None:
+                self.Dhalf_inv = self.Dhalf_inv.to(device=target_device, dtype=target_dtype)
+
     def update_matrix(self, A_csr_np: torch.Tensor,
                       near_nullspace: torch.Tensor | None = None,
                       node_coords: torch.Tensor | None = None) -> None:
@@ -1645,28 +1747,33 @@ class ClassicalAMG:
         if node_coords is not None:
             self._external_coords = node_coords
 
+        root_device = self.levels[0].get('device', self.device)
+        root_dtype = self.levels[0].get('dtype', self.root_dtype if hasattr(self, "root_dtype") else torch.float64)
+        self.device = root_device
+        self.root_dtype = root_dtype
+
         if hasattr(A_csr_np, 'indptr'):  # scipy sparse
             import scipy.sparse as sp
             if not sp.isspmatrix_csr(A_csr_np):
                 A_csr_np = A_csr_np.tocsr()
-            crow = torch.from_numpy(A_csr_np.indptr).to(self.device, dtype=torch.int64)
-            col = torch.from_numpy(A_csr_np.indices).to(self.device, dtype=torch.int64)
-            val = torch.from_numpy(A_csr_np.data).to(self.device, dtype=torch.float64)
-            A_csr = torch.sparse_csr_tensor(crow, col, val, size=A_csr_np.shape, device=self.device, dtype=torch.float64)
+            crow = torch.from_numpy(A_csr_np.indptr).to(root_device, dtype=torch.int64)
+            col = torch.from_numpy(A_csr_np.indices).to(root_device, dtype=torch.int64)
+            val = torch.from_numpy(A_csr_np.data).to(root_device, dtype=root_dtype)
+            A_csr = torch.sparse_csr_tensor(crow, col, val, size=A_csr_np.shape, device=root_device, dtype=root_dtype)
         else:
-            A_csr = A_csr_np.to(self.device)
+            A_csr = A_csr_np.to(root_device)
             if A_csr.layout == torch.sparse_coo:
                 A_csr = A_csr.coalesce().to_sparse_csr()
             elif A_csr.layout != torch.sparse_csr:
                 A_csr = A_csr.to_sparse().coalesce().to_sparse_csr()
-            if A_csr.dtype != torch.float64:
+            if A_csr.dtype != root_dtype:
                 A_csr = torch.sparse_csr_tensor(
                     A_csr.crow_indices(),
                     A_csr.col_indices(),
-                    A_csr.values().to(dtype=torch.float64),
+                    A_csr.values().to(dtype=root_dtype),
                     size=A_csr.size(),
-                    device=self.device,
-                    dtype=torch.float64,
+                    device=root_device,
+                    dtype=root_dtype,
                 )
 
         n_total = A_csr.size(0)
@@ -1687,9 +1794,9 @@ class ClassicalAMG:
             col = A_csr.col_indices()
             vals = A_csr.values().clone()
             row_len = crow[1:] - crow[:-1]
-            row_idx = torch.repeat_interleave(torch.arange(crow.numel() - 1, device=self.device), row_len)
+            row_idx = torch.repeat_interleave(torch.arange(crow.numel() - 1, device=root_device), row_len)
             vals = vals * Dhalf_inv[row_idx] * Dhalf_inv[col]
-            A_csr = torch.sparse_csr_tensor(crow, col, vals, size=A_csr.size(), device=self.device, dtype=torch.float64)
+            A_csr = torch.sparse_csr_tensor(crow, col, vals, size=A_csr.size(), device=root_device, dtype=root_dtype)
             self.Dhalf_inv = Dhalf_inv
         else:
             self.Dhalf_inv = None
@@ -1716,7 +1823,7 @@ class ClassicalAMG:
                 raise ValueError(
                     f"node_coords size mismatch: expected {n_total}, got {coords_root.size(0)}"
                 )
-            coords_dev = coords_root.to(device=self.device, dtype=torch.float64)
+            coords_dev = coords_root.to(device=root_device, dtype=root_dtype)
             self.levels[0]['node_coords'] = coords_dev
         elif 'node_coords' in self.levels[0]:
             del self.levels[0]['node_coords']
@@ -1734,24 +1841,33 @@ class ClassicalAMG:
             basis_current = generate_nullspace(A_csr, self.nullspace_dim)
         self.levels[0]['basis'] = basis_current
         self._update_level_metrics(0)
+        self._apply_memory_policy(0)
+        basis_current = self.levels[0]['basis']
+        A_current = self.levels[0]['A']
 
-        A_current = A_csr
         for lvl in range(len(self.levels) - 1):
             P = self.levels[lvl].get('P')
             if P is None:
                 self._update_level_metrics(lvl + 1)
+                self._apply_memory_policy(lvl + 1)
                 continue
+            level_device = self.levels[lvl].get('device', root_device)
+            level_dtype = self.levels[lvl].get('dtype', root_dtype)
+            if A_current.device != level_device or A_current.dtype != level_dtype:
+                A_current = self._convert_sparse_tensor(A_current, level_device, level_dtype)
             if basis_current is not None:
-                basis_gpu = basis_current.to(P.device)
+                basis_gpu = basis_current.to(device=P.device, dtype=P.dtype)
                 basis_coarse = torch.sparse.mm(P.transpose(0, 1), basis_gpu).to('cpu')
                 basis_coarse = orthonormalize_columns(basis_coarse)
             else:
                 basis_coarse = None
-            A_current = rap_torch(A_current, P, self.device, drop_tol=self.rap_drop_tol)
+            A_current = rap_torch(A_current, P, level_device, drop_tol=self.rap_drop_tol)
             self.levels[lvl + 1]['A'] = A_current
             self.levels[lvl + 1]['basis'] = basis_coarse
             self._update_level_metrics(lvl + 1)
-            basis_current = basis_coarse
+            self._apply_memory_policy(lvl + 1)
+            A_current = self.levels[lvl + 1]['A']
+            basis_current = self.levels[lvl + 1]['basis']
 
         print(f"[ClassicalAMG] Иерархия обновлена без перестроения структуры (diag median={diag_median:.3e})")
 
