@@ -7,7 +7,7 @@
     "solver_type": "impes",
     "total_time_days": 60,
     "time_step_days": 0.25,
-    "save_interval": 10,
+    "save_interval": 1,
     "animation_fps": 2,
     "use_cuda": true,
     "max_substeps": 20,
@@ -121,9 +121,6 @@
     {"name": "PROD-56", "type": "producer", "i": 80, "j": 60, "k": 70,  "radius": 0.15, "control_type": "rate", "control_value": 3600, "rate_type": "surface", "surface_phase": "liquid"},
     {"name": "PROD-57", "type": "producer", "i": 80, "j": 80, "k": 70,  "radius": 0.15, "control_type": "rate", "control_value": 3600, "rate_type": "surface", "surface_phase": "oil"}
   ],
-  "save_plotly_3d": true,
-  "save_vtk_intermediate": true,
-  "simulation": {
-    "save_interval": 10
-  }
+  "save_3d_visualization": true,
+  "save_vtk_intermediate": true
 }

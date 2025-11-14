@@ -54,8 +54,8 @@ def main():
     output_filename = config.get('output_filename', 'simulation_output')
     save_vtk = config.get('save_vtk', False)
     save_vtk_intermediate = config.get('save_vtk_intermediate', False)
-    save_plotly_3d = config.get('save_plotly_3d', False)
-    simulator.run(output_filename, save_vtk=save_vtk, save_vtk_intermediate=save_vtk_intermediate, save_plotly_3d=save_plotly_3d)
+    save_3d_visualization = config.get('save_3d_visualization', False) or config.get('save_plotly_3d', False)  # Поддержка старого названия для совместимости
+    simulator.run(output_filename, save_vtk=save_vtk, save_vtk_intermediate=save_vtk_intermediate, save_3d_visualization=save_3d_visualization)
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Запуск симулятора нефтяного пласта")

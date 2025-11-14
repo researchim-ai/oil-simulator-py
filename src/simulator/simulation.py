@@ -958,26 +958,29 @@ class Simulator:
                 if rat_max > max_substeps:
                     print(f"  ⚠ Насыщенность потребовала > max_substeps ({rat_max:.2f} > {sat_info.get('max_substeps', 20)}).")
 
-                recommended_dt = sat_info.get("recommended_dt", current_dt)
-                if recommended_dt <= 0:
-                    recommended_dt = current_dt / dt_reduction_factor
-                need_retry = (
-                    rat_max > max_substeps
-                    and rat_max < max_substeps * cfl_retry_cap
-                    and recommended_dt < current_dt * cfl_safety_factor
-                )
-                if need_retry:
-                    print(f"  ⚠ CFL: рекомендуемый шаг {recommended_dt/86400:.3f} дн., текущий {current_dt/86400:.3f} дн. Повторяем шаг с меньшим dt.")
-                    self.fluid.pressure = prev_pressure_state
-                    self.fluid.s_w = prev_sw_state
-                    self.fluid.s_g = prev_sg_state
-                    self.fluid.s_o = prev_so_state
-                    self.mass_balance = prev_mass_balance
-                    self.component_balance = prev_component_balance
-                    current_dt = max(recommended_dt, current_dt / dt_reduction_factor)
-                    consecutive_success = 0
-                    last_dt_increased = False
-                    continue
+                # CFL адаптивный шаг - опционально, по умолчанию выключен для обратной совместимости
+                use_cfl_adaptive = self.sim_params.get("use_cfl_adaptive", False)
+                if use_cfl_adaptive:
+                    recommended_dt = sat_info.get("recommended_dt", current_dt)
+                    if recommended_dt <= 0:
+                        recommended_dt = current_dt / dt_reduction_factor
+                    need_retry = (
+                        rat_max > max_substeps
+                        and rat_max < max_substeps * cfl_retry_cap
+                        and recommended_dt < current_dt * cfl_safety_factor
+                    )
+                    if need_retry:
+                        print(f"  ⚠ CFL: рекомендуемый шаг {recommended_dt/86400:.3f} дн., текущий {current_dt/86400:.3f} дн. Повторяем шаг с меньшим dt.")
+                        self.fluid.pressure = prev_pressure_state
+                        self.fluid.s_w = prev_sw_state
+                        self.fluid.s_g = prev_sg_state
+                        self.fluid.s_o = prev_so_state
+                        self.mass_balance = prev_mass_balance
+                        self.component_balance = prev_component_balance
+                        current_dt = max(recommended_dt, current_dt / dt_reduction_factor)
+                        consecutive_success = 0
+                        last_dt_increased = False
+                        continue
 
                 # Проверяем насыщенности на клампы
                 clamp_counts = sat_info.get("clamp_counts", {})
@@ -2392,7 +2395,7 @@ class Simulator:
                 jacobian[2*idx+1, 2*idx] -= dq_o_dp
                 jacobian[2*idx+1, 2*idx+1] -= dq_o_dsw
 
-    def run(self, output_filename, save_vtk=False, save_vtk_intermediate=False, save_plotly_3d=False):
+    def run(self, output_filename, save_vtk=False, save_vtk_intermediate=False, save_3d_visualization=False):
         """
         Запускает полную симуляцию.
         
@@ -2400,7 +2403,7 @@ class Simulator:
             output_filename: Имя файла для сохранения результатов
             save_vtk: Флаг для сохранения результатов в формате VTK (финальный)
             save_vtk_intermediate: Сохранять VTK на промежуточных шагах
-            save_plotly_3d: Сохранять интерактивные 3D визуализации через Plotly
+            save_3d_visualization: Сохранять интерактивные 3D визуализации через PyVista
         """
         # Импорт необходимых модулей
         import os
@@ -2440,16 +2443,8 @@ class Simulator:
         # Создаем объект для визуализации
         plotter = Plotter(self.reservoir)
         
-        # Инициализация Plotly 3D визуализатора (если нужно)
-        plotly_3d = None
-        plotly_frames = []
-        if save_plotly_3d:
-            try:
-                from ..plotting.plotly_3d import Plotly3DVisualizer
-                plotly_3d = Plotly3DVisualizer(self.reservoir, device=self.device)
-            except ImportError:
-                print("  ⚠ Plotly не установлен, 3D визуализация отключена")
-                save_plotly_3d = False
+        # save_3d_visualization больше не используется - используем только VTK файлы
+        # VTK файлы можно открыть в ParaView для просмотра
         
         # Основной цикл симуляции
         for i in tqdm(range(num_steps), desc="Симуляция"):
@@ -2481,20 +2476,26 @@ class Simulator:
                 # VTK промежуточные шаги
                 if save_vtk_intermediate:
                     try:
-                        from ..output.vtk_writer import save_to_vtk
+                        import sys
+                        import os as os_module
+                        # Пробуем разные способы импорта
+                        try:
+                            from ..output.vtk_writer import save_to_vtk
+                        except (ImportError, ValueError):
+                            # Fallback для случаев, когда относительный импорт не работает
+                            base_path = os_module.path.dirname(os_module.path.dirname(os_module.path.abspath(__file__)))
+                            vtk_path = os_module.path.join(base_path, 'output', 'vtk_writer.py')
+                            if base_path not in sys.path:
+                                sys.path.insert(0, base_path)
+                            from output.vtk_writer import save_to_vtk
+                        
                         vtk_filename = os.path.join(intermediate_results_dir, f"{output_filename}_step_{i+1}")
                         save_to_vtk(self.reservoir, self.fluid, vtk_filename)
                     except Exception as e:
                         print(f"  ⚠ Не удалось сохранить VTK для шага {i+1}: {e}")
                 
-                # Plotly 3D кадры
-                if save_plotly_3d and plotly_3d:
-                    plotly_frames.append({
-                        'pressure': p_current,
-                        'sw': sw_current,
-                        'sg': sg_current if hasattr(self.fluid, 's_g') else None,
-                        'time': (i + 1) * time_step_days
-                    })
+                # Сохранение данных для 3D визуализации (VTK файлы уже создаются выше)
+                # VTK файлы можно открыть в ParaView для просмотра
         
         print("\nСимуляция завершена.")
         
@@ -2566,57 +2567,21 @@ class Simulator:
             except Exception as e:
                 print(f"Не удалось сохранить в формате VTK: {e}")
         
-        # Создание интерактивных 3D визуализаций через Plotly
-        if save_plotly_3d and plotly_3d and plotly_frames:
-            try:
-                print("\nСоздание интерактивных 3D визуализаций...")
-                
-                # Финальная объёмная визуализация
-                final_frame = plotly_frames[-1]
-                fig_volume = plotly_3d.create_volume_plot(
-                    final_frame['pressure'],
-                    final_frame['sw'],
-                    final_frame['sg'],
-                    title=f"3D Визуализация - Финальное состояние (День {int(total_time_days)})"
-                )
-                volume_path = os.path.join(results_dir, f"{output_filename}_3d_volume.html")
-                plotly_3d.save_html(fig_volume, volume_path)
-                
-                # Просмотрщик срезов
-                fig_slices = plotly_3d.create_slice_viewer(
-                    final_frame['pressure'],
-                    final_frame['sw'],
-                    final_frame['sg'],
-                    title=f"Интерактивные срезы - Финальное состояние"
-                )
-                slices_path = os.path.join(results_dir, f"{output_filename}_3d_slices.html")
-                plotly_3d.save_html(fig_slices, slices_path)
-                
-                # Анимация (если есть несколько кадров)
-                if len(plotly_frames) > 1:
-                    print(f"  Создание анимации из {len(plotly_frames)} кадров...")
-                    fig_anim = plotly_3d.create_animation_frames(
-                        plotly_frames,
-                        field_name='pressure',
-                        title="Анимация давления"
-                    )
-                    anim_path = os.path.join(results_dir, f"{output_filename}_3d_animation.html")
-                    plotly_3d.save_html(fig_anim, anim_path)
-                    
-                    # Анимация насыщенности
-                    fig_anim_sw = plotly_3d.create_animation_frames(
-                        plotly_frames,
-                        field_name='sw',
-                        title="Анимация водонасыщенности"
-                    )
-                    anim_sw_path = os.path.join(results_dir, f"{output_filename}_3d_animation_sw.html")
-                    plotly_3d.save_html(fig_anim_sw, anim_sw_path)
-                
-                print(f"  ✅ 3D визуализации сохранены в {results_dir}/")
-            except Exception as e:
-                print(f"  ⚠ Ошибка при создании 3D визуализаций: {e}")
-                import traceback
-                traceback.print_exc()
+        # Информация о просмотре VTK файлов
+        if save_vtk or save_vtk_intermediate:
+            print(f"\n📖 Для просмотра 3D визуализации в ParaView:")
+            print(f"   1. Установите ParaView: https://www.paraview.org/")
+            print(f"   2. Откройте ParaView → File → Open → выберите .vtr файлы из:")
+            if save_vtk_intermediate:
+                print(f"      {intermediate_results_dir}/")
+            if save_vtk:
+                print(f"      {results_dir}/")
+            print(f"   3. ⚠ Если видите коричневый экран:")
+            print(f"      - Нажмите Apply в панели Properties")
+            print(f"      - В панели Coloring выберите: Color by = Pressure_MPa")
+            print(f"      - Representation = Surface (вместо Outline)")
+            print(f"   4. Или создайте срез: Filters → Slice → Normal = [0,0,1]")
+            print(f"   5. Подробная инструкция: см. PARAVIEW_INSTRUCTIONS.md")
         
         # Создание анимации (если нужно)
         if save_interval < num_steps and animation_fps > 0:
