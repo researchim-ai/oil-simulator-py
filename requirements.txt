@@ -11,3 +11,5 @@ pyvista>=0.44.0
 black
 ruff
 gymnasium
+PyQt5
+pyvistaqt
