@@ -2395,7 +2395,7 @@ class Simulator:
                 jacobian[2*idx+1, 2*idx] -= dq_o_dp
                 jacobian[2*idx+1, 2*idx+1] -= dq_o_dsw
 
-    def run(self, output_filename, save_vtk=False, save_vtk_intermediate=False, save_3d_visualization=False):
+    def run(self, output_filename, save_vtk=False, save_vtk_intermediate=False):
         """
         Запускает полную симуляцию.
         
@@ -2403,7 +2403,6 @@ class Simulator:
             output_filename: Имя файла для сохранения результатов
             save_vtk: Флаг для сохранения результатов в формате VTK (финальный)
             save_vtk_intermediate: Сохранять VTK на промежуточных шагах
-            save_3d_visualization: Сохранять интерактивные 3D визуализации через PyVista
         """
         # Импорт необходимых модулей
         import os
@@ -2442,9 +2441,6 @@ class Simulator:
         
         # Создаем объект для визуализации
         plotter = Plotter(self.reservoir)
-        
-        # save_3d_visualization больше не используется - используем только VTK файлы
-        # VTK файлы можно открыть в ParaView для просмотра
         
         # Основной цикл симуляции
         for i in tqdm(range(num_steps), desc="Симуляция"):
