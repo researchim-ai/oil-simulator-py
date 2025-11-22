@@ -1,0 +1,75 @@
+{
+    "reservoir": {
+        "nx": 5,
+        "ny": 5,
+        "nz": 5,
+        "dx": 20.0,
+        "dy": 20.0,
+        "dz": 5.0,
+        "porosity": 0.2,
+        "permeability": 100.0,
+        "depth": 2000.0,
+        "pressure_initial": 25.0,
+        "sw_initial": 0.2
+    },
+    "fluid": {
+        "oil": {
+            "viscosity": 2.0,
+            "density": 850.0,
+            "compressibility": 1e-5,
+            "fvf": 1.0
+        },
+        "water": {
+            "viscosity": 0.5,
+            "density": 1000.0,
+            "compressibility": 1e-6,
+            "fvf": 1.0
+        },
+        "gas": {
+            "viscosity": 0.02,
+            "density": 1.0,
+            "compressibility": 1e-3,
+            "fvf": 1.0
+        },
+        "relative_permeability": {
+            "sw_irr": 0.2,
+            "sor": 0.2,
+            "krw_max": 0.3,
+            "kro_max": 0.8,
+            "nw": 2.0,
+            "no": 2.0
+        }
+    },
+    "wells": [
+        {
+            "name": "INJ",
+            "type": "injector",
+            "coordinates": [0, 0, 0],
+            "radius": 0.1,
+            "control": {
+                "type": "rate",
+                "value": 100.0
+            },
+            "injected_phase": "water"
+        },
+        {
+            "name": "PROD",
+            "type": "producer",
+            "coordinates": [4, 4, 0],
+            "radius": 0.1,
+            "control": {
+                "type": "rate",
+                "value": 20.0
+            }
+        }
+    ],
+    "simulation": {
+        "t_start": 0.0,
+        "t_end": 10.0,
+        "dt_init": 1.0,
+        "dt_min": 0.1,
+        "dt_max": 5.0,
+        "target_cfl": 0.5,
+        "method": "fully_implicit"
+    }
+}

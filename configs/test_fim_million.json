@@ -1,0 +1,44 @@
+{
+  "description": "Million cell 3D case for Fully Implicit Solver (Manual Assembly)",
+  "output_filename": "fim_test_million",
+  "save_vtk": true,
+  "save_vtk_intermediate": false,
+
+  "simulation": {
+    "solver_type": "fully_implicit",
+    "total_time_days": 5,
+    "time_step_days": 0.5,
+    "save_interval": 1,
+    "newton_max_iter": 10,
+    "newton_tol_mass": 1.0
+  },
+
+  "reservoir": {
+    "dimensions": [100, 100, 100],
+    "grid_size": [10.0, 10.0, 5.0],
+    "porosity": 0.2,
+    "permeability": 150.0,
+    "k_vertical_fraction": 0.1
+  },
+
+  "fluid": {
+    "pressure": 25.0,
+    "s_w": 0.2,
+    "s_g": 0.0,
+    "mu_oil": 2.0,
+    "mu_water": 0.5,
+    "c_oil": 1e-5,
+    "c_water": 1e-6,
+    "relative_permeability": {
+      "model": "corey",
+      "nw": 2.0,
+      "no": 2.0
+    }
+  },
+
+  "wells": [
+    {"name": "INJ", "type": "injector", "i": 5, "j": 5, "k": 50, "radius": 0.15, "control_type": "rate", "control_value": 4000, "rate_type": "surface", "injected_phase": "water"},
+    {"name": "PROD", "type": "producer", "i": 95, "j": 95, "k": 50, "radius": 0.15, "control_type": "rate", "control_value": 5000, "rate_type": "surface", "surface_phase": "liquid"}
+  ]
+}
+

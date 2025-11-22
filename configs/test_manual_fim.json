@@ -1,0 +1,61 @@
+{
+    "reservoir": {
+        "nx": 10,
+        "ny": 10,
+        "nz": 5,
+        "grid_size": [20.0, 20.0, 5.0],
+        "porosity": 0.2,
+        "permeability": 100.0,
+        "depth": 2000.0,
+        "pressure_initial": 25.0,
+        "sw_initial": 0.2
+    },
+    "fluid": {
+        "mu_oil": 1.0,
+        "mu_water": 0.5,
+        "mu_gas": 0.02,
+        "rho_oil": 850.0,
+        "rho_water": 1000.0,
+        "rho_gas": 1.0,
+        "c_oil": 1e-5,
+        "c_water": 1e-5,
+        "c_gas": 1e-3,
+        "relative_permeability": {
+            "model": "corey",
+            "sw_irr": 0.2,
+            "so_r": 0.2,
+            "nw": 2.0,
+            "no": 2.0
+        }
+    },
+    "wells": [
+        {
+            "name": "INJ",
+            "type": "injector",
+            "i": 0, "j": 0, "k": 0,
+            "radius": 0.1,
+            "control_type": "rate",
+            "control_value": 100.0,
+            "injected_phase": "water"
+        },
+        {
+            "name": "PROD",
+            "type": "producer",
+            "i": 9, "j": 9, "k": 0,
+            "radius": 0.1,
+            "control_type": "rate",
+            "control_value": 100.0
+        }
+    ],
+    "simulation": {
+        "solver_type": "fully_implicit",
+        "t_start": 0.0,
+        "t_end": 10.0,
+        "time_step_days": 1.0,
+        "max_time_step_attempts": 5,
+        "newton_max_iter": 20,
+        "newton_tol_mass": 1.0,
+        "output_dir": "results/test_manual_fim"
+    }
+}
+

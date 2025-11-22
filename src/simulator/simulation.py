@@ -7,6 +7,7 @@ import time
 import os
 import datetime
 import copy
+from simulator.manual_assembly_solver import ManualFIMSolver
 
 class Simulator:
     """
@@ -45,9 +46,13 @@ class Simulator:
             print(f"  Настройки решателя Ньютона:")
             print(f"    Макс. итераций: {sim_params.get('newton_max_iter', 20)}")
             print(f"    Допуск невязки: {sim_params.get('newton_tolerance', 1e-3)}")
-            print(f"    Коэфф. демпфирования: {sim_params.get('damping_factor', 0.7)}")
-            print(f"    Используется CUDA: {sim_params.get('use_cuda', False)}")
-            print(f"    Адаптивный временной шаг: {sim_params.get('max_time_step_attempts', 1) > 1}")
+            # Инициализация оптимизированного решателя
+            self.fim_solver = ManualFIMSolver(
+                reservoir=self.reservoir,
+                fluid=self.fluid,
+                well_manager=self.well_manager,
+                params=sim_params
+            )
         
         # Инициализация проводимостей для IMPES схемы
         if self.solver_type == 'impes':
@@ -219,7 +224,7 @@ class Simulator:
             print(f"Попытка шага с dt = {current_dt/86400:.2f} дней (Попытка {attempt+1}/{max_attempts})")
             
             # Выполняем шаг с текущим значением dt
-            converged = self._fully_implicit_newton_step(current_dt)
+            converged = self.fim_solver.step(current_dt)
             
             if converged:
                 print(f"Шаг успешно выполнен с dt = {current_dt/86400:.2f} дней.")

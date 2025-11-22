@@ -1,0 +1,43 @@
+{
+  "description": "Small 2D case for Fully Implicit Solver testing",
+  "output_filename": "fim_test_small",
+  "save_vtk": true,
+  "save_vtk_intermediate": true,
+
+  "simulation": {
+    "solver_type": "fully_implicit",
+    "total_time_days": 10,
+    "time_step_days": 0.1,
+    "save_interval": 1,
+    "newton_max_iter": 15,
+    "newton_tol_mass": 1e-3
+  },
+
+  "reservoir": {
+    "dimensions": [20, 20, 5],
+    "grid_size": [10.0, 10.0, 5.0],
+    "porosity": 0.2,
+    "permeability": 100.0,
+    "k_vertical_fraction": 0.1
+  },
+
+  "fluid": {
+    "pressure": 20.0,
+    "s_w": 0.2,
+    "s_g": 0.0,
+    "mu_oil": 2.0,
+    "mu_water": 0.5,
+    "c_oil": 1e-5,
+    "c_water": 1e-6,
+    "relative_permeability": {
+      "model": "corey",
+      "nw": 2.0,
+      "no": 2.0
+    }
+  },
+
+  "wells": [
+    {"name": "INJ", "type": "injector", "i": 2, "j": 2, "k": 2, "radius": 0.15, "control_type": "rate", "control_value": 50, "rate_type": "surface", "injected_phase": "water"},
+    {"name": "PROD", "type": "producer", "i": 18, "j": 18, "k": 2, "radius": 0.15, "control_type": "rate", "control_value": 60, "rate_type": "surface", "surface_phase": "liquid"}
+  ]
+}
