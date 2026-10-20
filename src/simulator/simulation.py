@@ -127,6 +127,9 @@ class Simulator:
         self._pressure_cell_centers = self._compute_pressure_cell_centers()
         self._pressure_near_nullspace = self._build_pressure_near_nullspace(self._pressure_cell_centers)
         
+        # Текущее время симуляции в секундах (для Ramping'а и логирования)
+        self.current_time = 0.0
+        
     def _move_data_to_device(self):
         """Переносит данные на текущее устройство (CPU или GPU)"""
         # Резервуар
@@ -223,11 +226,15 @@ class Simulator:
         for attempt in range(max_attempts):
             print(f"Попытка шага с dt = {current_dt/86400:.2f} дней (Попытка {attempt+1}/{max_attempts})")
             
-            # Выполняем шаг с текущим значением dt
-            converged = self.fim_solver.step(current_dt)
+            # Выполняем шаг с текущим значением dt, передавая абсолютное время для Ramping
+            converged = self.fim_solver.step(current_dt, current_time=self.current_time)
             
             if converged:
                 print(f"Шаг успешно выполнен с dt = {current_dt/86400:.2f} дней.")
+                
+                # Обновляем текущее время симулятора
+                self.current_time += current_dt
+                
                 consecutive_success += 1
                 
                 # Обновляем предыдущие состояния флюида
@@ -941,7 +948,7 @@ class Simulator:
         for attempt in range(max_attempts):
             print(f"Попытка шага IMPES с dt = {current_dt/86400:.2f} дней (Попытка {attempt+1}/{max_attempts})")
 
-            P_new, converged = self._impes_pressure_step(current_dt)
+            P_new, converged = self._impes_pressure_step(current_dt, current_time=self.current_time)
 
             if converged:
                 # Обновляем давление и выполняем шаг насыщенности
@@ -1006,6 +1013,9 @@ class Simulator:
                 # Сохраняем предыдущие состояния для следующего шага
                 self.fluid.prev_pressure = self.fluid.pressure.clone()
                 self.fluid.prev_sw = self.fluid.s_w.clone()
+                
+                # Обновляем текущее время
+                self.current_time += current_dt
 
                 consecutive_success += 1
 
@@ -1027,7 +1037,7 @@ class Simulator:
         print("IMPES не сошелся даже с минимальным dt, прекращаем симуляцию.")
         return False
 
-    def _impes_pressure_step(self, dt):
+    def _impes_pressure_step(self, dt, current_time=None):
         """ Неявный шаг для расчета давления в схеме IMPES. """
         # 1. Подготовка коэффициентов
         P_prev = self.fluid.pressure
@@ -1058,7 +1068,7 @@ class Simulator:
         Tz_t = self.T_z * mob_t_z
 
         # 3. Скважины
-        q_wells, well_bhp_terms = self._calculate_well_terms(mob_t, P_prev)
+        q_wells, well_bhp_terms = self._calculate_well_terms(mob_t, P_prev, current_time=current_time)
 
         # 4. Сборка матрицы и RHS
         A, A_diag = self._build_pressure_matrix_vectorized(Tx_t, Ty_t, Tz_t, dt, well_bhp_terms)
@@ -1896,19 +1906,25 @@ class Simulator:
         Q_total = compressibility_term + q_wells.flatten() + Q_g.view(-1) + Q_pc.view(-1)
         return Q_total
 
-    def _calculate_well_terms(self, mob_t, P_prev):
+    def _calculate_well_terms(self, mob_t, P_prev, current_time=None):
         """ Рассчитывает источниковые члены от скважин для IMPES. """
         N = self.reservoir.nx * self.reservoir.ny * self.reservoir.nz
         q_wells = torch.zeros(N, device=self.device)
         well_bhp_terms = torch.zeros(N, device=self.device)
+        
+        sim_time_days = (current_time / 86400.0) if current_time is not None else float('inf')
+
         for well in self.well_manager.get_wells():
             i, j, k = well.i, well.j, well.k
             idx = self._ijk_to_idx(i, j, k, self.reservoir.nx, self.reservoir.ny)
             well.cell_index_flat = idx
-            if well.control_type == 'rate':
+            
+            ctrl_type, ctrl_val = well.get_current_control(sim_time_days)
+            
+            if ctrl_type == 'rate':
                 # Знак источника зависит от типа скважины: положительный для инжектора, отрицательный для продуктора
                 rate_scale = float(self.sim_params.get('global_rate_scale', 1.0))
-                rate_si = (well.control_value * rate_scale) / 86400.0 * (1 if well.type == 'injector' else -1)
+                rate_si = (ctrl_val * rate_scale) / 86400.0 * (1 if well.type == 'injector' else -1)
                 # Авто-переключение на BHP при ограничении bhp_min (для продакшенов)
                 if well.type == 'producer' and well.bhp_min is not None:
                     p_block = P_prev.view(-1)[idx]
@@ -1917,22 +1933,23 @@ class Simulator:
                     # Требуемый BHP для обеспечения заданного rate
                     # q = wi * mob_t * (p_block - p_bhp) => p_bhp_req = p_block - q/(wi*mob_t)
                     denom = wi * mob_t_well + 1e-12
-                    p_bhp_req = p_block - rate_si / denom
+                    p_bhp_req = p_block + rate_si / denom # rate_si отрицательный для producer'а
+                    
                     p_bhp_min = well.bhp_min * 1e6
                     if p_bhp_req < p_bhp_min:
                         # Переключаемся на BHP-контроль на этом шаге
-                        print(
-                            f"  ℹ Скважина {well.name}: авто-переключение на BHP ({p_bhp_req/1e6:.2f} < bhp_min {well.bhp_min:.2f} МПа)"
-                        )
+                        # print(
+                        #     f"  ℹ Скважина {well.name}: авто-переключение на BHP ({p_bhp_req/1e6:.2f} < bhp_min {well.bhp_min:.2f} МПа)"
+                        # )
                         well.last_mode = 'bhp'
                         well_bhp_terms[idx] += wi * mob_t_well
                         q_wells[idx] += wi * mob_t_well * p_bhp_min
                         continue
                 well.last_mode = 'rate'
                 q_wells[idx] += rate_si
-            elif well.control_type == 'bhp':
+            elif ctrl_type == 'bhp':
                 well_index_val = well.well_index
-                p_bhp = well.control_value * 1e6
+                p_bhp = ctrl_val * 1e6
                 p_block = P_prev.view(-1)[idx]
                 mob_t_well = mob_t.view(-1)[idx]
                 well_bhp_terms[idx] += well_index_val * mob_t_well

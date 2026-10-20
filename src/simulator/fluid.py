@@ -97,7 +97,45 @@ class Fluid:
             self.sg_cr = rp_cfg.get('sg_cr', 0.0)
         
         # Инициализация полей
+        # Сначала создаем базовый тензор с опорным давлением
         self.pressure = torch.full(self.dimensions, initial_pressure, device=self.device)
+        
+        # ГИДРОСТАТИЧЕСКАЯ ИНИЦИАЛИЗАЦИЯ (HYDROSTATIC INITIALIZATION)
+        # Если есть Z-координаты, корректируем давление по глубине: P(z) = P_ref + rho * g * (z - z_ref)
+        # Это критически важно для исключения "гравитационного шока" в начале симуляции.
+        if hasattr(reservoir, 'z_centers') and reservoir.z_centers is not None:
+            try:
+                # reservoir.z_centers - это 1D тензор [nz], или скаляр, если 2D без глубины
+                z_centers = reservoir.z_centers.to(self.device)
+                
+                if z_centers.numel() > 1: # Только если есть реальное изменение глубины
+                    print("  Применяем гидростатическую инициализацию давления...")
+                    # P_ref задано в конфиге (initial_pressure). Будем считать, что это давление на ВЕРХНЕМ слое (или на глубине 0).
+                    # Обычно initial_pressure - это давление на Datum Depth.
+                    # Для простоты примем: initial_pressure - это давление на ПЕРВОМ слое (верх пласта).
+                    
+                    z_ref = z_centers[0]
+                    
+                    # Расширяем z до (nx, ny, nz)
+                    # z_centers соответствует оси Z (последняя размерность)
+                    # shape (1, 1, nz) -> broadcast to (nx, ny, nz)
+                    z_3d = z_centers.view(1, 1, -1).expand(self.dimensions)
+                    
+                    # Используем плотность нефти как основную для градиента (или среднюю)
+                    # P(z) = P_0 + rho * g * (z - z_0)
+                    g_const = 9.81
+                    rho_grad = self.rho_oil_ref 
+                    
+                    delta_p = rho_grad * g_const * (z_3d - z_ref)
+                    
+                    self.pressure = self.pressure + delta_p
+                    
+                    p_min = self.pressure.min().item() / 1e6
+                    p_max = self.pressure.max().item() / 1e6
+                    print(f"  Давление скорректировано по глубине: {p_min:.2f} ... {p_max:.2f} МПа")
+            except Exception as e:
+                print(f"  Ошибка гидростатической инициализации: {e}. Используется постоянное давление.")
+        
         self.s_w = torch.full(self.dimensions, initial_sw, device=self.device)
         self.s_g = torch.full(self.dimensions, initial_sg, device=self.device)
         self.s_o = 1.0 - self.s_w - self.s_g  # Нефтенасыщенность

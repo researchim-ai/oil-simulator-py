@@ -54,6 +54,39 @@ class Well:
         self.last_surface_rates = {}       # {'oil','water','gas','liquid'} в м3/сутки
         self.last_mode = None              # 'rate' | 'bhp'
         
+        # Параметры мягкого старта (Ramping)
+        self.ramping_days = 10.0  # Время выхода на режим (дни) - увеличено для стабильности
+        self.initial_pressure = 20.0 # Начальное пластовое давление (МПа) - нужно бы передавать точно, но пока hardcode для теста
+        
+    def get_current_control(self, current_time_days: float):
+        """
+        Возвращает текущее значение управляющего параметра с учетом Ramping'а.
+        
+        Args:
+            current_time_days: Текущее время симуляции в днях
+            
+        Returns:
+            (control_type, control_value)
+        """
+        if current_time_days >= self.ramping_days:
+            return self.control_type, self.control_value
+            
+        # Коэффициент линейного нарастания [0, 1]
+        # Начинаем с малого шага (0.05) чтобы избежать деления на 0 или нулевых рейтов
+        factor = max(0.05, min(1.0, current_time_days / self.ramping_days))
+        
+        val = self.control_value
+        
+        if self.control_type == 'rate':
+            # Для дебита просто масштабируем
+            val = self.control_value * factor
+        elif self.control_type == 'bhp':
+            # Для давления интерполируем от начального пластового
+            # P_curr = P_init + factor * (P_target - P_init)
+            val = self.initial_pressure + factor * (self.control_value - self.initial_pressure)
+            
+        return self.control_type, val
+
     def __str__(self):
         return f"Well(name={self.name}, type={self.type}, pos=({self.i},{self.j},{self.k}), control={self.control_type}:{self.control_value})"
 

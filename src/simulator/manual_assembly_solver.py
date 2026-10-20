@@ -143,7 +143,7 @@ class ManualFIMSolver:
         self.builder = SparseMatrixBuilder(self.nx, self.ny, self.nz, block_size=2, device=self.device)
         print(f"Structure built. NNZ blocks: {self.builder.n_nonzero}")
         
-        # Предварительный расчет геометрической части трансмиссибильности
+        # Предварительный расчет геометрической части трансмиссибильности и разницы глубин
         self._compute_geom_transmissibility()
         
         # Поровый объем
@@ -155,6 +155,12 @@ class ManualFIMSolver:
             vol = dx * dy * dz
         self.pore_volume = vol * reservoir.porosity
         self.pore_volume = self.pore_volume.view(-1).double()
+        
+        # Кэшируем параметры релперм для быстрого доступа
+        self.sw_irr = getattr(self.fluid, 'sw_cr', 0.2)
+        self.so_r = getattr(self.fluid, 'so_r', 0.2)
+        self.nw = getattr(self.fluid, 'nw', 2.0)
+        self.no = getattr(self.fluid, 'no', 2.0)
 
     def _compute_geom_transmissibility(self):
         kx = self.reservoir.permeability_x
@@ -177,10 +183,29 @@ class ManualFIMSolver:
         self.Ty = 2 * Ty_cell[:,:-1,:] * Ty_cell[:,1:,:] / (Ty_cell[:,:-1,:] + Ty_cell[:,1:,:] + 1e-32)
         self.Tz = 2 * Tz_cell[:,:,:-1] * Tz_cell[:,:,1:] / (Tz_cell[:,:,:-1] + Tz_cell[:,:,1:] + 1e-32)
         
-        self.Tx_flat = self.Tx.view(-1).double()
+        # Разница глубин (Z centers)
+        # Z обычно растет вниз. Поток L->R. dZ = Z_L - Z_R.
+        if hasattr(self.reservoir, 'z_centers'):
+             # [nx], [ny], [nz] -> broadcast to [nx, ny, nz]
+             xc = self.reservoir.x_centers.view(self.nx, 1, 1).expand(self.nx, self.ny, self.nz)
+             yc = self.reservoir.y_centers.view(1, self.ny, 1).expand(self.nx, self.ny, self.nz)
+             zc = self.reservoir.z_centers.view(1, 1, self.nz).expand(self.nx, self.ny, self.nz)
+             
+             self.dZ_x = zc[:-1,:,:] - zc[1:,:,:]
+             self.dZ_y = zc[:,:-1,:] - zc[:,1:,:]
+             self.dZ_z = zc[:,:,:-1] - zc[:,:,1:]
+        else:
+             self.dZ_x = torch.zeros_like(self.Tx)
+             self.dZ_y = torch.zeros_like(self.Ty)
+             self.dZ_z = torch.zeros_like(self.Tz)
 
-    def step(self, dt):
-        """Выполняет шаг по времени"""
+    def step(self, dt, current_time=None):
+        """Выполняет шаг по времени
+        dt: шаг времени в СЕКУНДАХ
+        current_time: текущее абсолютное время симуляции в СЕКУНДАХ (для ramping)
+        """
+        dt_sec = dt
+        
         p_old = self.fluid.pressure.clone().double()
         sw_old = self.fluid.s_w.clone().double()
         
@@ -189,13 +214,21 @@ class ManualFIMSolver:
         
         mass_o_old, mass_w_old = self.calc_masses(p_old, sw_old)
         
+        initial_res_norm = None
+        
         for iter_k in range(self.max_newton):
-            # Сборка
-            R, J_values = self.assemble_system(p_curr, sw_curr, mass_o_old, mass_w_old, dt)
+            # Сборка (передаем dt и current_time)
+            R, J_values = self.assemble_system(p_curr, sw_curr, mass_o_old, mass_w_old, dt_sec, current_time=current_time)
             
             # Проверка сходимости
+            # Нормализуем невязку на dt для корректного сравнения? 
+            # Обычно tolerance задается для mass rate error [kg/s].
+            # R в [kg/s].
             max_res = torch.max(torch.abs(R))
-            print(f"  Iter {iter_k}: Max Res = {max_res:.2e}")
+            print(f"  Iter {iter_k}: Max Res = {max_res:.2e} kg/s")
+            
+            if iter_k == 0:
+                initial_res_norm = max_res
             
             if max_res < self.tol_mass:
                 print("  Converged!")
@@ -204,23 +237,77 @@ class ManualFIMSolver:
                 self.fluid.s_o.copy_(1.0 - sw_curr.float())
                 return True
             
+            # Адаптивный допуск для линейного решателя
+            rel_newton_err = 1.0
+            if initial_res_norm is not None and initial_res_norm > 1e-10:
+                rel_newton_err = (max_res / initial_res_norm).item()
+            
             # Решение линейной системы
-            dx = self.solve_cpu(J_values, R)
+            dx = self.solve_cpu(J_values, R, current_newton_rel_error=rel_newton_err)
             
             if dx is None:
                 return False
             
-            # Обновление
-            dp = dx[0::2].reshape(self.nx, self.ny, self.nz)
-            dsw = dx[1::2].reshape(self.nx, self.ny, self.nz)
+            # Обновление с Line Search и Safe Scaling
+            dp_full = dx[0::2].reshape(self.nx, self.ny, self.nz).to(self.device)
+            dsw_full = dx[1::2].reshape(self.nx, self.ny, self.nz).to(self.device)
             
-            # Damping
-            dsw = torch.clamp(dsw, -0.2, 0.2)
-            dp = torch.clamp(dp, -50e5, 50e5)
+            # Safe Scaling (вместо жесткого clamp, который искажает направление)
+            # Ограничиваем максимальное изменение за шаг:
+            # Saturation: 0.2
+            # Pressure: 20 bar (20e5 Pa)
+            max_dsw = torch.max(torch.abs(dsw_full))
+            max_dp = torch.max(torch.abs(dp_full))
             
-            p_curr = p_curr + dp.to(self.device)
-            sw_curr = sw_curr + dsw.to(self.device)
-            sw_curr = torch.clamp(sw_curr, 0.0, 1.0)
+            scale_factor = 1.0
+            if max_dsw > 0.2:
+                scale_factor = min(scale_factor, 0.2 / max_dsw.item())
+            if max_dp > 50e5: # 50 bar limit
+                scale_factor = min(scale_factor, 50e5 / max_dp.item())
+            
+            if scale_factor < 1.0:
+                # print(f"    Scaling Update by {scale_factor:.4f} (Max dSw={max_dsw:.2f}, Max dP={max_dp/1e5:.1f} bar)")
+                dp_full *= scale_factor
+                dsw_full *= scale_factor
+            
+            # Backtracking Line Search
+            alpha = 1.0
+            min_alpha = 0.125
+            accepted = False
+            
+            # Текущая норма невязки (для сравнения)
+            current_res_norm = max_res
+            
+            while alpha >= min_alpha:
+                p_trial = p_curr + alpha * dp_full
+                sw_trial = sw_curr + alpha * dsw_full
+                sw_trial = torch.clamp(sw_trial, 0.0, 1.0)
+                
+                # Проверяем невязку в новой точке
+                # Важно: используем те же массы "old", но новые p/sw
+                R_trial, _ = self.assemble_system(p_trial, sw_trial, mass_o_old, mass_w_old, dt_sec, current_time=current_time)
+                res_trial = torch.max(torch.abs(R_trial))
+                
+                # Условие принятия (Armijo-like, simplified): невязка уменьшилась
+                # Или хотя бы не выросла катастрофически (allow small increase initially?)
+                # Strict decrease is safest for FIM.
+                if res_trial < current_res_norm:
+                    p_curr = p_trial
+                    sw_curr = sw_trial
+                    accepted = True
+                    if alpha < 1.0:
+                        print(f"    Line search: reduced step alpha={alpha}, Res {current_res_norm:.2e} -> {res_trial:.2e}")
+                    break
+                else:
+                    # print(f"    Line search reject alpha={alpha} (Res {res_trial:.2e} >= {current_res_norm:.2e})")
+                    alpha *= 0.5
+            
+            if not accepted:
+                print(f"    Line search failed to reduce residual. Force taking small step alpha={min_alpha}")
+                p_curr = p_curr + min_alpha * dp_full
+                sw_curr = sw_curr + min_alpha * dsw_full
+                sw_curr = torch.clamp(sw_curr, 0.0, 1.0)
+                # Это скорее всего приведет к расходимости на след итерации и уменьшению dt, что и нужно.
 
         return False
 
@@ -241,7 +328,7 @@ class ManualFIMSolver:
         mass_o = pv * (1-sw) * rho_o
         return mass_o, mass_w
 
-    def assemble_system(self, p, sw, m_o_old, m_w_old, dt):
+    def assemble_system(self, p, sw, m_o_old, m_w_old, dt, current_time=None):
         """
         Сборка системы вручную (векторизованно).
         """
@@ -285,36 +372,64 @@ class ManualFIMSolver:
         J_vals[diag_idx, 1, 1] += dMw_dSw
         
         # --- Helper Function for Flux Logic ---
-        def process_direction(p_slice_L, p_slice_R, sw_slice_L, sw_slice_R, T_slice, 
+        def process_direction(p_slice_L, p_slice_R, sw_slice_L, sw_slice_R, T_slice, dZ_slice,
                             map_x_pos_L, map_x_neg_R, idx_L, idx_R):
-            dpot = p_slice_L - p_slice_R
-            up = (dpot >= 0).double()
-            down = 1.0 - up
+            
+            # Gravity Constant
+            g_const = 9.80665
+            
+            # Calculate Densities for Gravity Term
+            # rho = rho_ref * (1 + c * (P - 1e5))
+            rho_w_L = rho_w_ref * (1.0 + c_w * (p_slice_L - 1e5))
+            rho_o_L = rho_o_ref * (1.0 + c_o * (p_slice_L - 1e5))
+            rho_w_R = rho_w_ref * (1.0 + c_w * (p_slice_R - 1e5))
+            rho_o_R = rho_o_ref * (1.0 + c_o * (p_slice_R - 1e5))
+            
+            # Average density for interface
+            rho_w_avg = 0.5 * (rho_w_L + rho_w_R)
+            rho_o_avg = 0.5 * (rho_o_L + rho_o_R)
+            
+            # Potential Difference including Gravity: dPhi = dP - rho_avg * g * dZ
+            # dZ_slice = Z_L - Z_R
+            grav_term_w = rho_w_avg * g_const * dZ_slice
+            grav_term_o = rho_o_avg * g_const * dZ_slice
+            
+            dpot_w = (p_slice_L - p_slice_R) - grav_term_w
+            dpot_o = (p_slice_L - p_slice_R) - grav_term_o
+            
+            # Upstream weighting based on POTENTIAL difference (Counter-current flow possible)
+            up_w = (dpot_w >= 0).double()
+            down_w = 1.0 - up_w
+            
+            up_o = (dpot_o >= 0).double()
+            down_o = 1.0 - up_o
             
             # Closure to use captured fluid props
             def get_props_correct(pres, sat):
                 rho_w_ = rho_w_ref * (1.0 + c_w * (pres - 1e5))
                 rho_o_ = rho_o_ref * (1.0 + c_o * (pres - 1e5))
                 
-                # Relative Permeability (Simplified Corey)
-                sw_irr = 0.2; sor = 0.2
-                swn = torch.clamp((sat - sw_irr)/(1-sw_irr-sor), 0.0, 1.0)
-                dswn_ds = 1.0 / (1-sw_irr-sor)
-                # Zero derivative outside range handled by clamp gradient? 
-                # Manual gradient:
-                # If sat < sw_irr, swn=0. If sat > 1-sor, swn=1.
-                # Derivative is 0 in those regions.
-                # We can implement this explicitly or rely on mask.
+                # Relative Permeability
+                sw_irr = self.sw_irr
+                sor = self.so_r
+                nw = self.nw
+                no = self.no
                 
-                krw_ = swn ** 2
-                kro_ = (1-swn) ** 2
+                # Normalized saturation
+                denom = 1.0 - sw_irr - sor
+                swn = torch.clamp((sat - sw_irr)/(denom + 1e-12), 0.0, 1.0)
+                dswn_ds = 1.0 / (denom + 1e-12)
+                
+                krw_ = swn ** nw
+                kro_ = (1-swn) ** no
                 
                 # Derivatives
-                dkrw_ds = 2 * swn * dswn_ds
-                dkro_ds = -2 * (1-swn) * dswn_ds
+                dkrw_ds = nw * (swn ** (nw - 1)) * dswn_ds
+                dkro_ds = -no * ((1-swn) ** (no - 1)) * dswn_ds
                 
                 # Mask derivatives where swn is clamped (0 or 1)
-                mask_active = (sat > sw_irr) & (sat < (1-sor))
+                # Important for stability
+                mask_active = (sat > sw_irr) & (sat < (1.0-sor))
                 dkrw_ds = dkrw_ds * mask_active.double()
                 dkro_ds = dkro_ds * mask_active.double()
 
@@ -332,32 +447,43 @@ class ManualFIMSolver:
             lam_o_L, lam_w_L, dlo_ds_L, dlo_dp_L, dlw_ds_L, dlw_dp_L = get_props_correct(p_slice_L, sw_slice_L)
             lam_o_R, lam_w_R, dlo_ds_R, dlo_dp_R, dlw_ds_R, dlw_dp_R = get_props_correct(p_slice_R, sw_slice_R)
 
-            lam_o_face = lam_o_L * up + lam_o_R * down
-            lam_w_face = lam_w_L * up + lam_w_R * down
+            lam_o_face = lam_o_L * up_o + lam_o_R * down_o
+            lam_w_face = lam_w_L * up_w + lam_w_R * down_w
             
-            flux_o = T_slice * lam_o_face * dpot
-            flux_w = T_slice * lam_w_face * dpot
+            flux_o = T_slice * lam_o_face * dpot_o
+            flux_w = T_slice * lam_w_face * dpot_w
             
             R[2*idx_L] += flux_o.view(-1)
             R[2*idx_L+1] += flux_w.view(-1)
             R[2*idx_R] -= flux_o.view(-1)
             R[2*idx_R+1] -= flux_w.view(-1)
             
-            # Derivatives
+            # Derivatives of Potential Difference
+            # d(dpot)/dP_L = 1 - 0.5 * g * dZ * drho/dP_L
+            # d(dpot)/dP_R = -1 - 0.5 * g * dZ * drho/dP_R
+            
+            gdZ = g_const * dZ_slice
+            
+            ddpot_w_dp_L = 1.0 - 0.5 * gdZ * drho_w_dp
+            ddpot_w_dp_R = -1.0 - 0.5 * gdZ * drho_w_dp
+            
+            ddpot_o_dp_L = 1.0 - 0.5 * gdZ * drho_o_dp
+            ddpot_o_dp_R = -1.0 - 0.5 * gdZ * drho_o_dp
+
             # 1. dFlux/dX_L
-            df_o_dp_L = T_slice * (dlo_dp_L * up * dpot + lam_o_face)
-            df_w_dp_L = T_slice * (dlw_dp_L * up * dpot + lam_w_face)
-            df_o_ds_L = T_slice * (dlo_ds_L * up * dpot)
-            df_w_ds_L = T_slice * (dlw_ds_L * up * dpot)
+            # dF/dP_L = T * (dlam_face/dP_L * dpot + lam_face * ddpot/dP_L)
+            # dlam_face/dP_L = dlam_L/dP_L * up
+            
+            df_o_dp_L = T_slice * (dlo_dp_L * up_o * dpot_o + lam_o_face * ddpot_o_dp_L)
+            df_w_dp_L = T_slice * (dlw_dp_L * up_w * dpot_w + lam_w_face * ddpot_w_dp_L)
+            
+            df_o_ds_L = T_slice * (dlo_ds_L * up_o * dpot_o)
+            df_w_ds_L = T_slice * (dlw_ds_L * up_w * dpot_w)
             
             # To Diagonal L
             map_diag_L = self.builder.diag_map[idx_L]
             J_vals[map_diag_L, 0, 0] += df_o_dp_L.view(-1)
             J_vals[map_diag_L, 0, 1] += df_o_ds_L.view(-1)
-            J_vals[map_diag_L, 1, 0] += df_w_dp_L.view(-1)
-            J_vals[map_diag_L, 1, 1] += df_w_ds_L.view(-1)
-            
-            # To Off-Diagonal R (link R->L i.e. x_neg_map[R])
             J_vals[map_diag_L, 1, 0] += df_w_dp_L.view(-1)
             J_vals[map_diag_L, 1, 1] += df_w_ds_L.view(-1)
             
@@ -368,10 +494,14 @@ class ManualFIMSolver:
             J_vals[map_x_neg_R, 1, 1] -= df_w_ds_L.view(-1)
             
             # 2. dFlux/dX_R
-            df_o_dp_R = T_slice * (dlo_dp_R * down * dpot - lam_o_face)
-            df_w_dp_R = T_slice * (dlw_dp_R * down * dpot - lam_w_face)
-            df_o_ds_R = T_slice * (dlo_ds_R * down * dpot)
-            df_w_ds_R = T_slice * (dlw_ds_R * down * dpot)
+            # dF/dP_R = T * (dlam_face/dP_R * dpot + lam_face * ddpot/dP_R)
+            # dlam_face/dP_R = dlam_R/dP_R * down
+            
+            df_o_dp_R = T_slice * (dlo_dp_R * down_o * dpot_o + lam_o_face * ddpot_o_dp_R)
+            df_w_dp_R = T_slice * (dlw_dp_R * down_w * dpot_w + lam_w_face * ddpot_w_dp_R)
+            
+            df_o_ds_R = T_slice * (dlo_ds_R * down_o * dpot_o)
+            df_w_ds_R = T_slice * (dlw_ds_R * down_w * dpot_w)
             
             # To Diagonal R
             map_diag_R = self.builder.diag_map[idx_R]
@@ -393,7 +523,7 @@ class ManualFIMSolver:
         idx_L_x = grid_idx[:-1,:,:].reshape(-1)
         idx_R_x = grid_idx[1:,:,:].reshape(-1)
         process_direction(
-            p[:-1,:,:], p[1:,:,:], sw[:-1,:,:], sw[1:,:,:], self.Tx,
+            p[:-1,:,:], p[1:,:,:], sw[:-1,:,:], sw[1:,:,:], self.Tx, self.dZ_x,
             self.builder.x_pos_map[idx_L_x], self.builder.x_neg_map[idx_R_x],
             idx_L_x, idx_R_x
         )
@@ -402,7 +532,7 @@ class ManualFIMSolver:
         idx_L_y = grid_idx[:,:-1,:].reshape(-1)
         idx_R_y = grid_idx[:,1:,:].reshape(-1)
         process_direction(
-            p[:,:-1,:], p[:,1:,:], sw[:,:-1,:], sw[:,1:,:], self.Ty,
+            p[:,:-1,:], p[:,1:,:], sw[:,:-1,:], sw[:,1:,:], self.Ty, self.dZ_y,
             self.builder.y_pos_map[idx_L_y], self.builder.y_neg_map[idx_R_y],
             idx_L_y, idx_R_y
         )
@@ -411,17 +541,17 @@ class ManualFIMSolver:
         idx_L_z = grid_idx[:,:,:-1].reshape(-1)
         idx_R_z = grid_idx[:,:,1:].reshape(-1)
         process_direction(
-            p[:,:,:-1], p[:,:,1:], sw[:,:,:-1], sw[:,:,1:], self.Tz,
+            p[:,:,:-1], p[:,:,1:], sw[:,:,:-1], sw[:,:,1:], self.Tz, self.dZ_z,
             self.builder.z_pos_map[idx_L_z], self.builder.z_neg_map[idx_R_z],
             idx_L_z, idx_R_z
         )
         
         # --- Wells ---
-        self.apply_wells(R, J_vals, p, sw)
+        self.apply_wells(R, J_vals, p, sw, current_time=current_time)
         
         return R, J_vals
 
-    def apply_wells(self, R, J_vals, p, sw):
+    def apply_wells(self, R, J_vals, p, sw, current_time=None):
         """
         Применяет скважины (источники/стоки) и добавляет их производные в Якобиан.
         """
@@ -442,23 +572,44 @@ class ManualFIMSolver:
         # Получаем скалярные значения или тензоры
         p_flat = p.view(-1)
         sw_flat = sw.view(-1)
+        
+        sim_time_days = (current_time / 86400.0) if current_time is not None else float('inf')
 
         for well in self.well_manager.wells:
             idx = well.cell_index_flat
             map_diag = self.builder.diag_map[idx]
             
+            ctrl_type, ctrl_val = well.get_current_control(sim_time_days)
+            
             # Rate in m3/s
-            q_surf_sec = well.control_value / 86400.0
+            # q_surf_sec = well.control_value / 86400.0 
+            # Используем ctrl_val
             
             if well.type == 'injector':
                 # Инжекция (всегда вода для простоты теста)
                 if well.injected_phase == 'gas':
                     continue
-                    
-                mass_rate = q_surf_sec * rho_w_ref
-                R[2*idx + 1] -= mass_rate
-                # Производная по давлению/насыщенности для rate control injector = 0
                 
+                if ctrl_type == 'rate':
+                    q_surf_sec = ctrl_val / 86400.0
+                    mass_rate = q_surf_sec * rho_w_ref
+                    R[2*idx + 1] -= mass_rate
+                    # Производная по давлению/насыщенности для rate control injector = 0
+                elif ctrl_type == 'bhp':
+                    # P_bh control injector
+                    p_bh = ctrl_val * 1e6
+                    # Injector logic: q = PI * mob * (P - P_bh) ?
+                    # Обычно для инжектора mob берется по насыщенности в ячейке или апстрим?
+                    # Для простоты - Total Mobility ячейки
+                    # q < 0 (injection). If P < P_bh, term is negative.
+                    # R += q => R += PI * mob * (P - P_bh)
+                    
+                    pres = p_flat[idx]
+                    sat = sw_flat[idx]
+                    # ... Need calculate mobilities (copy paste logic or extract?)
+                    # For now, ignore BHP injectors or implement simplified
+                    pass 
+                    
             elif well.type == 'producer':
                 # Добыча (Total Liquid Rate)
                 pres = p_flat[idx]
@@ -468,18 +619,24 @@ class ManualFIMSolver:
                 rho_w = rho_w_ref * (1.0 + c_w * (pres - 1e5))
                 rho_o = rho_o_ref * (1.0 + c_o * (pres - 1e5))
                 
-                sw_irr=0.2; sor=0.2
-                swn = torch.clamp((sat - sw_irr)/(1-sw_irr-sor), 0.0, 1.0)
-                dswn_ds = 1.0 / (1-sw_irr-sor)
+                sw_irr = self.sw_irr
+                sor = self.so_r
+                nw = self.nw
+                no = self.no
+                
+                denom = 1.0 - sw_irr - sor
+                swn = torch.clamp((sat - sw_irr)/(denom + 1e-12), 0.0, 1.0)
+                dswn_ds = 1.0 / (denom + 1e-12)
+                
+                krw = swn ** nw
+                dkrw_ds = nw * (swn ** (nw - 1)) * dswn_ds
+                
+                kro = (1-swn) ** no
+                dkro_ds = -no * ((1-swn) ** (no - 1)) * dswn_ds
                 
                 mask_active = (sat > sw_irr) & (sat < (1-sor))
-                if not mask_active: dswn_ds = 0.0 # Scalar check
-                
-                krw = swn ** 2
-                dkrw_ds = 2 * swn * dswn_ds
-                
-                kro = (1-swn) ** 2
-                dkro_ds = -2 * (1-swn) * dswn_ds
+                dkrw_ds = dkrw_ds * mask_active.double()
+                dkro_ds = dkro_ds * mask_active.double()
                 
                 lam_w = krw * rho_w / mu_w
                 lam_o = kro * rho_o / mu_o
@@ -505,29 +662,213 @@ class ManualFIMSolver:
                 dfo_dp = -dfw_dp
                 
                 # Rates
-                q_w_mass = q_surf_sec * fw * rho_w_ref
-                q_o_mass = q_surf_sec * fo * rho_o_ref
+                if ctrl_type == 'rate':
+                    q_surf_sec = ctrl_val / 86400.0
+                    
+                    q_w_mass = q_surf_sec * fw * rho_w_ref
+                    q_o_mass = q_surf_sec * fo * rho_o_ref
+                    
+                    # Add to Residual
+                    R[2*idx + 0] += q_o_mass
+                    R[2*idx + 1] += q_w_mass
+                    
+                    # Add to Jacobian (Diagonal)
+                    dq_w_dsw = q_surf_sec * rho_w_ref * dfw_ds
+                    dq_w_dp  = q_surf_sec * rho_w_ref * dfw_dp
+                    dq_o_dsw = q_surf_sec * rho_o_ref * dfo_ds
+                    dq_o_dp  = q_surf_sec * rho_o_ref * dfo_dp
+                    
+                    J_vals[map_diag, 0, 0] += dq_o_dp
+                    J_vals[map_diag, 0, 1] += dq_o_dsw
+                    J_vals[map_diag, 1, 0] += dq_w_dp
+                    J_vals[map_diag, 1, 1] += dq_w_dsw
                 
-                # Add to Residual
-                R[2*idx + 0] += q_o_mass
-                R[2*idx + 1] += q_w_mass
-                
-                # Add to Jacobian (Diagonal)
-                dq_w_dsw = q_surf_sec * rho_w_ref * dfw_ds
-                dq_w_dp  = q_surf_sec * rho_w_ref * dfw_dp
-                dq_o_dsw = q_surf_sec * rho_o_ref * dfo_ds
-                dq_o_dp  = q_surf_sec * rho_o_ref * dfo_dp
-                
-                J_vals[map_diag, 0, 0] += dq_o_dp
-                J_vals[map_diag, 0, 1] += dq_o_dsw
-                J_vals[map_diag, 1, 0] += dq_w_dp
-                J_vals[map_diag, 1, 1] += dq_w_dsw
+                elif ctrl_type == 'bhp':
+                    # P_bh control
+                    # q_mass = PI * mob_phase * (P - P_bh) ?
+                    # Usually q_vol = PI * mob_total * (P - P_bh)
+                    # And q_phase_vol = q_vol * f_phase
+                    # q_phase_mass = q_vol * f_phase * rho_phase
+                    
+                    p_bh = ctrl_val * 1e6
+                    
+                    # q_tot_vol = PI * lam_tot * (pres - p_bh)
+                    # Derivatives needed w.r.t pres and sat
+                    
+                    # q_o_mass = PI * lam_o * (pres - p_bh) ? Or via total?
+                    # Standard: q_phase = PI * lam_phase * (P - P_bh)
+                    
+                    q_o_mass = well.well_index * lam_o * (pres - p_bh)
+                    q_w_mass = well.well_index * lam_w * (pres - p_bh)
+                    
+                    R[2*idx + 0] += q_o_mass
+                    R[2*idx + 1] += q_w_mass
+                    
+                    # Derivs: d(lam * (P - Pbh))/dX = dlam/dX * (P-Pbh) + lam * dP/dX
+                    
+                    dqo_dp = well.well_index * (dlam_o_dp * (pres - p_bh) + lam_o)
+                    dqo_ds = well.well_index * (dlam_o_ds * (pres - p_bh))
+                    
+                    dqw_dp = well.well_index * (dlam_w_dp * (pres - p_bh) + lam_w)
+                    dqw_ds = well.well_index * (dlam_w_ds * (pres - p_bh))
+                    
+                    J_vals[map_diag, 0, 0] += dqo_dp
+                    J_vals[map_diag, 0, 1] += dqo_ds
+                    J_vals[map_diag, 1, 0] += dqw_dp
+                    J_vals[map_diag, 1, 1] += dqw_ds
 
-    def solve_cpu(self, J_vals, R):
+    def solve_cpu(self, J_vals, R, current_newton_rel_error=1.0):
         """
-        Решает систему на CPU через SciPy.
-        Для больших сеток использует итеративный решатель BiCGStab c CPR-AMG предобуславливателем.
+        Решает систему линейных уравнений.
+        Использует FGMRES на GPU если доступен, иначе падает на CPU SciPy.
         """
+        indptr = self.builder.indptr
+        indices = self.builder.indices
+        n_blocks = self.n_cells
+        
+        # Подготовка GPU структур
+        # J_vals: [NNZ, 2, 2]
+        # R: [2*N]
+        
+        # Пробуем использовать GPU FGMRES
+        try:
+            from solver.fgmres import fgmres
+            from .cpr_gpu import CPRPreconditionerGPU # Import local helper
+            
+            # 1. Оператор A @ x
+            # J_vals имеет размер [NNZ, 2, 2]. Нужно эффективно умножать.
+            # Для BSR умножения на PyTorch нет встроенного, но мы можем 
+            # либо использовать sparse_csr (если блоки развернуть), 
+            # либо написать свое ядро.
+            # Проще всего: развернуть BSR в CSR (NNZ*4) и использовать torch.sparse.
+            
+            # Разворачиваем блоки 2x2 в CSR
+            # Это делается один раз за решение, или на лету?
+            # Лучше один раз собрать CSR матрицу для текущего шага Ньютона
+            
+            # Данные для CSR (crow, col, val)
+            # indptr: [N+1] -> crow: [2N+1]
+            # indices: [NNZ] -> col: [4*NNZ]
+            
+            # Эффективная конвертация BSR 2x2 -> CSR на PyTorch
+            # J_vals: [NNZ, 2, 2] -> [NNZ, 4] flat values
+            # Но порядок в CSR другой.
+            # BSR: row i -> cols [j1, j2...] -> blocks [2x2]
+            # CSR: row 2i -> cols [2j1, 2j1+1, 2j2, 2j2+1] -> vals [00, 01, 00, 01]
+            #      row 2i+1 -> cols [2j1, 2j1+1, 2j2, 2j2+1] -> vals [10, 11, 10, 11]
+            
+            # Для простоты сейчас (MVP) соберем CSR через Python/Numpy конверсию,
+            # НО оставим данные на GPU.
+            # TODO: Написать pure torch kernel для BSR matvec
+            
+            # --- Вариант 1: Torch Sparse CSR (beta) ---
+            # Требует int64 индексов
+            
+            # Подготовка индексов (делаем 1 раз при инициализации builder, но сейчас тут)
+            if not hasattr(self, 'csr_crow') or self.csr_crow is None:
+                # Конвертируем структуру BSR -> CSR 2x2
+                # Это нетривиально векторизовать без кастомного кернела.
+                # План Б: Использовать matvec через "размазывание"
+                pass
+                
+            # --- Вариант 2: Matvec через scatter/gather (медленно) ---
+            
+            # --- Вариант 3: Конвертация через CPU Scipy (текущее решение для надежности) ---
+            # Но мы хотим GPU.
+            
+            # --- Вариант 4: Прямое умножение J_vals * x ---
+            # x: [N, 2]
+            # y = zeros
+            # Для каждого блока k (строка i, столбец j):
+            # y[i] += block[k] @ x[j]
+            # Это можно сделать через index_add_
+            
+            # Реализация Matvec на PyTorch (GPU)
+            rows = torch.repeat_interleave(torch.arange(self.n_cells, device=self.device), 
+                                         (indptr[1:] - indptr[:-1]).long())
+            cols = indices.long()
+            
+            # --- Row Scaling (Jacobi Preconditioning) ---
+            # Нормализуем уравнения, чтобы диагональные элементы были ~1.
+            # Это критически важно для FGMRES, так как диагональные элементы давления (~1e-6)
+            # и насыщенности (~1e3) различаются на 9 порядков.
+            
+            # Вычисляем масштабные коэффициенты из диагональных блоков
+            diag_vals = J_vals[self.builder.diag_map] # [N, 2, 2]
+            d00 = diag_vals[:, 0, 0]
+            d11 = diag_vals[:, 1, 1]
+            
+            # Избегаем деления на ноль
+            scale_0 = 1.0 / (torch.abs(d00) + 1e-12)
+            scale_1 = 1.0 / (torch.abs(d11) + 1e-12)
+            
+            # Масштабируем правую часть R
+            # R: [2*N].
+            R_view = R.view(-1, 2)
+            R_scaled = torch.empty_like(R_view)
+            R_scaled[:, 0] = R_view[:, 0] * scale_0
+            R_scaled[:, 1] = R_view[:, 1] * scale_1
+            R_scaled_flat = R_scaled.view(-1)
+            
+            # Масштабируем матрицу J для matvec (Left Scaling)
+            # J_vals[k] умножается на scale[rows[k]]
+            s0_expanded = scale_0[rows].unsqueeze(1) # [NNZ, 1]
+            s1_expanded = scale_1[rows].unsqueeze(1) # [NNZ, 1]
+            
+            # Копия матрицы (in-place scale J_vals опасно, если он где-то переиспользуется, но здесь ок)
+            # J_vals создается заново в assemble_system, так что можно править in-place для скорости
+            J_vals[:, 0, :] *= s0_expanded
+            J_vals[:, 1, :] *= s1_expanded
+            
+            def matvec_gpu_scaled(x_vec):
+                # x_vec: [2*N] -> [N, 2]
+                x_blk = x_vec.view(-1, 2)
+                
+                # Gather x values: x_j = x_blk[cols] -> [NNZ, 2]
+                x_j = x_blk[cols]
+                
+                # Batch matmul: y_val = J_vals @ x_j.unsqueeze(-1) 
+                # [NNZ, 2, 2] @ [NNZ, 2, 1] -> [NNZ, 2, 1]
+                y_vals = torch.bmm(J_vals, x_j.unsqueeze(-1)).squeeze(-1) # [NNZ, 2]
+                
+                # Scatter add to rows
+                y = torch.zeros_like(x_blk)
+                y.index_add_(0, rows, y_vals)
+                
+                return y.view(-1)
+
+            # 2. Предобуславливатель (CPR)
+            if HAS_AMG:
+                # Создаем CPR c уже масштабированной матрицей
+                # Это делает A_p и inv_diag хорошо обусловленными (~1)
+                cpr = CPRPreconditionerGPU(J_vals, indptr, indices, self.n_cells, self.device)
+                M_op = cpr.matvec
+            else:
+                M_op = None
+                
+            # 3. Запуск FGMRES
+            # Адаптивный толеранс (Eisenstat-Walker):
+            # Строже (0.01), чтобы направление было точным
+            adaptive_tol = max(1e-6, min(0.01, 0.01 * current_newton_rel_error))
+            
+            # print(f"    Solving with GPU FGMRES (tol={adaptive_tol:.1e})...")
+            
+            # Решаем масштабированную систему: (S*J) * x = (S*(-R))
+            x, info = fgmres(matvec_gpu_scaled, -R_scaled_flat, M_mv=M_op, max_iter=20, restart=50, tol=adaptive_tol, verbose=True)
+            
+            if info != 0:
+                # Не сошелся, но fgmres возвращает лучшее приближение
+                # print("    FGMRES max iters reached")
+                pass
+                
+            return x
+            
+        except ImportError:
+            print("FGMRES not found, falling back to CPU")
+        except Exception as e:
+            print(f"GPU Solver failed ({e}), falling back to CPU")
+            # Fallback code below...
+
         indptr = self.builder.indptr.cpu().numpy()
         indices = self.builder.indices.cpu().numpy()
         n_blocks = self.n_cells
