@@ -87,10 +87,21 @@
 
 | Параметр | Тип / default | Описание |
 |----------|---------------|----------|
-| `newton_max_iter` | `int`, default `20` | Максимальное число итераций Ньютона. |
-| `newton_tolerance` | `float`, default `1e-3` | Целевой относительный резидуал. |
-| `damping_factor` | `float`, default `0.7` | Коэффициент демпфирования обновления (`λ ∈ (0,1]`). |
-| `jacobian_regularization` | `float`, default `1e-7` | Добавляется на диагональ якобиана для устойчивости. |
+| `newton_max_iter` | `int`, default `15` | Максимальное число итераций Ньютона на подшаг. |
+| `newton_tol_cnv` / `newton_tol_mb` | `float`, default `1e-3` / `1e-7` | Локальный (CNV) и глобальный (MB) критерии сходимости. |
+| `newton_tol_well_rate` / `newton_tol_well_bhp` | `float`, default `1e-5` / `10` Па | Точность выполнения уставок скважин. |
+| `newton_ds_max`, `newton_dp_max_rel`, `newton_dp_max_abs_mpa`, `newton_dbhp_max_rel` | default `0.2`, `0.3`, `2.0`, `1.0` | Ограничение поправок Ньютона по ячейкам. |
+| `linear_restart`, `linear_max_restarts` | default `50`, `4` | Размер подпространства FGMRES и число рестартов. |
+| `linear_tol_min`, `linear_tol_max`, `linear_accept_rel_res` | default `1e-6`, `1e-2`, `0.1` | Допуск неточного Ньютона и порог отказа СЛАУ. |
+| `amg_rebuild` | `"step"` \| `"iteration"`, default `"step"` | Когда строить иерархию AMG заново (иначе — только обновление значений). |
+| `cpr_smoother_sweeps` | `int`, default `1` | Число проходов блочного Якоби во второй ступени CPR. |
+| `newton_target_iter`, `dt_target_dsw` | default `6`, `0.2` | Цели адаптивного шага по времени. |
+| `dt_increase_factor`, `dt_reduction_factor` | default `2.0`, `2.0` | Максимальный рост и дробление шага. |
+| `initial_time_step_days`, `min_time_step_days`, `max_time_step_days` | default — отчётный шаг, `1e-6`, отчётный шаг | Границы шага по времени (`time_step_days` — отчётный интервал). |
+| `max_time_step_attempts` | `int`, default `8` | Максимум дроблений шага подряд. |
+| `debug` | объект | Режим отладки решателя, см. `fim_technical_details.md`. |
+
+Параметры скважин для FIM: `perforations`, `skin`, `well_index`, `bhp_min`, `bhp_max`, `surface_phase`, `ramp_days` — см. `fim_technical_details.md`, раздел 2.
 
 ## 3. Блок `reservoir`
 

@@ -1,998 +1,487 @@
+"""
+Полностью неявный (FIM) решатель нефть–вода с ручной сборкой Якобиана.
+
+Неизвестные: давление P и водонасыщенность Sw в каждой ячейке + забойное давление каждой скважины.
+Дискретизация: TPFA по списку граней (готово к NNC / corner-point), upwind по потенциалу фазы,
+гравитация, сжимаемость флюидов и породы.
+
+Сходимость Ньютона — по промышленным критериям (как в Eclipse/OPM):
+  CNV_α = dt · max_c |R_α,c| / (ρ_α,ref · PV_c)       ≤ tol_cnv   (локальная, по ячейкам)
+  MB_α  = dt · |Σ_c R_α,c| / (ρ_α,ref · Σ_c PV_c)    ≤ tol_mb    (глобальный материальный баланс)
+  скважины: |Q - Q_target| ≤ tol_well_rate · |Q_target|, |p_bh - p_target| ≤ tol_well_bhp
+"""
+import contextlib
+import io
 import time
+
 import torch
-import numpy as np
-import scipy
-import scipy.sparse as sp
-from scipy.sparse.linalg import spsolve, bicgstab, LinearOperator, spilu
+
 from .reservoir import Reservoir
 from .fluid import Fluid
 from .well import WellManager
 from .sparse_utils import SparseMatrixBuilder
 from .solver_debug import SolverDebugger
+from .fim_wells import FIMWells, G
 
 try:
-    # Try relative import first (package mode)
-    from ..solver.classical_amg import ClassicalAMG
-    HAS_AMG = True
+    from ..solver.fgmres import fgmres
 except (ImportError, ValueError):
-    try:
-        # Try absolute import (script mode with src in path)
-        from solver.classical_amg import ClassicalAMG
-        HAS_AMG = True
-    except ImportError:
-        print("Warning: ClassicalAMG not found, CPR disabled.")
-        HAS_AMG = False
+    from solver.fgmres import fgmres
+from .cpr_gpu import CPRPreconditionerGPU
 
-class CPRPreconditioner(LinearOperator):
-    """
-    Constrained Pressure Residual (CPR) Preconditioner.
-    Использует AMG для давления и ILU для полной системы.
-    """
-    def __init__(self, J_bsr, n_cells, device='cuda'):
-        self.shape = J_bsr.shape
-        self.dtype = J_bsr.dtype
-        self.n_cells = n_cells
-        self.device = device
-        self.J_bsr = J_bsr
-        
-        # 1. Extract Pressure Matrix A_p
-        indptr = J_bsr.indptr
-        indices = J_bsr.indices
-        data_blocks = J_bsr.data # (NNZ, 2, 2)
-        
-        # A_p_data = J_00 + J_10 (Row sum of derivatives wrt P)
-        data_p = data_blocks[:, 0, 0] + data_blocks[:, 1, 0]
-        
-        # Scale data_p to reasonable range (e.g. max abs val = 1.0) to help AMG thresholds
-        max_val = np.max(np.abs(data_p))
-        if max_val > 0:
-            data_p = data_p / max_val
-            self.p_scale = max_val
-        else:
-            self.p_scale = 1.0
-        
-        self.A_p = sp.csr_matrix((data_p, indices, indptr), shape=(n_cells, n_cells))
-        
-        # Init AMG
-        try:
-            # ClassicalAMG auto-detects device (cuda if available)
-            # Use theta=0.25 (standard). 
-            # mixed_precision=True to save memory.
-            # coarsening_method='pmis' (default) is usually faster/more aggressive than RS.
-            # nullspace_dim=0 disables expensive energy-minimization (saves time/memory)
-            self.amg = ClassicalAMG(
-                self.A_p, 
-                max_levels=10, 
-                theta=0.25,
-                mixed_precision=True,
-                nullspace_dim=0 
-            )
-            # Sync device with AMG choice
-            self.amg_device = self.amg.device
-        except Exception as e:
-            print(f"CPR AMG init failed: {e}, falling back to simple ILU")
-            if "CUDA out of memory" in str(e):
-                torch.cuda.empty_cache()
-            self.amg = None
-
-        # 2. ILU for Smoothing
-        csc = J_bsr.tocsc()
-        try:
-            self.ilu = spilu(csc, drop_tol=1e-4, fill_factor=2.0)
-        except Exception as e:
-             print(f"CPR ILU init failed: {e}")
-             self.ilu = None
-
-    def _matvec(self, r):
-        # 1. AMG Step (Pressure Correction)
-        x_amg_full = np.zeros_like(r)
-        
-        if self.amg:
-            # RHS for pressure: sum of residuals
-            r_p = r[0::2] + r[1::2]
-            
-            # Scale RHS to match A_p scaling
-            r_p_scaled = r_p / self.p_scale
-            
-            # Ensure we use the device where AMG resides
-            b_torch = torch.from_numpy(r_p_scaled).to(self.amg.device)
-            
-            with torch.no_grad():
-                x_p_torch = self.amg.solve(b_torch, tol=1e-2, max_iter=5)
-            
-            x_p = x_p_torch.cpu().numpy()
-            x_amg_full[0::2] = x_p
-            
-        # 2. Residual update
-        # r' = r - A * x_amg
-        # Note: J_bsr matvec is fast
-        if self.amg:
-            r_prime = r - self.J_bsr @ x_amg_full
-        else:
-            r_prime = r
-            
-        # 3. ILU Smoothing
-        if self.ilu:
-            x_ilu = self.ilu.solve(r_prime)
-        else:
-            x_ilu = r_prime # No smoothing fallback (bad)
-            
-        return x_amg_full + x_ilu
 
 class ManualFIMSolver:
     """
-    Fully Implicit Solver с ручной сборкой разреженного Якобиана (CSR/BSR).
-    Оптимизирован по памяти: подходит для сеток 1M+ ячеек.
+    Fully Implicit Solver с ручной сборкой разреженного блочного Якобиана (BSR 2x2) на GPU.
     """
     def __init__(self, reservoir: Reservoir, fluid: Fluid, well_manager: WellManager, params: dict):
         self.reservoir = reservoir
         self.fluid = fluid
         self.well_manager = well_manager
         self.device = reservoir.device
-        
-        # Геометрия
+
         self.nx, self.ny, self.nz = reservoir.dimensions
         self.n_cells = self.nx * self.ny * self.nz
-        
-        # Параметры решателя
-        self.max_newton = params.get('newton_max_iter', 15)
-        # Tolerance for mass balance in kg/s
-        # Default to 1e-6 kg/s (~0.1 kg/day) if not specified
-        self.tol_mass = params.get('newton_tol_mass', params.get('newton_tolerance', 1e-6))
+
+        # --- Нелинейный решатель ---
+        self.max_newton = int(params.get('newton_max_iter', 15))
+        self.min_newton = int(params.get('newton_min_iter', 0))
+        self.tol_cnv = float(params.get('newton_tol_cnv', 1e-3))
+        self.tol_mb = float(params.get('newton_tol_mb', 1e-7))
+        self.tol_well_rate = float(params.get('newton_tol_well_rate', 1e-5))
+        self.tol_well_bhp = float(params.get('newton_tol_well_bhp', 10.0))  # Па
+        self.ds_max = float(params.get('newton_ds_max', 0.2))
+        self.dp_max_rel = float(params.get('newton_dp_max_rel', 0.3))
+        self.dp_max_abs = float(params.get('newton_dp_max_abs_mpa', 2.0)) * 1e6
+        self.dbhp_max_rel = float(params.get('newton_dbhp_max_rel', 1.0))
+        if 'newton_tol_mass' in params or 'newton_tolerance' in params:
+            print("  ⚠ newton_tol_mass/newton_tolerance устарели: используются CNV/MB "
+                  f"(tol_cnv={self.tol_cnv:g}, tol_mb={self.tol_mb:g})")
+
+        # --- Линейный решатель ---
+        self.lin_restart = int(params.get('linear_restart', 50))
+        self.lin_max_restarts = int(params.get('linear_max_restarts', 4))
+        self.lin_tol_max = float(params.get('linear_tol_max', 1e-2))
+        self.lin_tol_min = float(params.get('linear_tol_min', 1e-6))
+        self.lin_accept = float(params.get('linear_accept_rel_res', 0.1))
+        self.amg_rebuild = params.get('amg_rebuild', 'step')  # 'step' | 'iteration'
+        self.cpr_smoother_sweeps = int(params.get('cpr_smoother_sweeps', 1))
         self.linear_verbose = bool(params.get('linear_verbose', False))
+        self.amg_verbose = bool(params.get('amg_verbose', False))
+        self._amg = None
+        self.last_newton_iters = 0
+        self.last_max_dsw = 0.0
+        self.last_max_dp = 0.0
+
         self.debug = SolverDebugger(params.get('debug', {}), reservoir.dimensions, self.device)
-        self._well_records = None
         self._last_linear_stats = {}
-        
-        # Построитель структуры матрицы (делаем 1 раз)
+
         print("Building sparse matrix structure...")
         self.builder = SparseMatrixBuilder(self.nx, self.ny, self.nz, block_size=2, device=self.device)
         print(f"Structure built. NNZ blocks: {self.builder.n_nonzero}")
-        
-        # Предварительный расчет геометрической части трансмиссибильности и разницы глубин
-        self._compute_geom_transmissibility()
-        
-        # Поровый объем
-        dx, dy, dz = reservoir.grid_size
-        self.dx, self.dy, self.dz = dx, dy, dz
-        if hasattr(reservoir, 'cell_volume'):
-            vol = reservoir.cell_volume
-        else:
-            vol = dx * dy * dz
-        self.pore_volume = vol * reservoir.porosity
-        self.pore_volume = self.pore_volume.view(-1).double()
-        
-        # Кэшируем параметры релперм для быстрого доступа
-        self.sw_irr = getattr(self.fluid, 'sw_cr', 0.2)
-        self.so_r = getattr(self.fluid, 'so_r', 0.2)
-        self.nw = getattr(self.fluid, 'nw', 2.0)
-        self.no = getattr(self.fluid, 'no', 2.0)
 
-    def _compute_geom_transmissibility(self):
-        kx = self.reservoir.permeability_x
-        # Note: Permeability is already in SI (m^2) from Reservoir
-        
-        dx, dy, dz = self.reservoir.grid_size
-        
-        # Geometric factors (Area / Length) [m]
-        Gx = 2 * (dy * dz) / dx
-        Gy = 2 * (dx * dz) / dy
-        Gz = 2 * (dx * dy) / dz
-        
-        # Transmissibility of cells [m^3]
-        Tx_cell = Gx * kx
-        Ty_cell = Gy * self.reservoir.permeability_y
-        Tz_cell = Gz * self.reservoir.permeability_z
-        
-        # Harmonic mean for connections (nx-1, ny, nz)
-        self.Tx = 2 * Tx_cell[:-1,:,:] * Tx_cell[1:,:,:] / (Tx_cell[:-1,:,:] + Tx_cell[1:,:,:] + 1e-32)
-        self.Ty = 2 * Ty_cell[:,:-1,:] * Ty_cell[:,1:,:] / (Ty_cell[:,:-1,:] + Ty_cell[:,1:,:] + 1e-32)
-        self.Tz = 2 * Tz_cell[:,:,:-1] * Tz_cell[:,:,1:] / (Tz_cell[:,:,:-1] + Tz_cell[:,:,1:] + 1e-32)
-        
-        # Разница глубин (Z centers)
-        # Z обычно растет вниз. Поток L->R. dZ = Z_L - Z_R.
-        if hasattr(self.reservoir, 'z_centers'):
-             # [nx], [ny], [nz] -> broadcast to [nx, ny, nz]
-             xc = self.reservoir.x_centers.view(self.nx, 1, 1).expand(self.nx, self.ny, self.nz)
-             yc = self.reservoir.y_centers.view(1, self.ny, 1).expand(self.nx, self.ny, self.nz)
-             zc = self.reservoir.z_centers.view(1, 1, self.nz).expand(self.nx, self.ny, self.nz)
-             
-             self.dZ_x = zc[:-1,:,:] - zc[1:,:,:]
-             self.dZ_y = zc[:,:-1,:] - zc[:,1:,:]
-             self.dZ_z = zc[:,:,:-1] - zc[:,:,1:]
-        else:
-             self.dZ_x = torch.zeros_like(self.Tx)
-             self.dZ_y = torch.zeros_like(self.Ty)
-             self.dZ_z = torch.zeros_like(self.Tz)
+        # --- Свойства породы ---
+        self.pore_volume = (reservoir.cell_volume * reservoir.porosity).reshape(-1).double().to(self.device)
+        self.c_rock = float(getattr(fluid, 'rock_compressibility', 0.0))
+        self.p_ref_rock = fluid.pressure.detach().reshape(-1).double().clone().to(self.device)
 
-    def step(self, dt, current_time=None):
-        """Выполняет шаг по времени
-        dt: шаг времени в СЕКУНДАХ
-        current_time: текущее абсолютное время симуляции в СЕКУНДАХ (для ramping)
-        """
-        dbg = self.debug
-        log = (lambda *a, **k: None) if (dbg.enabled and dbg.console) else print
-        dt_sec = dt
-        
-        p_old = self.fluid.pressure.clone().double()
-        sw_old = self.fluid.s_w.clone().double()
-        
-        p_curr = p_old.clone()
-        sw_curr = sw_old.clone()
-        
-        mass_o_old, mass_w_old = self.calc_masses(p_old, sw_old)
-        mass_total = (mass_o_old.sum().item(), mass_w_old.sum().item()) if dbg.enabled else None
-        dbg.begin_step(dt_sec, current_time, p_old, sw_old)
-        
-        initial_res_norm = None
-        
-        for iter_k in range(self.max_newton):
-            dbg.begin_iter(iter_k)
-            timer = dbg.timer()
-            self._well_records = [] if dbg.level >= 2 else None
+        # --- Относительные проницаемости (Corey) ---
+        self.sw_irr = float(getattr(fluid, 'sw_cr', 0.2))
+        self.so_r = float(getattr(fluid, 'so_r', 0.2))
+        self.nw = float(getattr(fluid, 'nw', 2.0))
+        self.no = float(getattr(fluid, 'no', 2.0))
 
-            # Сборка (передаем dt и current_time)
-            with timer('assemble'):
-                R, J_values = self.assemble_system(p_curr, sw_curr, mass_o_old, mass_w_old, dt_sec, current_time=current_time)
-            dbg.wells(self._well_records)
-            self._well_records = None
-            
-            # R в [kg/s].
-            max_res = torch.max(torch.abs(R))
-            dbg.residual(R, dt_sec, mass_total)
-            log(f"  Iter {iter_k}: Max Res = {max_res:.2e} kg/s")
+        self._build_connections()
+        self.wells = FIMWells(well_manager, reservoir, fluid, reservoir.dimensions, self.device)
+        for w in self.wells.wells:
+            print(f"  Скважина {w.name}: перфораций {len(w.perforations)}, WI = "
+                  + ", ".join(f"{v:.3e}" for v in w.connection_wi) + " м³")
+        self._p_bh_cur = None
 
-            if not torch.isfinite(max_res):
-                dbg.converged_iter()
-                dbg.end_step(False, "nan_residual", p_curr, sw_curr, R, J_values, self.builder)
-                return False
-            
-            if iter_k == 0:
-                initial_res_norm = max_res
-            
-            if max_res < self.tol_mass:
-                log("  Converged!")
-                dbg.converged_iter()
-                dbg.end_step(True, "converged", p_curr, sw_curr)
-                self.fluid.pressure.copy_(p_curr.float())
-                self.fluid.s_w.copy_(sw_curr.float())
-                self.fluid.s_o.copy_(1.0 - sw_curr.float())
-                return True
+    # ------------------------------------------------------------------ геометрия
+    def _build_connections(self):
+        """TPFA: T = A / (d_L/(2k_L) + d_R/(2k_R)) по каждой грани; список граней L→R."""
+        res = self.reservoir
+        nx, ny, nz = self.nx, self.ny, self.nz
+        dev = self.device
+        dx = res.dx_vector.to(dev).double().view(nx, 1, 1)
+        dy = res.dy_vector.to(dev).double().view(1, ny, 1)
+        dz = res.dz_vector.to(dev).double().view(1, 1, nz)
+        kx = res.permeability_x.to(dev).double()
+        ky = res.permeability_y.to(dev).double()
+        kz = res.permeability_z.to(dev).double()
+        zc = res.z_centers.to(dev).double().view(1, 1, nz).expand(nx, ny, nz)
+        idx = torch.arange(self.n_cells, device=dev).reshape(nx, ny, nz)
+        tiny = 1e-300
 
-            dbg.jacobian(J_values, self.builder.diag_map)
-            if dbg.level >= 3:
-                with timer('fd_check'):
-                    dbg.fd_check(self, p_curr, sw_curr, mass_o_old, mass_w_old, dt_sec, current_time, J_values)
-                dbg.maybe_dump_iter(p_curr, sw_curr, R, J_values, self.builder, iter_k)
-            
-            # Адаптивный допуск для линейного решателя
-            rel_newton_err = 1.0
-            if initial_res_norm is not None and initial_res_norm > 1e-10:
-                rel_newton_err = (max_res / initial_res_norm).item()
-            
-            # Решение линейной системы (J_values масштабируется внутри in-place)
-            with timer('linear'):
-                dx = self.solve_cpu(J_values, R, current_newton_rel_error=rel_newton_err)
-            dbg.linear(self._last_linear_stats)
-            
-            if dx is None:
-                dbg.end_iter(timer.t if dbg.enabled else {})
-                R_f, J_f = self.assemble_system(p_curr, sw_curr, mass_o_old, mass_w_old, dt_sec, current_time=current_time)
-                dbg.end_step(False, "linear_solver_failed", p_curr, sw_curr, R_f, J_f, self.builder)
-                return False
-            
-            # Обновление с Line Search и Safe Scaling
-            dp_full = dx[0::2].reshape(self.nx, self.ny, self.nz).to(self.device)
-            dsw_full = dx[1::2].reshape(self.nx, self.ny, self.nz).to(self.device)
-            
-            # Safe Scaling (вместо жесткого clamp, который искажает направление)
-            max_dsw = torch.max(torch.abs(dsw_full))
-            max_dp = torch.max(torch.abs(dp_full))
-            
-            scale_factor = 1.0
-            if max_dsw > 0.2:
-                scale_factor = min(scale_factor, 0.2 / max_dsw.item())
-            if max_dp > 50e5: # 50 bar limit
-                scale_factor = min(scale_factor, 50e5 / max_dp.item())
-            dbg.update(dp_full, dsw_full, scale_factor)
-            
-            if scale_factor < 1.0:
-                dp_full *= scale_factor
-                dsw_full *= scale_factor
-            
-            # Backtracking Line Search
-            alpha = 1.0
-            min_alpha = 0.125
-            accepted = False
-            trials = []
-            
-            # Текущая норма невязки (для сравнения)
-            current_res_norm = max_res
-            
-            with timer('line_search'):
-                while alpha >= min_alpha:
-                    p_trial = p_curr + alpha * dp_full
-                    sw_trial = sw_curr + alpha * dsw_full
-                    sw_trial = torch.clamp(sw_trial, 0.0, 1.0)
-                    
-                    # Важно: используем те же массы "old", но новые p/sw
-                    R_trial, _ = self.assemble_system(p_trial, sw_trial, mass_o_old, mass_w_old, dt_sec, current_time=current_time)
-                    res_trial = torch.max(torch.abs(R_trial))
-                    trials.append([alpha, res_trial.item()])
-                    
-                    # Strict decrease is safest for FIM.
-                    if res_trial < current_res_norm:
-                        p_curr = p_trial
-                        sw_curr = sw_trial
-                        accepted = True
-                        if alpha < 1.0:
-                            log(f"    Line search: reduced step alpha={alpha}, Res {current_res_norm:.2e} -> {res_trial:.2e}")
-                        break
-                    else:
-                        alpha *= 0.5
-                
-                if not accepted:
-                    log(f"    Line search failed to reduce residual. Force taking small step alpha={min_alpha}")
-                    alpha = min_alpha
-                    p_curr = p_curr + min_alpha * dp_full
-                    sw_curr = sw_curr + min_alpha * dsw_full
-                    sw_curr = torch.clamp(sw_curr, 0.0, 1.0)
-                    # Это скорее всего приведет к расходимости на след итерации и уменьшению dt, что и нужно.
-            dbg.line_search(trials, alpha, accepted)
-            dbg.end_iter(timer.t if dbg.enabled else {})
+        faces = []
+        if nx > 1:
+            area = (dy * dz).expand(nx - 1, ny, nz)
+            hl = dx[:-1] / (2 * kx[:-1] + tiny)
+            hr = dx[1:] / (2 * kx[1:] + tiny)
+            faces.append((idx[:-1], idx[1:], area / (hl + hr), self.builder.x_pos_map, self.builder.x_neg_map))
+        if ny > 1:
+            area = (dx * dz).expand(nx, ny - 1, nz)
+            hl = dy[:, :-1] / (2 * ky[:, :-1] + tiny)
+            hr = dy[:, 1:] / (2 * ky[:, 1:] + tiny)
+            faces.append((idx[:, :-1], idx[:, 1:], area / (hl + hr), self.builder.y_pos_map, self.builder.y_neg_map))
+        if nz > 1:
+            area = (dx * dy).expand(nx, ny, nz - 1)
+            hl = dz[:, :, :-1] / (2 * kz[:, :, :-1] + tiny)
+            hr = dz[:, :, 1:] / (2 * kz[:, :, 1:] + tiny)
+            faces.append((idx[:, :, :-1], idx[:, :, 1:], area / (hl + hr), self.builder.z_pos_map, self.builder.z_neg_map))
 
-        if dbg.enabled:
-            R_f, J_f = self.assemble_system(p_curr, sw_curr, mass_o_old, mass_w_old, dt_sec, current_time=current_time)
-            dbg.end_step(False, "max_newton_iter", p_curr, sw_curr, R_f, J_f, self.builder)
-        return False
+        zc_flat = zc.reshape(-1)
+        L = torch.cat([f[0].reshape(-1) for f in faces]) if faces else torch.zeros(0, dtype=torch.long, device=dev)
+        Rr = torch.cat([f[1].reshape(-1) for f in faces]) if faces else torch.zeros(0, dtype=torch.long, device=dev)
+        self.face_L, self.face_R = L, Rr
+        self.face_T = torch.cat([f[2].reshape(-1) for f in faces]) if faces else torch.zeros(0, dtype=torch.float64, device=dev)
+        self.face_dZ = zc_flat[L] - zc_flat[Rr]
+        # позиции внедиагональных блоков: (строка L, столбец R) и (строка R, столбец L)
+        self.face_pos_LR = torch.cat([f[3][f[0].reshape(-1)] for f in faces]) if faces else L
+        self.face_pos_RL = torch.cat([f[4][f[1].reshape(-1)] for f in faces]) if faces else L
+        self.diag_L = self.builder.diag_map[L]
+        self.diag_R = self.builder.diag_map[Rr]
+        # совместимость: проводимости по осям
+        shapes = [(nx - 1, ny, nz), (nx, ny - 1, nz), (nx, ny, nz - 1)]
+        off = 0
+        for name, shp in zip(("Tx", "Ty", "Tz"), shapes):
+            n = shp[0] * shp[1] * shp[2] if min(shp) > 0 else 0
+            setattr(self, name, self.face_T[off:off + n].view(shp) if n else torch.zeros(0, device=dev))
+            off += n
+
+    # ------------------------------------------------------------------ свойства
+    def cell_props(self, p, sw):
+        """Плотности, Corey-проницаемости, массовые подвижности λ = kr·ρ/μ и их производные (плоские)."""
+        f = self.fluid
+        p = p.reshape(-1)
+        sw = sw.reshape(-1)
+        c_w, c_o = f.water_compressibility, f.oil_compressibility
+        rho_w = f.rho_water_ref * (1.0 + c_w * (p - 1e5))
+        rho_o = f.rho_oil_ref * (1.0 + c_o * (p - 1e5))
+        drho_w = f.rho_water_ref * c_w
+        drho_o = f.rho_oil_ref * c_o
+
+        denom = 1.0 - self.sw_irr - self.so_r
+        swn = torch.clamp((sw - self.sw_irr) / denom, 0.0, 1.0)
+        # односторонняя производная на границах: фронт начинается ровно с Sw = Swc
+        active = ((sw >= self.sw_irr) & (sw <= 1.0 - self.so_r)).double()
+        krw = swn ** self.nw
+        kro = (1.0 - swn) ** self.no
+        dkrw = self.nw * swn ** (self.nw - 1) / denom * active
+        dkro = -self.no * (1.0 - swn) ** (self.no - 1) / denom * active
+
+        mu_w, mu_o = f.mu_water, f.mu_oil
+        return {
+            "rho_w": rho_w, "rho_o": rho_o, "drho_w_dp": drho_w, "drho_o_dp": drho_o,
+            "krw": krw, "kro": kro, "dkrw_ds": dkrw, "dkro_ds": dkro,
+            "lam_w": krw * rho_w / mu_w, "lam_o": kro * rho_o / mu_o,
+            "dlam_w_dp": krw * drho_w / mu_w, "dlam_o_dp": kro * drho_o / mu_o,
+            "dlam_w_ds": dkrw * rho_w / mu_w, "dlam_o_ds": dkro * rho_o / mu_o,
+        }
+
+    def _pv(self, p_flat):
+        return self.pore_volume * (1.0 + self.c_rock * (p_flat - self.p_ref_rock))
 
     def calc_masses(self, p, sw):
-        # Use Fluid properties for consistency
-        rho_w_ref = self.fluid.rho_water_ref
-        rho_o_ref = self.fluid.rho_oil_ref
-        c_w = self.fluid.water_compressibility
-        c_o = self.fluid.oil_compressibility
-        
-        rho_w = rho_w_ref * (1.0 + c_w * (p - 1e5))
-        rho_o = rho_o_ref * (1.0 + c_o * (p - 1e5))
-        
-        # Use pre-calculated pore volume (flat) reshaped to 3D
-        pv = self.pore_volume.view(self.nx, self.ny, self.nz)
-        
-        mass_w = pv * sw * rho_w
-        mass_o = pv * (1-sw) * rho_o
-        return mass_o, mass_w
+        f = self.fluid
+        pf, sf = p.reshape(-1), sw.reshape(-1)
+        pv = self._pv(pf)
+        rho_w = f.rho_water_ref * (1.0 + f.water_compressibility * (pf - 1e5))
+        rho_o = f.rho_oil_ref * (1.0 + f.oil_compressibility * (pf - 1e5))
+        shp = (self.nx, self.ny, self.nz)
+        return (pv * (1 - sf) * rho_o).view(shp), (pv * sf * rho_w).view(shp)
 
-    def assemble_system(self, p, sw, m_o_old, m_w_old, dt, current_time=None):
+    # ------------------------------------------------------------------ сборка
+    def assemble_system(self, p, sw, m_o_old, m_w_old, dt, current_time=None, p_bh=None, props=None):
         """
-        Сборка системы вручную (векторизованно).
+        Невязка R [кг/с] (2N) и блоки Якобиана dR/d(P,Sw) при фиксированных p_bh.
+        Скважинные блоки Шура — в self._last_well_sys.
         """
-        R = torch.zeros(self.n_cells * 2, device=self.device, dtype=torch.float64)
-        J_vals = torch.zeros((self.builder.n_nonzero, 2, 2), device=self.device, dtype=torch.float64)
-        
-        # Extract Fluid Properties
-        rho_w_ref = self.fluid.rho_water_ref
-        rho_o_ref = self.fluid.rho_oil_ref
-        c_w = self.fluid.water_compressibility
-        c_o = self.fluid.oil_compressibility
-        mu_w = self.fluid.mu_water
-        mu_o = self.fluid.mu_oil
-        
-        # --- 1. Accumulation Term ---
-        m_o, m_w = self.calc_masses(p, sw)
-        acc_o = (m_o - m_o_old) / dt
-        acc_w = (m_w - m_w_old) / dt
-        
-        R[0::2] += acc_o.view(-1)
-        R[1::2] += acc_w.view(-1)
-        
-        # Jacobian (Diagonal)
-        p_flat = p.view(-1)
-        sw_flat = sw.view(-1)
-        
-        rho_w = rho_w_ref * (1.0 + c_w * (p_flat - 1e5))
-        rho_o = rho_o_ref * (1.0 + c_o * (p_flat - 1e5))
-        drho_w_dp = rho_w_ref * c_w
-        drho_o_dp = rho_o_ref * c_o
-        
-        dMw_dSw = self.pore_volume * rho_w / dt
-        dMw_dP  = self.pore_volume * sw_flat * drho_w_dp / dt
-        dMo_dSw = self.pore_volume * (-rho_o) / dt
-        dMo_dP  = self.pore_volume * (1-sw_flat) * drho_o_dp / dt
-        
-        diag_idx = self.builder.diag_map
-        J_vals[diag_idx, 0, 0] += dMo_dP
-        J_vals[diag_idx, 0, 1] += dMo_dSw
-        J_vals[diag_idx, 1, 0] += dMw_dP
-        J_vals[diag_idx, 1, 1] += dMw_dSw
-        
-        # --- Helper Function for Flux Logic ---
-        def process_direction(p_slice_L, p_slice_R, sw_slice_L, sw_slice_R, T_slice, dZ_slice,
-                            map_x_pos_L, map_x_neg_R, idx_L, idx_R):
-            
-            # Gravity Constant
-            g_const = 9.80665
-            
-            # Calculate Densities for Gravity Term
-            # rho = rho_ref * (1 + c * (P - 1e5))
-            rho_w_L = rho_w_ref * (1.0 + c_w * (p_slice_L - 1e5))
-            rho_o_L = rho_o_ref * (1.0 + c_o * (p_slice_L - 1e5))
-            rho_w_R = rho_w_ref * (1.0 + c_w * (p_slice_R - 1e5))
-            rho_o_R = rho_o_ref * (1.0 + c_o * (p_slice_R - 1e5))
-            
-            # Average density for interface
-            rho_w_avg = 0.5 * (rho_w_L + rho_w_R)
-            rho_o_avg = 0.5 * (rho_o_L + rho_o_R)
-            
-            # Potential Difference including Gravity: dPhi = dP - rho_avg * g * dZ
-            # dZ_slice = Z_L - Z_R
-            grav_term_w = rho_w_avg * g_const * dZ_slice
-            grav_term_o = rho_o_avg * g_const * dZ_slice
-            
-            dpot_w = (p_slice_L - p_slice_R) - grav_term_w
-            dpot_o = (p_slice_L - p_slice_R) - grav_term_o
-            
-            # Upstream weighting based on POTENTIAL difference (Counter-current flow possible)
-            up_w = (dpot_w >= 0).double()
-            down_w = 1.0 - up_w
-            
-            up_o = (dpot_o >= 0).double()
-            down_o = 1.0 - up_o
-            
-            # Closure to use captured fluid props
-            def get_props_correct(pres, sat):
-                rho_w_ = rho_w_ref * (1.0 + c_w * (pres - 1e5))
-                rho_o_ = rho_o_ref * (1.0 + c_o * (pres - 1e5))
-                
-                # Relative Permeability
-                sw_irr = self.sw_irr
-                sor = self.so_r
-                nw = self.nw
-                no = self.no
-                
-                # Normalized saturation
-                denom = 1.0 - sw_irr - sor
-                swn = torch.clamp((sat - sw_irr)/(denom + 1e-12), 0.0, 1.0)
-                dswn_ds = 1.0 / (denom + 1e-12)
-                
-                krw_ = swn ** nw
-                kro_ = (1-swn) ** no
-                
-                # Derivatives
-                dkrw_ds = nw * (swn ** (nw - 1)) * dswn_ds
-                dkro_ds = -no * ((1-swn) ** (no - 1)) * dswn_ds
-                
-                # Mask derivatives where swn is clamped (0 or 1)
-                # Important for stability
-                mask_active = (sat > sw_irr) & (sat < (1.0-sor))
-                dkrw_ds = dkrw_ds * mask_active.double()
-                dkro_ds = dkro_ds * mask_active.double()
+        n = self.n_cells
+        dev = self.device
+        pf, sf = p.reshape(-1).double(), sw.reshape(-1).double()
+        if props is None:
+            props = self.cell_props(pf, sf)
+        R = torch.zeros(n * 2, device=dev, dtype=torch.float64)
+        Rb = R.view(-1, 2)
+        J = torch.zeros((self.builder.n_nonzero, 2, 2), device=dev, dtype=torch.float64)
 
-                lam_w_ = krw_ * rho_w_ / mu_w
-                lam_o_ = kro_ * rho_o_ / mu_o
-                
-                dlam_w_ds_ = dkrw_ds * rho_w_ / mu_w
-                dlam_w_dp_ = krw_ * drho_w_dp / mu_w
-                
-                dlam_o_ds_ = dkro_ds * rho_o_ / mu_o
-                dlam_o_dp_ = kro_ * drho_o_dp / mu_o
-                
-                return lam_o_, lam_w_, dlam_o_ds_, dlam_o_dp_, dlam_w_ds_, dlam_w_dp_
+        # --- накопление ---
+        f = self.fluid
+        pv = self._pv(pf)
+        dpv = self.pore_volume * self.c_rock
+        rho_o, rho_w = props["rho_o"], props["rho_w"]
+        m_o = pv * (1 - sf) * rho_o
+        m_w = pv * sf * rho_w
+        Rb[:, 0] += (m_o - m_o_old.reshape(-1)) / dt
+        Rb[:, 1] += (m_w - m_w_old.reshape(-1)) / dt
+        d = self.builder.diag_map
+        J[d, 0, 0] += ((1 - sf) * (pv * props["drho_o_dp"] + rho_o * dpv)) / dt
+        J[d, 0, 1] += (-pv * rho_o) / dt
+        J[d, 1, 0] += (sf * (pv * props["drho_w_dp"] + rho_w * dpv)) / dt
+        J[d, 1, 1] += (pv * rho_w) / dt
 
-            lam_o_L, lam_w_L, dlo_ds_L, dlo_dp_L, dlw_ds_L, dlw_dp_L = get_props_correct(p_slice_L, sw_slice_L)
-            lam_o_R, lam_w_R, dlo_ds_R, dlo_dp_R, dlw_ds_R, dlw_dp_R = get_props_correct(p_slice_R, sw_slice_R)
+        # --- потоки по граням ---
+        L, Rr = self.face_L, self.face_R
+        if L.numel():
+            T, gdz = self.face_T, G * self.face_dZ
+            pL, pR = pf[L], pf[Rr]
+            for eq, (rho, drho, lam, dl_dp, dl_ds) in enumerate((
+                    (rho_o, props["drho_o_dp"], props["lam_o"], props["dlam_o_dp"], props["dlam_o_ds"]),
+                    (rho_w, props["drho_w_dp"], props["lam_w"], props["dlam_w_dp"], props["dlam_w_ds"]))):
+                rho_avg = 0.5 * (rho[L] + rho[Rr])
+                dpot = (pL - pR) - rho_avg * gdz
+                up = (dpot >= 0).double()
+                dn = 1.0 - up
+                lam_f = lam[L] * up + lam[Rr] * dn
+                flux = T * lam_f * dpot
+                Rb[:, eq].index_add_(0, L, flux)
+                Rb[:, eq].index_add_(0, Rr, -flux)
 
-            lam_o_face = lam_o_L * up_o + lam_o_R * down_o
-            lam_w_face = lam_w_L * up_w + lam_w_R * down_w
-            
-            flux_o = T_slice * lam_o_face * dpot_o
-            flux_w = T_slice * lam_w_face * dpot_w
-            
-            R[2*idx_L] += flux_o.view(-1)
-            R[2*idx_L+1] += flux_w.view(-1)
-            R[2*idx_R] -= flux_o.view(-1)
-            R[2*idx_R+1] -= flux_w.view(-1)
-            
-            # Derivatives of Potential Difference
-            # d(dpot)/dP_L = 1 - 0.5 * g * dZ * drho/dP_L
-            # d(dpot)/dP_R = -1 - 0.5 * g * dZ * drho/dP_R
-            
-            gdZ = g_const * dZ_slice
-            
-            ddpot_w_dp_L = 1.0 - 0.5 * gdZ * drho_w_dp
-            ddpot_w_dp_R = -1.0 - 0.5 * gdZ * drho_w_dp
-            
-            ddpot_o_dp_L = 1.0 - 0.5 * gdZ * drho_o_dp
-            ddpot_o_dp_R = -1.0 - 0.5 * gdZ * drho_o_dp
+                ddpot_dpL = 1.0 - 0.5 * gdz * drho
+                ddpot_dpR = -1.0 - 0.5 * gdz * drho
+                dF_dpL = T * (dl_dp[L] * up * dpot + lam_f * ddpot_dpL)
+                dF_dsL = T * (dl_ds[L] * up * dpot)
+                dF_dpR = T * (dl_dp[Rr] * dn * dpot + lam_f * ddpot_dpR)
+                dF_dsR = T * (dl_ds[Rr] * dn * dpot)
 
-            # 1. dFlux/dX_L
-            # dF/dP_L = T * (dlam_face/dP_L * dpot + lam_face * ddpot/dP_L)
-            # dlam_face/dP_L = dlam_L/dP_L * up
-            
-            df_o_dp_L = T_slice * (dlo_dp_L * up_o * dpot_o + lam_o_face * ddpot_o_dp_L)
-            df_w_dp_L = T_slice * (dlw_dp_L * up_w * dpot_w + lam_w_face * ddpot_w_dp_L)
-            
-            df_o_ds_L = T_slice * (dlo_ds_L * up_o * dpot_o)
-            df_w_ds_L = T_slice * (dlw_ds_L * up_w * dpot_w)
-            
-            # To Diagonal L
-            map_diag_L = self.builder.diag_map[idx_L]
-            J_vals[map_diag_L, 0, 0] += df_o_dp_L.view(-1)
-            J_vals[map_diag_L, 0, 1] += df_o_ds_L.view(-1)
-            J_vals[map_diag_L, 1, 0] += df_w_dp_L.view(-1)
-            J_vals[map_diag_L, 1, 1] += df_w_ds_L.view(-1)
-            
-            # To Off-Diagonal R (link R->L i.e. x_neg_map[R])
-            J_vals[map_x_neg_R, 0, 0] -= df_o_dp_L.view(-1)
-            J_vals[map_x_neg_R, 0, 1] -= df_o_ds_L.view(-1)
-            J_vals[map_x_neg_R, 1, 0] -= df_w_dp_L.view(-1)
-            J_vals[map_x_neg_R, 1, 1] -= df_w_ds_L.view(-1)
-            
-            # 2. dFlux/dX_R
-            # dF/dP_R = T * (dlam_face/dP_R * dpot + lam_face * ddpot/dP_R)
-            # dlam_face/dP_R = dlam_R/dP_R * down
-            
-            df_o_dp_R = T_slice * (dlo_dp_R * down_o * dpot_o + lam_o_face * ddpot_o_dp_R)
-            df_w_dp_R = T_slice * (dlw_dp_R * down_w * dpot_w + lam_w_face * ddpot_w_dp_R)
-            
-            df_o_ds_R = T_slice * (dlo_ds_R * down_o * dpot_o)
-            df_w_ds_R = T_slice * (dlw_ds_R * down_w * dpot_w)
-            
-            # To Diagonal R
-            map_diag_R = self.builder.diag_map[idx_R]
-            J_vals[map_diag_R, 0, 0] -= df_o_dp_R.view(-1)
-            J_vals[map_diag_R, 0, 1] -= df_o_ds_R.view(-1)
-            J_vals[map_diag_R, 1, 0] -= df_w_dp_R.view(-1)
-            J_vals[map_diag_R, 1, 1] -= df_w_ds_R.view(-1)
-            
-            # To Off-Diagonal L (link L->R i.e. x_pos_map[L])
-            J_vals[map_x_pos_L, 0, 0] += df_o_dp_R.view(-1)
-            J_vals[map_x_pos_L, 0, 1] += df_o_ds_R.view(-1)
-            J_vals[map_x_pos_L, 1, 0] += df_w_dp_R.view(-1)
-            J_vals[map_x_pos_L, 1, 1] += df_w_ds_R.view(-1)
+                J[:, eq, 0].index_add_(0, self.diag_L, dF_dpL)
+                J[:, eq, 1].index_add_(0, self.diag_L, dF_dsL)
+                J[:, eq, 0].index_add_(0, self.face_pos_LR, dF_dpR)
+                J[:, eq, 1].index_add_(0, self.face_pos_LR, dF_dsR)
+                J[:, eq, 0].index_add_(0, self.diag_R, -dF_dpR)
+                J[:, eq, 1].index_add_(0, self.diag_R, -dF_dsR)
+                J[:, eq, 0].index_add_(0, self.face_pos_RL, -dF_dpL)
+                J[:, eq, 1].index_add_(0, self.face_pos_RL, -dF_dsL)
 
-        # Grid Indices
-        grid_idx = torch.arange(self.n_cells, device=self.device).reshape(self.nx, self.ny, self.nz)
-        
-        # --- X Direction ---
-        idx_L_x = grid_idx[:-1,:,:].reshape(-1)
-        idx_R_x = grid_idx[1:,:,:].reshape(-1)
-        process_direction(
-            p[:-1,:,:], p[1:,:,:], sw[:-1,:,:], sw[1:,:,:], self.Tx, self.dZ_x,
-            self.builder.x_pos_map[idx_L_x], self.builder.x_neg_map[idx_R_x],
-            idx_L_x, idx_R_x
-        )
-        
-        # --- Y Direction ---
-        idx_L_y = grid_idx[:,:-1,:].reshape(-1)
-        idx_R_y = grid_idx[:,1:,:].reshape(-1)
-        process_direction(
-            p[:,:-1,:], p[:,1:,:], sw[:,:-1,:], sw[:,1:,:], self.Ty, self.dZ_y,
-            self.builder.y_pos_map[idx_L_y], self.builder.y_neg_map[idx_R_y],
-            idx_L_y, idx_R_y
-        )
-        
-        # --- Z Direction ---
-        idx_L_z = grid_idx[:,:,:-1].reshape(-1)
-        idx_R_z = grid_idx[:,:,1:].reshape(-1)
-        process_direction(
-            p[:,:,:-1], p[:,:,1:], sw[:,:,:-1], sw[:,:,1:], self.Tz, self.dZ_z,
-            self.builder.z_pos_map[idx_L_z], self.builder.z_neg_map[idx_R_z],
-            idx_L_z, idx_R_z
-        )
-        
-        # --- Wells ---
-        self.apply_wells(R, J_vals, p, sw, current_time=current_time)
-        
-        return R, J_vals
+        # --- скважины ---
+        self._last_well_sys = None
+        if self.wells.n_w:
+            if self.wells.step_targets is None:
+                t_days = (current_time or 0.0) / 86400.0
+                self.wells.begin_step(pf, sf, props, t_days)
+            if p_bh is None:
+                p_bh = self._p_bh_cur if self._p_bh_cur is not None else self.wells.p_bh
+            self._last_well_sys = self.wells.assemble(R, J, d, pf, sf, props, p_bh)
+        return R, J
 
-    def _record_well(self, well, ctrl_type, ctrl_val, p_cell, q_o, q_w, note=None):
-        """Дебиты в кг/с: + отбор, − закачка (знак как в невязке)."""
-        if self._well_records is None:
-            return
-        rec = {"name": well.name, "type": well.type, "ctrl": ctrl_type, "ctrl_val": float(ctrl_val),
-               "ijk": list(well.cell_index), "p_cell_mpa": float(p_cell) / 1e6,
-               "q_oil_kg_s": float(q_o), "q_wat_kg_s": float(q_w)}
-        if note:
-            rec["note"] = note
-        self._well_records.append(rec)
+    # ------------------------------------------------------------------ критерии
+    def convergence(self, R, dt, pv, wsys, p_bh):
+        f = self.fluid
+        Rb = R.view(-1, 2)
+        rho_ref = torch.tensor([f.rho_oil_ref, f.rho_water_ref], dtype=torch.float64, device=R.device)
+        cnv = (dt * Rb.abs() / (rho_ref * pv.unsqueeze(1))).max(dim=0).values
+        mb = dt * Rb.sum(dim=0).abs() / (rho_ref * pv.sum())
+        well_ok, well_err = True, 0.0
+        if wsys is not None:
+            rate = wsys["is_rate"]
+            tgt = wsys["target"].abs()
+            rel = wsys["r_w"].abs() / torch.clamp(tgt, min=1e-12)
+            rate_err = torch.where(rate, rel, torch.zeros_like(rel))
+            bhp_err = torch.where(rate, torch.zeros_like(rel), wsys["r_w"].abs())
+            well_err = float(rate_err.max()) if rate.any() else 0.0
+            well_ok = bool((rate_err <= self.tol_well_rate).all() and (bhp_err <= self.tol_well_bhp).all())
+        cnv_l, mb_l = cnv.tolist(), mb.tolist()
+        ok = max(cnv_l) <= self.tol_cnv and max(mb_l) <= self.tol_mb and well_ok
+        return ok, {"cnv": cnv_l, "mb": mb_l, "well_rate_rel_err": well_err}
 
-    def apply_wells(self, R, J_vals, p, sw, current_time=None):
+    # ------------------------------------------------------------------ шаг
+    def step(self, dt, current_time=None):
+        """Шаг по времени dt [с]. Состояние флюида и скважин фиксируется только при сходимости."""
+        dbg = self.debug
+        log = (lambda *a, **k: None) if (dbg.enabled and dbg.console) else print
+        t_days = (current_time or 0.0) / 86400.0
+
+        p_old = self.fluid.pressure.detach().reshape(-1).double().clone()
+        sw_old = self.fluid.s_w.detach().reshape(-1).double().clone()
+        p_curr, sw_curr = p_old.clone(), sw_old.clone()
+        m_o_old, m_w_old = self.calc_masses(p_old, sw_old)
+        m_o_old, m_w_old = m_o_old.reshape(-1), m_w_old.reshape(-1)
+        mass_total = (m_o_old.sum().item(), m_w_old.sum().item()) if dbg.enabled else None
+
+        props = self.cell_props(p_curr, sw_curr)
+        if self.wells.n_w:
+            self.wells.begin_step(p_curr, sw_curr, props, t_days)
+            p_bh = self.wells.p_bh.clone()
+        else:
+            p_bh = torch.zeros(0, dtype=torch.float64, device=self.device)
+        self._p_bh_cur = p_bh
+        dbg.begin_step(dt, current_time, p_old, sw_old)
+        shp = (self.nx, self.ny, self.nz)
+        initial_cnv = None
+
+        for k in range(self.max_newton):
+            dbg.begin_iter(k)
+            timer = dbg.timer()
+            with timer('assemble'):
+                R, J = self.assemble_system(p_curr, sw_curr, m_o_old, m_w_old, dt, current_time, p_bh, props)
+                wsys = self._last_well_sys
+                if wsys is not None and k > 0:
+                    msgs = self.wells.update_controls(p_bh, wsys["q_surf"])
+                    for m in msgs:
+                        log(f"    ⇄ {m}")
+                    if msgs:
+                        if dbg.enabled:
+                            dbg.iter_rec["control_switch"] = msgs
+                        p_bh = self._reset_bhp_targets(p_bh)
+                        self._p_bh_cur = p_bh
+                        R, J = self.assemble_system(p_curr, sw_curr, m_o_old, m_w_old, dt, current_time, p_bh, props)
+                        wsys = self._last_well_sys
+            pv = self._pv(p_curr)
+            ok, crit = self.convergence(R, dt, pv, wsys, p_bh)
+            dbg.residual(R, dt, mass_total)
+            if dbg.enabled:
+                dbg.iter_rec["criteria"] = crit
+                if wsys is not None and dbg.level >= 2:
+                    dbg.wells(self.wells.records(wsys, p_bh, p_curr))
+            log(f"  Iter {k}: CNV o/w = {crit['cnv'][0]:.2e}/{crit['cnv'][1]:.2e}, "
+                f"MB = {max(crit['mb']):.2e}, wells = {crit['well_rate_rel_err']:.1e}")
+
+            if not torch.isfinite(R).all():
+                dbg.converged_iter()
+                dbg.end_step(False, "nan_residual", p_curr.view(shp), sw_curr.view(shp), R, J, self.builder)
+                return False
+            if initial_cnv is None:
+                initial_cnv = max(crit["cnv"]) + 1e-300
+
+            if ok and k >= self.min_newton:
+                log("  Converged!")
+                self.last_newton_iters = k
+                self.last_max_dsw = float((sw_curr - sw_old).abs().max())
+                self.last_max_dp = float((p_curr - p_old).abs().max())
+                dbg.converged_iter()
+                dbg.end_step(True, "converged", p_curr.view(shp), sw_curr.view(shp))
+                self.fluid.pressure.copy_(p_curr.view(shp).to(self.fluid.pressure.dtype))
+                self.fluid.s_w.copy_(sw_curr.view(shp).to(self.fluid.s_w.dtype))
+                self.fluid.s_o.copy_((1.0 - sw_curr).view(shp).to(self.fluid.s_o.dtype))
+                if self.wells.n_w:
+                    self.wells.commit(p_bh)
+                    self._store_well_results(wsys, p_bh)
+                self._p_bh_cur = None
+                return True
+
+            dbg.jacobian(J, self.builder.diag_map)
+            if dbg.level >= 3:
+                with timer('fd_check'):
+                    dbg.fd_check(self, p_curr.view(shp), sw_curr.view(shp), m_o_old, m_w_old, dt, current_time, J)
+                dbg.maybe_dump_iter(p_curr.view(shp), sw_curr.view(shp), R, J, self.builder, k)
+
+            rel = max(crit["cnv"]) / initial_cnv
+            with timer('linear'):
+                sol = self.solve_linear(J, R, wsys, newton_rel=rel, rebuild_amg=(k == 0 or self.amg_rebuild == 'iteration'))
+            dbg.linear(self._last_linear_stats)
+            if sol is None:
+                dbg.end_iter(timer.t if dbg.enabled else {})
+                Rf, Jf = self.assemble_system(p_curr, sw_curr, m_o_old, m_w_old, dt, current_time, p_bh)
+                dbg.end_step(False, "linear_solver_failed", p_curr.view(shp), sw_curr.view(shp), Rf, Jf, self.builder)
+                return False
+            dx, dpw = sol
+
+            # --- Appleyard-подобное ограничение по ячейкам ---
+            dp = dx[:, 0]
+            ds = dx[:, 1]
+            dp_lim = torch.clamp(self.dp_max_rel * p_curr.abs(), min=self.dp_max_abs)
+            n_chop_p = int((dp.abs() > dp_lim).sum()) if dbg.enabled else 0
+            n_chop_s = int((ds.abs() > self.ds_max).sum()) if dbg.enabled else 0
+            dbg.update(dp, ds, 1.0)
+            if dbg.enabled:
+                dbg.iter_rec["update"].update(n_chopped_p=n_chop_p, n_chopped_sw=n_chop_s)
+            dp = torch.maximum(torch.minimum(dp, dp_lim), -dp_lim)
+            ds = ds.clamp(-self.ds_max, self.ds_max)
+            p_curr = p_curr + dp
+            sw_curr = (sw_curr + ds).clamp(0.0, 1.0)
+            if dpw.numel():
+                dpw_lim = torch.clamp(self.dbhp_max_rel * p_bh.abs(), min=self.dp_max_abs)
+                p_bh = p_bh + torch.maximum(torch.minimum(dpw, dpw_lim), -dpw_lim)
+                p_bh = p_bh.clamp_min(1e3)
+                p_cell_floor = (p_curr < 0).any()
+                if bool(p_cell_floor):
+                    p_curr = p_curr.clamp_min(1e3)
+                if dbg.enabled:
+                    dbg.iter_rec["update"]["max_dp_bh_bar"] = float(dpw.abs().max()) / 1e5
+            self._p_bh_cur = p_bh
+            props = self.cell_props(p_curr, sw_curr)
+            dbg.line_search([], 1.0, True)
+            dbg.end_iter(timer.t if dbg.enabled else {})
+
+        Rf, Jf = self.assemble_system(p_curr, sw_curr, m_o_old, m_w_old, dt, current_time, p_bh)
+        dbg.end_step(False, "max_newton_iter", p_curr.view(shp), sw_curr.view(shp), Rf, Jf, self.builder)
+        self._p_bh_cur = None
+        return False
+
+    def _reset_bhp_targets(self, p_bh):
+        p_bh = p_bh.clone()
+        for w_idx, w in enumerate(self.wells.wells):
+            if self.wells.step_mode[w_idx] == 'bhp_limit':
+                p_bh[w_idx] = self.wells.bhp_limit(w)
+        return p_bh
+
+    def _store_well_results(self, wsys, p_bh):
+        for w_idx, w in enumerate(self.wells.wells):
+            m = self.wells.conn_well == w_idx
+            q_o = float(wsys["q_o"][m].sum()) / self.fluid.rho_oil_ref * 86400.0
+            q_w = float(wsys["q_w"][m].sum()) / self.fluid.rho_water_ref * 86400.0
+            w.bhp_mpa = float(p_bh[w_idx]) / 1e6
+            w.last_surface_rates = {"oil": q_o, "water": q_w, "liquid": q_o + q_w}
+
+    # ------------------------------------------------------------------ СЛАУ
+    def solve_linear(self, J, R, wsys, newton_rel=1.0, rebuild_amg=True):
         """
-        Применяет скважины (источники/стоки) и добавляет их производные в Якобиан.
+        Решает систему Ньютона с исключёнными скважинами (дополнение Шура) методом FGMRES + CPR.
+        Возвращает (dx [N,2], dp_bh [n_w]) или None при отказе.
         """
-        if not self.well_manager.wells:
-            return
+        n = self.n_cells
+        stats = {"backend": "fgmres_cpr", "n_wells": self.wells.n_w}
+        wells_on = wsys is not None
+        if wells_on:
+            self.wells.add_local_schur(wsys, J)
+        rhs = -R.view(-1, 2).clone()
+        if wells_on:
+            rhs += self.wells.schur_rhs(wsys, n)
 
-        # Extract Fluid Properties
-        rho_w_ref = self.fluid.rho_water_ref
-        rho_o_ref = self.fluid.rho_oil_ref
-        c_w = self.fluid.water_compressibility
-        c_o = self.fluid.oil_compressibility
-        mu_w = self.fluid.mu_water
-        mu_o = self.fluid.mu_oil
-        
-        drho_w_dp = rho_w_ref * c_w
-        drho_o_dp = rho_o_ref * c_o
-        
-        # Получаем скалярные значения или тензоры
-        p_flat = p.view(-1)
-        sw_flat = sw.view(-1)
-        
-        sim_time_days = (current_time / 86400.0) if current_time is not None else float('inf')
+        dg = J[self.builder.diag_map]
+        scale = torch.stack([1.0 / (dg[:, 0, 0].abs() + 1e-300), 1.0 / (dg[:, 1, 1].abs() + 1e-300)], dim=1)
+        rows = torch.repeat_interleave(torch.arange(n, device=J.device),
+                                       self.builder.indptr[1:] - self.builder.indptr[:-1])
+        J.mul_(scale[rows].unsqueeze(2))
+        cols = self.builder.indices
+        b = (rhs * scale).reshape(-1)
 
-        for well in self.well_manager.wells:
-            idx = well.cell_index_flat
-            map_diag = self.builder.diag_map[idx]
-            
-            ctrl_type, ctrl_val = well.get_current_control(sim_time_days)
-            
-            # Rate in m3/s
-            # q_surf_sec = well.control_value / 86400.0 
-            # Используем ctrl_val
-            
-            if well.type == 'injector':
-                # Инжекция (всегда вода для простоты теста)
-                if well.injected_phase == 'gas':
-                    self._record_well(well, ctrl_type, ctrl_val, p_flat[idx], 0.0, 0.0, note="gas_injection_skipped")
-                    continue
-                
-                if ctrl_type == 'rate':
-                    q_surf_sec = ctrl_val / 86400.0
-                    mass_rate = q_surf_sec * rho_w_ref
-                    R[2*idx + 1] -= mass_rate
-                    self._record_well(well, ctrl_type, ctrl_val, p_flat[idx], 0.0, -mass_rate)
-                    # Производная по давлению/насыщенности для rate control injector = 0
-                elif ctrl_type == 'bhp':
-                    # P_bh control injector
-                    p_bh = ctrl_val * 1e6
-                    # Injector logic: q = PI * mob * (P - P_bh) ?
-                    # Обычно для инжектора mob берется по насыщенности в ячейке или апстрим?
-                    # Для простоты - Total Mobility ячейки
-                    # q < 0 (injection). If P < P_bh, term is negative.
-                    # R += q => R += PI * mob * (P - P_bh)
-                    
-                    pres = p_flat[idx]
-                    sat = sw_flat[idx]
-                    # ... Need calculate mobilities (copy paste logic or extract?)
-                    # For now, ignore BHP injectors or implement simplified
-                    self._record_well(well, ctrl_type, ctrl_val, pres, 0.0, 0.0, note="bhp_injector_not_implemented")
-                    
-            elif well.type == 'producer':
-                # Добыча (Total Liquid Rate)
-                pres = p_flat[idx]
-                sat = sw_flat[idx]
-                
-                # --- PVT & Relperm Logic (Same as assemble) ---
-                rho_w = rho_w_ref * (1.0 + c_w * (pres - 1e5))
-                rho_o = rho_o_ref * (1.0 + c_o * (pres - 1e5))
-                
-                sw_irr = self.sw_irr
-                sor = self.so_r
-                nw = self.nw
-                no = self.no
-                
-                denom = 1.0 - sw_irr - sor
-                swn = torch.clamp((sat - sw_irr)/(denom + 1e-12), 0.0, 1.0)
-                dswn_ds = 1.0 / (denom + 1e-12)
-                
-                krw = swn ** nw
-                dkrw_ds = nw * (swn ** (nw - 1)) * dswn_ds
-                
-                kro = (1-swn) ** no
-                dkro_ds = -no * ((1-swn) ** (no - 1)) * dswn_ds
-                
-                mask_active = (sat > sw_irr) & (sat < (1-sor))
-                dkrw_ds = dkrw_ds * mask_active.double()
-                dkro_ds = dkro_ds * mask_active.double()
-                
-                lam_w = krw * rho_w / mu_w
-                lam_o = kro * rho_o / mu_o
-                
-                dlam_w_ds = dkrw_ds * rho_w / mu_w
-                dlam_w_dp = krw * drho_w_dp / mu_w
-                
-                dlam_o_ds = dkro_ds * rho_o / mu_o
-                dlam_o_dp = kro * drho_o_dp / mu_o
-                
-                lam_tot = lam_w + lam_o + 1e-24
-                dlam_tot_ds = dlam_w_ds + dlam_o_ds
-                dlam_tot_dp = dlam_w_dp + dlam_o_dp
-                
-                fw = lam_w / lam_tot
-                fo = lam_o / lam_tot
-                
-                # Derivatives of fractional flow
-                dfw_ds = (dlam_w_ds * lam_o - lam_w * dlam_o_ds) / (lam_tot**2)
-                dfw_dp = (dlam_w_dp * lam_o - lam_w * dlam_o_dp) / (lam_tot**2)
-                
-                dfo_ds = -dfw_ds
-                dfo_dp = -dfw_dp
-                
-                # Rates
-                if ctrl_type == 'rate':
-                    q_surf_sec = ctrl_val / 86400.0
-                    
-                    q_w_mass = q_surf_sec * fw * rho_w_ref
-                    q_o_mass = q_surf_sec * fo * rho_o_ref
-                    
-                    # Add to Residual
-                    R[2*idx + 0] += q_o_mass
-                    R[2*idx + 1] += q_w_mass
-                    self._record_well(well, ctrl_type, ctrl_val, pres, q_o_mass, q_w_mass)
-                    
-                    # Add to Jacobian (Diagonal)
-                    dq_w_dsw = q_surf_sec * rho_w_ref * dfw_ds
-                    dq_w_dp  = q_surf_sec * rho_w_ref * dfw_dp
-                    dq_o_dsw = q_surf_sec * rho_o_ref * dfo_ds
-                    dq_o_dp  = q_surf_sec * rho_o_ref * dfo_dp
-                    
-                    J_vals[map_diag, 0, 0] += dq_o_dp
-                    J_vals[map_diag, 0, 1] += dq_o_dsw
-                    J_vals[map_diag, 1, 0] += dq_w_dp
-                    J_vals[map_diag, 1, 1] += dq_w_dsw
-                
-                elif ctrl_type == 'bhp':
-                    # P_bh control
-                    # q_mass = PI * mob_phase * (P - P_bh) ?
-                    # Usually q_vol = PI * mob_total * (P - P_bh)
-                    # And q_phase_vol = q_vol * f_phase
-                    # q_phase_mass = q_vol * f_phase * rho_phase
-                    
-                    p_bh = ctrl_val * 1e6
-                    
-                    # q_tot_vol = PI * lam_tot * (pres - p_bh)
-                    # Derivatives needed w.r.t pres and sat
-                    
-                    # q_o_mass = PI * lam_o * (pres - p_bh) ? Or via total?
-                    # Standard: q_phase = PI * lam_phase * (P - P_bh)
-                    
-                    q_o_mass = well.well_index * lam_o * (pres - p_bh)
-                    q_w_mass = well.well_index * lam_w * (pres - p_bh)
-                    
-                    R[2*idx + 0] += q_o_mass
-                    R[2*idx + 1] += q_w_mass
-                    self._record_well(well, ctrl_type, ctrl_val, pres, q_o_mass, q_w_mass)
-                    
-                    # Derivs: d(lam * (P - Pbh))/dX = dlam/dX * (P-Pbh) + lam * dP/dX
-                    
-                    dqo_dp = well.well_index * (dlam_o_dp * (pres - p_bh) + lam_o)
-                    dqo_ds = well.well_index * (dlam_o_ds * (pres - p_bh))
-                    
-                    dqw_dp = well.well_index * (dlam_w_dp * (pres - p_bh) + lam_w)
-                    dqw_ds = well.well_index * (dlam_w_ds * (pres - p_bh))
-                    
-                    J_vals[map_diag, 0, 0] += dqo_dp
-                    J_vals[map_diag, 0, 1] += dqo_ds
-                    J_vals[map_diag, 1, 0] += dqw_dp
-                    J_vals[map_diag, 1, 1] += dqw_ds
+        def matvec(x):
+            xb = x.view(-1, 2)
+            y = torch.zeros_like(xb)
+            y.index_add_(0, rows, torch.bmm(J, xb[cols].unsqueeze(-1)).squeeze(-1))
+            if wells_on:
+                y += self.wells.schur_correction(wsys, xb, local_included=True) * scale
+            return y.view(-1)
 
-    def solve_cpu(self, J_vals, R, current_newton_rel_error=1.0):
-        """
-        Решает систему линейных уравнений.
-        Использует FGMRES на GPU если доступен, иначе падает на CPU SciPy.
-        """
-        indptr = self.builder.indptr
-        indices = self.builder.indices
-        n_blocks = self.n_cells
-        
-        # Подготовка GPU структур
-        # J_vals: [NNZ, 2, 2]
-        # R: [2*N]
-        
-        # Пробуем использовать GPU FGMRES
-        try:
-            from solver.fgmres import fgmres
-            from .cpr_gpu import CPRPreconditionerGPU # Import local helper
-            
-            # 1. Оператор A @ x
-            # J_vals имеет размер [NNZ, 2, 2]. Нужно эффективно умножать.
-            # Для BSR умножения на PyTorch нет встроенного, но мы можем 
-            # либо использовать sparse_csr (если блоки развернуть), 
-            # либо написать свое ядро.
-            # Проще всего: развернуть BSR в CSR (NNZ*4) и использовать torch.sparse.
-            
-            # Разворачиваем блоки 2x2 в CSR
-            # Это делается один раз за решение, или на лету?
-            # Лучше один раз собрать CSR матрицу для текущего шага Ньютона
-            
-            # Данные для CSR (crow, col, val)
-            # indptr: [N+1] -> crow: [2N+1]
-            # indices: [NNZ] -> col: [4*NNZ]
-            
-            # Эффективная конвертация BSR 2x2 -> CSR на PyTorch
-            # J_vals: [NNZ, 2, 2] -> [NNZ, 4] flat values
-            # Но порядок в CSR другой.
-            # BSR: row i -> cols [j1, j2...] -> blocks [2x2]
-            # CSR: row 2i -> cols [2j1, 2j1+1, 2j2, 2j2+1] -> vals [00, 01, 00, 01]
-            #      row 2i+1 -> cols [2j1, 2j1+1, 2j2, 2j2+1] -> vals [10, 11, 10, 11]
-            
-            # Для простоты сейчас (MVP) соберем CSR через Python/Numpy конверсию,
-            # НО оставим данные на GPU.
-            # TODO: Написать pure torch kernel для BSR matvec
-            
-            # --- Вариант 1: Torch Sparse CSR (beta) ---
-            # Требует int64 индексов
-            
-            # Подготовка индексов (делаем 1 раз при инициализации builder, но сейчас тут)
-            if not hasattr(self, 'csr_crow') or self.csr_crow is None:
-                # Конвертируем структуру BSR -> CSR 2x2
-                # Это нетривиально векторизовать без кастомного кернела.
-                # План Б: Использовать matvec через "размазывание"
-                pass
-                
-            # --- Вариант 2: Matvec через scatter/gather (медленно) ---
-            
-            # --- Вариант 3: Конвертация через CPU Scipy (текущее решение для надежности) ---
-            # Но мы хотим GPU.
-            
-            # --- Вариант 4: Прямое умножение J_vals * x ---
-            # x: [N, 2]
-            # y = zeros
-            # Для каждого блока k (строка i, столбец j):
-            # y[i] += block[k] @ x[j]
-            # Это можно сделать через index_add_
-            
-            # Реализация Matvec на PyTorch (GPU)
-            rows = torch.repeat_interleave(torch.arange(self.n_cells, device=self.device), 
-                                         (indptr[1:] - indptr[:-1]).long())
-            cols = indices.long()
-            
-            # --- Row Scaling (Jacobi Preconditioning) ---
-            # Нормализуем уравнения, чтобы диагональные элементы были ~1.
-            # Это критически важно для FGMRES, так как диагональные элементы давления (~1e-6)
-            # и насыщенности (~1e3) различаются на 9 порядков.
-            
-            # Вычисляем масштабные коэффициенты из диагональных блоков
-            diag_vals = J_vals[self.builder.diag_map] # [N, 2, 2]
-            d00 = diag_vals[:, 0, 0]
-            d11 = diag_vals[:, 1, 1]
-            
-            # Избегаем деления на ноль
-            scale_0 = 1.0 / (torch.abs(d00) + 1e-12)
-            scale_1 = 1.0 / (torch.abs(d11) + 1e-12)
-            
-            # Масштабируем правую часть R
-            # R: [2*N].
-            R_view = R.view(-1, 2)
-            R_scaled = torch.empty_like(R_view)
-            R_scaled[:, 0] = R_view[:, 0] * scale_0
-            R_scaled[:, 1] = R_view[:, 1] * scale_1
-            R_scaled_flat = R_scaled.view(-1)
-            
-            # Масштабируем матрицу J для matvec (Left Scaling)
-            # J_vals[k] умножается на scale[rows[k]]
-            s0_expanded = scale_0[rows].unsqueeze(1) # [NNZ, 1]
-            s1_expanded = scale_1[rows].unsqueeze(1) # [NNZ, 1]
-            
-            # Копия матрицы (in-place scale J_vals опасно, если он где-то переиспользуется, но здесь ок)
-            # J_vals создается заново в assemble_system, так что можно править in-place для скорости
-            J_vals[:, 0, :] *= s0_expanded
-            J_vals[:, 1, :] *= s1_expanded
-            
-            def matvec_gpu_scaled(x_vec):
-                # x_vec: [2*N] -> [N, 2]
-                x_blk = x_vec.view(-1, 2)
-                
-                # Gather x values: x_j = x_blk[cols] -> [NNZ, 2]
-                x_j = x_blk[cols]
-                
-                # Batch matmul: y_val = J_vals @ x_j.unsqueeze(-1) 
-                # [NNZ, 2, 2] @ [NNZ, 2, 1] -> [NNZ, 2, 1]
-                y_vals = torch.bmm(J_vals, x_j.unsqueeze(-1)).squeeze(-1) # [NNZ, 2]
-                
-                # Scatter add to rows
-                y = torch.zeros_like(x_blk)
-                y.index_add_(0, rows, y_vals)
-                
-                return y.view(-1)
+        t0 = time.perf_counter()
+        amg_in = None if (rebuild_amg or self._amg is None) else self._amg
+        cpr = CPRPreconditionerGPU(J, self.builder.indptr, self.builder.indices, n, self.device,
+                                   amg=amg_in, smoother_sweeps=self.cpr_smoother_sweeps,
+                                   amg_verbose=self.amg_verbose)
+        if cpr.amg is None and amg_in is not None:
+            cpr = CPRPreconditionerGPU(J, self.builder.indptr, self.builder.indices, n, self.device,
+                                       amg=None, smoother_sweeps=self.cpr_smoother_sweeps,
+                                       amg_verbose=self.amg_verbose)
+        self._amg = cpr.amg
+        stats.update(amg_levels=cpr.amg_levels, amg_rebuilt=cpr.amg_rebuilt, amg_setup_s=cpr.amg_build_s,
+                     amg_error=cpr.amg_error, precond_setup_s=time.perf_counter() - t0)
+        if self.debug.level >= 2 and cpr.amg_log:
+            self.debug.event("captured_output", tag="cpr_amg", text=cpr.amg_log)
 
-            # 2. Предобуславливатель (CPR)
-            stats = {"backend": "gpu_fgmres_cpr" if HAS_AMG else "gpu_fgmres"}
-            if HAS_AMG:
-                # Создаем CPR c уже масштабированной матрицей
-                # Это делает A_p и inv_diag хорошо обусловленными (~1)
-                with self.debug.quiet("cpr_amg_build"):
-                    cpr = CPRPreconditionerGPU(J_vals, indptr, indices, self.n_cells, self.device)
-                M_op = cpr.matvec
-                stats.update(amg_levels=cpr.amg_levels, amg_build_s=cpr.amg_build_s,
-                             amg_error=cpr.amg_error, block_jacobi=cpr.inv_diag is not None)
-            else:
-                M_op = None
-                
-            # 3. Запуск FGMRES
-            # Адаптивный толеранс (Eisenstat-Walker):
-            # Строже (0.01), чтобы направление было точным
-            adaptive_tol = max(1e-6, min(0.01, 0.01 * current_newton_rel_error))
-            
-            # print(f"    Solving with GPU FGMRES (tol={adaptive_tol:.1e})...")
-            
-            # Решаем масштабированную систему: (S*J) * x = (S*(-R))
-            t_lin = time.perf_counter()
-            x, info = fgmres(matvec_gpu_scaled, -R_scaled_flat, M_mv=M_op, max_iter=20, restart=50,
-                             tol=adaptive_tol, verbose=self.linear_verbose, stats=stats)
-            stats["solve_s"] = time.perf_counter() - t_lin
-            stats["tol"] = adaptive_tol
-            if self.debug.enabled:
-                b_norm = R_scaled_flat.norm().clamp_min(1e-300)
-                stats["true_rel_res"] = ((matvec_gpu_scaled(x) + R_scaled_flat).norm() / b_norm).item()
-                stats["row_scale_range"] = [torch.min(torch.minimum(scale_0, scale_1)).item(),
-                                            torch.max(torch.maximum(scale_0, scale_1)).item()]
-            self._last_linear_stats = stats
-            # info != 0: не сошелся, fgmres возвращает лучшее приближение
-            return x
-            
-        except ImportError:
-            print("FGMRES not found, falling back to CPU")
-            gpu_error = "import_error"
-        except Exception as e:
-            print(f"GPU Solver failed ({e}), falling back to CPU")
-            gpu_error = str(e)
-        self._last_linear_stats = {"backend": "cpu_scipy", "gpu_error": gpu_error}
-            # Fallback code below...
-
-        indptr = self.builder.indptr.cpu().numpy()
-        indices = self.builder.indices.cpu().numpy()
-        n_blocks = self.n_cells
-        
-        vals_np = J_vals.cpu().numpy() # [NNZ, 2, 2]
-        bsr = sp.bsr_matrix((vals_np, indices, indptr), shape=(2*n_blocks, 2*n_blocks))
-        
-        rhs = -R.cpu().numpy()
-        
-        try:
-            if self.n_cells < 2000: # Small grid -> Direct Solver
-                x = spsolve(bsr, rhs)
-            else:
-                # Iterative Solver Strategy
-                
-                # 1. Try CPR Preconditioner (AMG for Pressure + ILU)
-                M = None
-                if HAS_AMG: # Enable CPR if available
-                    # print("    Building CPR Preconditioner...")
-                    try:
-                        cpr = CPRPreconditioner(bsr, self.n_cells, device=self.device)
-                        M = cpr
-                    except Exception as e:
-                        print(f"    CPR init failed ({e}), falling back to ILU")
-                
-                # 2. Fallback to Standard ILU
-                if M is None:
-                    csc = bsr.tocsc()
-                    ilu = spilu(csc, drop_tol=1e-4, fill_factor=2.0)
-                    M_x = lambda x: ilu.solve(x)
-                    M = LinearOperator((2*n_blocks, 2*n_blocks), M_x)
-                
-                # print(f"    Solving linear system (BiCGStab)...")
-                
-                # Args for bicgstab
-                kwargs = {'maxiter': 50, 'M': M}
-                try:
-                    scipy_ver = int(scipy.__version__.split('.')[1])
-                    if scipy_ver >= 12: 
-                         kwargs['rtol'] = 1e-5
-                    else:
-                         kwargs['tol'] = 1e-5
-                except:
-                     kwargs['tol'] = 1e-5
-                
-                x, info = bicgstab(bsr, rhs, **kwargs)
-                
-                if info > 0:
-                    print(f"    Linear solver did not converge in {info} iterations")
-                elif info < 0:
-                    print("    Linear solver failed")
-                    return None
-                self._last_linear_stats["converged"] = info == 0
-
-            self._last_linear_stats.setdefault("converged", True)
-            if self.debug.enabled:
-                self._last_linear_stats["true_rel_res"] = float(
-                    np.linalg.norm(bsr @ x - rhs) / max(np.linalg.norm(rhs), 1e-300))
-            return torch.from_numpy(x)
-        except TypeError as te:
-            print(f"Solver type error: {te}")
+        tol = max(self.lin_tol_min, min(self.lin_tol_max, 0.1 * newton_rel))
+        t1 = time.perf_counter()
+        x, info = fgmres(matvec, b, M_mv=cpr.matvec, max_iter=self.lin_max_restarts, restart=self.lin_restart,
+                         tol=tol, verbose=self.linear_verbose, stats=stats)
+        stats["solve_s"] = time.perf_counter() - t1
+        stats["tol"] = tol
+        true_rel = ((matvec(x) - b).norm() / b.norm().clamp_min(1e-300)).item()
+        stats["true_rel_res"] = true_rel
+        self._last_linear_stats = stats
+        if not (true_rel == true_rel) or true_rel > self.lin_accept:
             return None
-        except Exception as e:
-            print(f"Solver failed: {e}")
-            return None
+        dx = x.view(-1, 2)
+        dpw = self.wells.recover_dpw(wsys, dx) if wells_on else torch.zeros(0, dtype=torch.float64, device=self.device)
+        return dx, dpw

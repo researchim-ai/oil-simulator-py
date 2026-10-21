@@ -44,8 +44,8 @@ class Simulator:
         
         if self.solver_type == 'fully_implicit':
             print(f"  Настройки решателя Ньютона:")
-            print(f"    Макс. итераций: {sim_params.get('newton_max_iter', 20)}")
-            print(f"    Допуск невязки: {sim_params.get('newton_tolerance', 1e-3)}")
+            print(f"    Макс. итераций: {sim_params.get('newton_max_iter', 15)}")
+            print(f"    CNV ≤ {sim_params.get('newton_tol_cnv', 1e-3):g}, MB ≤ {sim_params.get('newton_tol_mb', 1e-7):g}")
             # Инициализация оптимизированного решателя
             self.fim_solver = ManualFIMSolver(
                 reservoir=self.reservoir,
@@ -200,71 +200,58 @@ class Simulator:
 
     def _fully_implicit_step(self, dt):
         """
-        Выполняет один временной шаг с использованием полностью неявной схемы.
-        
-        Args:
-            dt: Временной шаг в секундах
-            
-        Returns:
-            Успешность выполнения шага (True/False)
+        Продвигает решение на отчётный интервал dt [с] подшагами FIM с адаптивным шагом.
+
+        Шаг растёт по числу итераций Ньютона (цель newton_target_iter) и по изменению Sw
+        (цель dt_target_dsw), не более чем в dt_increase_factor раз; при несходимости — дробится
+        в dt_reduction_factor раз до min_time_step_days. Подобранный шаг переносится на следующий интервал.
         """
-        # Сохраняем оригинальный временной шаг для возможного увеличения в будущем
-        original_dt = dt
-        current_dt = dt
-        max_attempts = self.sim_params.get("max_time_step_attempts", 5)
-        dt_increase_factor = self.sim_params.get("dt_increase_factor", 1.5)
-        dt_reduction_factor = self.sim_params.get("dt_reduction_factor", 2.0)
-        
-        # Сохраняем начальное состояние для возможного отката
-        initial_pressure = self.fluid.pressure.clone()
-        initial_saturation = self.fluid.s_w.clone()
-        
-        # Счетчик успешных шагов подряд с уменьшенным шагом
-        consecutive_success = 0
-        last_dt_increased = False
-        
-        for attempt in range(max_attempts):
-            print(f"Попытка шага с dt = {current_dt/86400:.2f} дней (Попытка {attempt+1}/{max_attempts})")
-            
-            # Выполняем шаг с текущим значением dt, передавая абсолютное время для Ramping
-            converged = self.fim_solver.step(current_dt, current_time=self.current_time)
-            
-            if converged:
-                print(f"Шаг успешно выполнен с dt = {current_dt/86400:.2f} дней.")
-                
-                # Обновляем текущее время симулятора
-                self.current_time += current_dt
-                
-                consecutive_success += 1
-                
-                # Обновляем предыдущие состояния флюида
+        p = self.sim_params
+        t_end = self.current_time + dt
+        dt_min = float(p.get("min_time_step_days", 1e-6)) * 86400.0
+        dt_max = float(p.get("max_time_step_days", dt / 86400.0)) * 86400.0
+        grow_max = float(p.get("dt_increase_factor", 2.0))
+        cut = float(p.get("dt_reduction_factor", 2.0))
+        target_it = float(p.get("newton_target_iter", 6))
+        target_ds = float(p.get("dt_target_dsw", 0.2))
+        max_cuts = int(p.get("max_time_step_attempts", 8))
+        h = getattr(self, "_fim_dt", None) or float(p.get("initial_time_step_days", dt / 86400.0)) * 86400.0
+        h = min(max(h, dt_min), dt_max)
+        dbg = self.fim_solver.debug
+        verbose = not (dbg.enabled and dbg.console)
+
+        cuts = 0
+        while t_end - self.current_time > 1e-6:
+            h_try = min(h, t_end - self.current_time)
+            # не оставлять крошечный хвост в конце интервала
+            if t_end - self.current_time - h_try < 0.25 * h_try:
+                h_try = t_end - self.current_time
+            if verbose:
+                print(f"  FIM подшаг: t = {self.current_time/86400:.4f} сут, dt = {h_try/86400:.4g} сут")
+            if self.fim_solver.step(h_try, current_time=self.current_time):
+                self.current_time += h_try
                 self.fluid.prev_pressure = self.fluid.pressure.clone()
                 self.fluid.prev_sw = self.fluid.s_w.clone()
-                
-                # Если это был уменьшенный шаг и мы успешно сделали несколько шагов подряд,
-                # пробуем увеличить шаг для следующей итерации, но не больше исходного
-                if consecutive_success >= 2 and current_dt < original_dt and not last_dt_increased:
-                    current_dt = min(current_dt * dt_increase_factor, original_dt)
-                    last_dt_increased = True
-                    print(f"Увеличиваем временной шаг до dt = {current_dt/86400:.2f} дней для следующей итерации.")
-                else:
-                    last_dt_increased = False
-                return True
+                it = max(self.fim_solver.last_newton_iters, 1)
+                ds = max(self.fim_solver.last_max_dsw, 1e-12)
+                f = min(grow_max, target_it / it, target_ds / ds)
+                f = max(f, 1.0 / cut)
+                h = min(max(h_try * f, dt_min), dt_max) if h_try >= 0.999 * h else max(h, h_try)
+                cuts = 0
+                continue
+            cuts += 1
+            h_new = h_try / cut
+            dbg.dt_chop(cuts, h_try, h_new)
+            if verbose:
+                print(f"  ✖ Ньютон не сошёлся, dt: {h_try/86400:.4g} → {h_new/86400:.4g} сут")
+            if h_new < dt_min or cuts > max_cuts:
+                print("Не удалось добиться сходимости даже с минимальным шагом. Симуляция остановлена.")
+                self._fim_dt = h_new
+                return False
+            h = h_new
+        self._fim_dt = h
+        return True
 
-            # Неудачная попытка - восстанавливаем начальное состояние
-            self.fluid.pressure = initial_pressure.clone()
-            self.fluid.s_w = initial_saturation.clone()
-            self.fluid.s_o = 1.0 - self.fluid.s_w
-            
-            print("Решатель не сошелся. Уменьшаем шаг времени.")
-            self.fim_solver.debug.dt_chop(attempt, current_dt, current_dt / dt_reduction_factor)
-            current_dt /= dt_reduction_factor
-            consecutive_success = 0
-            last_dt_increased = False
-            
-        print("Не удалось добиться сходимости даже с минимальным шагом. Симуляция остановлена.")
-        return False
-        
     def _fully_implicit_newton_step(self, dt, max_iter=20, tol=1e-3, 
                                     damping_factor=0.7, jac_reg=1e-7, 
                                     line_search_factors=None, use_cuda=False):

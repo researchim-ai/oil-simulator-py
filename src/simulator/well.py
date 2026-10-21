@@ -7,7 +7,9 @@ class Well:
     Класс для представления скважины в резервуаре.
     """
     
-    def __init__(self, name, well_type, i, j, k, radius, control_type, control_value, reservoir_dimensions, injected_phase: str = 'water', rate_type: str = 'reservoir', surface_phase: str = None, limits: dict = None, bhp_min: float = None):
+    def __init__(self, name, well_type, i, j, k, radius, control_type, control_value, reservoir_dimensions, injected_phase: str = 'water', rate_type: str = 'reservoir', surface_phase: str = None, limits: dict = None, bhp_min: float = None,
+                 bhp_max: float = None, perforations=None, skin: float = 0.0, well_index: float = None,
+                 ramp_days: float = 0.0):
         """
         Инициализирует скважину.
         
@@ -34,6 +36,12 @@ class Well:
         # Лимиты фаз (м3/сутки) и минимальный забой (МПа)
         self.limits = limits or {}
         self.bhp_min = bhp_min  # МПа, если задано
+        self.bhp_max = bhp_max  # МПа, предел для нагнетательных
+        # Перфорации [(i,j,k), ...]; по умолчанию одна — в ячейке (i,j,k)
+        self.perforations = [tuple(int(v) for v in pf) for pf in perforations] if perforations else [(i, j, k)]
+        self.skin = float(skin)
+        self.wi_override = well_index  # м^3; если не задан, считается по Писмену
+        self.connection_wi = None
         
         nx, ny, nz = reservoir_dimensions
         self.cell_index = (i, j, k)
@@ -55,9 +63,9 @@ class Well:
         self.last_surface_rates = {}       # {'oil','water','gas','liquid'} в м3/сутки
         self.last_mode = None              # 'rate' | 'bhp'
         
-        # Параметры мягкого старта (Ramping)
-        self.ramping_days = 10.0  # Время выхода на режим (дни) - увеличено для стабильности
-        self.initial_pressure = 20.0 # Начальное пластовое давление (МПа) - нужно бы передавать точно, но пока hardcode для теста
+        # Мягкий выход на режим (опционально, по умолчанию выключен)
+        self.ramping_days = float(ramp_days)
+        self.initial_pressure = 20.0  # МПа, используется только при ramping BHP
         
     def get_current_control(self, current_time_days: float):
         """
@@ -69,7 +77,7 @@ class Well:
         Returns:
             (control_type, control_value)
         """
-        if current_time_days >= self.ramping_days:
+        if self.ramping_days <= 0 or current_time_days >= self.ramping_days:
             return self.control_type, self.control_value
             
         # Коэффициент линейного нарастания [0, 1]
@@ -138,7 +146,12 @@ class WellManager:
                 rate_type=w.get('rate_type', 'reservoir'),
                 surface_phase=w.get('surface_phase'),
                 limits=w.get('limits'),
-                bhp_min=w.get('bhp_min')
+                bhp_min=w.get('bhp_min'),
+                bhp_max=w.get('bhp_max'),
+                perforations=w.get('perforations'),
+                skin=w.get('skin', 0.0),
+                well_index=w.get('well_index'),
+                ramp_days=w.get('ramp_days', 0.0),
             )
             self.wells.append(well)
             print(f"  > Скважина '{well.name}' добавлена в менеджер.")

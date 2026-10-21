@@ -142,7 +142,7 @@ class SolverDebugger:
         self.event("step_start", dt_days=dt / 86400.0, t_days=(t or 0.0) / 86400.0, **self._state_stats(p, sw))
         if self.console:
             print(f"[solver-debug] шаг {self.step_idx}: t={self.step_rec['t_days']:.4f} сут, dt={dt/86400.0:.4g} сут")
-            print("   it |  max|R| oil  max|R| wat | худшая ячейка(eq)  | MB err   | lin it  lin rel   | max dP,bar max dSw | alpha  | t,s")
+            print("   it |   CNV oil    CNV wat | худшая ячейка(eq)  | MB       | lin it  lin rel   | max dP,bar max dSw | скв.err | t,s")
 
     def end_step(self, converged, reason, p=None, sw=None, R=None, J_vals=None, builder=None):
         if not self.enabled:
@@ -258,13 +258,16 @@ class SolverDebugger:
         w = r["worst"][0] if r.get("worst") else {"ijk": "-", "eq": "-"}
         lin = r.get("linear", {})
         up = r.get("update", {})
-        ls = r.get("line_search", {})
+        crit = r.get("criteria", {})
+        cnv = crit.get("cnv", r["res_inf"])
+        mb = max(crit.get("mb", r["mb_err_rel"]))
         t = sum(r.get("time", {}).values())
-        print(f"  {r['iter']:3d} | {r['res_inf'][0]:10.3e} {r['res_inf'][1]:10.3e} | "
-              f"{str(w['ijk']):>12s}({w['eq'][0]}) | {max(r['mb_err_rel']):8.1e} | "
+        print(f"  {r['iter']:3d} | {cnv[0]:10.3e} {cnv[1]:10.3e} | "
+              f"{str(w['ijk']):>12s}({w['eq'][0]}) | {mb:8.1e} | "
               f"{lin.get('iters', '-'):>5} {lin.get('true_rel_res', float('nan')):9.2e} | "
               f"{up.get('max_dp_bar', float('nan')):9.3g} {up.get('max_dsw', float('nan')):7.3g} | "
-              f"{ls.get('alpha', float('nan')):6.3g} | {t:.3f}")
+              f"{crit.get('well_rate_rel_err', 0.0):7.1e} | {t:.3f}"
+              + (f"  ⇄ {'; '.join(r['control_switch'])}" if r.get("control_switch") else ""))
 
     # -------------------------------------------------------- диагностика
     def fd_check(self, solver, p, sw, m_o_old, m_w_old, dt, t, J_vals):
