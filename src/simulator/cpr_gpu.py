@@ -1,6 +1,7 @@
 import torch
 import sys
 import os
+import time
 
 class CPRPreconditionerGPU:
     """
@@ -40,6 +41,10 @@ class CPRPreconditionerGPU:
         
         # Инициализация AMG
         self.amg = None
+        self.amg_error = None
+        self.amg_build_s = 0.0
+        self.amg_levels = []
+        t_build = time.perf_counter()
         try:
             # Пытаемся импортировать ClassicalAMG
             try:
@@ -55,8 +60,11 @@ class CPRPreconditionerGPU:
                 mixed_precision=True,
                 nullspace_dim=0 
             )
+            self.amg_levels = [int(lvl['n']) for lvl in self.amg.levels]
         except Exception as e:
+            self.amg_error = str(e)
             print(f"CPR Warning: AMG init failed ({e}). Pressure correction disabled.")
+        self.amg_build_s = time.perf_counter() - t_build
 
         # --- 2. Подготовка сглаживателя (Block Jacobi) ---
         # Нам нужны диагональные блоки D_ii (размер 2x2) для каждой ячейки.

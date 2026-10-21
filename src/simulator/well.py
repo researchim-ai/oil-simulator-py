@@ -37,7 +37,8 @@ class Well:
         
         nx, ny, nz = reservoir_dimensions
         self.cell_index = (i, j, k)
-        self.cell_index_flat = i + j * nx + k * nx * ny
+        # Совпадает с tensor(nx, ny, nz).view(-1): k — самая быстрая координата
+        self.cell_index_flat = (i * ny + j) * nz + k
         
         # Определяем реальные размеры ячейки из reservoir_dimensions
         # Для Peaceman нужно знать dx, dy. Полагаем кубические ячейки и берём 1 м, если размеры не переданы.

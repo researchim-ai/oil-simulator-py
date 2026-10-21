@@ -1,3 +1,4 @@
+import time
 import torch
 import numpy as np
 import scipy
@@ -7,6 +8,7 @@ from .reservoir import Reservoir
 from .fluid import Fluid
 from .well import WellManager
 from .sparse_utils import SparseMatrixBuilder
+from .solver_debug import SolverDebugger
 
 try:
     # Try relative import first (package mode)
@@ -137,6 +139,10 @@ class ManualFIMSolver:
         # Tolerance for mass balance in kg/s
         # Default to 1e-6 kg/s (~0.1 kg/day) if not specified
         self.tol_mass = params.get('newton_tol_mass', params.get('newton_tolerance', 1e-6))
+        self.linear_verbose = bool(params.get('linear_verbose', False))
+        self.debug = SolverDebugger(params.get('debug', {}), reservoir.dimensions, self.device)
+        self._well_records = None
+        self._last_linear_stats = {}
         
         # Построитель структуры матрицы (делаем 1 раз)
         print("Building sparse matrix structure...")
@@ -204,6 +210,8 @@ class ManualFIMSolver:
         dt: шаг времени в СЕКУНДАХ
         current_time: текущее абсолютное время симуляции в СЕКУНДАХ (для ramping)
         """
+        dbg = self.debug
+        log = (lambda *a, **k: None) if (dbg.enabled and dbg.console) else print
         dt_sec = dt
         
         p_old = self.fluid.pressure.clone().double()
@@ -213,39 +221,64 @@ class ManualFIMSolver:
         sw_curr = sw_old.clone()
         
         mass_o_old, mass_w_old = self.calc_masses(p_old, sw_old)
+        mass_total = (mass_o_old.sum().item(), mass_w_old.sum().item()) if dbg.enabled else None
+        dbg.begin_step(dt_sec, current_time, p_old, sw_old)
         
         initial_res_norm = None
         
         for iter_k in range(self.max_newton):
+            dbg.begin_iter(iter_k)
+            timer = dbg.timer()
+            self._well_records = [] if dbg.level >= 2 else None
+
             # Сборка (передаем dt и current_time)
-            R, J_values = self.assemble_system(p_curr, sw_curr, mass_o_old, mass_w_old, dt_sec, current_time=current_time)
+            with timer('assemble'):
+                R, J_values = self.assemble_system(p_curr, sw_curr, mass_o_old, mass_w_old, dt_sec, current_time=current_time)
+            dbg.wells(self._well_records)
+            self._well_records = None
             
-            # Проверка сходимости
-            # Нормализуем невязку на dt для корректного сравнения? 
-            # Обычно tolerance задается для mass rate error [kg/s].
             # R в [kg/s].
             max_res = torch.max(torch.abs(R))
-            print(f"  Iter {iter_k}: Max Res = {max_res:.2e} kg/s")
+            dbg.residual(R, dt_sec, mass_total)
+            log(f"  Iter {iter_k}: Max Res = {max_res:.2e} kg/s")
+
+            if not torch.isfinite(max_res):
+                dbg.converged_iter()
+                dbg.end_step(False, "nan_residual", p_curr, sw_curr, R, J_values, self.builder)
+                return False
             
             if iter_k == 0:
                 initial_res_norm = max_res
             
             if max_res < self.tol_mass:
-                print("  Converged!")
+                log("  Converged!")
+                dbg.converged_iter()
+                dbg.end_step(True, "converged", p_curr, sw_curr)
                 self.fluid.pressure.copy_(p_curr.float())
                 self.fluid.s_w.copy_(sw_curr.float())
                 self.fluid.s_o.copy_(1.0 - sw_curr.float())
                 return True
+
+            dbg.jacobian(J_values, self.builder.diag_map)
+            if dbg.level >= 3:
+                with timer('fd_check'):
+                    dbg.fd_check(self, p_curr, sw_curr, mass_o_old, mass_w_old, dt_sec, current_time, J_values)
+                dbg.maybe_dump_iter(p_curr, sw_curr, R, J_values, self.builder, iter_k)
             
             # Адаптивный допуск для линейного решателя
             rel_newton_err = 1.0
             if initial_res_norm is not None and initial_res_norm > 1e-10:
                 rel_newton_err = (max_res / initial_res_norm).item()
             
-            # Решение линейной системы
-            dx = self.solve_cpu(J_values, R, current_newton_rel_error=rel_newton_err)
+            # Решение линейной системы (J_values масштабируется внутри in-place)
+            with timer('linear'):
+                dx = self.solve_cpu(J_values, R, current_newton_rel_error=rel_newton_err)
+            dbg.linear(self._last_linear_stats)
             
             if dx is None:
+                dbg.end_iter(timer.t if dbg.enabled else {})
+                R_f, J_f = self.assemble_system(p_curr, sw_curr, mass_o_old, mass_w_old, dt_sec, current_time=current_time)
+                dbg.end_step(False, "linear_solver_failed", p_curr, sw_curr, R_f, J_f, self.builder)
                 return False
             
             # Обновление с Line Search и Safe Scaling
@@ -253,9 +286,6 @@ class ManualFIMSolver:
             dsw_full = dx[1::2].reshape(self.nx, self.ny, self.nz).to(self.device)
             
             # Safe Scaling (вместо жесткого clamp, который искажает направление)
-            # Ограничиваем максимальное изменение за шаг:
-            # Saturation: 0.2
-            # Pressure: 20 bar (20e5 Pa)
             max_dsw = torch.max(torch.abs(dsw_full))
             max_dp = torch.max(torch.abs(dp_full))
             
@@ -264,9 +294,9 @@ class ManualFIMSolver:
                 scale_factor = min(scale_factor, 0.2 / max_dsw.item())
             if max_dp > 50e5: # 50 bar limit
                 scale_factor = min(scale_factor, 50e5 / max_dp.item())
+            dbg.update(dp_full, dsw_full, scale_factor)
             
             if scale_factor < 1.0:
-                # print(f"    Scaling Update by {scale_factor:.4f} (Max dSw={max_dsw:.2f}, Max dP={max_dp/1e5:.1f} bar)")
                 dp_full *= scale_factor
                 dsw_full *= scale_factor
             
@@ -274,41 +304,46 @@ class ManualFIMSolver:
             alpha = 1.0
             min_alpha = 0.125
             accepted = False
+            trials = []
             
             # Текущая норма невязки (для сравнения)
             current_res_norm = max_res
             
-            while alpha >= min_alpha:
-                p_trial = p_curr + alpha * dp_full
-                sw_trial = sw_curr + alpha * dsw_full
-                sw_trial = torch.clamp(sw_trial, 0.0, 1.0)
+            with timer('line_search'):
+                while alpha >= min_alpha:
+                    p_trial = p_curr + alpha * dp_full
+                    sw_trial = sw_curr + alpha * dsw_full
+                    sw_trial = torch.clamp(sw_trial, 0.0, 1.0)
+                    
+                    # Важно: используем те же массы "old", но новые p/sw
+                    R_trial, _ = self.assemble_system(p_trial, sw_trial, mass_o_old, mass_w_old, dt_sec, current_time=current_time)
+                    res_trial = torch.max(torch.abs(R_trial))
+                    trials.append([alpha, res_trial.item()])
+                    
+                    # Strict decrease is safest for FIM.
+                    if res_trial < current_res_norm:
+                        p_curr = p_trial
+                        sw_curr = sw_trial
+                        accepted = True
+                        if alpha < 1.0:
+                            log(f"    Line search: reduced step alpha={alpha}, Res {current_res_norm:.2e} -> {res_trial:.2e}")
+                        break
+                    else:
+                        alpha *= 0.5
                 
-                # Проверяем невязку в новой точке
-                # Важно: используем те же массы "old", но новые p/sw
-                R_trial, _ = self.assemble_system(p_trial, sw_trial, mass_o_old, mass_w_old, dt_sec, current_time=current_time)
-                res_trial = torch.max(torch.abs(R_trial))
-                
-                # Условие принятия (Armijo-like, simplified): невязка уменьшилась
-                # Или хотя бы не выросла катастрофически (allow small increase initially?)
-                # Strict decrease is safest for FIM.
-                if res_trial < current_res_norm:
-                    p_curr = p_trial
-                    sw_curr = sw_trial
-                    accepted = True
-                    if alpha < 1.0:
-                        print(f"    Line search: reduced step alpha={alpha}, Res {current_res_norm:.2e} -> {res_trial:.2e}")
-                    break
-                else:
-                    # print(f"    Line search reject alpha={alpha} (Res {res_trial:.2e} >= {current_res_norm:.2e})")
-                    alpha *= 0.5
-            
-            if not accepted:
-                print(f"    Line search failed to reduce residual. Force taking small step alpha={min_alpha}")
-                p_curr = p_curr + min_alpha * dp_full
-                sw_curr = sw_curr + min_alpha * dsw_full
-                sw_curr = torch.clamp(sw_curr, 0.0, 1.0)
-                # Это скорее всего приведет к расходимости на след итерации и уменьшению dt, что и нужно.
+                if not accepted:
+                    log(f"    Line search failed to reduce residual. Force taking small step alpha={min_alpha}")
+                    alpha = min_alpha
+                    p_curr = p_curr + min_alpha * dp_full
+                    sw_curr = sw_curr + min_alpha * dsw_full
+                    sw_curr = torch.clamp(sw_curr, 0.0, 1.0)
+                    # Это скорее всего приведет к расходимости на след итерации и уменьшению dt, что и нужно.
+            dbg.line_search(trials, alpha, accepted)
+            dbg.end_iter(timer.t if dbg.enabled else {})
 
+        if dbg.enabled:
+            R_f, J_f = self.assemble_system(p_curr, sw_curr, mass_o_old, mass_w_old, dt_sec, current_time=current_time)
+            dbg.end_step(False, "max_newton_iter", p_curr, sw_curr, R_f, J_f, self.builder)
         return False
 
     def calc_masses(self, p, sw):
@@ -551,6 +586,17 @@ class ManualFIMSolver:
         
         return R, J_vals
 
+    def _record_well(self, well, ctrl_type, ctrl_val, p_cell, q_o, q_w, note=None):
+        """Дебиты в кг/с: + отбор, − закачка (знак как в невязке)."""
+        if self._well_records is None:
+            return
+        rec = {"name": well.name, "type": well.type, "ctrl": ctrl_type, "ctrl_val": float(ctrl_val),
+               "ijk": list(well.cell_index), "p_cell_mpa": float(p_cell) / 1e6,
+               "q_oil_kg_s": float(q_o), "q_wat_kg_s": float(q_w)}
+        if note:
+            rec["note"] = note
+        self._well_records.append(rec)
+
     def apply_wells(self, R, J_vals, p, sw, current_time=None):
         """
         Применяет скважины (источники/стоки) и добавляет их производные в Якобиан.
@@ -588,12 +634,14 @@ class ManualFIMSolver:
             if well.type == 'injector':
                 # Инжекция (всегда вода для простоты теста)
                 if well.injected_phase == 'gas':
+                    self._record_well(well, ctrl_type, ctrl_val, p_flat[idx], 0.0, 0.0, note="gas_injection_skipped")
                     continue
                 
                 if ctrl_type == 'rate':
                     q_surf_sec = ctrl_val / 86400.0
                     mass_rate = q_surf_sec * rho_w_ref
                     R[2*idx + 1] -= mass_rate
+                    self._record_well(well, ctrl_type, ctrl_val, p_flat[idx], 0.0, -mass_rate)
                     # Производная по давлению/насыщенности для rate control injector = 0
                 elif ctrl_type == 'bhp':
                     # P_bh control injector
@@ -608,7 +656,7 @@ class ManualFIMSolver:
                     sat = sw_flat[idx]
                     # ... Need calculate mobilities (copy paste logic or extract?)
                     # For now, ignore BHP injectors or implement simplified
-                    pass 
+                    self._record_well(well, ctrl_type, ctrl_val, pres, 0.0, 0.0, note="bhp_injector_not_implemented")
                     
             elif well.type == 'producer':
                 # Добыча (Total Liquid Rate)
@@ -671,6 +719,7 @@ class ManualFIMSolver:
                     # Add to Residual
                     R[2*idx + 0] += q_o_mass
                     R[2*idx + 1] += q_w_mass
+                    self._record_well(well, ctrl_type, ctrl_val, pres, q_o_mass, q_w_mass)
                     
                     # Add to Jacobian (Diagonal)
                     dq_w_dsw = q_surf_sec * rho_w_ref * dfw_ds
@@ -703,6 +752,7 @@ class ManualFIMSolver:
                     
                     R[2*idx + 0] += q_o_mass
                     R[2*idx + 1] += q_w_mass
+                    self._record_well(well, ctrl_type, ctrl_val, pres, q_o_mass, q_w_mass)
                     
                     # Derivs: d(lam * (P - Pbh))/dX = dlam/dX * (P-Pbh) + lam * dP/dX
                     
@@ -838,11 +888,15 @@ class ManualFIMSolver:
                 return y.view(-1)
 
             # 2. Предобуславливатель (CPR)
+            stats = {"backend": "gpu_fgmres_cpr" if HAS_AMG else "gpu_fgmres"}
             if HAS_AMG:
                 # Создаем CPR c уже масштабированной матрицей
                 # Это делает A_p и inv_diag хорошо обусловленными (~1)
-                cpr = CPRPreconditionerGPU(J_vals, indptr, indices, self.n_cells, self.device)
+                with self.debug.quiet("cpr_amg_build"):
+                    cpr = CPRPreconditionerGPU(J_vals, indptr, indices, self.n_cells, self.device)
                 M_op = cpr.matvec
+                stats.update(amg_levels=cpr.amg_levels, amg_build_s=cpr.amg_build_s,
+                             amg_error=cpr.amg_error, block_jacobi=cpr.inv_diag is not None)
             else:
                 M_op = None
                 
@@ -854,19 +908,27 @@ class ManualFIMSolver:
             # print(f"    Solving with GPU FGMRES (tol={adaptive_tol:.1e})...")
             
             # Решаем масштабированную систему: (S*J) * x = (S*(-R))
-            x, info = fgmres(matvec_gpu_scaled, -R_scaled_flat, M_mv=M_op, max_iter=20, restart=50, tol=adaptive_tol, verbose=True)
-            
-            if info != 0:
-                # Не сошелся, но fgmres возвращает лучшее приближение
-                # print("    FGMRES max iters reached")
-                pass
-                
+            t_lin = time.perf_counter()
+            x, info = fgmres(matvec_gpu_scaled, -R_scaled_flat, M_mv=M_op, max_iter=20, restart=50,
+                             tol=adaptive_tol, verbose=self.linear_verbose, stats=stats)
+            stats["solve_s"] = time.perf_counter() - t_lin
+            stats["tol"] = adaptive_tol
+            if self.debug.enabled:
+                b_norm = R_scaled_flat.norm().clamp_min(1e-300)
+                stats["true_rel_res"] = ((matvec_gpu_scaled(x) + R_scaled_flat).norm() / b_norm).item()
+                stats["row_scale_range"] = [torch.min(torch.minimum(scale_0, scale_1)).item(),
+                                            torch.max(torch.maximum(scale_0, scale_1)).item()]
+            self._last_linear_stats = stats
+            # info != 0: не сошелся, fgmres возвращает лучшее приближение
             return x
             
         except ImportError:
             print("FGMRES not found, falling back to CPU")
+            gpu_error = "import_error"
         except Exception as e:
             print(f"GPU Solver failed ({e}), falling back to CPU")
+            gpu_error = str(e)
+        self._last_linear_stats = {"backend": "cpu_scipy", "gpu_error": gpu_error}
             # Fallback code below...
 
         indptr = self.builder.indptr.cpu().numpy()
@@ -921,7 +983,12 @@ class ManualFIMSolver:
                 elif info < 0:
                     print("    Linear solver failed")
                     return None
-                    
+                self._last_linear_stats["converged"] = info == 0
+
+            self._last_linear_stats.setdefault("converged", True)
+            if self.debug.enabled:
+                self._last_linear_stats["true_rel_res"] = float(
+                    np.linalg.norm(bsr @ x - rhs) / max(np.linalg.norm(rhs), 1e-300))
             return torch.from_numpy(x)
         except TypeError as te:
             print(f"Solver type error: {te}")

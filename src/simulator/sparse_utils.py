@@ -61,37 +61,22 @@ class SparseMatrixBuilder:
         
         current_offset = 0
         
-        for k in range(nz):
+        # Нумерация совпадает с tensor(nx, ny, nz).view(-1): k — самая быстрая координата
+        sx, sy = ny * nz, nz
+        for i in range(nx):
             for j in range(ny):
-                for i in range(nx):
-                    idx = k * (nx * ny) + j * nx + i
+                for k in range(nz):
+                    idx = i * sx + j * sy + k
                     
-                    # Собираем соседей и их смещения
                     # Порядок важен для CSR (возрастание индексов столбцов)
                     neighbors = []
-                    
-                    # Z- (k-1) -> idx - nx*ny
-                    if k > 0: neighbors.append((idx - nx*ny, 'zm'))
-                    # Y- (j-1) -> idx - nx
-                    if j > 0: neighbors.append((idx - nx, 'ym'))
-                    # X- (i-1) -> idx - 1
-                    if i > 0: neighbors.append((idx - 1, 'xm'))
-                    
-                    # Self
+                    if i > 0: neighbors.append((idx - sx, 'xm'))
+                    if j > 0: neighbors.append((idx - sy, 'ym'))
+                    if k > 0: neighbors.append((idx - 1, 'zm'))
                     neighbors.append((idx, 'diag'))
-                    
-                    # X+ (i+1) -> idx + 1
-                    if i < nx - 1: neighbors.append((idx + 1, 'xp'))
-                    # Y+ (j+1) -> idx + nx
-                    if j < ny - 1: neighbors.append((idx + nx, 'yp'))
-                    # Z+ (k+1) -> idx + nx*ny
-                    if k < nz - 1: neighbors.append((idx + nx*ny, 'zp'))
-                    
-                    # Сортировка не нужна, так как мы добавляем строго в порядке возрастания индексов
-                    # (idx-N < idx-1 < idx < idx+1 < idx+N)
-                    # Проверим порядок:
-                    # zm (-N^2), ym (-N), xm (-1), diag (0), xp (+1), yp (+N), zp (+N^2)
-                    # Все верно, порядок возрастающий.
+                    if k < nz - 1: neighbors.append((idx + 1, 'zp'))
+                    if j < ny - 1: neighbors.append((idx + sy, 'yp'))
+                    if i < nx - 1: neighbors.append((idx + sx, 'xp'))
                     
                     for col_idx, type_str in neighbors:
                         indices_list.append(col_idx)

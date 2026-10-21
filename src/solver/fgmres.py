@@ -1,7 +1,7 @@
 import torch
 import time
 
-def fgmres(A_mv, b, M_mv=None, max_iter=100, tol=1e-5, restart=20, verbose=False):
+def fgmres(A_mv, b, M_mv=None, max_iter=100, tol=1e-5, restart=20, verbose=False, stats=None):
     """
     Flexible GMRES (FGMRES) solver implemented in PyTorch.
     Solves Ax = b using a flexible preconditioner M.
@@ -15,6 +15,7 @@ def fgmres(A_mv, b, M_mv=None, max_iter=100, tol=1e-5, restart=20, verbose=False
         tol: Relative tolerance for convergence.
         restart: Number of inner iterations (Krylov subspace size) before restart.
         verbose: Print convergence info.
+        stats: Optional dict, filled with iters, restarts, converged, history (rel. residual per iteration).
         
     Returns:
         x: Solution tensor.
@@ -24,6 +25,13 @@ def fgmres(A_mv, b, M_mv=None, max_iter=100, tol=1e-5, restart=20, verbose=False
     device = b.device
     dtype = b.dtype
     
+    history = []
+
+    def _done(x, info, iters, restarts):
+        if stats is not None:
+            stats.update(iters=iters, restarts=restarts, converged=(info == 0), history=history)
+        return x, info
+
     # Initial guess x0 = 0
     x = torch.zeros_like(b)
     
@@ -33,13 +41,13 @@ def fgmres(A_mv, b, M_mv=None, max_iter=100, tol=1e-5, restart=20, verbose=False
     # Norm of RHS for relative tolerance
     b_norm = torch.norm(b).item()
     if b_norm < 1e-15:
-        return x, 0 # RHS is zero
+        return _done(x, 0, 0, 0) # RHS is zero
         
     # Current residual norm
     r_norm = torch.norm(r).item()
     
     if r_norm / b_norm < tol:
-        return x, 0
+        return _done(x, 0, 0, 0)
         
     # Allocate memory for Krylov basis
     # V: Basis for Krylov subspace (orthogonal)
@@ -117,6 +125,7 @@ def fgmres(A_mv, b, M_mv=None, max_iter=100, tol=1e-5, restart=20, verbose=False
             
             # Check convergence
             rel_error = abs(g[j + 1].item()) / b_norm
+            history.append(rel_error)
             if verbose:
                 print(f"    FGMRES Iter {total_iters}: Rel Res = {rel_error:.2e}")
                 
@@ -126,7 +135,7 @@ def fgmres(A_mv, b, M_mv=None, max_iter=100, tol=1e-5, restart=20, verbose=False
                 # x = x + Z[:, :j+1] @ y
                 # Optimized accumulation
                 x = x + (Z[:j+1].T @ y)
-                return x, 0
+                return _done(x, 0, total_iters, outer_iter)
                 
         # End of Restart cycle
         # Update solution
@@ -140,7 +149,7 @@ def fgmres(A_mv, b, M_mv=None, max_iter=100, tol=1e-5, restart=20, verbose=False
             r = b - Ax
             r_norm = torch.norm(r).item()
             if r_norm / b_norm < tol:
-                return x, 0
+                return _done(x, 0, total_iters, outer_iter + 1)
                 
-    return x, 1 # Not converged
+    return _done(x, 1, total_iters, max_iter) # Not converged
 

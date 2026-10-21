@@ -257,6 +257,7 @@ class Simulator:
             self.fluid.s_o = 1.0 - self.fluid.s_w
             
             print("Решатель не сошелся. Уменьшаем шаг времени.")
+            self.fim_solver.debug.dt_chop(attempt, current_dt, current_dt / dt_reduction_factor)
             current_dt /= dt_reduction_factor
             consecutive_success = 0
             last_dt_increased = False
@@ -2516,6 +2517,8 @@ class Simulator:
                 # VTK файлы можно открыть в ParaView для просмотра
         
         print("\nСимуляция завершена.")
+        if self.solver_type == 'fully_implicit':
+            self.fim_solver.debug.close()
         
         # Сохранение и визуализация финальных результатов
         p_final = self.fluid.pressure.cpu().numpy()

@@ -21,6 +21,10 @@ def main():
     # Загрузка конфигурации
     args = parse_args()
     config = load_config(args.config)
+    if args.debug_solver is not None:
+        dbg = config.setdefault('simulation', {}).setdefault('debug', {})
+        dbg['enabled'] = True
+        dbg['level'] = args.debug_solver
     
     print(f"Загружена конфигурация: {config.get('description', 'Без описания')}.")
     
@@ -59,6 +63,8 @@ def main():
 def parse_args():
     parser = argparse.ArgumentParser(description="Запуск симулятора нефтяного пласта")
     parser.add_argument('--config', type=str, required=True, help='Путь к файлу конфигурации .json')
+    parser.add_argument('--debug-solver', type=int, nargs='?', const=1, default=None, choices=[1, 2, 3],
+                        help='Режим отладки FIM-решателя (уровень 1–3, по умолчанию 1); журнал в results/solver_debug/')
     return parser.parse_args()
 
 def load_config(config_path):
