@@ -12,6 +12,7 @@
   SCHEDULE: WELSPECS, COMPDAT, WCONPROD, WCONINJE (в т.ч. смена режимов по расписанию, маски имён), TSTEP, DRSDT
 Неподдерживаемые ключевые слова, влияющие на результат, вызывают ошибку, а не игнорируются.
 """
+import datetime
 import fnmatch
 import re
 from pathlib import Path
@@ -30,13 +31,13 @@ FLAG_KEYWORDS = {
     "EXCEL", "RUNSUM", "FOPR", "FOPT", "FGOR", "FGPR", "FGPT", "FWPR", "FWPT", "FWCT", "FPR",
 }
 # ключевые слова, которые читаются, но не влияют на расчёт
-IGNORED = {"TITLE", "START", "EQLDIMS", "TABDIMS", "WELLDIMS", "RPTSCHED", "RPTRST", "RPTSOL", "RPTPROPS",
+IGNORED = {"TITLE", "EQLDIMS", "TABDIMS", "WELLDIMS", "RPTSCHED", "RPTRST", "RPTSOL", "RPTPROPS",
            "RPTGRID", "RPTRUNSP", "NSTACK", "MESSAGES", "TUNING", "SPECGRID", "GRIDFILE", "MAPAXES", "GRIDUNIT"}
 # влияют на физику, но пока не поддерживаются
 UNSUPPORTED = {"PVTG", "VAPOIL", "SWFN", "SGFN", "SOF3", "SLGOF", "AQUFETP", "AQUCT", "PBVD", "PDVD", "RVVD",
-               "DATES", "WCONHIST", "GCONPROD", "GCONINJE", "PRESSURE", "SWAT", "SGAS", "RS", "NNC", "EDITNNC",
+               "PRESSURE", "SWAT", "SGAS", "RS", "NNC", "EDITNNC",
                "DRVDT", "ROCKTAB", "SATNUM", "PVTNUM", "EQLNUM", "WECON", "WTEST", "TRANX", "TRANY", "TRANZ",
-               "WELOPEN", "COMPORD", "WCONINJH", "GRUPTREE", "OPERATE", "MINPVV", "MINPORV", "THPRES",
+               "COMPORD", "OPERATE", "MINPVV", "MINPORV", "THPRES",
                "OLDTRAN", "SWATINIT", "ENDSCALE", "HYSTER", "LGR", "CARFIN"}
 ARRAY_KEYWORDS = {"DX", "DY", "DZ", "TOPS", "PORO", "PERMX", "PERMY", "PERMZ", "NTG", "ACTNUM",
                   "MULTX", "MULTY", "MULTZ", "MULTX-", "MULTY-", "MULTZ-", "MULTPV", "FLUXNUM", "MULTNUM"}
@@ -140,6 +141,21 @@ def parse_deck(path):
     return out
 
 
+_MONTHS = {m: i + 1 for i, m in enumerate(("JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT",
+                                            "NOV", "DEC"))}
+_MONTHS["JLY"] = 7
+
+
+def _date(rec):
+    """Запись START/DATES: день, месяц (JAN…DEC), год, [ЧЧ:ММ:СС]."""
+    day, mon, year = int(rec[0]), _MONTHS[str(rec[1]).upper()[:3]], int(rec[2])
+    t = datetime.datetime(year, mon, day)
+    if len(rec) > 3 and rec[3] is not None:
+        hh, mm, *ss = (float(x) for x in str(rec[3]).split(":"))
+        t += datetime.timedelta(hours=hh, minutes=mm, seconds=ss[0] if ss else 0.0)
+    return t
+
+
 def _get(rec, idx, default=None):
     return rec[idx] if idx < len(rec) and rec[idx] is not None else default
 
@@ -184,6 +200,13 @@ class EclipseCase:
         self.multregt = []
         self.pinch = None
         self.minpv = 0.0
+        self.start = None
+        self.well_group = {}
+        self.group_parent = {}
+        self.group_steps = []
+        gcon = {}
+        date = None
+        opened = {}
         section = None
         unknown = set()
         for kw, recs in self.deck:
@@ -276,6 +299,7 @@ class EclipseCase:
                 for r in recs:
                     if not r:
                         continue
+                    self.well_group[r[0]] = str(_get(r, 1, "FIELD"))
                     self.wells[r[0]] = dict(name=r[0], i=int(r[2]) - 1, j=int(r[3]) - 1,
                                             ref_depth=None if _get(r, 4) is None else r[4] * u["L"],
                                             phase=str(_get(r, 5, "OIL")).upper(), perfs=[])
@@ -294,16 +318,62 @@ class EclipseCase:
                         raise NotImplementedError(f"COMPDAT {r[0]}: Kh пока не поддерживается")
                     for k in range(int(r[3]) - 1, int(r[4])):
                         w["perfs"].append(dict(ijk=(i, j, k), cf=_get(r, 7), diam=_get(r, 8), skin=_get(r, 10, 0.0)))
-            elif kw in ("WCONPROD", "WCONINJE"):
+            elif kw in ("WCONPROD", "WCONINJE", "WCONHIST", "WCONINJH"):
                 for r in recs:
                     if not r:
                         continue
+                    st = str(_get(r, 1 if kw in ("WCONPROD", "WCONHIST") else 2, "OPEN")).upper()
                     for name in self._match_wells(r[0]):
-                        controls[name] = (kw, r)
+                        controls[name] = (kw, r, st)
+                        opened.setdefault(name, len(self.steps) if st == "OPEN" else None)
+            elif kw == "GRUPTREE":
+                for r in recs:
+                    if r:
+                        self.group_parent[str(r[0])] = str(_get(r, 1, "FIELD"))
+            elif kw == "GCONPROD":
+                for r in recs:
+                    if r:
+                        gcon[(str(r[0]), "prod")] = r
+            elif kw == "GCONINJE":
+                for r in recs:
+                    if r:
+                        gcon[(str(r[0]), "inj", str(r[1]).upper()[:3])] = r
+            elif kw == "WELOPEN":
+                for r in recs:
+                    if not r:
+                        continue
+                    if any(_get(r, m) is not None for m in range(2, 7)):
+                        raise NotImplementedError(f"WELOPEN {r[0]}: статус отдельных соединений не поддерживается")
+                    st = str(_get(r, 1, "OPEN")).upper()
+                    for name in self._match_wells(r[0]):
+                        if name in controls:
+                            controls[name] = controls[name][:2] + (st,)
+                        elif st == "OPEN":
+                            raise ValueError(f"WELOPEN {name}: скважина открыта без режима")
+            elif kw == "START":
+                r = recs[0]
+                self.start = _date(r)
+                date = self.start
+            elif kw == "DATES":
+                for r in recs:
+                    if not r:
+                        continue
+                    new = _date(r)
+                    if date is None:
+                        raise ValueError("DATES без START")
+                    d = (new - date).total_seconds() / DAY
+                    if d <= 0:
+                        raise ValueError(f"DATES {new:%d.%m.%Y}: дата не позже предыдущей")
+                    self.steps.append((d, dict(controls)))
+                    self.group_steps.append(dict(gcon))
+                    date = new
             elif kw == "TSTEP":
                 for rec in recs:
                     for v in rec:
                         self.steps.append((float(v), dict(controls)))
+                        self.group_steps.append(dict(gcon))
+                        if date is not None:
+                            date = date + datetime.timedelta(days=float(v))
             else:
                 unknown.add(kw)
         if unknown:
@@ -319,8 +389,14 @@ class EclipseCase:
         if not self.steps:
             raise ValueError("в deck нет TSTEP")
         for name in self.wells:
-            if name not in self.steps[0][1]:
-                raise ValueError(f"скважина {name}: нет режима (WCONPROD/WCONINJE) до первого TSTEP")
+            if all(name not in c for _, c in self.steps):
+                raise ValueError(f"скважина {name}: нет режима (WCONPROD/WCONINJE/WCONHIST/WCONINJH)")
+        self.well_type = {}
+        for _, c in self.steps:
+            for name, (kw, _, _) in c.items():
+                t = "producer" if kw in ("WCONPROD", "WCONHIST") else "injector"
+                if self.well_type.setdefault(name, t) != t:
+                    raise NotImplementedError(f"{name}: смена типа скважины (добыча ↔ закачка) не поддерживается")
         for key in ("pvdg", "pvtw"):
             if key not in self.tables:
                 raise ValueError(f"в deck нет {key.upper()}")
@@ -473,7 +549,7 @@ class EclipseCase:
         ky = self.field("PERMY") if "PERMY" in self.arrays else kx
         kz = self.field("PERMZ") if "PERMZ" in self.arrays else kx
         for name, arr in (("PORO", poro), ("PERMX", kx), ("PERMY", ky), ("PERMZ", kz)):
-            if np.isnan(arr).any():
+            if not self.corner_point and np.isnan(arr).any():
                 raise ValueError(f"{name} задан не для всех ячеек")
         t = lambda a: torch.as_tensor(np.ascontiguousarray(a), dtype=torch.float64, device=device)
 
@@ -500,32 +576,36 @@ class EclipseCase:
                 res.z_centers.detach().cpu().double().numpy().reshape(1, 1, nz), (nx, ny, nz))
             return res
 
-        from .corner_point import CornerPointGrid
-        actnum = self.arrays["ACTNUM"].reshape(-1) if "ACTNUM" in self.arrays else None
-        g = CornerPointGrid(self.raw["COORD"] * L, self.raw["ZCORN"] * L, self.dims, actnum)
+        s = self.static_model()
+        g, act = s["grid"], s["active"]
         self.grid = g
-        self.depth_top = float(g.corners[..., 2].min())
+        self.active = act
+        self.depth_top = float(g.corners[..., 2][act].min())
         self.cell_depth_abs = g.depth
         dz_layer = np.array([g.dz[:, :, k].mean() for k in range(nz)])
+        clean = lambda a: np.where(act, np.nan_to_num(a), 0.0)
         res = Reservoir({"dimensions": [nx, ny, nz],
                          "grid": {"dx": g.dx.mean(axis=(1, 2)).tolist(), "dy": g.dy.mean(axis=(0, 2)).tolist(),
                                   "dz": dz_layer.tolist()},
-                         "porosity": (poro * ntg).tolist(), "permeability": (kx * ntg).tolist(),
+                         "porosity": clean(poro * ntg).tolist(), "permeability": clean(kx * ntg).tolist(),
                          "k_vertical_fraction": 1.0}, device=device)
-        res.permeability_y = t(ky * ntg * MD)
-        res.permeability_z = t(kz * MD)
-        vol = np.where(g.actnum, g.volume, 0.0)
-        pv = vol * poro * ntg
-        pv_floor = 1e-6 * pv[g.actnum].mean()
-        # неактивные ячейки изолированы (T = 0); минимальный поровый объём сохраняет невырожденность Якобиана
-        res.porosity = t(np.where(g.actnum, poro * ntg, pv_floor / np.maximum(g.volume, 1e-30)))
-        res.cell_volume = t(np.maximum(g.volume, 1e-30))
+        res.permeability_y = t(clean(ky * ntg) * MD)
+        res.permeability_z = t(clean(kz) * MD)
+        pv = s["pv"]
+        pv_floor = 1e-6 * pv[act].mean()
+        vol = np.maximum(g.volume, 1e-30)
+        # неактивные ячейки изолированы (связей нет); минимальный поровый объём сохраняет невырожденность Якобиана
+        res.porosity = t(np.where(act, pv / vol, pv_floor / vol))
+        res.cell_volume = t(vol)
         res.cell_volume_flat = res.cell_volume.reshape(-1)
         res.porous_volume = res.cell_volume * res.porosity
         res.cell_depth = t(g.depth - self.depth_top)
         res.cell_dims = (t(g.dx), t(g.dy), t(g.dz * ntg))
-        res.face_trans = tuple(t(a) for a in g.transmissibility(kx * ntg * MD, ky * ntg * MD, kz * MD))
-        res.actnum = t(g.actnum.astype(np.float64))
+        c = s["conn"]
+        keep = c["T"] > 0
+        res.connections = (torch.as_tensor(c["c1"][keep], device=device),
+                           torch.as_tensor(c["c2"][keep], device=device), t(c["T"][keep]))
+        res.actnum = t(act.astype(np.float64))
         return res
 
     def static_model(self):
@@ -620,44 +700,104 @@ class EclipseCase:
                 cfg["well_index"] = cf * conv
             if w["ref_depth"] is not None:
                 cfg["ref_depth"] = w["ref_depth"] - self.depth_top
-            cfg.update(self.control_cfg(w["name"], controls[w["name"]]))
+            cfg.update(self.control_cfg(w["name"], controls.get(w["name"])))
             out.append(cfg)
         return out
 
-    def control_cfg(self, name, control):
-        """Режим скважины из записи WCONPROD/WCONINJE (единицы симулятора: м³/сут, МПа)."""
+    def group_constraints(self, step):
+        """Групповые цели шага step для groups.group_targets (дебиты — м³/сут, поверхностные или пластовые)."""
         u = self.u
-        kw, r = control
-        status = str(_get(r, 1 if kw == "WCONPROD" else 2, "OPEN")).upper()
+        out = []
+        for key, r in self.group_steps[step].items():
+            g = key[0]
+            mode = str(_get(r, 1 if key[1] == "prod" else 2, "NONE")).upper()
+            if mode in ("NONE", "FLD", "' '"):
+                continue
+            if key[1] == "prod":
+                idx = {"ORAT": (2, "oil", u["liq"]), "WRAT": (3, "water", u["liq"]), "GRAT": (4, "gas", u["gas"]),
+                       "LRAT": (5, "liquid", u["liq"]), "RESV": (13, "resv", u["liq"])}
+                if mode not in idx:
+                    raise NotImplementedError(f"GCONPROD {g}: режим {mode}")
+                m, ph, cv = idx[mode]
+                out.append(dict(group=g, kind="prod", phase=ph, target=float(r[m]) * cv))
+            else:
+                ph = {"WAT": "water", "GAS": "gas"}.get(key[2])
+                if ph is None:
+                    raise NotImplementedError(f"GCONINJE {g}: фаза {key[2]}")
+                cv = u["gas"] if ph == "gas" else u["liq"]
+                if mode == "RATE":
+                    out.append(dict(group=g, kind="inj", phase=ph, target=float(r[3]) * cv))
+                elif mode == "REIN":
+                    out.append(dict(group=g, kind="inj", phase=ph, target=0.0, mode="REIN", frac=float(r[5])))
+                elif mode == "VREP":
+                    out.append(dict(group=g, kind="inj", phase=ph, target=0.0, mode="VREP", frac=float(r[6])))
+                else:
+                    raise NotImplementedError(f"GCONINJE {g}: режим {mode}")
+        return out
+
+    def control_cfg(self, name, control):
+        """
+        Режим скважины из записи WCONPROD/WCONINJE/WCONHIST/WCONINJH (единицы симулятора: м³/сут, МПа).
+        Статус SHUT/STOP или отсутствие режима — control_type 'shut' (соединения закрыты, перетока нет).
+        WCONHIST RESV: control_type 'resv', исторические поверхностные дебиты — в 'hist_rates'.
+        """
+        u = self.u
+        typ = self.well_type[name]
+        if control is None or control[2] in ("SHUT", "STOP"):
+            return {"type": typ, "control_type": "shut", "control_value": 0.0}
+        kw, r, status = control
         if status != "OPEN":
             raise NotImplementedError(f"{name}: статус {status} не поддерживается")
-        cfg = {}
-        if kw == "WCONPROD":
+        p_atm = 14.7 if self.units_name == "FIELD" else 1.01325
+        cfg = {"type": typ}
+        if kw in ("WCONPROD", "WCONHIST"):
             mode = str(r[2]).upper()
-            cfg["type"] = "producer"
-            rates = {"ORAT": (3, "oil", u["liq"]), "WRAT": (4, "water", u["liq"]),
-                     "GRAT": (5, "gas", u["gas"]), "LRAT": (6, "liquid", u["liq"])}
+            hist = kw == "WCONHIST"
+            # WCONPROD: ORAT WRAT GRAT LRAT RESV BHP (3..8); WCONHIST: ORAT WRAT GRAT (3..5), наблюдённое BHP — 9
+            qo, qw, qg = (float(_get(r, m, 0.0) or 0.0) for m in (3, 4, 5))
+            ql = qo + qw if hist else float(_get(r, 6, 0.0) or 0.0)
+            rates = {"ORAT": (qo, "oil", u["liq"]), "WRAT": (qw, "water", u["liq"]),
+                     "GRAT": (qg, "gas", u["gas"]), "LRAT": (ql, "liquid", u["liq"])}
+            bhp_idx = 9 if hist else 8
             if mode in rates:
-                idx, ph, cv = rates[mode]
-                cfg.update(control_type="rate", control_value=float(r[idx]) * cv, surface_phase=ph)
+                val, ph, cv = rates[mode]
+                cfg.update(control_type="rate", control_value=val * cv, surface_phase=ph)
+            elif mode == "RESV" and hist:
+                cfg.update(control_type="resv", control_value=0.0, surface_phase="liquid",
+                           hist_rates=(qo * u["liq"], qw * u["liq"], qg * u["gas"]))
+            elif mode == "RESV":
+                cfg.update(control_type="resv", control_value=float(r[7]) * u["liq"], surface_phase="liquid")
             elif mode == "BHP":
-                cfg.update(control_type="bhp", control_value=float(r[8]) * u["p"] / 1e6)
+                cfg.update(control_type="bhp", control_value=float(r[bhp_idx]) * u["p"] / 1e6)
+            elif mode == "GRUP" and not hist:
+                cfg.update(control_type="rate", control_value=1e20, surface_phase="liquid", grup=True)
             else:
-                raise NotImplementedError(f"WCONPROD {name}: режим {mode}")
-            cfg["bhp_min"] = float(_get(r, 8, 14.7 if self.units_name == "FIELD" else 1.01325)) * u["p"] / 1e6
+                raise NotImplementedError(f"{kw} {name}: режим {mode}")
+            if cfg["control_type"] in ("rate", "resv") and hist and max(qo, qw, qg) <= 0:
+                return {"type": typ, "control_type": "shut", "control_value": 0.0}
+            # в истории ограничение по BHP — 1 атм (WELTARG не поддерживается)
+            cfg["bhp_min"] = float(p_atm if hist else _get(r, bhp_idx, p_atm)) * u["p"] / 1e6
         else:
             ph = str(r[1]).upper()
-            mode = str(r[3]).upper()
-            cfg["type"] = "injector"
+            hist = kw == "WCONINJH"
+            # WCONINJE: RATE 4, BHP 6; WCONINJH: RATE 3, BHP 4, режим 11 (RATE по умолчанию)
+            mode = str(_get(r, 11, "RATE") if hist else r[3]).upper()
             cfg["injected_phase"] = {"WATER": "water", "WAT": "water", "GAS": "gas"}[ph]
             cv = u["gas"] if ph == "GAS" else u["liq"]
+            rate_idx, bhp_idx = (3, 4) if hist else (4, 6)
             if mode == "RATE":
-                cfg.update(control_type="rate", control_value=float(r[4]) * cv)
+                cfg.update(control_type="rate", control_value=float(_get(r, rate_idx, 0.0) or 0.0) * cv)
+                if hist and cfg["control_value"] <= 0:
+                    return {"type": typ, "control_type": "shut", "control_value": 0.0}
             elif mode == "BHP":
-                cfg.update(control_type="bhp", control_value=float(r[6]) * u["p"] / 1e6)
+                cfg.update(control_type="bhp", control_value=float(r[bhp_idx]) * u["p"] / 1e6)
+            elif mode == "GRUP" and not hist:
+                cfg.update(control_type="rate", control_value=1e20, grup=True)
             else:
-                raise NotImplementedError(f"WCONINJE {name}: режим {mode}")
-            cfg["bhp_max"] = float(_get(r, 6, 1e5 if self.units_name == "FIELD" else 6895.0)) * u["p"] / 1e6
+                raise NotImplementedError(f"{kw} {name}: режим {mode}")
+            lim = None if hist else _get(r, bhp_idx)
+            cfg["bhp_max"] = float(lim if lim is not None else (1e5 if self.units_name == "FIELD" else 6895.0)) \
+                * u["p"] / 1e6
         return cfg
 
     # ------------------------------------------------------------ равновесие

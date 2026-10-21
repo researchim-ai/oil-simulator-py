@@ -45,7 +45,8 @@ class ManualFIMSolver:
         self._init_params(params)
 
         print("Building sparse matrix structure...")
-        self.builder = SparseMatrixBuilder(self.nx, self.ny, self.nz, block_size=2, device=self.device)
+        self.builder = SparseMatrixBuilder(self.nx, self.ny, self.nz, block_size=2, device=self.device,
+                                           pairs=self._conn_pairs())
         print(f"Structure built. NNZ blocks: {self.builder.n_nonzero}")
 
         # --- Свойства породы ---
@@ -101,6 +102,10 @@ class ManualFIMSolver:
         self._last_linear_stats = {}
 
     # ------------------------------------------------------------------ геометрия
+    def _conn_pairs(self):
+        conn = getattr(self.reservoir, 'connections', None)
+        return None if conn is None else conn[:2]
+
     def _build_connections(self):
         """TPFA: T = A / (d_L/(2k_L) + d_R/(2k_R)) по каждой грани; список граней L→R."""
         res = self.reservoir
@@ -118,6 +123,20 @@ class ManualFIMSolver:
         idx = torch.arange(self.n_cells, device=dev).reshape(nx, ny, nz)
         tiny = 1e-300
         face_trans = getattr(res, 'face_trans', None)
+
+        conn = getattr(res, 'connections', None)
+        if conn is not None:
+            # произвольные связи (corner-point с разломами/NNC/PINCH): (L, R, T)
+            L, Rr = conn[0].to(dev).long(), conn[1].to(dev).long()
+            self.face_L, self.face_R = L, Rr
+            self.face_T = conn[2].to(dev).double()
+            zc_flat = zc.reshape(-1)
+            self.face_dZ = zc_flat[L] - zc_flat[Rr]
+            self.face_pos_LR = self.builder.position(L, Rr)
+            self.face_pos_RL = self.builder.position(Rr, L)
+            self.diag_L = self.builder.diag_map[L]
+            self.diag_R = self.builder.diag_map[Rr]
+            return
 
         faces = []
         if face_trans is not None:

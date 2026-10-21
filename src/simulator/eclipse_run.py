@@ -14,18 +14,27 @@ _PHASE = {"O": "oil", "W": "water", "G": "gas"}
 
 def apply_controls(case, step, wm, solver):
     """Переводит скважины на режимы отчётного шага step (смена WCONPROD/WCONINJE по расписанию)."""
+    from .groups import GroupTree
     controls = case.steps[step][1]
     fw = getattr(solver, "wells", None)
+    if fw is not None and hasattr(fw, "groups"):
+        fw.groups = (GroupTree(case.group_parent, case.well_group), case.group_constraints(step))
     for idx, w in enumerate(wm.wells):
-        cfg = case.control_cfg(w.name, controls[w.name])
+        cfg = case.control_cfg(w.name, controls.get(w.name))
         if cfg["type"] != w.type:
             raise NotImplementedError(f"{w.name}: смена типа скважины не поддерживается")
         new = (cfg["control_type"], cfg["control_value"], cfg.get("surface_phase"), cfg.get("bhp_min"),
-               cfg.get("bhp_max"))
-        old = (w.control_type, w.control_value, w.surface_phase, w.bhp_min, w.bhp_max)
+               cfg.get("bhp_max"), cfg.get("hist_rates"))
+        old = (w.control_type, w.control_value, w.surface_phase, w.bhp_min, w.bhp_max,
+               getattr(w, "hist_rates", None))
+        w.grup = bool(cfg.get("grup", False))
+        if fw is not None and hasattr(fw, "set_open"):
+            fw.set_open(fw.wells.index(w), cfg["control_type"] != "shut")
         if new == old:
             continue
-        w.control_type, w.control_value, w.surface_phase, w.bhp_min, w.bhp_max = new
+        if cfg.get("surface_phase") != w.surface_phase and fw is not None and hasattr(fw, "rate_w"):
+            fw.set_surface_phase(fw.wells.index(w), cfg.get("surface_phase"))
+        w.control_type, w.control_value, w.surface_phase, w.bhp_min, w.bhp_max, w.hist_rates = new
         if fw is not None and hasattr(fw, "mode"):
             fw.mode[fw.wells.index(w)] = w.control_type
 
@@ -43,6 +52,10 @@ def _requests(case, cells):
             for n in listed:
                 for m in case._match_wells(n):
                     out.append((f"{kw}:{m}", "W", (kw, m)))
+        elif kw[0] == "G" and kw[1:] in ("OPR", "WPR", "GPR", "WIR", "GIR", "OPT", "WPT", "GPT", "WIT", "GIT"):
+            listed = [str(v) for r in recs for v in r if v is not None] or ["FIELD"]
+            for g in listed:
+                out.append((f"{kw}:{g}", "G", (kw, g)))
         elif kw in ("BPR", "BGSAT", "BWSAT", "BOSAT"):
             for r in recs:
                 if r:
@@ -73,6 +86,8 @@ def run_deck(path, device=None, sim_overrides=None, cells=(), quiet=True, max_da
     solver = sim.fim_solver
     rate_u = {"oil": u["liq"], "water": u["liq"], "gas": u["gas"]}
     requests = _requests(case, cells)
+    from .groups import GroupTree
+    tree = GroupTree(case.group_parent, case.well_group)
     wells = {w.name: w for w in wm.wells}
     summary = {"TIME": [0.0]}
 
@@ -122,6 +137,18 @@ def run_deck(path, device=None, sim_overrides=None, cells=(), quiet=True, max_da
                         v = (c if w.type == "producer" else 0.0) if prod else (-c if w.type == "injector" else 0.0)
                     else:
                         v = rate
+            elif kind == "G":
+                kw, g = arg
+                ph = _PHASE[kw[1]]
+                prod = kw[2] == "P"
+                v = 0.0
+                for w in wm.wells:
+                    if g not in tree.ancestors(case.well_group.get(w.name, "FIELD")):
+                        continue
+                    if (w.type == "producer") != prod:
+                        continue
+                    x = cum[w.name][ph] if kw.endswith("T") else wr[w.name][ph]
+                    v += x if prod else -x
             else:
                 kw, (i, j, k) = arg
                 c = (i - 1, j - 1, k - 1)
@@ -137,7 +164,7 @@ def run_deck(path, device=None, sim_overrides=None, cells=(), quiet=True, max_da
                 c = (i - 1, j - 1, k - 1)
                 v = {"BPR": float(fluid.pressure[c]) / u["p"], "BGSAT": float(fluid.s_g[c]),
                      "BWSAT": float(fluid.s_w[c]), "BOSAT": 1.0 - float(fluid.s_w[c]) - float(fluid.s_g[c])}[kw]
-            elif key.endswith("PT"):
+            elif key.split(":")[0].endswith(("PT", "IT")):
                 v = 0.0
             else:
                 v = np.nan

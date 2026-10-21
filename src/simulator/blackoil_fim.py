@@ -64,10 +64,107 @@ class BlackOilWells(FIMWells):
         self.pvt = None
         self.wellbore_density = 'flash'   # 'flash' (OPM/Eclipse) | 'cell' (средняя по ячейкам)
         self.conn_head = torch.zeros_like(self.conn_dz)
+        self.conn_open = torch.ones_like(self.conn_wi)   # 0 — соединения закрытой скважины (SHUT/STOP)
+        self.conn_a = self.rate_w[self.conn_well]         # веса уравнения дебита по соединениям (на шаг)
+        self.p_avg = None                                 # среднее пластовое давление (для RESV), Па
+        self.groups = None                                # (GroupTree, [ограничения]) — групповые контроли
+        self.group_controlled = set()
+
+    def set_surface_phase(self, w_idx, phase):
+        w = self.wells[w_idx]
+        if w.type == 'injector':
+            return
+        sel = {'oil': (OIL,), 'water': (WAT,), 'gas': (GAS,), 'liquid': (OIL, WAT)}.get((phase or 'liquid').lower())
+        if sel is None:
+            raise ValueError(f"Скважина {w.name}: surface_phase '{phase}' не поддерживается")
+        a = torch.zeros(3, dtype=torch.float64, device=self.device)
+        a[list(sel)] = 1.0
+        self.rate_w[w_idx] = a / self.rho_sc
+
+    def set_open(self, w_idx, is_open):
+        self.conn_open[self.conn_well == w_idx] = 1.0 if is_open else 0.0
+
+    def _apply_groups(self, v, q, dqb):
+        """Групповые цели → цели скважин (явно на шаг): guide rate = потенциал при предельном BHP."""
+        from .groups import group_targets
+        tree, constraints = self.groups
+        if not constraints:
+            return
+        cw = self.conn_well
+        rho = self.rho_sc
+        zeros = torch.zeros(self.n_w, dtype=torch.float64, device=self.device)
+        rw = self._resv_weights(v)
+        lim = torch.tensor([self.bhp_limit(w) for w in self.wells], dtype=torch.float64, device=self.device)
+        pb = self.p_bh if self.p_bh is not None else lim
+        sign = torch.where(self.is_inj, -1.0, 1.0).double()
+
+        def per_well(weights, p):
+            q0 = zeros.clone().index_add_(0, cw, (weights * q).sum(1))
+            D = zeros.clone().index_add_(0, cw, (weights * dqb).sum(1))
+            return (sign * (q0 + D * p)).clamp_min(0.0).tolist()
+
+        onehot = [torch.zeros(3, dtype=torch.float64, device=self.device) for _ in range(3)]
+        for m in range(3):
+            onehot[m][m] = 1.0 / rho[m]
+        pot_ph = [per_well(onehot[m].expand_as(q), lim) for m in range(3)]
+        cur_ph = [per_well(onehot[m].expand_as(q), pb) for m in range(3)]
+        pot_res, cur_res = per_well(rw, lim), per_well(rw, pb)
+        pot, cur, prod_res, info = {}, {}, {}, []
+        names = {0: "oil", 1: "water", 2: "gas"}
+        for i, w in enumerate(self.wells):
+            pot[w.name] = {names[m]: pot_ph[m][i] for m in range(3)} | {"resv": pot_res[i]}
+            cur[w.name] = {names[m]: cur_ph[m][i] for m in range(3)}
+            prod_res[w.name] = cur_res[i]
+            ctrl, val = self.step_targets[i]
+            if w.type == 'injector':
+                phase = (w.injected_phase or 'water').lower() if ctrl == 'rate' else None
+            else:
+                phase = 'resv' if i in self._resv_idx else \
+                    {'rate': (w.surface_phase or 'liquid').lower()}.get(ctrl)
+            grup = bool(getattr(w, 'grup', False))
+            info.append(dict(name=w.name, type=w.type, open=ctrl != 'shut', grup=grup,
+                             phase=None if grup else phase, value=None if grup else val,
+                             inj_phase=(w.injected_phase or 'water').lower() if w.type == 'injector' else None))
+        cons = [dict(c, target=c["target"] / DAY) for c in constraints]
+        new = group_targets(tree, cons, info, pot, cur, prod_res)
+        self.group_controlled = set(new)
+        for name, (ph, val) in new.items():
+            i = next(k for k, w in enumerate(self.wells) if w.name == name)
+            m = cw == i
+            if ph == 'resv':
+                a = rw[m]
+            elif self.wells[i].type == 'injector':
+                a = -onehot[{'water': WAT, 'gas': GAS}[ph]].expand(int(m.sum()), 3)
+            else:
+                sel = {'oil': (OIL,), 'water': (WAT,), 'gas': (GAS,), 'liquid': (OIL, WAT)}[ph]
+                a = sum(onehot[k] for k in sel).expand(int(m.sum()), 3)
+            self.conn_a[m] = a
+            self.step_targets[i] = ('rate', val)
+
+    def _resv_weights(self, v):
+        """Пересчёт масс компонентов в пластовый объём на соединениях: q_res = Σ a_c q_c (по состоянию ячеек)."""
+        c = self.conn_cell
+        rho = self.rho_sc
+        bo, bw, bg = (v[I_B + m][c].clamp_min(1e-12) for m in range(3))
+        rs = torch.where(v[I_MOO][c] > 0, v[I_MGO][c] / v[I_MOO][c].clamp_min(1e-300) * rho[OIL] / rho[GAS],
+                         torch.zeros_like(bo))
+        return torch.stack([1.0 / (rho[OIL] * bo) - rs / (rho[OIL] * bg), 1.0 / (rho[WAT] * bw),
+                            1.0 / (rho[GAS] * bg)], dim=1)
+
+    def _resv_target(self, w, p):
+        """Пластовый объём исторических поверхностных дебитов (Qo, Qw, Qg) при давлении p, м³/с."""
+        qo, qw, qg = (x / DAY for x in w.hist_rates)
+        pt = torch.tensor([float(p)], dtype=torch.float64, device=self.device)
+        rs_s = self.pvt.rs_sat(pt)
+        rs = torch.minimum(rs_s, torch.tensor([qg / qo if qo > 0 else 0.0], dtype=torch.float64, device=self.device))
+        bo, _ = self.pvt.oil(pt, rs, rs >= rs_s - 1e-12)
+        bw = self.pvt.water(pt)[0]
+        bg = self.pvt.gas(pt)[0]
+        return float(qo / bo + qw / bw + (qg - rs * qo).clamp_min(0.0) / bg)
 
     def _conn_flows(self, v, d, p_bh):
         """Массовые потоки компонентов по перфорациям q [n_conn,3], dq/dx [n_conn,3,3], dq/dp_bh [n_conn,3]."""
-        c, cw, wi = self.conn_cell, self.conn_well, self.conn_wi
+        c, cw, wi = self.conn_cell, self.conn_well, self.conn_wi * self.conn_open
         n_c = c.numel()
         p_wc = p_bh[cw] + self.conn_head
         q = torch.zeros((n_c, 3), dtype=torch.float64, device=self.device)
@@ -105,6 +202,23 @@ class BlackOilWells(FIMWells):
         self.step_mode = []
         self.switches = 0
         c, cw = self.conn_cell, self.conn_well
+        a = self.rate_w[cw].clone()
+        resv_w = None
+        self._resv_idx = set()
+        for w_idx, w in enumerate(self.wells):
+            ctrl, val = self.step_targets[w_idx]
+            if ctrl != 'resv':
+                continue
+            if resv_w is None:
+                resv_w = self._resv_weights(v)
+            m = cw == w_idx
+            a[m] = resv_w[m]
+            if getattr(w, 'hist_rates', None) is not None:
+                p_ref = self.p_avg if self.p_avg is not None else float(v[I_P][c[m]].mean())
+                val = self._resv_target(w, p_ref)
+            self.step_targets[w_idx] = ('rate', val)
+            self._resv_idx.add(w_idx)
+        self.conn_a = a
         lam = torch.stack([v[I_MOO], v[I_MWW], v[I_MGG]])[:, c] / (self.rho_sc.view(3, 1) * v[I_B:I_B + 3][:, c])
         rho = v[I_RHO:I_RHO + 3][:, c]
         mix = (lam * rho).sum(0) / lam.sum(0).clamp_min(1e-30)
@@ -120,14 +234,18 @@ class BlackOilWells(FIMWells):
 
         # дебит линеен по p_bh при замороженной ячейке: q(pb) = q(0) + D·pb
         q, _, dqb = self._conn_flows(v, d, zeros)
-        a = self.rate_w[cw]
+        if self.groups is not None:
+            self._apply_groups(v, q, dqb)
         q0 = zeros.clone().index_add_(0, cw, (a * q).sum(1))
         D = zeros.clone().index_add_(0, cw, (a * dqb).sum(1))
         p_init = torch.zeros_like(zeros)
         for w_idx, w in enumerate(self.wells):
             ctrl, val = self.step_targets[w_idx]
             mode = 'bhp' if ctrl == 'bhp' else ('bhp_limit' if self.mode[w_idx] == 'bhp_limit' else 'rate')
-            if mode != 'rate':
+            if ctrl == 'shut':
+                mode = 'shut'
+                p_init[w_idx] = float(v[I_P][c[cw == w_idx]].mean())
+            elif mode != 'rate':
                 p_init[w_idx] = val if ctrl == 'bhp' else self.bhp_limit(w)
             else:
                 Dw = float(D[w_idx])
@@ -206,7 +324,7 @@ class BlackOilWells(FIMWells):
         jd = diag_map[c]
         J_vals.index_add_(0, jd, dq)
 
-        a = self.rate_w[cw]
+        a = self.conn_a
         zeros = torch.zeros(self.n_w, dtype=torch.float64, device=self.device)
         q_surf = zeros.clone().index_add_(0, cw, (a * q).sum(1))
         dq_dpbh = zeros.clone().index_add_(0, cw, (a * Cv).sum(1))
@@ -220,6 +338,8 @@ class BlackOilWells(FIMWells):
             if ctrl == 'rate' and mode == 'rate':
                 is_rate[w_idx] = True
                 target[w_idx] = val
+            elif ctrl == 'shut':
+                target[w_idx] = p_bh[w_idx]
             elif ctrl == 'bhp':
                 target[w_idx] = val
             else:
@@ -263,7 +383,8 @@ class BlackOilFIMSolver(ManualFIMSolver):
         self.debug.eq_names = ("oil", "water", "gas")
 
         print("Building sparse matrix structure (black-oil, блоки 3x3)...")
-        self.builder = SparseMatrixBuilder(self.nx, self.ny, self.nz, block_size=3, device=self.device)
+        self.builder = SparseMatrixBuilder(self.nx, self.ny, self.nz, block_size=3, device=self.device,
+                                           pairs=self._conn_pairs())
         dev = self.device
         self.pore_volume = (reservoir.cell_volume * reservoir.porosity).reshape(-1).double().to(dev)
         self.c_rock = float(getattr(fluid, 'rock_compressibility', 0.0))
@@ -445,6 +566,8 @@ class BlackOilFIMSolver(ManualFIMSolver):
         p, sw, x, sat = p_old.clone(), sw_old.clone(), x_old.clone(), sat_old.clone()
         state = self.cell_state(p, sw, x, sat)
         if self.wells.n_w:
+            hc = self.pore_volume * (1.0 - sw.view(-1))
+            self.wells.p_avg = float((hc * p.view(-1)).sum() / hc.sum().clamp_min(1e-30))
             self.wells.begin_step(state[0], state[1], t_days)
             p_bh = self.wells.p_bh.clone()
         else:
