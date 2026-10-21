@@ -45,7 +45,7 @@ def test_spe9_matches_eclipse_and_opm():
     def tol(key):
         kw = key.split(":")[0]
         if kw[0] in "FB" or kw == "WBHP":
-            return 0.015
-        return 0.07  # дебиты/накопленные отдельных скважин: прорыв воды у PRODU26 расходится на ~4.5%
+            return 0.005
+        return 0.02
 
     _check(rows, tol)

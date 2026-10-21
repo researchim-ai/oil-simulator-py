@@ -2,6 +2,7 @@ import os
 import sys
 
 import numpy as np
+import pytest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 
@@ -56,3 +57,49 @@ def test_dipping_grid_volume_and_depth():
     # T по x: A·d/|d|² с d = (50, 0, 5) — меньше, чем на горизонтальной сетке
     half = 50.0 * 10.0 * 50.0 / (50.0 ** 2 + 5.0 ** 2)
     assert np.allclose(tx, half / 2)
+
+
+def test_fault_throw_gives_nnc_with_conserved_area():
+    dx, dy, dz = np.full(2, 100.0), np.full(1, 50.0), np.full(4, 10.0)
+    coord, zc = _box_grid(dx, dy, dz)
+    zc = zc.reshape(8, 2, 4)
+    zc[:, :, 2:] += 4.0                       # сброс 4 м по правому блоку
+    g = CornerPointGrid(coord, zc.reshape(-1), (2, 1, 4))
+    one = np.ones((2, 1, 4))
+    c = g.connections(one, one, one)
+    x = c["axis"] == 0
+    # 4 прямых (k→k) + 3 NNC (k→k−1); через каждую грань перекрытие 6 м и 4 м
+    assert x.sum() == 7 and c["nnc"][x].sum() == 3
+    assert np.all(c["c2"][x & c["nnc"]] % 4 == c["c1"][x & c["nnc"]] % 4 - 1)
+    t_full = g.transmissibility(one, one, one)[0][0, 0, 0]
+    assert np.isclose(c["T"][x].sum(), 4 * t_full - 0.4 * t_full)   # нижние 4 м блока A ни с чем не граничат
+
+
+NORNE = os.environ.get("NORNE_DIR", "/tmp/ot2/norne")
+
+
+@pytest.mark.skipif(not os.path.exists(os.path.join(NORNE, "ECL.2014.2", "NORNE_ATW2013.INIT")),
+                    reason="нет данных Norne (OPM opm-tests); задайте NORNE_DIR")
+def test_norne_static_model_matches_eclipse():
+    from simulator.ecl_io import read_ecl_arrays
+    from simulator.eclipse_deck import EclipseCase
+    case = EclipseCase(os.path.join(NORNE, "NORNE_ATW2013.DATA"), grid_only=True)
+    s = case.static_model()
+    init = dict(read_ecl_arrays(os.path.join(NORNE, "ECL.2014.2", "NORNE_ATW2013.INIT")))
+    assert s["active"].sum() == (init["PORV"] > 0).sum() == 44431
+    nx, ny, nz = case.dims
+    gidx = np.arange(nx * ny * nz).reshape(nz, ny, nx).transpose(2, 1, 0).reshape(-1)
+    g2a = -np.ones(nx * ny * nz, dtype=np.int64)
+    g2a[np.flatnonzero(init["PORV"] > 0)] = np.arange(int((init["PORV"] > 0).sum()))
+    c = s["conn"]
+    T = c["T"] * 0.00852702 / 9.869233e-16
+    for ax, name in enumerate(("TRANX", "TRANY", "TRANZ")):
+        ref = init[name].astype(np.float64)
+        ours = np.zeros_like(ref)
+        sel = (c["axis"] == ax) & ~c["nnc"]
+        np.add.at(ours, g2a[gidx[c["c1"][sel]]], T[sel])
+        big = ref > 1e-6 * ref.max()
+        rel = np.abs(ours[big] / ref[big] - 1)
+        assert np.median(rel) < 1e-5 and np.mean(rel > 1e-3) < 0.02, name
+    assert c["nnc"].sum() >= len(init["TRANNNC"])
+    assert np.isclose(T[c["nnc"]].sum(), init["TRANNNC"].astype(np.float64).sum(), rtol=1e-3)

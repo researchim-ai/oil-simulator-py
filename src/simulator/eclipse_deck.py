@@ -33,12 +33,14 @@ FLAG_KEYWORDS = {
 IGNORED = {"TITLE", "START", "EQLDIMS", "TABDIMS", "WELLDIMS", "RPTSCHED", "RPTRST", "RPTSOL", "RPTPROPS",
            "RPTGRID", "RPTRUNSP", "NSTACK", "MESSAGES", "TUNING", "SPECGRID", "GRIDFILE", "MAPAXES", "GRIDUNIT"}
 # влияют на физику, но пока не поддерживаются
-UNSUPPORTED = {"MULTX", "MULTY", "MULTZ", "MULTX-", "MULTY-", "MULTZ-", "FAULTS", "PVTG", "VAPOIL", "SWFN",
-               "SGFN", "SOF3", "SLGOF", "AQUFETP", "AQUCT", "PBVD", "PDVD", "RVVD", "DATES", "WCONHIST",
-               "GCONPROD", "GCONINJE", "PRESSURE", "SWAT", "SGAS", "RS", "NNC", "DRVDT", "ROCKTAB", "SATNUM",
-               "PVTNUM", "EQLNUM", "WECON", "WTEST", "PINCH", "MINPV", "MULTPV", "TRANX", "TRANY", "TRANZ",
-               "WELOPEN", "COMPORD", "WCONINJH", "GRUPTREE", "MULTFLT", "OPERATE"}
-ARRAY_KEYWORDS = {"DX", "DY", "DZ", "TOPS", "PORO", "PERMX", "PERMY", "PERMZ", "NTG", "ACTNUM"}
+UNSUPPORTED = {"PVTG", "VAPOIL", "SWFN", "SGFN", "SOF3", "SLGOF", "AQUFETP", "AQUCT", "PBVD", "PDVD", "RVVD",
+               "DATES", "WCONHIST", "GCONPROD", "GCONINJE", "PRESSURE", "SWAT", "SGAS", "RS", "NNC", "EDITNNC",
+               "DRVDT", "ROCKTAB", "SATNUM", "PVTNUM", "EQLNUM", "WECON", "WTEST", "TRANX", "TRANY", "TRANZ",
+               "WELOPEN", "COMPORD", "WCONINJH", "GRUPTREE", "OPERATE", "MINPVV", "MINPORV", "THPRES",
+               "OLDTRAN", "SWATINIT", "ENDSCALE", "HYSTER", "LGR", "CARFIN"}
+ARRAY_KEYWORDS = {"DX", "DY", "DZ", "TOPS", "PORO", "PERMX", "PERMY", "PERMZ", "NTG", "ACTNUM",
+                  "MULTX", "MULTY", "MULTZ", "MULTX-", "MULTY-", "MULTZ-", "MULTPV", "FLUXNUM", "MULTNUM"}
+GRID_SECTIONS = ("RUNSPEC", "GRID", "EDIT")
 RAW_KEYWORDS = {"COORD", "ZCORN"}
 EDIT_OPS = {"EQUALS", "COPY", "ADD", "MULTIPLY"}
 
@@ -55,6 +57,10 @@ _TOK_RE = re.compile(r"'[^']*'|/|[^\s/']+")
 
 
 def _strip_comment(line):
+    if "--" not in line:
+        return line
+    if "'" not in line:
+        return line[:line.index("--")]
     out, q = [], False
     for i, ch in enumerate(line):
         if ch == "'":
@@ -111,11 +117,14 @@ def parse_deck(path):
             body.append(l2)
             i += 1
         records, cur = [], []
-        for tok in _TOK_RE.findall("\n".join(body)):
-            if tok == "/":
-                records.append(cur)
-                cur = []
-            else:
+        for l2 in body:
+            if not l2:
+                continue
+            for tok in _TOK_RE.findall(l2):
+                if tok == "/":
+                    records.append(cur)
+                    cur = []
+                    break          # текст после «/» в строке — комментарий
                 cur.extend(_expand(tok))
         if cur:
             records.append(cur)
@@ -138,8 +147,10 @@ def _get(rec, idx, default=None):
 class EclipseCase:
     """Модель, собранная из deck: сетка, свойства, начальное состояние, скважины, расписание (в СИ)."""
 
-    def __init__(self, path):
+    def __init__(self, path, grid_only=False):
+        """grid_only=True — читаются только RUNSPEC/GRID/EDIT (статическая модель: сетка, свойства, связи)."""
         self.path = str(path)
+        self.grid_only = grid_only
         self.deck = parse_deck(path)
         kws = [k for k, _ in self.deck]
         self.units_name = "METRIC"
@@ -150,7 +161,7 @@ class EclipseCase:
             raise NotImplementedError("единицы LAB не поддерживаются")
         self.u = UNITS[self.units_name]
         self.kro_model = "stone2" if ("STONE2" in kws or "STONE" in kws) else "default"
-        if "STONE1" in kws:
+        if "STONE1" in kws and not grid_only:
             raise NotImplementedError("STONE1 не поддерживается")
         self._read()
 
@@ -168,11 +179,18 @@ class EclipseCase:
         self.tables = {}
         self.equil = None
         self.rsvd = None
+        self.faults = {}
+        self.multflt = []
+        self.multregt = []
+        self.pinch = None
+        self.minpv = 0.0
         section = None
         unknown = set()
         for kw, recs in self.deck:
             if kw in ("RUNSPEC", "GRID", "EDIT", "PROPS", "REGIONS", "SOLUTION", "SUMMARY", "SCHEDULE"):
                 section = kw
+                continue
+            if self.grid_only and (section not in GRID_SECTIONS or (section == "RUNSPEC" and kw != "DIMENS")):
                 continue
             if section == "SUMMARY":
                 self.summary_requests.append((kw, recs))
@@ -231,6 +249,29 @@ class EclipseCase:
                 self.rsvd = [(r[0] * u["L"], r[1] * u["gas"] / u["liq"]) for r in rows]
             elif kw == "DRSDT":
                 self.drsdt = float(recs[0][0]) * u["gas"] / u["liq"] / DAY
+            elif kw == "FAULTS":
+                for r in recs:
+                    if r:
+                        fbox = tuple(int(v) for v in r[1:7])
+                        self.faults.setdefault(str(r[0]), []).append((fbox, str(r[7]).upper()))
+            elif kw == "MULTFLT":
+                self.multflt.extend((str(r[0]), float(r[1])) for r in recs if r)
+            elif kw == "MULTREGT":
+                for r in recs:
+                    if r:
+                        self.multregt.append(dict(r1=_get(r, 0), r2=_get(r, 1), mult=float(r[2]),
+                                                  dirs=str(_get(r, 3, "XYZ")).upper(),
+                                                  nnc=str(_get(r, 4, "ALL")).upper(),
+                                                  region=str(_get(r, 5, "M")).upper()[0]))
+            elif kw == "PINCH":
+                r = recs[0] if recs else []
+                self.pinch = dict(threshold=float(_get(r, 0, 0.001)) * u["L"],
+                                  gap=str(_get(r, 1, "GAP")).upper() != "NOGAP",
+                                  max_gap=float(_get(r, 2, 1e20)) * u["L"],
+                                  trans=str(_get(r, 3, "TOPBOT")).upper(),
+                                  multz=str(_get(r, 4, "TOP")).upper())
+            elif kw == "MINPV":
+                self.minpv = float(recs[0][0]) * u["liq"]   # rm³ / rb
             elif kw == "WELSPECS":
                 for r in recs:
                     if not r:
@@ -273,6 +314,8 @@ class EclipseCase:
         for req in geom + ("PORO", "PERMX"):
             if req not in self.arrays and req not in self.raw:
                 raise ValueError(f"в deck нет {req}")
+        if self.grid_only:
+            return
         if not self.steps:
             raise ValueError("в deck нет TSTEP")
         for name in self.wells:
@@ -312,6 +355,14 @@ class EclipseCase:
         v = [int(full[m] if vals[m] is None else vals[m]) for m in range(6)]
         return (v[0] - 1, v[1], v[2] - 1, v[3], v[4] - 1, v[5])
 
+    def _array(self, name):
+        """Массив [nz, ny, nx]; незаданные значения — NaN, для множителей/NTG/регионов — 1."""
+        if name not in self.arrays:
+            nx, ny, nz = self.dims
+            fill = 1.0 if name.startswith("MULT") or name in ("NTG", "FLUXNUM", "MULTNUM") else np.nan
+            self.arrays[name] = np.full((nz, ny, nx), fill)
+        return self.arrays[name]
+
     def _edit(self, op, rec, box):
         """EQUALS / ADD / MULTIPLY: (массив, значение, [бокс]); COPY: (откуда, куда, [бокс])."""
         nx, ny, nz = self.dims
@@ -321,21 +372,22 @@ class EclipseCase:
             src, dst = str(rec[0]).upper(), str(rec[1]).upper()
             if src not in self.arrays:
                 raise ValueError(f"COPY: массив {src} не задан")
-            arr = self.arrays.setdefault(dst, np.full((nz, ny, nx), np.nan))
+            arr = self._array(dst)
             arr[sl] = self.arrays[src][sl]
             return
         name, val = str(rec[0]).upper(), float(rec[1])
         if name not in ARRAY_KEYWORDS:
             raise NotImplementedError(f"{op}: массив {name} не поддерживается")
         if op == "EQUALS":
-            self.arrays.setdefault(name, np.full((nz, ny, nx), np.nan))[sl] = val
+            self._array(name)[sl] = val
             return
-        if name not in self.arrays:
+        arr = self._array(name)
+        if np.isnan(arr[sl]).all():
             raise ValueError(f"{op}: массив {name} не задан")
         if op == "ADD":
-            self.arrays[name][sl] += val
+            arr[sl] += val
         else:
-            self.arrays[name][sl] *= val
+            arr[sl] *= val
 
     @staticmethod
     def _rows(rec, width):
@@ -356,7 +408,7 @@ class EclipseCase:
 
     def _set_array(self, kw, values, box):
         nx, ny, nz = self.dims
-        arr = self.arrays.setdefault(kw, np.full((nz, ny, nx), np.nan))
+        arr = self._array(kw)
         if kw == "TOPS" and box is None:
             box = (0, nx, 0, ny, 0, 1)
         i0, i1, j0, j1, k0, k1 = box if box is not None else (0, nx, 0, ny, 0, nz)
@@ -475,6 +527,75 @@ class EclipseCase:
         res.face_trans = tuple(t(a) for a in g.transmissibility(kx * ntg * MD, ky * ntg * MD, kz * MD))
         res.actnum = t(g.actnum.astype(np.float64))
         return res
+
+    def static_model(self):
+        """
+        Статическая модель corner-point (как в Eclipse): активность (ACTNUM, MINPV, толщина < PINCH),
+        поровые объёмы и связи с проводимостями после множителей MULT*, FAULTS/MULTFLT, MULTREGT.
+        Возвращает dict: grid, active [nx,ny,nz], pv [nx,ny,nz] (м³), conn = dict(c1, c2, T [м³], axis, nnc).
+        """
+        from .corner_point import CornerPointGrid
+        if not self.corner_point:
+            raise NotImplementedError("static_model: только corner-point сетки")
+        u = self.u
+        nx, ny, nz = self.dims
+        L = u["L"]
+        actnum = self.arrays["ACTNUM"].reshape(-1) if "ACTNUM" in self.arrays else None
+        g = CornerPointGrid(self.raw["COORD"] * L, self.raw["ZCORN"] * L, self.dims, actnum)
+        f = lambda name: self.field(name) if name in self.arrays else np.ones((nx, ny, nz))
+        ntg = f("NTG")
+        poro = np.nan_to_num(self.field("PORO"))
+        pv = g.volume * poro * ntg * f("MULTPV")
+        active = g.actnum & (pv > 0)
+        if self.minpv > 0:
+            active &= pv >= self.minpv
+        if self.pinch is not None:
+            active &= g.dz >= self.pinch["threshold"]
+            if self.pinch["trans"] != "TOPBOT" or self.pinch["multz"] != "TOP":
+                raise NotImplementedError("PINCH: поддерживаются только TOPBOT и TOP")
+        kx = np.nan_to_num(self.field("PERMX")) * MD
+        ky = np.nan_to_num(self.field("PERMY") if "PERMY" in self.arrays else self.field("PERMX")) * MD
+        kz = np.nan_to_num(self.field("PERMZ") if "PERMZ" in self.arrays else self.field("PERMX")) * MD
+        conn = g.connections(kx * ntg, ky * ntg, kz, active=active, pinch=self.pinch)
+
+        mult = {d: f(d).copy() for d in ("MULTX", "MULTY", "MULTZ", "MULTX-", "MULTY-", "MULTZ-")}
+        face_kw = {"X": "MULTX", "I": "MULTX", "X-": "MULTX-", "I-": "MULTX-", "Y": "MULTY", "J": "MULTY",
+                   "Y-": "MULTY-", "J-": "MULTY-", "Z": "MULTZ", "K": "MULTZ", "Z-": "MULTZ-", "K-": "MULTZ-"}
+        for pattern, m in self.multflt:
+            names = [n for n in self.faults if fnmatch.fnmatchcase(n, pattern)]
+            if not names:
+                raise ValueError(f"MULTFLT: разлом {pattern} не задан в FAULTS")
+            for n in names:
+                for (i1, i2, j1, j2, k1, k2), face in self.faults[n]:
+                    mult[face_kw[face]][i1 - 1:i2, j1 - 1:j2, k1 - 1:k2] *= m
+        c1, c2, ax = conn["c1"], conn["c2"], conn["axis"]
+        m = np.ones_like(conn["T"])
+        for a, (plus, minus) in enumerate((("MULTX", "MULTX-"), ("MULTY", "MULTY-"), ("MULTZ", "MULTZ-"))):
+            sel = ax == a
+            m[sel] = mult[plus].reshape(-1)[c1[sel]] * mult[minus].reshape(-1)[c2[sel]]
+        pairs = {}
+        for rec in self.multregt:
+            pairs[(rec["r1"], rec["r2"], rec["region"])] = rec
+        for (r1, r2, reg), rec in pairs.items():
+            arr = {"F": "FLUXNUM", "M": "MULTNUM", "O": "OPERNUM"}[reg]
+            if arr not in self.arrays:
+                raise ValueError(f"MULTREGT: нет массива {arr}")
+            regs = self.field(arr).reshape(-1).astype(int)
+            ra, rb = regs[c1], regs[c2]
+            hit = ra != rb
+            if r1 is not None:
+                hit &= (ra == int(r1)) | (rb == int(r1))
+            if r2 is not None:
+                hit &= (ra == int(r2)) | (rb == int(r2))
+            dirs = np.array(["X" in rec["dirs"], "Y" in rec["dirs"], "Z" in rec["dirs"]])
+            hit &= dirs[ax]
+            if rec["nnc"] == "NNC":
+                hit &= conn["nnc"]
+            elif rec["nnc"] == "NONNC":
+                hit &= ~conn["nnc"]
+            m[hit] *= rec["mult"]
+        conn["T"] = conn["T"] * m
+        return {"grid": g, "active": active, "pv": np.where(active, pv, 0.0), "conn": conn}
 
     def well_configs(self, step=0):
         u = self.u

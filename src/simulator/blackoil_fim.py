@@ -61,12 +61,15 @@ class BlackOilWells(FIMWells):
             weights.append(a)
         self.inj_phase = torch.tensor(inj_ph, dtype=torch.long, device=device)
         self.rate_w = torch.tensor(weights, dtype=torch.float64, device=device) / self.rho_sc
+        self.pvt = None
+        self.wellbore_density = 'flash'   # 'flash' (OPM/Eclipse) | 'cell' (средняя по ячейкам)
+        self.conn_head = torch.zeros_like(self.conn_dz)
 
     def _conn_flows(self, v, d, p_bh):
         """Массовые потоки компонентов по перфорациям q [n_conn,3], dq/dx [n_conn,3,3], dq/dp_bh [n_conn,3]."""
         c, cw, wi = self.conn_cell, self.conn_well, self.conn_wi
         n_c = c.numel()
-        p_wc = p_bh[cw] + self.rho_wb[cw] * G * self.conn_dz
+        p_wc = p_bh[cw] + self.conn_head
         q = torch.zeros((n_c, 3), dtype=torch.float64, device=self.device)
         dq = torch.zeros((n_c, 3, 3), dtype=torch.float64, device=self.device)
         dqb = torch.zeros((n_c, 3), dtype=torch.float64, device=self.device)
@@ -110,6 +113,10 @@ class BlackOilWells(FIMWells):
         zeros = torch.zeros(self.n_w, dtype=torch.float64, device=self.device)
         cnt = zeros.clone().index_add_(0, cw, torch.ones_like(mix))
         self.rho_wb = zeros.clone().index_add_(0, cw, mix) / cnt.clamp_min(1)
+        if self.pvt is not None and self.wellbore_density == 'flash':
+            self.conn_head = self._flash_heads(v, mix)
+        else:
+            self.conn_head = self.rho_wb[cw] * G * self.conn_dz
 
         # дебит линеен по p_bh при замороженной ячейке: q(pb) = q(0) + D·pb
         q, _, dqb = self._conn_flows(v, d, zeros)
@@ -132,6 +139,61 @@ class BlackOilWells(FIMWells):
         else:
             fixed = torch.tensor([m != 'rate' for m in self.step_mode], device=self.device)
             self.p_bh = torch.where(fixed, p_init, self.p_bh)
+
+    def _flash_heads(self, v, mix_cell):
+        """
+        Гидростатика ствола по соединениям (как StandardWell в OPM): поверхностные притоки накапливаются
+        снизу вверх, плотность смеси на соединении — при давлении ствола с разгазированием
+        (Rs = min(Rs_sat(p), Qg/Qo)); участок между соединениями несёт смесь от нижележащих перфораций.
+        Явно по состоянию начала шага. Возвращает p_conn − p_bh, Па.
+        """
+        c, cw, wi = self.conn_cell, self.conn_well, self.conn_wi
+        rho_sc = self.rho_sc
+        qo = wi * v[I_MOO][c] / rho_sc[OIL]
+        qw = wi * v[I_MWW][c] / rho_sc[WAT]
+        qg = wi * (v[I_MGG][c] + v[I_MGO][c]) / rho_sc[GAS]
+        p_cell = v[I_P][c]
+        head_old = self.conn_head if self.p_bh is not None else None
+        if head_old is not None:
+            dd = (p_cell - self.p_bh[cw] - head_old).clamp_min(0.0)
+            use = torch.zeros(self.n_w, dtype=torch.float64, device=self.device).index_add_(0, cw, dd)[cw] > 0
+            dd = torch.where(use, dd, torch.ones_like(dd))
+        else:
+            dd = torch.ones_like(p_cell)
+        qo, qw, qg = qo * dd, qw * dd, qg * dd
+        p_bh = self.p_bh if self.p_bh is not None else torch.zeros(self.n_w, dtype=torch.float64, device=self.device)
+        heads = torch.zeros_like(p_cell)
+        dz_all = self.conn_dz
+        for w_idx, w in enumerate(self.wells):
+            idx = (cw == w_idx).nonzero().view(-1)
+            if w.type == 'injector' or idx.numel() == 0:
+                heads[idx] = mix_cell[idx] * G * dz_all[idx]
+                continue
+            order = idx[torch.argsort(dz_all[idx])]            # сверху вниз
+            Qo = torch.flip(torch.cumsum(torch.flip(qo[order], [0]), 0), [0])
+            Qw = torch.flip(torch.cumsum(torch.flip(qw[order], [0]), 0), [0])
+            Qg = torch.flip(torch.cumsum(torch.flip(qg[order], [0]), 0), [0])
+            mass = Qo * rho_sc[OIL] + Qw * rho_sc[WAT] + Qg * rho_sc[GAS]
+            dz = dz_all[order]
+            if head_old is None:
+                h = mix_cell[order] * G * dz
+                pb = (p_cell[order] - h).min()
+            else:
+                h = head_old[order]
+                pb = p_bh[w_idx]
+            for _ in range(2):
+                p = (pb + h).clamp_min(1e5)
+                rs_s = self.pvt.rs_sat(p)
+                rs = torch.where(Qo > 0, torch.minimum(rs_s, Qg / Qo.clamp_min(1e-300)), torch.zeros_like(p))
+                bo, _ = self.pvt.oil(p, rs, rs >= rs_s - 1e-12)
+                bw = self.pvt.water(p)[0]
+                bg = self.pvt.gas(p)[0]
+                vol = Qo / bo + Qw / bw + (Qg - rs * Qo).clamp_min(0.0) / bg
+                rho = torch.where((mass > 0) & (vol > 0), mass / vol.clamp_min(1e-300), mix_cell[order])
+                seg = torch.diff(dz, prepend=torch.zeros(1, dtype=dz.dtype, device=dz.device))
+                h = torch.cumsum(rho * G * seg, 0)
+            heads[order] = h
+        return heads
 
     def assemble(self, R, J_vals, diag_map, v, d, p_bh):
         if self.n_w == 0:
@@ -220,6 +282,8 @@ class BlackOilFIMSolver(ManualFIMSolver):
 
         self._build_connections()
         self.wells = BlackOilWells(well_manager, reservoir, fluid, reservoir.dimensions, dev)
+        self.wells.pvt = self.pvt
+        self.wells.wellbore_density = str(params.get('wellbore_density', 'flash')).lower()
         for w in self.wells.wells:
             print(f"  Скважина {w.name}: перфораций {len(w.perforations)}, WI = "
                   + ", ".join(f"{x:.3e}" for x in w.connection_wi) + " м³")
