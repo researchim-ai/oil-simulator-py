@@ -112,22 +112,35 @@ class ManualFIMSolver:
         kx = res.permeability_x.to(dev).double()
         ky = res.permeability_y.to(dev).double()
         kz = res.permeability_z.to(dev).double()
-        zc = res.z_centers.to(dev).double().view(1, 1, nz).expand(nx, ny, nz)
+        cell_depth = getattr(res, 'cell_depth', None)
+        zc = (cell_depth.to(dev).double() if cell_depth is not None
+              else res.z_centers.to(dev).double().view(1, 1, nz).expand(nx, ny, nz))
         idx = torch.arange(self.n_cells, device=dev).reshape(nx, ny, nz)
         tiny = 1e-300
+        face_trans = getattr(res, 'face_trans', None)
 
         faces = []
-        if nx > 1:
+        if face_trans is not None:
+            maps = ((self.builder.x_pos_map, self.builder.x_neg_map), (self.builder.y_pos_map, self.builder.y_neg_map),
+                    (self.builder.z_pos_map, self.builder.z_neg_map))
+            for axis, (t, (mp, mn)) in enumerate(zip(face_trans, maps)):
+                if (nx, ny, nz)[axis] < 2:
+                    continue
+                lo = [slice(None)] * 3
+                hi = [slice(None)] * 3
+                lo[axis], hi[axis] = slice(None, -1), slice(1, None)
+                faces.append((idx[tuple(lo)], idx[tuple(hi)], t.to(dev).double(), mp, mn))
+        elif nx > 1:
             area = (dy * dz).expand(nx - 1, ny, nz)
             hl = dx[:-1] / (2 * kx[:-1] + tiny)
             hr = dx[1:] / (2 * kx[1:] + tiny)
             faces.append((idx[:-1], idx[1:], area / (hl + hr), self.builder.x_pos_map, self.builder.x_neg_map))
-        if ny > 1:
+        if ny > 1 and face_trans is None:
             area = (dx * dz).expand(nx, ny - 1, nz)
             hl = dy[:, :-1] / (2 * ky[:, :-1] + tiny)
             hr = dy[:, 1:] / (2 * ky[:, 1:] + tiny)
             faces.append((idx[:, :-1], idx[:, 1:], area / (hl + hr), self.builder.y_pos_map, self.builder.y_neg_map))
-        if nz > 1:
+        if nz > 1 and face_trans is None:
             area = (dx * dy).expand(nx, ny, nz - 1)
             hl = dz[:, :, :-1] / (2 * kz[:, :, :-1] + tiny)
             hr = dz[:, :, 1:] / (2 * kz[:, :, 1:] + tiny)

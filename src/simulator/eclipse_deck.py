@@ -1,14 +1,18 @@
 """
 Чтение deck-файлов Eclipse (*.DATA) и сборка модели для black-oil FIM.
 
-Поддерживается подмножество, достаточное для SPE1-подобных моделей:
+Поддерживается подмножество, достаточное для SPE1/SPE9-подобных моделей:
+  общее:   INCLUDE
   RUNSPEC: DIMENS, FIELD | METRIC, OIL/WATER/GAS/DISGAS
-  GRID:    DX, DY, DZ, TOPS, PORO, PERMX/Y/Z, NTG, BOX/ENDBOX (декартова сетка, горизонтальные слои)
+  GRID:    DX, DY, DZ, TOPS (декартова сетка, горизонтальные слои) или COORD/ZCORN/ACTNUM (corner-point
+           без разломов); PORO, PERMX/Y/Z, NTG, BOX/ENDBOX, EQUALS/COPY/ADD/MULTIPLY
   PROPS:   PVTO | PVDO, PVDG, PVTW, ROCK, DENSITY, SWOF, SGOF, STONE2
-  SOLUTION: EQUIL (контакты при нулевом Pc), RSVD
-  SCHEDULE: WELSPECS, COMPDAT, WCONPROD, WCONINJE, TSTEP, DRSDT
+  SOLUTION: EQUIL (с капиллярным давлением, инициализация по центрам ячеек), RSVD
+  SUMMARY: список запрошенных векторов (F*, W*, B*) сохраняется для отчёта
+  SCHEDULE: WELSPECS, COMPDAT, WCONPROD, WCONINJE (в т.ч. смена режимов по расписанию, маски имён), TSTEP, DRSDT
 Неподдерживаемые ключевые слова, влияющие на результат, вызывают ошибку, а не игнорируются.
 """
+import fnmatch
 import re
 from pathlib import Path
 
@@ -27,13 +31,16 @@ FLAG_KEYWORDS = {
 }
 # ключевые слова, которые читаются, но не влияют на расчёт
 IGNORED = {"TITLE", "START", "EQLDIMS", "TABDIMS", "WELLDIMS", "RPTSCHED", "RPTRST", "RPTSOL", "RPTPROPS",
-           "RPTGRID", "RPTRUNSP", "NSTACK", "MESSAGES"}
+           "RPTGRID", "RPTRUNSP", "NSTACK", "MESSAGES", "TUNING", "SPECGRID", "GRIDFILE", "MAPAXES", "GRIDUNIT"}
 # влияют на физику, но пока не поддерживаются
-UNSUPPORTED = {"ACTNUM", "COORD", "ZCORN", "MULTX", "MULTY", "MULTZ", "FAULTS", "PVTG", "VAPOIL", "SWFN",
+UNSUPPORTED = {"MULTX", "MULTY", "MULTZ", "MULTX-", "MULTY-", "MULTZ-", "FAULTS", "PVTG", "VAPOIL", "SWFN",
                "SGFN", "SOF3", "SLGOF", "AQUFETP", "AQUCT", "PBVD", "PDVD", "RVVD", "DATES", "WCONHIST",
-               "GCONPROD", "GCONINJE", "TUNING", "EQUALS", "MULTIPLY", "COPY", "ADD", "PRESSURE", "SWAT",
-               "SGAS", "RS", "NNC", "DRVDT", "ROCKTAB", "SATNUM", "PVTNUM", "EQLNUM", "WECON", "WTEST"}
-ARRAY_KEYWORDS = {"DX", "DY", "DZ", "TOPS", "PORO", "PERMX", "PERMY", "PERMZ", "NTG"}
+               "GCONPROD", "GCONINJE", "PRESSURE", "SWAT", "SGAS", "RS", "NNC", "DRVDT", "ROCKTAB", "SATNUM",
+               "PVTNUM", "EQLNUM", "WECON", "WTEST", "PINCH", "MINPV", "MULTPV", "TRANX", "TRANY", "TRANZ",
+               "WELOPEN", "COMPORD", "WCONINJH", "GRUPTREE", "MULTFLT", "OPERATE"}
+ARRAY_KEYWORDS = {"DX", "DY", "DZ", "TOPS", "PORO", "PERMX", "PERMY", "PERMZ", "NTG", "ACTNUM"}
+RAW_KEYWORDS = {"COORD", "ZCORN"}
+EDIT_OPS = {"EQUALS", "COPY", "ADD", "MULTIPLY"}
 
 UNITS = {
     "FIELD": dict(p=6894.757293168, L=0.3048, liq=0.158987294928, gas=28.316846592,
@@ -43,7 +50,7 @@ UNITS = {
 MD = 9.869233e-16
 DAY = 86400.0
 
-_KW_RE = re.compile(r"^([A-Z][A-Z0-9_]{0,7})\s*$")
+_KW_RE = re.compile(r"^([A-Z][A-Z0-9_+-]{0,7})\s*$")
 _TOK_RE = re.compile(r"'[^']*'|/|[^\s/']+")
 
 
@@ -114,6 +121,12 @@ def parse_deck(path):
             records.append(cur)
         while records and records[-1] == [] and len(records) > 1:
             records.pop()
+        if kw == "INCLUDE":
+            inc = Path(path).parent / str(records[0][0]).strip()
+            if not inc.exists():
+                raise FileNotFoundError(f"INCLUDE: файл {inc} не найден")
+            out.extend(parse_deck(inc))
+            continue
         out.append((kw, records))
     return out
 
@@ -129,9 +142,6 @@ class EclipseCase:
         self.path = str(path)
         self.deck = parse_deck(path)
         kws = [k for k, _ in self.deck]
-        bad = sorted(set(kws) & UNSUPPORTED)
-        if bad:
-            raise NotImplementedError(f"{Path(path).name}: ключевые слова пока не поддерживаются: {', '.join(bad)}")
         self.units_name = "METRIC"
         for k in kws:
             if k in UNITS:
@@ -148,20 +158,28 @@ class EclipseCase:
     def _read(self):
         u = self.u
         self.arrays = {}
+        self.raw = {}
         box = None
         self.wells = {}
-        self.report_days = []
+        self.steps = []          # [(сутки, {скважина: (ключевое слово, запись)}), ...]
+        controls = {}
+        self.summary_requests = []
         self.drsdt = None
         self.tables = {}
         self.equil = None
         self.rsvd = None
-        schedule_started = False
         section = None
         unknown = set()
         for kw, recs in self.deck:
             if kw in ("RUNSPEC", "GRID", "EDIT", "PROPS", "REGIONS", "SOLUTION", "SUMMARY", "SCHEDULE"):
                 section = kw
-            if section == "SUMMARY" or (kw in FLAG_KEYWORDS and kw != "ENDBOX") or kw in IGNORED:
+                continue
+            if section == "SUMMARY":
+                self.summary_requests.append((kw, recs))
+                continue
+            if kw in UNSUPPORTED:
+                raise NotImplementedError(f"{Path(self.path).name}: ключевое слово {kw} пока не поддерживается")
+            if (kw in FLAG_KEYWORDS and kw != "ENDBOX") or kw in IGNORED:
                 continue
             if kw == "DIMENS":
                 self.dims = tuple(int(v) for v in recs[0][:3])
@@ -173,6 +191,12 @@ class EclipseCase:
                 box = None
             elif kw in ARRAY_KEYWORDS:
                 self._set_array(kw, recs[0], box)
+            elif kw in RAW_KEYWORDS:
+                self.raw[kw] = np.array([np.nan if v is None else float(v) for v in recs[0]])
+            elif kw in EDIT_OPS:
+                for r in recs:
+                    if r:
+                        self._edit(kw, r, box)
             elif kw == "PVTO":
                 self.tables["pvto"] = self._pvto(recs)
             elif kw == "PVDO":
@@ -213,7 +237,7 @@ class EclipseCase:
                         continue
                     self.wells[r[0]] = dict(name=r[0], i=int(r[2]) - 1, j=int(r[3]) - 1,
                                             ref_depth=None if _get(r, 4) is None else r[4] * u["L"],
-                                            phase=str(_get(r, 5, "OIL")).upper(), perfs=[], control=None)
+                                            phase=str(_get(r, 5, "OIL")).upper(), perfs=[])
             elif kw == "COMPDAT":
                 for r in recs:
                     if not r:
@@ -230,23 +254,30 @@ class EclipseCase:
                     for k in range(int(r[3]) - 1, int(r[4])):
                         w["perfs"].append(dict(ijk=(i, j, k), cf=_get(r, 7), diam=_get(r, 8), skin=_get(r, 10, 0.0)))
             elif kw in ("WCONPROD", "WCONINJE"):
-                if schedule_started:
-                    raise NotImplementedError(f"{kw} после TSTEP: смена режимов по расписанию пока не поддерживается")
                 for r in recs:
-                    if r:
-                        self._well(r[0])["control"] = (kw, r)
+                    if not r:
+                        continue
+                    for name in self._match_wells(r[0]):
+                        controls[name] = (kw, r)
             elif kw == "TSTEP":
-                schedule_started = True
-                self.report_days.extend(float(v) for rec in recs for v in rec)
+                for rec in recs:
+                    for v in rec:
+                        self.steps.append((float(v), dict(controls)))
             else:
                 unknown.add(kw)
         if unknown:
             print(f"  ⚠ deck: проигнорированы ключевые слова: {', '.join(sorted(unknown))}")
 
-        for name, req in (("DX", "DX"), ("DY", "DY"), ("DZ", "DZ"), ("TOPS", "TOPS"), ("PORO", "PORO"),
-                          ("PERMX", "PERMX")):
-            if req not in self.arrays:
+        self.corner_point = "COORD" in self.raw or "ZCORN" in self.raw
+        geom = ("COORD", "ZCORN") if self.corner_point else ("DX", "DY", "DZ", "TOPS")
+        for req in geom + ("PORO", "PERMX"):
+            if req not in self.arrays and req not in self.raw:
                 raise ValueError(f"в deck нет {req}")
+        if not self.steps:
+            raise ValueError("в deck нет TSTEP")
+        for name in self.wells:
+            if name not in self.steps[0][1]:
+                raise ValueError(f"скважина {name}: нет режима (WCONPROD/WCONINJE) до первого TSTEP")
         for key in ("pvdg", "pvtw"):
             if key not in self.tables:
                 raise ValueError(f"в deck нет {key.upper()}")
@@ -255,10 +286,56 @@ class EclipseCase:
         if self.equil is None:
             raise NotImplementedError("начальное состояние поддерживается только через EQUIL")
 
+    @property
+    def report_days(self):
+        return [d for d, _ in self.steps]
+
     def _well(self, name):
         if name not in self.wells:
             raise ValueError(f"скважина {name} не объявлена в WELSPECS")
         return self.wells[name]
+
+    def _match_wells(self, pattern):
+        pattern = str(pattern)
+        names = [n for n in self.wells if fnmatch.fnmatchcase(n, pattern)]
+        if not names:
+            raise ValueError(f"нет скважин, подходящих под '{pattern}'")
+        return names
+
+    def _box(self, rec, start, box):
+        nx, ny, nz = self.dims
+        vals = [_get(rec, start + m) for m in range(6)]
+        if all(v is None for v in vals):
+            return box if box is not None else (0, nx, 0, ny, 0, nz)
+        b = box if box is not None else (0, nx, 0, ny, 0, nz)
+        full = (b[0] + 1, b[1], b[2] + 1, b[3], b[4] + 1, b[5])
+        v = [int(full[m] if vals[m] is None else vals[m]) for m in range(6)]
+        return (v[0] - 1, v[1], v[2] - 1, v[3], v[4] - 1, v[5])
+
+    def _edit(self, op, rec, box):
+        """EQUALS / ADD / MULTIPLY: (массив, значение, [бокс]); COPY: (откуда, куда, [бокс])."""
+        nx, ny, nz = self.dims
+        i0, i1, j0, j1, k0, k1 = self._box(rec, 2, box)
+        sl = (slice(k0, k1), slice(j0, j1), slice(i0, i1))
+        if op == "COPY":
+            src, dst = str(rec[0]).upper(), str(rec[1]).upper()
+            if src not in self.arrays:
+                raise ValueError(f"COPY: массив {src} не задан")
+            arr = self.arrays.setdefault(dst, np.full((nz, ny, nx), np.nan))
+            arr[sl] = self.arrays[src][sl]
+            return
+        name, val = str(rec[0]).upper(), float(rec[1])
+        if name not in ARRAY_KEYWORDS:
+            raise NotImplementedError(f"{op}: массив {name} не поддерживается")
+        if op == "EQUALS":
+            self.arrays.setdefault(name, np.full((nz, ny, nx), np.nan))[sl] = val
+            return
+        if name not in self.arrays:
+            raise ValueError(f"{op}: массив {name} не задан")
+        if op == "ADD":
+            self.arrays[name][sl] += val
+        else:
+            self.arrays[name][sl] *= val
 
     @staticmethod
     def _rows(rec, width):
@@ -302,30 +379,7 @@ class EclipseCase:
         device = device or torch.device("cpu")
         u = self.u
         nx, ny, nz = self.dims
-        L = u["L"]
-        dx3, dy3, dz3 = (self.field(k) * L for k in ("DX", "DY", "DZ"))
-        dx, dy, dz = dx3[:, 0, 0], dy3[0, :, 0], dz3[0, 0, :]
-        for name, full, vec, shape in (("DX", dx3, dx, (nx, 1, 1)), ("DY", dy3, dy, (1, ny, 1)),
-                                       ("DZ", dz3, dz, (1, 1, nz))):
-            if not np.allclose(full, vec.reshape(shape)):
-                raise NotImplementedError(f"{name} меняется не только вдоль своей оси — нужна corner-point сетка")
-        tops = self.field("TOPS")[:, :, 0] * L
-        if not np.allclose(tops, tops[0, 0]):
-            raise NotImplementedError("TOPS не постоянен: наклонные слои пока не поддерживаются")
-        self.depth_top = float(tops[0, 0])
-
-        poro = self.field("PORO")
-        if "NTG" in self.arrays:
-            poro = poro * self.field("NTG")
-        kx = self.field("PERMX")
-        ky = self.field("PERMY") if "PERMY" in self.arrays else kx
-        kz = self.field("PERMZ") if "PERMZ" in self.arrays else kx
-        res = Reservoir({"dimensions": [nx, ny, nz], "grid": {"dx": dx.tolist(), "dy": dy.tolist(),
-                                                               "dz": dz.tolist()},
-                         "porosity": poro.tolist(), "permeability": kx.tolist(), "k_vertical_fraction": 1.0},
-                        device=device)
-        res.permeability_y = torch.as_tensor(ky * MD, dtype=torch.float64, device=device)
-        res.permeability_z = torch.as_tensor(kz * MD, dtype=torch.float64, device=device)
+        res = self._build_grid(Reservoir, device)
 
         rho = self.density
         pvt = DeckPVT(self.tables, rho, device)
@@ -356,13 +410,79 @@ class EclipseCase:
         sim.update(sim_overrides or {})
         return res, fluid, wm, sim
 
-    def well_configs(self):
+    def _build_grid(self, Reservoir, device):
+        """Reservoir с геометрией deck; для corner-point — с переопределёнными объёмами, глубинами и T."""
+        u = self.u
+        nx, ny, nz = self.dims
+        L = u["L"]
+        ntg = self.field("NTG") if "NTG" in self.arrays else np.ones((nx, ny, nz))
+        poro = self.field("PORO")
+        kx = self.field("PERMX")
+        ky = self.field("PERMY") if "PERMY" in self.arrays else kx
+        kz = self.field("PERMZ") if "PERMZ" in self.arrays else kx
+        for name, arr in (("PORO", poro), ("PERMX", kx), ("PERMY", ky), ("PERMZ", kz)):
+            if np.isnan(arr).any():
+                raise ValueError(f"{name} задан не для всех ячеек")
+        t = lambda a: torch.as_tensor(np.ascontiguousarray(a), dtype=torch.float64, device=device)
+
+        if not self.corner_point:
+            dx3, dy3, dz3 = (self.field(k) * L for k in ("DX", "DY", "DZ"))
+            dx, dy, dz = dx3[:, 0, 0], dy3[0, :, 0], dz3[0, 0, :]
+            for name, full, vec, shape in (("DX", dx3, dx, (nx, 1, 1)), ("DY", dy3, dy, (1, ny, 1)),
+                                           ("DZ", dz3, dz, (1, 1, nz))):
+                if not np.allclose(full, vec.reshape(shape)):
+                    raise NotImplementedError(f"{name} меняется не только вдоль своей оси — нужна corner-point сетка")
+            tops = self.field("TOPS")[:, :, 0] * L
+            if not np.allclose(tops, tops[0, 0]):
+                raise NotImplementedError("TOPS не постоянен: для наклонных слоёв используйте COORD/ZCORN")
+            if "ACTNUM" in self.arrays and not (self.arrays["ACTNUM"] > 0).all():
+                raise NotImplementedError("ACTNUM на декартовой сетке не поддерживается")
+            self.depth_top = float(tops[0, 0])
+            res = Reservoir({"dimensions": [nx, ny, nz], "grid": {"dx": dx.tolist(), "dy": dy.tolist(),
+                                                                   "dz": dz.tolist()},
+                             "porosity": (poro * ntg).tolist(), "permeability": (kx * ntg).tolist(),
+                             "k_vertical_fraction": 1.0}, device=device)
+            res.permeability_y = t(ky * ntg * MD)
+            res.permeability_z = t(kz * MD)
+            self.cell_depth_abs = self.depth_top + np.broadcast_to(
+                res.z_centers.detach().cpu().double().numpy().reshape(1, 1, nz), (nx, ny, nz))
+            return res
+
+        from .corner_point import CornerPointGrid
+        actnum = self.arrays["ACTNUM"].reshape(-1) if "ACTNUM" in self.arrays else None
+        g = CornerPointGrid(self.raw["COORD"] * L, self.raw["ZCORN"] * L, self.dims, actnum)
+        self.grid = g
+        self.depth_top = float(g.corners[..., 2].min())
+        self.cell_depth_abs = g.depth
+        dz_layer = np.array([g.dz[:, :, k].mean() for k in range(nz)])
+        res = Reservoir({"dimensions": [nx, ny, nz],
+                         "grid": {"dx": g.dx.mean(axis=(1, 2)).tolist(), "dy": g.dy.mean(axis=(0, 2)).tolist(),
+                                  "dz": dz_layer.tolist()},
+                         "porosity": (poro * ntg).tolist(), "permeability": (kx * ntg).tolist(),
+                         "k_vertical_fraction": 1.0}, device=device)
+        res.permeability_y = t(ky * ntg * MD)
+        res.permeability_z = t(kz * MD)
+        vol = np.where(g.actnum, g.volume, 0.0)
+        pv = vol * poro * ntg
+        pv_floor = 1e-6 * pv[g.actnum].mean()
+        # неактивные ячейки изолированы (T = 0); минимальный поровый объём сохраняет невырожденность Якобиана
+        res.porosity = t(np.where(g.actnum, poro * ntg, pv_floor / np.maximum(g.volume, 1e-30)))
+        res.cell_volume = t(np.maximum(g.volume, 1e-30))
+        res.cell_volume_flat = res.cell_volume.reshape(-1)
+        res.porous_volume = res.cell_volume * res.porosity
+        res.cell_depth = t(g.depth - self.depth_top)
+        res.cell_dims = (t(g.dx), t(g.dy), t(g.dz * ntg))
+        res.face_trans = tuple(t(a) for a in g.transmissibility(kx * ntg * MD, ky * ntg * MD, kz * MD))
+        res.actnum = t(g.actnum.astype(np.float64))
+        return res
+
+    def well_configs(self, step=0):
         u = self.u
         out = []
+        controls = self.steps[step][1]
         for w in self.wells.values():
-            if not w["perfs"] or w["control"] is None:
-                raise ValueError(f"скважина {w['name']}: нет COMPDAT или режима")
-            kw, r = w["control"]
+            if not w["perfs"]:
+                raise ValueError(f"скважина {w['name']}: нет COMPDAT")
             diam = {pf["diam"] for pf in w["perfs"]}
             skins = {pf["skin"] for pf in w["perfs"]}
             cfs = {pf["cf"] for pf in w["perfs"]}
@@ -379,50 +499,56 @@ class EclipseCase:
                 cfg["well_index"] = cf * conv
             if w["ref_depth"] is not None:
                 cfg["ref_depth"] = w["ref_depth"] - self.depth_top
-            status = str(_get(r, 1 if kw == "WCONPROD" else 2, "OPEN")).upper()
-            if status != "OPEN":
-                raise NotImplementedError(f"{w['name']}: статус {status} не поддерживается")
-            if kw == "WCONPROD":
-                mode = str(r[2]).upper()
-                cfg["type"] = "producer"
-                rates = {"ORAT": (3, "oil", u["liq"]), "WRAT": (4, "water", u["liq"]),
-                         "GRAT": (5, "gas", u["gas"]), "LRAT": (6, "liquid", u["liq"])}
-                if mode in rates:
-                    idx, ph, cv = rates[mode]
-                    cfg.update(control_type="rate", control_value=float(r[idx]) * cv, surface_phase=ph)
-                elif mode == "BHP":
-                    cfg.update(control_type="bhp", control_value=float(r[8]) * u["p"] / 1e6)
-                else:
-                    raise NotImplementedError(f"WCONPROD {w['name']}: режим {mode}")
-                cfg["bhp_min"] = float(_get(r, 8, 14.7 if self.units_name == "FIELD" else 1.01325)) * u["p"] / 1e6
-            else:
-                ph = str(r[1]).upper()
-                mode = str(r[3]).upper()
-                cfg["type"] = "injector"
-                cfg["injected_phase"] = {"WATER": "water", "WAT": "water", "GAS": "gas"}[ph]
-                cv = u["gas"] if ph == "GAS" else u["liq"]
-                if mode == "RATE":
-                    cfg.update(control_type="rate", control_value=float(r[4]) * cv)
-                elif mode == "BHP":
-                    cfg.update(control_type="bhp", control_value=float(r[6]) * u["p"] / 1e6)
-                else:
-                    raise NotImplementedError(f"WCONINJE {w['name']}: режим {mode}")
-                cfg["bhp_max"] = float(_get(r, 6, 1e5 if self.units_name == "FIELD" else 6895.0)) * u["p"] / 1e6
+            cfg.update(self.control_cfg(w["name"], controls[w["name"]]))
             out.append(cfg)
         return out
+
+    def control_cfg(self, name, control):
+        """Режим скважины из записи WCONPROD/WCONINJE (единицы симулятора: м³/сут, МПа)."""
+        u = self.u
+        kw, r = control
+        status = str(_get(r, 1 if kw == "WCONPROD" else 2, "OPEN")).upper()
+        if status != "OPEN":
+            raise NotImplementedError(f"{name}: статус {status} не поддерживается")
+        cfg = {}
+        if kw == "WCONPROD":
+            mode = str(r[2]).upper()
+            cfg["type"] = "producer"
+            rates = {"ORAT": (3, "oil", u["liq"]), "WRAT": (4, "water", u["liq"]),
+                     "GRAT": (5, "gas", u["gas"]), "LRAT": (6, "liquid", u["liq"])}
+            if mode in rates:
+                idx, ph, cv = rates[mode]
+                cfg.update(control_type="rate", control_value=float(r[idx]) * cv, surface_phase=ph)
+            elif mode == "BHP":
+                cfg.update(control_type="bhp", control_value=float(r[8]) * u["p"] / 1e6)
+            else:
+                raise NotImplementedError(f"WCONPROD {name}: режим {mode}")
+            cfg["bhp_min"] = float(_get(r, 8, 14.7 if self.units_name == "FIELD" else 1.01325)) * u["p"] / 1e6
+        else:
+            ph = str(r[1]).upper()
+            mode = str(r[3]).upper()
+            cfg["type"] = "injector"
+            cfg["injected_phase"] = {"WATER": "water", "WAT": "water", "GAS": "gas"}[ph]
+            cv = u["gas"] if ph == "GAS" else u["liq"]
+            if mode == "RATE":
+                cfg.update(control_type="rate", control_value=float(r[4]) * cv)
+            elif mode == "BHP":
+                cfg.update(control_type="bhp", control_value=float(r[6]) * u["p"] / 1e6)
+            else:
+                raise NotImplementedError(f"WCONINJE {name}: режим {mode}")
+            cfg["bhp_max"] = float(_get(r, 6, 1e5 if self.units_name == "FIELD" else 6895.0)) * u["p"] / 1e6
+        return cfg
 
     # ------------------------------------------------------------ равновесие
     def equilibrate(self, res, pvt, kr, swc, device):
         """
-        Гидростатическое равновесие по EQUIL при нулевом капиллярном давлении (резкие контакты):
-        давление нефти интегрируется от опорной глубины, воды — от ВНК, газа — от ГНК.
+        Гидростатическое равновесие по EQUIL (инициализация по центрам ячеек, как EQUIL item 9 = 0):
+        давление нефти интегрируется от опорной глубины, воды — от ВНК (pw = po − Pcow на контакте),
+        газа — от ГНК (pg = po + Pcog). Насыщенности — обращением Pcow(Sw) = po − pw и Pcog(Sg) = pg − po;
+        при нулевых кривых Pc — резкие контакты.
         """
         eq = self.equil
-        if eq["pcwoc"] or eq["pcgoc"]:
-            raise NotImplementedError("EQUIL: ненулевое Pc на контактах не поддерживается")
         swof, sgof = self.tables.get("swof"), self.tables.get("sgof")
-        if (swof and any(swof["pcow"])) or (sgof and any(sgof["pcog"])):
-            raise NotImplementedError("EQUIL с ненулевыми капиллярными кривыми пока не поддерживается")
         if not (eq["goc"] <= eq["datum"] <= eq["woc"]):
             raise NotImplementedError("EQUIL: опорная глубина должна лежать в нефтяной зоне")
         g = 9.80665
@@ -450,33 +576,71 @@ class EclipseCase:
             return float(rho_g_sc * pvt.gas(pt)[0])
 
         def integrate(ph, z0, p0, z1, step=0.25):
-            n = max(1, int(abs(z1 - z0) / step))
+            """Профиль p(z) от z0 до z1 (RK2); возвращает (z, p) по возрастанию z."""
+            n = max(1, int(np.ceil(abs(z1 - z0) / step)))
             h = (z1 - z0) / n
+            zs, ps = [z0], [p0]
             z, p = z0, p0
             for _ in range(n):
                 k1 = rho_phase(ph, z, p) * g
                 k2 = rho_phase(ph, z + 0.5 * h, p + 0.5 * h * k1) * g
                 p += h * k2
                 z += h
-            return p
+                zs.append(z)
+                ps.append(p)
+            zs, ps = np.array(zs), np.array(ps)
+            order = np.argsort(zs)
+            return zs[order], ps[order]
 
-        z = self.depth_top + res.z_centers.detach().cpu().double().numpy()
-        p_woc = integrate("o", eq["datum"], eq["p"], eq["woc"]) if eq["woc"] < 1e8 else None
-        p_goc = integrate("o", eq["datum"], eq["p"], eq["goc"]) if eq["goc"] > -1e8 else None
-        p_l, sw_l, sg_l, rs_l = [], [], [], []
-        sw_max = float(swof["sw"][-1]) if swof else 1.0
-        for zk in z:
-            if p_woc is not None and zk > eq["woc"]:
-                p = integrate("w", eq["woc"], p_woc, zk)
-                p_l.append(p); sw_l.append(sw_max); sg_l.append(0.0); rs_l.append(rs_at(zk, p))
-            elif p_goc is not None and zk < eq["goc"]:
-                p = integrate("g", eq["goc"], p_goc, zk)
-                p_l.append(p); sw_l.append(swc); sg_l.append(1.0 - swc)
-                rs_l.append(float(pvt.rs_sat(torch.tensor([p], dtype=dt, device=device))))
+        def profile(ph, z0, p0, lo, hi):
+            za, pa = integrate(ph, z0, p0, min(lo, z0))
+            zb, pb = integrate(ph, z0, p0, max(hi, z0))
+            return np.concatenate([za, zb[1:]]), np.concatenate([pa, pb[1:]])
+
+        has_woc, has_goc = eq["woc"] < 1e8, eq["goc"] > -1e8
+        z = np.asarray(self.cell_depth_abs, dtype=np.float64).reshape(-1)
+        lo, hi = z.min() - 1.0, z.max() + 1.0
+        zo, po_n = profile("o", eq["datum"], eq["p"], min(lo, eq["goc"]) if has_goc else lo,
+                           max(hi, eq["woc"]) if has_woc else hi)
+        po = np.interp(z, zo, po_n)
+        sw_tab = np.asarray(swof["sw"]) if swof else np.array([swc, 1.0])
+        sw_max = float(sw_tab[-1])
+        sw = np.full_like(z, swc)
+        p_cell = po.copy()
+        if has_woc:
+            p_w0 = float(np.interp(eq["woc"], zo, po_n)) - eq["pcwoc"]
+            zw, pw_n = profile("w", eq["woc"], p_w0, lo, hi)
+            pw = np.interp(z, zw, pw_n)
+            pcow = np.asarray(swof["pcow"]) if swof else np.zeros(2)
+            if np.ptp(pcow) > 0:
+                # Pcow убывает по Sw: обращение по таблице, вне диапазона — концевые точки
+                sw = np.interp(po - pw, pcow[::-1], sw_tab[::-1])
             else:
-                p = integrate("o", eq["datum"], eq["p"], zk)
-                p_l.append(p); sw_l.append(swc); sg_l.append(0.0); rs_l.append(rs_at(zk, p))
-        nx, ny, nz = self.dims
-        col = lambda v: torch.tensor(v, dtype=dt, device=device).view(1, 1, nz).expand(nx, ny, nz).reshape(-1)
-        return col(p_l), col(sw_l), col(sg_l), col(rs_l)
+                sw = np.where(z > eq["woc"], sw_max, swc)
+            water = sw >= sw_max - 1e-12
+            p_cell = np.where(water, pw + np.interp(sw, sw_tab, pcow), p_cell)
+        sg = np.zeros_like(z)
+        if has_goc:
+            p_g0 = float(np.interp(eq["goc"], zo, po_n)) + eq["pcgoc"]
+            zg, pg_n = profile("g", eq["goc"], p_g0, lo, hi)
+            pg = np.interp(z, zg, pg_n)
+            sg_tab = np.asarray(sgof["sg"]) if sgof else np.array([0.0, 1.0 - swc])
+            pcog = np.asarray(sgof["pcog"]) if sgof else np.zeros(2)
+            if np.ptp(pcog) > 0:
+                sg = np.interp(pg - po, pcog, sg_tab)
+            else:
+                sg = np.where(z < eq["goc"], 1.0 - swc, 0.0)
+            sg = np.minimum(sg, 1.0 - sw)
+            gas = sg >= 1.0 - sw - 1e-12
+            p_cell = np.where(gas & (sg > 0), pg - np.interp(sg, sg_tab, pcog), p_cell)
+
+        pt = torch.tensor(p_cell, dtype=dt, device=device)
+        rs_s = pvt.rs_sat(pt).cpu().numpy()
+        if self.rsvd is not None:
+            rs = np.minimum(np.interp(z, [r[0] for r in self.rsvd], [r[1] for r in self.rsvd]), rs_s)
+        else:
+            rs = rs_s
+        rs = np.where(sg > 0, rs_s, rs)
+        to = lambda a: torch.tensor(a, dtype=dt, device=device)
+        return to(p_cell), to(sw), to(sg), to(rs)
 

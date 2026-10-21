@@ -448,7 +448,7 @@ class BlackOilFIMSolver(ManualFIMSolver):
                 self.sat, self.x = sat, x
                 if self.wells.n_w:
                     self.wells.commit(p_bh)
-                    self._store_well_results(wsys, p_bh)
+                    self._store_well_results(wsys, p_bh, dt)
                 self._p_bh_cur = None
                 return True
 
@@ -509,7 +509,7 @@ class BlackOilFIMSolver(ManualFIMSolver):
         x = torch.where(sat, torch.minimum(x.clamp_min(0.0), 1.0 - sw), x.clamp_min(0.0))
         return p, sw, x, sat, n_switch
 
-    def _store_well_results(self, wsys, p_bh):
+    def _store_well_results(self, wsys, p_bh, dt):
         rho = self.pvt.rho_sc
         for w_idx, w in enumerate(self.wells.wells):
             m = self.wells.conn_well == w_idx
@@ -517,6 +517,11 @@ class BlackOilFIMSolver(ManualFIMSolver):
             q_o, q_w, q_g = (float(q[i]) / rho[i] * DAY for i in range(3))
             w.bhp_mpa = float(p_bh[w_idx]) / 1e6
             w.last_surface_rates = {"oil": q_o, "water": q_w, "gas": q_g, "liquid": q_o + q_w}
+            # накопленные поверхностные объёмы, м³ (знак как у дебитов: + отбор)
+            cum = getattr(w, "cum_surface", None) or {"oil": 0.0, "water": 0.0, "gas": 0.0}
+            for ph, val in (("oil", q_o), ("water", q_w), ("gas", q_g)):
+                cum[ph] += val * dt / DAY
+            w.cum_surface = cum
 
 
 def needs_blackoil(fluid, well_manager):
