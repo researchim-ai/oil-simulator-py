@@ -9,7 +9,7 @@ class Well:
     
     def __init__(self, name, well_type, i, j, k, radius, control_type, control_value, reservoir_dimensions, injected_phase: str = 'water', rate_type: str = 'reservoir', surface_phase: str = None, limits: dict = None, bhp_min: float = None,
                  bhp_max: float = None, perforations=None, skin: float = 0.0, well_index: float = None,
-                 ramp_days: float = 0.0):
+                 ramp_days: float = 0.0, ref_depth: float = None):
         """
         Инициализирует скважину.
         
@@ -42,6 +42,7 @@ class Well:
         self.skin = float(skin)
         self.wi_override = well_index  # м^3; если не задан, считается по Писмену
         self.connection_wi = None
+        self.ref_depth = ref_depth  # м, в координатах reservoir.z_centers; по умолчанию — верхняя перфорация
         
         nx, ny, nz = reservoir_dimensions
         self.cell_index = (i, j, k)
@@ -152,6 +153,7 @@ class WellManager:
                 skin=w.get('skin', 0.0),
                 well_index=w.get('well_index'),
                 ramp_days=w.get('ramp_days', 0.0),
+                ref_depth=w.get('ref_depth'),
             )
             self.wells.append(well)
             print(f"  > Скважина '{well.name}' добавлена в менеджер.")

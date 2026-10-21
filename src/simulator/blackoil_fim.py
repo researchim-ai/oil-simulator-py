@@ -11,12 +11,11 @@
 где b = 1/B. Свойства ячейки и их производные по (P, Sw, X) берутся прямым режимом AD (torch.func.jvp),
 потоки по граням и скважины собираются вручную с upwind по потенциалу каждой фазы.
 """
-import math
-
 import torch
 import torch.nn.functional as F
 from torch.func import jvp
 
+from .blackoil_props import BlackOilPVT, ThreePhaseRelPerm
 from .fim_wells import FIMWells, G, DAY
 from .manual_assembly_solver import ManualFIMSolver
 from .sparse_utils import SparseMatrixBuilder
@@ -34,156 +33,6 @@ I_B = 14           # 14..16 bo, bw, bg
 N_PROPS = 17
 # (компонент, фаза, строка подвижности)
 FLUX_TERMS = ((OIL, OIL, I_MOO), (WAT, WAT, I_MWW), (GAS, GAS, I_MGG), (GAS, OIL, I_MGO))
-
-
-def interp1(x, xp, fp):
-    """Кусочно-линейная интерполяция с постоянной экстраполяцией; дифференцируема по x."""
-    n = xp.numel()
-    if n == 1:
-        return fp[0] + 0.0 * x
-    xc = torch.clamp(x, float(xp[0]), float(xp[-1]))
-    i = torch.searchsorted(xp, xc.detach().contiguous(), right=True).clamp(1, n - 1)
-    x0, x1, y0, y1 = xp[i - 1], xp[i], fp[i - 1], fp[i]
-    return y0 + (y1 - y0) * (xc - x0) / (x1 - x0)
-
-
-class BlackOilPVT:
-    """
-    PVT black-oil на torch. Насыщенная ветвь — таблица по P. Недонасыщенная нефть (Rs < Rs_sat(P)):
-    Bo = Bo_sat(Pb)·exp(-c_o (P - Pb)), μo = μo_sat(Pb)·exp(c_μ (P - Pb)), Pb = Rs_sat^-1(Rs);
-    c_o и c_μ берутся из участка таблицы выше давления насыщения (где Rs уже не растёт), иначе c_oil.
-    Без PVT-таблицы — мёртвая нефть и несмешивающийся газ с постоянными сжимаемостями.
-    """
-
-    def __init__(self, fluid, device):
-        self.device = device
-        dt = torch.float64
-        self.rho_sc = (float(fluid.rho_oil_ref), float(fluid.rho_water_ref), float(fluid.rho_gas_ref))
-        self.has_pvt = fluid.pvt is not None
-        if not self.has_pvt:
-            self.c = (fluid.oil_compressibility, fluid.water_compressibility, fluid.gas_compressibility)
-            self.mu = (fluid.mu_oil, fluid.mu_water, fluid.mu_gas)
-            self.rs_max = 0.0
-            return
-        t = fluid.pvt
-        T = lambda a: torch.as_tensor(a, dtype=dt, device=device)
-        self.P = T(t.P * 1e6)
-        self.Bo, self.Bw, self.Bg = T(t.Bo), T(t.Bw), T(t.Bg)
-        self.mu_o, self.mu_w, self.mu_g = T(t.mu_o * 1e-3), T(t.mu_w * 1e-3), T(t.mu_g * 1e-3)
-        self.Rs = T(t.Rs)
-        rs = t.Rs
-        k = int(rs.argmax())
-        keep = [0] + [i for i in range(1, k + 1) if rs[i] > rs[i - 1] * (1 + 1e-12)]
-        self.inv_rs, self.inv_p = self.Rs[keep], self.P[keep]
-        self.rs_max = float(rs[k])
-        self.p_bmax = float(self.P[k])
-        n = len(rs)
-        if k < n - 1 and self.P[-1] > self.P[k]:
-            dP = float(self.P[-1] - self.P[k])
-            self.c_o = -math.log(float(self.Bo[-1] / self.Bo[k])) / dP
-            self.c_mu = math.log(float(self.mu_o[-1] / self.mu_o[k])) / dP
-        else:
-            self.c_o = float(fluid.oil_compressibility)
-            self.c_mu = 0.0
-
-    def rs_sat(self, p):
-        if not self.has_pvt:
-            return 0.0 * p
-        return interp1(p, self.P, self.Rs)
-
-    def oil(self, p, rs, sat):
-        if not self.has_pvt:
-            return 1.0 + self.c[0] * (p - 1e5), self.mu[0] + 0.0 * p
-        Bo_s, mu_s = interp1(p, self.P, self.Bo), interp1(p, self.P, self.mu_o)
-        pb = interp1(rs, self.inv_rs, self.inv_p)
-        Bo_u = interp1(pb, self.P, self.Bo) * torch.exp(-self.c_o * (p - pb))
-        mu_u = interp1(pb, self.P, self.mu_o) * torch.exp(self.c_mu * (p - pb))
-        return 1.0 / torch.where(sat, Bo_s, Bo_u), torch.where(sat, mu_s, mu_u)
-
-    def water(self, p):
-        if not self.has_pvt:
-            return 1.0 + self.c[1] * (p - 1e5), self.mu[1] + 0.0 * p
-        return 1.0 / interp1(p, self.P, self.Bw), interp1(p, self.P, self.mu_w)
-
-    def gas(self, p):
-        if not self.has_pvt:
-            return 1.0 + self.c[2] * (p - 1e5), self.mu[2] + 0.0 * p
-        return 1.0 / interp1(p, self.P, self.Bg), interp1(p, self.P, self.mu_g)
-
-
-class ThreePhaseRelPerm:
-    """
-    Трёхфазные ОФП: krw(Sw), krg(Sg) и kro по Stone II (как в Eclipse STONE2):
-        kro = krocw·[(krow/krocw + krw)(krog/krocw + krg) - krw - krg],  kro ≥ 0
-    Двухфазные кривые — Corey по параметрам fluid.relative_permeability или таблицы SWOF/SGOF.
-    При Sg = 0 kro совпадает с krow.
-    """
-
-    def __init__(self, fluid, device):
-        self.device = device
-        self.tables = None
-        if getattr(fluid, 'relperm_model', 'corey') == 'table' and fluid.relperm_tables:
-            T = lambda a: torch.as_tensor(a, dtype=torch.float64, device=device)
-            self.tables = {}
-            for key, tbl in fluid.relperm_tables.items():
-                self.tables[key] = {k: T(v) for k, v in tbl.items()}
-            sw_tab = self.tables.get('swof')
-            self.krocw = float(sw_tab['kro'][0]) if sw_tab is not None else 1.0
-        else:
-            self.swc = float(fluid.sw_cr)
-            self.sor = float(fluid.so_r)
-            self.sgc = float(getattr(fluid, 'sg_cr', 0.0))
-            self.nw = float(fluid.nw)
-            self.now = float(getattr(fluid, 'now', fluid.no))
-            self.ng = float(fluid.ng)
-            self.nog = float(getattr(fluid, 'nog', fluid.ng))
-            self.krw_end = float(getattr(fluid, 'krw_end', 1.0))
-            self.krg_end = float(getattr(fluid, 'krg_end', 1.0))
-            self.krocw = float(getattr(fluid, 'ko_end_w', 1.0))
-            self.krog_end = float(getattr(fluid, 'ko_end_g', 1.0))
-        self.pc_scale = float(getattr(fluid, 'pc_scale', 0.0))
-        self.pc_exp = float(getattr(fluid, 'pc_exponent', 1.5))
-        self.pcg_scale = float(getattr(fluid, 'pc_og_scale', 0.0))
-        self.pcg_exp = float(getattr(fluid, 'pc_og_exponent', 1.5))
-
-    def __call__(self, sw, sg):
-        if self.tables is not None:
-            tw, tg = self.tables.get('swof'), self.tables.get('sgof')
-            krw = interp1(sw, tw['sw'], tw['krw']) if tw is not None else 0.0 * sw
-            krow = interp1(sw, tw['sw'], tw['kro']) if tw is not None else 0.0 * sw + 1.0
-            krg = interp1(sg, tg['sg'], tg['krg']) if tg is not None else 0.0 * sg
-            krog = interp1(sg, tg['sg'], tg['kro']) if tg is not None else 0.0 * sg + self.krocw
-        else:
-            dw = 1.0 - self.swc - self.sor
-            swn = torch.clamp((sw - self.swc) / dw, 0.0, 1.0)
-            krw = self.krw_end * swn ** self.nw
-            krow = self.krocw * (1.0 - swn) ** self.now
-            sgn = torch.clamp((sg - self.sgc) / max(dw - self.sgc, 1e-12), 0.0, 1.0)
-            krg = self.krg_end * sgn ** self.ng
-            sgo = torch.clamp(sg / dw, 0.0, 1.0)
-            krog = self.krog_end * (1.0 - sgo) ** self.nog
-        c = self.krocw
-        kro = c * ((krow / c + krw) * (krog / c + krg) - krw - krg)
-        return krw, torch.clamp(kro, min=0.0), krg
-
-    def pc(self, sw, sg):
-        """Pcow = Po - Pw, Pcog = Pg - Po (те же определения, что в Fluid)."""
-        if self.tables is not None:
-            tw, tg = self.tables.get('swof'), self.tables.get('sgof')
-            pcow = interp1(sw, tw['sw'], tw['pcow']) if tw is not None else 0.0 * sw
-            pcog = interp1(sg, tg['sg'], tg['pcog']) if tg is not None else 0.0 * sg
-            return pcow, pcog
-        dw = 1.0 - self.swc - self.sor
-        pcow = 0.0 * sw
-        pcog = 0.0 * sg
-        if self.pc_scale:
-            swn = torch.clamp((sw - self.swc) / dw, 0.0, 1.0)
-            pcow = self.pc_scale * (1.0 - swn + 1e-6) ** (-self.pc_exp)
-        if self.pcg_scale:
-            sgn = torch.clamp(sg / dw, 0.0, 1.0)
-            pcog = self.pcg_scale * (1.0 - sgn + 1e-6) ** (-self.pcg_exp)
-        return pcow, pcog
-
 
 class BlackOilWells(FIMWells):
     """Скважины трёхфазной модели: те же p_bh-неизвестные, режимы и дополнение Шура, что в FIMWells."""
@@ -356,9 +205,17 @@ class BlackOilFIMSolver(ManualFIMSolver):
         dev = self.device
         self.pore_volume = (reservoir.cell_volume * reservoir.porosity).reshape(-1).double().to(dev)
         self.c_rock = float(getattr(fluid, 'rock_compressibility', 0.0))
-        self.p_ref_rock = fluid.pressure.detach().reshape(-1).double().clone().to(dev)
-        self.pvt = BlackOilPVT(fluid, dev)
-        self.kr = ThreePhaseRelPerm(fluid, dev)
+        p_ref = getattr(fluid, 'rock_ref_pressure', None)
+        self.rock_eclipse = p_ref is not None
+        if self.rock_eclipse:
+            self.p_ref_rock = torch.full((self.n_cells,), float(p_ref), dtype=torch.float64, device=dev)
+        else:
+            self.p_ref_rock = fluid.pressure.detach().reshape(-1).double().clone().to(dev)
+        self.pvt = getattr(fluid, 'blackoil_pvt', None) or BlackOilPVT(fluid, dev)
+        self.kr = getattr(fluid, 'blackoil_relperm', None) or ThreePhaseRelPerm(fluid, dev)
+        drsdt = params.get('drsdt')
+        self.drsdt = None if drsdt is None else float(drsdt)
+        self._rs_cap = None
         self.rho_sc = torch.tensor(self.pvt.rho_sc, dtype=torch.float64, device=dev)
 
         self._build_connections()
@@ -380,15 +237,29 @@ class BlackOilFIMSolver(ManualFIMSolver):
               f"насыщенных ячеек {int(self.sat.sum())}/{self.n_cells}")
 
     # ------------------------------------------------------------ свойства
+    def _pv(self, p_flat):
+        if not self.rock_eclipse:
+            return super()._pv(p_flat)
+        X = self.c_rock * (p_flat - self.p_ref_rock)
+        return self.pore_volume * (1.0 + X + 0.5 * X * X)
+
+    def rs_sat_eff(self, p):
+        """Rs в насыщенной ячейке: Rs_sat(P), ограниченное сверху DRSDT (Rs_old + DRSDT·dt)."""
+        rs = self.pvt.rs_sat(p)
+        return rs if self._rs_cap is None else torch.minimum(rs, self._rs_cap)
+
     def _cell_fn(self, sat):
         pvt, kr = self.pvt, self.kr
         rho_o, rho_w, rho_g = pvt.rho_sc
+        cap = self._rs_cap
 
         def fn(p, sw, x):
             sg = torch.where(sat, x, 0.0 * x)
-            rs = torch.where(sat, pvt.rs_sat(p), x)
+            rs_s = pvt.rs_sat(p)
+            on_sat_line = sat if cap is None else sat & (rs_s.detach() <= cap)
+            rs = torch.where(sat, rs_s if cap is None else torch.minimum(rs_s, cap), x)
             so = 1.0 - sw - sg
-            bo, mu_o = pvt.oil(p, rs, sat)
+            bo, mu_o = pvt.oil(p, rs, on_sat_line)
             bw, mu_w = pvt.water(p)
             bg, mu_g = pvt.gas(p)
             krw, kro, krg = kr(sw, sg)
@@ -488,7 +359,7 @@ class BlackOilFIMSolver(ManualFIMSolver):
 
     # ------------------------------------------------------------ шаг
     def _sg_rs(self, p, x, sat):
-        rs_s = self.pvt.rs_sat(p)
+        rs_s = self.rs_sat_eff(p)
         return torch.where(sat, x, torch.zeros_like(x)), torch.where(sat, rs_s, x)
 
     def step(self, dt, current_time=None):
@@ -500,6 +371,9 @@ class BlackOilFIMSolver(ManualFIMSolver):
         p_old = self.fluid.pressure.detach().reshape(-1).double().clone()
         sw_old = self.fluid.s_w.detach().reshape(-1).double().clone()
         sat_old, x_old = self.sat.clone(), self.x.clone()
+        if self.drsdt is not None and self.pvt.has_pvt:
+            rs_old = self.fluid.rs.reshape(-1).double()
+            self._rs_cap = rs_old + self.drsdt * dt
         sg_old, _ = self._sg_rs(p_old, x_old, sat_old)
         acc_old = self.cell_values(p_old, sw_old, x_old, sat_old)[I_ACC:I_ACC + 3]
         mass_total = acc_old.sum(dim=1).tolist() if dbg.enabled else None
@@ -625,7 +499,7 @@ class BlackOilFIMSolver(ManualFIMSolver):
         x = x + torch.where(sat, dsg, drs)
         n_switch = 0
         if self.pvt.has_pvt:
-            rs_s = self.pvt.rs_sat(p)
+            rs_s = self.rs_sat_eff(p)
             to_us = sat & (x < 0)
             to_sat = (~sat) & (x > rs_s)
             x = torch.where(to_us, rs_s, x)
@@ -647,7 +521,7 @@ class BlackOilFIMSolver(ManualFIMSolver):
 
 def needs_blackoil(fluid, well_manager):
     """Нужна ли трёхфазная модель: PVT-таблица, свободный газ или газовые скважины."""
-    if getattr(fluid, 'pvt', None) is not None:
+    if getattr(fluid, 'pvt', None) is not None or getattr(fluid, 'blackoil_pvt', None) is not None:
         return True
     if float(fluid.s_g.max()) > 0:
         return True

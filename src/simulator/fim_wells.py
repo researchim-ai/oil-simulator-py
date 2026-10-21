@@ -62,7 +62,7 @@ class FIMWells:
                 owner.append(w_idx)
                 wis.append(wi)
                 w_depths.append(float(zc[k]))
-            ref = min(w_depths)
+            ref = min(w_depths) if w.ref_depth is None else float(w.ref_depth)
             self.ref_depth.append(ref)
             depths.extend(d - ref for d in w_depths)
             w.connection_wi = wis[-len(perfs):]

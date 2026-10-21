@@ -149,3 +149,23 @@ $$
 | 100×100×100, PVT, 65 скважин с пределами BHP, RTX 3090 | 2.7–9 с на 0.5 сут, без дроблений; пиковая память 10 ГБ |
 
 Сравнение с трёхфазным IMPES пока некорректно: IMPES использует старый индекс скважины (`Well.well_index`, зашитые 1 м и 100 мД — фактически бесконечная продуктивность) и при модели `corey` не учитывает влияние газа на \(k_{ro}\).
+
+## 10. Верификация на SPE1 (Eclipse / OPM Flow)
+
+Deck `tests/data/spe1/SPE1CASE1.DATA` читается напрямую (`simulator.eclipse_deck.EclipseCase`), считается по расписанию TSTEP
+(`simulator.eclipse_run.run_deck`) и сравнивается с бинарными сводками Eclipse 2014.2 и OPM Flow:
+
+    python scripts/compare_eclipse.py tests/data/spe1/SPE1CASE1.DATA \
+        --ref eclipse=tests/data/spe1/eclipse/SPE1CASE1 --ref opm=tests/data/spe1/opm/SPE1CASE1 --plot results/spe1.png
+
+Средняя относительная ошибка за 10 лет (для BGSAT — по отношению к максимуму):
+
+| вектор | vs Eclipse | vs OPM | Eclipse vs OPM |
+|---|---|---|---|
+| FOPR | 0.02% | 0.07% | 0.07% |
+| FGOR | 0.08% | 0.21% | 0.24% |
+| WBHP PROD / INJ | 0.03% / 0.02% | 0.08% / 0.06% | 0.12% / 0.07% |
+| BPR (1,1,1) / (10,10,3) | 0.01% / 0.02% | 0.02% / 0.05% | 0.02% / 0.05% |
+| BGSAT (1,1,1) / (10,10,3) | 0.17% / 0.04% | 0.20% / 0.08% | 0.36% / 0.11% |
+
+CPU: 35 с, 145 подшагов, ~5 итераций Ньютона на подшаг. Регрессия: `tests/test_spe1.py` (допуск 1%).

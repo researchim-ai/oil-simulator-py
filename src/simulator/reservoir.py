@@ -142,12 +142,12 @@ class Reservoir:
             else:
                 raise ValueError(f"{name}: неподдерживаемый формат '{path.suffix}'")
             arr = np.asarray(arr, dtype=np.float64)
-            if arr.shape != shape:
+            if arr.shape != tuple(shape):
                 raise ValueError(f"{name}: ожидаемая форма {shape}, получено {arr.shape}")
             return torch.from_numpy(arr).to(self.device)
         if isinstance(value, (list, tuple)):
             arr = np.asarray(value, dtype=np.float64)
-            if arr.shape != shape:
+            if arr.shape != tuple(shape):
                 raise ValueError(f"{name}: ожидаемая форма {shape}, получено {arr.shape}")
             return torch.from_numpy(arr).to(self.device)
         raise ValueError(f"{name}: неподдерживаемый тип {type(value)}")
