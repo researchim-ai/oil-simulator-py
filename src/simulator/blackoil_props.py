@@ -97,12 +97,67 @@ class DeckPVT:
             mu = T([r[2] for r in pvdo])
             self.do_b, self.do_bm = 1.0 / B, 1.0 / (B * mu)
 
-        pvdg = tables["pvdg"]
-        self.g_p = T([r[0] for r in pvdg])
-        Bg = T([r[1] for r in pvdg])
-        mug = T([r[2] for r in pvdg])
-        self.g_b, self.g_bm = 1.0 / Bg, 1.0 / (Bg * mug)
+        pvtg = tables.get("pvtg")
+        self.wet = bool(pvtg) and bool(tables.get("vapoil", True))
+        self.rv_max = 0.0
+        if pvtg:
+            self._init_pvtg(pvtg, T, dt)
+        else:
+            pvdg = tables["pvdg"]
+            self.g_p = T([r[0] for r in pvdg])
+            Bg = T([r[1] for r in pvdg])
+            mug = T([r[2] for r in pvdg])
+            self.g_b, self.g_bm = 1.0 / Bg, 1.0 / (Bg * mug)
         self.pvtw = tuple(float(v) for v in tables["pvtw"])
+
+    def _init_pvtg(self, pvtg, T, dt):
+        """
+        PVTG: записи (P, [(Rv, Bg, μg), ...]), первая строка записи — насыщенный газ Rv_sat(P).
+        Насыщенная ветвь — по P; недонасыщенная (Rv < Rv_sat): для каждой записи интерполяция 1/Bg и 1/(Bg·μg)
+        по Rv (линейная экстраполяция), между записями — линейно по P (как WetGasPvt в OPM).
+        Запись без недонасыщенной ветви достраивается по ближайшей записи с ветвью в относительных величинах.
+        """
+        recs = sorted(((float(p), [tuple(map(float, r)) for r in rows]) for p, rows in pvtg), key=lambda r: r[0])
+        self.g_p = T([r[0] for r in recs])
+        sat = [r[1][0] for r in recs]
+        self.rv_tab = T([r[0] for r in sat])
+        Bs = T([r[1] for r in sat])
+        self.g_b, self.g_bm = 1.0 / Bs, 1.0 / (Bs * T([r[2] for r in sat]))
+        self.rv_max = float(self.rv_tab.max())
+        branch = [len(r[1]) > 1 for r in recs]
+        full = []
+        for i, (p, rows) in enumerate(recs):
+            if not branch[i]:
+                order = list(range(i + 1, len(recs))) + list(range(i - 1, -1, -1))
+                m = next((j for j in order if branch[j]), None)
+                rv0, B0, mu0 = rows[0]
+                if m is None:
+                    rows = [rows[0], (rv0 - 1.0, B0, mu0)]
+                else:
+                    mr = recs[m][1]
+                    mrv0, mB0, mmu0 = mr[0]
+                    rows = [rows[0]] + [(rv0 + (r[0] - mrv0), B0 * r[1] / mB0, mu0 * r[2] / mmu0) for r in mr[1:]]
+            rows = sorted(rows, key=lambda r: r[0])
+            full.append(rows)
+        m = max(len(r) for r in full)
+        RV = torch.zeros((len(full), m), dtype=dt)
+        b = torch.zeros_like(RV)
+        bm = torch.zeros_like(RV)
+        for t, rows in enumerate(full):
+            rv_ = [r[0] for r in rows]
+            b_ = [1.0 / r[1] for r in rows]
+            bm_ = [1.0 / (r[1] * r[2]) for r in rows]
+            while len(rv_) < m:
+                s_b = (b_[-1] - b_[-2]) / (rv_[-1] - rv_[-2])
+                s_m = (bm_[-1] - bm_[-2]) / (rv_[-1] - rv_[-2])
+                d = 1.0 * len(rv_)
+                rv_.append(rv_[-1] + d)
+                b_.append(b_[-1] + s_b * d)
+                bm_.append(bm_[-1] + s_m * d)
+            RV[t], b[t], bm[t] = T(rv_), T(b_), T(bm_)
+        dev = self.g_p.device
+        self.ug_RV, self.ug_b, self.ug_bm = RV.to(dev), b.to(dev), bm.to(dev)
+        self.pvtg = True
 
     @staticmethod
     def _extend_pvto(recs):
@@ -121,6 +176,12 @@ class DeckPVT:
                                    for r in recs[master][1][1:]]
             out.append((rs, ext))
         return out
+
+    def at(self, idx):
+        return self
+
+    def region(self, r):
+        return self
 
     def rs_sat(self, p):
         if not self.live:
@@ -151,9 +212,31 @@ class DeckPVT:
         bm = (1.0 + Y + 0.5 * Y * Y) / (Bw_ref * mu_ref)
         return bw, bw / bm
 
-    def gas(self, p):
-        b, bm = interp1_lin(p, self.g_p, self.g_b), interp1_lin(p, self.g_p, self.g_bm)
-        return b, b / bm
+    def rv_sat(self, p):
+        if not self.wet:
+            return 0.0 * p
+        return interp1_lin(p, self.g_p, self.rv_tab).clamp_min(0.0)
+
+    def gas(self, p, rv=None, sat=None):
+        """1/Bg и μg. Сухой газ (PVDG или PVTG без VAPOIL — Rv = 0); жирный: насыщенный (sat) или по Rv."""
+        if not getattr(self, "pvtg", False):
+            b, bm = interp1_lin(p, self.g_p, self.g_b), interp1_lin(p, self.g_p, self.g_bm)
+            return b, b / bm
+        if not self.wet:
+            rv, sat = 0.0 * p, None
+        elif rv is None:
+            b_s, bm_s = interp1_lin(p, self.g_p, self.g_b), interp1_lin(p, self.g_p, self.g_bm)
+            return b_s, b_s / bm_s
+        n_t = self.g_p.numel()
+        i = torch.searchsorted(self.g_p, p.detach().contiguous(), right=True).clamp(1, n_t - 1)
+        lo, hi = i - 1, i
+        w = (p - self.g_p[lo]) / (self.g_p[hi] - self.g_p[lo])
+        b_u = (1 - w) * interp_rows(rv, self.ug_RV[lo], self.ug_b[lo]) + w * interp_rows(rv, self.ug_RV[hi], self.ug_b[hi])
+        bm_u = (1 - w) * interp_rows(rv, self.ug_RV[lo], self.ug_bm[lo]) + w * interp_rows(rv, self.ug_RV[hi], self.ug_bm[hi])
+        if sat is not None:
+            b_s, bm_s = interp1_lin(p, self.g_p, self.g_b), interp1_lin(p, self.g_p, self.g_bm)
+            b_u, bm_u = torch.where(sat, b_s, b_u), torch.where(sat, bm_s, bm_u)
+        return b_u, b_u / bm_u
 
 
 class BlackOilPVT:
@@ -169,6 +252,7 @@ class BlackOilPVT:
         dt = torch.float64
         self.rho_sc = (float(fluid.rho_oil_ref), float(fluid.rho_water_ref), float(fluid.rho_gas_ref))
         self.has_pvt = fluid.pvt is not None
+        self.wet, self.rv_max = False, 0.0
         if not self.has_pvt:
             self.c = (fluid.oil_compressibility, fluid.water_compressibility, fluid.gas_compressibility)
             self.mu = (fluid.mu_oil, fluid.mu_water, fluid.mu_gas)
@@ -195,6 +279,12 @@ class BlackOilPVT:
             self.c_o = float(fluid.oil_compressibility)
             self.c_mu = 0.0
 
+    def at(self, idx):
+        return self
+
+    def region(self, r):
+        return self
+
     def rs_sat(self, p):
         if not self.has_pvt:
             return 0.0 * p
@@ -214,7 +304,10 @@ class BlackOilPVT:
             return 1.0 + self.c[1] * (p - 1e5), self.mu[1] + 0.0 * p
         return 1.0 / interp1(p, self.P, self.Bw), interp1(p, self.P, self.mu_w)
 
-    def gas(self, p):
+    def rv_sat(self, p):
+        return 0.0 * p
+
+    def gas(self, p, rv=None, sat=None):
         if not self.has_pvt:
             return 1.0 + self.c[2] * (p - 1e5), self.mu[2] + 0.0 * p
         return 1.0 / interp1(p, self.P, self.Bg), interp1(p, self.P, self.mu_g)
@@ -263,6 +356,9 @@ class ThreePhaseRelPerm:
         self.pc_exp = float(getattr(fluid, 'pc_exponent', 1.5))
         self.pcg_scale = float(getattr(fluid, 'pc_og_scale', 0.0))
         self.pcg_exp = float(getattr(fluid, 'pc_og_exponent', 1.5))
+
+    def region(self, r):
+        return self
 
     def _two_phase(self, sw, sg):
         """krw(Sw), krow(Sw), krg(Sg), krog(Sg)."""

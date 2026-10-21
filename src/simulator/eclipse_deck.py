@@ -34,13 +34,16 @@ FLAG_KEYWORDS = {
 IGNORED = {"TITLE", "EQLDIMS", "TABDIMS", "WELLDIMS", "RPTSCHED", "RPTRST", "RPTSOL", "RPTPROPS",
            "RPTGRID", "RPTRUNSP", "NSTACK", "MESSAGES", "TUNING", "SPECGRID", "GRIDFILE", "MAPAXES", "GRIDUNIT"}
 # влияют на физику, но пока не поддерживаются
-UNSUPPORTED = {"PVTG", "VAPOIL", "SWFN", "SGFN", "SOF3", "SLGOF", "AQUFETP", "AQUCT", "PBVD", "PDVD", "RVVD",
+UNSUPPORTED = {"VAPPARS", "SWFN", "SGFN", "SOF3", "SLGOF", "AQUFETP", "AQUCT", "PBVD", "PDVD", "RVVD",
                "PRESSURE", "SWAT", "SGAS", "RS", "NNC", "EDITNNC",
-               "DRVDT", "ROCKTAB", "SATNUM", "PVTNUM", "EQLNUM", "WECON", "WTEST", "TRANX", "TRANY", "TRANZ",
+               "DRVDT", "ROCKTAB", "WECON", "WTEST", "TRANX", "TRANY", "TRANZ",
                "COMPORD", "OPERATE", "MINPVV", "MINPORV", "THPRES",
-               "OLDTRAN", "SWATINIT", "ENDSCALE", "HYSTER", "LGR", "CARFIN"}
+               "OLDTRAN", "HYSTER", "LGR", "CARFIN"}
 ARRAY_KEYWORDS = {"DX", "DY", "DZ", "TOPS", "PORO", "PERMX", "PERMY", "PERMZ", "NTG", "ACTNUM",
-                  "MULTX", "MULTY", "MULTZ", "MULTX-", "MULTY-", "MULTZ-", "MULTPV", "FLUXNUM", "MULTNUM"}
+                  "MULTX", "MULTY", "MULTZ", "MULTX-", "MULTY-", "MULTZ-", "MULTPV", "FLUXNUM", "MULTNUM",
+                  "SATNUM", "PVTNUM", "EQLNUM", "FIPNUM", "IMBNUM", "SWATINIT",
+                  "SWL", "SWCR", "SWU", "SOWCR", "SGL", "SGCR", "SGU", "SOGCR", "KRW", "KRO", "KRG", "PCW", "PCG",
+                  "ISWL", "ISWCR", "ISWU", "ISOWCR", "ISGL", "ISGCR", "ISGU", "ISOGCR"}
 GRID_SECTIONS = ("RUNSPEC", "GRID", "EDIT")
 RAW_KEYWORDS = {"COORD", "ZCORN"}
 EDIT_OPS = {"EQUALS", "COPY", "ADD", "MULTIPLY"}
@@ -177,6 +180,7 @@ class EclipseCase:
             raise NotImplementedError("единицы LAB не поддерживаются")
         self.u = UNITS[self.units_name]
         self.kro_model = "stone2" if ("STONE2" in kws or "STONE" in kws) else "default"
+        self.vapoil = "VAPOIL" in kws
         if "STONE1" in kws and not grid_only:
             raise NotImplementedError("STONE1 не поддерживается")
         self._read()
@@ -200,6 +204,11 @@ class EclipseCase:
         self.multregt = []
         self.pinch = None
         self.minpv = 0.0
+        self.region_tables = {}
+        self.endscale = False
+        self.scalecrs = False
+        self.hysteresis = False
+        self.ehystr = None
         self.start = None
         self.well_group = {}
         self.group_parent = {}
@@ -239,39 +248,78 @@ class EclipseCase:
                     if r:
                         self._edit(kw, r, box)
             elif kw == "PVTO":
-                self.tables["pvto"] = self._pvto(recs)
+                tabs, cur = [], []
+                for r in recs + [[]]:
+                    if r:
+                        cur.append(r)
+                    elif cur:
+                        tabs.append(self._pvto(cur))
+                        cur = []
+                self.region_tables["pvto"] = tabs
+            elif kw == "PVTG":
+                tabs, cur = [], []
+                for r in recs + [[]]:
+                    if r:
+                        cur.append(r)
+                    elif cur:
+                        tabs.append(self._pvtg(cur))
+                        cur = []
+                self.region_tables["pvtg"] = tabs
             elif kw == "PVDO":
-                self.tables["pvdo"] = [(r[0] * u["p"], r[1], r[2] * 1e-3) for r in self._rows(recs[0], 3)]
+                self.region_tables["pvdo"] = [[(r[0] * u["p"], r[1], r[2] * 1e-3) for r in self._rows(rec, 3)]
+                                              for rec in recs if rec]
             elif kw == "PVDG":
                 bg = u["liq"] / u["gas"]
-                self.tables["pvdg"] = [(r[0] * u["p"], r[1] * bg, r[2] * 1e-3) for r in self._rows(recs[0], 3)]
+                self.region_tables["pvdg"] = [[(r[0] * u["p"], r[1] * bg, r[2] * 1e-3) for r in self._rows(rec, 3)]
+                                              for rec in recs if rec]
             elif kw == "PVTW":
-                r = recs[0]
-                self.tables["pvtw"] = (r[0] * u["p"], r[1], _get(r, 2, 0.0) * u["comp"], _get(r, 3, 0.5) * 1e-3,
-                                       _get(r, 4, 0.0) * u["comp"])
+                self.region_tables["pvtw"] = [(r[0] * u["p"], r[1], _get(r, 2, 0.0) * u["comp"],
+                                               _get(r, 3, 0.5) * 1e-3, _get(r, 4, 0.0) * u["comp"])
+                                              for r in recs if r]
             elif kw == "ROCK":
-                self.rock = (recs[0][0] * u["p"], _get(recs[0], 1, 0.0) * u["comp"])
+                self.region_tables["rock"] = [(r[0] * u["p"], _get(r, 1, 0.0) * u["comp"]) for r in recs if r]
             elif kw == "DENSITY":
-                r = recs[0]
-                self.density = tuple(float(v) * u["rho"] for v in r[:3])
+                self.region_tables["density"] = [tuple(float(v) * u["rho"] for v in r[:3]) for r in recs if r]
             elif kw == "SWOF":
-                rows = self._rows(recs[0], 4)
-                self.tables["swof"] = {"sw": [r[0] for r in rows], "krw": [r[1] for r in rows],
-                                       "kro": [r[2] for r in rows], "pcow": [r[3] * u["p"] for r in rows]}
+                tabs = []
+                for rec in recs:
+                    if rec:
+                        rows = self._rows(rec, 4)
+                        tabs.append({"sw": [r[0] for r in rows], "krw": [r[1] for r in rows],
+                                     "kro": [r[2] for r in rows], "pcow": [r[3] * u["p"] for r in rows]})
+                self.region_tables["swof"] = tabs
             elif kw == "SGOF":
-                rows = self._rows(recs[0], 4)
-                self.tables["sgof"] = {"sg": [r[0] for r in rows], "krg": [r[1] for r in rows],
-                                       "kro": [r[2] for r in rows], "pcog": [r[3] * u["p"] for r in rows]}
+                tabs = []
+                for rec in recs:
+                    if rec:
+                        rows = self._rows(rec, 4)
+                        tabs.append({"sg": [r[0] for r in rows], "krg": [r[1] for r in rows],
+                                     "kro": [r[2] for r in rows], "pcog": [r[3] * u["p"] for r in rows]})
+                self.region_tables["sgof"] = tabs
             elif kw == "EQUIL":
-                r = recs[0]
-                self.equil = dict(datum=r[0] * u["L"], p=r[1] * u["p"], woc=_get(r, 2, 1e9 / u["L"]) * u["L"],
-                                  pcwoc=_get(r, 3, 0.0) * u["p"], goc=_get(r, 4, -1e9 / u["L"]) * u["L"],
-                                  pcgoc=_get(r, 5, 0.0) * u["p"])
+                self.region_tables["equil"] = [
+                    dict(datum=r[0] * u["L"], p=r[1] * u["p"], woc=_get(r, 2, 1e9 / u["L"]) * u["L"],
+                         pcwoc=_get(r, 3, 0.0) * u["p"], goc=_get(r, 4, -1e9 / u["L"]) * u["L"],
+                         pcgoc=_get(r, 5, 0.0) * u["p"]) for r in recs if r]
             elif kw == "RSVD":
-                rows = self._rows(recs[0], 2)
-                self.rsvd = [(r[0] * u["L"], r[1] * u["gas"] / u["liq"]) for r in rows]
+                self.region_tables["rsvd"] = [[(r[0] * u["L"], r[1] * u["gas"] / u["liq"]) for r in self._rows(rec, 2)]
+                                              for rec in recs if rec]
             elif kw == "DRSDT":
                 self.drsdt = float(recs[0][0]) * u["gas"] / u["liq"] / DAY
+            elif kw == "ENDSCALE":
+                r = recs[0] if recs else []
+                if str(_get(r, 0, "NODIR")).upper() == "DIRECT":
+                    raise NotImplementedError("ENDSCALE DIRECT (направленное масштабирование) не поддерживается")
+                self.endscale = True
+            elif kw == "SCALECRS":
+                self.scalecrs = str(_get(recs[0] if recs else [], 0, "NO")).upper().startswith("Y")
+            elif kw == "SATOPTS":
+                opts = {str(v).upper() for r in recs for v in r if v is not None}
+                if "DIRECT" in opts or "IRREVERS" in opts:
+                    raise NotImplementedError(f"SATOPTS {sorted(opts)} не поддерживаются")
+                self.hysteresis = "HYSTER" in opts
+            elif kw in ("EHYSTR",):
+                self.ehystr = recs[0] if recs else []
             elif kw == "FAULTS":
                 for r in recs:
                     if r:
@@ -376,6 +424,18 @@ class EclipseCase:
                             date = date + datetime.timedelta(days=float(v))
             else:
                 unknown.add(kw)
+        rt = self.region_tables
+        for key in ("pvto", "pvdo", "pvdg", "pvtg", "pvtw", "swof", "sgof"):
+            if key in rt:
+                self.tables[key] = rt[key][0]
+        if "rock" in rt:
+            self.rock = rt["rock"][0]
+        if "density" in rt:
+            self.density = rt["density"][0]
+        if "equil" in rt:
+            self.equil = rt["equil"][0]
+        if "rsvd" in rt:
+            self.rsvd = rt["rsvd"][0]
         if unknown:
             print(f"  ⚠ deck: проигнорированы ключевые слова: {', '.join(sorted(unknown))}")
 
@@ -386,6 +446,14 @@ class EclipseCase:
                 raise ValueError(f"в deck нет {req}")
         if self.grid_only:
             return
+        if self.hysteresis:
+            r = self.ehystr or []
+            model = int(_get(r, 1, 0) or 0)
+            what = str(_get(r, 4, "BOTH")).upper()
+            if model != 0:
+                raise NotImplementedError(f"гистерезис: EHYSTR модель {model} не поддерживается (только 0 — Карлсон)")
+            if what != "KR":
+                raise NotImplementedError(f"гистерезис Pc (EHYSTR {what}) не поддерживается — только KR")
         if not self.steps:
             raise ValueError("в deck нет TSTEP")
         for name in self.wells:
@@ -397,9 +465,12 @@ class EclipseCase:
                 t = "producer" if kw in ("WCONPROD", "WCONHIST") else "injector"
                 if self.well_type.setdefault(name, t) != t:
                     raise NotImplementedError(f"{name}: смена типа скважины (добыча ↔ закачка) не поддерживается")
-        for key in ("pvdg", "pvtw"):
-            if key not in self.tables:
-                raise ValueError(f"в deck нет {key.upper()}")
+        if "pvdg" not in self.tables and "pvtg" not in self.tables:
+            raise ValueError("в deck нет PVDG или PVTG")
+        if "pvtw" not in self.tables:
+            raise ValueError("в deck нет PVTW")
+        if self.vapoil and "pvtg" not in self.tables:
+            raise ValueError("VAPOIL требует PVTG")
         if "pvto" not in self.tables and "pvdo" not in self.tables:
             raise ValueError("в deck нет PVTO или PVDO")
         if self.equil is None:
@@ -435,7 +506,7 @@ class EclipseCase:
         """Массив [nz, ny, nx]; незаданные значения — NaN, для множителей/NTG/регионов — 1."""
         if name not in self.arrays:
             nx, ny, nz = self.dims
-            fill = 1.0 if name.startswith("MULT") or name in ("NTG", "FLUXNUM", "MULTNUM") else np.nan
+            fill = 1.0 if name.startswith("MULT") or name in ("NTG", "FLUXNUM", "MULTNUM", "SATNUM", "PVTNUM", "EQLNUM", "FIPNUM") else np.nan
             self.arrays[name] = np.full((nz, ny, nx), fill)
         return self.arrays[name]
 
@@ -469,6 +540,18 @@ class EclipseCase:
     def _rows(rec, width):
         vals = [0.0 if v is None else float(v) for v in rec]
         return [vals[i:i + width] for i in range(0, len(vals) - len(vals) % width, width)]
+
+    def _pvtg(self, recs):
+        """PVTG: запись 'P Rv Bg μg [Rv Bg μg ...]' → (P, [(Rv, Bg, μg)]) в СИ (Rv — м³ нефти / м³ газа)."""
+        u = self.u
+        rv_u = u["liq"] / u["gas"]
+        out = []
+        for r in recs:
+            if not r:
+                continue
+            rows = [(r[k] * rv_u, r[k + 1] * rv_u, r[k + 2] * 1e-3) for k in range(1, len(r) - 2, 3)]
+            out.append((r[0] * u["p"], rows))
+        return out
 
     def _pvto(self, recs):
         u = self.u
@@ -509,27 +592,67 @@ class EclipseCase:
         nx, ny, nz = self.dims
         res = self._build_grid(Reservoir, device)
 
+        rt = self.region_tables
+        regs = {name: self._region_index(name) for name in ("PVTNUM", "SATNUM", "EQLNUM")}
+        regs["IMBNUM"] = self._region_index("IMBNUM") if "IMBNUM" in self.arrays else regs["SATNUM"]
+        n_pvt, n_sat = int(regs["PVTNUM"].max()) + 1, int(regs["SATNUM"].max()) + 1
+        n_tab = max(n_sat, int(regs["IMBNUM"].max()) + 1 if self.hysteresis else 0)
+        pick = lambda key, r: rt[key][min(r, len(rt[key]) - 1)] if key in rt else None
+        for key, n in (("pvtw", n_pvt), ("pvdg", n_pvt), ("pvtg", n_pvt), ("swof", n_tab), ("sgof", n_tab)):
+            if key in rt and len(rt[key]) < n:
+                raise ValueError(f"{key.upper()}: таблиц {len(rt[key])}, а регионов {n}")
+        oil_key = "pvto" if "pvto" in rt else "pvdo"
+        if len(rt[oil_key]) < n_pvt:
+            raise ValueError(f"{oil_key.upper()}: таблиц {len(rt[oil_key])}, а регионов PVTNUM {n_pvt}")
         rho = self.density
-        pvt = DeckPVT(self.tables, rho, device)
-        rp_tables = {k: self.tables[k] for k in ("swof", "sgof") if k in self.tables}
-        kr = ThreePhaseRelPerm(tables=rp_tables, device=device, kro_model=self.kro_model)
-        swc = float(self.tables["swof"]["sw"][0]) if "swof" in self.tables else 0.0
-        p_ref, c_r = getattr(self, "rock", (1e5, 0.0))
+        pvts = []
+        for r in range(n_pvt):
+            tab = {oil_key: rt[oil_key][r], "pvdg": pick("pvdg", r), "pvtw": pick("pvtw", r),
+                   "pvtg": pick("pvtg", r), "vapoil": self.vapoil}
+            pvts.append(DeckPVT(tab, pick("density", r) or rho, device))
+        krs = [ThreePhaseRelPerm(tables={k: pick(k, r) for k in ("swof", "sgof") if k in rt}, device=device,
+                                 kro_model=self.kro_model) for r in range(n_tab)]
+        if n_pvt > 1:
+            from .regions import RegionPVT
+            pvt = RegionPVT(pvts, torch.as_tensor(regs["PVTNUM"], device=device))
+        else:
+            pvt = pvts[0]
+        ep = self._endpoint_model(krs, regs["SATNUM"], device)
+        swatinit = self._cell_array("SWATINIT") if "SWATINIT" in self.arrays else None
+        if self.hysteresis:
+            from .hysteresis import CarlsonHysteresis
+            imb = self._endpoint_model(krs, regs["IMBNUM"], device, prefix="I")
+            ep.hyst = CarlsonHysteresis(ep, imb, model=int(_get(self.ehystr or [], 1, 0) or 0))
+        if self.endscale or swatinit is not None or self.hysteresis:
+            kr = ep
+        elif n_sat > 1:
+            from .regions import RegionRelPerm
+            kr = RegionRelPerm(krs, torch.as_tensor(regs["SATNUM"], device=device))
+        else:
+            kr = krs[0]
+        swc = ep.endpoint("SWL", slice(None))
+        rocks = rt.get("rock", [(1e5, 0.0)])
+        rock = np.array([rocks[min(r, len(rocks) - 1)] for r in range(n_pvt)])[regs["PVTNUM"]]
+        p_ref = torch.as_tensor(rock[:, 0], dtype=torch.float64, device=device)
+        c_r = torch.as_tensor(rock[:, 1], dtype=torch.float64, device=device)
 
-        fluid = Fluid({"pressure": self.equil["p"] / 1e6, "s_w": swc, "s_g": 0.0, "rho_oil": rho[0],
-                       "rho_water": rho[1], "rho_gas": rho[2], "c_rock": c_r * 1e6}, res, device=device)
+        fluid = Fluid({"pressure": self.equil["p"] / 1e6, "s_w": float(swc[0]), "s_g": 0.0, "rho_oil": rho[0],
+                       "rho_water": rho[1], "rho_gas": rho[2], "c_rock": float(c_r[0]) * 1e6}, res, device=device)
         fluid.blackoil_pvt = pvt
         fluid.blackoil_relperm = kr
         fluid.rock_ref_pressure = p_ref
         fluid.rock_compressibility = c_r
-        fluid.sw_cr = swc
-        p, sw, sg, rs = self.equilibrate(res, pvt, kr, swc, device)
+        fluid.sw_cr = float(swc.min())
+        p, sw, sg, rs, rv = self.equilibrate(pvts, ep, regs, device, swatinit)
         shp = (nx, ny, nz)
         fluid.pressure = p.view(shp).clone()
         fluid.s_w = sw.view(shp).clone()
         fluid.s_g = sg.view(shp).clone()
+        if ep.hyst is not None:
+            ep.hyst.commit(sw, sg)
         fluid.s_o = (1.0 - sw - sg).view(shp).clone()
         fluid.rs = rs.view(shp).clone()
+        fluid.rv = rv.view(shp).clone()
         fluid.prev_pressure = fluid.pressure.clone()
 
         wm = WellManager(self.well_configs(), res)
@@ -704,6 +827,53 @@ class EclipseCase:
             out.append(cfg)
         return out
 
+    def _cell_array(self, name):
+        """Ячеечный массив deck в порядке симулятора (NaN — не задан)."""
+        return np.asarray(self.field(name), dtype=np.float64).reshape(-1)
+
+    def _endpoint_model(self, krs, sat, device, prefix=""):
+        """
+        ScaledRelPerm: концевые точки таблиц региона sat (SATNUM, для пропитки — IMBNUM), поверх них — массивы
+        SWL…PCG (prefix "I": ISWL…ISOGCR; вертикальное масштабирование пропитки — по таблицам) — только
+        при ENDSCALE, как в Eclipse. Используется как ОФП (ENDSCALE/SWATINIT/HYSTER) и для обращения Pc.
+        """
+        from .endpoint_scaling import KEYS, ScaledRelPerm, table_endpoints
+        if any(k.tables is None or "swof" not in k.tables for k in krs):
+            raise NotImplementedError("для равновесия и масштабирования нужны таблицы SWOF")
+        tab_ep = [table_endpoints(k.tables["swof"], k.tables.get("sgof")) for k in krs]
+        tab_ep = [{key: float(v) for key, v in e.items()} for e in tab_ep]
+        cell = {}
+        for key in KEYS:
+            v = np.array([e[key] for e in tab_ep])[sat]
+            name = prefix + key
+            if self.endscale and name in self.arrays and not (prefix and key.startswith(("KR", "PC"))):
+                a = self._cell_array(name)
+                v = np.where(np.isnan(a), v, a)
+            cell[key] = torch.as_tensor(v, dtype=torch.float64, device=device)
+        act = torch.as_tensor(self.active.reshape(-1) if getattr(self, "active", None) is not None
+                              else np.ones(len(sat), bool), device=device)
+        bad = act & ((cell["SWL"] > cell["SWCR"] + 1e-12) | (cell["SWCR"] >= cell["SWU"])
+                     | (cell["SGL"] > cell["SGCR"] + 1e-12))
+        if self.endscale and bool(bad.any()):
+            raise ValueError(f"ENDSCALE{' (' + prefix + ')' if prefix else ''}: нарушено SWL ≤ SWCR < SWU / "
+                             f"SGL ≤ SGCR в {int(bad.sum())} активных ячейках")
+        tables = [(k.tables["swof"], k.tables.get("sgof")) for k in krs]
+        return ScaledRelPerm(tables, torch.as_tensor(sat, device=device), cell, tab_ep,
+                             three_point=self.scalecrs, kro_model=self.kro_model)
+
+    def _region_index(self, name):
+        """Номер региона ячейки (0-based) в порядке симулятора; по умолчанию все в регионе 1."""
+        if name not in self.arrays:
+            return np.zeros(self.n, dtype=np.int64)
+        a = self.field(name).reshape(-1)
+        act = getattr(self, "active", None)
+        a = np.where(np.isnan(a), 1.0, a)
+        if act is not None:
+            a = np.where(act.reshape(-1), a, 1.0)
+        if (a < 1).any():
+            raise ValueError(f"{name}: номера регионов должны быть ≥ 1")
+        return a.astype(np.int64) - 1
+
     def group_constraints(self, step):
         """Групповые цели шага step для groups.group_targets (дебиты — м³/сут, поверхностные или пластовые)."""
         u = self.u
@@ -801,27 +971,20 @@ class EclipseCase:
         return cfg
 
     # ------------------------------------------------------------ равновесие
-    def equilibrate(self, res, pvt, kr, swc, device):
-        """
-        Гидростатическое равновесие по EQUIL (инициализация по центрам ячеек, как EQUIL item 9 = 0):
-        давление нефти интегрируется от опорной глубины, воды — от ВНК (pw = po − Pcow на контакте),
-        газа — от ГНК (pg = po + Pcog). Насыщенности — обращением Pcow(Sw) = po − pw и Pcog(Sg) = pg − po;
-        при нулевых кривых Pc — резкие контакты.
-        """
-        eq = self.equil
-        swof, sgof = self.tables.get("swof"), self.tables.get("sgof")
-        if not (eq["goc"] <= eq["datum"] <= eq["woc"]):
-            raise NotImplementedError("EQUIL: опорная глубина должна лежать в нефтяной зоне")
+    def _equil_profiles(self, eq, rsvd, pvt, device):
+        """Профили давлений фаз региона равновесия: функция profile(фаза, z0, p0, lo, hi) -> (z, p)."""
+        if eq["goc"] > eq["woc"]:
+            raise ValueError("EQUIL: ГНК глубже ВНК")
         g = 9.80665
         dt = torch.float64
         rho_o_sc, rho_w_sc, rho_g_sc = pvt.rho_sc
 
         def rs_at(z, p):
             rs_s = float(pvt.rs_sat(torch.tensor([p], dtype=dt, device=device)))
-            if self.rsvd is None:
+            if rsvd is None:
                 return rs_s
-            zs = torch.tensor([r[0] for r in self.rsvd], dtype=dt)
-            vs = torch.tensor([r[1] for r in self.rsvd], dtype=dt)
+            zs = torch.tensor([r[0] for r in rsvd], dtype=dt)
+            vs = torch.tensor([r[1] for r in rsvd], dtype=dt)
             from .blackoil_props import interp1
             return min(float(interp1(torch.tensor([z], dtype=dt), zs, vs)), rs_s)
 
@@ -834,7 +997,7 @@ class EclipseCase:
                 return float((rho_o_sc + rs * rho_g_sc) * bo)
             if ph == "w":
                 return float(rho_w_sc * pvt.water(pt)[0])
-            return float(rho_g_sc * pvt.gas(pt)[0])
+            return float((rho_g_sc + float(pvt.rv_sat(pt)) * rho_o_sc) * pvt.gas(pt)[0])
 
         def integrate(ph, z0, p0, z1, step=0.25):
             """Профиль p(z) от z0 до z1 (RK2); возвращает (z, p) по возрастанию z."""
@@ -858,50 +1021,109 @@ class EclipseCase:
             zb, pb = integrate(ph, z0, p0, max(hi, z0))
             return np.concatenate([za, zb[1:]]), np.concatenate([pa, pb[1:]])
 
-        has_woc, has_goc = eq["woc"] < 1e8, eq["goc"] > -1e8
-        z = np.asarray(self.cell_depth_abs, dtype=np.float64).reshape(-1)
-        lo, hi = z.min() - 1.0, z.max() + 1.0
-        zo, po_n = profile("o", eq["datum"], eq["p"], min(lo, eq["goc"]) if has_goc else lo,
-                           max(hi, eq["woc"]) if has_woc else hi)
-        po = np.interp(z, zo, po_n)
-        sw_tab = np.asarray(swof["sw"]) if swof else np.array([swc, 1.0])
-        sw_max = float(sw_tab[-1])
-        sw = np.full_like(z, swc)
-        p_cell = po.copy()
-        if has_woc:
-            p_w0 = float(np.interp(eq["woc"], zo, po_n)) - eq["pcwoc"]
-            zw, pw_n = profile("w", eq["woc"], p_w0, lo, hi)
-            pw = np.interp(z, zw, pw_n)
-            pcow = np.asarray(swof["pcow"]) if swof else np.zeros(2)
-            if np.ptp(pcow) > 0:
-                # Pcow убывает по Sw: обращение по таблице, вне диапазона — концевые точки
-                sw = np.interp(po - pw, pcow[::-1], sw_tab[::-1])
-            else:
-                sw = np.where(z > eq["woc"], sw_max, swc)
-            water = sw >= sw_max - 1e-12
-            p_cell = np.where(water, pw + np.interp(sw, sw_tab, pcow), p_cell)
-        sg = np.zeros_like(z)
-        if has_goc:
-            p_g0 = float(np.interp(eq["goc"], zo, po_n)) + eq["pcgoc"]
-            zg, pg_n = profile("g", eq["goc"], p_g0, lo, hi)
-            pg = np.interp(z, zg, pg_n)
-            sg_tab = np.asarray(sgof["sg"]) if sgof else np.array([0.0, 1.0 - swc])
-            pcog = np.asarray(sgof["pcog"]) if sgof else np.zeros(2)
-            if np.ptp(pcog) > 0:
-                sg = np.interp(pg - po, pcog, sg_tab)
-            else:
-                sg = np.where(z < eq["goc"], 1.0 - swc, 0.0)
-            sg = np.minimum(sg, 1.0 - sw)
-            gas = sg >= 1.0 - sw - 1e-12
-            p_cell = np.where(gas & (sg > 0), pg - np.interp(sg, sg_tab, pcog), p_cell)
+        return profile
 
-        pt = torch.tensor(p_cell, dtype=dt, device=device)
-        rs_s = pvt.rs_sat(pt).cpu().numpy()
-        if self.rsvd is not None:
-            rs = np.minimum(np.interp(z, [r[0] for r in self.rsvd], [r[1] for r in self.rsvd]), rs_s)
-        else:
-            rs = rs_s
-        rs = np.where(sg > 0, rs_s, rs)
+    def equilibrate(self, pvts, ep, regs, device, swatinit=None):
+        """
+        Гидростатическое равновесие по EQUIL для каждого региона EQLNUM (по центрам ячеек, EQUIL item 9 = 0):
+        давление нефти интегрируется от опорной глубины, воды — от ВНК (pw = po − Pcow на контакте),
+        газа — от ГНК (pg = po + Pcog); плотности — по PVT региона (преобладающий PVTNUM). Насыщенности —
+        обращением Pcow(Sw) = po − pw и Pcog(Sg) = pg − po по таблицам SATNUM ячейки; при нулевых Pc —
+        резкие контакты. Pc и его обращение — с масштабированием концевых точек ячейки (ep).
+        SWATINIT: Sw = SWATINIT, а PCW ячейки пересчитывается так, чтобы Pcow(SWATINIT) = po − pw (в ep);
+        где po − pw ≤ 0 или Pc(SWATINIT) ≤ 0 — Sw из равновесия по исходному Pc.
+        """
+        rt = self.region_tables
+        dt = torch.float64
+        z_all = np.asarray(self.cell_depth_abs, dtype=np.float64).reshape(-1)
+        n = z_all.size
+        p_cell, sw, sg, rs, rv = (np.zeros(n) for _ in range(5))
+        eqls = rt.get("equil", [self.equil])
+        rsvds = rt.get("rsvd")
+        for r in np.unique(regs["EQLNUM"]):
+            if r >= len(eqls):
+                raise ValueError(f"EQLNUM {r + 1}: нет записи EQUIL")
+            eq = eqls[r]
+            rsvd = rsvds[r] if rsvds is not None and r < len(rsvds) else None
+            m = regs["EQLNUM"] == r
+            pv_r = int(np.bincount(regs["PVTNUM"][m]).argmax())
+            pvt = pvts[pv_r]
+            profile = self._equil_profiles(eq, rsvd, pvt, device)
+            z = z_all[m]
+            lo, hi = z.min() - 1.0, z.max() + 1.0
+            has_woc, has_goc = eq["woc"] < 1e8, eq["goc"] > -1e8
+            o_lo = min(lo, eq["goc"]) if has_goc else lo
+            o_hi = max(hi, eq["woc"]) if has_woc else hi
+            zw = zg = None
+            # опорная глубина в водяной (газовой) зоне: сначала профиль этой фазы, нефть — от контакта
+            if has_woc and eq["datum"] > eq["woc"]:
+                zw, pw_n = profile("w", eq["datum"], eq["p"], min(lo, eq["woc"]), hi)
+                zo, po_n = profile("o", eq["woc"], float(np.interp(eq["woc"], zw, pw_n)) + eq["pcwoc"], o_lo, o_hi)
+            elif has_goc and eq["datum"] < eq["goc"]:
+                zg, pg_n = profile("g", eq["datum"], eq["p"], lo, max(hi, eq["goc"]))
+                zo, po_n = profile("o", eq["goc"], float(np.interp(eq["goc"], zg, pg_n)) - eq["pcgoc"], o_lo, o_hi)
+            else:
+                zo, po_n = profile("o", eq["datum"], eq["p"], o_lo, o_hi)
+            po = np.interp(z, zo, po_n)
+            pw = pg = None
+            if has_woc:
+                if zw is None:
+                    p_w0 = float(np.interp(eq["woc"], zo, po_n)) - eq["pcwoc"]
+                    zw, pw_n = profile("w", eq["woc"], p_w0, lo, hi)
+                pw = np.interp(z, zw, pw_n)
+            if has_goc:
+                if zg is None:
+                    p_g0 = float(np.interp(eq["goc"], zo, po_n)) + eq["pcgoc"]
+                    zg, pg_n = profile("g", eq["goc"], p_g0, lo, hi)
+                pg = np.interp(z, zg, pg_n)
+            idx = np.flatnonzero(m)
+            p_cell[idx], sw[idx], sg[idx] = self._equil_saturations(
+                eq, ep, idx, z, po, pw, pg, None if swatinit is None else swatinit[idx])
+            for pv in np.unique(regs["PVTNUM"][m]):
+                k = regs["PVTNUM"][m] == pv
+                pt = torch.tensor(p_cell[idx[k]], dtype=dt, device=device)
+                rs_s = pvts[pv].rs_sat(pt).cpu().numpy()
+                if rsvd is not None:
+                    rr = np.minimum(np.interp(z[k], [q[0] for q in rsvd], [q[1] for q in rsvd]), rs_s)
+                else:
+                    rr = rs_s
+                rs[idx[k]] = np.where(sg[idx[k]] > 0, rs_s, rr)
+                # Rv без RVVD (EQUIL item 8 ≤ 0): насыщенный при давлении ячейки в газе (как OPM RvSatAtContact)
+                rv[idx[k]] = pvts[pv].rv_sat(pt).cpu().numpy()
         to = lambda a: torch.tensor(a, dtype=dt, device=device)
-        return to(p_cell), to(sw), to(sg), to(rs)
+        return to(p_cell), to(sw), to(sg), to(rs), to(rv)
+
+    @staticmethod
+    def _equil_saturations(eq, ep, idx, z, po, pw, pg, swatinit=None):
+        """Насыщенности и давление в ячейках idx одного региона равновесия по профилям фаз."""
+        swl, swu = ep.endpoint("SWL", idx), ep.endpoint("SWU", idx)
+        sw = swl.copy()
+        p_cell = po.copy()
+        if pw is not None:
+            dp = po - pw
+            inv = ep.invert_pc(idx, "w", dp)
+            sw = np.where(np.isnan(inv), np.where(z > eq["woc"], swu, swl), inv)
+            if swatinit is not None:
+                s0 = np.clip(np.where(np.isnan(swatinit), sw, swatinit), swl, swu)
+                pc0 = ep.pc_value(idx, "w", s0)
+                ok = ~np.isnan(swatinit) & (dp > 0) & (pc0 > 0)
+                pcw = ep.endpoint("PCW", idx)
+                pcw_new = np.where(ok, pcw * dp / np.where(ok, pc0, 1.0), pcw)
+                ep.cell["PCW"][torch.as_tensor(idx, device=ep.cell["PCW"].device)] = torch.as_tensor(
+                    pcw_new, dtype=torch.float64, device=ep.cell["PCW"].device)
+                # где Pc нельзя подстроить (po − pw ≤ 0 или Pc(SWATINIT) ≤ 0) — Sw из равновесия: без перетоков в t=0
+                sw = np.where(ok, s0, sw)
+            water = sw >= swu - 1e-12
+            p_cell = np.where(water, pw + ep.pc_value(idx, "w", sw), p_cell)
+        sg = np.zeros_like(z)
+        if pg is not None:
+            inv = ep.invert_pc(idx, "g", pg - po) if ep.tables[0][1] is not None else np.full(len(idx), np.nan)
+            sgu = ep.endpoint("SGU", idx)
+            sg = np.where(np.isnan(inv), np.where(z < eq["goc"], np.minimum(sgu, 1.0 - swl), 0.0), inv)
+            sg = np.clip(np.minimum(sg, 1.0 - sw), 0.0, None)
+            gas = sg >= 1.0 - sw - 1e-12
+            pcg = ep.pc_value(idx, "g", sg) if ep.tables[0][1] is not None else np.zeros(len(idx))
+            p_cell = np.where(gas & (sg > 0), pg - pcg, p_cell)
+        return p_cell, sw, sg
+
 

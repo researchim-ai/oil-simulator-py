@@ -2,10 +2,11 @@
 Полностью неявный трёхфазный black-oil (FIM): нефть, вода, газ с растворённым газом Rs.
 
 Неизвестные в ячейке: P (давление нефти), Sw и переменная X с переключением (как в OPM Flow):
-  насыщенная ячейка (есть свободный газ):     X = Sg,  Rs = Rs_sat(P)
+  насыщенная ячейка (нефть и газ):            X = Sg,  Rs = Rs_sat(P), Rv = Rv_sat(P)
   недонасыщенная нефть (свободного газа нет): X = Rs,  Sg = 0
+  недонасыщенный газ (нефти нет, VAPOIL):     X = Rv,  Sg = 1 − Sw
 Уравнения — массовые балансы компонентов [кг/с]:
-  нефть: d/dt(φ So bo ρo_sc) + div(ρo_sc bo kro/μo ∇Φo)
+  нефть: d/dt(φ (So bo + Sg bg Rv) ρo_sc) + div(ρo_sc (bo kro/μo ∇Φo + Rv bg krg/μg ∇Φg))
   вода:  d/dt(φ Sw bw ρw_sc) + div(ρw_sc bw krw/μw ∇Φw)
   газ:   d/dt(φ (Sg bg + So bo Rs) ρg_sc) + div(ρg_sc (bg krg/μg ∇Φg + Rs bo kro/μo ∇Φo))
 где b = 1/B. Свойства ячейки и их производные по (P, Sw, X) берутся прямым режимом AD (torch.func.jvp),
@@ -30,9 +31,32 @@ I_RHO = 6          # 6..8  пластовые плотности фаз
 I_MOO, I_MWW, I_MGG, I_MGO = 9, 10, 11, 12  # массовые подвижности компонент/фаза
 I_LT = 13          # суммарная объёмная подвижность Σ kr/μ
 I_B = 14           # 14..16 bo, bw, bg
-N_PROPS = 17
+I_MOG = 17         # масса нефти (испарённой, Rv) в газовой фазе
+N_PROPS = 18
 # (компонент, фаза, строка подвижности)
 FLUX_TERMS = ((OIL, OIL, I_MOO), (WAT, WAT, I_MWW), (GAS, GAS, I_MGG), (GAS, OIL, I_MGO))
+FLUX_TERMS_WET = FLUX_TERMS + ((OIL, GAS, I_MOG),)
+# зона нечувствительности переключения переменных: без «дребезга» ячеек на линии насыщения от шума округления
+SWITCH_EPS_S = 1e-12   # по насыщенности
+SWITCH_EPS_R = 1e-10   # относительная, по Rs / Rv
+
+def surface_to_reservoir(pvt, p, qo, qw, qg):
+    """
+    Пластовые объёмы фаз по поверхностным (Qo, Qw, Qg) при давлении p (разгазирование и выпадение конденсата):
+    Rs = min(Rs_sat, Qg/Qo), Rv = min(Rv_sat, Qo/Qg), D = 1 − Rs·Rv,
+    Vo = (Qo − Rv·Qg)/(bo·D), Vg = (Qg − Rs·Qo)/(bg·D), Vw = Qw/bw.
+    """
+    rs_s, rv_s = pvt.rs_sat(p), pvt.rv_sat(p)
+    rs = torch.where(qo > 0, torch.minimum(rs_s, qg / qo.clamp_min(1e-300)), torch.zeros_like(p))
+    rv = torch.where(qg > 0, torch.minimum(rv_s, qo / qg.clamp_min(1e-300)), torch.zeros_like(p))
+    bo, _ = pvt.oil(p, rs, rs >= rs_s - 1e-12)
+    bw = pvt.water(p)[0]
+    bg = pvt.gas(p, rv, rv >= rv_s - 1e-12)[0] if getattr(pvt, "wet", False) else pvt.gas(p)[0]
+    D = (1.0 - rs * rv).clamp_min(1e-12)
+    vo = ((qo - rv * qg) / (bo * D)).clamp_min(0.0)
+    vg = ((qg - rs * qo) / (bg * D)).clamp_min(0.0)
+    return vo, qw / bw, vg
+
 
 class BlackOilWells(FIMWells):
     """Скважины трёхфазной модели: те же p_bh-неизвестные, режимы и дополнение Шура, что в FIMWells."""
@@ -67,6 +91,7 @@ class BlackOilWells(FIMWells):
         self.conn_open = torch.ones_like(self.conn_wi)   # 0 — соединения закрытой скважины (SHUT/STOP)
         self.conn_a = self.rate_w[self.conn_well]         # веса уравнения дебита по соединениям (на шаг)
         self.p_avg = None                                 # среднее пластовое давление (для RESV), Па
+        self.flux_terms = FLUX_TERMS
         self.groups = None                                # (GroupTree, [ограничения]) — групповые контроли
         self.group_controlled = set()
 
@@ -148,19 +173,20 @@ class BlackOilWells(FIMWells):
         bo, bw, bg = (v[I_B + m][c].clamp_min(1e-12) for m in range(3))
         rs = torch.where(v[I_MOO][c] > 0, v[I_MGO][c] / v[I_MOO][c].clamp_min(1e-300) * rho[OIL] / rho[GAS],
                          torch.zeros_like(bo))
-        return torch.stack([1.0 / (rho[OIL] * bo) - rs / (rho[OIL] * bg), 1.0 / (rho[WAT] * bw),
-                            1.0 / (rho[GAS] * bg)], dim=1)
+        rv = torch.where(v[I_MGG][c] > 0, v[I_MOG][c] / v[I_MGG][c].clamp_min(1e-300) * rho[GAS] / rho[OIL],
+                         torch.zeros_like(bo))
+        D = (1.0 - rs * rv).clamp_min(1e-12)
+        return torch.stack([(1.0 / bo - rs / bg) / (rho[OIL] * D), 1.0 / (rho[WAT] * bw),
+                            (1.0 / bg - rv / bo) / (rho[GAS] * D)], dim=1)
 
     def _resv_target(self, w, p):
         """Пластовый объём исторических поверхностных дебитов (Qo, Qw, Qg) при давлении p, м³/с."""
         qo, qw, qg = (x / DAY for x in w.hist_rates)
         pt = torch.tensor([float(p)], dtype=torch.float64, device=self.device)
-        rs_s = self.pvt.rs_sat(pt)
-        rs = torch.minimum(rs_s, torch.tensor([qg / qo if qo > 0 else 0.0], dtype=torch.float64, device=self.device))
-        bo, _ = self.pvt.oil(pt, rs, rs >= rs_s - 1e-12)
-        bw = self.pvt.water(pt)[0]
-        bg = self.pvt.gas(pt)[0]
-        return float(qo / bo + qw / bw + (qg - rs * qo).clamp_min(0.0) / bg)
+        pvt = self.pvt.at(self.conn_cell[self.conn_well == self.wells.index(w)][:1])
+        T = lambda a: torch.tensor([a], dtype=torch.float64, device=self.device)
+        vo, vw, vg = surface_to_reservoir(pvt, pt, T(qo), T(qw), T(qg))
+        return float(vo + vw + vg)
 
     def _conn_flows(self, v, d, p_bh):
         """Массовые потоки компонентов по перфорациям q [n_conn,3], dq/dx [n_conn,3,3], dq/dp_bh [n_conn,3]."""
@@ -170,7 +196,7 @@ class BlackOilWells(FIMWells):
         q = torch.zeros((n_c, 3), dtype=torch.float64, device=self.device)
         dq = torch.zeros((n_c, 3, 3), dtype=torch.float64, device=self.device)
         dqb = torch.zeros((n_c, 3), dtype=torch.float64, device=self.device)
-        for comp, ph, mi in FLUX_TERMS:
+        for comp, ph, mi in self.flux_terms:
             M, dM = v[mi][c], d[mi][c]
             dpp = v[I_P + ph][c] - p_wc
             q[:, comp] += wi * M * dpp
@@ -267,7 +293,7 @@ class BlackOilWells(FIMWells):
         """
         c, cw, wi = self.conn_cell, self.conn_well, self.conn_wi
         rho_sc = self.rho_sc
-        qo = wi * v[I_MOO][c] / rho_sc[OIL]
+        qo = wi * (v[I_MOO][c] + v[I_MOG][c]) / rho_sc[OIL]
         qw = wi * v[I_MWW][c] / rho_sc[WAT]
         qg = wi * (v[I_MGG][c] + v[I_MGO][c]) / rho_sc[GAS]
         p_cell = v[I_P][c]
@@ -301,12 +327,8 @@ class BlackOilWells(FIMWells):
                 pb = p_bh[w_idx]
             for _ in range(2):
                 p = (pb + h).clamp_min(1e5)
-                rs_s = self.pvt.rs_sat(p)
-                rs = torch.where(Qo > 0, torch.minimum(rs_s, Qg / Qo.clamp_min(1e-300)), torch.zeros_like(p))
-                bo, _ = self.pvt.oil(p, rs, rs >= rs_s - 1e-12)
-                bw = self.pvt.water(p)[0]
-                bg = self.pvt.gas(p)[0]
-                vol = Qo / bo + Qw / bw + (Qg - rs * Qo).clamp_min(0.0) / bg
+                vo, vw, vg = surface_to_reservoir(self.pvt.at(c[order]), p, Qo, Qw, Qg)
+                vol = vo + vw + vg
                 rho = torch.where((mass > 0) & (vol > 0), mass / vol.clamp_min(1e-300), mix_cell[order])
                 seg = torch.diff(dz, prepend=torch.zeros(1, dtype=dz.dtype, device=dz.device))
                 h = torch.cumsum(rho * G * seg, 0)
@@ -380,6 +402,9 @@ class BlackOilFIMSolver(ManualFIMSolver):
         self.n_cells = self.nx * self.ny * self.nz
         self._init_params(params)
         self.drs_max_rel = float(params.get('newton_drs_max_rel', 0.2))
+        self.relax_min = float(params.get('newton_relax_min', 0.5))
+        self.relax_increment = float(params.get('newton_relax_increment', 0.1))
+        self.relax_rel_tol = float(params.get('newton_relax_rel_tol', 0.2))
         self.debug.eq_names = ("oil", "water", "gas")
 
         print("Building sparse matrix structure (black-oil, блоки 3x3)...")
@@ -387,11 +412,13 @@ class BlackOilFIMSolver(ManualFIMSolver):
                                            pairs=self._conn_pairs())
         dev = self.device
         self.pore_volume = (reservoir.cell_volume * reservoir.porosity).reshape(-1).double().to(dev)
-        self.c_rock = float(getattr(fluid, 'rock_compressibility', 0.0))
+        c_rock = getattr(fluid, 'rock_compressibility', 0.0)
+        self.c_rock = (c_rock.reshape(-1).double().to(dev) if torch.is_tensor(c_rock) else float(c_rock))
         p_ref = getattr(fluid, 'rock_ref_pressure', None)
         self.rock_eclipse = p_ref is not None
         if self.rock_eclipse:
-            self.p_ref_rock = torch.full((self.n_cells,), float(p_ref), dtype=torch.float64, device=dev)
+            self.p_ref_rock = (p_ref.reshape(-1).double().to(dev) if torch.is_tensor(p_ref)
+                               else torch.full((self.n_cells,), float(p_ref), dtype=torch.float64, device=dev))
         else:
             self.p_ref_rock = fluid.pressure.detach().reshape(-1).double().clone().to(dev)
         self.pvt = getattr(fluid, 'blackoil_pvt', None) or BlackOilPVT(fluid, dev)
@@ -404,6 +431,9 @@ class BlackOilFIMSolver(ManualFIMSolver):
         self._build_connections()
         self.wells = BlackOilWells(well_manager, reservoir, fluid, reservoir.dimensions, dev)
         self.wells.pvt = self.pvt
+        self.wet = bool(getattr(self.pvt, "wet", False))
+        self.flux_terms = FLUX_TERMS_WET if self.wet else FLUX_TERMS
+        self.wells.flux_terms = self.flux_terms
         self.wells.wellbore_density = str(params.get('wellbore_density', 'flash')).lower()
         for w in self.wells.wells:
             print(f"  Скважина {w.name}: перфораций {len(w.perforations)}, WI = "
@@ -417,9 +447,18 @@ class BlackOilFIMSolver(ManualFIMSolver):
         self.sat = (sg > 0) | torch.full_like(sg, not self.pvt.has_pvt, dtype=torch.bool)
         rs = torch.where(self.sat, self.pvt.rs_sat(p), torch.minimum(rs, self.pvt.rs_sat(p)))
         self.x = torch.where(self.sat, sg, rs)
+        sw0 = fluid.s_w.detach().reshape(-1).double().to(dev)
+        rv = getattr(fluid, 'rv', None)
+        rv_s = self.pvt.rv_sat(p)
+        rv = rv_s if rv is None else torch.minimum(rv.detach().reshape(-1).double().to(dev), rv_s)
+        self.ug = (sg > 0) & (1.0 - sw0 - sg <= 1e-12) & self.wet
+        self.sat = self.sat & ~self.ug
+        self.x = torch.where(self.ug, rv, self.x)
         fluid.rs = rs.view(self.nx, self.ny, self.nz)
+        fluid.rv = torch.where(self.ug, rv, rv_s).view(self.nx, self.ny, self.nz)
         print(f"  Black-oil FIM: PVT={'таблица' if self.pvt.has_pvt else 'постоянные сжимаемости'}, "
-              f"насыщенных ячеек {int(self.sat.sum())}/{self.n_cells}")
+              f"насыщенных ячеек {int(self.sat.sum())}/{self.n_cells}"
+              + (f", газ без нефти (X = Rv) {int(self.ug.sum())}" if self.wet else ""))
 
     # ------------------------------------------------------------ свойства
     def _pv(self, p_flat):
@@ -433,39 +472,54 @@ class BlackOilFIMSolver(ManualFIMSolver):
         rs = self.pvt.rs_sat(p)
         return rs if self._rs_cap is None else torch.minimum(rs, self._rs_cap)
 
-    def _cell_fn(self, sat):
+    def _cell_fn(self, sat, ug=None):
         pvt, kr = self.pvt, self.kr
         rho_o, rho_w, rho_g = pvt.rho_sc
         cap = self._rs_cap
+        wet = self.wet and ug is not None
 
         def fn(p, sw, x):
-            sg = torch.where(sat, x, 0.0 * x)
+            if wet:
+                sg = torch.where(sat, x, torch.where(ug, 1.0 - sw, 0.0 * x))
+            else:
+                sg = torch.where(sat, x, 0.0 * x)
             rs_s = pvt.rs_sat(p)
             on_sat_line = sat if cap is None else sat & (rs_s.detach() <= cap)
-            rs = torch.where(sat, rs_s if cap is None else torch.minimum(rs_s, cap), x)
+            rs_sat = rs_s if cap is None else torch.minimum(rs_s, cap)
+            rs = torch.where(sat, rs_sat, torch.where(ug, rs_sat, x) if wet else x)
             so = 1.0 - sw - sg
-            bo, mu_o = pvt.oil(p, rs, on_sat_line)
+            bo, mu_o = pvt.oil(p, rs, on_sat_line | ug if wet else on_sat_line)
             bw, mu_w = pvt.water(p)
-            bg, mu_g = pvt.gas(p)
+            if wet:
+                rv = torch.where(ug, x, pvt.rv_sat(p))
+                bg, mu_g = pvt.gas(p, rv, ~ug)
+            else:
+                bg, mu_g = pvt.gas(p)
             krw, kro, krg = kr(sw, sg)
             pcow, pcog = kr.pc(sw, sg)
             pv = self._pv(p)
             mo, mw, mg = kro * bo / mu_o, krw * bw / mu_w, krg * bg / mu_g
+            if wet:
+                acc_o = pv * so * bo * rho_o + pv * sg * bg * rv * rho_o
+                rho_gr = (rho_g + rv * rho_o) * bg
+                m_og = rho_o * rv * mg
+            else:
+                acc_o, rho_gr, m_og = pv * so * bo * rho_o, rho_g * bg, 0.0 * p
             return torch.stack([
-                pv * so * bo * rho_o, pv * sw * bw * rho_w, pv * (sg * bg + so * bo * rs) * rho_g,
+                acc_o, pv * sw * bw * rho_w, pv * (sg * bg + so * bo * rs) * rho_g,
                 p, p - pcow, p + pcog,
-                (rho_o + rs * rho_g) * bo, rho_w * bw, rho_g * bg,
+                (rho_o + rs * rho_g) * bo, rho_w * bw, rho_gr,
                 rho_o * mo, rho_w * mw, rho_g * mg, rho_g * rs * mo,
                 kro / mu_o + krw / mu_w + krg / mu_g,
-                bo, bw, bg])
+                bo, bw, bg, m_og])
         return fn
 
-    def cell_values(self, p, sw, x, sat):
-        return self._cell_fn(sat)(p, sw, x)
+    def cell_values(self, p, sw, x, sat, ug=None):
+        return self._cell_fn(sat, ug)(p, sw, x)
 
-    def cell_state(self, p, sw, x, sat):
+    def cell_state(self, p, sw, x, sat, ug=None):
         """Свойства [N_PROPS, N] и производные [N_PROPS, N, 3] по (P, Sw, X)."""
-        fn = self._cell_fn(sat)
+        fn = self._cell_fn(sat, ug)
         one, zero = torch.ones_like(p), torch.zeros_like(p)
         ders = []
         val = None
@@ -477,9 +531,9 @@ class BlackOilFIMSolver(ManualFIMSolver):
         return val, torch.stack(ders, dim=-1)
 
     # ------------------------------------------------------------ сборка
-    def assemble_bo(self, p, sw, x, sat, acc_old, dt, p_bh, state=None):
+    def assemble_bo(self, p, sw, x, sat, acc_old, dt, p_bh, state=None, ug=None):
         n, dev = self.n_cells, self.device
-        v, d = state if state is not None else self.cell_state(p, sw, x, sat)
+        v, d = state if state is not None else self.cell_state(p, sw, x, sat, ug)
         R = torch.zeros((n, 3), dtype=torch.float64, device=dev)
         J = torch.zeros((self.builder.n_nonzero, 3, 3), dtype=torch.float64, device=dev)
         dm = self.builder.diag_map
@@ -488,7 +542,15 @@ class BlackOilFIMSolver(ManualFIMSolver):
 
         # вырожденная строка газа в недонасыщенной ячейке без нефти (So → 0): малая регуляризация
         so = 1.0 - sw - torch.where(sat, x, 0.0 * x)
-        weak = (~sat) & (so < 1e-6)
+        if ug is not None and self.wet:
+            so = torch.where(ug, torch.zeros_like(so), so)
+            # строка нефти газовой ячейки при Sg → 0 (Sw → 1) вырождается по Rv
+            weak_o = ug & (1.0 - sw < 1e-6)
+            if bool(weak_o.any()):
+                J[dm[weak_o], OIL, 2] += 1e-8 * self.pore_volume[weak_o] * self.pvt.rho_sc[OIL] / dt
+            weak = (~sat) & (~ug) & (so < 1e-6)
+        else:
+            weak = (~sat) & (so < 1e-6)
         if bool(weak.any()):
             J[dm[weak], GAS, 2] += 1e-8 * self.pore_volume[weak] * self.pvt.rho_sc[GAS] / dt
 
@@ -504,7 +566,7 @@ class BlackOilFIMSolver(ManualFIMSolver):
                 dpR = -d[ip][Rr] - 0.5 * gdz.unsqueeze(1) * d[ir][Rr]
                 up = dpot >= 0
                 pot.append((dpot, dpL, dpR, up))
-            for comp, ph, mi in FLUX_TERMS:
+            for comp, ph, mi in self.flux_terms:
                 dpot, dpL, dpR, up = pot[ph]
                 upd = up.double().unsqueeze(1)
                 M = torch.where(up, v[mi][L], v[mi][Rr])
@@ -543,9 +605,15 @@ class BlackOilFIMSolver(ManualFIMSolver):
         return ok, {"cnv": cnv_l, "mb": mb_l, "well_rate_rel_err": well_err}
 
     # ------------------------------------------------------------ шаг
-    def _sg_rs(self, p, x, sat):
+    def _sg_rs(self, p, x, sat, ug=None, sw=None):
         rs_s = self.rs_sat_eff(p)
-        return torch.where(sat, x, torch.zeros_like(x)), torch.where(sat, rs_s, x)
+        if ug is None or not self.wet:
+            return torch.where(sat, x, torch.zeros_like(x)), torch.where(sat, rs_s, x)
+        sg = torch.where(sat, x, torch.where(ug, 1.0 - sw, torch.zeros_like(x)))
+        return sg, torch.where(sat | ug, rs_s, x)
+
+    def _rv(self, p, x, ug):
+        return torch.where(ug, x, self.pvt.rv_sat(p))
 
     def step(self, dt, current_time=None):
         dbg = self.debug
@@ -555,16 +623,16 @@ class BlackOilFIMSolver(ManualFIMSolver):
 
         p_old = self.fluid.pressure.detach().reshape(-1).double().clone()
         sw_old = self.fluid.s_w.detach().reshape(-1).double().clone()
-        sat_old, x_old = self.sat.clone(), self.x.clone()
+        sat_old, x_old, ug_old = self.sat.clone(), self.x.clone(), self.ug.clone()
         if self.drsdt is not None and self.pvt.has_pvt:
             rs_old = self.fluid.rs.reshape(-1).double()
             self._rs_cap = rs_old + self.drsdt * dt
-        sg_old, _ = self._sg_rs(p_old, x_old, sat_old)
-        acc_old = self.cell_values(p_old, sw_old, x_old, sat_old)[I_ACC:I_ACC + 3]
+        sg_old, _ = self._sg_rs(p_old, x_old, sat_old, ug_old, sw_old)
+        acc_old = self.cell_values(p_old, sw_old, x_old, sat_old, ug_old)[I_ACC:I_ACC + 3]
         mass_total = acc_old.sum(dim=1).tolist() if dbg.enabled else None
 
-        p, sw, x, sat = p_old.clone(), sw_old.clone(), x_old.clone(), sat_old.clone()
-        state = self.cell_state(p, sw, x, sat)
+        p, sw, x, sat, ug = p_old.clone(), sw_old.clone(), x_old.clone(), sat_old.clone(), ug_old.clone()
+        state = self.cell_state(p, sw, x, sat, ug)
         if self.wells.n_w:
             hc = self.pore_volume * (1.0 - sw.view(-1))
             self.wells.p_avg = float((hc * p.view(-1)).sum() / hc.sum().clamp_min(1e-30))
@@ -576,6 +644,7 @@ class BlackOilFIMSolver(ManualFIMSolver):
         dbg.begin_step(dt, current_time, p_old, sw_old)
         initial_cnv = None
         n_switch = 0
+        cnv_hist, omega = [], 1.0
 
         def fail(reason, R=None, J=None):
             dbg.end_step(False, reason, p.view(shp), sw.view(shp), R, J, self.builder)
@@ -586,7 +655,7 @@ class BlackOilFIMSolver(ManualFIMSolver):
             dbg.begin_iter(k)
             timer = dbg.timer()
             with timer('assemble'):
-                R, J, wsys = self.assemble_bo(p, sw, x, sat, acc_old, dt, p_bh, state)
+                R, J, wsys = self.assemble_bo(p, sw, x, sat, acc_old, dt, p_bh, state, ug)
                 if wsys is not None and k > 0:
                     msgs = self.wells.update_controls(p_bh, wsys["q_surf"])
                     for m in msgs:
@@ -596,7 +665,7 @@ class BlackOilFIMSolver(ManualFIMSolver):
                             dbg.iter_rec["control_switch"] = msgs
                         p_bh = self._reset_bhp_targets(p_bh)
                         self._p_bh_cur = p_bh
-                        R, J, wsys = self.assemble_bo(p, sw, x, sat, acc_old, dt, p_bh, state)
+                        R, J, wsys = self.assemble_bo(p, sw, x, sat, acc_old, dt, p_bh, state, ug)
             pv = self._pv(p)
             ok, crit = self.convergence(R, dt, pv, wsys, p_bh, state[0])
             dbg.residual(R, dt, mass_total)
@@ -617,7 +686,7 @@ class BlackOilFIMSolver(ManualFIMSolver):
 
             if ok and k >= self.min_newton:
                 log("  Converged!")
-                sg, rs = self._sg_rs(p, x, sat)
+                sg, rs = self._sg_rs(p, x, sat, ug, sw)
                 so, so_old = 1.0 - sw - sg, 1.0 - sw_old - sg_old
                 self.last_newton_iters = k
                 self.last_max_dsw = float(torch.stack([(sw - sw_old).abs().max(), (sg - sg_old).abs().max(),
@@ -632,7 +701,11 @@ class BlackOilFIMSolver(ManualFIMSolver):
                 f.s_g = sg.view(shp).to(dtp).clone()
                 f.s_o = so.view(shp).to(dtp).clone()
                 f.rs = rs.view(shp).clone()
-                self.sat, self.x = sat, x
+                f.rv = self._rv(p, x, ug).view(shp).clone()
+                self.sat, self.x, self.ug = sat, x, ug
+                hyst = getattr(self.kr, "hyst", None)
+                if hyst is not None:
+                    hyst.commit(sw, sg)
                 if self.wells.n_w:
                     self.wells.commit(p_bh)
                     self._store_well_results(wsys, p_bh, dt)
@@ -649,24 +722,46 @@ class BlackOilFIMSolver(ManualFIMSolver):
                 dbg.end_iter(timer.t if dbg.enabled else {})
                 return fail("linear_solver_failed", R, J)
             dx, dpw = sol
-            p, sw, x, sat, n_sw = self._apply_update(p, sw, x, sat, dx, dbg)
+            cnv_hist.append(crit["cnv"])
+            if self._oscillating(cnv_hist):
+                omega = max(omega - self.relax_increment, self.relax_min)
+                log(f"    ~ колебания Ньютона: релаксация ω = {omega:.2f}")
+            if omega < 1.0:
+                dx, dpw = dx * omega, dpw * omega
+            p, sw, x, sat, ug, n_sw = self._apply_update(p, sw, x, sat, ug, dx, dbg)
             n_switch += n_sw
             if dpw.numel():
                 dpw_lim = torch.clamp(self.dbhp_max_rel * p_bh.abs(), min=self.dp_max_abs)
                 p_bh = (p_bh + torch.maximum(torch.minimum(dpw, dpw_lim), -dpw_lim)).clamp_min(1e3)
             self._p_bh_cur = p_bh
-            state = self.cell_state(p, sw, x, sat)
+            state = self.cell_state(p, sw, x, sat, ug)
             if not torch.isfinite(state[0]).all():
                 dbg.end_iter(timer.t if dbg.enabled else {})
                 return fail("nan_state")
             dbg.line_search([], 1.0, True)
             dbg.end_iter(timer.t if dbg.enabled else {})
 
-        R, J, _ = self.assemble_bo(p, sw, x, sat, acc_old, dt, p_bh, state)
+        R, J, _ = self.assemble_bo(p, sw, x, sat, acc_old, dt, p_bh, state, ug)
         return fail("max_newton_iter", R, J)
 
-    def _apply_update(self, p, sw, x, sat, dx, dbg):
-        """Ограничение поправок по ячейке (Appleyard) и переключение переменных Sg ↔ Rs."""
+    def _oscillating(self, hist):
+        """
+        Колебания Ньютона (как detectOscillations в OPM): по ≥2 уравнениям невязка вернулась к значению
+        двух итераций назад (|F0 − F2| < tol·F0), но отличается от предыдущей (|F0 − F1| > tol·F0).
+        """
+        if len(hist) < 3:
+            return False
+        tol = self.relax_rel_tol
+        n = 0
+        for f0, f1, f2 in zip(hist[-1], hist[-2], hist[-3]):
+            if f0 <= self.tol_cnv:
+                continue
+            if abs(f0 - f2) < tol * f0 and abs(f0 - f1) > tol * f0:
+                n += 1
+        return n >= min(2, len(hist[-1]))
+
+    def _apply_update(self, p, sw, x, sat, ug, dx, dbg):
+        """Ограничение поправок по ячейке (Appleyard) и переключение переменных Rs ↔ Sg ↔ Rv."""
         dp, dsw, dxx = dx[:, 0], dx[:, 1], dx[:, 2]
         dp_lim = torch.clamp(self.dp_max_rel * p.abs(), min=self.dp_max_abs)
         dp = torch.maximum(torch.minimum(dp, dp_lim), -dp_lim)
@@ -676,6 +771,9 @@ class BlackOilFIMSolver(ManualFIMSolver):
         dsw, dsg = dsw * fs, dsg * fs
         drs_lim = self.drs_max_rel * max(self.pvt.rs_max, 1e-12)
         drs = torch.where(sat, torch.zeros_like(dxx), dxx.clamp(-drs_lim, drs_lim))
+        if self.wet:
+            drv_lim = self.drs_max_rel * max(self.pvt.rv_max, 1e-12)
+            drs = torch.where(ug, dxx.clamp(-drv_lim, drv_lim), drs)
         if dbg.enabled:
             dbg.update(dp, torch.maximum(dsw.abs(), dsg.abs()), 1.0)
             dbg.iter_rec["update"].update(n_chopped_p=int((dx[:, 0].abs() > dp_lim).sum()),
@@ -685,16 +783,32 @@ class BlackOilFIMSolver(ManualFIMSolver):
         sw = (sw + dsw).clamp(0.0, 1.0)
         x = x + torch.where(sat, dsg, drs)
         n_switch = 0
+        if self.wet:
+            rs_s, rv_s = self.rs_sat_eff(p), self.pvt.rv_sat(p)
+            uo = ~sat & ~ug
+            sat_to_uo = sat & (x < -SWITCH_EPS_S)
+            sat_to_ug = sat & (x > 1.0 - sw + SWITCH_EPS_S)
+            uo_to_sat = uo & (x > rs_s * (1.0 + SWITCH_EPS_R) + 1e-300)
+            ug_to_sat = ug & (x > rv_s * (1.0 + SWITCH_EPS_R) + 1e-300)
+            x = torch.where(sat_to_uo, rs_s, x)
+            x = torch.where(sat_to_ug, rv_s, x)
+            x = torch.where(uo_to_sat, torch.zeros_like(x), x)
+            x = torch.where(ug_to_sat, 1.0 - sw, x)
+            ug = (ug & ~ug_to_sat) | sat_to_ug
+            sat = (sat & ~sat_to_uo & ~sat_to_ug) | uo_to_sat | ug_to_sat
+            n_switch = int(sat_to_uo.sum() + sat_to_ug.sum() + uo_to_sat.sum() + ug_to_sat.sum())
+            x = torch.where(sat, torch.minimum(x.clamp_min(0.0), 1.0 - sw), x.clamp_min(0.0))
+            return p, sw, x, sat, ug, n_switch
         if self.pvt.has_pvt:
             rs_s = self.rs_sat_eff(p)
-            to_us = sat & (x < 0)
-            to_sat = (~sat) & (x > rs_s)
+            to_us = sat & (x < -SWITCH_EPS_S)
+            to_sat = (~sat) & (x > rs_s * (1.0 + SWITCH_EPS_R) + 1e-300)
             x = torch.where(to_us, rs_s, x)
             x = torch.where(to_sat, torch.zeros_like(x), x)
             sat = (sat & ~to_us) | to_sat
             n_switch = int(to_us.sum() + to_sat.sum())
         x = torch.where(sat, torch.minimum(x.clamp_min(0.0), 1.0 - sw), x.clamp_min(0.0))
-        return p, sw, x, sat, n_switch
+        return p, sw, x, sat, ug, n_switch
 
     def _store_well_results(self, wsys, p_bh, dt):
         rho = self.pvt.rho_sc

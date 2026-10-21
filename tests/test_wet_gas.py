@@ -1,0 +1,101 @@
+"""Жирный газ (VAPOIL / PVTG, Rv) на SPE1: PVDG заменён на PVTG."""
+import contextlib
+import io
+import os
+import re
+import sys
+
+import numpy as np
+import torch
+
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
+
+from simulator.eclipse_deck import EclipseCase  # noqa: E402
+from simulator.eclipse_run import run_deck, apply_controls  # noqa: E402
+from simulator.simulation import Simulator  # noqa: E402
+
+SPE1 = os.path.join(os.path.dirname(__file__), "data", "spe1", "SPE1CASE1.DATA")
+DAY = 86400.0
+
+
+def _wet_deck(tmp_path, rv_per_psi, vapoil=True):
+    """PVTG из PVDG SPE1: Rv_sat = rv_per_psi·P [STB/Mscf], недонасыщенная ветвь до Rv = 0 (Bg +0.5%, μg −2%)."""
+    text = open(SPE1).read()
+    m = re.search(r"^PVDG\s*$", text, re.M)
+    nxt = re.search(r"^[A-Z][A-Z0-9]{1,7}\s*$", text[m.end():], re.M)
+    body = text[m.end():m.end() + nxt.start()]
+    rows = [list(map(float, ln.split()[:3])) for ln in body.splitlines()
+            if ln.strip() and not ln.strip().startswith("--") and re.match(r"^\s*[\d.]", ln)]
+    recs = []
+    for p, bg, mu in rows:
+        rv = rv_per_psi * p
+        if rv > 0:
+            recs.append(f" {p} {rv:.8f} {bg} {mu}\n     0.0 {bg * 1.005} {mu * 0.98} /")
+        else:
+            recs.append(f" {p} 0.0 {bg} {mu} /")
+    pvtg = "PVTG\n" + "\n".join(recs) + "\n/\n\n"
+    text = text[:m.start()] + pvtg + text[m.end() + nxt.start():]
+    if vapoil:
+        text = text.replace("\nDISGAS", "\nDISGAS\nVAPOIL", 1)
+    path = tmp_path / "WET.DATA"
+    path.write_text(text)
+    return str(path)
+
+
+def test_zero_rv_reproduces_dry_gas(tmp_path):
+    base, _ = run_deck(SPE1, max_days=300)
+    wet, _ = run_deck(_wet_deck(tmp_path, 0.0), max_days=300)
+    for key in ("FOPR", "FGPR", "WBHP:PROD", "BPR:10,10,3", "BGSAT:10,10,1"):
+        assert np.allclose(wet[key][1:], base[key][1:], rtol=1e-5, atol=1e-12), key
+
+
+def test_pvtg_saturated_branch_is_continuous(tmp_path):
+    case = EclipseCase(_wet_deck(tmp_path, 4e-5))
+    _, fluid, _, _ = case.build()
+    pvt = fluid.blackoil_pvt
+    assert pvt.wet
+    p = torch.linspace(2e6, 3.5e7, 200, dtype=torch.float64)
+    rv_s = pvt.rv_sat(p)
+    b_sat, mu_sat = pvt.gas(p, rv_s, torch.ones_like(p, dtype=torch.bool))
+    b_us, mu_us = pvt.gas(p, rv_s, torch.zeros_like(p, dtype=torch.bool))
+    assert torch.allclose(b_sat, b_us, rtol=2e-3) and torch.allclose(mu_sat, mu_us, rtol=2e-2)
+    b0, _ = pvt.gas(p, 0.0 * p, torch.zeros_like(p, dtype=torch.bool))
+    assert torch.all(b0 < b_sat)  # меньше конденсата — больше Bg (по таблице +0.5%)
+
+
+def _run(path, days):
+    case = EclipseCase(path)
+    with contextlib.redirect_stdout(io.StringIO()):
+        res, fluid, wm, prm = case.build()
+        sim = Simulator(res, fluid, wm, prm, device=torch.device("cpu"))
+    s = sim.fim_solver
+
+    def mass():
+        p, sw = fluid.pressure.reshape(-1).double(), fluid.s_w.reshape(-1).double()
+        return s.cell_values(p, sw, s.x, s.sat, s.ug)[0:3].sum(1)
+
+    m0 = mass()
+    t, n_ug = 0.0, 0
+    for n, d in enumerate(case.report_days):
+        if t + d > days:
+            break
+        apply_controls(case, n, wm, s)
+        with contextlib.redirect_stdout(io.StringIO()):
+            assert sim.run_step(d * DAY)
+        t += d
+        n_ug = max(n_ug, int(s.ug.sum()))
+    rho = s.pvt.rho_sc
+    cum = np.zeros(3)
+    for w in wm.wells:
+        c = w.cum_surface
+        cum += np.array([c["oil"] * rho[0], c["water"] * rho[1], c["gas"] * rho[2]])
+    return m0.numpy(), mass().numpy(), cum, n_ug, s
+
+
+def test_wet_gas_mass_balance_and_vaporization(tmp_path):
+    m0, m1, cum, n_ug, s = _run(_wet_deck(tmp_path, 1e-4), 1500)
+    for comp in (0, 2):
+        assert abs((m0[comp] - m1[comp]) - cum[comp]) <= 1e-5 * max(abs(m0[comp]), 1.0), comp
+    assert n_ug > 0  # закачанный сухой газ испаряет нефть: ячейки без нефти (X = Rv)
+    rv = s.fluid.rv.reshape(-1)
+    assert float(rv.max()) > 0 and float(rv.min()) >= 0
