@@ -80,6 +80,7 @@ class SolverDebugger:
         self.capture_amg = bool(cfg.get("capture_amg_output", True))
         self.dims = tuple(int(d) for d in dims)
         self.device = device
+        self.eq_names = EQ_NAMES
         self.step_idx = 0
         self.iter_rec = None
         self.step_rec = None
@@ -142,7 +143,7 @@ class SolverDebugger:
         self.event("step_start", dt_days=dt / 86400.0, t_days=(t or 0.0) / 86400.0, **self._state_stats(p, sw))
         if self.console:
             print(f"[solver-debug] шаг {self.step_idx}: t={self.step_rec['t_days']:.4f} сут, dt={dt/86400.0:.4g} сут")
-            print("   it |   CNV oil    CNV wat | худшая ячейка(eq)  | MB       | lin it  lin rel   | max dP,bar max dSw | скв.err | t,s")
+            print("   it | " + " ".join(f"{'CNV ' + e[:3]:>10s}" for e in self.eq_names) + " | худшая ячейка(eq)  | MB       | lin it  lin rel   | max dP,bar max dSw | скв.err | t,s")
 
     def end_step(self, converged, reason, p=None, sw=None, R=None, J_vals=None, builder=None):
         if not self.enabled:
@@ -174,7 +175,8 @@ class SolverDebugger:
         """Нормы невязки по уравнениям, худшие ячейки, ошибка материального баланса."""
         if not self.enabled:
             return
-        Rb = R.view(-1, 2)
+        nb = len(self.eq_names)
+        Rb = R.view(-1, nb)
         absR = Rb.abs()
         rec = self.iter_rec
         rec["res_inf"] = absR.max(dim=0).values.tolist()
@@ -186,7 +188,7 @@ class SolverDebugger:
         flat = absR.view(-1)
         k = min(self.top_k, flat.numel())
         vals, idx = torch.topk(flat, k)
-        rec["worst"] = [{"cell": int(i // 2), "ijk": self.ijk(int(i // 2)), "eq": EQ_NAMES[int(i % 2)],
+        rec["worst"] = [{"cell": int(i // nb), "ijk": self.ijk(int(i // nb)), "eq": self.eq_names[int(i % nb)],
                          "res": float(v)} for v, i in zip(vals.tolist(), idx.tolist())]
         rec["nan_in_R"] = bool(torch.isnan(R).any().item() or torch.isinf(R).any().item())
 
@@ -194,11 +196,12 @@ class SolverDebugger:
         if self.level < 2:
             return
         d = J_vals[diag_map]
-        det = d[:, 0, 0] * d[:, 1, 1] - d[:, 0, 1] * d[:, 1, 0]
+        det = torch.linalg.det(d)
+        dd = torch.diagonal(d, dim1=1, dim2=2).abs()
         self.iter_rec["jac"] = {
             "nan": bool(torch.isnan(J_vals).any().item()),
-            "diag_abs_min": [d[:, 0, 0].abs().min().item(), d[:, 1, 1].abs().min().item()],
-            "diag_abs_max": [d[:, 0, 0].abs().max().item(), d[:, 1, 1].abs().max().item()],
+            "diag_abs_min": dd.min(dim=0).values.tolist(),
+            "diag_abs_max": dd.max(dim=0).values.tolist(),
             "diag_det_abs_min": det.abs().min().item(),
             "n_near_singular_blocks": int((det.abs() < 1e-14 * det.abs().max()).sum().item()),
         }
@@ -262,7 +265,7 @@ class SolverDebugger:
         cnv = crit.get("cnv", r["res_inf"])
         mb = max(crit.get("mb", r["mb_err_rel"]))
         t = sum(r.get("time", {}).values())
-        print(f"  {r['iter']:3d} | {cnv[0]:10.3e} {cnv[1]:10.3e} | "
+        print(f"  {r['iter']:3d} | " + " ".join(f"{c:10.3e}" for c in cnv) + " | "
               f"{str(w['ijk']):>12s}({w['eq'][0]}) | {mb:8.1e} | "
               f"{lin.get('iters', '-'):>5} {lin.get('true_rel_res', float('nan')):9.2e} | "
               f"{up.get('max_dp_bar', float('nan')):9.3g} {up.get('max_dsw', float('nan')):7.3g} | "

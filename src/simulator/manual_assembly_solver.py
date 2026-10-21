@@ -42,7 +42,31 @@ class ManualFIMSolver:
 
         self.nx, self.ny, self.nz = reservoir.dimensions
         self.n_cells = self.nx * self.ny * self.nz
+        self._init_params(params)
 
+        print("Building sparse matrix structure...")
+        self.builder = SparseMatrixBuilder(self.nx, self.ny, self.nz, block_size=2, device=self.device)
+        print(f"Structure built. NNZ blocks: {self.builder.n_nonzero}")
+
+        # --- Свойства породы ---
+        self.pore_volume = (reservoir.cell_volume * reservoir.porosity).reshape(-1).double().to(self.device)
+        self.c_rock = float(getattr(fluid, 'rock_compressibility', 0.0))
+        self.p_ref_rock = fluid.pressure.detach().reshape(-1).double().clone().to(self.device)
+
+        # --- Относительные проницаемости (Corey) ---
+        self.sw_irr = float(getattr(fluid, 'sw_cr', 0.2))
+        self.so_r = float(getattr(fluid, 'so_r', 0.2))
+        self.nw = float(getattr(fluid, 'nw', 2.0))
+        self.no = float(getattr(fluid, 'no', 2.0))
+
+        self._build_connections()
+        self.wells = FIMWells(well_manager, reservoir, fluid, reservoir.dimensions, self.device)
+        for w in self.wells.wells:
+            print(f"  Скважина {w.name}: перфораций {len(w.perforations)}, WI = "
+                  + ", ".join(f"{v:.3e}" for v in w.connection_wi) + " м³")
+        self._p_bh_cur = None
+
+    def _init_params(self, params):
         # --- Нелинейный решатель ---
         self.max_newton = int(params.get('newton_max_iter', 15))
         self.min_newton = int(params.get('newton_min_iter', 0))
@@ -73,30 +97,8 @@ class ManualFIMSolver:
         self.last_max_dsw = 0.0
         self.last_max_dp = 0.0
 
-        self.debug = SolverDebugger(params.get('debug', {}), reservoir.dimensions, self.device)
+        self.debug = SolverDebugger(params.get('debug', {}), self.reservoir.dimensions, self.device)
         self._last_linear_stats = {}
-
-        print("Building sparse matrix structure...")
-        self.builder = SparseMatrixBuilder(self.nx, self.ny, self.nz, block_size=2, device=self.device)
-        print(f"Structure built. NNZ blocks: {self.builder.n_nonzero}")
-
-        # --- Свойства породы ---
-        self.pore_volume = (reservoir.cell_volume * reservoir.porosity).reshape(-1).double().to(self.device)
-        self.c_rock = float(getattr(fluid, 'rock_compressibility', 0.0))
-        self.p_ref_rock = fluid.pressure.detach().reshape(-1).double().clone().to(self.device)
-
-        # --- Относительные проницаемости (Corey) ---
-        self.sw_irr = float(getattr(fluid, 'sw_cr', 0.2))
-        self.so_r = float(getattr(fluid, 'so_r', 0.2))
-        self.nw = float(getattr(fluid, 'nw', 2.0))
-        self.no = float(getattr(fluid, 'no', 2.0))
-
-        self._build_connections()
-        self.wells = FIMWells(well_manager, reservoir, fluid, reservoir.dimensions, self.device)
-        for w in self.wells.wells:
-            print(f"  Скважина {w.name}: перфораций {len(w.perforations)}, WI = "
-                  + ", ".join(f"{v:.3e}" for v in w.connection_wi) + " м³")
-        self._p_bh_cur = None
 
     # ------------------------------------------------------------------ геометрия
     def _build_connections(self):
@@ -432,16 +434,17 @@ class ManualFIMSolver:
         Возвращает (dx [N,2], dp_bh [n_w]) или None при отказе.
         """
         n = self.n_cells
+        nb = J.shape[1]
         stats = {"backend": "fgmres_cpr", "n_wells": self.wells.n_w}
         wells_on = wsys is not None
         if wells_on:
             self.wells.add_local_schur(wsys, J)
-        rhs = -R.view(-1, 2).clone()
+        rhs = -R.view(-1, nb).clone()
         if wells_on:
             rhs += self.wells.schur_rhs(wsys, n)
 
         dg = J[self.builder.diag_map]
-        scale = torch.stack([1.0 / (dg[:, 0, 0].abs() + 1e-300), 1.0 / (dg[:, 1, 1].abs() + 1e-300)], dim=1)
+        scale = 1.0 / (torch.diagonal(dg, dim1=1, dim2=2).abs() + 1e-300)
         rows = torch.repeat_interleave(torch.arange(n, device=J.device),
                                        self.builder.indptr[1:] - self.builder.indptr[:-1])
         J.mul_(scale[rows].unsqueeze(2))
@@ -449,7 +452,7 @@ class ManualFIMSolver:
         b = (rhs * scale).reshape(-1)
 
         def matvec(x):
-            xb = x.view(-1, 2)
+            xb = x.view(-1, nb)
             y = torch.zeros_like(xb)
             y.index_add_(0, rows, torch.bmm(J, xb[cols].unsqueeze(-1)).squeeze(-1))
             if wells_on:
@@ -482,6 +485,6 @@ class ManualFIMSolver:
         self._last_linear_stats = stats
         if not (true_rel == true_rel) or true_rel > self.lin_accept:
             return None
-        dx = x.view(-1, 2)
+        dx = x.view(-1, nb)
         dpw = self.wells.recover_dpw(wsys, dx) if wells_on else torch.zeros(0, dtype=torch.float64, device=self.device)
         return dx, dpw

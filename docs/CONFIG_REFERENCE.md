@@ -87,10 +87,12 @@
 
 | Параметр | Тип / default | Описание |
 |----------|---------------|----------|
+| `fim_model` | `"auto"` \| `"oil_water"` \| `"blackoil"`, default `"auto"` | Модель FIM. `auto` включает трёхфазный black-oil, если задана PVT-таблица, начальная `s_g > 0`, есть газовая нагнетательная или добывающая с `surface_phase: "gas"`. |
 | `newton_max_iter` | `int`, default `15` | Максимальное число итераций Ньютона на подшаг. |
 | `newton_tol_cnv` / `newton_tol_mb` | `float`, default `1e-3` / `1e-7` | Локальный (CNV) и глобальный (MB) критерии сходимости. |
 | `newton_tol_well_rate` / `newton_tol_well_bhp` | `float`, default `1e-5` / `10` Па | Точность выполнения уставок скважин. |
 | `newton_ds_max`, `newton_dp_max_rel`, `newton_dp_max_abs_mpa`, `newton_dbhp_max_rel` | default `0.2`, `0.3`, `2.0`, `1.0` | Ограничение поправок Ньютона по ячейкам. |
+| `newton_drs_max_rel` | default `0.2` | Black-oil: ограничение поправки Rs в недонасыщенной ячейке (доля от максимального Rs таблицы). |
 | `linear_restart`, `linear_max_restarts` | default `50`, `4` | Размер подпространства FGMRES и число рестартов. |
 | `linear_tol_min`, `linear_tol_max`, `linear_accept_rel_res` | default `1e-6`, `1e-2`, `0.1` | Допуск неточного Ньютона и порог отказа СЛАУ. |
 | `amg_rebuild` | `"step"` \| `"iteration"`, default `"step"` | Когда строить иерархию AMG заново (иначе — только обновление значений). |
@@ -101,7 +103,7 @@
 | `max_time_step_attempts` | `int`, default `8` | Максимум дроблений шага подряд. |
 | `debug` | объект | Режим отладки решателя, см. `fim_technical_details.md`. |
 
-Параметры скважин для FIM: `perforations`, `skin`, `well_index`, `bhp_min`, `bhp_max`, `surface_phase`, `ramp_days` — см. `fim_technical_details.md`, раздел 2.
+Параметры скважин для FIM: `perforations`, `skin`, `well_index`, `bhp_min`, `bhp_max`, `surface_phase` (`liquid` | `oil` | `water` | `gas`), `injected_phase` (`water` | `gas`), `ramp_days` — см. `fim_technical_details.md`, разделы 2 и 9. Дебиты в FIM всегда поверхностные; `rate_type: "reservoir"` в FIM не поддерживается.
 
 ## 3. Блок `reservoir`
 

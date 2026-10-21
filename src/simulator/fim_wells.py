@@ -292,7 +292,7 @@ class FIMWells:
     def schur_rhs(self, sys, n_cells):
         """C D^-1 r_w в форме [N,2] — добавка к -R."""
         corr = sys["Cv"] * (sys["r_w"] / sys["D"])[self.conn_well].unsqueeze(1)
-        out = torch.zeros((n_cells, 2), dtype=torch.float64, device=self.device)
+        out = torch.zeros((n_cells, sys["Cv"].shape[1]), dtype=torch.float64, device=self.device)
         out.index_add_(0, self.conn_cell, corr)
         return out
 

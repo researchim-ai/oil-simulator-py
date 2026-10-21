@@ -8,6 +8,7 @@ import os
 import datetime
 import copy
 from simulator.manual_assembly_solver import ManualFIMSolver
+from simulator.blackoil_fim import BlackOilFIMSolver, needs_blackoil
 
 class Simulator:
     """
@@ -46,8 +47,13 @@ class Simulator:
             print(f"  Настройки решателя Ньютона:")
             print(f"    Макс. итераций: {sim_params.get('newton_max_iter', 15)}")
             print(f"    CNV ≤ {sim_params.get('newton_tol_cnv', 1e-3):g}, MB ≤ {sim_params.get('newton_tol_mb', 1e-7):g}")
-            # Инициализация оптимизированного решателя
-            self.fim_solver = ManualFIMSolver(
+            fim_model = sim_params.get('fim_model', 'auto')
+            if fim_model not in ('auto', 'oil_water', 'blackoil'):
+                raise ValueError(f"fim_model='{fim_model}': ожидается auto | oil_water | blackoil")
+            use_bo = fim_model == 'blackoil' or (fim_model == 'auto' and needs_blackoil(fluid, well_manager))
+            print(f"    Модель FIM: {'black-oil (нефть/вода/газ)' if use_bo else 'нефть/вода'}")
+            fim_cls = BlackOilFIMSolver if use_bo else ManualFIMSolver
+            self.fim_solver = fim_cls(
                 reservoir=self.reservoir,
                 fluid=self.fluid,
                 well_manager=self.well_manager,
