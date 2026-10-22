@@ -78,9 +78,10 @@ class ManualFIMSolver:
         self.tol_cnv = float(params.get('newton_tol_cnv', 1e-3))
         self.tol_mb = float(params.get('newton_tol_mb', 1e-7))
         # как в OPM: если ячейки с CNV > tol_cnv занимают ≤ relaxed_max_pv_fraction порового объёма,
-        # CNV проверяется с ослабленным допуском (MB и скважины — строго); только после max_strict_iter итераций
+        # CNV и MB проверяются с ослабленными допусками (скважины — строго); только после max_strict_iter итераций
         self.max_strict_iter = int(params.get('newton_max_strict_iter', 8))
         self.tol_cnv_relaxed = float(params.get('newton_tol_cnv_relaxed', 1.0))
+        self.tol_mb_relaxed = float(params.get('newton_tol_mb_relaxed', 1e-6))
         self.relaxed_max_pv_fraction = float(params.get('newton_relaxed_max_pv_fraction', 0.03))
         self.tol_well_rate = float(params.get('newton_tol_well_rate', 1e-5))
         self.tol_well_bhp = float(params.get('newton_tol_well_bhp', 10.0))  # Па
