@@ -36,7 +36,7 @@ IGNORED = {"TITLE", "EQLDIMS", "TABDIMS", "WELLDIMS", "RPTSCHED", "RPTRST", "RPT
 # влияют на физику, но пока не поддерживаются
 UNSUPPORTED = {"SWFN", "SGFN", "SOF3", "SLGOF", "AQUFETP", "AQUCT", "PBVD", "PDVD", "RVVD",
                "PRESSURE", "SWAT", "SGAS", "RS", "NNC", "EDITNNC",
-               "DRVDT", "ROCKTAB", "WECON", "WTEST", "TRANX", "TRANY", "TRANZ",
+               "DRVDT", "ROCKTAB", "WECON", "TRANX", "TRANY", "TRANZ",
                "COMPORD", "OPERATE", "MINPVV", "MINPORV",
                "OLDTRAN", "HYSTER", "LGR", "CARFIN"}
 ARRAY_KEYWORDS = {"DX", "DY", "DZ", "TOPS", "PORO", "PERMX", "PERMY", "PERMZ", "NTG", "ACTNUM",
@@ -217,6 +217,10 @@ class EclipseCase:
         self.eqlopts = set()
         self.thpres = []         # [(r1, r2, порог Па | None — из начального равновесия)], регионы 0-based
         self.conn_steps = []     # на каждый отчётный шаг: {скважина: {ijk: параметры соединения}}
+        self.wtest = {}          # текущие WTEST: {скважина: dict(interval сут, reasons, tests)}
+        self.wtest_steps = []    # снимок WTEST на каждый отчётный шаг
+        self.reopen_steps = []   # скважины с явным WELOPEN OPEN перед отчётным шагом
+        self._reopen = set()
         gcon = {}
         date = None
         opened = {}
@@ -405,10 +409,16 @@ class EclipseCase:
                         self._welopen_conns(r, st)
                         continue
                     for name in self._match_wells(r[0]):
+                        if st == "OPEN":
+                            self._reopen.add(name)
                         if name in controls:
                             controls[name] = controls[name][:2] + (st,)
                         elif st == "OPEN":
                             raise ValueError(f"WELOPEN {name}: скважина открыта без режима")
+            elif kw == "WTEST":
+                for r in recs:
+                    if r:
+                        self._wtest(r)
             elif kw == "START":
                 r = recs[0]
                 self.start = _date(r)
@@ -426,6 +436,7 @@ class EclipseCase:
                     self.steps.append((d, dict(controls)))
                     self.group_steps.append(dict(gcon))
                     self.conn_steps.append(self._conn_snapshot())
+                    self._close_step_events()
                     date = new
             elif kw == "TSTEP":
                 for rec in recs:
@@ -433,6 +444,7 @@ class EclipseCase:
                         self.steps.append((float(v), dict(controls)))
                         self.group_steps.append(dict(gcon))
                         self.conn_steps.append(self._conn_snapshot())
+                        self._close_step_events()
                         if date is not None:
                             date = date + datetime.timedelta(days=float(v))
             else:
@@ -472,12 +484,13 @@ class EclipseCase:
         for name in self.wells:
             if all(name not in c for _, c in self.steps):
                 raise ValueError(f"скважина {name}: нет режима (WCONPROD/WCONINJE/WCONHIST/WCONINJH)")
+        # начальный тип — по первому режиму с ненулевым управлением; дальше тип может меняться по расписанию
         self.well_type = {}
-        for _, c in self.steps:
-            for name, (kw, _, _) in c.items():
-                t = "producer" if kw in ("WCONPROD", "WCONHIST") else "injector"
-                if self.well_type.setdefault(name, t) != t:
-                    raise NotImplementedError(f"{name}: смена типа скважины (добыча ↔ закачка) не поддерживается")
+        for name in self.wells:
+            ctl = [c[name] for _, c in self.steps if name in c]
+            live = [x for x in ctl if self.control_cfg(name, x)["control_type"] != "shut"]
+            kw = (live or ctl)[0][0]
+            self.well_type[name] = "producer" if kw in ("WCONPROD", "WCONHIST") else "injector"
         if "pvdg" not in self.tables and "pvtg" not in self.tables:
             raise ValueError("в deck нет PVDG или PVTG")
         if "pvtw" not in self.tables:
@@ -529,6 +542,25 @@ class EclipseCase:
             for ijk, c in self.wells[wn]["conns"].items():
                 if all(s < 0 or s == v for s, v in zip(sel, ijk)):
                     c["open"] = st == "OPEN"
+
+    def _wtest(self, r):
+        """WTEST: интервал проверки (сут), причины закрытия (P, E, G, D, C), число проверок (0 — без ограничения)."""
+        interval = float(_get(r, 1, 0.0) or 0.0)
+        reasons = str(_get(r, 2, "") or "").upper()
+        bad = set(reasons) - set("PEGDC")
+        if bad:
+            raise ValueError(f"WTEST {r[0]}: неизвестные причины {''.join(sorted(bad))}")
+        tests = int(_get(r, 3, 0) or 0)
+        for name in self._match_wells(r[0]):
+            if interval <= 0 or not reasons:
+                self.wtest.pop(name, None)
+            else:
+                self.wtest[name] = dict(interval=interval, reasons=reasons, tests=tests)
+
+    def _close_step_events(self):
+        self.wtest_steps.append({k: dict(v) for k, v in self.wtest.items()})
+        self.reopen_steps.append(self._reopen)
+        self._reopen = set()
 
     def _conn_snapshot(self):
         return {wn: {ijk: dict(c) for ijk, c in w["conns"].items()} for wn, w in self.wells.items()}
@@ -988,7 +1020,10 @@ class EclipseCase:
         WCONHIST RESV: control_type 'resv', исторические поверхностные дебиты — в 'hist_rates'.
         """
         u = self.u
-        typ = self.well_type[name]
+        if control is None:
+            typ = self.well_type[name]
+        else:
+            typ = "producer" if control[0] in ("WCONPROD", "WCONHIST") else "injector"
         if control is None or control[2] in ("SHUT", "STOP"):
             return {"type": typ, "control_type": "shut", "control_value": 0.0}
         kw, r, status = control
@@ -1019,7 +1054,10 @@ class EclipseCase:
                 cfg.update(control_type="rate", control_value=1e20, surface_phase="liquid", grup=True)
             else:
                 raise NotImplementedError(f"{kw} {name}: режим {mode}")
-            if cfg["control_type"] in ("rate", "resv") and hist and max(qo, qw, qg) <= 0:
+            # нулевая цель по дебиту — скважина остановлена (как stoppedOrZeroRateTarget в OPM)
+            zero = max(qo, qw, qg) <= 0 if hist else (cfg["control_type"] in ("rate", "resv")
+                                                       and not cfg.get("grup") and cfg["control_value"] <= 0)
+            if cfg["control_type"] in ("rate", "resv") and zero:
                 return {"type": typ, "control_type": "shut", "control_value": 0.0}
             # в истории ограничение по BHP — 1 атм (WELTARG не поддерживается)
             cfg["bhp_min"] = float(p_atm if hist else _get(r, bhp_idx, p_atm)) * u["p"] / 1e6
@@ -1033,7 +1071,7 @@ class EclipseCase:
             rate_idx, bhp_idx = (3, 4) if hist else (4, 6)
             if mode == "RATE":
                 cfg.update(control_type="rate", control_value=float(_get(r, rate_idx, 0.0) or 0.0) * cv)
-                if hist and cfg["control_value"] <= 0:
+                if cfg["control_value"] <= 0:
                     return {"type": typ, "control_type": "shut", "control_value": 0.0}
             elif mode == "BHP":
                 cfg.update(control_type="bhp", control_value=float(r[bhp_idx]) * u["p"] / 1e6)

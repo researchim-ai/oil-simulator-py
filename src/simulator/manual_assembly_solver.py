@@ -480,7 +480,12 @@ class ManualFIMSolver:
             rhs += self.wells.schur_rhs(wsys, n)
 
         dg = J[self.builder.diag_map]
-        scale = 1.0 / (torch.diagonal(dg, dim1=1, dim2=2).abs() + 1e-300)
+        # масштаб строки — по диагонали; если она вырождена относительно строки блока (нефть в ячейке без
+        # нефти: ∂M_o/∂p = 0, ∂M_o/∂Sw ≠ 0), — по максимуму строки блока, иначе 1/0 переполняет нормы Крылова
+        d = torch.diagonal(dg, dim1=1, dim2=2).abs()
+        row_max = dg.abs().amax(dim=2)
+        ref = torch.where(d > 1e-8 * row_max, d, row_max)
+        scale = torch.where(ref > 0, 1.0 / ref.clamp_min(1e-300), torch.ones_like(ref))
         rows = torch.repeat_interleave(torch.arange(n, device=J.device),
                                        self.builder.indptr[1:] - self.builder.indptr[:-1])
         J.mul_(scale[rows].unsqueeze(2))
