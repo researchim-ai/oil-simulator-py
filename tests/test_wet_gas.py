@@ -18,7 +18,7 @@ SPE1 = os.path.join(os.path.dirname(__file__), "data", "spe1", "SPE1CASE1.DATA")
 DAY = 86400.0
 
 
-def _wet_deck(tmp_path, rv_per_psi, vapoil=True):
+def _wet_deck(tmp_path, rv_per_psi, vapoil=True, vappars=None, name="WET.DATA"):
     """PVTG из PVDG SPE1: Rv_sat = rv_per_psi·P [STB/Mscf], недонасыщенная ветвь до Rv = 0 (Bg +0.5%, μg −2%)."""
     text = open(SPE1).read()
     m = re.search(r"^PVDG\s*$", text, re.M)
@@ -37,7 +37,9 @@ def _wet_deck(tmp_path, rv_per_psi, vapoil=True):
     text = text[:m.start()] + pvtg + text[m.end() + nxt.start():]
     if vapoil:
         text = text.replace("\nDISGAS", "\nDISGAS\nVAPOIL", 1)
-    path = tmp_path / "WET.DATA"
+    if vappars is not None:
+        text = text.replace("\nSCHEDULE", f"\nSCHEDULE\nVAPPARS\n {vappars} /\n", 1)
+    path = tmp_path / name
     path.write_text(text)
     return str(path)
 
@@ -118,3 +120,30 @@ def test_wet_gas_mass_balance_and_vaporization(tmp_path):
     assert n_ug > 0  # закачанный сухой газ испаряет нефть: ячейки без нефти (X = Rv)
     rv = s.fluid.rv.reshape(-1)
     assert float(rv.max()) > 0 and float(rv.min()) >= 0
+
+
+def test_vappars_zero_is_neutral_and_factor_formula(tmp_path):
+    base, _ = run_deck(_wet_deck(tmp_path, 1e-4), max_days=300)
+    zero, _ = run_deck(_wet_deck(tmp_path, 1e-4, vappars="0 0", name="V0.DATA"), max_days=300)
+    for key in ("FOPR", "FGPR", "WBHP:PROD"):
+        assert np.array_equal(zero[key][1:], base[key][1:]), key
+    from simulator.blackoil_fim import BlackOilFIMSolver
+    res, fluid, wm, params = EclipseCase(_wet_deck(tmp_path, 1e-4, vappars="0.5 0", name="V1.DATA")).build()
+    s = BlackOilFIMSolver(res, fluid, wm, params)
+    p = torch.full((s.n_cells,), 2.5e7, dtype=torch.float64)
+    s.so_max = torch.full_like(p, 0.8)
+    so = torch.linspace(0.0, 0.9, s.n_cells, dtype=torch.float64)
+    rv = s.rv_sat_eff(p, so)
+    expect = s.pvt.rv_sat(p) * torch.where(so < 0.8, (so.clamp_min(1e-3) / 0.8) ** 0.5, torch.ones_like(so))
+    assert torch.allclose(rv, expect, rtol=1e-14)
+
+
+def test_vappars_reduces_vaporization(tmp_path):
+    m0, m1, cum, n_ug, s = _run(_wet_deck(tmp_path, 1e-4, vappars="0.5 0", name="V2.DATA"), 1500)
+    for comp in (0, 2):
+        assert abs((m0[comp] - m1[comp]) - cum[comp]) <= 1e-5 * max(abs(m0[comp]), 1.0), comp
+    rv = s.fluid.rv.reshape(-1)
+    p = s.fluid.pressure.reshape(-1).double()
+    assert torch.all(rv <= s.pvt.rv_sat(p) * (1 + 1e-10))
+    _, _, _, _, s0 = _run(_wet_deck(tmp_path, 1e-4, name="V3.DATA"), 1500)
+    assert float(rv.sum()) < float(s0.fluid.rv.reshape(-1).sum())

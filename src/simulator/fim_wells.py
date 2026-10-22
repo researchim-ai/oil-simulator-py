@@ -34,6 +34,28 @@ def peaceman_wi(kx, ky, dx, dy, h, rw, skin=0.0):
     return 2.0 * math.pi * math.sqrt(kx * ky) * h / denom
 
 
+def connection_wi(conn, kx, ky, kz, dx, dy, dz):
+    """
+    Индекс соединения (как Eclipse COMPDAT): CF задан — он; иначе Писмен по направлению ствола:
+    Kh = sqrt(k1·k2)·h (или Kh из COMPDAT), r0 — по размерам и проницаемостям поперёк ствола (или Ro), м³.
+    """
+    if conn.get("wi") is not None:
+        return float(conn["wi"])
+    d = conn.get("dir", "Z")
+    k1, k2, d1, d2, h = {"X": (ky, kz, dy, dz, dx), "Y": (kx, kz, dx, dz, dy), "Z": (kx, ky, dx, dy, dz)}[d]
+    k1, k2 = max(float(k1), 1e-30), max(float(k2), 1e-30)
+    if conn.get("ro") is not None:
+        r0 = float(conn["ro"])
+    else:
+        r0 = 0.28 * math.sqrt(math.sqrt(k2 / k1) * d1 * d1 + math.sqrt(k1 / k2) * d2 * d2) \
+            / ((k2 / k1) ** 0.25 + (k1 / k2) ** 0.25)
+    kh = float(conn["kh"]) if conn.get("kh") is not None else math.sqrt(k1 * k2) * h
+    denom = math.log(r0 / conn["rw"]) + conn.get("skin", 0.0)
+    if denom <= 0:
+        raise ValueError(f"соединение {conn['ijk']}: ln(r0/rw)+skin={denom:.3f} <= 0 (r0={r0:.3f} м)")
+    return 2.0 * math.pi * kh / denom
+
+
 class FIMWells:
     def __init__(self, well_manager, reservoir, fluid, dims, device):
         self.wells = list(well_manager.wells)
@@ -54,18 +76,27 @@ class FIMWells:
               else reservoir.z_centers.cpu().double().view(1, 1, nz).expand(nx, ny, nz))
         kx = reservoir.permeability_x.cpu().double()
         ky = reservoir.permeability_y.cpu().double()
+        kz = reservoir.permeability_z.cpu().double()
+        self._geom = (kx, ky, kz, dx, dy, dz)
+        sched = []
 
         cells, owner, wis, depths = [], [], [], []
         self.ref_depth = []
         for w_idx, w in enumerate(self.wells):
             perfs = w.perforations
             w_depths = []
-            for (i, j, k) in perfs:
+            conns = w.connections
+            for n_c, (i, j, k) in enumerate(perfs):
                 if not (0 <= i < nx and 0 <= j < ny and 0 <= k < nz):
                     raise ValueError(f"Скважина {w.name}: перфорация ({i},{j},{k}) вне сетки {dims}")
-                wi = w.wi_override if w.wi_override is not None else peaceman_wi(
-                    kx[i, j, k], ky[i, j, k], float(dx[i, j, k]), float(dy[i, j, k]), float(dz[i, j, k]),
-                    w.radius, w.skin)
+                if conns is not None:
+                    wi = self._conn_wi(conns[n_c])
+                    sched.append(1.0 if conns[n_c]["open"] else 0.0)
+                else:
+                    wi = w.wi_override if w.wi_override is not None else peaceman_wi(
+                        kx[i, j, k], ky[i, j, k], float(dx[i, j, k]), float(dy[i, j, k]), float(dz[i, j, k]),
+                        w.radius, w.skin)
+                    sched.append(1.0)
                 cells.append((i * ny + j) * nz + k)
                 owner.append(w_idx)
                 wis.append(wi)
@@ -79,6 +110,7 @@ class FIMWells:
         self.conn_well = torch.tensor(owner, dtype=torch.long, device=device)
         self.conn_wi = torch.tensor(wis, dtype=torch.float64, device=device)
         self.conn_dz = torch.tensor(depths, dtype=torch.float64, device=device)
+        self.conn_sched = torch.tensor(sched, dtype=torch.float64, device=device)   # 0 — соединение закрыто (COMPDAT/WELOPEN)
         self.is_inj = torch.tensor([w.type == 'injector' for w in self.wells], dtype=torch.bool, device=device)
 
         # состояние (фиксируется только на успешном шаге)
@@ -86,6 +118,27 @@ class FIMWells:
         self.step_targets = None
         self.mode = [w.control_type for w in self.wells]
         self.rho_wb = torch.zeros(self.n_w, dtype=torch.float64, device=device)
+
+    def _conn_wi(self, conn):
+        i, j, k = conn["ijk"]
+        kx, ky, kz, dx, dy, dz = self._geom
+        return connection_wi(conn, kx[i, j, k], ky[i, j, k], kz[i, j, k],
+                             float(dx[i, j, k]), float(dy[i, j, k]), float(dz[i, j, k]))
+
+    def set_connections(self, w_idx, conns):
+        """Соединения скважины на отчётный шаг (тот же набор и порядок): WI и открытость."""
+        idx = (self.conn_well == w_idx).nonzero().view(-1)
+        if len(conns) != idx.numel():
+            raise ValueError(f"{self.wells[w_idx].name}: число соединений изменилось ({idx.numel()} → {len(conns)})")
+        wi = torch.tensor([self._conn_wi(c) for c in conns], dtype=torch.float64, device=self.device)
+        op = torch.tensor([1.0 if c["open"] else 0.0 for c in conns], dtype=torch.float64, device=self.device)
+        self.conn_wi[idx] = wi
+        self.conn_sched[idx] = op
+        self.wells[w_idx].connections = conns
+        self.wells[w_idx].connection_wi = wi.tolist()
+
+    def has_open_connections(self, w_idx):
+        return bool((self.conn_sched[self.conn_well == w_idx] > 0).any())
 
     # ----------------------------------------------------------- управление
     def targets(self, t_days):
@@ -126,7 +179,7 @@ class FIMWells:
 
         p_init = torch.zeros(self.n_w, dtype=torch.float64, device=self.device)
         p_ref_cell = pc - self.rho_wb[self.conn_well] * G * self.conn_dz
-        lam_t = (mob_o + mob_w) * self.conn_wi
+        lam_t = (mob_o + mob_w) * self.conn_wi * self.conn_sched
         sum_lt = torch.zeros_like(p_init).index_add_(0, self.conn_well, lam_t)
         sum_lp = torch.zeros_like(p_init).index_add_(0, self.conn_well, lam_t * p_ref_cell)
         p_avg = sum_lp / sum_lt.clamp_min(1e-30)
@@ -199,7 +252,7 @@ class FIMWells:
         if self.n_w == 0:
             return None
         c = self.conn_cell
-        wi = self.conn_wi
+        wi = self.conn_wi * self.conn_sched
         pc = p.view(-1)[c]
         p_wc = p_bh[self.conn_well] + self.rho_wb[self.conn_well] * G * self.conn_dz
         dp = pc - p_wc

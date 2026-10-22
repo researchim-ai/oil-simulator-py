@@ -42,6 +42,8 @@ class Well:
         self.skin = float(skin)
         self.wi_override = well_index  # м^3; если не задан, считается по Писмену
         self.connection_wi = None
+        # параметры соединений (deck COMPDAT): [{ijk, open, dir, skin, wi|None, rw, kh|None, ro|None}, ...]
+        self.connections = None
         self.ref_depth = ref_depth  # м, в координатах reservoir.z_centers; по умолчанию — верхняя перфорация
         
         nx, ny, nz = reservoir_dimensions
@@ -155,6 +157,7 @@ class WellManager:
                 ramp_days=w.get('ramp_days', 0.0),
                 ref_depth=w.get('ref_depth'),
             )
+            well.connections = w.get('connections')
             self.wells.append(well)
             print(f"  > Скважина '{well.name}' добавлена в менеджер.")
         

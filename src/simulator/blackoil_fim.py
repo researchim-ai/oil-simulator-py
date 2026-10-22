@@ -190,7 +190,7 @@ class BlackOilWells(FIMWells):
 
     def _conn_flows(self, v, d, p_bh):
         """Массовые потоки компонентов по перфорациям q [n_conn,3], dq/dx [n_conn,3,3], dq/dp_bh [n_conn,3]."""
-        c, cw, wi = self.conn_cell, self.conn_well, self.conn_wi * self.conn_open
+        c, cw, wi = self.conn_cell, self.conn_well, self.conn_wi * self.conn_open * self.conn_sched
         n_c = c.numel()
         p_wc = p_bh[cw] + self.conn_head
         q = torch.zeros((n_c, 3), dtype=torch.float64, device=self.device)
@@ -291,7 +291,7 @@ class BlackOilWells(FIMWells):
         (Rs = min(Rs_sat(p), Qg/Qo)); участок между соединениями несёт смесь от нижележащих перфораций.
         Явно по состоянию начала шага. Возвращает p_conn − p_bh, Па.
         """
-        c, cw, wi = self.conn_cell, self.conn_well, self.conn_wi
+        c, cw, wi = self.conn_cell, self.conn_well, self.conn_wi * self.conn_sched
         rho_sc = self.rho_sc
         qo = wi * (v[I_MOO][c] + v[I_MOG][c]) / rho_sc[OIL]
         qw = wi * v[I_MWW][c] / rho_sc[WAT]
@@ -313,6 +313,13 @@ class BlackOilWells(FIMWells):
             if w.type == 'injector' or idx.numel() == 0:
                 heads[idx] = mix_cell[idx] * G * dz_all[idx]
                 continue
+            # ствол — только открытые соединения (как в OPM); закрытым напор не нужен (WI = 0)
+            op = idx[self.conn_sched[idx] > 0]
+            if op.numel() == 0:
+                heads[idx] = mix_cell[idx] * G * dz_all[idx]
+                continue
+            heads[idx] = mix_cell[idx] * G * dz_all[idx]
+            idx = op
             order = idx[torch.argsort(dz_all[idx])]            # сверху вниз
             Qo = torch.flip(torch.cumsum(torch.flip(qo[order], [0]), 0), [0])
             Qw = torch.flip(torch.cumsum(torch.flip(qw[order], [0]), 0), [0])
@@ -427,6 +434,10 @@ class BlackOilFIMSolver(ManualFIMSolver):
         self.drsdt = None if drsdt is None else float(drsdt)
         self._rs_cap = None
         self.rho_sc = torch.tensor(self.pvt.rho_sc, dtype=torch.float64, device=dev)
+        vp = getattr(fluid, 'vappars', None)
+        if vp is not None and float(vp[1]) != 0.0:
+            raise NotImplementedError("VAPPARS: VAP2 ≠ 0 не поддерживается")
+        self.vap1 = float(vp[0]) if vp is not None and float(vp[0]) > 0.0 else None
 
         self._build_connections()
         self.wells = BlackOilWells(well_manager, reservoir, fluid, reservoir.dimensions, dev)
@@ -456,6 +467,7 @@ class BlackOilFIMSolver(ManualFIMSolver):
         self.x = torch.where(self.ug, rv, self.x)
         fluid.rs = rs.view(self.nx, self.ny, self.nz)
         fluid.rv = torch.where(self.ug, rv, rv_s).view(self.nx, self.ny, self.nz)
+        self.so_max = (1.0 - sw0 - sg).clamp_min(0.0)   # VAPPARS: максимальная So ячейки (на начало шага)
         print(f"  Black-oil FIM: PVT={'таблица' if self.pvt.has_pvt else 'постоянные сжимаемости'}, "
               f"насыщенных ячеек {int(self.sat.sum())}/{self.n_cells}"
               + (f", газ без нефти (X = Rv) {int(self.ug.sum())}" if self.wet else ""))
@@ -471,6 +483,18 @@ class BlackOilFIMSolver(ManualFIMSolver):
         """Rs в насыщенной ячейке: Rs_sat(P), ограниченное сверху DRSDT (Rs_old + DRSDT·dt)."""
         rs = self.pvt.rs_sat(p)
         return rs if self._rs_cap is None else torch.minimum(rs, self._rs_cap)
+
+    def rv_sat_eff(self, p, so):
+        """
+        Rv насыщенного газа: Rv_sat(P), при VAPPARS — ·(max(So, 1e-3)/So_max)^VAP1, если So < So_max и So_max > 0.01
+        (как saturatedVaporizationFactor в OPM): остаточная нефть испаряется хуже.
+        """
+        rv = self.pvt.rv_sat(p)
+        if self.vap1 is None:
+            return rv
+        som = self.so_max
+        f = (so.clamp_min(1e-3) / som.clamp_min(1e-30)) ** self.vap1
+        return rv * torch.where((som > 0.01) & (so < som), f, torch.ones_like(f))
 
     def _cell_fn(self, sat, ug=None):
         pvt, kr = self.pvt, self.kr
@@ -491,8 +515,9 @@ class BlackOilFIMSolver(ManualFIMSolver):
             bo, mu_o = pvt.oil(p, rs, on_sat_line | ug if wet else on_sat_line)
             bw, mu_w = pvt.water(p)
             if wet:
-                rv = torch.where(ug, x, pvt.rv_sat(p))
-                bg, mu_g = pvt.gas(p, rv, ~ug)
+                rv = torch.where(ug, x, self.rv_sat_eff(p, so))
+                # при VAPPARS насыщенный газ недонасыщен относительно PVTG — по Rv (ветви непрерывны)
+                bg, mu_g = pvt.gas(p, rv, ~ug if self.vap1 is None else None)
             else:
                 bg, mu_g = pvt.gas(p)
             krw, kro, krg = kr(sw, sg)
@@ -558,6 +583,7 @@ class BlackOilFIMSolver(ManualFIMSolver):
         if L.numel():
             T, gdz = self.face_T, G * self.face_dZ
             pot = []
+            th = self._face_thresholds(v)
             for ph in range(3):
                 ip, ir = I_P + ph, I_RHO + ph
                 rho_avg = 0.5 * (v[ir][L] + v[ir][Rr])
@@ -565,6 +591,13 @@ class BlackOilFIMSolver(ManualFIMSolver):
                 dpL = d[ip][L] - 0.5 * gdz.unsqueeze(1) * d[ir][L]
                 dpR = -d[ip][Rr] - 0.5 * gdz.unsqueeze(1) * d[ir][Rr]
                 up = dpot >= 0
+                if th is not None:
+                    # THPRES: поток через границу регионов — только сверх порога, Δφ_eff = sign·max(|Δφ| − θ, 0)
+                    theta = torch.where(up, th[0], th[1])
+                    over = (dpot.abs() > theta) | (theta == 0)
+                    dpot = torch.where(over, dpot - torch.sign(dpot) * theta, torch.zeros_like(dpot))
+                    gate = over.double().unsqueeze(1)
+                    dpL, dpR = dpL * gate, dpR * gate
                 pot.append((dpot, dpL, dpR, up))
             for comp, ph, mi in self.flux_terms:
                 dpot, dpL, dpR, up = pot[ph]
@@ -584,6 +617,48 @@ class BlackOilFIMSolver(ManualFIMSolver):
 
         wsys = self.wells.assemble(R, J, dm, v, d, p_bh) if self.wells.n_w else None
         return R.view(-1), J, wsys
+
+    def _face_thresholds(self, v):
+        """
+        Пороговые давления THPRES по граням: (θ для потока L→R, θ для R→L) или None.
+        Обратимые (по умолчанию) — одно значение для пары регионов в обе стороны; IRREVERS — по направлению.
+        Порог по умолчанию — максимальная по фазам |Δφ| через границу пары в начальном состоянии (первая сборка).
+        """
+        spec = getattr(self.reservoir, "thpres", None)
+        if spec is None:
+            return None
+        cached = getattr(self, "_th_cache", None)
+        if cached is not None:
+            return cached
+        eql = self.reservoir.cell_eqlnum.to(self.device).long().view(-1)
+        L, Rr = self.face_L, self.face_R
+        rL, rR = eql[L], eql[Rr]
+        cross = rL != rR
+        n_r = int(eql.max()) + 1
+        gdz = G * self.face_dZ
+        dmax = torch.zeros_like(self.face_T)
+        for ph, im in ((OIL, I_MOO), (WAT, I_MWW), (GAS, I_MGG)):
+            ip, ir = I_P + ph, I_RHO + ph
+            dpot = (v[ip][L] - v[ip][Rr]) - 0.5 * (v[ir][L] + v[ir][Rr]) * gdz
+            mob = torch.where(dpot >= 0, v[im][L], v[im][Rr])
+            dmax = torch.maximum(dmax, torch.where(mob > 0, dpot.abs(), torch.zeros_like(dpot)))
+        table = {}
+        for r1, r2, val in spec["records"]:
+            if not (0 <= r1 < n_r and 0 <= r2 < n_r):
+                raise ValueError(f"THPRES: регионы {r1 + 1}, {r2 + 1} вне EQLNUM 1..{n_r}")
+            if val is None:
+                m = cross & (((rL == r1) & (rR == r2)) | ((rL == r2) & (rR == r1)))
+                val = float(dmax[m].max()) if bool(m.any()) else 0.0
+            table[(r1, r2)] = val
+            if not spec["irreversible"]:
+                table[(r2, r1)] = val
+        lut = torch.zeros(n_r, n_r, dtype=torch.float64, device=self.device)
+        for (a, b), val in table.items():
+            lut[a, b] = val
+        th_lr = torch.where(cross, lut[rL, rR], torch.zeros_like(self.face_T))
+        th_rl = torch.where(cross, lut[rR, rL], torch.zeros_like(self.face_T))
+        self._th_cache = (th_lr, th_rl)
+        return self._th_cache
 
     # ------------------------------------------------------------ критерии
     def convergence(self, R, dt, pv, wsys, p_bh, v=None):
@@ -612,8 +687,8 @@ class BlackOilFIMSolver(ManualFIMSolver):
         sg = torch.where(sat, x, torch.where(ug, 1.0 - sw, torch.zeros_like(x)))
         return sg, torch.where(sat | ug, rs_s, x)
 
-    def _rv(self, p, x, ug):
-        return torch.where(ug, x, self.pvt.rv_sat(p))
+    def _rv(self, p, x, ug, so):
+        return torch.where(ug, x, self.rv_sat_eff(p, so))
 
     def step(self, dt, current_time=None):
         dbg = self.debug
@@ -701,7 +776,8 @@ class BlackOilFIMSolver(ManualFIMSolver):
                 f.s_g = sg.view(shp).to(dtp).clone()
                 f.s_o = so.view(shp).to(dtp).clone()
                 f.rs = rs.view(shp).clone()
-                f.rv = self._rv(p, x, ug).view(shp).clone()
+                f.rv = self._rv(p, x, ug, so).view(shp).clone()
+                self.so_max = torch.maximum(self.so_max, so.clamp_min(0.0))
                 self.sat, self.x, self.ug = sat, x, ug
                 hyst = getattr(self.kr, "hyst", None)
                 if hyst is not None:
@@ -795,7 +871,8 @@ class BlackOilFIMSolver(ManualFIMSolver):
             x_new = torch.where(to_sat, (a * (tgt - f0) / den).clamp(min=0.0).minimum(a), x_new)
         to_us = changed & ~sat
         if bool(to_us.any()):
-            rs_s, rv_s = self.rs_sat_eff(p), (self.pvt.rv_sat(p) if self.wet else torch.zeros_like(p))
+            rs_s = self.rs_sat_eff(p)
+            rv_s = self.rv_sat_eff(p, torch.zeros_like(p)) if self.wet else torch.zeros_like(p)
             hi = rs_s if ug is None else torch.where(ug, rv_s, rs_s)
             xa, xb = torch.zeros_like(x), hi
             fa = mass(torch.where(to_us, xa, x_new)) - tgt
@@ -832,7 +909,7 @@ class BlackOilFIMSolver(ManualFIMSolver):
         x = x + torch.where(sat, dsg, drs)
         n_switch = 0
         if self.wet:
-            rs_s, rv_s = self.rs_sat_eff(p), self.pvt.rv_sat(p)
+            rs_s, rv_s = self.rs_sat_eff(p), self.rv_sat_eff(p, torch.zeros_like(p))   # rv_s — для ячеек без нефти
             uo = ~sat & ~ug
             es, er = SWITCH_EPS_S, SWITCH_EPS_R
             sat_to_uo = sat & (x < -es)

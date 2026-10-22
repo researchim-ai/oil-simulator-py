@@ -34,10 +34,10 @@ FLAG_KEYWORDS = {
 IGNORED = {"TITLE", "EQLDIMS", "TABDIMS", "WELLDIMS", "RPTSCHED", "RPTRST", "RPTSOL", "RPTPROPS",
            "RPTGRID", "RPTRUNSP", "NSTACK", "MESSAGES", "TUNING", "SPECGRID", "GRIDFILE", "MAPAXES", "GRIDUNIT"}
 # влияют на физику, но пока не поддерживаются
-UNSUPPORTED = {"VAPPARS", "SWFN", "SGFN", "SOF3", "SLGOF", "AQUFETP", "AQUCT", "PBVD", "PDVD", "RVVD",
+UNSUPPORTED = {"SWFN", "SGFN", "SOF3", "SLGOF", "AQUFETP", "AQUCT", "PBVD", "PDVD", "RVVD",
                "PRESSURE", "SWAT", "SGAS", "RS", "NNC", "EDITNNC",
                "DRVDT", "ROCKTAB", "WECON", "WTEST", "TRANX", "TRANY", "TRANZ",
-               "COMPORD", "OPERATE", "MINPVV", "MINPORV", "THPRES",
+               "COMPORD", "OPERATE", "MINPVV", "MINPORV",
                "OLDTRAN", "HYSTER", "LGR", "CARFIN"}
 ARRAY_KEYWORDS = {"DX", "DY", "DZ", "TOPS", "PORO", "PERMX", "PERMY", "PERMZ", "NTG", "ACTNUM",
                   "MULTX", "MULTY", "MULTZ", "MULTX-", "MULTY-", "MULTZ-", "MULTPV", "FLUXNUM", "MULTNUM",
@@ -213,6 +213,10 @@ class EclipseCase:
         self.well_group = {}
         self.group_parent = {}
         self.group_steps = []
+        self.vappars = None      # (VAP1, VAP2)
+        self.eqlopts = set()
+        self.thpres = []         # [(r1, r2, порог Па | None — из начального равновесия)], регионы 0-based
+        self.conn_steps = []     # на каждый отчётный шаг: {скважина: {ijk: параметры соединения}}
         gcon = {}
         date = None
         opened = {}
@@ -350,22 +354,28 @@ class EclipseCase:
                     self.well_group[r[0]] = str(_get(r, 1, "FIELD"))
                     self.wells[r[0]] = dict(name=r[0], i=int(r[2]) - 1, j=int(r[3]) - 1,
                                             ref_depth=None if _get(r, 4) is None else r[4] * u["L"],
-                                            phase=str(_get(r, 5, "OIL")).upper(), perfs=[])
+                                            phase=str(_get(r, 5, "OIL")).upper(), conns={})
+            elif kw == "VAPPARS":
+                if self.steps:
+                    raise NotImplementedError("VAPPARS после начала расписания не поддерживается")
+                r = recs[0]
+                self.vappars = (float(_get(r, 0, 0.0) or 0.0), float(_get(r, 1, 0.0) or 0.0))
+            elif kw == "EQLOPTS":
+                self.eqlopts = {str(v).upper() for r in recs for v in r if v is not None}
+                bad = self.eqlopts - {"THPRES", "IRREVERS"}
+                if bad:
+                    raise NotImplementedError(f"EQLOPTS: опции {', '.join(sorted(bad))} не поддерживаются")
+            elif kw == "THPRES":
+                for r in recs:
+                    if r:
+                        if _get(r, 0) is None or _get(r, 1) is None:
+                            raise NotImplementedError("THPRES: регионы по умолчанию не поддерживаются")
+                        val = _get(r, 2)
+                        self.thpres.append((int(r[0]) - 1, int(r[1]) - 1, None if val is None else float(val) * u["p"]))
             elif kw == "COMPDAT":
                 for r in recs:
-                    if not r:
-                        continue
-                    w = self._well(r[0])
-                    i = int(_get(r, 1, 0) or 0) - 1
-                    j = int(_get(r, 2, 0) or 0) - 1
-                    i = w["i"] if i < 0 else i
-                    j = w["j"] if j < 0 else j
-                    if str(_get(r, 5, "OPEN")).upper() != "OPEN":
-                        raise NotImplementedError(f"COMPDAT {r[0]}: закрытые перфорации не поддерживаются")
-                    if _get(r, 9) is not None:
-                        raise NotImplementedError(f"COMPDAT {r[0]}: Kh пока не поддерживается")
-                    for k in range(int(r[3]) - 1, int(r[4])):
-                        w["perfs"].append(dict(ijk=(i, j, k), cf=_get(r, 7), diam=_get(r, 8), skin=_get(r, 10, 0.0)))
+                    if r:
+                        self._compdat(r)
             elif kw in ("WCONPROD", "WCONINJE", "WCONHIST", "WCONINJH"):
                 for r in recs:
                     if not r:
@@ -390,9 +400,10 @@ class EclipseCase:
                 for r in recs:
                     if not r:
                         continue
-                    if any(_get(r, m) is not None for m in range(2, 7)):
-                        raise NotImplementedError(f"WELOPEN {r[0]}: статус отдельных соединений не поддерживается")
                     st = str(_get(r, 1, "OPEN")).upper()
+                    if any(_get(r, m) is not None for m in range(2, 7)):
+                        self._welopen_conns(r, st)
+                        continue
                     for name in self._match_wells(r[0]):
                         if name in controls:
                             controls[name] = controls[name][:2] + (st,)
@@ -414,12 +425,14 @@ class EclipseCase:
                         raise ValueError(f"DATES {new:%d.%m.%Y}: дата не позже предыдущей")
                     self.steps.append((d, dict(controls)))
                     self.group_steps.append(dict(gcon))
+                    self.conn_steps.append(self._conn_snapshot())
                     date = new
             elif kw == "TSTEP":
                 for rec in recs:
                     for v in rec:
                         self.steps.append((float(v), dict(controls)))
                         self.group_steps.append(dict(gcon))
+                        self.conn_steps.append(self._conn_snapshot())
                         if date is not None:
                             date = date + datetime.timedelta(days=float(v))
             else:
@@ -479,6 +492,73 @@ class EclipseCase:
     @property
     def report_days(self):
         return [d for d, _ in self.steps]
+
+    def _compdat(self, r):
+        """COMPDAT: соединения (I, J, K1..K2) с CF, диаметром, Kh, скином, направлением и Ro; повтор — замена."""
+        name = str(r[0])
+        for wn in self._match_wells(name):
+            w = self.wells[wn]
+            i = int(_get(r, 1, 0) or 0) - 1
+            j = int(_get(r, 2, 0) or 0) - 1
+            i = w["i"] if i < 0 else i
+            j = w["j"] if j < 0 else j
+            state = str(_get(r, 5, "OPEN")).upper()
+            if state not in ("OPEN", "SHUT"):
+                raise NotImplementedError(f"COMPDAT {wn}: состояние соединения {state} (поддерживаются OPEN, SHUT)")
+            if _get(r, 6) is not None:
+                raise NotImplementedError(f"COMPDAT {wn}: SATNUM соединения не поддерживается")
+            if float(_get(r, 11, 0.0) or 0.0) != 0.0:
+                raise NotImplementedError(f"COMPDAT {wn}: D-фактор (не-Дарси) не поддерживается")
+            direction = str(_get(r, 12, "Z")).upper()[0]
+            if direction not in "XYZ":
+                raise ValueError(f"COMPDAT {wn}: направление {direction}")
+            spec = dict(open=state == "OPEN", cf=_get(r, 7), diam=_get(r, 8), kh=_get(r, 9),
+                        skin=float(_get(r, 10, 0.0) or 0.0), dir=direction, ro=_get(r, 13))
+            for k in range(int(r[3]) - 1, int(r[4])):
+                w["conns"].pop((i, j, k), None)
+                w["conns"][(i, j, k)] = dict(spec)
+
+    def _welopen_conns(self, r, st):
+        """WELOPEN по соединениям: I, J, K = 0 или по умолчанию — любые; номера заканчиваний не поддерживаются."""
+        if _get(r, 5) is not None or _get(r, 6) is not None:
+            raise NotImplementedError(f"WELOPEN {r[0]}: выбор по номерам заканчиваний не поддерживается")
+        if st not in ("OPEN", "SHUT", "STOP"):
+            raise NotImplementedError(f"WELOPEN {r[0]}: статус {st}")
+        sel = [int(_get(r, m, 0) or 0) - 1 for m in (2, 3, 4)]
+        for wn in self._match_wells(r[0]):
+            for ijk, c in self.wells[wn]["conns"].items():
+                if all(s < 0 or s == v for s, v in zip(sel, ijk)):
+                    c["open"] = st == "OPEN"
+
+    def _conn_snapshot(self):
+        return {wn: {ijk: dict(c) for ijk, c in w["conns"].items()} for wn, w in self.wells.items()}
+
+    def well_connections(self, name, step):
+        """
+        Соединения скважины на отчётном шаге: объединение всех соединений за расписание (фиксированный порядок —
+        по первому появлению) с параметрами шага; ещё не вскрытые — закрыты. Возвращает список dict(ijk, ...).
+        """
+        order, first = [], {}
+        for snap in self.conn_steps or [self._conn_snapshot()]:
+            for ijk, c in snap.get(name, {}).items():
+                if ijk not in first:
+                    first[ijk] = c
+                    order.append(ijk)
+        cur = (self.conn_steps[step] if self.conn_steps else self._conn_snapshot()).get(name, {})
+        u = self.u
+        out = []
+        for ijk in order:
+            c = cur.get(ijk)
+            spec = dict(c if c is not None else first[ijk])
+            if c is None:
+                spec["open"] = False
+            conv = (u["liq"] / DAY) * 1e-3 / u["p"]
+            out.append(dict(ijk=ijk, open=bool(spec["open"]), dir=spec["dir"], skin=spec["skin"],
+                            wi=None if spec["cf"] is None else float(spec["cf"]) * conv,
+                            rw=0.5 * float(spec["diam"] if spec["diam"] is not None else 1.0 / u["L"] * 0.3048) * u["L"],
+                            kh=None if spec["kh"] is None else float(spec["kh"]) * MD * u["L"],
+                            ro=None if spec["ro"] is None else float(spec["ro"]) * u["L"]))
+        return out
 
     def _well(self, name):
         if name not in self.wells:
@@ -630,6 +710,11 @@ class EclipseCase:
             kr = RegionRelPerm(krs, torch.as_tensor(regs["SATNUM"], device=device))
         else:
             kr = krs[0]
+        if self.thpres:
+            if "THPRES" not in self.eqlopts:
+                raise ValueError("THPRES без EQLOPTS 'THPRES'")
+            res.cell_eqlnum = torch.as_tensor(regs["EQLNUM"], device=device)
+            res.thpres = dict(records=list(self.thpres), irreversible="IRREVERS" in self.eqlopts)
         swc = ep.endpoint("SWL", slice(None))
         rocks = rt.get("rock", [(1e5, 0.0)])
         rock = np.array([rocks[min(r, len(rocks) - 1)] for r in range(n_pvt)])[regs["PVTNUM"]]
@@ -639,6 +724,7 @@ class EclipseCase:
         fluid = Fluid({"pressure": self.equil["p"] / 1e6, "s_w": float(swc[0]), "s_g": 0.0, "rho_oil": rho[0],
                        "rho_water": rho[1], "rho_gas": rho[2], "c_rock": float(c_r[0]) * 1e6}, res, device=device)
         fluid.blackoil_pvt = pvt
+        fluid.vappars = self.vappars if self.vapoil else None
         fluid.blackoil_relperm = kr
         fluid.rock_ref_pressure = p_ref
         fluid.rock_compressibility = c_r
@@ -805,22 +891,12 @@ class EclipseCase:
         out = []
         controls = self.steps[step][1]
         for w in self.wells.values():
-            if not w["perfs"]:
+            conns = self.well_connections(w["name"], step)
+            if not conns:
                 raise ValueError(f"скважина {w['name']}: нет COMPDAT")
-            diam = {pf["diam"] for pf in w["perfs"]}
-            skins = {pf["skin"] for pf in w["perfs"]}
-            cfs = {pf["cf"] for pf in w["perfs"]}
-            if len(diam) > 1 or None in diam or len(skins) > 1:
-                raise NotImplementedError(f"{w['name']}: разные диаметры/скины по перфорациям или диаметр по умолчанию")
-            cfg = {"name": w["name"], "i": w["i"], "j": w["j"], "k": w["perfs"][0]["ijk"][2],
-                   "perforations": [list(pf["ijk"]) for pf in w["perfs"]], "radius": diam.pop() * u["L"] / 2,
-                   "skin": skins.pop()}
-            if cfs != {None}:
-                if len(cfs) > 1 or None in cfs:
-                    raise NotImplementedError(f"{w['name']}: CF задан не для всех перфораций одинаково")
-                cf = cfs.pop()
-                conv = (u["liq"] / DAY) * 1e-3 / u["p"]
-                cfg["well_index"] = cf * conv
+            cfg = {"name": w["name"], "i": w["i"], "j": w["j"], "k": conns[0]["ijk"][2],
+                   "perforations": [list(c["ijk"]) for c in conns], "radius": conns[0]["rw"],
+                   "skin": conns[0]["skin"], "connections": conns}
             if w["ref_depth"] is not None:
                 cfg["ref_depth"] = w["ref_depth"] - self.depth_top
             cfg.update(self.control_cfg(w["name"], controls.get(w["name"])))

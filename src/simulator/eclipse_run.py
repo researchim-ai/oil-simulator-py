@@ -28,8 +28,14 @@ def apply_controls(case, step, wm, solver):
         old = (w.control_type, w.control_value, w.surface_phase, w.bhp_min, w.bhp_max,
                getattr(w, "hist_rates", None))
         w.grup = bool(cfg.get("grup", False))
+        if fw is not None and getattr(w, "connections", None) is not None and hasattr(fw, "set_connections"):
+            fw.set_connections(fw.wells.index(w), case.well_connections(w.name, step))
         if fw is not None and hasattr(fw, "set_open"):
-            fw.set_open(fw.wells.index(w), cfg["control_type"] != "shut")
+            # скважина без открытых соединений закрыта (как в Eclipse/OPM)
+            is_open = cfg["control_type"] != "shut"
+            if hasattr(fw, "has_open_connections"):
+                is_open = is_open and fw.has_open_connections(fw.wells.index(w))
+            fw.set_open(fw.wells.index(w), is_open)
         if new == old:
             continue
         if cfg.get("surface_phase") != w.surface_phase and fw is not None and hasattr(fw, "rate_w"):
