@@ -752,8 +752,13 @@ class BlackOilFIMSolver(ManualFIMSolver):
         Rb = R.view(-1, 3)
         b_avg = (1.0 / v[I_B:I_B + 3]).mean(dim=1)
         scale = dt * b_avg / self.rho_sc
-        cnv = (scale * Rb.abs() / pv.unsqueeze(1)).max(dim=0).values
+        cnv_cell = scale * Rb.abs() / pv.unsqueeze(1)
+        cnv = cnv_cell.max(dim=0).values
         mb = scale * Rb.sum(dim=0).abs() / pv.sum()
+        bad = cnv_cell.max(dim=1).values > self.tol_cnv
+        relaxed = (getattr(self, "_newton_iter", 0) >= self.max_strict_iter and bool(bad.any())
+                   and float(pv[bad].sum() / pv.sum()) <= self.relaxed_max_pv_fraction)
+        tol_cnv = self.tol_cnv_relaxed if relaxed else self.tol_cnv
         well_ok, well_err = True, 0.0
         if wsys is not None:
             rate = wsys["is_rate"]
@@ -763,8 +768,8 @@ class BlackOilFIMSolver(ManualFIMSolver):
             well_err = float(rate_err.max()) if bool(rate.any()) else 0.0
             well_ok = bool((rate_err <= self.tol_well_rate).all() and (bhp_err <= self.tol_well_bhp).all())
         cnv_l, mb_l = cnv.tolist(), mb.tolist()
-        ok = max(cnv_l) <= self.tol_cnv and max(mb_l) <= self.tol_mb and well_ok
-        return ok, {"cnv": cnv_l, "mb": mb_l, "well_rate_rel_err": well_err}
+        ok = max(cnv_l) <= tol_cnv and max(mb_l) <= self.tol_mb and well_ok
+        return ok, {"cnv": cnv_l, "mb": mb_l, "well_rate_rel_err": well_err, "cnv_relaxed": relaxed}
 
     # ------------------------------------------------------------ шаг
     def _sg_rs(self, p, x, sat, ug=None, sw=None):
@@ -840,6 +845,7 @@ class BlackOilFIMSolver(ManualFIMSolver):
                         self._p_bh_cur = p_bh
                         R, J, wsys = self.assemble_bo(p, sw, x, sat, acc_old, dt, p_bh, state, ug)
             pv = self._pv(p)
+            self._newton_iter = k
             ok, crit = self.convergence(R, dt, pv, wsys, p_bh, state[0])
             dbg.residual(R, dt, mass_total)
             if dbg.enabled:
