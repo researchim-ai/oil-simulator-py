@@ -722,7 +722,7 @@ class BlackOilFIMSolver(ManualFIMSolver):
                 dbg.end_iter(timer.t if dbg.enabled else {})
                 return fail("linear_solver_failed", R, J)
             dx, dpw = sol
-            cnv_hist.append(crit["cnv"])
+            cnv_hist.append([max(c / self.tol_cnv, m / self.tol_mb) for c, m in zip(crit["cnv"], crit["mb"])])
             if self._oscillating(cnv_hist):
                 omega = max(omega - self.relax_increment, self.relax_min)
                 log(f"    ~ колебания Ньютона: релаксация ω = {omega:.2f}")
@@ -748,17 +748,65 @@ class BlackOilFIMSolver(ManualFIMSolver):
         """
         Колебания Ньютона (как detectOscillations в OPM): по ≥2 уравнениям невязка вернулась к значению
         двух итераций назад (|F0 − F2| < tol·F0), но отличается от предыдущей (|F0 − F1| > tol·F0).
+        hist — невязки уравнений, нормированные на допуск: max(CNV/tol_cnv, MB/tol_mb).
         """
         if len(hist) < 3:
             return False
         tol = self.relax_rel_tol
         n = 0
         for f0, f1, f2 in zip(hist[-1], hist[-2], hist[-3]):
-            if f0 <= self.tol_cnv:
+            if f0 <= 1.0:
                 continue
             if abs(f0 - f2) < tol * f0 and abs(f0 - f1) > tol * f0:
                 n += 1
         return n >= min(2, len(hist[-1]))
+
+    @staticmethod
+    def _clamp_x(x, sw, sat, es):
+        """Sg насыщенной ячейки — в полосе [−es, 1 − Sw + es] без обрезки (обрезка теряет массу), Rs/Rv ≥ 0."""
+        return torch.where(sat, torch.minimum(torch.maximum(x, -es + 0.0 * x), 1.0 - sw + es), x.clamp_min(0.0))
+
+    def _conservative_switch(self, p, sw, x, sat_old, ug_old, sat, ug, changed):
+        """
+        Первичная переменная ячейки в новом состоянии (sat, ug) так, чтобы масса компонента, по которому
+        произошло переключение, совпала с массой в исходном состоянии (sat_old, ug_old) — по той же функции
+        свойств ячейки: при появлении/исчезновении газа сохраняется газ, нефти — нефть.
+        Sg в насыщенной ячейке входит в массы линейно (точно за один шаг), Rs/Rv — секущими.
+        """
+        target_m = self.cell_values(p, sw, x, sat_old, ug_old)[I_ACC:I_ACC + 3]
+        a = 1.0 - sw
+        to_sat = changed & sat
+        if ug is None:
+            comp_gas = torch.ones_like(sat)
+        else:
+            comp_gas = (sat_old & ~ug) | (~sat_old & ~ug_old)
+        k = torch.where(comp_gas, GAS, OIL)
+
+        def mass(xx):
+            m = self.cell_values(p, sw, xx, sat, ug)[I_ACC:I_ACC + 3]
+            return torch.gather(m, 0, k.view(1, -1)).view(-1)
+
+        tgt = torch.gather(target_m, 0, k.view(1, -1)).view(-1)
+        x_new = x.clone()
+        if bool(to_sat.any()):
+            z0, z1 = torch.zeros_like(x), a
+            f0, f1 = mass(torch.where(to_sat, z0, x)), mass(torch.where(to_sat, z1, x))
+            den = torch.where((f1 - f0).abs() > 1e-300, f1 - f0, torch.ones_like(f0))
+            x_new = torch.where(to_sat, (a * (tgt - f0) / den).clamp(min=0.0).minimum(a), x_new)
+        to_us = changed & ~sat
+        if bool(to_us.any()):
+            rs_s, rv_s = self.rs_sat_eff(p), (self.pvt.rv_sat(p) if self.wet else torch.zeros_like(p))
+            hi = rs_s if ug is None else torch.where(ug, rv_s, rs_s)
+            xa, xb = torch.zeros_like(x), hi
+            fa = mass(torch.where(to_us, xa, x_new)) - tgt
+            fb = mass(torch.where(to_us, xb, x_new)) - tgt
+            for _ in range(6):
+                den = torch.where((fb - fa).abs() > 1e-300, fb - fa, torch.ones_like(fa))
+                xc = (xb - fb * (xb - xa) / den).clamp(min=0.0).minimum(hi)
+                fc = mass(torch.where(to_us, xc, x_new)) - tgt
+                xa, fa, xb, fb = xb, fb, xc, fc
+            x_new = torch.where(to_us, xb, x_new)
+        return x_new
 
     def _apply_update(self, p, sw, x, sat, ug, dx, dbg):
         """Ограничение поправок по ячейке (Appleyard) и переключение переменных Rs ↔ Sg ↔ Rv."""
@@ -786,27 +834,32 @@ class BlackOilFIMSolver(ManualFIMSolver):
         if self.wet:
             rs_s, rv_s = self.rs_sat_eff(p), self.pvt.rv_sat(p)
             uo = ~sat & ~ug
-            sat_to_uo = sat & (x < -SWITCH_EPS_S)
-            sat_to_ug = sat & (x > 1.0 - sw + SWITCH_EPS_S)
-            uo_to_sat = uo & (x > rs_s * (1.0 + SWITCH_EPS_R) + 1e-300)
-            ug_to_sat = ug & (x > rv_s * (1.0 + SWITCH_EPS_R) + 1e-300)
-            x = torch.where(sat_to_uo, rs_s, x)
-            x = torch.where(sat_to_ug, rv_s, x)
-            x = torch.where(uo_to_sat, torch.zeros_like(x), x)
-            x = torch.where(ug_to_sat, 1.0 - sw, x)
-            ug = (ug & ~ug_to_sat) | sat_to_ug
-            sat = (sat & ~sat_to_uo & ~sat_to_ug) | uo_to_sat | ug_to_sat
+            es, er = SWITCH_EPS_S, SWITCH_EPS_R
+            sat_to_uo = sat & (x < -es)
+            sat_to_ug = sat & (x > 1.0 - sw + es)
+            uo_to_sat = uo & (x > rs_s * (1.0 + er) + 1e-300)
+            ug_to_sat = ug & (x > rv_s * (1.0 + er) + 1e-300)
+            ug_n = (ug & ~ug_to_sat) | sat_to_ug
+            sat_n = (sat & ~sat_to_uo & ~sat_to_ug) | uo_to_sat | ug_to_sat
+            changed = sat_to_uo | sat_to_ug | uo_to_sat | ug_to_sat
+            if bool(changed.any()):
+                x = self._conservative_switch(p, sw, x, sat, ug, sat_n, ug_n, changed)
+            sat, ug = sat_n, ug_n
             n_switch = int(sat_to_uo.sum() + sat_to_ug.sum() + uo_to_sat.sum() + ug_to_sat.sum())
-            x = torch.where(sat, torch.minimum(x.clamp_min(0.0), 1.0 - sw), x.clamp_min(0.0))
+            x = self._clamp_x(x, sw, sat, es)
             return p, sw, x, sat, ug, n_switch
         if self.pvt.has_pvt:
             rs_s = self.rs_sat_eff(p)
-            to_us = sat & (x < -SWITCH_EPS_S)
-            to_sat = (~sat) & (x > rs_s * (1.0 + SWITCH_EPS_R) + 1e-300)
-            x = torch.where(to_us, rs_s, x)
-            x = torch.where(to_sat, torch.zeros_like(x), x)
-            sat = (sat & ~to_us) | to_sat
+            es, er = SWITCH_EPS_S, SWITCH_EPS_R
+            to_us = sat & (x < -es)
+            to_sat = (~sat) & (x > rs_s * (1.0 + er) + 1e-300)
+            sat_n = (sat & ~to_us) | to_sat
+            if bool((to_us | to_sat).any()):
+                x = self._conservative_switch(p, sw, x, sat, None, sat_n, None, to_us | to_sat)
+            sat = sat_n
             n_switch = int(to_us.sum() + to_sat.sum())
+            x = self._clamp_x(x, sw, sat, es)
+            return p, sw, x, sat, ug, n_switch
         x = torch.where(sat, torch.minimum(x.clamp_min(0.0), 1.0 - sw), x.clamp_min(0.0))
         return p, sw, x, sat, ug, n_switch
 

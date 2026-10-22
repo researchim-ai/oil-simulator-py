@@ -16,6 +16,11 @@ from typing import Tuple, Optional
 import time
 
 
+
+def _rng(device, seed):
+    """Генератор с фиксированным зерном для детерминированного огрубления AMG."""
+    return torch.Generator(device=device).manual_seed(20240607 + seed)
+
 def _torch_csr_to_scipy(A: torch.Tensor) -> sp.csr_matrix:
     if A.layout != torch.sparse_csr:
         raise TypeError("Expected torch.sparse_csr tensor")
@@ -122,8 +127,8 @@ def classical_coarsening(A_csr: torch.Tensor, theta: float = 0.25) -> Tuple[torc
     deg.scatter_add_(0, ii, torch.ones_like(ii, dtype=torch.float32))
     deg.scatter_add_(0, jj, torch.ones_like(jj, dtype=torch.float32))
     
-    # Случайный tie-breaker
-    w = torch.rand(n, device=device)
+    # Псевдослучайный tie-breaker с фиксированным зерном: огрубление (и результаты расчёта) воспроизводимы
+    w = torch.rand(n, device=device, generator=_rng(device, 0))
     score = deg + 1e-3 * w  # лексикографическое сравнение
     
     # Максимум score среди соседей (для обоих направлений)
@@ -178,7 +183,7 @@ def pmis_coarsening(A_csr: torch.Tensor, strong_mask: torch.Tensor) -> Tuple[tor
         if not undecided.any():
             break
 
-        priorities = torch.rand(n, device=device)
+        priorities = torch.rand(n, device=device, generator=_rng(device, 1 + iteration))
         priorities = priorities + deg * 1e-3 + iteration * 1e-6
         priorities[~undecided] = -1e9
 

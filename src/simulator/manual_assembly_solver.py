@@ -68,6 +68,10 @@ class ManualFIMSolver:
         self._p_bh_cur = None
 
     def _init_params(self, params):
+        # Воспроизводимость: ядра torch с накоплением (scatter/index_add, разреженное умножение в AMG) иначе
+        # недетерминированы, и расхождения ~1e-14 усиливаются Ньютоном до различий в результатах (~1e-5)
+        if bool(params.get('deterministic', True)):
+            torch.use_deterministic_algorithms(True, warn_only=True)
         # --- Нелинейный решатель ---
         self.max_newton = int(params.get('newton_max_iter', 15))
         self.min_newton = int(params.get('newton_min_iter', 0))

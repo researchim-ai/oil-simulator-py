@@ -49,6 +49,24 @@ def test_zero_rv_reproduces_dry_gas(tmp_path):
         assert np.allclose(wet[key][1:], base[key][1:], rtol=1e-5, atol=1e-12), key
 
 
+def test_pvto_saturated_branch_is_continuous():
+    _, fluid, _, _ = EclipseCase(SPE1).build()
+    pvt = fluid.blackoil_pvt
+    p = torch.linspace(1e6, 4e7, 500, dtype=torch.float64)
+    rs_s = pvt.rs_sat(p)
+    yes = torch.ones_like(p, dtype=torch.bool)
+    b_sat, mu_sat = pvt.oil(p, rs_s, yes)
+    b_us, mu_us = pvt.oil(p, rs_s, ~yes)
+    assert torch.equal(b_sat, b_us) and torch.equal(mu_sat, mu_us)
+
+
+def test_runs_are_bitwise_reproducible():
+    a, _ = run_deck(SPE1, max_days=150)
+    b, _ = run_deck(SPE1, max_days=150)
+    for key in ("FOPR", "FGPR", "WBHP:PROD"):
+        assert np.array_equal(a[key][1:], b[key][1:]), key
+
+
 def test_pvtg_saturated_branch_is_continuous(tmp_path):
     case = EclipseCase(_wet_deck(tmp_path, 4e-5))
     _, fluid, _, _ = case.build()
@@ -58,7 +76,8 @@ def test_pvtg_saturated_branch_is_continuous(tmp_path):
     rv_s = pvt.rv_sat(p)
     b_sat, mu_sat = pvt.gas(p, rv_s, torch.ones_like(p, dtype=torch.bool))
     b_us, mu_us = pvt.gas(p, rv_s, torch.zeros_like(p, dtype=torch.bool))
-    assert torch.allclose(b_sat, b_us, rtol=2e-3) and torch.allclose(mu_sat, mu_us, rtol=2e-2)
+    # точное совпадение ветвей на линии насыщения: иначе переключения состояния дают скачки массы
+    assert torch.equal(b_sat, b_us) and torch.equal(mu_sat, mu_us)
     b0, _ = pvt.gas(p, 0.0 * p, torch.zeros_like(p, dtype=torch.bool))
     assert torch.all(b0 < b_sat)  # меньше конденсата — больше Bg (по таблице +0.5%)
 

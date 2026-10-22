@@ -124,6 +124,9 @@ class DeckPVT:
         Bs = T([r[1] for r in sat])
         self.g_b, self.g_bm = 1.0 / Bs, 1.0 / (Bs * T([r[2] for r in sat]))
         self.rv_max = float(self.rv_tab.max())
+        # недонасыщенные строки — только с Rv < Rv_sat записи (вырожденные дубли Rv_sat отбрасываются)
+        recs = [(p, [rows[0]] + [r for r in rows[1:] if r[0] < rows[0][0] - 1e-12 * max(1.0, abs(rows[0][0]))])
+                for p, rows in recs]
         branch = [len(r[1]) > 1 for r in recs]
         full = []
         for i, (p, rows) in enumerate(recs):
@@ -192,17 +195,16 @@ class DeckPVT:
         if not self.live:
             b, bm = interp1_lin(p, self.do_p, self.do_b), interp1_lin(p, self.do_p, self.do_bm)
             return b, b / bm
-        b_s = interp1_lin(p, self.sat_p, self.sat_b)
-        bm_s = interp1_lin(p, self.sat_p, self.sat_bm)
+        # насыщенная нефть — та же 2D-интерполяция в точке (Rs_sat(P), P), что и недонасыщенная (как LiveOilPvt
+        # в OPM): ветви совпадают на линии насыщения, иначе переключения дают скачки массы и Ньютон зацикливается
+        rs = torch.where(sat, self.rs_sat(p), rs)
         n_t = self.rs_tab.numel()
         i = torch.searchsorted(self.rs_tab, rs.detach().contiguous(), right=True).clamp(1, n_t - 1)
         lo, hi = i - 1, i
         w = ((rs - self.rs_tab[lo]) / (self.rs_tab[hi] - self.rs_tab[lo])).clamp(0.0, 1.0)
         b_u = (1 - w) * interp_rows(p, self.us_P[lo], self.us_b[lo]) + w * interp_rows(p, self.us_P[hi], self.us_b[hi])
         bm_u = (1 - w) * interp_rows(p, self.us_P[lo], self.us_bm[lo]) + w * interp_rows(p, self.us_P[hi], self.us_bm[hi])
-        b = torch.where(sat, b_s, b_u)
-        bm = torch.where(sat, bm_s, bm_u)
-        return b, b / bm
+        return b_u, b_u / bm_u
 
     def water(self, p):
         p_ref, Bw_ref, cw, mu_ref, cv = self.pvtw
@@ -217,24 +219,32 @@ class DeckPVT:
             return 0.0 * p
         return interp1_lin(p, self.g_p, self.rv_tab).clamp_min(0.0)
 
+    def _gas_2d(self, p, rv):
+        n_t = self.g_p.numel()
+        i = torch.searchsorted(self.g_p, p.detach().contiguous(), right=True).clamp(1, n_t - 1)
+        lo, hi = i - 1, i
+        w = (p - self.g_p[lo]) / (self.g_p[hi] - self.g_p[lo])
+        b = (1 - w) * interp_rows(rv, self.ug_RV[lo], self.ug_b[lo]) + w * interp_rows(rv, self.ug_RV[hi], self.ug_b[hi])
+        bm = (1 - w) * interp_rows(rv, self.ug_RV[lo], self.ug_bm[lo]) + w * interp_rows(rv, self.ug_RV[hi], self.ug_bm[hi])
+        return b, bm
+
     def gas(self, p, rv=None, sat=None):
         """1/Bg и μg. Сухой газ (PVDG или PVTG без VAPOIL — Rv = 0); жирный: насыщенный (sat) или по Rv."""
         if not getattr(self, "pvtg", False):
             b, bm = interp1_lin(p, self.g_p, self.g_b), interp1_lin(p, self.g_p, self.g_bm)
             return b, b / bm
         if not self.wet:
-            rv, sat = 0.0 * p, None
-        elif rv is None:
-            b_s, bm_s = interp1_lin(p, self.g_p, self.g_b), interp1_lin(p, self.g_p, self.g_bm)
+            b_u, bm_u = self._gas_2d(p, 0.0 * p)
+            return b_u, b_u / bm_u
+        b_s, bm_s = interp1_lin(p, self.g_p, self.g_b), interp1_lin(p, self.g_p, self.g_bm)
+        if rv is None:
             return b_s, b_s / bm_s
-        n_t = self.g_p.numel()
-        i = torch.searchsorted(self.g_p, p.detach().contiguous(), right=True).clamp(1, n_t - 1)
-        lo, hi = i - 1, i
-        w = (p - self.g_p[lo]) / (self.g_p[hi] - self.g_p[lo])
-        b_u = (1 - w) * interp_rows(rv, self.ug_RV[lo], self.ug_b[lo]) + w * interp_rows(rv, self.ug_RV[hi], self.ug_b[hi])
-        bm_u = (1 - w) * interp_rows(rv, self.ug_RV[lo], self.ug_bm[lo]) + w * interp_rows(rv, self.ug_RV[hi], self.ug_bm[hi])
+        # недонасыщенный газ: насыщенное значение + приращение 2D-таблицы от Rv_sat(P) до Rv —
+        # ветви совпадают на линии насыщения точно (иначе переключения состояния дают скачки массы)
+        b2, bm2 = self._gas_2d(p, rv)
+        b2s, bm2s = self._gas_2d(p, self.rv_sat(p))
+        b_u, bm_u = b_s + (b2 - b2s), bm_s + (bm2 - bm2s)
         if sat is not None:
-            b_s, bm_s = interp1_lin(p, self.g_p, self.g_b), interp1_lin(p, self.g_p, self.g_bm)
             b_u, bm_u = torch.where(sat, b_s, b_u), torch.where(sat, bm_s, bm_u)
         return b_u, b_u / bm_u
 
