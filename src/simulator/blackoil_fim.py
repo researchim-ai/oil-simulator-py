@@ -39,6 +39,13 @@ FLUX_TERMS_WET = FLUX_TERMS + ((OIL, GAS, I_MOG),)
 # зона нечувствительности переключения переменных: без «дребезга» ячеек на линии насыщения от шума округления
 SWITCH_EPS_S = 1e-12   # по насыщенности
 SWITCH_EPS_R = 1e-10   # относительная, по Rs / Rv
+# ячейка без нефти и газа (Sw ≥ 1 − SO_EMPTY) ведётся по Sg, а не по Rs (как в OPM): масса газа So·bo·Rs
+# при So = 0 не зависит от Rs, и пришедший газ (нагнетательная в водоносной ячейке) не может появиться
+SO_EMPTY = 1e-6
+# обратно на Rs — только при заметной нефти: иначе водоносные ячейки (Sw ≈ 1, Sg ≈ 0) дребезжат на пороге
+SO_FILLED = 1e-4
+# ячейка, сменившая переменные столько раз за шаг, до конца шага не переключается (иначе Ньютон зацикливается)
+MAX_CELL_SWITCHES = 3
 
 def surface_to_reservoir(pvt, p, qo, qw, qg, rs_max=None, rv_max=None):
     """
@@ -520,6 +527,11 @@ class BlackOilFIMSolver(ManualFIMSolver):
         rv = rv_s if rv is None else torch.minimum(rv.detach().reshape(-1).double().to(dev), rv_s)
         self.ug = (sg > 0) & (1.0 - sw0 - sg <= 1e-12) & self.wet
         self.sat = self.sat & ~self.ug
+        if self.pvt.has_pvt:
+            empty = (1.0 - sw0 - sg <= SO_EMPTY) & ~self.ug & ~self.sat
+            self.sat = self.sat | empty
+            self.x = torch.where(empty, sg, self.x)
+            rs = torch.where(empty, self.pvt.rs_sat(p), rs)
         self.x = torch.where(self.ug, rv, self.x)
         fluid.rs = rs.view(self.nx, self.ny, self.nz)
         fluid.rv = torch.where(self.ug, rv, rv_s).view(self.nx, self.ny, self.nz)
@@ -802,6 +814,7 @@ class BlackOilFIMSolver(ManualFIMSolver):
         n_switch = 0
         cnv_hist, omega = [], 1.0
         prev_norm, lin_scale = None, 1.0
+        n_flips = torch.zeros(p.numel(), dtype=torch.int32, device=p.device)
 
         def fail(reason, R=None, J=None):
             st = self._last_linear_stats if reason == "linear_solver_failed" else {}
@@ -896,7 +909,10 @@ class BlackOilFIMSolver(ManualFIMSolver):
                 log(f"    ~ колебания Ньютона: релаксация ω = {omega:.2f}")
             if omega < 1.0:
                 dx, dpw = dx * omega, dpw * omega
-            p, sw, x, sat, ug, n_sw = self._apply_update(p, sw, x, sat, ug, dx, dbg)
+            sat_prev, ug_prev = sat, ug
+            p, sw, x, sat, ug, n_sw = self._apply_update(p, sw, x, sat, ug, dx, dbg,
+                                                         frozen=n_flips >= MAX_CELL_SWITCHES)
+            n_flips += (sat != sat_prev) | (ug != ug_prev)
             n_switch += n_sw
             if dpw.numel():
                 dpw_lim = torch.clamp(self.dbhp_max_rel * p_bh.abs(), min=self.dp_max_abs)
@@ -977,7 +993,7 @@ class BlackOilFIMSolver(ManualFIMSolver):
             x_new = torch.where(to_us, xb, x_new)
         return x_new
 
-    def _apply_update(self, p, sw, x, sat, ug, dx, dbg):
+    def _apply_update(self, p, sw, x, sat, ug, dx, dbg, frozen=None):
         """Ограничение поправок по ячейке (Appleyard) и переключение переменных Rs ↔ Sg ↔ Rv."""
         dp, dsw, dxx = dx[:, 0], dx[:, 1], dx[:, 2]
         dp_lim = torch.clamp(self.dp_max_rel * p.abs(), min=self.dp_max_abs)
@@ -1000,14 +1016,16 @@ class BlackOilFIMSolver(ManualFIMSolver):
         sw = (sw + dsw).clamp(0.0, 1.0)
         x = x + torch.where(sat, dsg, drs)
         n_switch = 0
+        free = torch.ones_like(sat) if frozen is None else ~frozen
         if self.wet:
             rs_s, rv_s = self.rs_sat_eff(p), self.rv_sat_eff(p, torch.zeros_like(p))   # rv_s — для ячеек без нефти
             uo = ~sat & ~ug
             es, er = SWITCH_EPS_S, SWITCH_EPS_R
-            sat_to_uo = sat & (x < -es)
-            sat_to_ug = sat & (x > 1.0 - sw + es)
-            uo_to_sat = uo & (x > rs_s * (1.0 + er) + 1e-300)
-            ug_to_sat = ug & (x > rv_s * (1.0 + er) + 1e-300)
+            no_oil = 1.0 - sw <= SO_EMPTY
+            sat_to_uo = free & sat & (x < -es) & (1.0 - sw > SO_FILLED)
+            sat_to_ug = free & sat & (x > 1.0 - sw + es)
+            uo_to_sat = free & uo & ((x > rs_s * (1.0 + er) + 1e-300) | no_oil)
+            ug_to_sat = free & ug & (x > rv_s * (1.0 + er) + 1e-300)
             ug_n = (ug & ~ug_to_sat) | sat_to_ug
             sat_n = (sat & ~sat_to_uo & ~sat_to_ug) | uo_to_sat | ug_to_sat
             changed = sat_to_uo | sat_to_ug | uo_to_sat | ug_to_sat
@@ -1020,8 +1038,9 @@ class BlackOilFIMSolver(ManualFIMSolver):
         if self.pvt.has_pvt:
             rs_s = self.rs_sat_eff(p)
             es, er = SWITCH_EPS_S, SWITCH_EPS_R
-            to_us = sat & (x < -es)
-            to_sat = (~sat) & (x > rs_s * (1.0 + er) + 1e-300)
+            no_oil = 1.0 - sw <= SO_EMPTY
+            to_us = free & sat & (x < -es) & (1.0 - sw > SO_FILLED)
+            to_sat = free & (~sat) & ((x > rs_s * (1.0 + er) + 1e-300) | no_oil)
             sat_n = (sat & ~to_us) | to_sat
             if bool((to_us | to_sat).any()):
                 x = self._conservative_switch(p, sw, x, sat, None, sat_n, None, to_us | to_sat)
@@ -1040,6 +1059,9 @@ class BlackOilFIMSolver(ManualFIMSolver):
             q_o, q_w, q_g = (float(q[i]) / rho[i] * DAY for i in range(3))
             w.bhp_mpa = float(p_bh[w_idx]) / 1e6
             w.last_surface_rates = {"oil": q_o, "water": q_w, "gas": q_g, "liquid": q_o + q_w}
+            # добыча без перетоков (перфорации с обратным потоком в пласт не вычитаются, как в Eclipse)
+            qp = wsys["q"][m].clamp_min(0.0).sum(dim=0)
+            w.last_surface_prod = {ph: float(qp[i]) / rho[i] * DAY for i, ph in enumerate(("oil", "water", "gas"))}
             # накопленные поверхностные объёмы, м³ (знак как у дебитов: + отбор); отдельно — за периоды
             # добычи (cum_prod) и закачки (cum_inj, + закачка) у скважин, меняющих тип
             zero = {"oil": 0.0, "water": 0.0, "gas": 0.0}

@@ -161,7 +161,8 @@ def run_deck(path, device=None, sim_overrides=None, cells=(), quiet=True, max_da
     summary = {"TIME": [0.0]}
 
     def rates(w):
-        r = getattr(w, "last_surface_rates", None) or {}
+        r = (w.type == "producer" and getattr(w, "last_surface_prod", None)) or \
+            getattr(w, "last_surface_rates", None) or {}
         return {ph: r.get(ph, 0.0) / rate_u[ph] for ph in ("oil", "water", "gas")}
 
     def record():
