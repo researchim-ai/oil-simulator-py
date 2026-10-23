@@ -249,7 +249,7 @@ class BlackOilWells(FIMWells):
         vo, vw, vg = surface_to_reservoir(pvt, pt, T(qo), T(qw), T(qg), rs_max, rv_max)
         return float(vo + vw + vg)
 
-    def _conn_flows(self, v, d, p_bh):
+    def _conn_flows(self, v, d, p_bh, shut_backflow=True):
         """Массовые потоки компонентов по перфорациям q [n_conn,3], dq/dx [n_conn,3,3], dq/dp_bh [n_conn,3]."""
         c, cw, wi = self.conn_cell, self.conn_well, self.conn_wi * self.conn_open * self.conn_sched
         n_c = c.numel()
@@ -277,9 +277,14 @@ class BlackOilWells(FIMWells):
             dm = (wi * rho).unsqueeze(1) * (db * lt.unsqueeze(1) + b.unsqueeze(1) * dlt)
             qi = E * (m * dpp).unsqueeze(1)
             dqi = E.unsqueeze(2) * (dm * dpp.unsqueeze(1) + m.unsqueeze(1) * d[I_P][c]).unsqueeze(1)
-            # переток из пласта в ствол нагнетательной несёт флюиды ячейки по фазовым подвижностям (как у
-            # добывающей), а не закачиваемую фазу с полной подвижностью — иначе из водяной ячейки «уходит» газ
-            inj = inj & (dpp <= 0.0)
+            # перфорации нагнетательной с обратным потоком (пласт → ствол) закрыты, как при crossflow 'NO':
+            # смешения в стволе нет, и обратный поток либо уходил бы на поверхность (потеря массы), либо нёс
+            # закачиваемую фазу, которой в ячейке может не быть
+            back = inj & (dpp > 0.0) if shut_backflow else torch.zeros_like(inj)
+            qi = torch.where(back.unsqueeze(1), torch.zeros_like(qi), qi)
+            dqi = torch.where(back.view(-1, 1, 1), torch.zeros_like(dqi), dqi)
+            # dq/dp_bh не обнуляется: иначе у скважины на дебите со всеми перфорациями в обратном потоке
+            # уравнение вырождается; Ньютон поднимает забой до начала закачки
             q = torch.where(inj.unsqueeze(1), qi, q)
             dq = torch.where(inj.view(-1, 1, 1), dqi, dq)
             dqb = torch.where(inj.unsqueeze(1), -E * m.unsqueeze(1), dqb)
@@ -323,7 +328,7 @@ class BlackOilWells(FIMWells):
             self.conn_head = self.rho_wb[cw] * G * self.conn_dz
 
         # дебит линеен по p_bh при замороженной ячейке: q(pb) = q(0) + D·pb
-        q, _, dqb = self._conn_flows(v, d, zeros)
+        q, _, dqb = self._conn_flows(v, d, zeros, shut_backflow=False)
         if self.groups is not None:
             self._apply_groups(v, q, dqb)
         q0 = zeros.clone().index_add_(0, cw, (a * q).sum(1))
