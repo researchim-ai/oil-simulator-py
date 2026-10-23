@@ -1,4 +1,4 @@
-"""Перфорации нагнетательной скважины с обратным потоком (пласт → ствол) закрыты: масса не уходит из пласта."""
+"""Переток из пласта в ствол нагнетательной скважины несёт флюиды ячейки, а не закачиваемую фазу."""
 import os
 import sys
 
@@ -12,7 +12,7 @@ from simulator.eclipse_run import run_deck  # noqa: E402
 SPE1 = os.path.join(os.path.dirname(__file__), "data", "spe1", "SPE1CASE1.DATA")
 
 
-def test_injector_backflow_connections_are_shut():
+def test_injector_backflow_carries_cell_fluids():
     _, info = run_deck(SPE1, max_days=1)
     fim = info["solver"]
     fw = fim.wells
@@ -28,8 +28,10 @@ def test_injector_backflow_connections_are_shut():
     q, _, _ = fw._conn_flows(v, d, pb(1e9))
     assert bool((q[m][:, GAS] < 0).all()) and float(q[m][:, [OIL, WAT]].abs().max()) == 0.0
 
-    # забой ниже пласта — обратный поток не допускается: расхода и производных по ячейкам нет, а производная
-    # по забою остаётся (уравнение скважины на дебите не вырождается)
-    q, dq, dqb = fw._conn_flows(v, d, pb(1e5))
-    assert float(q[m].abs().max()) == 0.0 and float(dq[m].abs().max()) == 0.0
-    assert bool((dqb[m][:, GAS] < 0).all())
+    # забой ниже пласта — переток в ствол: флюиды ячейки по их подвижностям, как у добывающей
+    q_out, _, _ = fw._conn_flows(v, d, pb(1e5))
+    assert bool((q_out[m] >= 0).all()) and float(q_out[m][:, OIL].sum()) > 0.0
+    fw.is_inj[k] = False
+    q_prod, _, _ = fw._conn_flows(v, d, pb(1e5))
+    fw.is_inj[k] = True
+    assert torch.allclose(q_out[m], q_prod[m], rtol=1e-12, atol=0.0)
