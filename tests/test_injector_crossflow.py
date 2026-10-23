@@ -22,12 +22,49 @@ def test_wellbore_mixing_conserves_mass():
     q = torch.tensor([[0.0, -3.0, 0.0], [0.0, -1.0, 0.0], [0.5, 0.2, 2.0], [1.0, 1.0, 1.0]], dtype=torch.float64)
     back = torch.tensor([False, False, True, False])
     into = torch.tensor([True, True, False, False])
-    out = BlackOilWells._wellbore_mixing(fake, q, back, into)
+    out, _ = BlackOilWells._wellbore_mixing(fake, q, back, into)
     # обратный поток по-прежнему выходит из своей ячейки, а по скважине в сумме — только закачка воды
     assert torch.equal(out[2], q[2]) and torch.equal(out[3], q[3])
     assert torch.allclose(out[:3].sum(0), torch.tensor([0.0, -4.0, 0.0], dtype=torch.float64))
     # возврат распределён пропорционально расходу закачивающих перфораций (3:1)
     assert torch.allclose(out[0] - q[0], 3.0 * (out[1] - q[1]))
+
+
+def test_wellbore_mixing_jacobian_matches_finite_differences():
+    from types import SimpleNamespace
+
+    from simulator.blackoil_fim import BlackOilWells
+
+    torch.manual_seed(0)
+    n = 4   # перфорации одной скважины: 0, 1, 3 закачивают, 2 — обратный поток
+    A = torch.rand(n, 3, 3, dtype=torch.float64) + 0.1
+    A[[0, 1, 3]] *= -1.0
+    cb = torch.rand(n, 3, dtype=torch.float64)
+    x0 = torch.rand(n, 3, dtype=torch.float64) + 1.0
+    back = torch.tensor([False, False, True, False])
+    into = ~back
+    pc, pd = torch.arange(n).repeat_interleave(n), torch.arange(n).repeat(n)
+    fake = SimpleNamespace(conn_well=torch.zeros(n, dtype=torch.long), n_w=1, device="cpu",
+                           pair_c=pc, pair_d=pd, pair_pos=torch.arange(n * n), _mix=None)
+
+    def mixed(x, pb=0.0):
+        q = torch.einsum("cij,cj->ci", A, x) + cb * pb
+        return BlackOilWells._wellbore_mixing(fake, q, back, into, A.clone(), cb.clone())
+
+    _, dqb = mixed(x0)
+    pos, blk = BlackOilWells._mixing_blocks(fake)
+    J = torch.zeros(n, n, 3, 3, dtype=torch.float64)
+    J[pc, pd] = torch.where((pc == pd).view(-1, 1, 1), A[pc], torch.zeros_like(A[pc]))
+    J.view(-1, 3, 3).index_add_(0, pos, blk)
+    h = 1e-6
+    for d_ in range(n):
+        for j in range(3):
+            dx = torch.zeros_like(x0)
+            dx[d_, j] = h
+            fd = (mixed(x0 + dx)[0] - mixed(x0 - dx)[0]) / (2 * h)
+            assert torch.allclose(J[:, d_, :, j], fd, rtol=1e-6, atol=1e-8)
+    fd_pb = (mixed(x0, h)[0] - mixed(x0, -h)[0]) / (2 * h)
+    assert torch.allclose(dqb, fd_pb, rtol=1e-6, atol=1e-8)
 
 
 def test_injector_backflow_carries_cell_fluids():

@@ -15,14 +15,14 @@ class SparseMatrixBuilder:
     - position(rows, cols) — для произвольных пар.
     """
 
-    def __init__(self, nx, ny, nz, block_size=1, device='cpu', pairs=None):
+    def __init__(self, nx, ny, nz, block_size=1, device='cpu', pairs=None, extra_pairs=None):
         self.nx = nx
         self.ny = ny
         self.nz = nz
         self.n_cells = nx * ny * nz
         self.block_size = block_size
         self.device = device
-        self._build_structure(pairs)
+        self._build_structure(pairs, extra_pairs)
 
     def _structured_pairs(self):
         nx, ny, nz = self.nx, self.ny, self.nz
@@ -31,12 +31,15 @@ class SparseMatrixBuilder:
                [idx[1:].ravel(), idx[:, 1:].ravel(), idx[:, :, 1:].ravel()]
         return np.concatenate(L), np.concatenate(R)
 
-    def _build_structure(self, pairs):
+    def _build_structure(self, pairs, extra_pairs=None):
         n = self.n_cells
+        to_np = lambda v: np.asarray(v.detach().cpu() if torch.is_tensor(v) else v, dtype=np.int64)
         if pairs is None:
             L, R = self._structured_pairs()
         else:
-            L, R = (np.asarray(v.detach().cpu() if torch.is_tensor(v) else v, dtype=np.int64) for v in pairs)
+            L, R = (to_np(v) for v in pairs)
+        if extra_pairs is not None:
+            L, R = np.concatenate([L, to_np(extra_pairs[0])]), np.concatenate([R, to_np(extra_pairs[1])])
         diag = np.arange(n, dtype=np.int64)
         rows = np.concatenate([diag, L, R])
         cols = np.concatenate([diag, R, L])

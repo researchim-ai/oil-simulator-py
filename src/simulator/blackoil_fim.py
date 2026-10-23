@@ -12,6 +12,7 @@
 где b = 1/B. Свойства ячейки и их производные по (P, Sw, X) берутся прямым режимом AD (torch.func.jvp),
 потоки по граням и скважины собираются вручную с upwind по потенциалу каждой фазы.
 """
+import numpy as np
 import torch
 import torch.nn.functional as F
 from torch.func import jvp
@@ -106,9 +107,22 @@ class BlackOilWells(FIMWells):
         self.groups = None                                # (GroupTree, [ограничения]) — групповые контроли
         self.group_controlled = set()
         self.reinit_bhp = set()                           # скважины, сменившие тип: p_bh — заново с начального
-        # смешение в стволе нагнетательных (возврат перетока в пласт): масса сохраняется, но без связи ячеек
-        # скважины в Якобиане Ньютон на Norne зацикливается (421 сут) — по умолчанию выключено
-        self.wellbore_mixing = False
+        # смешение в стволе нагнетательных: переток пласт → ствол закачивается обратно через закачивающие
+        # перфорации. Ячейки одной скважины связаны — пары перфораций (pair_c, pair_d) входят в шаблон матрицы
+        # (позиции блоков pair_pos задаёт решатель), Якобиан точный
+        self.wellbore_mixing = True
+        cw_np = self.conn_well.cpu().numpy()
+        pc, pd = [], []
+        for w_idx in range(self.n_w):
+            idx = np.nonzero(cw_np == w_idx)[0]
+            if idx.size > 1:
+                pc.append(np.repeat(idx, idx.size))
+                pd.append(np.tile(idx, idx.size))
+        cat = (lambda a: torch.as_tensor(np.concatenate(a), dtype=torch.long, device=device)) if pc else \
+            (lambda a: torch.zeros(0, dtype=torch.long, device=device))
+        self.pair_c, self.pair_d = cat(pc), cat(pd)
+        self.pair_pos = None
+        self._mix = None
 
     def set_surface_phase(self, w_idx, phase):
         w = self.wells[w_idx]
@@ -287,34 +301,59 @@ class BlackOilWells(FIMWells):
             q = torch.where(inj.unsqueeze(1), qi, q)
             dq = torch.where(inj.view(-1, 1, 1), dqi, dq)
             dqb = torch.where(inj.unsqueeze(1), -E * m.unsqueeze(1), dqb)
+            self._mix = None
             if self.wellbore_mixing:
-                q, dqb = self._wellbore_mixing(q, is_inj_w & ~inj, inj, dqb)
+                q, dqb = self._wellbore_mixing(q, is_inj_w & ~inj, inj, dq, dqb)
         return q, dq, dqb
 
-    def _wellbore_mixing(self, q, back, into, dqb=None):
+    def _wellbore_mixing(self, q, back, into, dq=None, dqb=None):
         """
-        Смешение в стволе нагнетательной: компоненты, вошедшие в ствол через перфорации с обратным потоком,
-        закачиваются обратно через закачивающие перфорации той же скважины пропорционально их расходу.
-        Масса сохраняется, на поверхность переток не выходит. Связь между ячейками скважины в Якобиан не входит
-        (блочная сборка), поэтому невязка точная, а Ньютон по этой связи — неточный; производная возврата по
-        забою (через обратный поток) учитывается.
+        Смешение в стволе нагнетательной: поток B = Σ_b q_b, вошедший в ствол через перфорации b с обратным
+        потоком, закачивается обратно через закачивающие перфорации c в долях f_c = t_c / S (t_c — расход
+        закачки, S = Σ_c t_c): q_c −= f_c·B. Масса сохраняется, на поверхность переток не выходит.
+        Возвращает (q, dq/dp_bh); блоки по ячейкам других перфораций (∂q_c/∂x_b = −f_c·∂q_b/∂x_b и
+        ∂q_c/∂x_d = −B ⊗ (δ_cd·∂t_c − f_c·∂t_d)/S) сборка добавляет по self._mix.
         """
-        cw = self.conn_well
+        cw, n_w = self.conn_well, self.n_w
         if not bool(back.any()) or not bool(into.any()):
-            return (q, dqb) if dqb is not None else q
-        zw = torch.zeros((self.n_w, 3), dtype=torch.float64, device=self.device)
-        b_w = zw.clone().index_add_(0, cw, torch.where(back.unsqueeze(1), q, torch.zeros_like(q)))
-        db_w = None if dqb is None else zw.clone().index_add_(
-            0, cw, torch.where(back.unsqueeze(1), dqb, torch.zeros_like(dqb)))
+            return q, dqb
+        zeros = lambda *s: torch.zeros(s, dtype=torch.float64, device=q.device)
+        B = zeros(n_w, 3).index_add_(0, cw, torch.where(back.unsqueeze(1), q, torch.zeros_like(q)))
         tot = q.sum(1)
-        inj_tot = torch.zeros(self.n_w, dtype=torch.float64, device=self.device).index_add_(
-            0, cw, torch.where(into, tot, torch.zeros_like(tot)))
-        frac = torch.where(into, tot / inj_tot[cw].clamp(max=-1e-300), torch.zeros_like(tot))
-        has_into = (inj_tot[cw] < 0.0).unsqueeze(1)
-        q = q - frac.unsqueeze(1) * torch.where(has_into, b_w[cw], torch.zeros_like(q))
-        if dqb is None:
-            return q
-        return q, dqb - frac.unsqueeze(1) * torch.where(has_into, db_w[cw], torch.zeros_like(dqb))
+        S = zeros(n_w).index_add_(0, cw, torch.where(into, tot, torch.zeros_like(tot)))
+        act = (S < 0.0)[cw]
+        S_c = torch.where(S < 0.0, S, -torch.ones_like(S))[cw]
+        into, back = into & act, back & act
+        frac = torch.where(into, tot / S_c, torch.zeros_like(tot))
+        B_c = torch.where(act.unsqueeze(1), B[cw], torch.zeros_like(q))
+        q = q - frac.unsqueeze(1) * B_c
+        if dqb is not None:
+            dB = zeros(n_w, 3).index_add_(0, cw, torch.where(back.unsqueeze(1), dqb, torch.zeros_like(dqb)))
+            dt = dqb.sum(1)
+            dS = zeros(n_w).index_add_(0, cw, torch.where(into, dt, torch.zeros_like(dt)))
+            dfrac = torch.where(into, (dt - frac * dS[cw]) / S_c, torch.zeros_like(dt))
+            dqb = dqb - frac.unsqueeze(1) * torch.where(act.unsqueeze(1), dB[cw], torch.zeros_like(dqb)) \
+                - dfrac.unsqueeze(1) * B_c
+        if dq is not None:
+            self._mix = (back, into, frac, B_c, S_c, dq)
+        return q, dqb
+
+    def _mixing_blocks(self):
+        """Блоки Якобиана смешения в стволе: (позиции в values[], блоки 3×3) или None."""
+        if self._mix is None or self.pair_pos is None or self.pair_c.numel() == 0:
+            return None
+        back, into, frac, B_c, S_c, dq = self._mix
+        pc, pd = self.pair_c, self.pair_d
+        sel = into[pc] & (back[pd] | into[pd])
+        if not bool(sel.any()):
+            return None
+        pc, pd, pos = pc[sel], pd[sel], self.pair_pos[sel]
+        f = frac[pc].view(-1, 1, 1)
+        blk = torch.where(back[pd].view(-1, 1, 1), -f * dq[pd], torch.zeros_like(dq[pd]))
+        dt_c, dt_d = dq[pc].sum(1), dq[pd].sum(1)
+        g = ((pc == pd).double().unsqueeze(1) * dt_c - frac[pc].unsqueeze(1) * dt_d) / S_c[pc].unsqueeze(1)
+        blk = blk + torch.where(into[pd].view(-1, 1, 1), -B_c[pc].unsqueeze(2) * g.unsqueeze(1), torch.zeros_like(blk))
+        return pos, blk
 
     def begin_step(self, v, d, t_days):
         if self.n_w == 0:
@@ -449,12 +488,18 @@ class BlackOilWells(FIMWells):
         R.view(-1, 3).index_add_(0, c, q)
         jd = diag_map[c]
         J_vals.index_add_(0, jd, dq)
+        mix = self._mixing_blocks()
+        if mix is not None:
+            J_vals.index_add_(0, mix[0], mix[1])
 
         a = self.conn_a
         zeros = torch.zeros(self.n_w, dtype=torch.float64, device=self.device)
         q_surf = zeros.clone().index_add_(0, cw, (a * q).sum(1))
         dq_dpbh = zeros.clone().index_add_(0, cw, (a * Cv).sum(1))
         B_rate = (a.unsqueeze(2) * dq).sum(1)
+        if self._mix is not None:
+            # смешение не меняет суммарный дебит скважины: он равен закачке через закачивающие перфорации
+            B_rate = torch.where(self._mix[0].unsqueeze(1), torch.zeros_like(B_rate), B_rate)
 
         is_rate = torch.zeros(self.n_w, dtype=torch.bool, device=self.device)
         target = torch.zeros_like(zeros)
@@ -511,9 +556,6 @@ class BlackOilFIMSolver(ManualFIMSolver):
         self.relax_rel_tol = float(params.get('newton_relax_rel_tol', 0.2))
         self.debug.eq_names = ("oil", "water", "gas")
 
-        print("Building sparse matrix structure (black-oil, блоки 3x3)...")
-        self.builder = SparseMatrixBuilder(self.nx, self.ny, self.nz, block_size=3, device=self.device,
-                                           pairs=self._conn_pairs())
         dev = self.device
         self.pore_volume = (reservoir.cell_volume * reservoir.porosity).reshape(-1).double().to(dev)
         c_rock = getattr(fluid, 'rock_compressibility', 0.0)
@@ -536,8 +578,14 @@ class BlackOilFIMSolver(ManualFIMSolver):
             raise NotImplementedError("VAPPARS: VAP2 ≠ 0 не поддерживается")
         self.vap1 = float(vp[0]) if vp is not None and float(vp[0]) > 0.0 else None
 
-        self._build_connections()
         self.wells = BlackOilWells(well_manager, reservoir, fluid, reservoir.dimensions, dev)
+        print("Building sparse matrix structure (black-oil, блоки 3x3)...")
+        wc = self.wells.conn_cell
+        self.builder = SparseMatrixBuilder(self.nx, self.ny, self.nz, block_size=3, device=self.device,
+                                           pairs=self._conn_pairs(),
+                                           extra_pairs=(wc[self.wells.pair_c], wc[self.wells.pair_d]))
+        self.wells.pair_pos = self.builder.position(wc[self.wells.pair_c], wc[self.wells.pair_d])
+        self._build_connections()
         self.wells.pvt = self.pvt
         self.wet = bool(getattr(self.pvt, "wet", False))
         self.flux_terms = FLUX_TERMS_WET if self.wet else FLUX_TERMS
