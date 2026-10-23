@@ -1256,29 +1256,28 @@ class ClassicalAMG:
         Returns:
             y = A*x или y = A^T*x
         """
+        if not transpose and A_csr.is_cuda and A_csr.size(0) > 20000:
+            # y = A * x на GPU для больших уровней: cuSPARSE (порядок суммирования другой — результат отличается
+            # на уровне округления; малые матрицы считаются как раньше)
+            return (A_csr @ x.unsqueeze(1)).squeeze(1)
         crow = A_csr.crow_indices()
         col = A_csr.col_indices()
         val = A_csr.values()
         n_rows = crow.numel() - 1
-        
         if not transpose:
-            # y = A * x: стандартный SpMV
-            row_len = crow[1:] - crow[:-1]
-            row_idx = torch.repeat_interleave(torch.arange(n_rows, device=A_csr.device, dtype=torch.int64), row_len)
-            prod = val * x[col]
             y = torch.zeros(n_rows, device=A_csr.device, dtype=A_csr.dtype)
-            y.scatter_add_(0, row_idx, prod)
-        else:
-            # y = A^T * x: transpose SpMV
-            # A^T[j,i] = A[i,j], поэтому y[j] += A[i,j] * x[i]
-            row_len = crow[1:] - crow[:-1]
-            row_idx = torch.repeat_interleave(torch.arange(n_rows, device=A_csr.device, dtype=torch.int64), row_len)
-            prod = val * x[row_idx]
-            n_cols = A_csr.size(1)
-            y = torch.zeros(n_cols, device=A_csr.device, dtype=A_csr.dtype)
-            y.scatter_add_(0, col, prod)
-        
+            y.scatter_add_(0, self._row_idx(A_csr), val * x[col])
+            return y
+        # y = A^T * x: A^T[j,i] = A[i,j], поэтому y[j] += A[i,j] * x[i]
+        y = torch.zeros(A_csr.size(1), device=A_csr.device, dtype=A_csr.dtype)
+        y.scatter_add_(0, col, val * x[self._row_idx(A_csr)])
         return y
+
+    def _row_idx(self, A_csr: torch.Tensor) -> torch.Tensor:
+        """Номер строки каждого ненуля CSR (без кэша: матрицы уровней обновляются на месте)."""
+        crow = A_csr.crow_indices()
+        return torch.repeat_interleave(torch.arange(crow.numel() - 1, device=A_csr.device, dtype=torch.int64),
+                                       crow[1:] - crow[:-1])
     
     def _matvec(self, lvl: int, x: torch.Tensor) -> torch.Tensor:
         """Matrix-vector product: y = A_lvl × x"""

@@ -106,6 +106,9 @@ class BlackOilWells(FIMWells):
         self.groups = None                                # (GroupTree, [ограничения]) — групповые контроли
         self.group_controlled = set()
         self.reinit_bhp = set()                           # скважины, сменившие тип: p_bh — заново с начального
+        # смешение в стволе нагнетательных (возврат перетока в пласт): масса сохраняется, но без связи ячеек
+        # скважины в Якобиане Ньютон на Norne зацикливается (421 сут) — по умолчанию выключено
+        self.wellbore_mixing = False
 
     def set_surface_phase(self, w_idx, phase):
         w = self.wells[w_idx]
@@ -278,13 +281,40 @@ class BlackOilWells(FIMWells):
             qi = E * (m * dpp).unsqueeze(1)
             dqi = E.unsqueeze(2) * (dm * dpp.unsqueeze(1) + m.unsqueeze(1) * d[I_P][c]).unsqueeze(1)
             # переток из пласта в ствол нагнетательной несёт флюиды ячейки по фазовым подвижностям (как у
-            # добывающей): гладко по dpp и без «несуществующей» закачиваемой фазы. Смешения в стволе нет —
-            # вошедшие в ствол компоненты выводятся на поверхность (ограничение)
+            # добывающей): гладко по dpp и без «несуществующей» закачиваемой фазы
+            is_inj_w = inj
             inj = inj & (dpp <= 0.0)
             q = torch.where(inj.unsqueeze(1), qi, q)
             dq = torch.where(inj.view(-1, 1, 1), dqi, dq)
             dqb = torch.where(inj.unsqueeze(1), -E * m.unsqueeze(1), dqb)
+            if self.wellbore_mixing:
+                q, dqb = self._wellbore_mixing(q, is_inj_w & ~inj, inj, dqb)
         return q, dq, dqb
+
+    def _wellbore_mixing(self, q, back, into, dqb=None):
+        """
+        Смешение в стволе нагнетательной: компоненты, вошедшие в ствол через перфорации с обратным потоком,
+        закачиваются обратно через закачивающие перфорации той же скважины пропорционально их расходу.
+        Масса сохраняется, на поверхность переток не выходит. Связь между ячейками скважины в Якобиан не входит
+        (блочная сборка), поэтому невязка точная, а Ньютон по этой связи — неточный; производная возврата по
+        забою (через обратный поток) учитывается.
+        """
+        cw = self.conn_well
+        if not bool(back.any()) or not bool(into.any()):
+            return (q, dqb) if dqb is not None else q
+        zw = torch.zeros((self.n_w, 3), dtype=torch.float64, device=self.device)
+        b_w = zw.clone().index_add_(0, cw, torch.where(back.unsqueeze(1), q, torch.zeros_like(q)))
+        db_w = None if dqb is None else zw.clone().index_add_(
+            0, cw, torch.where(back.unsqueeze(1), dqb, torch.zeros_like(dqb)))
+        tot = q.sum(1)
+        inj_tot = torch.zeros(self.n_w, dtype=torch.float64, device=self.device).index_add_(
+            0, cw, torch.where(into, tot, torch.zeros_like(tot)))
+        frac = torch.where(into, tot / inj_tot[cw].clamp(max=-1e-300), torch.zeros_like(tot))
+        has_into = (inj_tot[cw] < 0.0).unsqueeze(1)
+        q = q - frac.unsqueeze(1) * torch.where(has_into, b_w[cw], torch.zeros_like(q))
+        if dqb is None:
+            return q
+        return q, dqb - frac.unsqueeze(1) * torch.where(has_into, db_w[cw], torch.zeros_like(dqb))
 
     def begin_step(self, v, d, t_days):
         if self.n_w == 0:

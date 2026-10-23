@@ -12,6 +12,24 @@ from simulator.eclipse_run import run_deck  # noqa: E402
 SPE1 = os.path.join(os.path.dirname(__file__), "data", "spe1", "SPE1CASE1.DATA")
 
 
+def test_wellbore_mixing_conserves_mass():
+    from types import SimpleNamespace
+
+    from simulator.blackoil_fim import BlackOilWells
+
+    # скважина 0: перфорации 0,1 закачивают воду, 2 — обратный поток нефти и газа; скважина 1 — не трогается
+    fake = SimpleNamespace(conn_well=torch.tensor([0, 0, 0, 1]), n_w=2, device="cpu")
+    q = torch.tensor([[0.0, -3.0, 0.0], [0.0, -1.0, 0.0], [0.5, 0.2, 2.0], [1.0, 1.0, 1.0]], dtype=torch.float64)
+    back = torch.tensor([False, False, True, False])
+    into = torch.tensor([True, True, False, False])
+    out = BlackOilWells._wellbore_mixing(fake, q, back, into)
+    # обратный поток по-прежнему выходит из своей ячейки, а по скважине в сумме — только закачка воды
+    assert torch.equal(out[2], q[2]) and torch.equal(out[3], q[3])
+    assert torch.allclose(out[:3].sum(0), torch.tensor([0.0, -4.0, 0.0], dtype=torch.float64))
+    # возврат распределён пропорционально расходу закачивающих перфораций (3:1)
+    assert torch.allclose(out[0] - q[0], 3.0 * (out[1] - q[1]))
+
+
 def test_injector_backflow_carries_cell_fluids():
     _, info = run_deck(SPE1, max_days=1)
     fim = info["solver"]
