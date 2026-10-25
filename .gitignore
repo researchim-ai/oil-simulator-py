@@ -195,3 +195,6 @@ cython_debug/
 
 results/
 .scratch/
+
+# данные OPM для прогона Norne
+opm-tests/

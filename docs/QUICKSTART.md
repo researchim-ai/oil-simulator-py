@@ -75,7 +75,8 @@ print(summary["FOPR"][-1], info["wall_s"])
 
 `summary` — векторы SUMMARY в единицах deck по отчётным шагам. Для длинных расчётов: `checkpoint="run.ckpt"`
 сохраняет состояние после каждого отчётного шага, `resume="run.ckpt"` продолжает с него. Сравнение со сводками
-Eclipse/OPM — `scripts/compare_eclipse.py` (см. [FIM black-oil](fim_technical_details.md)).
+Eclipse/OPM — `scripts/compare_eclipse.py` (см. [FIM black-oil](fim_technical_details.md)). Полный прогон
+месторождения Norne — `scripts/run_norne.py` (см. [Norne](NORNE.md)).
 
 ## 8. Постобработка
 

@@ -32,11 +32,12 @@
   let phase = "so";
   let when = "end";
   function paint() {
+    if (!stage) return;
     phase = document.querySelector("[data-switch=phase] button[aria-pressed=true]").dataset.phase;
     when = document.querySelector("[data-switch=when] button[aria-pressed=true]").dataset.when;
     stage.src = "assets/3d_" + phase + "_" + when + ".png";
   }
-  ["so", "sw", "sg"].forEach(function (p) {
+  if (stage) ["so", "sw", "sg"].forEach(function (p) {
     ["start", "end"].forEach(function (w) {
       const im = new Image();
       im.src = "assets/3d_" + p + "_" + w + ".png";

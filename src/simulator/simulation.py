@@ -2595,7 +2595,7 @@ class Simulator:
             print(f"      - В панели Coloring выберите: Color by = Pressure_MPa")
             print(f"      - Representation = Surface (вместо Outline)")
             print(f"   4. Или создайте срез: Filters → Slice → Normal = [0,0,1]")
-            print(f"   5. Подробная инструкция: см. PARAVIEW_INSTRUCTIONS.md")
+            print(f"   5. Подробная инструкция: см. docs/PARAVIEW.md")
         
         # Создание анимации (если нужно)
         if save_interval < num_steps and animation_fps > 0:

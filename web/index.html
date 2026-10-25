@@ -3,8 +3,8 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>oil-simulator — Norne против Eclipse</title>
-  <meta name="description" content="Полностью неявный black-oil солвер на PyTorch. Месторождение Norne, 3312 суток, сравнение с Eclipse 2014.2.">
+  <title>oil-simulator — открытый black-oil симулятор на PyTorch</title>
+  <meta name="description" content="Полностью неявный трёхфазный black-oil симулятор на PyTorch и GPU. Читает deck Eclipse, сверен с Eclipse и OPM Flow на SPE1, SPE9 и Norne.">
   <meta name="theme-color" content="#14110e">
   <link rel="icon" href="favicon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="style.css">
@@ -13,268 +13,180 @@
   <header class="top">
     <a class="brand" href="#top"><i></i>oil-simulator</a>
     <nav>
-      <a href="#model">Модель</a>
-      <a href="#norne">Norne</a>
-      <a href="#wells">Скважины</a>
-      <a href="#field">Пласт</a>
-      <a href="#solver">Решатель</a>
-      <a href="#limits">Границы</a>
-      <a href="release.html">Релиз</a>
+      <a href="#what">Что это</a>
+      <a href="#inside">Внутри</a>
+      <a href="#check">Проверка</a>
+      <a href="#start">Запуск</a>
+      <a href="norne.html">Norne</a>
+      <a href="https://github.com/researchim-ai/oil-simulator-py">Код</a>
+      <a href="https://github.com/researchim-ai/oil-simulator-py/tree/main/docs">Документация</a>
     </nav>
   </header>
 
   <nav class="rail" aria-label="Разделы">
-    <a href="#model">01 Модель</a>
-    <a href="#norne">02 Norne</a>
-    <a href="#wells">03 Скважины</a>
-    <a href="#field">04 Пласт</a>
-    <a href="#solver">05 Решатель</a>
-    <a href="#bench">06 SPE</a>
-    <a href="#limits">07 Границы</a>
+    <a href="#what">01 Что это</a>
+    <a href="#inside">02 Внутри</a>
+    <a href="#check">03 Проверка</a>
+    <a href="#start">04 Запуск</a>
+    <a href="#agents">05 Агенты</a>
+    <a href="#limits">06 Границы</a>
   </nav>
 
   <main id="top">
     <header class="hero">
       <div class="wrap hero-grid">
         <div>
-          <p class="kicker">black-oil · fully implicit · pytorch</p>
-          <h1>Солвер пласта.<br><em>Norne против Eclipse.</em></h1>
-          <p class="lede">Открытый гидродинамический симулятор: читает DATA-файл Eclipse и считает трёхфазный пласт целиком. Ниже — месторождение Norne, девять лет истории, рядом с Eclipse&nbsp;2014.2.</p>
+          <p class="kicker">black-oil · fully implicit · pytorch · gpu</p>
+          <h1>Симулятор пласта<br><em>на одной видеокарте.</em></h1>
+          <p class="lede">Открытый гидродинамический симулятор: берёт DATA-файл Eclipse и считает трёхфазный пласт целиком — сетку с разломами, жирный газ, скважины по расписанию. Python и PyTorch, без лицензий.</p>
           <div class="metrics">
-            <div><b>35 мин</b><span>3312 суток на RTX 3090 Ti</span></div>
-            <div><b>44&nbsp;431</b><span>активная ячейка, 36 скважин</span></div>
-            <div><b>−0,16%</b><span>накопленная нефть к концу</span></div>
-            <div><b>+0,9%</b><span>накопленная вода к концу</span></div>
+            <div><b>35 мин</b><span>вся история Norne, 3312 суток</span></div>
+            <div><b>−0,16%</b><span>нефть Norne против Eclipse</span></div>
+            <div><b>0,01%</b><span>дебит нефти SPE9 против Eclipse</span></div>
+            <div><b>1 млн</b><span>ячеек на 24 ГБ GPU</span></div>
           </div>
-          <figure class="spark">
-            <img src="assets/hero_fopt.svg" alt="Накопленная нефть: наш солвер и Eclipse совпадают все девять лет">
-            <div class="legend">
-              <span><i></i>Eclipse</span>
-              <span class="ours"><i></i>наш солвер</span>
-              <span>FOPT, 1997–2006</span>
-            </div>
-          </figure>
+          <p class="cta"><a href="norne.html">Прогон Norne против Eclipse →</a></p>
         </div>
         <figure class="shot">
-          <img src="assets/3d_so_end.png" alt="Corner-point модель Norne в конце расчёта, нефтенасыщенность">
-          <figcaption>So · декабрь 2006</figcaption>
+          <img src="assets/3d_so_end.png" alt="Corner-point модель Norne, нефтенасыщенность">
+          <figcaption>Norne · So · расчёт oil-simulator</figcaption>
         </figure>
       </div>
     </header>
 
-    <section id="model">
+    <section id="what">
       <div class="wrap">
-        <p class="index">01 — модель</p>
-        <h2>Что именно считается</h2>
+        <p class="index">01 — что это</p>
+        <h2>Deck Eclipse на входе, пласт на выходе</h2>
         <div class="prose">
-          <p>Это полностью неявный black-oil. В каждой ячейке три уравнения — нефть, вода, газ — и три неизвестных: давление, водонасыщенность и третья переменная, которая переключается. Пока в ячейке есть нефть и нет свободного газа, третья переменная — газосодержание Rs. Появился газ — насыщенность Sg. Нефть кончилась — паросодержание Rv.</p>
-          <p>Поток на грани берётся вверх по потоку, отдельно по потенциалу каждой фазы, с гравитацией и капиллярным давлением. Якобиан 3×3 собирается аналитически. Ньютон сходится по тем же допускам, что Eclipse и OPM: локальный CNV и глобальный баланс массы. Линейную систему решает CPR: давление — классический AMG, остальное — блочный Якоби, всё на GPU.</p>
+          <p>oil-simulator читает тот же DATA-файл, что Eclipse и OPM Flow, и считает его без конвертации в свой формат. Наружу — векторы SUMMARY в единицах deck, поля давления и насыщенностей, дебиты и забои по скважинам.</p>
+          <p>Основной решатель — полностью неявный black-oil на GPU. Для учебных задач и стресс-тестов рядом есть IMPES на JSON-конфигах.</p>
         </div>
         <div class="strata">
           <article>
             <div class="tag">Сетка</div>
             <h3>Corner-point, разломы, NNC</h3>
-            <p>COORD и ZCORN, объём, глубина, проводимости в духе NEWTRAN. Разломы, PINCH, MINPV, множители MULTX и MULTFLT. На Norne 61 разлом: активных ячеек 44&nbsp;431 = 44&nbsp;431 у Eclipse, все 13&nbsp;455 несоседских связей найдены.</p>
+            <p>COORD и ZCORN, объёмы, глубины, проводимости в духе NEWTRAN. FAULTS, MULTFLT, MULTX, MULTREGT, PINCH, MINPV. На Norne все 44&nbsp;431 активные ячейки и 13&nbsp;455 несоседских связей совпадают с Eclipse.</p>
           </article>
           <article>
-            <div class="tag">Флюиды</div>
+            <div class="tag">Флюиды и порода</div>
             <h3>Жирный газ и регионы</h3>
-            <p>PVTO, PVTG, растворённый газ и испарённая нефть. Несколько регионов PVT, ОФП и равновесия. Stone II, концевые точки, гистерезис Карлсона, EQUIL с контактами. В ячейке без нефти переменная не застревает на Rs — иначе закачанный газ не мог бы появиться.</p>
+            <p>PVTO, PVTG, растворённый газ и испарённая нефть, VAPPARS. Регионы PVT, ОФП и равновесия, EQUIL с контактами, масштабирование концевых точек, гистерезис Карлсона, пороговые давления THPRES.</p>
           </article>
           <article>
             <div class="tag">Скважины</div>
-            <h3>Deck, а не свой формат</h3>
-            <p>WELSPECS, COMPDAT, WCONHIST и WCONPROD, закачка, группы, смена добычи на нагнетание по расписанию. Гидростатика ствола — флэш дебитов снизу вверх, как в OPM. Исторический режим RESV пересчитывается при среднем пластовом давлении.</p>
+            <h3>Расписание как в deck</h3>
+            <p>WELSPECS, COMPDAT, WCONPROD, WCONINJE, исторические WCONHIST и WCONINJH с режимом RESV, WELOPEN, WTEST, смена типа скважины, групповые ограничения. Переток через ствол и смешение в нагнетательных.</p>
           </article>
           <article>
-            <div class="tag">Зачем</div>
-            <h3>Среда для агента</h3>
-            <p>На входе обычный DATA-файл. Наружу — векторы сводки и поля насыщенности и давления. Агент может вести скважины и смотреть, что стало с пластом, на своей машине, без лицензии Eclipse.</p>
+            <div class="tag">Сравнение</div>
+            <h3>Сводки Eclipse и OPM</h3>
+            <p>Читает бинарные UNSMRY, INIT, EGRID. Один скрипт считает deck и сравнивает любые векторы — месторождение, скважины, ячейки — с Eclipse и OPM Flow.</p>
           </article>
         </div>
       </div>
     </section>
 
-    <section id="norne">
+    <section id="inside">
       <div class="wrap">
-        <p class="index">02 — эксперимент</p>
-        <h2>Norne, 1997–2006</h2>
+        <p class="index">02 — внутри</p>
+        <h2>Как устроен решатель</h2>
         <div class="prose">
-          <p>Norne — открытая модель Equinor, Северное море. Сетка 46×112×22, история с ноября 1997 по декабрь 2006, 3312 суток. Добыча нефти, воды и газа, закачка воды и газа, 36 скважин, реальное расписание, включая остановки и смену режима.</p>
-          <p>Считали тот же deck, что Eclipse 2014.2. Сравнивали векторы SUMMARY в наши отчётные даты. Серые точки на графиках — исторические замеры из модели: это то, за чем следует управление скважин, а не второй симулятор. Совпадать мы должны с голубой линией.</p>
-          <p>Накопленная нефть лежит на Eclipse все девять лет: по годам расхождение от −0,17% до +0,46%. К концу нефти меньше на 0,16%, воды больше на 0,9%, газа меньше на 0,07%. Закачка газа совпала полностью, закачка воды — до 0,15%. OPM Flow на этом же deck даёт −0,21%, +1,4% и −0,44%.</p>
+          <p>В каждой ячейке три уравнения — нефть, вода, газ — и три неизвестных: давление, водонасыщенность и третья переменная, которая переключается по состоянию ячейки. Пока свободного газа нет — газосодержание Rs. Появился газ — насыщенность Sg. Нефть кончилась — паросодержание Rv.</p>
+          <p>Поток на грани — вверх по потоку отдельно для каждой фазы, с гравитацией и капиллярным давлением. Якобиан 3×3 собирается аналитически и сверен с конечными разностями. Ньютон сходится по тем же критериям, что Eclipse и OPM: локальный CNV и глобальный баланс массы.</p>
+          <p>Линейная система — FGMRES с CPR: классический AMG Ruge–Stüben по давлению и блочный Якоби по остальному, всё в PyTorch на GPU, float64. Иерархия AMG строится один раз и дальше только обновляется. Ячейки, отрезанные от соседей, решаются отдельно и не портят Крылова.</p>
         </div>
-
-        <div class="slip" role="table" aria-label="Накопленные объёмы к декабрю 2006">
-          <div class="slip-head" role="row">
-            <span>вектор</span><span>что это</span><span>наш · Eclipse</span><span></span><span>разница</span>
-          </div>
-          <div class="slip-row" role="row">
-            <span class="slip-k">FOPT</span><span>нефть</span><span class="nums"><b>67,21</b> · <i>67,32</i></span><span class="unit">млн м³</span><span class="delta">−0,16%</span>
-          </div>
-          <div class="slip-row" role="row">
-            <span class="slip-k">FWPT</span><span>вода</span><span class="nums"><b>23,41</b> · <i>23,20</i></span><span class="unit">млн м³</span><span class="delta">+0,9%</span>
-          </div>
-          <div class="slip-row" role="row">
-            <span class="slip-k">FGPT</span><span>газ</span><span class="nums"><b>14,63</b> · <i>14,64</i></span><span class="unit">млрд м³</span><span class="delta">−0,07%</span>
-          </div>
-          <div class="slip-row" role="row">
-            <span class="slip-k">FWIT</span><span>закачка воды</span><span class="nums"><b>101,95</b> · <i>102,1</i></span><span class="unit">млн м³</span><span class="delta">−0,15%</span>
-          </div>
-          <div class="slip-row" role="row">
-            <span class="slip-k">FGIT</span><span>закачка газа</span><span class="nums"><b>8,685</b> · <i>8,685</i></span><span class="unit">млрд м³</span><span class="delta">0,00%</span>
-          </div>
-        </div>
-        <p class="note">Среднее по времени |наш − Eclipse| / |Eclipse|: дебит нефти 0,65%, воды 1,1%, газа 0,7%, закачки воды 0,06%, закачка газа меньше 0,001%. Оранжевый пунктир — наш солвер, голубая линия — Eclipse 2014.2.</p>
-
-        <figure>
-          <img class="chart" src="assets/rates.png" alt="Дебиты нефти, воды и газа, закачка и обводнённость: наш солвер, Eclipse и история">
-          <figcaption>Месторождение целиком. Провалы до нуля — остановки в расписании, их повторяют оба расчёта.</figcaption>
-        </figure>
-        <figure>
-          <img class="chart" src="assets/cumulative.png" alt="Накопленная добыча и среднее пластовое давление">
-          <figcaption>Накопленные объёмы и давление. Наше давление — среднее по объёму углеводородов, как FPR у Eclipse. К концу 270,8 бар против 271,6 бар.</figcaption>
-        </figure>
-        <p class="note">Что сблизило с Eclipse: VAPPARS отключает заданный раньше DRSDT, как пишет сам Eclipse; Rs и Rv для пересчёта RESV усредняются по объёмам нефти и газа; давление выше конца таблицы PVTG не уводит вязкость газа в минус; кэш линейной подсистемы перестраивается при смене перфораций. Прогон 25 октября 2026: 2106 секунд, RTX 3090 Ti, PyTorch 2.7.</p>
+        <ul class="limits">
+          <li><strong>GPU по умолчанию</strong>CUDA через PyTorch, тот же код идёт на CPU. Детерминированные ядра: повторный расчёт даёт тот же результат.</li>
+          <li><strong>Чекпоинты</strong>Полное состояние расчёта сохраняется на отчётных шагах; продолжение совпадает со сквозным расчётом побитово.</li>
+          <li><strong>Шаг по времени</strong>Адаптивный: дробится при отказе Ньютона, приращения давления и насыщенностей внутри итерации ограничены.</li>
+          <li><strong>Python до конца</strong>Свойства, сборка, предобуславливатель — читаемый код на PyTorch, который легко менять и встраивать в свои эксперименты.</li>
+        </ul>
       </div>
     </section>
 
-    <section id="wells">
+    <section id="check">
       <div class="wrap">
-        <p class="index">03 — скважины</p>
-        <h2>Двенадцать крупнейших</h2>
+        <p class="index">03 — проверка</p>
+        <h2>Рядом с Eclipse</h2>
         <div class="prose">
-          <p>Накопленная нефть по скважинам: у 12 из 12 расхождение меньше 2%, от +0,0% на E-3H до −1,9% на D-1CH. Форма дебита, моменты запуска и остановки совпадают.</p>
+          <p>Каждая модель считается из исходного deck и сравнивается с расчётом Eclipse на том же deck. На SPE9 и Norne мы ближе к Eclipse, чем OPM Flow.</p>
         </div>
         <div class="table-wrap">
           <table class="bench">
             <thead>
-              <tr><th>скважина</th><th class="num">наш, млн м³</th><th class="num">Eclipse</th><th class="num">разница</th></tr>
+              <tr><th>модель</th><th>что сравнивали</th><th class="num">против Eclipse</th></tr>
             </thead>
             <tbody>
-              <tr><td>B-2H</td><td class="num">10,83</td><td class="num">10,82</td><td class="num">+0,1%</td></tr>
-              <tr><td>E-1H</td><td class="num">8,03</td><td class="num">8,04</td><td class="num">−0,2%</td></tr>
-              <tr><td>E-2H</td><td class="num">7,81</td><td class="num">7,82</td><td class="num">−0,1%</td></tr>
-              <tr><td>D-2H</td><td class="num">7,66</td><td class="num">7,53</td><td class="num">+1,7%</td></tr>
-              <tr><td>B-3H</td><td class="num">6,12</td><td class="num">6,11</td><td class="num">+0,1%</td></tr>
-              <tr><td>D-1H</td><td class="num">5,45</td><td class="num">5,50</td><td class="num">−1,0%</td></tr>
-              <tr><td>D-3AH</td><td class="num">3,61</td><td class="num">3,66</td><td class="num">−1,1%</td></tr>
-              <tr><td>B-1H</td><td class="num">3,59</td><td class="num">3,58</td><td class="num">+0,0%</td></tr>
-              <tr><td>D-4H</td><td class="num">3,18</td><td class="num">3,17</td><td class="num">+0,2%</td></tr>
-              <tr><td>E-3H</td><td class="num">1,69</td><td class="num">1,69</td><td class="num">+0,0%</td></tr>
-              <tr><td>B-1BH</td><td class="num">1,42</td><td class="num">1,42</td><td class="num">−0,4%</td></tr>
-              <tr><td>D-1CH</td><td class="num">1,29</td><td class="num">1,32</td><td class="num">−1,9%</td></tr>
+              <tr><td>SPE1, 10×10×3, 10 лет</td><td>дебит нефти / газовый фактор / забои</td><td class="num">0,01% / 0,03% / 0,02%</td></tr>
+              <tr><td>SPE9, 24×25×15, 26 скважин</td><td>нефть / газ / вода</td><td class="num">0,01% / 0,11% / 0,23%</td></tr>
+              <tr><td>SPE9</td><td>забой, худшая скважина</td><td class="num">0,08%</td></tr>
+              <tr><td>Norne, 44 тыс. ячеек, 36 скважин, 9 лет</td><td>накопленные нефть / вода / газ</td><td class="num">−0,16% / +0,9% / −0,07%</td></tr>
+              <tr><td>Norne</td><td>закачка воды / газа</td><td class="num">−0,15% / 0,00%</td></tr>
             </tbody>
           </table>
         </div>
-        <div class="controls" data-switch="well">
-          <div class="seg" role="group" aria-label="Что показать по скважинам">
-            <button type="button" aria-pressed="true" data-src="assets/wells_oil.png">Нефть</button>
-            <button type="button" aria-pressed="false" data-src="assets/wells_water.png">Вода</button>
-            <button type="button" aria-pressed="false" data-src="assets/wells_gas.png">Газ</button>
-            <button type="button" aria-pressed="false" data-src="assets/wells_bhp.png">Забой</button>
-          </div>
-        </div>
         <figure>
-          <img id="well" class="chart" src="assets/wells_oil.png" alt="Дебит нефти двенадцати крупнейших добывающих скважин">
-          <figcaption id="well-cap">Дебит нефти, м³/сут. Голубая — Eclipse, пунктир — наш солвер, точки — история. На забое нули Eclipse означают закрытую скважину. Участки на 1 атм — добывающая упёрлась в нижний предел забоя из deck. Eclipse садится на тот же предел (D-1H: 117 дней у обоих).</figcaption>
+          <img class="chart" src="assets/rates.png" alt="Дебиты Norne: наш солвер, Eclipse и история">
+          <figcaption>Norne, месторождение целиком: голубая — Eclipse 2014.2, оранжевый пунктир — oil-simulator, точки — история. Подробно — на <a href="norne.html">странице прогона</a>.</figcaption>
         </figure>
       </div>
     </section>
 
-    <section id="field">
+    <section id="start">
       <div class="wrap">
-        <p class="index">04 — пласт</p>
-        <h2>Как выглядит расчёт</h2>
-        <div class="prose">
-          <p>Это поля нашего солвера, не карта ошибки против Eclipse. Геометрия — столбы corner-point из EGRID. На картах насыщенность усреднена по разрезу с весом порового объёма. В объёме вертикаль растянута в пять раз, иначе пласт — тонкая корка.</p>
-        </div>
-        <div class="controls">
-          <div class="seg" role="group" aria-label="Фаза" data-switch="phase">
-            <button type="button" aria-pressed="true" data-phase="so">Нефть</button>
-            <button type="button" aria-pressed="false" data-phase="sw">Вода</button>
-            <button type="button" aria-pressed="false" data-phase="sg">Газ</button>
+        <p class="index">04 — запуск</p>
+        <h2>От deck до сводки</h2>
+        <div class="split">
+          <div class="prose">
+            <p>Установка — <code>pip install -r requirements.txt</code> и CUDA-сборка PyTorch. Учебные deck SPE1 и SPE9 лежат в репозитории вместе со сводками Eclipse и OPM.</p>
+            <p>Norne берётся из открытого набора OPM opm-tests; прогон и рисунки — двумя скриптами.</p>
           </div>
-          <div class="seg" role="group" aria-label="Момент" data-switch="when">
-            <button type="button" aria-pressed="false" data-when="start">1997</button>
-            <button type="button" aria-pressed="true" data-when="end">2006</button>
-          </div>
+<pre class="code"><span class="k">from</span> simulator.eclipse_run <span class="k">import</span> run_deck
+
+summary, info = run_deck(<span class="s">"tests/data/spe1/SPE1CASE1.DATA"</span>,
+                         device=torch.device(<span class="s">"cuda"</span>))
+summary[<span class="s">"FOPT"</span>][-<span class="k">1</span>]
+
+<span class="c"># Norne целиком</span>
+NORNE_DIR=opm-tests/norne python scripts/run_norne.py</pre>
         </div>
-        <figure class="stage">
-          <img id="stage" src="assets/3d_so_end.png" alt="Трёхмерная модель Norne">
-        </figure>
-        <div class="controls" data-switch="map">
-          <div class="seg" role="group" aria-label="Карта">
-            <button type="button" aria-pressed="true" data-src="assets/map_so.png">Нефть</button>
-            <button type="button" aria-pressed="false" data-src="assets/map_sw.png">Вода</button>
-            <button type="button" aria-pressed="false" data-src="assets/map_sg.png">Газ</button>
-            <button type="button" aria-pressed="false" data-src="assets/map_p.png">Давление</button>
-          </div>
-        </div>
-        <figure>
-          <img id="map" class="chart" src="assets/map_so.png" alt="Карты нефтенасыщенности в четыре момента">
-          <figcaption id="map-cap">Вид сверху, среднее по разрезу. Южный сегмент светлеет: нефть уходит. Вода поднимается снизу, свободный газ остаётся шапкой на севере.</figcaption>
-        </figure>
+        <p class="cta"><a href="https://github.com/researchim-ai/oil-simulator-py">Репозиторий на GitHub →</a></p>
+        <p class="cta"><a href="https://github.com/researchim-ai/oil-simulator-py/tree/main/docs">Документация: физика, численные методы, deck, верификация →</a></p>
       </div>
     </section>
 
-    <section id="solver">
+    <section id="agents">
       <div class="wrap">
-        <p class="index">05 — решатель</p>
-        <h2>Полчаса на девять лет</h2>
+        <p class="index">05 — агенты</p>
+        <h2>Пласт как среда</h2>
         <div class="prose">
-          <p>683 шага по времени, 3259 итераций Ньютона, в среднем 4,8 на шаг. Три шага не сошлись и были разрезаны — ни один не дошёл до минимального. Иерархия AMG строится и дальше только обновляется. Допуск линейного решателя — неточный Ньютон: пока невязка большая, систему не вылизывают до машинного нуля.</p>
-          <p>На миллионе ячеек двухфазный стресс-тест проходит на одной 24 ГБ карте. Norne меньше, но жёстче: жирный газ, разломы, история, скважины, которые открываются и закрываются. Узкое место сейчас не AMG, а то, что в матрице сидят и неактивные ячейки — 113 тысячи вместо 44.</p>
+          <p><code>iter_deck</code> отдаёт управление после каждого отчётного шага: можно менять уставки скважин и смотреть, что стало с пластом. Поверх него — среда gymnasium <code>DeckEnv</code>: действие — множители к дебитам скважин, наблюдение — дебиты, забои и среднее давление, награда — экономика шага. Эпизод может начинаться с чекпоинта, например с середины истории Norne.</p>
         </div>
-        <figure>
-          <img class="chart" src="assets/solver.png" alt="Шаг по времени, гистограмма итераций Ньютона и накопленное время счёта">
-          <figcaption>Кресты — отказ шага. Большинство шагов сходится за 4–6 итераций. Время почти линейно по истории, без провала в конце.</figcaption>
-        </figure>
-      </div>
-    </section>
-
-    <section id="bench">
-      <div class="wrap">
-        <p class="index">06 — короткие модели</p>
-        <h2>SPE, где расхождение уже в долях процента</h2>
-        <div class="prose">
-          <p>Norne — тяжёлый случай. На учебных моделях SPE тот же солвер стоит вплотную к Eclipse, и на SPE9 по большинству векторов ближе к нему, чем OPM Flow.</p>
-        </div>
-        <table class="bench">
-          <thead>
-            <tr><th>модель</th><th>что сравнивали</th><th class="num">против Eclipse</th></tr>
-          </thead>
-          <tbody>
-            <tr><td>SPE1, 10×10×3, 10 лет</td><td>дебит нефти / газовый фактор</td><td class="num">0,01% / 0,03%</td></tr>
-            <tr><td>SPE1</td><td>забой PROD / INJ</td><td class="num">0,02% / 0,02%</td></tr>
-            <tr><td>SPE9, 24×25×15, 900 суток</td><td>нефть / газ / вода / газовый фактор</td><td class="num">0,01% / 0,11% / 0,23% / 0,18%</td></tr>
-            <tr><td>SPE9, 26 скважин</td><td>забой, худшая скважина</td><td class="num">0,08%</td></tr>
-            <tr><td>SPE9</td><td>накопленная нефть, худшая скважина</td><td class="num">0,32%</td></tr>
-          </tbody>
-        </table>
-        <p class="note">SPE9: 105 подшагов, 456 итераций Ньютона, около 77 секунд на CPU. Якобиан ячеек и скважин сверен с конечными разностями.</p>
       </div>
     </section>
 
     <section id="limits">
       <div class="wrap">
-        <p class="index">07 — чего в этом счёте нет</p>
-        <h2>Границы, как они есть</h2>
+        <p class="index">06 — чего пока нет</p>
+        <h2>Границы</h2>
         <ul class="limits">
-          <li><strong>Отдельные скважины</strong>Месторождение целиком сходится с Eclipse до долей процента, но по скважинам остаются выбросы: вода на E-4AH больше на 58%, на B-1H меньше на 15%, нефть на D-4AH и E-4AH меньше на 4%.</li>
-          <li><strong>Устье и VFP</strong>Нет таблиц VFP и ограничения по устьевому давлению. Для сверки с историей Norne они не нужны: там VFP не задана и забой ограничен 1 атм, но для прогнозов они понадобятся.</li>
-          <li><strong>Неактивные ячейки</strong>Решатель несёт все 113&nbsp;344 ячейки сетки. Активных 44&nbsp;431. Лишняя работа примерно в два с половиной раза.</li>
-          <li><strong>Трассеры, WECON, сети</strong>TRACER, экономические ограничения скважин и поверхностная сеть не считаются. Гистерезис ОФП — только модель Карлсона. VAPPARS с VAP2 ≠ 0 не поддерживается.</li>
+          <li><strong>Устье и VFP</strong>Нет таблиц VFP и ограничений по устьевому давлению — для прогнозов после истории они понадобятся.</li>
+          <li><strong>Сложные скважины и сети</strong>Нет многосегментных скважин, поверхностной сети, WECON.</li>
+          <li><strong>Физика</strong>Black-oil: без композиционной и термической моделей, трассеров, полимера. Гистерезис ОФП — модель Карлсона.</li>
+          <li><strong>Неактивные ячейки</strong>Решатель пока несёт всю сетку: на Norne 113 тысяч ячеек вместо 44 тысяч активных.</li>
         </ul>
       </div>
     </section>
   </main>
 
   <footer class="wrap foot">
-    <div>oil-simulator · researchim · прогон Norne, октябрь 2026</div>
+    <div>oil-simulator · researchim · октябрь 2026</div>
     <nav>
-      <a href="https://researchim-ai.github.io/">researchim.ai</a>
+      <a href="norne.html">Norne</a>
       <a href="https://github.com/researchim-ai/oil-simulator-py">код</a>
+      <a href="https://github.com/researchim-ai/oil-simulator-py/tree/main/docs">документация</a>
+      <a href="https://researchim-ai.github.io/">researchim.ai</a>
     </nav>
   </footer>
   <script src="main.js"></script>

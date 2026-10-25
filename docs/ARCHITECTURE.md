@@ -38,10 +38,15 @@ configs/*.json  ──►  src/simulator/Simulation  ──►  AMG решате
   - `corner_point.py`, `eclipse_deck.py`, `deck.py` — corner-point сетка и чтение deck Eclipse.
   - `eclipse_run.py` — расчёт deck по расписанию: `run_deck` (сводка SUMMARY, WTEST, чекпоинты и продолжение).
   - `ecl_io.py` — чтение бинарных сводок и сеток Eclipse/OPM для сравнения.
+- `deck_env.py` — среда gymnasium `DeckEnv` поверх `iter_deck`.
   - `solver_debug.py` — отладочный режим нелинейного и линейного решателей.
 - `plotting/` — генерация графиков.
 - `output/` — экспорт результатов.
 - `utils.py` — вспомогательные функции (seed, таймеры).
+
+Скрипты (`scripts/`): `compare_eclipse.py` — расчёт deck и сравнение со сводками Eclipse/OPM, `run_norne.py` и
+`norne_figures.py` — полный прогон Norne и его рисунки, `export_pdf.py` — PDF документации, `view_*.py` — просмотр
+результатов.
 
 ## 3. Поток данных во время шага
 

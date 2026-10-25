@@ -1,99 +1,91 @@
-# Симулятор нефтяного месторождения на Python и PyTorch
+# oil-simulator-py
 
 <p align="center"><img src="src/imgs/oil-sim.png" alt="Oil Simulator" width="70%"></p>
 
-GPU-ускоренный симулятор для трёхфазной фильтрации (нефть–вода–газ) с промышленного качества AMG-решателем давления. Подходит и для обучения, и для расчётов на крупных сетках (стресс-тест на 1 000 000 ячеек проходит на одной 24 ГБ GPU).
+Открытый гидродинамический симулятор пласта на Python и PyTorch. Полностью неявный трёхфазный black-oil на GPU
+читает DATA-файл Eclipse и считает модель целиком: corner-point сетку с разломами, жирный газ, регионы, скважины
+по историческому расписанию.
 
-## Основные возможности
-- **Математика:** схема **IMPES** (давление — имплицитно, насыщенности — явно) с учётом сжимаемости, гравитации и капиллярного давления.
-- **Решатель давления:** полностью GPU-реализованный **Classical AMG (Ruge–Stuben)** в float64, с кэшированием и обновлением матрицы без перестройки.
-- **Физика пласта:** PVT-таблицы, Stone II (трёхфазные кривые), анизотропная проницаемость, произвольное количество скважин с управлением по дебиту.
-- **Производительность:** оптимизированные операции `Pᵀ A P`, векторизированное построение `P`, стресс-тест «mega»-кейс (≈3.9 мин первый шаг, 20–30 с последующие).
-- **Результаты:** сохранение графиков, npz/VTK-файлов, логов AMG и статистики по шагам.
-- **Документация:** подробный комплект (MkDocs Material + PDF) с описанием физики, математики, архитектуры и производительности.
+Месторождение **Norne** (44 431 активная ячейка, 36 скважин, 3312 суток) считается целиком за **35 минут** на одной
+RTX 3090 Ti. Накопленная нефть отличается от Eclipse 2014.2 на −0.16%, вода на +0.9%, газ на −0.07%.
 
-## Цель
+- Сайт: [`web/`](web/index.html) — описание симулятора и [результаты Norne](web/norne.html)
+- Документация: [`docs/`](docs/index.md), HTML и PDF собираются MkDocs (см. ниже)
 
-Создать open-source альтернативу коммерческим гидродинамическим симуляторам.
+## Возможности
 
-## Математическая модель
-
-Используем метод конечных объёмов на прямоугольной сетке. Давление решаем из системы `A p = b` (GMRES + AMG), насыщенности обновляем явно. Подробности — в `docs/MATHEMATICS.md`.
-
-## Визуализация результатов
-
-В `results/<run_id>/` сохраняются:
-
-1. Графики распределения давления и насыщенностей (`*final.png`).
-2. npz-файлы с полями (для последующей постобработки).
-3. (Опционально) VTK-файлы для ParaView/VisIt.
-4. Логи AMG и сводка по дебитам/давлению.
-
-## Текущее состояние
-
-- ✅ AMG проходит self-check (`grad_rel < 5e-2`) и обеспечивает 3–6 V-циклов до `residual < 1e-3`.
-- ✅ «Mega»-кейс (`configs/mega_3phase_million.json`) выполняется на одной 24 ГБ GPU.
-- ✅ Документация собирается через `mkdocs build` и экспортируется в `site/pdf/OilSimulatorDocs.pdf`.
-- ⚠️ Текущий потолок без доп. оптимизаций — ~1–1.5 млн ячеек (ограничение по VRAM). В работе: смешанная точность и альтернативный коэрснинг.
-- 📈 В планах — JFNK, много-GPU, расширение физики.
-
-## Документация
-
-Основные разделы:
-
-- `PHYSICS_MODELS.md` — физика пласта и флюидов.
-- `MATHEMATICS.md` — IMPES, AMG и численные детали.
-- `ARCHITECTURE.md` — устройство кода, кэш AMG, поток данных.
-- `PERFORMANCE.md` — замеры времени, ограничения и планы оптимизации.
-- `HOW_TO_GENERATE_PDF.md` — инструкция по сборке документации.
+- **Black-oil FIM:** нефть, вода, газ, Rs и Rv, переключение переменных ячейки, аналитический Якобиан, Ньютон
+  с допусками CNV и баланса массы.
+- **GPU-решатель:** FGMRES + CPR (классический AMG по давлению, блочный Якоби), float64.
+- **Deck Eclipse:** COORD/ZCORN, разломы, NNC, PINCH, MINPV, MULTFLT, регионы PVT/SATNUM/EQLNUM, EQUIL,
+  ENDSCALE, гистерезис, THPRES, VAPPARS.
+- **Скважины:** WCONPROD/WCONINJE/WCONHIST/WCONINJH (RESV), COMPDAT, WELOPEN, WTEST, группы, переток в стволе.
+- **Сравнение:** чтение сводок Eclipse/OPM, `scripts/compare_eclipse.py`.
+- **Агенты:** `iter_deck`, чекпоинты, среда gymnasium `DeckEnv`.
+- **IMPES** на JSON-конфигах — учебные задачи и стресс-тест на миллион ячеек.
 
 ## Установка
 
-   ```bash
-   git clone https://github.com/researchim-ai/oil-simulator-py.git
-   cd oil-simulator-py
+```bash
+git clone https://github.com/researchim-ai/oil-simulator-py.git
+cd oil-simulator-py
 pip install -r requirements.txt
-   ```
+```
 
-*Примечание: устанавливайте CUDA-сборку PyTorch, если планируете запуск на GPU.*
+Для GPU нужна CUDA-сборка PyTorch.
 
-Дополнительно для документации:
+## Расчёт deck Eclipse
 
-   ```bash
-pip install -r requirements-docs.txt
-playwright install chromium
-   ```
+```python
+import sys, torch
+sys.path.insert(0, "src")
+from simulator.eclipse_run import run_deck
 
-## Запуск симуляции
+summary, info = run_deck("tests/data/spe1/SPE1CASE1.DATA", device=torch.device("cuda"))
+print(summary["FOPT"][-1])
+```
+
+Сравнение со сводками Eclipse и OPM:
+
+```bash
+python scripts/compare_eclipse.py tests/data/spe1/SPE1CASE1.DATA \
+    --ref eclipse=tests/data/spe1/eclipse/SPE1CASE1 --ref opm=tests/data/spe1/opm/SPE1CASE1
+```
+
+## Norne
+
+```bash
+git clone --filter=blob:none https://github.com/OPM/opm-tests.git
+NORNE_DIR=opm-tests/norne NORNE_OUT=results/norne python scripts/run_norne.py
+NORNE_DIR=opm-tests/norne NORNE_OUT=results/norne python scripts/norne_figures.py
+```
+
+Подробности — [`docs/NORNE.md`](docs/NORNE.md).
+
+## IMPES на JSON-конфигах
 
 ```bash
 PYTHONPATH=src python src/main.py --config configs/medium_2d.json
+PYTHONPATH=src python src/main.py --config configs/mega_3phase_million.json   # 1 млн ячеек, 24 ГБ GPU
 ```
 
-Стресс-тест (1 000 000 ячеек, трёхфазный режим, GPU):
-
-```bash
-PYTHONPATH=src python src/main.py --config configs/mega_3phase_million.json
-```
-
-Результаты сохраняются в `results/`.
-
-## Запуск тестов
+## Тесты
 
 ```bash
 pytest
+NORNE_DIR=opm-tests/norne pytest tests/test_norne_regression.py   # нужна GPU и данные Norne
 ```
 
-Тесты прогоняют ключевые сценарии и контролируют качество AMG.
-
-## Генерация документации
+## Документация
 
 ```bash
-mkdocs build
-python scripts/export_pdf.py
+pip install -r requirements-docs.txt
+playwright install chromium
+mkdocs build                  # HTML в site/
+python scripts/export_pdf.py  # PDF в site/pdf/OilSimulatorDocs.pdf
 ```
 
-- HTML-версия: `site/index.html`
-- PDF: `site/pdf/OilSimulatorDocs.pdf`
+## План
 
-Подробности — `docs/HOW_TO_GENERATE_PDF.md`.
+[`docs/ROADMAP.md`](docs/ROADMAP.md): только активные ячейки и ускорение, VFP и устьевые ограничения, WECON,
+многосегментные скважины, вывод в форматах Eclipse, градиенты для оптимизации.

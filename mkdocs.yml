@@ -1,5 +1,5 @@
-site_name: Oil Simulator - Документация
-site_description: симулятор нефтяного пласта с AMG решателем на pytorch
+site_name: Oil Simulator — документация
+site_description: полностью неявный black-oil симулятор на PyTorch, чтение deck Eclipse, GPU
 site_author: researchim-ai
 site_url: https://github.com/researchim-ai/oil-simulator-py
 
@@ -118,11 +118,13 @@ nav:
       - Математические модели: MATHEMATICS.md
       - Физические модели: PHYSICS_MODELS.md
       - "Fully Implicit black-oil и Eclipse": fim_technical_details.md
+      - "Norne против Eclipse": NORNE.md
       - Продвинутые возможности: ADVANCED_FEATURES.md
       - 3D Визуализация: 3D_VISUALIZATION.md
+      - ParaView: PARAVIEW.md
   - Производительность:
       - Производительность: PERFORMANCE.md
-      - Сводка проекта: PROJECT_SUMMARY.md
+      - План развития: ROADMAP.md
       - История изменений: CHANGELOG.md
   - Разработка:
       - Руководство по вкладу: CONTRIBUTING.md
