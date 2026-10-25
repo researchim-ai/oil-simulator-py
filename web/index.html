@@ -19,6 +19,7 @@
       <a href="#field">Пласт</a>
       <a href="#solver">Решатель</a>
       <a href="#limits">Границы</a>
+      <a href="release.html">Релиз</a>
     </nav>
   </header>
 
@@ -40,10 +41,10 @@
           <h1>Солвер пласта.<br><em>Norne против Eclipse.</em></h1>
           <p class="lede">Открытый гидродинамический симулятор: читает DATA-файл Eclipse и считает трёхфазный пласт целиком. Ниже — месторождение Norne, девять лет истории, рядом с Eclipse&nbsp;2014.2.</p>
           <div class="metrics">
-            <div><b>60 мин</b><span>3312 суток на RTX 3090 Ti</span></div>
+            <div><b>74 мин</b><span>3312 суток на RTX 3090</span></div>
             <div><b>44&nbsp;431</b><span>активная ячейка, 36 скважин</span></div>
-            <div><b>−4,3%</b><span>накопленная нефть к концу</span></div>
-            <div><b>+0,08%</b><span>та же нефть на 360-е сутки</span></div>
+            <div><b>−4,5%</b><span>накопленная нефть к концу</span></div>
+            <div><b>+0,15%</b><span>та же нефть на 1000-е сутки</span></div>
           </div>
           <figure class="spark">
             <img src="assets/hero_fopt.svg" alt="Накопленная нефть: наш солвер и Eclipse почти совпадают и слегка расходятся к 2006 году">
@@ -101,7 +102,7 @@
         <div class="prose">
           <p>Norne — открытая модель Equinor, Северное море. Сетка 46×112×22, история с ноября 1997 по декабрь 2006, 3312 суток. Добыча нефти, воды и газа, закачка воды и газа, 36 скважин, реальное расписание, включая остановки и смену режима.</p>
           <p>Считали тот же deck, что Eclipse 2014.2. Сравнивали векторы SUMMARY в наши отчётные даты. Серые точки на графиках — исторические замеры из модели: это то, за чем следует управление скважин, а не второй симулятор. Совпадать мы должны с голубой линией.</p>
-          <p>Первые три года накопленная нефть лежит на Eclipse: <strong>+0,08%</strong> на 360-е сутки и <strong>−0,2%</strong> на 1000-е. Дальше кривые расходятся. К концу нефти меньше на 4,3%, воды больше на 5,2%, газа больше на 1,3%. Закачка газа совпала до 0,04%, закачка воды — до 1,8%.</p>
+          <p>Первые три года накопленная нефть лежит на Eclipse: <strong>+0,09%</strong> на 360-е сутки и <strong>+0,15%</strong> на 1000-е. Дальше кривые расходятся. К концу нефти меньше на 4,5%, воды больше на 7,9%, газа больше на 0,6%. Закачка газа совпала полностью, закачка воды — до 0,7%.</p>
         </div>
 
         <div class="slip" role="table" aria-label="Накопленные объёмы к декабрю 2006">
@@ -109,22 +110,22 @@
             <span>вектор</span><span>что это</span><span>наш · Eclipse</span><span></span><span>разница</span>
           </div>
           <div class="slip-row" role="row">
-            <span class="slip-k">FOPT</span><span>нефть</span><span class="nums"><b>64,41</b> · <i>67,32</i></span><span class="unit">млн м³</span><span class="delta">−4,3%</span>
+            <span class="slip-k">FOPT</span><span>нефть</span><span class="nums"><b>64,29</b> · <i>67,32</i></span><span class="unit">млн м³</span><span class="delta">−4,5%</span>
           </div>
           <div class="slip-row" role="row">
-            <span class="slip-k">FWPT</span><span>вода</span><span class="nums"><b>24,40</b> · <i>23,20</i></span><span class="unit">млн м³</span><span class="delta">+5,2%</span>
+            <span class="slip-k">FWPT</span><span>вода</span><span class="nums"><b>25,04</b> · <i>23,20</i></span><span class="unit">млн м³</span><span class="delta">+7,9%</span>
           </div>
           <div class="slip-row" role="row">
-            <span class="slip-k">FGPT</span><span>газ</span><span class="nums"><b>14,83</b> · <i>14,64</i></span><span class="unit">млрд м³</span><span class="delta">+1,3%</span>
+            <span class="slip-k">FGPT</span><span>газ</span><span class="nums"><b>14,73</b> · <i>14,64</i></span><span class="unit">млрд м³</span><span class="delta">+0,6%</span>
           </div>
           <div class="slip-row" role="row">
-            <span class="slip-k">FWIT</span><span>закачка воды</span><span class="nums"><b>100,3</b> · <i>102,1</i></span><span class="unit">млн м³</span><span class="delta">−1,8%</span>
+            <span class="slip-k">FWIT</span><span>закачка воды</span><span class="nums"><b>101,4</b> · <i>102,1</i></span><span class="unit">млн м³</span><span class="delta">−0,7%</span>
           </div>
           <div class="slip-row" role="row">
-            <span class="slip-k">FGIT</span><span>закачка газа</span><span class="nums"><b>8,681</b> · <i>8,685</i></span><span class="unit">млрд м³</span><span class="delta">−0,04%</span>
+            <span class="slip-k">FGIT</span><span>закачка газа</span><span class="nums"><b>8,685</b> · <i>8,685</i></span><span class="unit">млрд м³</span><span class="delta">0,00%</span>
           </div>
         </div>
-        <p class="note">Среднее по времени |наш − Eclipse| / |Eclipse|: нефть 4,4%, вода 6,6%, газ 2,3%, закачка воды 1,8%, закачка газа 0,4%. Оранжевый пунктир — наш солвер, голубая линия — Eclipse 2014.2.</p>
+        <p class="note">Среднее по времени |наш − Eclipse| / |Eclipse|: нефть 4,5%, вода 8,8%, газ 1,9%, закачка воды 0,7%, закачка газа меньше 0,001%. Оранжевый пунктир — наш солвер, голубая линия — Eclipse 2014.2.</p>
 
         <figure>
           <img class="chart" src="assets/rates.png" alt="Дебиты нефти, воды и газа, закачка и обводнённость: наш солвер, Eclipse и история">
@@ -132,9 +133,9 @@
         </figure>
         <figure>
           <img class="chart" src="assets/cumulative.png" alt="Накопленная добыча и среднее пластовое давление">
-          <figcaption>Накопленные объёмы и давление. Наше давление — среднее по поровому объёму, у Eclipse на графике вектор FPR. К концу 310 бар против 272 бар: определения среднего разные, и разрыв растёт вместе с расхождением добычи, это не только сдвиг шкалы.</figcaption>
+          <figcaption>Накопленные объёмы и давление. Наше давление — среднее по поровому объёму, у Eclipse на графике вектор FPR. К концу 317 бар против 272 бар: определения среднего разные, и разрыв растёт вместе с расхождением добычи, это не только сдвиг шкалы.</figcaption>
         </figure>
-        <p class="note">В этом прогоне переток из пласта в ствол нагнетательной скважины уносит флюиды ячейки на поверхность: смешения в стволе в цифрах нет. Отсюда часть позднего занижения нефти и завышения воды. Смешение с точным Якобианом уже написано, полный Norne с ним ещё не досчитан. Прогон 23 октября 2026: 3613 секунд, RTX 3090 Ti, PyTorch 2.7. На CPU те же 3312 суток занимали 2 часа 18 минут.</p>
+        <p class="note">Переток из пласта в ствол нагнетательной скважины смешивается в стволе и уходит обратно в пласт через закачивающие перфорации, как в Eclipse. Со смешением закачка воды подтянулась к Eclipse с −1,8% до −0,7%, газ — с +1,3% до +0,6%, а лишней воды стало больше: +7,9% вместо +5,2%. Прогон 25 октября 2026: 4422 секунды, RTX 3090, PyTorch 2.7.</p>
       </div>
     </section>
 
@@ -143,7 +144,7 @@
         <p class="index">03 — скважины</p>
         <h2>Двенадцать крупнейших</h2>
         <div class="prose">
-          <p>Накопленная нефть по скважинам — от +0,3% на E-3H и −0,6% на D-2H до −6,5% на D-1H и −7,5% на D-1CH. Форма дебита, моменты запуска и остановки совпадают даже там, где интеграл уезжает.</p>
+          <p>Накопленная нефть по скважинам — от +0,4% на E-3H и −0,1% на D-2H до −6,4% на D-1H и −8,2% на D-1CH. Форма дебита, моменты запуска и остановки совпадают даже там, где интеграл уезжает.</p>
         </div>
         <div class="table-wrap">
           <table class="bench">
@@ -151,18 +152,18 @@
               <tr><th>скважина</th><th class="num">наш, млн м³</th><th class="num">Eclipse</th><th class="num">разница</th></tr>
             </thead>
             <tbody>
-              <tr><td>B-2H</td><td class="num">10,30</td><td class="num">10,82</td><td class="num">−4,8%</td></tr>
-              <tr><td>E-1H</td><td class="num">7,71</td><td class="num">8,04</td><td class="num">−4,1%</td></tr>
-              <tr><td>E-2H</td><td class="num">7,49</td><td class="num">7,82</td><td class="num">−4,3%</td></tr>
-              <tr><td>D-2H</td><td class="num">7,49</td><td class="num">7,53</td><td class="num">−0,6%</td></tr>
-              <tr><td>B-3H</td><td class="num">5,86</td><td class="num">6,11</td><td class="num">−4,1%</td></tr>
-              <tr><td>D-1H</td><td class="num">5,15</td><td class="num">5,50</td><td class="num">−6,5%</td></tr>
-              <tr><td>D-3AH</td><td class="num">3,45</td><td class="num">3,66</td><td class="num">−5,6%</td></tr>
-              <tr><td>B-1H</td><td class="num">3,40</td><td class="num">3,58</td><td class="num">−5,1%</td></tr>
-              <tr><td>D-4H</td><td class="num">3,13</td><td class="num">3,17</td><td class="num">−1,5%</td></tr>
-              <tr><td>E-3H</td><td class="num">1,69</td><td class="num">1,69</td><td class="num">+0,3%</td></tr>
-              <tr><td>B-1BH</td><td class="num">1,38</td><td class="num">1,42</td><td class="num">−2,9%</td></tr>
-              <tr><td>D-1CH</td><td class="num">1,22</td><td class="num">1,32</td><td class="num">−7,5%</td></tr>
+              <tr><td>B-2H</td><td class="num">10,22</td><td class="num">10,82</td><td class="num">−5,5%</td></tr>
+              <tr><td>E-1H</td><td class="num">7,71</td><td class="num">8,04</td><td class="num">−4,2%</td></tr>
+              <tr><td>E-2H</td><td class="num">7,49</td><td class="num">7,82</td><td class="num">−4,2%</td></tr>
+              <tr><td>D-2H</td><td class="num">7,52</td><td class="num">7,53</td><td class="num">−0,1%</td></tr>
+              <tr><td>B-3H</td><td class="num">5,78</td><td class="num">6,11</td><td class="num">−5,5%</td></tr>
+              <tr><td>D-1H</td><td class="num">5,15</td><td class="num">5,50</td><td class="num">−6,4%</td></tr>
+              <tr><td>D-3AH</td><td class="num">3,43</td><td class="num">3,66</td><td class="num">−6,1%</td></tr>
+              <tr><td>B-1H</td><td class="num">3,49</td><td class="num">3,58</td><td class="num">−2,5%</td></tr>
+              <tr><td>D-4H</td><td class="num">3,14</td><td class="num">3,17</td><td class="num">−1,0%</td></tr>
+              <tr><td>E-3H</td><td class="num">1,69</td><td class="num">1,69</td><td class="num">+0,4%</td></tr>
+              <tr><td>B-1BH</td><td class="num">1,39</td><td class="num">1,42</td><td class="num">−2,7%</td></tr>
+              <tr><td>D-1CH</td><td class="num">1,21</td><td class="num">1,32</td><td class="num">−8,2%</td></tr>
             </tbody>
           </table>
         </div>
@@ -220,9 +221,9 @@
     <section id="solver">
       <div class="wrap">
         <p class="index">05 — решатель</p>
-        <h2>Час на девять лет</h2>
+        <h2>Час с четвертью на девять лет</h2>
         <div class="prose">
-          <p>817 шагов по времени, 4155 итераций Ньютона, в среднем 5,1 на успешный шаг. Семь шагов не сошлись и были разрезаны. Иерархия AMG строится и дальше только обновляется. Допуск линейного решателя — неточный Ньютон: пока невязка большая, систему не вылизывают до машинного нуля.</p>
+          <p>895 шагов по времени, 4620 итераций Ньютона, в среднем 5,2 на успешный шаг. Пятнадцать шагов не сошлись и были разрезаны — ни один не дошёл до минимального. Иерархия AMG строится и дальше только обновляется. Допуск линейного решателя — неточный Ньютон: пока невязка большая, систему не вылизывают до машинного нуля.</p>
           <p>На миллионе ячеек двухфазный стресс-тест проходит на одной 24 ГБ карте. Norne меньше, но жёстче: жирный газ, разломы, история, скважины, которые открываются и закрываются. Узкое место сейчас не AMG, а то, что в матрице сидят и неактивные ячейки — 113 тысячи вместо 44.</p>
         </div>
         <figure>
@@ -260,7 +261,7 @@
         <p class="index">07 — чего в этом счёте нет</p>
         <h2>Границы, как они есть</h2>
         <ul class="limits">
-          <li><strong>Смешение в стволе</strong>Цифры Norne выше — без него. Газ, зашедший в нагнетательную из пласта, в этом прогоне выходит на поверхность. В солвере смешение с точным Якобианом уже есть, полный прогон ещё впереди.</li>
+          <li><strong>Поздняя вода</strong>К концу истории воды на 7,9% больше, чем у Eclipse, а нефти на 4,5% меньше. Закачка уже совпадает, значит, расхождение — в продвижении воды к добывающим, а не в балансе скважин. Разбираем по скважинам.</li>
           <li><strong>Устье и VFP</strong>Нет таблиц VFP и ограничения по устьевому давлению. Часть добывающих садится на забой в 1 атм, тогда как Eclipse держит их через tubing head.</li>
           <li><strong>Неактивные ячейки</strong>Решатель несёт все 113&nbsp;344 ячейки сетки. Активных 44&nbsp;431. Лишняя работа примерно в два с половиной раза.</li>
           <li><strong>Трассеры, WECON, сети</strong>TRACER, экономические ограничения скважин и поверхностная сеть не считаются. Гистерезис ОФП — только модель Карлсона. VAPPARS с VAP2 ≠ 0 не поддерживается.</li>

@@ -29,7 +29,16 @@ configs/*.json  ──►  src/simulator/Simulation  ──►  AMG решате
   - `reservoir.py` — генерация сетки, трансмиссивити.
   - `fluid.py` — PVT, относительные проницаемости, капиллярка.
   - `well.py` — модели скважин и перевод дебитов.
-  - `numerics.py` (если присутствует) — вспомогательные численные функции.
+  - `manual_assembly_solver.py` — FIM нефть–вода с ручной сборкой Якобиана (базовый класс black-oil FIM).
+  - `blackoil_fim.py` — полностью неявный black-oil (нефть/вода/газ, Rs/Rv, три состояния ячейки), скважины
+    `BlackOilWells` со смешением в стволе нагнетательных.
+  - `blackoil_props.py`, `pvt.py`, `regions.py`, `endpoint_scaling.py`, `hysteresis.py` — свойства флюидов и породы.
+  - `fim_wells.py` — режимы скважин FIM (дебит/BHP, переключение по пределам), `groups.py` — групповые контроли.
+  - `sparse_utils.py` — блочная CSR по списку связей (`SparseMatrixBuilder`), `cpr_gpu.py` — CPR-предобуславливатель.
+  - `corner_point.py`, `eclipse_deck.py`, `deck.py` — corner-point сетка и чтение deck Eclipse.
+  - `eclipse_run.py` — расчёт deck по расписанию: `run_deck` (сводка SUMMARY, WTEST, чекпоинты и продолжение).
+  - `ecl_io.py` — чтение бинарных сводок и сеток Eclipse/OPM для сравнения.
+  - `solver_debug.py` — отладочный режим нелинейного и линейного решателей.
 - `plotting/` — генерация графиков.
 - `output/` — экспорт результатов.
 - `utils.py` — вспомогательные функции (seed, таймеры).
@@ -45,6 +54,16 @@ configs/*.json  ──►  src/simulator/Simulation  ──►  AMG решате
 4. Обновлённое давление передаётся обратно в симулятор.
 5. На основании новых давлений вычисляются межячейковые флюксы и проводится явное обновление насыщенностей.
 6. Скважины обновляют дебиты, результаты логируются.
+
+## 3a. Расчёт deck Eclipse (black-oil FIM)
+
+1. `EclipseCase(path)` читает DATA (с INCLUDE), `case.build()` собирает `Reservoir`, флюид, скважины и параметры.
+2. `run_deck` на каждом отчётном шаге применяет режимы и соединения скважин, WTEST, вызывает `Simulator.run_step`.
+3. `BlackOilFIMSolver.step` — Ньютон: сборка невязки и Якобиана 3×3 (ячейки + скважины, исключение Шура по p_bh),
+   CPR-AMG, переключение состояний ячеек и режимов скважин, дробление шага при отказе.
+4. После шага пишутся векторы сводки; при `checkpoint` — полное состояние расчёта для продолжения (`resume`).
+
+Подробности: [Fully Implicit black-oil и Eclipse](fim_technical_details.md).
 
 ## 4. Кэширование AMG
 
@@ -72,6 +91,9 @@ configs/*.json  ──►  src/simulator/Simulation  ──►  AMG решате
 - `tests/test_amg_pressure_solver.py` — качество AMG.
 - `tests/test_impes_3phase.py` — smoke-тест трёхфазного режима.
 - `tests/test_component_balance_rv.py` — балансы компонентов.
+- `tests/test_blackoil_fim.py`, `tests/test_fim_jacobian.py` — black-oil FIM, Якобиан против конечных разностей.
+- `tests/test_eclipse_benchmarks.py` — SPE1 и SPE9 против сводок Eclipse.
+- `tests/test_injector_crossflow.py` — переток и смешение в стволе нагнетательной.
 - `pytest` запускается с `PYTHONPATH=src`.
 
 ## 8. Расширение проекта
@@ -79,5 +101,5 @@ configs/*.json  ──►  src/simulator/Simulation  ──►  AMG решате
 - Добавление новых моделей (relperm, PVT) — реализовать в `Fluid`.
 - Новые типы скважин — расширить `WellManager`.
 - Другие предобуславливатели — добавить в `solver/` и подключить через параметры конфигурации.
-- Планируемая интеграция JFNK: вынести давление в нелинейный решатель, используя существующий AMG как линейный предобуславливатель.
+- Полностью неявная схема реализована (`blackoil_fim.py`); AMG используется в ней как решатель давления в CPR.
 

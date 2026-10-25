@@ -117,6 +117,7 @@ nav:
       - Архитектура: ARCHITECTURE.md
       - Математические модели: MATHEMATICS.md
       - Физические модели: PHYSICS_MODELS.md
+      - "Fully Implicit black-oil и Eclipse": fim_technical_details.md
       - Продвинутые возможности: ADVANCED_FEATURES.md
       - 3D Визуализация: 3D_VISUALIZATION.md
   - Производительность:

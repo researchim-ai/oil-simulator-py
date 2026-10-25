@@ -62,13 +62,28 @@ PYTHONPATH=src python src/main.py --config configs/mega_3phase_million.json
 - Для экспресс-проверки уменьшите `total_time_days` и `time_step_days` до 0.05–0.1.
 - После первого построения AMG следующий запуск с теми же параметрами проходит значительно быстрее.
 
-## 7. Постобработка
+## 7. Расчёт deck Eclipse (black-oil FIM)
+
+```python
+import sys, torch
+sys.path.insert(0, "src")
+from simulator.eclipse_run import run_deck
+
+summary, info = run_deck("tests/data/spe1/SPE1CASE1.DATA", device=torch.device("cpu"))
+print(summary["FOPR"][-1], info["wall_s"])
+```
+
+`summary` — векторы SUMMARY в единицах deck по отчётным шагам. Для длинных расчётов: `checkpoint="run.ckpt"`
+сохраняет состояние после каждого отчётного шага, `resume="run.ckpt"` продолжает с него. Сравнение со сводками
+Eclipse/OPM — `scripts/compare_eclipse.py` (см. [FIM black-oil](fim_technical_details.md)).
+
+## 8. Постобработка
 
 - Графики по давлению и дебитам: `results/<run_id>/*final.png`
 - Поля для последующей визуализации: `results/<run_id>/*.npz`
 - Лог построения AMG: стандартный вывод (`stdout`) и при необходимости файл в `results`.
 
-## 8. Минимальный сценарий для разработки
+## 9. Минимальный сценарий для разработки
 
 ```bash
 PYTHONPATH=src python tests/test_amg_pressure_solver.py -k classical_amg_quality
