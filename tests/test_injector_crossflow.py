@@ -18,14 +18,17 @@ def test_wellbore_mixing_conserves_mass():
     from simulator.blackoil_fim import BlackOilWells
 
     # скважина 0: перфорации 0,1 закачивают воду, 2 — обратный поток нефти и газа; скважина 1 — не трогается
-    fake = SimpleNamespace(conn_well=torch.tensor([0, 0, 0, 1]), n_w=2, device="cpu")
+    fake = SimpleNamespace(conn_well=torch.tensor([0, 0, 0, 1]), n_w=2, device="cpu",
+                           inj_phase=torch.tensor([WAT, WAT]))
     q = torch.tensor([[0.0, -3.0, 0.0], [0.0, -1.0, 0.0], [0.5, 0.2, 2.0], [1.0, 1.0, 1.0]], dtype=torch.float64)
     back = torch.tensor([False, False, True, False])
     into = torch.tensor([True, True, False, False])
     out, _ = BlackOilWells._wellbore_mixing(fake, q, back, into)
-    # обратный поток по-прежнему выходит из своей ячейки, а по скважине в сумме — только закачка воды
+    # обратный поток по-прежнему выходит из своей ячейки; масса закачки через перфорацию — по её расходу,
+    # меняется только состав; по скважине в сумме — нетто-закачка воды (−4 + 2.7)
     assert torch.equal(out[2], q[2]) and torch.equal(out[3], q[3])
-    assert torch.allclose(out[:3].sum(0), torch.tensor([0.0, -4.0, 0.0], dtype=torch.float64))
+    assert torch.allclose(out[:2].sum(1), q[:2].sum(1))
+    assert torch.allclose(out[:3].sum(0), torch.tensor([0.0, -1.3, 0.0], dtype=torch.float64))
     # возврат распределён пропорционально расходу закачивающих перфораций (3:1)
     assert torch.allclose(out[0] - q[0], 3.0 * (out[1] - q[1]))
 
@@ -45,6 +48,7 @@ def test_wellbore_mixing_jacobian_matches_finite_differences():
     into = ~back
     pc, pd = torch.arange(n).repeat_interleave(n), torch.arange(n).repeat(n)
     fake = SimpleNamespace(conn_well=torch.zeros(n, dtype=torch.long), n_w=1, device="cpu",
+                           inj_phase=torch.tensor([WAT]),
                            pair_c=pc, pair_d=pd, pair_pos=torch.arange(n * n), _mix=None)
 
     def mixed(x, pb=0.0):

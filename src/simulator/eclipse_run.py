@@ -1,6 +1,7 @@
 """Расчёт deck Eclipse по расписанию TSTEP со сводкой (векторы SUMMARY) в единицах deck."""
 import contextlib
 import io
+import os
 import time
 
 import numpy as np
@@ -141,17 +142,32 @@ def _requests(case, cells):
     return out
 
 
-def run_deck(path, device=None, sim_overrides=None, cells=(), quiet=True, max_days=None, progress=None):
+def run_deck(path, device=None, sim_overrides=None, cells=(), quiet=True, max_days=None, progress=None,
+             checkpoint=None, checkpoint_every=1, resume=None):
     """
     Возвращает (summary, info): summary — словарь массивов по отчётным шагам (t = 0 — NaN для дебитов);
     ключи как в Eclipse: 'TIME', 'FOPR', 'WBHP:PROD', 'BPR:i,j,k' (i,j,k с единицы), ...
+
+    checkpoint — файл, куда после каждых checkpoint_every отчётных шагов сохраняется полное состояние
+    расчёта; resume — такой файл, с которого расчёт продолжается (deck тот же).
     """
     case = EclipseCase(path)
     u = case.u
-    out = io.StringIO()
-    with contextlib.redirect_stdout(out) if quiet else contextlib.nullcontext():
-        res, fluid, wm, sim_params = case.build(device=device, sim_overrides=sim_overrides)
-        sim = Simulator(res, fluid, wm, sim_params, device=device or torch.device("cpu"))
+    state = None
+    if resume is not None:
+        # CSR-матрицы решателя хранят столбцы строки в порядке сборки, а не отсортированными
+        validate = torch._utils._validate_loaded_sparse_tensors
+        torch._utils._validate_loaded_sparse_tensors = lambda: torch._utils._sparse_tensors_to_validate.clear()
+        try:
+            state = torch.load(resume, map_location=device, weights_only=False)
+        finally:
+            torch._utils._validate_loaded_sparse_tensors = validate
+        sim, wm, fluid = state["sim"], state["wm"], state["fluid"]
+    else:
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out) if quiet else contextlib.nullcontext():
+            res, fluid, wm, sim_params = case.build(device=device, sim_overrides=sim_overrides)
+            sim = Simulator(res, fluid, wm, sim_params, device=device or torch.device("cpu"))
     solver = sim.fim_solver
     rate_u = {"oil": u["liq"], "water": u["liq"], "gas": u["gas"]}
     requests = _requests(case, cells)
@@ -243,14 +259,27 @@ def run_deck(path, device=None, sim_overrides=None, cells=(), quiet=True, max_da
                 v = np.nan
             summary[key] = [v]
 
-    record_initial()
     t0 = time.perf_counter()
-    newton = 0
-    substeps = 0
-    t = 0.0
     fw = getattr(solver, "wells", None)
-    wtest = WellTestState() if fw is not None and hasattr(fw, "set_open") and hasattr(fw, "conn_open") else None
+    if state is None:
+        record_initial()
+        newton = substeps = n0 = 0
+        t = 0.0
+        wtest = WellTestState() if fw is not None and hasattr(fw, "set_open") and hasattr(fw, "conn_open") else None
+    else:
+        summary, wtest = state["summary"], state["wtest"]
+        newton, substeps, n0, t = state["newton"], state["substeps"], state["n"], state["t"]
+        del state
+
+    def save_checkpoint(n_next):
+        tmp = f"{checkpoint}.tmp"
+        torch.save({"sim": sim, "wm": wm, "fluid": fluid, "summary": summary, "wtest": wtest,
+                    "newton": newton, "substeps": substeps, "n": n_next, "t": t}, tmp)
+        os.replace(tmp, checkpoint)
+
     for n, d in enumerate(case.report_days):
+        if n < n0:
+            continue
         if max_days is not None and t + d > max_days + 1e-9:
             break
         apply_controls(case, n, wm, solver)
@@ -271,6 +300,8 @@ def run_deck(path, device=None, sim_overrides=None, cells=(), quiet=True, max_da
         record()
         if progress:
             progress(n, t, summary)
+        if checkpoint is not None and (n + 1) % max(1, int(checkpoint_every)) == 0:
+            save_checkpoint(n + 1)
     summary = {k: np.array(v, dtype=np.float64) for k, v in summary.items()}
     info = {"wall_s": time.perf_counter() - t0, "newton_iters": newton, "substeps": substeps,
             "units": case.units_name, "case": case, "solver": solver,

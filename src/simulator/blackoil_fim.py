@@ -310,7 +310,9 @@ class BlackOilWells(FIMWells):
         """
         Смешение в стволе нагнетательной: поток B = Σ_b q_b, вошедший в ствол через перфорации b с обратным
         потоком, закачивается обратно через закачивающие перфорации c в долях f_c = t_c / S (t_c — расход
-        закачки, S = Σ_c t_c): q_c −= f_c·B. Масса сохраняется, на поверхность переток не выходит.
+        закачки, S = Σ_c t_c). Масса закачки через c остаётся равной t_c, меняется только состав:
+        q_c −= f_c·B', B' = B − (Σ B)·e_inj. Нетто-закачка с поверхности — S + Σ B, она непрерывна по p_bh,
+        в том числе при нулевой уставке (остановленная скважина с внутренним перетоком).
         Возвращает (q, dq/dp_bh); блоки по ячейкам других перфораций (∂q_c/∂x_b = −f_c·∂q_b/∂x_b и
         ∂q_c/∂x_d = −B ⊗ (δ_cd·∂t_c − f_c·∂t_d)/S) сборка добавляет по self._mix.
         """
@@ -318,7 +320,9 @@ class BlackOilWells(FIMWells):
         if not bool(back.any()) or not bool(into.any()):
             return q, dqb
         zeros = lambda *s: torch.zeros(s, dtype=torch.float64, device=q.device)
+        E_w = F.one_hot(self.inj_phase, 3).double()
         B = zeros(n_w, 3).index_add_(0, cw, torch.where(back.unsqueeze(1), q, torch.zeros_like(q)))
+        B = B - B.sum(1, keepdim=True) * E_w
         tot = q.sum(1)
         S = zeros(n_w).index_add_(0, cw, torch.where(into, tot, torch.zeros_like(tot)))
         act = (S < 0.0)[cw]
@@ -329,27 +333,29 @@ class BlackOilWells(FIMWells):
         q = q - frac.unsqueeze(1) * B_c
         if dqb is not None:
             dB = zeros(n_w, 3).index_add_(0, cw, torch.where(back.unsqueeze(1), dqb, torch.zeros_like(dqb)))
+            dB = dB - dB.sum(1, keepdim=True) * E_w
             dt = dqb.sum(1)
             dS = zeros(n_w).index_add_(0, cw, torch.where(into, dt, torch.zeros_like(dt)))
             dfrac = torch.where(into, (dt - frac * dS[cw]) / S_c, torch.zeros_like(dt))
             dqb = dqb - frac.unsqueeze(1) * torch.where(act.unsqueeze(1), dB[cw], torch.zeros_like(dqb)) \
                 - dfrac.unsqueeze(1) * B_c
         if dq is not None:
-            self._mix = (back, into, frac, B_c, S_c, dq)
+            self._mix = (back, into, frac, B_c, S_c, dq, E_w[cw])
         return q, dqb
 
     def _mixing_blocks(self):
         """Блоки Якобиана смешения в стволе: (позиции в values[], блоки 3×3) или None."""
         if self._mix is None or self.pair_pos is None or self.pair_c.numel() == 0:
             return None
-        back, into, frac, B_c, S_c, dq = self._mix
+        back, into, frac, B_c, S_c, dq, E = self._mix
         pc, pd = self.pair_c, self.pair_d
         sel = into[pc] & (back[pd] | into[pd])
         if not bool(sel.any()):
             return None
         pc, pd, pos = pc[sel], pd[sel], self.pair_pos[sel]
         f = frac[pc].view(-1, 1, 1)
-        blk = torch.where(back[pd].view(-1, 1, 1), -f * dq[pd], torch.zeros_like(dq[pd]))
+        dq_b = dq[pd] - E[pc].unsqueeze(2) * dq[pd].sum(1, keepdim=True)
+        blk = torch.where(back[pd].view(-1, 1, 1), -f * dq_b, torch.zeros_like(dq[pd]))
         dt_c, dt_d = dq[pc].sum(1), dq[pd].sum(1)
         g = ((pc == pd).double().unsqueeze(1) * dt_c - frac[pc].unsqueeze(1) * dt_d) / S_c[pc].unsqueeze(1)
         blk = blk + torch.where(into[pd].view(-1, 1, 1), -B_c[pc].unsqueeze(2) * g.unsqueeze(1), torch.zeros_like(blk))
@@ -498,8 +504,11 @@ class BlackOilWells(FIMWells):
         dq_dpbh = zeros.clone().index_add_(0, cw, (a * Cv).sum(1))
         B_rate = (a.unsqueeze(2) * dq).sum(1)
         if self._mix is not None:
-            # смешение не меняет суммарный дебит скважины: он равен закачке через закачивающие перфорации
-            B_rate = torch.where(self._mix[0].unsqueeze(1), torch.zeros_like(B_rate), B_rate)
+            # через ячейку перфорации с обратным потоком дебит скважины зависит только от суммарной массы
+            # перетока: его состав уходит на смешение, а нетто-закачка уменьшается на его массу
+            back, E = self._mix[0], self._mix[6]
+            B_back = (a * E).sum(1, keepdim=True) * dq.sum(1)
+            B_rate = torch.where(back.unsqueeze(1), B_back, B_rate)
 
         is_rate = torch.zeros(self.n_w, dtype=torch.bool, device=self.device)
         target = torch.zeros_like(zeros)
