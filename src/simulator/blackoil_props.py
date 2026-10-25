@@ -229,16 +229,30 @@ class DeckPVT:
         return b, bm
 
     def gas(self, p, rv=None, sat=None):
-        """1/Bg и μg. Сухой газ (PVDG или PVTG без VAPOIL — Rv = 0); жирный: насыщенный (sat) или по Rv."""
+        """
+        1/Bg и μg. Сухой газ (PVDG или PVTG без VAPOIL — Rv = 0); жирный: насыщенный (sat) или по Rv.
+        За верхним краем таблицы — линейная экстраполяция (как Eclipse/OPM), но 1/Bg и 1/(Bg·μg) не ниже половины
+        значений на краю: у жирного газа они к краю убывают, и линейно продолженная μg уходит в ноль и ниже.
+        """
+        b, bm = self._gas_b_bm(p, rv, sat)
+        p_hi = getattr(self, "_g_p_hi", None)
+        if p_hi is None:
+            p_hi = self._g_p_hi = float(self.g_p[-1])
+        if bool((p.detach() > p_hi).any()):
+            ph = p.clamp(max=p_hi)
+            rv_h = None if rv is None or not self.wet else torch.minimum(rv, self.rv_sat(ph))
+            b_h, bm_h = self._gas_b_bm(ph, rv_h, sat)
+            b, bm = torch.maximum(b, 0.5 * b_h), torch.maximum(bm, 0.5 * bm_h)
+        return b, b / bm
+
+    def _gas_b_bm(self, p, rv, sat):
         if not getattr(self, "pvtg", False):
-            b, bm = interp1_lin(p, self.g_p, self.g_b), interp1_lin(p, self.g_p, self.g_bm)
-            return b, b / bm
+            return interp1_lin(p, self.g_p, self.g_b), interp1_lin(p, self.g_p, self.g_bm)
         if not self.wet:
-            b_u, bm_u = self._gas_2d(p, 0.0 * p)
-            return b_u, b_u / bm_u
+            return self._gas_2d(p, 0.0 * p)
         b_s, bm_s = interp1_lin(p, self.g_p, self.g_b), interp1_lin(p, self.g_p, self.g_bm)
         if rv is None:
-            return b_s, b_s / bm_s
+            return b_s, bm_s
         # недонасыщенный газ: насыщенное значение + приращение 2D-таблицы от Rv_sat(P) до Rv —
         # ветви совпадают на линии насыщения точно (иначе переключения состояния дают скачки массы)
         b2, bm2 = self._gas_2d(p, rv)
@@ -246,7 +260,7 @@ class DeckPVT:
         b_u, bm_u = b_s + (b2 - b2s), bm_s + (bm2 - bm2s)
         if sat is not None:
             b_u, bm_u = torch.where(sat, b_s, b_u), torch.where(sat, bm_s, bm_u)
-        return b_u, b_u / bm_u
+        return b_u, bm_u
 
 
 class BlackOilPVT:

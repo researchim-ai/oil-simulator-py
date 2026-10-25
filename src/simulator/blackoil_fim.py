@@ -901,10 +901,14 @@ class BlackOilFIMSolver(ManualFIMSolver):
             hc_sum = hc.sum().clamp_min(1e-30)
             self.wells.p_avg = float((hc * p.view(-1)).sum() / hc_sum)
             if self.pvt.has_pvt:
-                self.wells.rs_avg = float((hc * self.fluid.rs.reshape(-1).double()).sum() / hc_sum)
+                # Rs — по поровому объёму нефти, Rv — газа (как OPM RateConverter)
+                sg_v = sg_old.reshape(-1)
+                vo = self.pore_volume * (1.0 - sw.view(-1) - sg_v).clamp_min(0.0)
+                vg = self.pore_volume * sg_v.clamp_min(0.0)
+                self.wells.rs_avg = float((vo * self.fluid.rs.reshape(-1).double()).sum() / vo.sum().clamp_min(1e-30))
                 rv = getattr(self.fluid, "rv", None)
-                self.wells.rv_avg = float((hc * rv.reshape(-1).double()).sum() / hc_sum) if self.wet and rv is not None \
-                    else None
+                self.wells.rv_avg = float((vg * rv.reshape(-1).double()).sum() / vg.sum().clamp_min(1e-30)) \
+                    if self.wet and rv is not None and float(vg.sum()) > 0 else None
             self.wells.begin_step(state[0], state[1], t_days)
             p_bh = self.wells.p_bh.clone()
         else:

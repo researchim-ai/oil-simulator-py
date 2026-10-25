@@ -560,18 +560,23 @@ class ManualFIMSolver:
     def _linear_subsystem(self):
         """
         Связная часть линейной системы без изолированных ячеек: (keep, iso, позиции блоков, indptr, indices,
-        строки блоков) или None, если изолированных ячеек нет. Структура матрицы постоянна — считается один раз.
+        строки блоков) или None, если изолированных ячеек нет. Перестраивается при смене перфорированных ячеек
+        (COMPDAT по расписанию): ячейка без соседей, но с перфорацией связана со скважиной.
         """
+        wc = getattr(self.wells, "conn_cell", None)
         if getattr(self, "_lin_sub_ready", False):
-            return self._lin_sub
+            prev = self._lin_sub_wc
+            if (wc is None and prev is None) or (wc is not None and prev is not None and wc.shape == prev.shape
+                                                 and bool(torch.equal(wc, prev))):
+                return self._lin_sub
         self._lin_sub_ready, self._lin_sub = True, None
+        self._lin_sub_wc = None if wc is None else wc.clone()
         if not getattr(self, "linear_drop_isolated", True):
             return None
         indptr, indices = self.builder.indptr, self.builder.indices
         n = self.n_cells
         dev = indptr.device
         iso = (indptr[1:] - indptr[:-1]) == 1
-        wc = getattr(self.wells, "conn_cell", None)
         if wc is not None and wc.numel():
             iso[wc] = False
         if int(iso.sum()) == 0:

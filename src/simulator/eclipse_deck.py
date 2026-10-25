@@ -313,7 +313,10 @@ class EclipseCase:
                 self.region_tables["rsvd"] = [[(r[0] * u["L"], r[1] * u["gas"] / u["liq"]) for r in self._rows(rec, 2)]
                                               for rec in recs if rec]
             elif kw == "DRSDT":
+                # DRSDT и VAPPARS взаимоисключающие: действует заданный последним (сообщение Eclipse
+                # «DRSDT CONSTRAINT IS NOW DISABLED BY SPECIFICATION OF VAPPARS KEYWORD»)
                 self.drsdt = float(recs[0][0]) * u["gas"] / u["liq"] / DAY
+                self.vappars = None
             elif kw == "ENDSCALE":
                 r = recs[0] if recs else []
                 if str(_get(r, 0, "NODIR")).upper() == "DIRECT":
@@ -364,6 +367,7 @@ class EclipseCase:
                     raise NotImplementedError("VAPPARS после начала расписания не поддерживается")
                 r = recs[0]
                 self.vappars = (float(_get(r, 0, 0.0) or 0.0), float(_get(r, 1, 0.0) or 0.0))
+                self.drsdt = None
             elif kw == "EQLOPTS":
                 self.eqlopts = {str(v).upper() for r in recs for v in r if v is not None}
                 bad = self.eqlopts - {"THPRES", "IRREVERS"}
