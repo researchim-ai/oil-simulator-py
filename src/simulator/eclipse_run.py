@@ -143,13 +143,34 @@ def _requests(case, cells):
 
 
 def run_deck(path, device=None, sim_overrides=None, cells=(), quiet=True, max_days=None, progress=None,
-             checkpoint=None, checkpoint_every=1, resume=None):
+             checkpoint=None, checkpoint_every=1, resume=None, control_hook=None):
     """
     Возвращает (summary, info): summary — словарь массивов по отчётным шагам (t = 0 — NaN для дебитов);
     ключи как в Eclipse: 'TIME', 'FOPR', 'WBHP:PROD', 'BPR:i,j,k' (i,j,k с единицы), ...
 
     checkpoint — файл, куда после каждых checkpoint_every отчётных шагов сохраняется полное состояние
-    расчёта; resume — такой файл, с которого расчёт продолжается (deck тот же).
+    расчёта; resume — такой файл, с которого расчёт продолжается (deck тот же). progress(n, t, summary) —
+    после каждого отчётного шага; control_hook — см. iter_deck.
+    """
+    steps = iter_deck(path, device, sim_overrides, cells, quiet, max_days, checkpoint, checkpoint_every, resume,
+                      control_hook)
+    while True:
+        try:
+            n, t, summary = next(steps)
+        except StopIteration as stop:
+            return stop.value
+        if progress:
+            progress(n, t, summary)
+
+
+def iter_deck(path, device=None, sim_overrides=None, cells=(), quiet=True, max_days=None,
+              checkpoint=None, checkpoint_every=1, resume=None, control_hook=None, context=None, yield_start=False):
+    """
+    Пошаговый run_deck: генератор, отдающий (n, t, summary) после каждого отчётного шага; по окончании
+    StopIteration.value = (summary, info). control_hook(n, t, wm, solver) вызывается перед расчётом шага n,
+    после режимов расписания и WTEST, — может менять режимы скважин (среда для агента). context (dict)
+    заполняется объектами расчёта (case, sim, wm, solver, fluid); yield_start — первым отдать (None, t, summary)
+    до первого шага.
     """
     case = EclipseCase(path)
     u = case.u
@@ -270,6 +291,10 @@ def run_deck(path, device=None, sim_overrides=None, cells=(), quiet=True, max_da
         summary, wtest = state["summary"], state["wtest"]
         newton, substeps, n0, t = state["newton"], state["substeps"], state["n"], state["t"]
         del state
+    if context is not None:
+        context.update(case=case, sim=sim, wm=wm, solver=solver, fluid=fluid, n0=n0, t0=t)
+    if yield_start:
+        yield None, t, summary
 
     def save_checkpoint(n_next):
         tmp = f"{checkpoint}.tmp"
@@ -285,6 +310,8 @@ def run_deck(path, device=None, sim_overrides=None, cells=(), quiet=True, max_da
         apply_controls(case, n, wm, solver)
         if wtest is not None:
             wtest.before_step(case, n, t, wm, fw)
+        if control_hook is not None:
+            control_hook(n, t, wm, solver)
         buf = io.StringIO()
         with contextlib.redirect_stdout(buf) if quiet else contextlib.nullcontext():
             ok = sim.run_step(d * DAY)
@@ -298,8 +325,7 @@ def run_deck(path, device=None, sim_overrides=None, cells=(), quiet=True, max_da
             wtest.after_step(case, n, t, wm, fw)
         summary["TIME"].append(t)
         record()
-        if progress:
-            progress(n, t, summary)
+        yield n, t, summary
         if checkpoint is not None and (n + 1) % max(1, int(checkpoint_every)) == 0:
             save_checkpoint(n + 1)
     summary = {k: np.array(v, dtype=np.float64) for k, v in summary.items()}

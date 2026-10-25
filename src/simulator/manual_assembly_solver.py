@@ -495,24 +495,42 @@ class ManualFIMSolver:
         rows = torch.repeat_interleave(torch.arange(n, device=J.device),
                                        self.builder.indptr[1:] - self.builder.indptr[:-1])
         J.mul_(scale[rows].unsqueeze(2))
-        cols = self.builder.indices
-        b = (rhs * scale).reshape(-1)
+        rhs = rhs * scale
+
+        # изолированные ячейки (строка — только диагональный блок, без скважин: неактивные ячейки corner-point
+        # сетки) решаются точно блоком 3×3, Крылов и AMG — только по связанной части
+        sub = self._linear_subsystem()
+        dx_full = None
+        if sub is not None:
+            keep, iso, vpos, indptr_s, indices_s, rows_s = sub
+            dx_full = torch.zeros_like(rhs)
+            dx_full[iso] = torch.linalg.solve(J[self.builder.diag_map[iso]], rhs[iso].unsqueeze(-1)).squeeze(-1)
+            Js, rhs_s, n_s = J[vpos], rhs[keep], int(keep.numel())
+        else:
+            Js, rhs_s, n_s = J, rhs, n
+            indptr_s, indices_s, rows_s = self.builder.indptr, self.builder.indices, rows
+        b = rhs_s.reshape(-1)
 
         def matvec(x):
             xb = x.view(-1, nb)
             y = torch.zeros_like(xb)
-            y.index_add_(0, rows, torch.bmm(J, xb[cols].unsqueeze(-1)).squeeze(-1))
+            y.index_add_(0, rows_s, torch.bmm(Js, xb[indices_s].unsqueeze(-1)).squeeze(-1))
             if wells_on:
-                y += self.wells.schur_correction(wsys, xb, local_included=True) * scale
+                if sub is None:
+                    y += self.wells.schur_correction(wsys, xb, local_included=True) * scale
+                else:
+                    xf = torch.zeros((n, nb), dtype=xb.dtype, device=xb.device)
+                    xf[keep] = xb
+                    y += (self.wells.schur_correction(wsys, xf, local_included=True) * scale)[keep]
             return y.view(-1)
 
         t0 = time.perf_counter()
         amg_in = None if (rebuild_amg or self._amg is None) else self._amg
-        cpr = CPRPreconditionerGPU(J, self.builder.indptr, self.builder.indices, n, self.device,
+        cpr = CPRPreconditionerGPU(Js, indptr_s, indices_s, n_s, self.device,
                                    amg=amg_in, smoother_sweeps=self.cpr_smoother_sweeps,
                                    amg_verbose=self.amg_verbose)
         if cpr.amg is None and amg_in is not None:
-            cpr = CPRPreconditionerGPU(J, self.builder.indptr, self.builder.indices, n, self.device,
+            cpr = CPRPreconditionerGPU(Js, indptr_s, indices_s, n_s, self.device,
                                        amg=None, smoother_sweeps=self.cpr_smoother_sweeps,
                                        amg_verbose=self.amg_verbose)
         self._amg = cpr.amg
@@ -533,5 +551,42 @@ class ManualFIMSolver:
         if not (true_rel == true_rel) or true_rel > self.lin_accept:
             return None
         dx = x.view(-1, nb)
+        if sub is not None:
+            dx_full[keep] = dx
+            dx = dx_full
         dpw = self.wells.recover_dpw(wsys, dx) if wells_on else torch.zeros(0, dtype=torch.float64, device=self.device)
         return dx, dpw
+
+    def _linear_subsystem(self):
+        """
+        Связная часть линейной системы без изолированных ячеек: (keep, iso, позиции блоков, indptr, indices,
+        строки блоков) или None, если изолированных ячеек нет. Структура матрицы постоянна — считается один раз.
+        """
+        if getattr(self, "_lin_sub_ready", False):
+            return self._lin_sub
+        self._lin_sub_ready, self._lin_sub = True, None
+        if not getattr(self, "linear_drop_isolated", True):
+            return None
+        indptr, indices = self.builder.indptr, self.builder.indices
+        n = self.n_cells
+        dev = indptr.device
+        iso = (indptr[1:] - indptr[:-1]) == 1
+        wc = getattr(self.wells, "conn_cell", None)
+        if wc is not None and wc.numel():
+            iso[wc] = False
+        if int(iso.sum()) == 0:
+            return None
+        keep = (~iso).nonzero().view(-1)
+        new = torch.full((n,), -1, dtype=torch.long, device=dev)
+        new[keep] = torch.arange(keep.numel(), device=dev)
+        cnt = indptr[1:][keep] - indptr[:-1][keep]
+        indptr_s = torch.zeros(keep.numel() + 1, dtype=indptr.dtype, device=dev)
+        indptr_s[1:] = torch.cumsum(cnt, 0)
+        rows_s = torch.repeat_interleave(torch.arange(keep.numel(), device=dev), cnt)
+        start = torch.repeat_interleave(indptr[:-1][keep], cnt)
+        vpos = start + torch.arange(rows_s.numel(), device=dev) - torch.repeat_interleave(indptr_s[:-1], cnt)
+        indices_s = new[indices[vpos]].to(indices.dtype)
+        if bool((indices_s < 0).any()):
+            return None
+        self._lin_sub = (keep, iso.nonzero().view(-1), vpos, indptr_s, indices_s, rows_s)
+        return self._lin_sub
