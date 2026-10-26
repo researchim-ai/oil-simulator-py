@@ -36,7 +36,9 @@ def test_norne_endpoints_match_eclipse_init():
     init = dict(read_ecl_arrays(ECL + ".INIT"))
     kk, jj, ii = np.nonzero(init["PORV"].reshape(nz, ny, nx) > 0)
     o = np.lexsort((ii, jj, kk))
-    idx = torch.tensor(ii[o] * ny * nz + jj[o] * nz + kk[o])
+    idx = torch.tensor(res.cell_map[ii[o] * ny * nz + jj[o] * nz + kk[o]])
+    # активные ячейки совпадают с Eclipse
+    assert int(idx.min()) >= 0 and len(idx) == len(res.active_cells)
     for prefix, model in (("", kr), ("I", kr.hyst.imb)):
         for key in ("SWL", "SWCR", "SWU", "SOWCR", "SOGCR", "SGL", "SGCR", "SGU"):
             ecl = init[prefix + key].astype(np.float64)

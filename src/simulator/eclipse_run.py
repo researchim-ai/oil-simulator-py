@@ -196,6 +196,18 @@ def iter_deck(path, device=None, sim_overrides=None, cells=(), quiet=True, max_d
     tree = GroupTree(case.group_parent, case.well_group)
     wells = {w.name: w for w in wm.wells}
     summary = {"TIME": [0.0]}
+    cmap = getattr(solver.reservoir, "cell_map", None)
+
+    def block_value(kw, ijk):
+        nx, ny, nz = case.dims
+        i, j, k = (v - 1 for v in ijk)
+        c = (i * ny + j) * nz + k
+        c = int(cmap[c]) if cmap is not None else c
+        if c < 0:
+            return float("nan")
+        sw, sg = float(fluid.s_w.reshape(-1)[c]), float(fluid.s_g.reshape(-1)[c])
+        return {"BPR": lambda: float(fluid.pressure.reshape(-1)[c]) / u["p"], "BGSAT": lambda: sg,
+                "BWSAT": lambda: sw, "BOSAT": lambda: 1.0 - sw - sg}[kw]()
 
     def rates(w):
         r = (w.type == "producer" and getattr(w, "last_surface_prod", None)) or \
@@ -260,20 +272,13 @@ def iter_deck(path, device=None, sim_overrides=None, cells=(), quiet=True, max_d
                         continue
                     v += wr[w.name][ph] if prod else -wr[w.name][ph]
             else:
-                kw, (i, j, k) = arg
-                c = (i - 1, j - 1, k - 1)
-                v = {"BPR": lambda: float(fluid.pressure[c]) / u["p"], "BGSAT": lambda: float(fluid.s_g[c]),
-                     "BWSAT": lambda: float(fluid.s_w[c]),
-                     "BOSAT": lambda: 1.0 - float(fluid.s_w[c]) - float(fluid.s_g[c])}[kw]()
+                v = block_value(*arg)
             summary.setdefault(key, []).append(v)
 
     def record_initial():
         for key, kind, arg in requests:
             if kind == "B":
-                kw, (i, j, k) = arg
-                c = (i - 1, j - 1, k - 1)
-                v = {"BPR": float(fluid.pressure[c]) / u["p"], "BGSAT": float(fluid.s_g[c]),
-                     "BWSAT": float(fluid.s_w[c]), "BOSAT": 1.0 - float(fluid.s_w[c]) - float(fluid.s_g[c])}[kw]
+                v = block_value(*arg)
             elif key.split(":")[0].endswith(("PT", "IT")):
                 v = 0.0
             else:

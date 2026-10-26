@@ -67,11 +67,26 @@ def savez(name, **arrays):
     os.replace(tmp, f"{OUT}/{name}.npz")
 
 
+def full_dims(sol):
+    return getattr(sol.reservoir, "full_dims", None) or (sol.nx, sol.ny, sol.nz)
+
+
+def to_full(sol, a):
+    """Поле расчётных ячеек → [nx, ny, nz] полной сетки (неактивные — 0)."""
+    a = a.detach().reshape(-1).cpu().numpy()
+    cells = getattr(sol.reservoir, "active_cells", None)
+    if cells is not None:
+        out = np.zeros(int(np.prod(full_dims(sol))), dtype=a.dtype)
+        out[cells] = a
+        a = out
+    return a.reshape(full_dims(sol))
+
+
 def save_fields():
     sol = H["solver"]
     if H["pv"] is None:
         p0 = sol.fluid.pressure.reshape(-1).double()
-        H["pv"] = sol._pv(p0).view(sol.nx, sol.ny, sol.nz).cpu().numpy()
+        H["pv"] = to_full(sol, sol._pv(p0))
     savez("fields", t=np.array(H["snap_t"]), pv=H["pv"], **{k: np.stack(v) for k, v in H["snap"].items()})
 
 
@@ -79,7 +94,7 @@ def save_meta(info=None):
     sol = H["solver"]
     s = H["summary"]
     meta = {"status": H["status"], "error": H["error"], "wall_s": time.time() - t0,
-            "cells_total": int(sol.nx * sol.ny * sol.nz), "dims": [sol.nx, sol.ny, sol.nz],
+            "cells_total": int(np.prod(full_dims(sol))), "dims": list(full_dims(sol)), "cells_computed": sol.n_cells,
             "cells_active": int((H["pv"] > 0).sum()) if H["pv"] is not None else None,
             "wells": len(sol.wells.wells),
             "substeps": len(H["sub"]), "failed_substeps": sum(1 for r in H["sub"] if not r[2]),
@@ -111,7 +126,7 @@ def snapshot(t):
     f = H["solver"].fluid
     H["snap_t"].append(t)
     for k, a in (("p", f.pressure / 1e5), ("sw", f.s_w), ("sg", f.s_g), ("so", f.s_o), ("rs", f.rs)):
-        H["snap"][k].append(a.detach().cpu().numpy().astype(np.float32))
+        H["snap"][k].append(to_full(H["solver"], a).astype(np.float32))
     save_fields()
 
 

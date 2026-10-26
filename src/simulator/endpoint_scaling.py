@@ -197,6 +197,11 @@ class ScaledRelPerm:
         krw, kro, krg, _, _ = self._all(sw, sg)
         return krw, kro, krg
 
+    def kr_pc(self, sw, sg):
+        """(krw, kro, krg), (pcow, pcog) за один проход."""
+        krw, kro, krg, pcow, pcog = self._all(sw, sg)
+        return (krw, kro, krg), (pcow, pcog)
+
     def pc(self, sw, sg):
         _, _, _, pcow, pcog = self._all(sw, sg)
         return pcow, pcog

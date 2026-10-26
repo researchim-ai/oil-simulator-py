@@ -1274,10 +1274,20 @@ class ClassicalAMG:
         return y
 
     def _row_idx(self, A_csr: torch.Tensor) -> torch.Tensor:
-        """Номер строки каждого ненуля CSR (без кэша: матрицы уровней обновляются на месте)."""
+        """Номер строки каждого ненуля CSR. Кэш — по объекту матрицы: матрицы уровней при обновлении
+        заменяются новыми тензорами, структура существующего тензора не меняется."""
+        cache = self.__dict__.setdefault('_row_idx_cache', {})
+        hit = cache.get(id(A_csr))
+        if hit is not None and hit[0] is A_csr:
+            return hit[1]
         crow = A_csr.crow_indices()
-        return torch.repeat_interleave(torch.arange(crow.numel() - 1, device=A_csr.device, dtype=torch.int64),
-                                       crow[1:] - crow[:-1])
+        idx = torch.repeat_interleave(torch.arange(crow.numel() - 1, device=A_csr.device, dtype=torch.int64),
+                                      crow[1:] - crow[:-1])
+        live = {id(l[k]) for l in getattr(self, 'levels', []) for k in ('A', 'P', 'R') if torch.is_tensor(l.get(k))}
+        for key in [k for k in cache if k not in live]:
+            del cache[key]
+        cache[id(A_csr)] = (A_csr, idx)
+        return idx
     
     def _matvec(self, lvl: int, x: torch.Tensor) -> torch.Tensor:
         """Matrix-vector product: y = A_lvl × x"""

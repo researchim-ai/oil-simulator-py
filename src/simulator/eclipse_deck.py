@@ -166,10 +166,15 @@ def _get(rec, idx, default=None):
 class EclipseCase:
     """Модель, собранная из deck: сетка, свойства, начальное состояние, скважины, расписание (в СИ)."""
 
-    def __init__(self, path, grid_only=False):
-        """grid_only=True — читаются только RUNSPEC/GRID/EDIT (статическая модель: сетка, свойства, связи)."""
+    def __init__(self, path, grid_only=False, compact=True):
+        """
+        grid_only=True — читаются только RUNSPEC/GRID/EDIT (статическая модель: сетка, свойства, связи).
+        compact=True — неактивные ячейки corner-point сетки исключаются из расчёта (поля — через to_full).
+        """
         self.path = str(path)
         self.grid_only = grid_only
+        self.compact = compact
+        self.cells = None
         self.deck = parse_deck(path)
         kws = [k for k, _ in self.deck]
         self.units_name = "METRIC"
@@ -721,11 +726,14 @@ class EclipseCase:
         if len(rt[oil_key]) < n_pvt:
             raise ValueError(f"{oil_key.upper()}: таблиц {len(rt[oil_key])}, а регионов PVTNUM {n_pvt}")
         rho = self.density
-        pvts = []
+        pvts, pvts_cpu = [], []
+        cpu = torch.device("cpu")
         for r in range(n_pvt):
             tab = {oil_key: rt[oil_key][r], "pvdg": pick("pvdg", r), "pvtw": pick("pvtw", r),
                    "pvtg": pick("pvtg", r), "vapoil": self.vapoil}
             pvts.append(DeckPVT(tab, pick("density", r) or rho, device))
+            # равновесие считается по ячейкам/скалярам — на CPU
+            pvts_cpu.append(pvts[-1] if device.type == "cpu" else DeckPVT(tab, pick("density", r) or rho, cpu))
         krs = [ThreePhaseRelPerm(tables={k: pick(k, r) for k in ("swof", "sgof") if k in rt}, device=device,
                                  kro_model=self.kro_model) for r in range(n_tab)]
         if n_pvt > 1:
@@ -765,8 +773,8 @@ class EclipseCase:
         fluid.rock_ref_pressure = p_ref
         fluid.rock_compressibility = c_r
         fluid.sw_cr = float(swc.min())
-        p, sw, sg, rs, rv = self.equilibrate(pvts, ep, regs, device, swatinit)
-        shp = (nx, ny, nz)
+        p, sw, sg, rs, rv = (a.to(device) for a in self.equilibrate(pvts_cpu, ep, regs, cpu, swatinit))
+        shp = tuple(res.dimensions)
         fluid.pressure = p.view(shp).clone()
         fluid.s_w = sw.view(shp).clone()
         fluid.s_g = sg.view(shp).clone()
@@ -825,13 +833,19 @@ class EclipseCase:
         g, act = s["grid"], s["active"]
         self.grid = g
         self.active = act
+        # в расчёте только активные ячейки: сетка n_active × 1 × 1, связи и скважины — через cell_map
+        self.cells = np.flatnonzero(act.reshape(-1)) if self.compact and not act.all() else None
+        shp = (self.n_cells, 1, 1) if self.cells is not None else (nx, ny, nz)
+        C = lambda a: self._a(np.broadcast_to(a, (nx, ny, nz))).reshape(shp)
         self.depth_top = float(g.corners[..., 2][act].min())
-        self.cell_depth_abs = g.depth
-        dz_layer = np.array([g.dz[:, :, k].mean() for k in range(nz)])
-        clean = lambda a: np.where(act, np.nan_to_num(a), 0.0)
-        res = Reservoir({"dimensions": [nx, ny, nz],
-                         "grid": {"dx": g.dx.mean(axis=(1, 2)).tolist(), "dy": g.dy.mean(axis=(0, 2)).tolist(),
-                                  "dz": dz_layer.tolist()},
+        self.cell_depth_abs = C(g.depth)
+        clean = lambda a: C(np.where(act, np.nan_to_num(a), 0.0))
+        if self.cells is not None:
+            grid = {"dx": np.ones(shp[0]).tolist(), "dy": [1.0], "dz": [1.0]}
+        else:
+            grid = {"dx": g.dx.mean(axis=(1, 2)).tolist(), "dy": g.dy.mean(axis=(0, 2)).tolist(),
+                    "dz": [g.dz[:, :, k].mean() for k in range(nz)]}
+        res = Reservoir({"dimensions": list(shp), "grid": grid,
                          "porosity": clean(poro * ntg).tolist(), "permeability": clean(kx * ntg).tolist(),
                          "k_vertical_fraction": 1.0}, device=device)
         res.permeability_y = t(clean(ky * ntg) * MD)
@@ -839,19 +853,45 @@ class EclipseCase:
         pv = s["pv"]
         pv_floor = 1e-6 * pv[act].mean()
         vol = np.maximum(g.volume, 1e-30)
-        # неактивные ячейки изолированы (связей нет); минимальный поровый объём сохраняет невырожденность Якобиана
-        res.porosity = t(np.where(act, pv / vol, pv_floor / vol))
-        res.cell_volume = t(vol)
+        # неактивные ячейки (если не исключены) изолированы; минимальный поровый объём — невырожденный Якобиан
+        res.porosity = t(C(np.where(act, pv / vol, pv_floor / vol)))
+        res.cell_volume = t(C(vol))
         res.cell_volume_flat = res.cell_volume.reshape(-1)
         res.porous_volume = res.cell_volume * res.porosity
-        res.cell_depth = t(g.depth - self.depth_top)
-        res.cell_dims = (t(g.dx), t(g.dy), t(g.dz * ntg))
+        res.cell_depth = t(C(g.depth - self.depth_top))
+        res.cell_dims = (t(C(g.dx)), t(C(g.dy)), t(C(g.dz * ntg)))
         c = s["conn"]
         keep = c["T"] > 0
-        res.connections = (torch.as_tensor(c["c1"][keep], device=device),
-                           torch.as_tensor(c["c2"][keep], device=device), t(c["T"][keep]))
-        res.actnum = t(act.astype(np.float64))
+        cmap = np.arange(self.n, dtype=np.int64)
+        if self.cells is not None:
+            cmap = np.full(self.n, -1, dtype=np.int64)
+            cmap[self.cells] = np.arange(self.cells.size)
+        res.connections = (torch.as_tensor(cmap[c["c1"][keep]], device=device),
+                           torch.as_tensor(cmap[c["c2"][keep]], device=device), t(c["T"][keep]))
+        res.actnum = t(C(act.astype(np.float64)))
+        res.full_dims = (nx, ny, nz)
+        res.cell_map = cmap
+        res.active_cells = self.cells
         return res
+
+    @property
+    def n_cells(self):
+        """Число расчётных ячеек (активных, если сетка сжата)."""
+        return self.n if getattr(self, "cells", None) is None else int(self.cells.size)
+
+    def _a(self, a):
+        """Ячеечный массив полной сетки (порядок симулятора) → расчётные ячейки."""
+        a = np.asarray(a).reshape(-1)
+        return a if getattr(self, "cells", None) is None else a[self.cells]
+
+    def to_full(self, a, fill=0.0):
+        """Расчётные ячейки → массив [nx, ny, nz] полной сетки (неактивные — fill)."""
+        a = np.asarray(a).reshape(-1)
+        if getattr(self, "cells", None) is None:
+            return a.reshape(self.dims)
+        out = np.full(self.n, fill, dtype=a.dtype)
+        out[self.cells] = a
+        return out.reshape(self.dims)
 
     def static_model(self):
         """
@@ -941,7 +981,7 @@ class EclipseCase:
 
     def _cell_array(self, name):
         """Ячеечный массив deck в порядке симулятора (NaN — не задан)."""
-        return np.asarray(self.field(name), dtype=np.float64).reshape(-1)
+        return self._a(np.asarray(self.field(name), dtype=np.float64))
 
     def _endpoint_model(self, krs, sat, device, prefix=""):
         """
@@ -962,7 +1002,7 @@ class EclipseCase:
                 a = self._cell_array(name)
                 v = np.where(np.isnan(a), v, a)
             cell[key] = torch.as_tensor(v, dtype=torch.float64, device=device)
-        act = torch.as_tensor(self.active.reshape(-1) if getattr(self, "active", None) is not None
+        act = torch.as_tensor(self._a(self.active) if getattr(self, "active", None) is not None
                               else np.ones(len(sat), bool), device=device)
         bad = act & ((cell["SWL"] > cell["SWCR"] + 1e-12) | (cell["SWCR"] >= cell["SWU"])
                      | (cell["SGL"] > cell["SGCR"] + 1e-12))
@@ -976,12 +1016,13 @@ class EclipseCase:
     def _region_index(self, name):
         """Номер региона ячейки (0-based) в порядке симулятора; по умолчанию все в регионе 1."""
         if name not in self.arrays:
-            return np.zeros(self.n, dtype=np.int64)
+            return np.zeros(self.n_cells, dtype=np.int64)
         a = self.field(name).reshape(-1)
         act = getattr(self, "active", None)
         a = np.where(np.isnan(a), 1.0, a)
         if act is not None:
             a = np.where(act.reshape(-1), a, 1.0)
+        a = self._a(a)
         if (a < 1).any():
             raise ValueError(f"{name}: номера регионов должны быть ≥ 1")
         return a.astype(np.int64) - 1

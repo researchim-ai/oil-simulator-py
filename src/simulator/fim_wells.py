@@ -62,7 +62,8 @@ class FIMWells:
         self.n_w = len(self.wells)
         self.device = device
         self.fluid = fluid
-        nx, ny, nz = dims
+        nx, ny, nz = dims = getattr(reservoir, 'full_dims', None) or dims
+        self._dims, self._cmap = dims, getattr(reservoir, 'cell_map', None)
         dx = reservoir.dx_vector.cpu().double()
         dy = reservoir.dy_vector.cpu().double()
         dz = reservoir.dz_vector.cpu().double()
@@ -70,13 +71,13 @@ class FIMWells:
         if cell_dims is None:
             cell_dims = [v.cpu().double().view(s).expand(nx, ny, nz)
                          for v, s in ((dx, (nx, 1, 1)), (dy, (1, ny, 1)), (dz, (1, 1, nz)))]
-        dx, dy, dz = (v.cpu().double() for v in cell_dims)
+        dx, dy, dz = (v.cpu().double().reshape(-1) for v in cell_dims)
         cell_depth = getattr(reservoir, 'cell_depth', None)
         zc = (cell_depth.cpu().double() if cell_depth is not None
-              else reservoir.z_centers.cpu().double().view(1, 1, nz).expand(nx, ny, nz))
-        kx = reservoir.permeability_x.cpu().double()
-        ky = reservoir.permeability_y.cpu().double()
-        kz = reservoir.permeability_z.cpu().double()
+              else reservoir.z_centers.cpu().double().view(1, 1, nz).expand(nx, ny, nz)).reshape(-1)
+        kx = reservoir.permeability_x.cpu().double().reshape(-1)
+        ky = reservoir.permeability_y.cpu().double().reshape(-1)
+        kz = reservoir.permeability_z.cpu().double().reshape(-1)
         self._geom = (kx, ky, kz, dx, dy, dz)
         sched = []
 
@@ -89,18 +90,20 @@ class FIMWells:
             for n_c, (i, j, k) in enumerate(perfs):
                 if not (0 <= i < nx and 0 <= j < ny and 0 <= k < nz):
                     raise ValueError(f"Скважина {w.name}: перфорация ({i},{j},{k}) вне сетки {dims}")
+                c = self._cell(i, j, k)
+                if c < 0:
+                    raise ValueError(f"Скважина {w.name}: перфорация ({i},{j},{k}) в неактивной ячейке")
                 if conns is not None:
                     wi = self._conn_wi(conns[n_c])
                     sched.append(1.0 if conns[n_c]["open"] else 0.0)
                 else:
                     wi = w.wi_override if w.wi_override is not None else peaceman_wi(
-                        kx[i, j, k], ky[i, j, k], float(dx[i, j, k]), float(dy[i, j, k]), float(dz[i, j, k]),
-                        w.radius, w.skin)
+                        kx[c], ky[c], float(dx[c]), float(dy[c]), float(dz[c]), w.radius, w.skin)
                     sched.append(1.0)
-                cells.append((i * ny + j) * nz + k)
+                cells.append(c)
                 owner.append(w_idx)
                 wis.append(wi)
-                w_depths.append(float(zc[i, j, k]))
+                w_depths.append(float(zc[c]))
             ref = min(w_depths) if w.ref_depth is None else float(w.ref_depth)
             self.ref_depth.append(ref)
             depths.extend(d - ref for d in w_depths)
@@ -119,11 +122,16 @@ class FIMWells:
         self.mode = [w.control_type for w in self.wells]
         self.rho_wb = torch.zeros(self.n_w, dtype=torch.float64, device=device)
 
+    def _cell(self, i, j, k):
+        """Расчётная ячейка перфорации (i, j, k); −1 — неактивная."""
+        _, ny, nz = self._dims
+        c = (i * ny + j) * nz + k
+        return c if self._cmap is None else int(self._cmap[c])
+
     def _conn_wi(self, conn):
-        i, j, k = conn["ijk"]
+        c = self._cell(*conn["ijk"])
         kx, ky, kz, dx, dy, dz = self._geom
-        return connection_wi(conn, kx[i, j, k], ky[i, j, k], kz[i, j, k],
-                             float(dx[i, j, k]), float(dy[i, j, k]), float(dz[i, j, k]))
+        return connection_wi(conn, kx[c], ky[c], kz[c], float(dx[c]), float(dy[c]), float(dz[c]))
 
     def set_connections(self, w_idx, conns):
         """Соединения скважины на отчётный шаг (тот же набор и порядок): WI и открытость."""

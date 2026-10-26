@@ -15,7 +15,7 @@
 import numpy as np
 import torch
 import torch.nn.functional as F
-from torch.func import jvp
+from torch.func import jvp, vmap
 
 from .blackoil_props import BlackOilPVT, ThreePhaseRelPerm
 from .fim_wells import FIMWells, G, DAY
@@ -700,8 +700,11 @@ class BlackOilFIMSolver(ManualFIMSolver):
             st = self._phase_state(p, sw, x, sat, ug)
             sg, rs, so, rv = st["sg"], st["rs"], st["so"], st["rv"]
             bo, mu_o, bw, mu_w, bg, mu_g = st["bo"], st["mu_o"], st["bw"], st["mu_w"], st["bg"], st["mu_g"]
-            krw, kro, krg = kr(sw, sg)
-            pcow, pcog = kr.pc(sw, sg)
+            if hasattr(kr, "kr_pc"):
+                (krw, kro, krg), (pcow, pcog) = kr.kr_pc(sw, sg)
+            else:
+                krw, kro, krg = kr(sw, sg)
+                pcow, pcog = kr.pc(sw, sg)
             mo, mw, mg = kro * bo / mu_o, krw * bw / mu_w, krg * bg / mu_g
             if wet:
                 rho_gr = (rho_g + rv * rho_o) * bg
@@ -723,15 +726,10 @@ class BlackOilFIMSolver(ManualFIMSolver):
     def cell_state(self, p, sw, x, sat, ug=None):
         """Свойства [N_PROPS, N] и производные [N_PROPS, N, 3] по (P, Sw, X)."""
         fn = self._cell_fn(sat, ug)
-        one, zero = torch.ones_like(p), torch.zeros_like(p)
-        ders = []
-        val = None
-        for k in range(3):
-            tang = [zero, zero, zero]
-            tang[k] = one
-            val, dv = jvp(fn, (p, sw, x), tuple(tang))
-            ders.append(dv)
-        return val, torch.stack(ders, dim=-1)
+        # три направления (P, Sw, X) — одним проходом vmap
+        tang = torch.eye(3, dtype=p.dtype, device=p.device)[:, :, None].expand(3, 3, p.numel())
+        val, dv = vmap(lambda t: jvp(fn, (p, sw, x), (t[0], t[1], t[2])))(tang)
+        return val[0], dv.permute(1, 2, 0)
 
     # ------------------------------------------------------------ сборка
     def assemble_bo(self, p, sw, x, sat, acc_old, dt, p_bh, state=None, ug=None):
