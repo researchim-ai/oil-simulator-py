@@ -226,7 +226,7 @@ class EclipseCase:
         self.wtest_steps = []    # снимок WTEST на каждый отчётный шаг
         self.reopen_steps = []   # скважины с явным WELOPEN OPEN перед отчётным шагом
         self._reopen = set()
-        self.vfp = {}            # текущие таблицы VFPPROD: {номер: VFPProd}
+        self.vfp = {}            # текущие таблицы VFP: {номер: VFPProd, ('INJ', номер): VFPInj}
         self.vfp_steps = []      # снимок таблиц VFP на каждый отчётный шаг
         gcon = {}
         date = None
@@ -433,6 +433,10 @@ class EclipseCase:
                 from .vfp import VFPProd
                 t = VFPProd(recs, u)
                 self.vfp[t.number] = t
+            elif kw == "VFPINJ":
+                from .vfp import VFPInj
+                t = VFPInj(recs, u)
+                self.vfp[("INJ", t.number)] = t
             elif kw == "WTEST":
                 for r in recs:
                     if r:
@@ -536,7 +540,7 @@ class EclipseCase:
             state = str(_get(r, 5, "OPEN")).upper()
             if state not in ("OPEN", "SHUT"):
                 raise NotImplementedError(f"COMPDAT {wn}: состояние соединения {state} (поддерживаются OPEN, SHUT)")
-            if _get(r, 6) is not None:
+            if int(_get(r, 6, 0) or 0) > 0:
                 raise NotImplementedError(f"COMPDAT {wn}: SATNUM соединения не поддерживается")
             if float(_get(r, 11, 0.0) or 0.0) != 0.0:
                 raise NotImplementedError(f"COMPDAT {wn}: D-фактор (не-Дарси) не поддерживается")
@@ -1149,8 +1153,20 @@ class EclipseCase:
                 cfg.update(control_type="bhp", control_value=float(r[bhp_idx]) * u["p"] / 1e6)
             elif mode == "GRUP" and not hist:
                 cfg.update(control_type="rate", control_value=1e20, grup=True)
+            elif mode == "THP" and not hist:
+                val = float(_get(r, rate_idx, 0.0) or 0.0) * cv
+                cfg.update(control_type="rate", control_value=val if val > 0 else 1e20, start_mode="thp_limit")
             else:
                 raise NotImplementedError(f"{kw} {name}: режим {mode}")
+            if not hist:
+                # WCONINJE: THP 8, таблица VFPINJ 9
+                thp, table = _get(r, 7), int(_get(r, 8, 0) or 0)
+                if mode == "THP" and (thp is None or table <= 0):
+                    raise ValueError(f"WCONINJE {name}: режим THP без THP или таблицы VFP")
+                if thp is not None and float(thp) > 0 and table > 0:
+                    if ("INJ", table) not in self.vfp:
+                        raise ValueError(f"WCONINJE {name}: нет таблицы VFPINJ {table}")
+                    cfg.update(thp_limit=float(thp) * u["p"] / 1e6, vfp_table=("INJ", table))
             lim = None if hist else _get(r, bhp_idx)
             cfg["bhp_max"] = float(lim if lim is not None else (1e5 if self.units_name == "FIELD" else 6895.0)) \
                 * u["p"] / 1e6

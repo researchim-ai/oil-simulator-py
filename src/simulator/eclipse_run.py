@@ -248,6 +248,8 @@ def iter_deck(path, device=None, sim_overrides=None, cells=(), quiet=True, max_d
                 w = wells[name]
                 if kw == "WBHP":
                     v = np.nan if getattr(w, "bhp_mpa", None) is None else w.bhp_mpa * 1e6 / u["p"]
+                    if w.control_type == "shut":
+                        v = 0.0
                 elif kw == "WTHP":
                     v = 0.0 if getattr(w, "thp_mpa", None) is None else w.thp_mpa * 1e6 / u["p"]
                 elif kw == "WGOR":

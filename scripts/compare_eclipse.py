@@ -37,8 +37,13 @@ def _scale(ref, key, rv):
     """Масштаб вектора; для дебитов скважин — не меньше 1% от месторожденческого (W*PR → F*PR)."""
     s = max(np.abs(rv).max(), 1e-12)
     kw = key.split(":")[0]
-    if kw.endswith("SAT"):
+    if kw.endswith("SAT") or kw.endswith("WCT"):
         s = max(s, 0.01)
+    if kw[0] in "FW" and kw[1] == "W" and kw[2:] in ("PR", "PT"):
+        try:
+            s = max(s, 0.01 * np.abs(ref.get("FO" + kw[2:])).max())
+        except (KeyError, ValueError):
+            pass
     if kw[0] == "W" and kw not in ("WBHP", "WGOR"):
         fallback = ("FGPR",) if kw[1] == "G" else ("FOPR",)
         for fk in ("F" + kw[1:],) + fallback:

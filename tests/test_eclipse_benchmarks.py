@@ -63,3 +63,11 @@ def test_vfpprod_thp_control_matches_opm():
     rows = _run("vfpprod", "SPE1CASE1_METRIC_VFP1.DATA", "SPE1CASE1_METRIC_VFP1")
     assert any(r["vector"] == "WTHP:PROD" for r in rows)
     _check(rows, lambda key: 0.025 if key.startswith("BGSAT") else 0.01)
+
+
+@pytest.mark.slow
+def test_vfpinj_thp_control_matches_opm():
+    rows = _run("vfpinj", "VFPINJ_WCONINJE-01.DATA", "VFPINJ_WCONINJE-01")
+    assert any(r["vector"] == "WTHP:INJ1" for r in rows)
+    # BWSAT в переходной зоне у INJ2 расходится с OPM на 0.0045 уже в начальном равновесии
+    _check(rows, lambda key: 0.05 if key.startswith("BWSAT") else 0.01)

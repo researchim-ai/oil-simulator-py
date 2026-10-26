@@ -73,7 +73,7 @@
           <article>
             <div class="tag">Флюиды и порода</div>
             <h3>Жирный газ и регионы</h3>
-            <p>PVTO, PVTG, растворённый газ и испарённая нефть, VAPPARS. Таблицы лифта VFPPROD и ограничение по устьевому давлению. Регионы PVT, ОФП и равновесия, EQUIL с контактами, масштабирование концевых точек, гистерезис Карлсона, пороговые давления THPRES.</p>
+            <p>PVTO, PVTG, растворённый газ и испарённая нефть, VAPPARS. Таблицы лифта VFPPROD/VFPINJ и ограничение по устьевому давлению добывающих и нагнетательных. Регионы PVT, ОФП и равновесия, EQUIL с контактами, масштабирование концевых точек, гистерезис Карлсона, пороговые давления THPRES.</p>
           </article>
           <article>
             <div class="tag">Скважины</div>
@@ -126,6 +126,7 @@
               <tr><td>Norne, 44 тыс. ячеек, 36 скважин, 9 лет</td><td>накопленные нефть / вода / газ</td><td class="num">−0,04% / +0,6% / −0,06%</td><td class="num">−0,21% / +1,4% / −0,44%</td></tr>
               <tr><td>Norne</td><td>закачка воды / газа</td><td class="num">−0,17% / 0,00%</td><td class="num">+0,39% / —</td></tr>
               <tr><td>SPE1 VFP1 (opm-tests), таблица лифта, переход на THP</td><td>забой / устье / дебиты / FOPT, против OPM Flow</td><td class="num">до 1%</td><td class="num">эталон</td></tr>
+              <tr><td>VFPINJ_WCONINJE-01 (opm-tests), закачка газа и воды на THP</td><td>забой / устье / закачка, против OPM Flow</td><td class="num">до 1%</td><td class="num">эталон</td></tr>
               <tr><td>VAPPARS-01 (opm-tests), жирный газ, закачка газа</td><td>газовый фактор / забой / дебит газа, против OPM Flow</td><td class="num">до 2%</td><td class="num">эталон</td></tr>
             </tbody>
           </table>
@@ -203,7 +204,7 @@ NORNE_DIR=opm-tests/norne python scripts/run_norne.py</pre>
         <p class="index">07 — чего пока нет</p>
         <h2>Границы</h2>
         <ul class="limits">
-          <li><strong>Устье и VFP</strong>VFPPROD и THP добывающих есть; VFPINJ, газлифт с оптимизацией и поверхностная сеть — пока нет.</li>
+          <li><strong>Устье и VFP</strong>VFPPROD, VFPINJ и THP есть; газлифт с оптимизацией и поверхностная сеть — пока нет.</li>
           <li><strong>Сложные скважины и сети</strong>Нет многосегментных скважин, поверхностной сети, WECON.</li>
           <li><strong>Физика</strong>Black-oil: без композиционной и термической моделей, трассеров, полимера. Гистерезис ОФП — модель Карлсона.</li>
         </ul>

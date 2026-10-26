@@ -99,7 +99,7 @@ $$
 
 * Гистерезис ОФП — только Карлсон (EHYSTR модель 0, KR); гистерезис Pc и ENDSCALE DIRECT не поддерживаются.
 * Жирный газ без VAPPARS VAP2, DRVDT.
-* VFPINJ и THP нагнетательных, трассеры (TRACER, WTRACER), WECON, поверхностная сеть, многосегментные
+* Трассеры (TRACER, WTRACER), WECON, поверхностная сеть, многосегментные
   скважины — не поддерживаются.
 * В простом JSON-режиме FIM дебиты только поверхностные (`rate_type: "reservoir"` не поддерживается); в deck
   исторический RESV поддержан.
@@ -252,7 +252,7 @@ WELOPEN OPEN; повтор WCONHIST/WCONPROD — нет (как в OPM). Соб�
 без порога. Пары без записи THPRES — порог 0. Порог по умолчанию — максимальная по подвижным фазам
 |ΔΦ| через границу в начальном состоянии. IRREVERS — пороги по направлению. Без EQLOPTS THPRES — ошибка.
 
-### VFPPROD и ограничение THP
+### VFPPROD, VFPINJ и ограничение THP
 
 Таблица задаёт BHP на своей опорной глубине как функцию FLO (OIL/LIQ/GAS), THP, WFR (WOR/WCT/WGR), GFR
 (GOR/GLR/OGR) и ALQ; интерполяция многолинейная, вне осей — линейная экстраполяция (как в OPM). На опорную глубину
@@ -262,7 +262,11 @@ WELOPEN OPEN; повтор WCONHIST/WCONPROD — нет (как в OPM). Соб�
 \(g_m = \partial BHP_{VFP}/\partial Q_m\) (autograd по таблице). Работает самое жёсткое из ограничений: при дебите
 забой ниже \(\max(BHP_{min}, BHP_{VFP})\) — переход на соответствующее ограничение; обратно — когда дебит превысил
 уставку или BHP-ограничение стало жёстче THP. WTHP — обратная интерполяция таблицы по THP.
-Проверка: `test_vfpprod_thp_control_matches_opm` (SPE1CASE1_METRIC_VFP1 из opm-tests, переход на THP через 2 года).
+VFPINJ — BHP(FLO, THP), FLO — закачка нагнетаемой фазы (OIL/WAT/GAS). У нагнетательной дебиты в таблицу
+подаются со знаком закачки, ограничения действуют сверху: работает \(\min(BHP_{max}, BHP_{VFP})\).
+Проверка: `test_vfpprod_thp_control_matches_opm` (SPE1CASE1_METRIC_VFP1 из opm-tests, переход на THP через 2 года),
+`test_vfpinj_thp_control_matches_opm` (VFPINJ_WCONINJE-01: газовая и водяная нагнетательные выходят на THP; эталон
+посчитан OPM Flow, VFPPROD D-1.Ecl на 3 МБ из deck убран — его не использует ни одна скважина).
 
 ### VAPPARS
 

@@ -365,12 +365,16 @@ class BlackOilWells(FIMWells):
         return pos, blk
 
     def _lift(self, w_idx):
-        """Таблица VFPPROD скважины с ограничением THP или None."""
+        """Таблица VFP скважины (VFPPROD добывающей, VFPINJ нагнетательной) или None."""
         w = self.wells[w_idx]
         tab = getattr(self, "vfp", {}).get(getattr(w, "vfp_table", None) or 0)
-        if tab is None or w.type != 'producer':
+        if tab is None or isinstance(w.vfp_table, tuple) != (w.type == 'injector'):
             return None
         return tab
+
+    def _sgn(self, w_idx):
+        """Знак дебитов таблицы VFP: добыча > 0 у VFPPROD, закачка > 0 у VFPINJ."""
+        return 1.0 if self.wells[w_idx].type == 'producer' else -1.0
 
     def _vfp_hydro(self, w_idx, tab):
         """Перевод BHP с опорной глубины таблицы на опорную глубину скважины, Па."""
@@ -383,16 +387,16 @@ class BlackOilWells(FIMWells):
 
     def _vfp_bhp(self, w_idx, Q, grad=False):
         """BHP при ограничении THP на опорной глубине скважины и (по запросу) ∂BHP/∂(Qo, Qw, Qg)."""
-        w, tab = self.wells[w_idx], self._lift(w_idx)
+        w, tab, sg = self.wells[w_idx], self._lift(w_idx), self._sgn(w_idx)
         thp = float(w.thp_limit) * 1e6
         alq = float(getattr(w, "alq", 0.0) or 0.0)
         hydro = self._vfp_hydro(w_idx, tab)
         if not grad:
             with torch.no_grad():
-                return float(tab.bhp(Q[0:1], Q[1:2], Q[2:3], thp, alq)) + hydro
+                return float(tab.bhp(sg * Q[0:1], sg * Q[1:2], sg * Q[2:3], thp, alq)) + hydro
         with torch.enable_grad():
             x = Q.detach().clone().requires_grad_(True)
-            b = tab.bhp(x[0:1], x[1:2], x[2:3], thp, alq).sum()
+            b = tab.bhp(sg * x[0:1], sg * x[1:2], sg * x[2:3], thp, alq).sum()
             g, = torch.autograd.grad(b, x)
         return float(b) + hydro, g.detach()
 
@@ -414,21 +418,21 @@ class BlackOilWells(FIMWells):
             thp_b = None
             if self.has_thp(w_idx) and self._Q is not None:
                 thp_b = self._vfp_bhp(w_idx, self._Q[w_idx])
+            # sg·p: у добывающей ограничения снизу, у нагнетательной — сверху; работает самое жёсткое
+            sg = self._sgn(w_idx)
+            thp_harder = thp_b is not None and sg * thp_b > sg * lim + 1e-9 * abs(lim)
             new = None
             if mode == 'rate':
-                if w.type == 'producer':
-                    eff = lim if thp_b is None else max(lim, thp_b)
-                    if pb < eff:
-                        new = 'thp_limit' if thp_b is not None and thp_b > lim else 'bhp_limit'
-                elif pb > lim:
-                    new = 'bhp_limit'
+                eff = thp_b if thp_harder else lim
+                if sg * pb < sg * eff:
+                    new = 'thp_limit' if thp_harder else 'bhp_limit'
             else:
                 q = float(q_surf[w_idx])
                 if q > val * (1 + 1e-9):
                     new = 'rate'
-                elif mode == 'bhp_limit' and thp_b is not None and thp_b > lim * (1 + 1e-9):
+                elif mode == 'bhp_limit' and thp_harder:
                     new = 'thp_limit'
-                elif mode == 'thp_limit' and (thp_b is None or pb < lim):
+                elif mode == 'thp_limit' and (thp_b is None or sg * pb < sg * lim):
                     new = 'bhp_limit'
             if new is not None:
                 self.step_mode[w_idx] = new
@@ -490,11 +494,12 @@ class BlackOilWells(FIMWells):
                 p_init[w_idx] = float(v[I_P][c[cw == w_idx]].mean())
             elif mode == 'thp_limit':
                 # p_bh = VFP(Q(p_bh)) при замороженных ячейках: несколько подстановок от BHP-ограничения
-                m = cw == w_idx
-                pb = self.bhp_limit(w)
+                m, sg, lim = cw == w_idx, self._sgn(w_idx), self.bhp_limit(w)
+                pb = lim
                 for _ in range(5):
-                    Q = (q[m] + dqb[m] * pb).sum(0) / self.rho_sc
-                    pb = max(self.bhp_limit(w), self._vfp_bhp(w_idx, Q.clamp_min(0.0)))
+                    Q = sg * ((sg * (q[m] + dqb[m] * pb).sum(0) / self.rho_sc).clamp_min(0.0))
+                    b = self._vfp_bhp(w_idx, Q)
+                    pb = max(lim, b) if sg > 0 else min(lim, b)
                 p_init[w_idx] = pb
             elif mode != 'rate':
                 p_init[w_idx] = val if ctrl == 'bhp' else self.bhp_limit(w)
@@ -1330,7 +1335,7 @@ class BlackOilFIMSolver(ManualFIMSolver):
             w.bhp_mpa = float(p_bh[w_idx]) / 1e6
             tab = self.wells._lift(w_idx)
             if tab is not None:
-                Q = q / self.wells.rho_sc
+                Q = self.wells._sgn(w_idx) * q / self.wells.rho_sc
                 with torch.no_grad():
                     thp = tab.thp_from_bhp(p_bh[w_idx:w_idx + 1] - self.wells._vfp_hydro(w_idx, tab),
                                            Q[0:1], Q[1:2], Q[2:3], float(getattr(w, "alq", 0.0) or 0.0))

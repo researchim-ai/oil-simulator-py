@@ -22,7 +22,22 @@ def _axis_weights(axis, x):
     return i, (x - x0) / (x1 - x0)
 
 
-class VFPProd:
+class _VFP:
+    def thp_from_bhp(self, bhp, qo, qw, qg, alq=0.0):
+        """Обратная задача: THP, при котором таблица даёт bhp (BHP линейна по THP на интервале оси)."""
+        thp = self.thp.to(bhp.device)
+        vals = torch.stack([self.bhp(qo, qw, qg, t, alq) for t in thp])          # [n_thp, ...]
+        n = thp.numel()
+        if n == 1:
+            return thp[0].expand_as(bhp)
+        k = ((vals <= bhp.unsqueeze(0)).sum(0) - 1).clamp(0, n - 2)
+        b0 = vals.gather(0, k.unsqueeze(0)).squeeze(0)
+        b1 = vals.gather(0, (k + 1).unsqueeze(0)).squeeze(0)
+        t0, t1 = thp[k], thp[k + 1]
+        return t0 + (bhp - b0) * (t1 - t0) / torch.where((b1 - b0).abs() > 0, b1 - b0, torch.ones_like(b0))
+
+
+class VFPProd(_VFP):
     FLO = ("OIL", "LIQ", "GAS")
     WFR = ("WOR", "WCT", "WGR")
     GFR = ("GOR", "GLR", "OGR")
@@ -95,15 +110,49 @@ class VFPProd:
                 out = out + w * tab[ii[0], ii[1], ii[2], ii[3], ii[4]]
         return out
 
-    def thp_from_bhp(self, bhp, qo, qw, qg, alq=0.0):
-        """Обратная задача: THP, при котором таблица даёт bhp (BHP линейна по THP на интервале оси)."""
-        thp = self.thp.to(bhp.device)
-        vals = torch.stack([self.bhp(qo, qw, qg, t, alq) for t in thp])          # [n_thp, ...]
-        n = thp.numel()
-        if n == 1:
-            return thp[0].expand_as(bhp)
-        k = ((vals <= bhp.unsqueeze(0)).sum(0) - 1).clamp(0, n - 2)
-        b0 = vals.gather(0, k.unsqueeze(0)).squeeze(0)
-        b1 = vals.gather(0, (k + 1).unsqueeze(0)).squeeze(0)
-        t0, t1 = thp[k], thp[k + 1]
-        return t0 + (bhp - b0) * (t1 - t0) / torch.where((b1 - b0).abs() > 0, b1 - b0, torch.ones_like(b0))
+
+class VFPInj(_VFP):
+    """Таблица VFPINJ: BHP(FLO, THP), FLO — дебит закачиваемой фазы (> 0), ст. м³/с."""
+    FLO = ("OIL", "WAT", "GAS")
+
+    def __init__(self, records, u, depth_shift=0.0):
+        head = records[0]
+        self.number = int(head[0])
+        self.datum = float(head[1]) * u["L"] - depth_shift
+        self.flo_type = str(head[2] if len(head) > 2 and head[2] is not None else "WAT").upper()
+        tab_type = str(head[5] if len(head) > 5 and head[5] is not None else "BHP").upper()
+        if self.flo_type not in self.FLO:
+            raise NotImplementedError(f"VFPINJ {self.number}: FLO {self.flo_type}")
+        if tab_type != "BHP":
+            raise NotImplementedError(f"VFPINJ {self.number}: {tab_type} (поддерживается BHP)")
+        p = u["p"]
+        flo_u = (u["gas"] if self.flo_type == "GAS" else u["liq"]) / DAY
+        T = lambda rec, s: torch.tensor([float(v) * s for v in rec], dtype=torch.float64)
+        self.flo, self.thp = T(records[1], flo_u), T(records[2], p)
+        tab = torch.full((self.thp.numel(), self.flo.numel()), float("nan"), dtype=torch.float64)
+        for rec in records[3:]:
+            if rec:
+                tab[int(rec[0]) - 1] = torch.tensor([float(v) * p for v in rec[1:1 + self.flo.numel()]],
+                                                    dtype=torch.float64)
+        if torch.isnan(tab).any():
+            raise ValueError(f"VFPINJ {self.number}: таблица заполнена не полностью")
+        self.table = tab
+
+    def bhp(self, qo, qw, qg, thp, alq=0.0):
+        """BHP на опорной глубине таблицы, Па; дебиты закачки (> 0), ст. м³/с."""
+        dev = qo.device
+        flo = {"OIL": qo, "WAT": qw, "GAS": qg}[self.flo_type]
+        thp = torch.as_tensor(thp, dtype=torch.float64, device=dev).expand_as(flo)
+        axes = [self.thp.to(dev), self.flo.to(dev)]
+        (it, ft), (iq, fq) = (_axis_weights(a, x) for a, x in zip(axes, (thp, flo)))
+        tab = self.table.to(dev)
+        out = torch.zeros_like(flo)
+        for ct in (0, 1):
+            if ct and axes[0].numel() == 1:
+                continue
+            wt = ft if ct else 1.0 - ft
+            for cq in (0, 1):
+                if cq and axes[1].numel() == 1:
+                    continue
+                out = out + wt * (fq if cq else 1.0 - fq) * tab[it + ct, iq + cq]
+        return out
