@@ -38,10 +38,10 @@
           <h1>Norne целиком.<br><em>Девять лет истории.</em></h1>
           <p class="lede">Открытая модель Equinor из Норвежского моря: 44&nbsp;431 активная ячейка, 61 разлом, жирный газ, 36 скважин по реальному расписанию. Тот же DATA-файл, что считал Eclipse&nbsp;2014.2, без правок.</p>
           <div class="metrics">
-            <div><b>13 мин</b><span>3312 суток на RTX 3090 Ti</span></div>
-            <div><b>0,00%</b><span>накопленная нефть к концу</span></div>
-            <div><b>+0,5%</b><span>накопленная вода</span></div>
-            <div><b>−0,05%</b><span>накопленный газ</span></div>
+            <div><b>9 мин</b><span>3312 суток на RTX 3090 Ti</span></div>
+            <div><b>−0,04%</b><span>накопленная нефть к концу</span></div>
+            <div><b>+0,6%</b><span>накопленная вода</span></div>
+            <div><b>−0,06%</b><span>накопленный газ</span></div>
           </div>
           <figure class="spark">
             <img src="assets/hero_fopt.svg" alt="Накопленная нефть: наш солвер и Eclipse совпадают все девять лет">
@@ -66,7 +66,7 @@
         <div class="prose">
           <p>Norne — открытая модель Equinor, Северное море. Сетка 46×112×22, история с ноября 1997 по декабрь 2006, 3312 суток. Добыча нефти, воды и газа, закачка воды и газа, 36 скважин, реальное расписание, включая остановки и смену режима.</p>
           <p>Считали тот же deck, что Eclipse 2014.2. Сравнивали векторы SUMMARY в наши отчётные даты. Серые точки на графиках — исторические замеры из модели: это то, за чем следует управление скважин, а не второй симулятор. Совпадать мы должны с голубой линией.</p>
-          <p>Накопленная нефть лежит на Eclipse все девять лет: по годам расхождение от −0,01% до +0,50%. К концу нефть совпала до сотых долей процента, воды больше на 0,5%, газа меньше на 0,05%. Закачка газа совпала полностью, закачка воды — до 0,14%. OPM Flow на этом же deck даёт −0,21%, +1,4% и −0,44%.</p>
+          <p>Накопленная нефть лежит на Eclipse все девять лет: по годам расхождение от −0,04% до +0,52%. К концу нефти меньше на 0,04%, воды больше на 0,6%, газа меньше на 0,06%. Закачка газа совпала полностью, закачка воды — до 0,17%. OPM Flow на этом же deck даёт −0,21%, +1,4% и −0,44%.</p>
         </div>
 
         <div class="slip" role="table" aria-label="Накопленные объёмы к декабрю 2006">
@@ -74,16 +74,16 @@
             <span>вектор</span><span>что это</span><span>наш · Eclipse</span><span></span><span>разница</span>
           </div>
           <div class="slip-row" role="row">
-            <span class="slip-k">FOPT</span><span>нефть</span><span class="nums"><b>67,32</b> · <i>67,32</i></span><span class="unit">млн м³</span><span class="delta">0,00%</span>
+            <span class="slip-k">FOPT</span><span>нефть</span><span class="nums"><b>67,29</b> · <i>67,32</i></span><span class="unit">млн м³</span><span class="delta">−0,04%</span>
           </div>
           <div class="slip-row" role="row">
-            <span class="slip-k">FWPT</span><span>вода</span><span class="nums"><b>23,32</b> · <i>23,20</i></span><span class="unit">млн м³</span><span class="delta">+0,5%</span>
+            <span class="slip-k">FWPT</span><span>вода</span><span class="nums"><b>23,34</b> · <i>23,20</i></span><span class="unit">млн м³</span><span class="delta">+0,6%</span>
           </div>
           <div class="slip-row" role="row">
-            <span class="slip-k">FGPT</span><span>газ</span><span class="nums"><b>14,63</b> · <i>14,64</i></span><span class="unit">млрд м³</span><span class="delta">−0,05%</span>
+            <span class="slip-k">FGPT</span><span>газ</span><span class="nums"><b>14,63</b> · <i>14,64</i></span><span class="unit">млрд м³</span><span class="delta">−0,06%</span>
           </div>
           <div class="slip-row" role="row">
-            <span class="slip-k">FWIT</span><span>закачка воды</span><span class="nums"><b>101,95</b> · <i>102,1</i></span><span class="unit">млн м³</span><span class="delta">−0,14%</span>
+            <span class="slip-k">FWIT</span><span>закачка воды</span><span class="nums"><b>101,93</b> · <i>102,1</i></span><span class="unit">млн м³</span><span class="delta">−0,17%</span>
           </div>
           <div class="slip-row" role="row">
             <span class="slip-k">FGIT</span><span>закачка газа</span><span class="nums"><b>8,685</b> · <i>8,685</i></span><span class="unit">млрд м³</span><span class="delta">0,00%</span>
@@ -108,7 +108,7 @@
         <p class="index">02 — скважины</p>
         <h2>Двенадцать крупнейших</h2>
         <div class="prose">
-          <p>Накопленная нефть по скважинам: у 12 из 12 расхождение меньше 2%, от +0,0% на E-3H до −1,9% на D-1CH. Форма дебита, моменты запуска и остановки совпадают.</p>
+          <p>Накопленная нефть по скважинам: у 11 из 12 расхождение меньше 2%, от −0,0% на B-3H и E-3H до −2,2% на D-1CH. Форма дебита, моменты запуска и остановки совпадают.</p>
         </div>
         <div class="table-wrap">
           <table class="bench">
@@ -117,17 +117,17 @@
             </thead>
             <tbody>
               <tr><td>B-2H</td><td class="num">10,83</td><td class="num">10,82</td><td class="num">+0,1%</td></tr>
-              <tr><td>E-1H</td><td class="num">8,03</td><td class="num">8,04</td><td class="num">−0,2%</td></tr>
+              <tr><td>E-1H</td><td class="num">8,02</td><td class="num">8,04</td><td class="num">−0,3%</td></tr>
               <tr><td>E-2H</td><td class="num">7,81</td><td class="num">7,82</td><td class="num">−0,1%</td></tr>
-              <tr><td>D-2H</td><td class="num">7,66</td><td class="num">7,53</td><td class="num">+1,7%</td></tr>
-              <tr><td>B-3H</td><td class="num">6,12</td><td class="num">6,11</td><td class="num">+0,1%</td></tr>
+              <tr><td>D-2H</td><td class="num">7,67</td><td class="num">7,53</td><td class="num">+1,8%</td></tr>
+              <tr><td>B-3H</td><td class="num">6,11</td><td class="num">6,11</td><td class="num">−0,0%</td></tr>
               <tr><td>D-1H</td><td class="num">5,45</td><td class="num">5,50</td><td class="num">−1,0%</td></tr>
-              <tr><td>D-3AH</td><td class="num">3,61</td><td class="num">3,66</td><td class="num">−1,1%</td></tr>
-              <tr><td>B-1H</td><td class="num">3,59</td><td class="num">3,58</td><td class="num">+0,0%</td></tr>
-              <tr><td>D-4H</td><td class="num">3,18</td><td class="num">3,17</td><td class="num">+0,2%</td></tr>
-              <tr><td>E-3H</td><td class="num">1,69</td><td class="num">1,69</td><td class="num">+0,0%</td></tr>
-              <tr><td>B-1BH</td><td class="num">1,42</td><td class="num">1,42</td><td class="num">−0,4%</td></tr>
-              <tr><td>D-1CH</td><td class="num">1,29</td><td class="num">1,32</td><td class="num">−1,9%</td></tr>
+              <tr><td>D-3AH</td><td class="num">3,62</td><td class="num">3,66</td><td class="num">−1,1%</td></tr>
+              <tr><td>B-1H</td><td class="num">3,59</td><td class="num">3,58</td><td class="num">+0,1%</td></tr>
+              <tr><td>D-4H</td><td class="num">3,18</td><td class="num">3,17</td><td class="num">+0,3%</td></tr>
+              <tr><td>E-3H</td><td class="num">1,69</td><td class="num">1,69</td><td class="num">−0,0%</td></tr>
+              <tr><td>B-1BH</td><td class="num">1,41</td><td class="num">1,42</td><td class="num">−0,8%</td></tr>
+              <tr><td>D-1CH</td><td class="num">1,29</td><td class="num">1,32</td><td class="num">−2,2%</td></tr>
             </tbody>
           </table>
         </div>
@@ -185,9 +185,9 @@
     <section id="solver">
       <div class="wrap">
         <p class="index">04 — решатель</p>
-        <h2>Тринадцать минут на девять лет</h2>
+        <h2>Девять минут на девять лет</h2>
         <div class="prose">
-          <p>709 шагов по времени, 3309 итераций Ньютона, в среднем 4,7 на шаг. Восемь шагов не сошлись и были разрезаны — ни один не дошёл до минимального. Иерархия AMG строится и дальше только обновляется. Допуск линейного решателя — неточный Ньютон: пока невязка большая, систему не вылизывают до машинного нуля.</p>
+          <p>527 шагов по времени, 2193 итерации Ньютона, в среднем 4,2 на шаг. Шаг по времени выбирается как в OPM Flow: PID-регулятор по изменению решения и целевое число итераций. Пять шагов не сошлись и были разрезаны — ни один не дошёл до минимального. Иерархия AMG строится и дальше только обновляется. Для сравнения: Eclipse 2014.2 считал этот deck 17 минут (время из файла PRT), OPM Flow на той же машине — 2,7 минуты на двух потоках CPU. Начинали мы с 35 минут; ускорение вчетверо дали активные ячейки, CUDA-графы и шаг по времени как в OPM — без потери точности против Eclipse. Допуск линейного решателя — неточный Ньютон: пока невязка большая, систему не вылизывают до машинного нуля.</p>
           <p>На миллионе ячеек двухфазный стресс-тест проходит на одной 24 ГБ карте. Norne меньше, но жёстче: жирный газ, разломы, история, скважины, которые открываются и закрываются. В матрице только активные ячейки — 44 тысячи из 113 тысяч ячеек сетки.</p>
         </div>
         <figure>

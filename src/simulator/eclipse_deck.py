@@ -790,7 +790,10 @@ class EclipseCase:
 
         wm = WellManager(self.well_configs(), res)
         sim = {"solver_type": "fully_implicit", "fim_model": "blackoil", "drsdt": self.drsdt,
-               "initial_time_step_days": 1.0, "newton_max_iter": 20, "max_time_step_attempts": 10}
+               "initial_time_step_days": 1.0, "newton_max_iter": 20, "max_time_step_attempts": 10,
+               # шаг и сходимость — умолчания OPM Flow
+               "dt_control": "opm", "newton_tol_cnv": 1e-2, "newton_max_strict_iter": 0,
+               "newton_tol_well_rate": 1e-4}
         sim.update(sim_overrides or {})
         return res, fluid, wm, sim
 

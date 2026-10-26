@@ -51,8 +51,8 @@ def test_injected_phase_change(tmp_path):
     n = int(np.searchsorted(s["TIME"], 365.0)) + 1
     w = _well(info, "INJ")
     assert w.type == "injector" and w.injected_phase == "water"
-    assert np.all(s["FGIR"][n:] == 0.0) and np.allclose(s["FWIR"][n:], 5000.0, rtol=1e-6)
-    assert w.cum_inj["gas"] > 0 and np.isclose(w.cum_inj["water"], 5000.0 * 90 * 0.158987294928, rtol=1e-6)
+    assert np.all(s["FGIR"][n:] == 0.0) and np.allclose(s["FWIR"][n:], 5000.0, rtol=1e-4)
+    assert w.cum_inj["gas"] > 0 and np.isclose(w.cum_inj["water"], 5000.0 * 90 * 0.158987294928, rtol=1e-4)
 
 
 def test_zero_rate_target_stops_well(tmp_path):

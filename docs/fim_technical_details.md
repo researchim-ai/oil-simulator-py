@@ -70,6 +70,10 @@ $$
 `Simulator.run_step(dt)` продвигает решение ровно на отчётный интервал подшагами:
 
 * рост шага: \(f = \min(\) `dt_increase_factor`, `newton_target_iter`/итерации, `dt_target_dsw`/max ΔSw\()\);
+* `dt_control: "opm"` (умолчание для deck Eclipse) — PIDAndIterationCount из OPM Flow: ошибка
+  \(e = \sqrt{\sum(\Delta p^2 + \Delta s^2) / \sum(p^2 + s^2)}\), при \(e > 0.1\) шаг \(\cdot 0.1/e\), иначе PID Турека
+  (\(k_P = 0.075, k_I = 0.175, k_D = 0.01\)); минимум с оценкой по итерациям (цель 8, рост 3.2, спад 1.0);
+  рост ≤ 3×, после дробления ≤ 2×, дробление ×0.33;
 * при несходимости — деление на `dt_reduction_factor`, не ниже `min_time_step_days`, не более `max_time_step_attempts` дроблений подряд;
 * `max_time_step_days`, `initial_time_step_days`; подобранный шаг переносится на следующий интервал.
 

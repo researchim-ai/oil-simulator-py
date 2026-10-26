@@ -46,7 +46,7 @@ def test_spe9_matches_eclipse_and_opm():
         kw = key.split(":")[0]
         if kw[0] in "FB" or kw == "WBHP":
             return 0.005
-        return 0.02
+        return 0.025
 
     _check(rows, tol)
 

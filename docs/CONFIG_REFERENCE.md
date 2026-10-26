@@ -99,6 +99,7 @@
 | `cpr_smoother_sweeps` | `int`, default `1` | Число проходов блочного Якоби во второй ступени CPR. |
 | `newton_target_iter`, `dt_target_dsw` | default `6`, `0.2` | Цели адаптивного шага по времени. |
 | `dt_increase_factor`, `dt_reduction_factor` | default `2.0`, `2.0` | Максимальный рост и дробление шага. |
+| `dt_control` | `"basic"` \| `"opm"`; для deck Eclipse `"opm"` | `opm` — PID по относительному изменению решения (`dt_pid_tol`, 0.1) и целевому числу итераций (`newton_target_iter`, 8), рост ≤ 3×, после отказа ≤ 2×, дробление `dt_restart_factor` (0.33), как в OPM Flow. |
 | `initial_time_step_days`, `min_time_step_days`, `max_time_step_days` | default — отчётный шаг, `1e-6`, отчётный шаг | Границы шага по времени (`time_step_days` — отчётный интервал). |
 | `max_time_step_attempts` | `int`, default `8` | Максимум дроблений шага подряд. |
 | `debug` | объект | Режим отладки решателя, см. `fim_technical_details.md`. |

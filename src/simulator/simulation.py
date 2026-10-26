@@ -221,12 +221,22 @@ class Simulator:
         target_it = float(p.get("newton_target_iter", 6))
         target_ds = float(p.get("dt_target_dsw", 0.2))
         max_cuts = int(p.get("max_time_step_attempts", 8))
+        opm = p.get("dt_control") == "opm"
+        if opm:
+            # умолчания OPM Flow (pid+newtoniteration, AdaptiveTimeStepping)
+            grow_max = float(p.get("dt_increase_factor", 3.0))
+            cut = 1.0 / float(p.get("dt_restart_factor", 0.33))
+            target_it = float(p.get("newton_target_iter", 8))
+            pid_tol = float(p.get("dt_pid_tol", 0.1))
+            if getattr(self, "_pid_err", None) is None:
+                self._pid_err = [pid_tol] * 3
         h = getattr(self, "_fim_dt", None) or float(p.get("initial_time_step_days", dt / 86400.0)) * 86400.0
         h = min(max(h, dt_min), dt_max)
         dbg = self.fim_solver.debug
         verbose = not (dbg.enabled and dbg.console)
 
         cuts = 0
+        restarted = False
         while t_end - self.current_time > 1e-6:
             h_try = min(h, t_end - self.current_time)
             # не оставлять крошечный хвост в конце интервала
@@ -234,17 +244,29 @@ class Simulator:
                 h_try = t_end - self.current_time
             if verbose:
                 print(f"  FIM подшаг: t = {self.current_time/86400:.4f} сут, dt = {h_try/86400:.4g} сут")
+            if opm:
+                p0 = self.fluid.pressure.detach().double().clone()
+                s0 = torch.stack([self.fluid.s_w.detach().double(), self.fluid.s_g.detach().double()])
             if self.fim_solver.step(h_try, current_time=self.current_time):
                 self.current_time += h_try
                 self.fluid.prev_pressure = self.fluid.pressure.clone()
                 self.fluid.prev_sw = self.fluid.s_w.clone()
                 it = max(self.fim_solver.last_newton_iters, 1)
+                if opm:
+                    h_new = self._opm_dt(h_try, it, p0, s0, target_it, pid_tol)
+                    h_new = min(h_new, grow_max * h_try)
+                    if restarted:
+                        h_new = min(h_new, 2.0 * h_try)
+                    h = min(max(h_new, dt_min), dt_max)
+                    cuts, restarted = 0, False
+                    continue
                 ds = max(self.fim_solver.last_max_dsw, 1e-12)
                 f = min(grow_max, target_it / it, target_ds / ds)
                 f = max(f, 1.0 / cut)
                 h = min(max(h_try * f, dt_min), dt_max) if h_try >= 0.999 * h else max(h, h_try)
                 cuts = 0
                 continue
+            restarted = True
             cuts += 1
             h_new = h_try / cut
             dbg.dt_chop(cuts, h_try, h_new)
@@ -257,6 +279,26 @@ class Simulator:
             h = h_new
         self._fim_dt = h
         return True
+
+    def _opm_dt(self, dt, it, p0, s0, target_it, tol):
+        """Следующий шаг по PIDAndIterationCountTimeStepControl OPM Flow (kP, kI, kD — Turek)."""
+        p1 = self.fluid.pressure.detach().double()
+        s1 = torch.stack([self.fluid.s_w.detach().double(), self.fluid.s_g.detach().double()])
+        num = ((p1 - p0) ** 2).sum() + ((s1 - s0) ** 2).sum()
+        den = (p1 ** 2).sum() + (s1 ** 2).sum()
+        e = self._pid_err
+        e[0], e[1], e[2] = e[1], e[2], float(torch.sqrt(num / den))
+        if e[2] > tol:
+            dt_pid = dt * tol / e[2]
+        elif e[0] == 0 or e[1] == 0 or e[2] == 0:
+            dt_pid = float("inf")
+        else:
+            dt_pid = dt * (e[1] / e[2]) ** 0.075 * (tol / e[2]) ** 0.175 * (e[1] ** 2 / e[0] / e[2]) ** 0.01
+        if it > target_it:
+            dt_it = dt / (1.0 + (it - target_it) / target_it * 1.0)
+        else:
+            dt_it = dt * (1.0 + (target_it - it) / target_it * 3.2)
+        return min(dt_pid, dt_it)
 
     def _fully_implicit_newton_step(self, dt, max_iter=20, tol=1e-3, 
                                     damping_factor=0.7, jac_reg=1e-7, 

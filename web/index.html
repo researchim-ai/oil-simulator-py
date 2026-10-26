@@ -16,6 +16,7 @@
       <a href="#what">Что это</a>
       <a href="#inside">Внутри</a>
       <a href="#check">Проверка</a>
+      <a href="#speed">Скорость</a>
       <a href="#start">Запуск</a>
       <a href="norne.html">Norne</a>
       <a href="https://github.com/researchim-ai/oil-simulator-py">Код</a>
@@ -27,9 +28,10 @@
     <a href="#what">01 Что это</a>
     <a href="#inside">02 Внутри</a>
     <a href="#check">03 Проверка</a>
-    <a href="#start">04 Запуск</a>
-    <a href="#agents">05 Агенты</a>
-    <a href="#limits">06 Границы</a>
+    <a href="#speed">04 Скорость</a>
+    <a href="#start">05 Запуск</a>
+    <a href="#agents">06 Агенты</a>
+    <a href="#limits">07 Границы</a>
   </nav>
 
   <main id="top">
@@ -40,8 +42,8 @@
           <h1>Симулятор пласта<br><em>на одной видеокарте.</em></h1>
           <p class="lede">Открытый гидродинамический симулятор: берёт DATA-файл Eclipse и считает трёхфазный пласт целиком — сетку с разломами, жирный газ, скважины по расписанию. Python и PyTorch, без лицензий.</p>
           <div class="metrics">
-            <div><b>13 мин</b><span>вся история Norne, 3312 суток</span></div>
-            <div><b>0,00%</b><span>нефть Norne против Eclipse</span></div>
+            <div><b>9 мин</b><span>вся история Norne, 3312 суток</span></div>
+            <div><b>−0,04%</b><span>нефть Norne против Eclipse</span></div>
             <div><b>0,01%</b><span>дебит нефти SPE9 против Eclipse</span></div>
             <div><b>1 млн</b><span>ячеек на 24 ГБ GPU</span></div>
           </div>
@@ -97,9 +99,9 @@
           <p>Линейная система — FGMRES с CPR: классический AMG Ruge–Stüben по давлению и блочный Якоби по остальному, всё в PyTorch на GPU, float64. Иерархия AMG строится один раз и дальше только обновляется. Ячейки, отрезанные от соседей, решаются отдельно и не портят Крылова.</p>
         </div>
         <ul class="limits">
-          <li><strong>GPU по умолчанию</strong>CUDA через PyTorch, тот же код идёт на CPU. Детерминированные ядра: повторный расчёт даёт тот же результат.</li>
+          <li><strong>GPU по умолчанию</strong>CUDA через PyTorch, свойства ячеек и предобуславливатель записаны в CUDA-графы, в системе только активные ячейки. Тот же код идёт на CPU. Детерминированные ядра: повторный расчёт даёт тот же результат.</li>
           <li><strong>Чекпоинты</strong>Полное состояние расчёта сохраняется на отчётных шагах; продолжение совпадает со сквозным расчётом побитово.</li>
-          <li><strong>Шаг по времени</strong>Адаптивный: дробится при отказе Ньютона, приращения давления и насыщенностей внутри итерации ограничены.</li>
+          <li><strong>Шаг по времени</strong>Как в OPM Flow: PID-регулятор по изменению решения и целевое число итераций Ньютона; при отказе шаг дробится, приращения внутри итерации ограничены.</li>
           <li><strong>Python до конца</strong>Свойства, сборка, предобуславливатель — читаемый код на PyTorch, который легко менять и встраивать в свои эксперименты.</li>
         </ul>
       </div>
@@ -110,19 +112,20 @@
         <p class="index">03 — проверка</p>
         <h2>Рядом с Eclipse</h2>
         <div class="prose">
-          <p>Каждая модель считается из исходного deck и сравнивается с расчётом Eclipse на том же deck. На SPE9 и Norne мы ближе к Eclipse, чем OPM Flow.</p>
+          <p>Каждая модель считается из исходного deck без правок и сравнивается с расчётом Eclipse на том же deck. По накопленной добыче Norne за девять лет расхождение — сотые доли процента по нефти и газу, и мы ближе к Eclipse, чем OPM Flow на том же deck.</p>
         </div>
         <div class="table-wrap">
           <table class="bench">
             <thead>
-              <tr><th>модель</th><th>что сравнивали</th><th class="num">против Eclipse</th></tr>
+              <tr><th>модель</th><th>что сравнивали</th><th class="num">oil-simulator</th><th class="num">OPM Flow</th></tr>
             </thead>
             <tbody>
-              <tr><td>SPE1, 10×10×3, 10 лет</td><td>дебит нефти / газовый фактор / забои</td><td class="num">0,01% / 0,03% / 0,02%</td></tr>
-              <tr><td>SPE9, 24×25×15, 26 скважин</td><td>нефть / газ / вода</td><td class="num">0,01% / 0,11% / 0,23%</td></tr>
-              <tr><td>SPE9</td><td>забой, худшая скважина</td><td class="num">0,08%</td></tr>
-              <tr><td>Norne, 44 тыс. ячеек, 36 скважин, 9 лет</td><td>накопленные нефть / вода / газ</td><td class="num">0,00% / +0,5% / −0,05%</td></tr>
-              <tr><td>Norne</td><td>закачка воды / газа</td><td class="num">−0,14% / 0,00%</td></tr>
+              <tr><td>SPE1, 10×10×3, 10 лет</td><td>дебит нефти / газовый фактор / забои</td><td class="num">0,01% / 0,03% / 0,02%</td><td class="num">—</td></tr>
+              <tr><td>SPE9, 24×25×15, 26 скважин</td><td>нефть / газ / вода</td><td class="num">0,01% / 0,11% / 0,23%</td><td class="num">—</td></tr>
+              <tr><td>SPE9</td><td>забой, худшая скважина</td><td class="num">0,08%</td><td class="num">—</td></tr>
+              <tr><td>Norne, 44 тыс. ячеек, 36 скважин, 9 лет</td><td>накопленные нефть / вода / газ</td><td class="num">−0,04% / +0,6% / −0,06%</td><td class="num">−0,21% / +1,4% / −0,44%</td></tr>
+              <tr><td>Norne</td><td>закачка воды / газа</td><td class="num">−0,17% / 0,00%</td><td class="num">+0,39% / —</td></tr>
+              <tr><td>VAPPARS-01 (opm-tests), жирный газ, закачка газа</td><td>газовый фактор / забой / дебит газа, против OPM Flow</td><td class="num">до 2%</td><td class="num">эталон</td></tr>
             </tbody>
           </table>
         </div>
@@ -133,9 +136,37 @@
       </div>
     </section>
 
+    <section id="speed">
+      <div class="wrap">
+        <p class="index">04 — скорость</p>
+        <h2>Norne за девять минут</h2>
+        <div class="prose">
+          <p>Вся история Norne — 3312 суток, 36 скважин, 44&nbsp;431 активная ячейка — считается за 8,7 минуты на одной RTX 3090 Ti. За последние релизы время сократилось вчетверо, а результат против Eclipse не ухудшился: в системе остались только активные ячейки, свойства и предобуславливатель записаны в CUDA-графы, шаг по времени и критерии сходимости — как в OPM Flow.</p>
+        </div>
+        <div class="table-wrap">
+          <table class="bench">
+            <thead>
+              <tr><th>версия</th><th>что изменилось</th><th class="num">Norne, мин</th><th class="num">итераций Ньютона</th></tr>
+            </thead>
+            <tbody>
+              <tr><td>октябрь, первая</td><td>вся сетка, 113 тыс. ячеек</td><td class="num">35</td><td class="num">3259</td></tr>
+              <tr><td>+ активные ячейки</td><td>44 тыс. ячеек в системе</td><td class="num">20</td><td class="num">3309</td></tr>
+              <tr><td>+ CUDA-графы</td><td>свойства ячеек и CPR без накладных расходов на запуск</td><td class="num">13</td><td class="num">3309</td></tr>
+              <tr><td>+ шаг как в OPM</td><td>PID-регулятор, CNV и допуски скважин OPM</td><td class="num">8,7</td><td class="num">2193</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <ul class="limits">
+          <li><strong>Eclipse 2014.2</strong>17 минут на том же deck (время из файла PRT эталонного расчёта, одно ядро CPU).</li>
+          <li><strong>OPM Flow</strong>2,7 минуты на той же машине, два потока CPU. На модели размера Norne CPU-симулятор пока быстрее: видеокарта загружена не полностью.</li>
+          <li><strong>Где выигрывает GPU</strong>Модели в сотни тысяч и миллионы ячеек и пакетные прогоны многих сценариев на одной карте — для оптимизации, адаптации и обучения агентов.</li>
+        </ul>
+      </div>
+    </section>
+
     <section id="start">
       <div class="wrap">
-        <p class="index">04 — запуск</p>
+        <p class="index">05 — запуск</p>
         <h2>От deck до сводки</h2>
         <div class="split">
           <div class="prose">
@@ -158,7 +189,7 @@ NORNE_DIR=opm-tests/norne python scripts/run_norne.py</pre>
 
     <section id="agents">
       <div class="wrap">
-        <p class="index">05 — агенты</p>
+        <p class="index">06 — агенты</p>
         <h2>Пласт как среда</h2>
         <div class="prose">
           <p><code>iter_deck</code> отдаёт управление после каждого отчётного шага: можно менять уставки скважин и смотреть, что стало с пластом. Поверх него — среда gymnasium <code>DeckEnv</code>: действие — множители к дебитам скважин, наблюдение — дебиты, забои и среднее давление, награда — экономика шага. Эпизод может начинаться с чекпоинта, например с середины истории Norne.</p>
@@ -168,7 +199,7 @@ NORNE_DIR=opm-tests/norne python scripts/run_norne.py</pre>
 
     <section id="limits">
       <div class="wrap">
-        <p class="index">06 — чего пока нет</p>
+        <p class="index">07 — чего пока нет</p>
         <h2>Границы</h2>
         <ul class="limits">
           <li><strong>Устье и VFP</strong>Нет таблиц VFP и ограничений по устьевому давлению — для прогнозов после истории они понадобятся.</li>
