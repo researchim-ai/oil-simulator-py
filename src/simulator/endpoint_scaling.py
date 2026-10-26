@@ -50,21 +50,34 @@ def table_endpoints(swof, sgof):
     return ep
 
 
-def piecewise_map(s, src, dst):
-    """
-    Кусочно-линейное s ↦ насыщенность таблицы: узлы src (тензоры ячеек, по возрастанию) → dst (числа);
-    вне диапазона — концы. При src == dst — точное тождество (без ошибок округления в узлах таблиц).
-    """
-    out = None
+def piecewise_segments(src, dst):
+    """Постоянные части piecewise_map по узлам: [(a, b, ya − a, наклон − 1)]."""
+    segs = []
     for a, b, ya, yb in zip(src[:-1], src[1:], dst[:-1], dst[1:]):
-        a = torch.as_tensor(a, dtype=s.dtype, device=s.device).expand_as(s)
-        b = torch.as_tensor(b, dtype=s.dtype, device=s.device).expand_as(s)
+        ref = next(v for v in src if torch.is_tensor(v))
+        a = torch.as_tensor(a, dtype=ref.dtype, device=ref.device).expand_as(ref)
+        b = torch.as_tensor(b, dtype=ref.dtype, device=ref.device).expand_as(ref)
         wide = (b - a) > 1e-12
         same = (a == ya) & (b == yb)
         slope = torch.where(wide & ~same, (yb - ya) / torch.where(wide, b - a, torch.ones_like(b)), torch.ones_like(b))
-        sc = torch.minimum(torch.where(s >= a, s, a), b)
-        seg = sc + (ya - a) + (sc - a) * (slope - 1.0)
-        out = seg if out is None else torch.where(s >= a, seg, out)
+        segs.append((a, b, ya - a, slope - 1.0))
+    return segs
+
+
+def piecewise_map(s, src, dst, segs=None):
+    """
+    Кусочно-линейное s ↦ насыщенность таблицы: узлы src (тензоры ячеек, по возрастанию) → dst (числа);
+    вне диапазона — концы. При src == dst — точное тождество (без ошибок округления в узлах таблиц).
+    segs — заранее посчитанные piecewise_segments(src, dst).
+    """
+    out = None
+    for a, b, c0, sm1 in (segs if segs is not None else piecewise_segments(src, dst)):
+        ge = s >= a
+        sc = torch.where(ge, s, a)
+        # как torch.minimum(sc, b), включая половинную производную при sc == b
+        sc = torch.where(sc > b, b, torch.where(sc == b, 0.5 * (sc + b), sc))
+        seg = sc + c0 + (sc - a) * sm1
+        out = seg if out is None else torch.where(ge, seg, out)
     return out
 
 
@@ -82,6 +95,7 @@ class ScaledRelPerm:
         self.swc = float(cell["SWL"].min())
         self.hyst = None
         self._t = tab_ep[0]
+        self._segs = {}
 
     # ------------------------------------------------------------ гистерезис
     def _hyst_krow(self, sw, kd):
@@ -115,34 +129,42 @@ class ScaledRelPerm:
         return self._select(f)
 
     # ------------------------------------------------------------ отображения насыщенностей (регион self._t)
+    def _map(self, s, key, nodes):
+        """piecewise_map с узлами nodes() = (src, dst), постоянные части кэшируются по (регион, key)."""
+        ck = (id(self._t), key)
+        segs = self._segs.get(ck)
+        if segs is None:
+            segs = self._segs[ck] = piecewise_segments(*nodes())
+        return piecewise_map(s, None, None, segs)
+
     def _sw_kr(self, sw):
         t, c = self._t, self.cell
         if self.three_point:
-            return piecewise_map(sw, [c["SWCR"], 1.0 - c["SOWCR"], c["SWU"]], [t["SWCR"], 1.0 - t["SOWCR"], t["SWU"]])
-        return piecewise_map(sw, [c["SWCR"], c["SWU"]], [t["SWCR"], t["SWU"]])
+            return self._map(sw, 1, lambda: ([c["SWCR"], 1.0 - c["SOWCR"], c["SWU"]], [t["SWCR"], 1.0 - t["SOWCR"], t["SWU"]]))
+        return self._map(sw, 2, lambda: ([c["SWCR"], c["SWU"]], [t["SWCR"], t["SWU"]]))
 
     def _sw_o(self, sw):
         """Sw таблицы для krow: узлы (SWL, [SWCR], 1−SOWCR) — эквивалент отображения So по (SOWCR, [1−SWCR], 1−SWL)."""
         t, c = self._t, self.cell
         if self.three_point:
-            return piecewise_map(sw, [c["SWL"], c["SWCR"], 1.0 - c["SOWCR"]],
-                                 [t["SWL"], t["SWCR"], 1.0 - t["SOWCR"]])
-        return piecewise_map(sw, [c["SWL"], 1.0 - c["SOWCR"]], [t["SWL"], 1.0 - t["SOWCR"]])
+            return self._map(sw, 3, lambda: ([c["SWL"], c["SWCR"], 1.0 - c["SOWCR"]],
+                                 [t["SWL"], t["SWCR"], 1.0 - t["SOWCR"]]))
+        return self._map(sw, 4, lambda: ([c["SWL"], 1.0 - c["SOWCR"]], [t["SWL"], 1.0 - t["SOWCR"]]))
 
     def _sg_kr(self, sg):
         t, c = self._t, self.cell
         if self.three_point:
-            return piecewise_map(sg, [c["SGCR"], 1.0 - c["SOGCR"] - c["SWL"], c["SGU"]],
-                                 [t["SGCR"], 1.0 - t["SOGCR"] - t["SWL"], t["SGU"]])
-        return piecewise_map(sg, [c["SGCR"], c["SGU"]], [t["SGCR"], t["SGU"]])
+            return self._map(sg, 5, lambda: ([c["SGCR"], 1.0 - c["SOGCR"] - c["SWL"], c["SGU"]],
+                                 [t["SGCR"], 1.0 - t["SOGCR"] - t["SWL"], t["SGU"]]))
+        return self._map(sg, 6, lambda: ([c["SGCR"], c["SGU"]], [t["SGCR"], t["SGU"]]))
 
     def _sg_o(self, sg):
         """Sg таблицы для krog (So = 1 − SWL − Sg): узлы (SGL, [SGCR], 1−SWL−SOGCR)."""
         t, c = self._t, self.cell
         if self.three_point:
-            return piecewise_map(sg, [c["SGL"], c["SGCR"], 1.0 - c["SWL"] - c["SOGCR"]],
-                                 [t["SGL"], t["SGCR"], 1.0 - t["SWL"] - t["SOGCR"]])
-        return piecewise_map(sg, [c["SGL"], 1.0 - c["SWL"] - c["SOGCR"]], [t["SGL"], 1.0 - t["SWL"] - t["SOGCR"]])
+            return self._map(sg, 7, lambda: ([c["SGL"], c["SGCR"], 1.0 - c["SWL"] - c["SOGCR"]],
+                                 [t["SGL"], t["SGCR"], 1.0 - t["SWL"] - t["SOGCR"]]))
+        return self._map(sg, 8, lambda: ([c["SGL"], 1.0 - c["SWL"] - c["SOGCR"]], [t["SGL"], 1.0 - t["SWL"] - t["SOGCR"]]))
 
     # ------------------------------------------------------------ ОФП и Pc
     def _region(self, r, sw, sg):
@@ -153,11 +175,11 @@ class ScaledRelPerm:
         krw = interp1(self._sw_kr(sw), tw["sw"], tw["krw"]) * (c["KRW"] / max(t["KRW"], 1e-30))
         kr_o_scale = c["KRO"] / max(t["KRO"], 1e-30)
         krow = self._hyst_krow(sw, interp1(self._sw_o(sw), tw["sw"], tw["kro"]) * kr_o_scale)
-        sw_pc = piecewise_map(sw, [swl, c["SWU"]], [t["SWL"], t["SWU"]])
+        sw_pc = self._map(sw, 9, lambda: ([swl, c["SWU"]], [t["SWL"], t["SWU"]]))
         pcow = interp1(sw_pc, tw["sw"], tw["pcow"]) * (c["PCW"] / t["PCW"] if t["PCW"] > 0 else 0.0)
         if tg is not None:
             krg = self._hyst_krg(sg, interp1(self._sg_kr(sg), tg["sg"], tg["krg"]) * (c["KRG"] / max(t["KRG"], 1e-30)))
-            sg_pc = piecewise_map(sg, [c["SGL"], c["SGU"]], [t["SGL"], t["SGU"]])
+            sg_pc = self._map(sg, 10, lambda: ([c["SGL"], c["SGU"]], [t["SGL"], t["SGU"]]))
             pcog = interp1(sg_pc, tg["sg"], tg["pcog"]) * (c["PCG"] / t["PCG"] if t["PCG"] > 0 else 0.0)
             krog = interp1(self._sg_o(sg), tg["sg"], tg["kro"]) * kr_o_scale
         else:

@@ -44,16 +44,18 @@ class CarlsonHysteresis:
         self.shift_g = torch.zeros(n, dtype=torch.float64, device=dev)
         self.on_w = torch.zeros(n, dtype=torch.bool, device=dev)
         self.on_g = torch.zeros(n, dtype=torch.bool, device=dev)
+        # (any(on_w), any(on_g)) числами Python на время записи CUDA-графа, где синхронизация с GPU запрещена
+        self.flags = None
 
     # ------------------------------------------------------------ кривые со сдвигом
     def krow(self, sw, kd):
-        if not bool(self.on_w.any()):
+        if not (self.flags[0] if self.flags is not None else bool(self.on_w.any())):
             return kd
         scan = self.imb.krow_curve(sw + self.shift_w)
         return torch.where(self.on_w & (sw > self.sw_min), scan, kd)
 
     def krg(self, sg, kd):
-        if not bool(self.on_g.any()):
+        if not (self.flags[1] if self.flags is not None else bool(self.on_g.any())):
             return kd
         scan = self.imb.krg_curve(sg + self.shift_g)
         return torch.where(self.on_g & (sg < self.sg_max), scan, kd)

@@ -18,6 +18,7 @@ import torch.nn.functional as F
 from torch.func import jvp, vmap
 
 from .blackoil_props import BlackOilPVT, ThreePhaseRelPerm
+from .cuda_graphs import capture
 from .fim_wells import FIMWells, G, DAY
 from .manual_assembly_solver import ManualFIMSolver
 from .sparse_utils import SparseMatrixBuilder
@@ -581,6 +582,7 @@ class BlackOilFIMSolver(ManualFIMSolver):
         drsdt = params.get('drsdt')
         self.drsdt = None if drsdt is None else float(drsdt)
         self._rs_cap = None
+        self._graphs = {} if self.device.type == "cuda" else None
         self.rho_sc = torch.tensor(self.pvt.rho_sc, dtype=torch.float64, device=dev)
         vp = getattr(fluid, 'vappars', None)
         if vp is not None and float(vp[1]) != 0.0:
@@ -725,6 +727,73 @@ class BlackOilFIMSolver(ManualFIMSolver):
 
     def cell_state(self, p, sw, x, sat, ug=None):
         """Свойства [N_PROPS, N] и производные [N_PROPS, N, 3] по (P, Sw, X)."""
+        if self._graphs is not None and p.is_cuda:
+            try:
+                with torch.cuda.device(p.device):
+                    return self._cell_state_graph(p, sw, x, sat, ug)
+            except RuntimeError as e:
+                print(f"  ⚠ CUDA-граф свойств отключён: {str(e).splitlines()[0][:120]}")
+                self._graphs = None
+                torch.cuda.synchronize(p.device)
+        return self._cell_state_eager(p, sw, x, sat, ug)
+
+    def __getstate__(self):
+        st = self.__dict__.copy()
+        if st.get("_graphs") is not None:
+            st["_graphs"] = {}
+        return st
+
+    def _graph_state_attrs(self):
+        """Тензоры, которые cell_state читает помимо аргументов и которые меняются между шагами."""
+        out = [(self, "_rs_cap"), (self, "so_max")]
+        h = getattr(self.kr, "hyst", None)
+        if h is not None:
+            out += [(h, a) for a in ("sw_min", "sg_max", "shift_w", "shift_g", "on_w", "on_g")]
+        return [(o, a) for o, a in out if hasattr(o, a)]
+
+    def _cell_state_graph(self, p, sw, x, sat, ug):
+        """
+        cell_state через CUDA-граф: тысячи мелких ядер vmap(jvp) воспроизводятся одним вызовом.
+        Аргументы и изменяемое состояние копируются в постоянные буферы графа; граф — на каждую
+        структуру (None-ность состояния, ветви гистерезиса).
+        """
+        attrs = self._graph_state_attrs()
+        h = getattr(self.kr, "hyst", None)
+        flags = (bool(h.on_w.any()), bool(h.on_g.any())) if h is not None else None
+        key = (ug is None, tuple(getattr(o, a) is None for o, a in attrs), flags)
+        args = (p, sw, x, sat) + (() if ug is None else (ug,))
+        if h is not None:
+            h.flags = flags
+        try:
+            g = self._graphs.get(key)
+            if g is None:
+                self._cell_state_eager(p, sw, x, sat, ug)   # кэши таблиц заполняются вне записи
+                statics = []
+                for o, a in attrs:
+                    v = getattr(o, a)
+                    if v is not None:
+                        st = v.clone()
+                        setattr(o, a, st)
+                        statics.append((o, a, st))
+                inp = tuple(t.clone() for t in args)
+                graph, out = capture(lambda: self._cell_state_eager(*inp[:4], inp[4] if len(inp) > 4 else None),
+                                     p.device)
+                g = self._graphs[key] = (graph, inp, statics, out)
+            graph, inp, statics, out = g
+            for t, st in zip(args, inp):
+                st.copy_(t)
+            for o, a, st in statics:
+                v = getattr(o, a)
+                if v is not st:
+                    st.copy_(v)
+                    setattr(o, a, st)
+            graph.replay()
+            return out[0].clone(), out[1].clone()
+        finally:
+            if h is not None:
+                h.flags = None
+
+    def _cell_state_eager(self, p, sw, x, sat, ug=None):
         fn = self._cell_fn(sat, ug)
         # три направления (P, Sw, X) — одним проходом vmap
         tang = torch.eye(3, dtype=p.dtype, device=p.device)[:, :, None].expand(3, 3, p.numel())

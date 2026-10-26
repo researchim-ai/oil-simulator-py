@@ -5,15 +5,27 @@ import math
 
 import torch
 
+_BOUNDS = {}
+
+
+def _bounds(xp):
+    """Границы таблицы числами Python: без синхронизации с GPU на каждом вызове."""
+    hit = _BOUNDS.get(id(xp))
+    if hit is None or hit[0] is not xp:
+        hit = _BOUNDS[id(xp)] = (xp, float(xp[0]), float(xp[-1]))
+    return hit[1], hit[2]
+
 
 def interp1(x, xp, fp):
     """Кусочно-линейная интерполяция с постоянной экстраполяцией; дифференцируема по x."""
     n = xp.numel()
     if n == 1:
         return fp[0] + 0.0 * x
-    xc = torch.clamp(x, float(xp[0]), float(xp[-1]))
+    lo, hi = _bounds(xp)
+    # where вместо clamp: у clamp под vmap(jvp) медленное разложение
+    xc = torch.where(x < lo, lo, torch.where(x > hi, hi, x))
     i = torch.searchsorted(xp, xc.detach().contiguous(), right=True).clamp(1, n - 1)
-    x0, x1, y0, y1 = xp[i - 1], xp[i], fp[i - 1], fp[i]
+    x0, x1, y0, y1 = xp.index_select(0, i - 1), xp.index_select(0, i), fp.index_select(0, i - 1), fp.index_select(0, i)
     return y0 + (y1 - y0) * (xc - x0) / (x1 - x0)
 
 
@@ -23,7 +35,7 @@ def interp1_lin(x, xp, fp):
     if n == 1:
         return fp[0] + 0.0 * x
     i = torch.searchsorted(xp, x.detach().contiguous(), right=True).clamp(1, n - 1)
-    x0, x1, y0, y1 = xp[i - 1], xp[i], fp[i - 1], fp[i]
+    x0, x1, y0, y1 = xp.index_select(0, i - 1), xp.index_select(0, i), fp.index_select(0, i - 1), fp.index_select(0, i)
     return y0 + (y1 - y0) * (x - x0) / (x1 - x0)
 
 
@@ -201,9 +213,9 @@ class DeckPVT:
         n_t = self.rs_tab.numel()
         i = torch.searchsorted(self.rs_tab, rs.detach().contiguous(), right=True).clamp(1, n_t - 1)
         lo, hi = i - 1, i
-        w = ((rs - self.rs_tab[lo]) / (self.rs_tab[hi] - self.rs_tab[lo])).clamp(0.0, 1.0)
-        b_u = (1 - w) * interp_rows(p, self.us_P[lo], self.us_b[lo]) + w * interp_rows(p, self.us_P[hi], self.us_b[hi])
-        bm_u = (1 - w) * interp_rows(p, self.us_P[lo], self.us_bm[lo]) + w * interp_rows(p, self.us_P[hi], self.us_bm[hi])
+        w = ((rs - self.rs_tab.index_select(0, lo)) / (self.rs_tab.index_select(0, hi) - self.rs_tab.index_select(0, lo))).clamp(0.0, 1.0)
+        b_u = (1 - w) * interp_rows(p, self.us_P.index_select(0, lo), self.us_b.index_select(0, lo)) + w * interp_rows(p, self.us_P.index_select(0, hi), self.us_b.index_select(0, hi))
+        bm_u = (1 - w) * interp_rows(p, self.us_P.index_select(0, lo), self.us_bm.index_select(0, lo)) + w * interp_rows(p, self.us_P.index_select(0, hi), self.us_bm.index_select(0, hi))
         return b_u, b_u / bm_u
 
     def water(self, p):
@@ -223,9 +235,9 @@ class DeckPVT:
         n_t = self.g_p.numel()
         i = torch.searchsorted(self.g_p, p.detach().contiguous(), right=True).clamp(1, n_t - 1)
         lo, hi = i - 1, i
-        w = (p - self.g_p[lo]) / (self.g_p[hi] - self.g_p[lo])
-        b = (1 - w) * interp_rows(rv, self.ug_RV[lo], self.ug_b[lo]) + w * interp_rows(rv, self.ug_RV[hi], self.ug_b[hi])
-        bm = (1 - w) * interp_rows(rv, self.ug_RV[lo], self.ug_bm[lo]) + w * interp_rows(rv, self.ug_RV[hi], self.ug_bm[hi])
+        w = (p - self.g_p.index_select(0, lo)) / (self.g_p.index_select(0, hi) - self.g_p.index_select(0, lo))
+        b = (1 - w) * interp_rows(rv, self.ug_RV.index_select(0, lo), self.ug_b.index_select(0, lo)) + w * interp_rows(rv, self.ug_RV.index_select(0, hi), self.ug_b.index_select(0, hi))
+        bm = (1 - w) * interp_rows(rv, self.ug_RV.index_select(0, lo), self.ug_bm.index_select(0, lo)) + w * interp_rows(rv, self.ug_RV.index_select(0, hi), self.ug_bm.index_select(0, hi))
         return b, bm
 
     def gas(self, p, rv=None, sat=None):
@@ -238,7 +250,8 @@ class DeckPVT:
         p_hi = getattr(self, "_g_p_hi", None)
         if p_hi is None:
             p_hi = self._g_p_hi = float(self.g_p[-1])
-        if bool((p.detach() > p_hi).any()):
+        # на GPU — без проверки (синхронизация дороже; при P ≤ края max(b, b/2) = b)
+        if p.is_cuda or bool((p.detach() > p_hi).any()):
             ph = p.clamp(max=p_hi)
             rv_h = None if rv is None or not self.wet else torch.minimum(rv, self.rv_sat(ph))
             b_h, bm_h = self._gas_b_bm(ph, rv_h, sat)

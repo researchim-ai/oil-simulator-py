@@ -6,6 +6,8 @@ import time
 
 import torch
 
+from .cuda_graphs import capture
+
 try:
     from solver.classical_amg import ClassicalAMG
 except ImportError:
@@ -24,6 +26,7 @@ class CPRPreconditionerGPU:
     Иерархию AMG можно переиспользовать (``amg=``): тогда пересчитываются только значения
     (``ClassicalAMG.update_matrix``), что на порядок дешевле полного построения.
     """
+    use_graphs = True
 
     def __init__(self, J_vals, indptr, indices, n_cells, device, amg=None, smoother_sweeps=1,
                  amg_verbose=False):
@@ -84,6 +87,7 @@ class CPRPreconditionerGPU:
             self.amg = None
         self.amg_log = buf.getvalue()
         self.amg_build_s = time.perf_counter() - t0
+        self._graph = None if CPRPreconditionerGPU.use_graphs else False
 
     def apply_A(self, x):
         x_blk = x.view(-1, self.nb)
@@ -96,6 +100,33 @@ class CPRPreconditionerGPU:
         return torch.bmm(self.inv_diag, r.view(-1, self.nb).unsqueeze(-1)).view(-1)
 
     def matvec(self, r):
+        if r.is_cuda and self.amg is not None and self._graph is not False:
+            try:
+                with torch.cuda.device(r.device):
+                    return self._matvec_graph(r)
+            except RuntimeError as e:
+                print(f"  ⚠ CUDA-граф CPR отключён: {str(e).splitlines()[0][:120]}")
+                self._graph = False
+                CPRPreconditionerGPU.use_graphs = False
+                torch.cuda.synchronize(r.device)
+        return self._matvec_eager(r)
+
+    def _matvec_graph(self, r):
+        """matvec через CUDA-граф: V-цикл AMG и блочный Якоби записываются один раз на матрицу."""
+        if self._graph is None:
+            # первый вызов — без графа (заодно заполняются кэши индексов строк AMG), запись — со второго
+            self._graph = "warm"
+            return self._matvec_eager(r)
+        if self._graph == "warm":
+            r_in = r.clone()
+            graph, out = capture(lambda: self._matvec_eager(r_in), r.device)
+            self._graph = (graph, r_in, out)
+        graph, r_in, out = self._graph
+        r_in.copy_(r)
+        graph.replay()
+        return out.clone()
+
+    def _matvec_eager(self, r):
         x = torch.zeros_like(r)
         r_cur = r
         if self.amg is not None:

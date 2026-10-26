@@ -930,7 +930,10 @@ class ClassicalAMG:
             self.cpu_offload = False
         
         # Конвертируем numpy CSR -> torch CSR на CUDA
-        device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+        if torch.is_tensor(A_csr_np) and A_csr_np.is_cuda:
+            device = A_csr_np.device
+        else:
+            device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         self.primary_device = device
         
         if hasattr(A_csr_np, 'indptr'):  # scipy sparse
@@ -1359,18 +1362,26 @@ class ClassicalAMG:
             x = torch.zeros_like(b_local)
             
             if n <= 2000:
-                A_dense = level['A'].to_dense().clone()
-                
+                # плотная матрица — по объекту A уровня (to_dense синхронизирует GPU)
+                if level.get('_dense_of') is not level['A']:
+                    A_dense = level['A'].to_dense().clone()
+                    if n > 0:
+                        A_dense[0, :] = 0.0
+                        A_dense[:, 0] = 0.0
+                        A_dense[0, 0] = 1.0
+                    level['_dense'], level['_dense_of'] = A_dense, level['A']
+                A_dense = level['_dense']
                 if n > 0:
-                    A_dense[0, :] = 0.0
-                    A_dense[:, 0] = 0.0
-                    A_dense[0, 0] = 1.0
-                    b_local[0] = 0.0
+                    b_local[:1].zero_()
     
-                try:
-                    x = torch.linalg.solve(A_dense, b_local)
-                except RuntimeError:
-                    x = torch.linalg.lstsq(A_dense, b_local.unsqueeze(1)).solution.squeeze(1)
+                if torch.cuda.is_current_stream_capturing():
+                    # без проверки ошибок (она синхронизирует GPU, что запрещено при записи CUDA-графа)
+                    x = torch.linalg.solve_ex(A_dense, b_local, check_errors=False)[0]
+                else:
+                    try:
+                        x = torch.linalg.solve(A_dense, b_local)
+                    except RuntimeError:
+                        x = torch.linalg.lstsq(A_dense, b_local.unsqueeze(1)).solution.squeeze(1)
             else:
                 # Iterative solver (Damped Jacobi) for large coarsest grids
                 inv_relax = level['inv_relax']
@@ -1465,6 +1476,8 @@ class ClassicalAMG:
                                      debug=self.debug_cycles, cycle_num=cycle)
             if x_scaled.device != root_device or x_scaled.dtype != root_dtype:
                 x_scaled = x_scaled.to(device=root_device, dtype=root_dtype)
+            if cycle == max_iter - 1:
+                break
             r = b_scaled - self._matvec(0, x_scaled)
             rel_res = r.norm() / (b_norm + 1e-30)
             x_ratio = x_scaled.norm() / (b_norm + 1e-30)
