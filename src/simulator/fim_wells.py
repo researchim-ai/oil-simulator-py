@@ -119,7 +119,7 @@ class FIMWells:
         # состояние (фиксируется только на успешном шаге)
         self.p_bh = None
         self.step_targets = None
-        self.mode = [w.control_type for w in self.wells]
+        self.mode = [getattr(w, 'start_mode', None) or w.control_type for w in self.wells]
         self.rho_wb = torch.zeros(self.n_w, dtype=torch.float64, device=device)
 
     def _cell(self, i, j, k):

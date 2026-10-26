@@ -226,6 +226,8 @@ class EclipseCase:
         self.wtest_steps = []    # снимок WTEST на каждый отчётный шаг
         self.reopen_steps = []   # скважины с явным WELOPEN OPEN перед отчётным шагом
         self._reopen = set()
+        self.vfp = {}            # текущие таблицы VFPPROD: {номер: VFPProd}
+        self.vfp_steps = []      # снимок таблиц VFP на каждый отчётный шаг
         gcon = {}
         date = None
         opened = {}
@@ -427,6 +429,10 @@ class EclipseCase:
                             controls[name] = controls[name][:2] + (st,)
                         elif st == "OPEN":
                             raise ValueError(f"WELOPEN {name}: скважина открыта без режима")
+            elif kw == "VFPPROD":
+                from .vfp import VFPProd
+                t = VFPProd(recs, u)
+                self.vfp[t.number] = t
             elif kw == "WTEST":
                 for r in recs:
                     if r:
@@ -571,6 +577,7 @@ class EclipseCase:
 
     def _close_step_events(self):
         self.wtest_steps.append({k: dict(v) for k, v in self.wtest.items()})
+        self.vfp_steps.append(dict(self.vfp))
         self.reopen_steps.append(self._reopen)
         self._reopen = set()
 
@@ -1103,8 +1110,22 @@ class EclipseCase:
                 cfg.update(control_type="bhp", control_value=float(r[bhp_idx]) * u["p"] / 1e6)
             elif mode == "GRUP" and not hist:
                 cfg.update(control_type="rate", control_value=1e20, surface_phase="liquid", grup=True)
+            elif mode == "THP" and not hist:
+                # режим THP = управление по дебиту-ограничению, начатое на ограничении по THP (как в OPM)
+                lim = next(((v, ph, cv) for key, (v, ph, cv) in rates.items() if v > 0), None)
+                val, ph, cv = lim if lim is not None else (1e20, "liquid", 1.0)
+                cfg.update(control_type="rate", control_value=val * cv, surface_phase=ph, start_mode="thp_limit")
             else:
                 raise NotImplementedError(f"{kw} {name}: режим {mode}")
+            if not hist:
+                thp, table = _get(r, 9), int(_get(r, 10, 0) or 0)
+                if mode == "THP" and (thp is None or table <= 0):
+                    raise ValueError(f"WCONPROD {name}: режим THP без THP или таблицы VFP")
+                if thp is not None and float(thp) > 0 and table > 0:
+                    if table not in self.vfp:
+                        raise ValueError(f"WCONPROD {name}: нет таблицы VFPPROD {table}")
+                    cfg.update(thp_limit=float(thp) * u["p"] / 1e6, vfp_table=table,
+                               alq=float(_get(r, 11, 0.0) or 0.0))
             # нулевая цель по дебиту — скважина остановлена (как stoppedOrZeroRateTarget в OPM)
             zero = max(qo, qw, qg) <= 0 if hist else (cfg["control_type"] in ("rate", "resv")
                                                        and not cfg.get("grup") and cfg["control_value"] <= 0)

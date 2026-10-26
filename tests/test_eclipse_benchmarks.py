@@ -56,3 +56,10 @@ def test_vappars_wet_gas_matches_opm():
     rows = _run("vappars", "VAPPARS-01.DATA", "VAPPARS-01")
     assert len(rows) >= 4
     _check(rows, lambda key: 0.02)
+
+
+@pytest.mark.slow
+def test_vfpprod_thp_control_matches_opm():
+    rows = _run("vfpprod", "SPE1CASE1_METRIC_VFP1.DATA", "SPE1CASE1_METRIC_VFP1")
+    assert any(r["vector"] == "WTHP:PROD" for r in rows)
+    _check(rows, lambda key: 0.025 if key.startswith("BGSAT") else 0.01)

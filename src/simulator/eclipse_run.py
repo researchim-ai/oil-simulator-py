@@ -20,8 +20,11 @@ def apply_controls(case, step, wm, solver):
     fw = getattr(solver, "wells", None)
     if fw is not None and hasattr(fw, "groups"):
         fw.groups = (GroupTree(case.group_parent, case.well_group), case.group_constraints(step))
+    if fw is not None and hasattr(fw, "vfp"):
+        fw.vfp, fw.depth_top = case.vfp_steps[step], getattr(case, "depth_top", 0.0)
     for idx, w in enumerate(wm.wells):
         cfg = case.control_cfg(w.name, controls.get(w.name))
+        w.thp_limit, w.vfp_table, w.alq = cfg.get("thp_limit"), cfg.get("vfp_table"), cfg.get("alq", 0.0)
         retype = cfg["type"] != w.type or (
             cfg["type"] == "injector" and cfg.get("injected_phase", w.injected_phase) != w.injected_phase)
         if retype and cfg["control_type"] != "shut":
@@ -29,9 +32,9 @@ def apply_controls(case, step, wm, solver):
                 raise NotImplementedError(f"{w.name}: смена типа скважины или фазы закачки не поддерживается")
             fw.set_type(fw.wells.index(w), cfg["type"], cfg.get("injected_phase"), cfg.get("surface_phase"))
         new = (cfg["control_type"], cfg["control_value"], cfg.get("surface_phase"), cfg.get("bhp_min"),
-               cfg.get("bhp_max"), cfg.get("hist_rates"))
+               cfg.get("bhp_max"), cfg.get("hist_rates"), cfg.get("start_mode"))
         old = (w.control_type, w.control_value, w.surface_phase, w.bhp_min, w.bhp_max,
-               getattr(w, "hist_rates", None))
+               getattr(w, "hist_rates", None), getattr(w, "start_mode", None))
         w.grup = bool(cfg.get("grup", False))
         if fw is not None and getattr(w, "connections", None) is not None and hasattr(fw, "set_connections"):
             fw.set_connections(fw.wells.index(w), case.well_connections(w.name, step))
@@ -45,9 +48,9 @@ def apply_controls(case, step, wm, solver):
             continue
         if cfg.get("surface_phase") != w.surface_phase and fw is not None and hasattr(fw, "rate_w"):
             fw.set_surface_phase(fw.wells.index(w), cfg.get("surface_phase"))
-        w.control_type, w.control_value, w.surface_phase, w.bhp_min, w.bhp_max, w.hist_rates = new
+        w.control_type, w.control_value, w.surface_phase, w.bhp_min, w.bhp_max, w.hist_rates, w.start_mode = new
         if fw is not None and hasattr(fw, "mode"):
-            fw.mode[fw.wells.index(w)] = w.control_type
+            fw.mode[fw.wells.index(w)] = w.start_mode or w.control_type
 
 
 class WellTestState:
@@ -87,7 +90,7 @@ class WellTestState:
             if w.name in self.closed and w.name not in self.testing:
                 continue
             k = fw.wells.index(w)
-            if not bool((fw.conn_open[fw.conn_well == k] > 0).any()) or fw.step_mode[k] not in ("bhp", "bhp_limit"):
+            if not bool((fw.conn_open[fw.conn_well == k] > 0).any()) or fw.step_mode[k] not in ("bhp", "bhp_limit", "thp_limit"):
                 if w.name in self.testing:
                     self._reopen(t, w.name)
                 continue
@@ -116,7 +119,7 @@ def _requests(case, cells):
     for kw, recs in case.summary_requests:
         if kw[0] == "F" and kw in ("FOPR", "FWPR", "FGPR", "FGOR", "FWCT", "FOPT", "FWPT", "FGPT", "FWIR", "FGIR"):
             out.append((kw, "F", None))
-        elif kw[0] == "W" and kw[1:] in ("BHP", "OPR", "WPR", "GPR", "WIR", "GIR", "OIR", "OPT", "WPT", "GPT",
+        elif kw[0] == "W" and kw[1:] in ("BHP", "THP", "OPR", "WPR", "GPR", "WIR", "GIR", "OIR", "OPT", "WPT", "GPT",
                                          "OIT", "WIT", "GIT", "GOR"):
             listed = [str(v) for r in recs for v in r if v is not None] or names
             for n in listed:
@@ -245,6 +248,8 @@ def iter_deck(path, device=None, sim_overrides=None, cells=(), quiet=True, max_d
                 w = wells[name]
                 if kw == "WBHP":
                     v = np.nan if getattr(w, "bhp_mpa", None) is None else w.bhp_mpa * 1e6 / u["p"]
+                elif kw == "WTHP":
+                    v = 0.0 if getattr(w, "thp_mpa", None) is None else w.thp_mpa * 1e6 / u["p"]
                 elif kw == "WGOR":
                     q = wr[name]
                     v = q["gas"] / q["oil"] if w.type == "producer" and q["oil"] > 0 else 0.0

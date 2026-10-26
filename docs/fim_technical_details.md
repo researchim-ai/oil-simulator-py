@@ -99,7 +99,7 @@ $$
 
 * Гистерезис ОФП — только Карлсон (EHYSTR модель 0, KR); гистерезис Pc и ENDSCALE DIRECT не поддерживаются.
 * Жирный газ без VAPPARS VAP2, DRVDT.
-* VFPPROD/VFPINJ, THP-ограничения, трассеры (TRACER, WTRACER), WECON, поверхностная сеть, многосегментные
+* VFPINJ и THP нагнетательных, трассеры (TRACER, WTRACER), WECON, поверхностная сеть, многосегментные
   скважины — не поддерживаются.
 * В простом JSON-режиме FIM дебиты только поверхностные (`rate_type: "reservoir"` не поддерживается); в deck
   исторический RESV поддержан.
@@ -251,6 +251,18 @@ WELOPEN OPEN; повтор WCONHIST/WCONPROD — нет (как в OPM). Соб�
 \max(|\Delta\Phi| - \theta, 0)\), производная ниже порога — 0; при θ = 0 результат побитово совпадает с расчётом
 без порога. Пары без записи THPRES — порог 0. Порог по умолчанию — максимальная по подвижным фазам
 |ΔΦ| через границу в начальном состоянии. IRREVERS — пороги по направлению. Без EQLOPTS THPRES — ошибка.
+
+### VFPPROD и ограничение THP
+
+Таблица задаёт BHP на своей опорной глубине как функцию FLO (OIL/LIQ/GAS), THP, WFR (WOR/WCT/WGR), GFR
+(GOR/GLR/OGR) и ALQ; интерполяция многолинейная, вне осей — линейная экстраполяция (как в OPM). На опорную глубину
+скважины BHP переносится гидростатикой ствола \(\rho_{wb} g\,(z_{ref} - z_{VFP})\). В режиме THP уравнение скважины
+\(r = p_{bh} - BHP_{VFP}(Q_o, Q_w, Q_g, THP) - \rho_{wb} g \Delta z\), \(Q_m = \sum q_m/\rho_{sc,m}\); производные
+\(\partial r/\partial p_{bh} = 1 - \sum_m g_m\,\partial Q_m/\partial p_{bh}\), \(\partial r/\partial x = -\sum_m g_m\,\partial Q_m/\partial x\),
+\(g_m = \partial BHP_{VFP}/\partial Q_m\) (autograd по таблице). Работает самое жёсткое из ограничений: при дебите
+забой ниже \(\max(BHP_{min}, BHP_{VFP})\) — переход на соответствующее ограничение; обратно — когда дебит превысил
+уставку или BHP-ограничение стало жёстче THP. WTHP — обратная интерполяция таблицы по THP.
+Проверка: `test_vfpprod_thp_control_matches_opm` (SPE1CASE1_METRIC_VFP1 из opm-tests, переход на THP через 2 года).
 
 ### VAPPARS
 
