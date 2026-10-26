@@ -5,7 +5,7 @@
     NORNE_DIR=opm-tests/norne NORNE_OUT=results/norne python scripts/run_norne.py [сутки]
 
 NORNE_DEVICE=cuda:0   — устройство (по умолчанию cuda, если есть);
-
+NORNE_SNAP_AT=1272,1637 — дополнительные снимки полей в эти сутки (например, в даты рестартов OPM);
 NORNE_CKPT=путь      — сохранять полное состояние после каждых NORNE_CKPT_EVERY (1) отчётных шагов;
 NORNE_RESUME=путь    — продолжить расчёт с такого файла (история подшагов/полей подхватывается из NORNE_OUT).
 """
@@ -25,6 +25,7 @@ from simulator.eclipse_run import run_deck  # noqa: E402
 OUT = os.environ.get("NORNE_OUT", "results/norne")
 os.makedirs(OUT, exist_ok=True)
 DECK = os.path.join(os.environ.get("NORNE_DIR", "opm-tests/norne"), "NORNE_ATW2013.DATA")
+SNAP_AT = [float(d) for d in os.environ.get("NORNE_SNAP_AT", "").split(",") if d.strip()]
 CKPT = os.environ.get("NORNE_CKPT")
 RESUME = os.environ.get("NORNE_RESUME")
 t0 = time.time()
@@ -122,6 +123,8 @@ def progress(n, t, s):
     if t >= H["next_snap"]:
         snapshot(t)
         H["next_snap"] = t + 182.0
+    elif any(abs(t - d) < 0.5 for d in SNAP_AT):
+        snapshot(t)
     save_partial()
 
 

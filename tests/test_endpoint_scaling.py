@@ -139,6 +139,29 @@ def test_carlson_scanning_curve(tmp_path):
     assert float(k0.abs().max()) < 1e-12
 
 
+def test_krow_imbibition_above_drainage_and_reversal_by_oil_saturation(tmp_path):
+    # SOWCR задан только для дренирования, ISOWCR — по таблице (меньше), как в верхних слоях Norne:
+    # кривая пропитки выше дренирования и берётся без ограничения (OPM), разворот — по 1 − So
+    case = EclipseCase(_deck(tmp_path, _hyst_deck(tmp_path, isgcr=0.15), "", "SOWCR\n 300*0.2 /\n", name="H3.DATA"))
+    _, fluid, _, _ = case.build()
+    kr = fluid.blackoil_relperm
+    assert kr.kro_model == "default"
+    n = fluid.s_w.numel()
+    sw = torch.full((n,), 0.2, dtype=torch.float64)
+    kr.hyst.sw_min = torch.ones(n, dtype=torch.float64)
+    kr.hyst.sg_max = torch.zeros(n, dtype=torch.float64)
+    kr.hyst.commit(sw, torch.zeros(n, dtype=torch.float64))
+    sg = torch.full((n,), 0.15, dtype=torch.float64)
+    kro_h = kr(sw, sg)[1]
+    hy, kr.hyst = kr.hyst, None
+    kro_d = kr(sw, sg)[1]
+    kro_d0 = kr(sw, torch.zeros_like(sg))[1]
+    kr.hyst = hy
+    assert torch.all(kro_h > kro_d * 1.02)
+    # в точке разворота — дренирование
+    assert torch.allclose(kr(sw, torch.zeros_like(sg))[1], kro_d0)
+
+
 def test_hysteresis_changes_gas_injection_response(tmp_path):
     base, _ = run_deck(SPE1, max_days=1200)
     h, _ = run_deck(_hyst_deck(tmp_path, isgcr=0.15), max_days=1200)

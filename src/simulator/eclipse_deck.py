@@ -1148,8 +1148,9 @@ class EclipseCase:
         газа — от ГНК (pg = po + Pcog); плотности — по PVT региона (преобладающий PVTNUM). Насыщенности —
         обращением Pcow(Sw) = po − pw и Pcog(Sg) = pg − po по таблицам SATNUM ячейки; при нулевых Pc —
         резкие контакты. Pc и его обращение — с масштабированием концевых точек ячейки (ep).
-        SWATINIT: Sw = SWATINIT, а PCW ячейки пересчитывается так, чтобы Pcow(SWATINIT) = po − pw (в ep);
-        где po − pw ≤ 0 или Pc(SWATINIT) ≤ 0 — Sw из равновесия по исходному Pc.
+        SWATINIT: Sw = SWATINIT, а PCW ячейки пересчитывается так, чтобы Pcow(SWATINIT) = po − pw (в ep), выше ГНК —
+        pg − pw − Pcog(1 − SWATINIT), как PPCW Eclipse; где перепад ≤ 0 или Pc(SWATINIT) ≤ 0 — Sw из равновесия
+        по исходному Pc.
         """
         rt = self.region_tables
         dt = torch.float64
@@ -1224,6 +1225,11 @@ class EclipseCase:
             if swatinit is not None:
                 s0 = np.clip(np.where(np.isnan(swatinit), sw, swatinit), swl, swu)
                 pc0 = ep.pc_value(idx, "w", s0)
+                if pg is not None and ep.tables[0][1] is not None:
+                    # выше ГНК вода равновесна с газом: Pcow(SWATINIT) = pg − pw − Pcog(1 − SWATINIT)
+                    gz = z < eq["goc"]
+                    pcg0 = ep.pc_value(idx, "g", np.clip(1.0 - s0, 0.0, None))
+                    dp = np.where(gz, pg - pw - pcg0, dp)
                 ok = ~np.isnan(swatinit) & (dp > 0) & (pc0 > 0)
                 pcw = ep.endpoint("PCW", idx)
                 pcw_new = np.where(ok, pcw * dp / np.where(ok, pc0, 1.0), pcw)

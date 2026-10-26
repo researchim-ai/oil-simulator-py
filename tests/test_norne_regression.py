@@ -43,6 +43,12 @@ def test_norne_endpoints_match_eclipse_init():
             ours = np.asarray(model.endpoint(key, idx), dtype=np.float64)
             given = ecl > -1e19        # −1e20 в INIT: не задано, берётся из таблицы
             assert np.allclose(ours[given], ecl[given], atol=1e-6), prefix + key
+    # PCW после SWATINIT, в том числе выше ГНК (там Eclipse подгоняет Pcow под pg − pw)
+    ecl = init["PCW"].astype(np.float64)
+    ours = np.asarray(kr.endpoint("PCW", idx), dtype=np.float64) / 1e5
+    given = ecl > -1e19
+    assert given.sum() > 20000
+    assert np.allclose(ours[given], ecl[given], rtol=1e-2, atol=1e-3)
 
 
 @needs_norne

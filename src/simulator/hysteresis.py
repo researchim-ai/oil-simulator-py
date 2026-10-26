@@ -4,14 +4,16 @@
 Несмачивающие фазы: нефть в системе нефть–вода (krow), газ в системе газ–нефть (krg).
 Кривые дренирования — таблицы SATNUM с концевыми точками SWL…SOGCR; пропитки — таблицы IMBNUM с ISWL…ISOGCR.
 
-Точка разворота — исторический экстремум насыщенности несмачивающей фазы в ячейке (min Sw для нефти,
-max Sg для газа), обновляется после каждого принятого шага (commit). Пока насыщенность несмачивающей фазы
-не меньше исторического максимума — кривая дренирования; иначе — кривая пропитки, сдвинутая по
-насыщенности так, чтобы пройти через точку разворота (Карлсон):
+Точка разворота — исторический экстремум насыщенности несмачивающей фазы в ячейке (для нефти — min 1 − So
+в модели kro по умолчанию, min Sw при Stone II; для газа — max Sg), обновляется после каждого принятого шага
+(commit). Пока насыщенность несмачивающей фазы не меньше исторического максимума — кривая дренирования;
+иначе — кривая пропитки, сдвинутая по насыщенности так, чтобы пройти через точку разворота (Карлсон):
 
     krn(S) = krn_imb(S + ΔS),   krn_imb(S_rev + ΔS) = krn_drain(S_rev).
 
-Кривая непрерывна в точке разворота; ΔS в пределах шага заморожен, поэтому якобиан Ньютона точный.
+Кривая пропитки не ограничивается кривой дренирования (как в OPM): при других концевых точках IMBNUM/ISWL…
+она может лежать выше. Кривая непрерывна в точке разворота; ΔS в пределах шага заморожен, поэтому якобиан
+Ньютона точный.
 Смачивающие фазы (krw, krog): модель 0 — кривая дренирования, модель 1 — кривая пропитки.
 """
 import torch
@@ -48,20 +50,22 @@ class CarlsonHysteresis:
         if not bool(self.on_w.any()):
             return kd
         scan = self.imb.krow_curve(sw + self.shift_w)
-        return torch.where(self.on_w & (sw > self.sw_min), torch.minimum(scan, kd), kd)
+        return torch.where(self.on_w & (sw > self.sw_min), scan, kd)
 
     def krg(self, sg, kd):
         if not bool(self.on_g.any()):
             return kd
         scan = self.imb.krg_curve(sg + self.shift_g)
-        return torch.where(self.on_g & (sg < self.sg_max), torch.minimum(scan, kd), kd)
+        return torch.where(self.on_g & (sg < self.sg_max), scan, kd)
 
     # ------------------------------------------------------------ обновление точек разворота
     @torch.no_grad()
     def commit(self, sw, sg):
         sw = sw.reshape(-1).to(torch.float64)
         sg = sg.reshape(-1).to(torch.float64)
-        self.sw_min = torch.minimum(self.sw_min, sw)
+        # в модели kro по умолчанию krow берётся при Sw' = Sw + Sg (та же So), поэтому разворот — по 1 − So
+        sw_ow = torch.maximum(sw, self.drain.cell["SWL"]) + sg if self.drain.kro_model == "default" else sw
+        self.sw_min = torch.minimum(self.sw_min, sw_ow)
         self.sg_max = torch.maximum(self.sg_max, sg)
         d, i, c = self.drain, self.imb, self.imb.cell
         # нефть: krow убывает по Sw
