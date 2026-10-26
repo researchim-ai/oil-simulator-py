@@ -34,7 +34,7 @@ FLAG_KEYWORDS = {
 IGNORED = {"TITLE", "EQLDIMS", "TABDIMS", "WELLDIMS", "RPTSCHED", "RPTRST", "RPTSOL", "RPTPROPS",
            "RPTGRID", "RPTRUNSP", "NSTACK", "MESSAGES", "TUNING", "SPECGRID", "GRIDFILE", "MAPAXES", "GRIDUNIT"}
 # влияют на физику, но пока не поддерживаются
-UNSUPPORTED = {"SWFN", "SGFN", "SOF3", "SLGOF", "AQUFETP", "AQUCT", "PBVD", "PDVD",
+UNSUPPORTED = {"SWFN", "SGFN", "SOF3", "SLGOF", "AQUFETP", "AQUCT", "PDVD",
                "PRESSURE", "SWAT", "SGAS", "RS", "NNC", "EDITNNC",
                "DRVDT", "ROCKTAB", "WECON", "TRANX", "TRANY", "TRANZ",
                "COMPORD", "OPERATE", "MINPVV", "MINPORV",
@@ -92,8 +92,13 @@ def _num(s):
         return s
 
 
-def parse_deck(path):
-    """Возвращает список (KEYWORD, [record, ...]); record — список значений (float | str | None)."""
+def parse_deck(path, paths=None):
+    """
+    Возвращает список (KEYWORD, [record, ...]); record — список значений (float | str | None).
+    paths — псевдонимы PATHS ($NAME в INCLUDE), пути — от каталога основного deck.
+    """
+    if paths is None:
+        paths = {"": Path(path).parent}
     text = Path(path).read_text(encoding="utf-8", errors="replace")
     lines = [_strip_comment(l).rstrip() for l in text.splitlines()]
     out = []
@@ -134,11 +139,21 @@ def parse_deck(path):
             records.append(cur)
         while records and records[-1] == [] and len(records) > 1:
             records.pop()
+        if kw == "PATHS":
+            for r in records:
+                if len(r) >= 2:
+                    paths[str(r[0]).strip()] = paths[""] / str(r[1]).strip()
+            continue
         if kw == "INCLUDE":
-            inc = Path(path).parent / str(records[0][0]).strip()
+            name = str(records[0][0]).strip()
+            m_alias = re.match(r"\$(\w+)(.*)", name)
+            if m_alias and m_alias.group(1) in paths:
+                inc = Path(str(paths[m_alias.group(1)]) + m_alias.group(2))
+            else:
+                inc = Path(path).parent / name
             if not inc.exists():
                 raise FileNotFoundError(f"INCLUDE: файл {inc} не найден")
-            out.extend(parse_deck(inc))
+            out.extend(parse_deck(inc, paths))
             continue
         out.append((kw, records))
     return out
@@ -319,6 +334,9 @@ class EclipseCase:
             elif kw == "RSVD":
                 self.region_tables["rsvd"] = [[(r[0] * u["L"], r[1] * u["gas"] / u["liq"]) for r in self._rows(rec, 2)]
                                               for rec in recs if rec]
+            elif kw == "PBVD":
+                self.region_tables["pbvd"] = [[(r[0] * u["L"], r[1] * u["p"]) for r in self._rows(rec, 2)]
+                                              for rec in recs]
             elif kw == "RVVD":
                 self.region_tables["rvvd"] = [[(r[0] * u["L"], r[1] * u["liq"] / u["gas"]) for r in self._rows(rec, 2)]
                                               for rec in recs if rec]
@@ -1253,6 +1271,11 @@ class EclipseCase:
             m = regs["EQLNUM"] == r
             pv_r = int(np.bincount(regs["PVTNUM"][m]).argmax())
             pvt = pvts[pv_r]
+            pbvds = rt.get("pbvd")
+            if rsvd is None and pbvds is not None and r < len(pbvds):
+                # PBVD → RSVD: Rs(z) = Rs_sat(p_b(z)); с min(·, Rs_sat(p)) это Rs_sat(min(p_b, p))
+                pb = torch.tensor([q[1] for q in pbvds[r]], dtype=torch.float64, device=device)
+                rsvd = list(zip((q[0] for q in pbvds[r]), pvt.rs_sat(pb).tolist()))
             profile = self._equil_profiles(eq, rsvd, pvt, device)
             z = z_all[m]
             lo, hi = z.min() - 1.0, z.max() + 1.0

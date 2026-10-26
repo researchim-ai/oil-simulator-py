@@ -459,6 +459,8 @@ class ManualFIMSolver:
         for w_idx, w in enumerate(self.wells.wells):
             if self.wells.step_mode[w_idx] == 'bhp_limit':
                 p_bh[w_idx] = self.wells.bhp_limit(w)
+        for w_idx, pb in getattr(self.wells, "pbh_override", {}).items():
+            p_bh[w_idx] = pb
         return p_bh
 
     def _store_well_results(self, wsys, p_bh):

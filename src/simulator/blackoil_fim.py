@@ -105,6 +105,7 @@ class BlackOilWells(FIMWells):
         self.p_avg = None                                 # среднее пластовое давление (для RESV), Па
         self.vfp, self.depth_top = {}, 0.0                # таблицы VFPPROD {номер: VFPProd}; верх пласта, м
         self._Q = None                                    # поверхностные дебиты скважин с последней сборки
+        self.pbh_override = {}                            # забой при переходе на THP (устойчивая ветвь)
         self.rs_avg = self.rv_avg = None                  # средние Rs, Rv (для RESV)
         self.flux_terms = FLUX_TERMS
         self.groups = None                                # (GroupTree, [ограничения]) — групповые контроли
@@ -400,12 +401,43 @@ class BlackOilWells(FIMWells):
             g, = torch.autograd.grad(b, x)
         return float(b) + hydro, g.detach()
 
+    def _thp_stable(self, w_idx, lim):
+        """
+        Забой на устойчивой ветви THP-ограничения добывающей при линеаризованном притоке
+        Q(pb) = Q(pb₀) + ∂Q/∂pb·(pb − pb₀): первое снизу (со стороны больших дебитов) пересечение
+        f(pb) = pb − BHP_VFP(Q(pb)) из «−» в «+», как устойчивое решение в OPM. Возвращает (pb*, дебит
+        уставки при pb*) или None: f > 0 уже у BHP-ограничения (THP не работает) — (lim, None);
+        пересечения нет (скважина под THP не течёт) — None.
+        """
+        q, Cv, pb0 = self._lin
+        m = self.conn_well == w_idx
+        qw, cw_, a = q[m], Cv[m], self.conn_a[m]
+        p0 = float(pb0[w_idx])
+        hi = float(self.p_cell_max[w_idx]) if getattr(self, "p_cell_max", None) is not None else p0 * 1.5
+        grid = torch.linspace(lim, max(hi, lim + 1e5), 41, dtype=torch.float64, device=q.device)
+        prev = None
+        for pb in grid.tolist():
+            qq = qw + cw_ * (pb - p0)
+            Q = qq.sum(0) / self.rho_sc
+            f = pb - self._vfp_bhp(w_idx, Q.clamp_min(0.0))
+            if prev is None and f > 0:
+                return lim, None
+            if prev is not None and prev[1] <= 0 < f:
+                # линейная интерполяция корня
+                pa, fa = prev
+                pr = pa + (pb - pa) * (-fa) / (f - fa)
+                qr = float((a * (qw + cw_ * (pr - p0))).sum())
+                return pr, qr
+            prev = (pb, f)
+        return None
+
     def has_thp(self, w_idx):
         return self._lift(w_idx) is not None and getattr(self.wells[w_idx], "thp_limit", None) is not None
 
     def update_controls(self, p_bh, q_surf):
         """Переключение дебит ↔ BHP ↔ THP: работает самое жёсткое из ограничений (как в Eclipse/OPM)."""
         msgs = []
+        self.pbh_override = {}
         if self.switches >= 4 * max(1, self.n_w):
             return msgs
         for w_idx, w in enumerate(self.wells):
@@ -422,7 +454,16 @@ class BlackOilWells(FIMWells):
             sg = self._sgn(w_idx)
             thp_harder = thp_b is not None and sg * thp_b > sg * lim + 1e-9 * abs(lim)
             new = None
-            if mode == 'rate':
+            if mode == 'rate' and thp_b is not None and sg > 0 and getattr(self, "_lin", None) is not None:
+                # дебит уставки сравнивается с потенциалом на устойчивой ветви THP, а не с BHP_VFP(текущий дебит):
+                # на неустойчивой (левой) ветви кривая лифта выше при меньших дебитах
+                st = self._thp_stable(w_idx, lim)
+                if st is not None and st[1] is not None and st[1] < val * (1 - 1e-9):
+                    new = 'thp_limit'
+                    self.pbh_override[w_idx] = st[0]
+                elif pb < lim:
+                    new = 'bhp_limit'
+            elif mode == 'rate':
                 eff = thp_b if thp_harder else lim
                 if sg * pb < sg * eff:
                     new = 'thp_limit' if thp_harder else 'bhp_limit'
@@ -434,9 +475,11 @@ class BlackOilWells(FIMWells):
                     new = 'thp_limit'
                 elif mode == 'thp_limit' and (thp_b is None or sg * pb < sg * lim):
                     new = 'bhp_limit'
-            if new is not None:
+            # не больше 3 переключений скважины за шаг (как max_number_of_well_switches в OPM)
+            if new is not None and self.well_switches[w_idx] < 3:
                 self.step_mode[w_idx] = new
                 self.switches += 1
+                self.well_switches[w_idx] += 1
                 msgs.append(f"{w.name}: {mode}→{new} (p_bh {pb/1e6:.3f} МПа, дебит {float(q_surf[w_idx])*DAY:.2f})")
         return msgs
 
@@ -446,6 +489,7 @@ class BlackOilWells(FIMWells):
         self.step_targets = self.targets(t_days)
         self.step_mode = []
         self.switches = 0
+        self.well_switches = [0] * self.n_w
         c, cw = self.conn_cell, self.conn_well
         a = self.rate_w[cw].clone()
         resv_w = None
@@ -516,6 +560,7 @@ class BlackOilWells(FIMWells):
                                  device=self.device)
             self.p_bh = torch.where(fixed, p_init, self.p_bh)
         self.reinit_bhp = set()
+        self.p_cell_max = zeros.clone().index_reduce_(0, cw, v[I_P][c], "amax", include_self=False)
 
     def _flash_heads(self, v, mix_cell):
         """
@@ -623,6 +668,7 @@ class BlackOilWells(FIMWells):
         conn_rate = is_rate[cw] & ~degenerate[cw]
         Bv = torch.where(conn_rate.unsqueeze(1), B_rate, torch.zeros_like(B_rate))
         self._Q = zeros.new_zeros((self.n_w, 3)).index_add_(0, cw, q) / self.rho_sc
+        self._lin = (q, Cv, p_bh.clone())
         for w_idx in range(self.n_w):
             if self.step_mode[w_idx] != 'thp_limit' or self.step_targets[w_idx][0] != 'rate':
                 continue
@@ -634,7 +680,8 @@ class BlackOilWells(FIMWells):
             D[w_idx] = 1.0 - (gm * Cv[m]).sum()
             Bv[m] = -(gm.view(1, 3, 1) * dq[m]).sum(1)
             target[w_idx] = bt
-        return {"Cv": Cv, "Bv": Bv, "D": D, "r_w": r_w, "q_surf": q_surf, "is_rate": is_rate,
+        is_thp = torch.tensor([m == 'thp_limit' for m in self.step_mode], device=self.device)
+        return {"Cv": Cv, "Bv": Bv, "D": D, "r_w": r_w, "q_surf": q_surf, "is_rate": is_rate, "is_thp": is_thp,
                 "target": target, "q": q, "q_o": q[:, OIL], "q_w": q[:, WAT], "q_g": q[:, GAS], "diag_pos": jd}
 
     def records(self, sys, p_bh, p):
@@ -1027,11 +1074,15 @@ class BlackOilFIMSolver(ManualFIMSolver):
         well_ok, well_err = True, 0.0
         if wsys is not None:
             rate = wsys["is_rate"]
-            rel = wsys["r_w"].abs() / torch.clamp(wsys["target"].abs(), min=1e-12)
+            # нулевая уставка (группа без отбора) — абсолютная невязка в долях 0.01 ст. м³/сут
+            rel = wsys["r_w"].abs() / torch.clamp(wsys["target"].abs(), min=0.01 / DAY)
             rate_err = torch.where(rate, rel, torch.zeros_like(rel))
             bhp_err = torch.where(rate, torch.zeros_like(rel), wsys["r_w"].abs())
+            # таблица VFP кусочно-линейна: у узлов Ньютон по THP колеблется на сотни Па (допуск как в OPM, 0.01 бар)
+            tol_p = torch.where(wsys.get("is_thp", torch.zeros_like(rate)), torch.full_like(rel, max(self.tol_well_bhp, 1e3)),
+                                torch.full_like(rel, self.tol_well_bhp))
             well_err = float(rate_err.max()) if bool(rate.any()) else 0.0
-            well_ok = bool((rate_err <= self.tol_well_rate).all() and (bhp_err <= self.tol_well_bhp).all())
+            well_ok = bool((rate_err <= self.tol_well_rate).all() and (bhp_err <= tol_p).all())
         cnv_l, mb_l = cnv.tolist(), mb.tolist()
         ok = max(cnv_l) <= tol_cnv and max(mb_l) <= tol_mb and well_ok
         return ok, {"cnv": cnv_l, "mb": mb_l, "well_rate_rel_err": well_err, "cnv_relaxed": relaxed}
@@ -1087,6 +1138,7 @@ class BlackOilFIMSolver(ManualFIMSolver):
         initial_cnv = None
         n_switch = 0
         cnv_hist, omega = [], 1.0
+        w_relax, r_thp_prev = None, None
         prev_norm, lin_scale = None, 1.0
         n_flips = torch.zeros(p.numel(), dtype=torch.int32, device=p.device)
 
@@ -1184,6 +1236,16 @@ class BlackOilFIMSolver(ManualFIMSolver):
                 log(f"    ~ колебания Ньютона: релаксация ω = {omega:.2f}")
             if omega < 1.0:
                 dx, dpw = dx * omega, dpw * omega
+            if dpw.numel() and wsys is not None and bool(wsys.get("is_thp", torch.zeros(1, dtype=torch.bool)).any()):
+                # излом таблицы VFP: смена знака невязки THP — шаг по забою этой скважины вдвое меньше
+                r_thp = torch.where(wsys["is_thp"], wsys["r_w"], torch.zeros_like(wsys["r_w"]))
+                if w_relax is None:
+                    w_relax = torch.ones_like(r_thp)
+                elif r_thp_prev is not None:
+                    flip = (r_thp * r_thp_prev < 0) & (r_thp.abs() > self.tol_well_bhp)
+                    w_relax = torch.where(flip, (w_relax * 0.5).clamp_min(0.05), w_relax)
+                r_thp_prev = r_thp
+                dpw = dpw * w_relax
             sat_prev, ug_prev = sat, ug
             p, sw, x, sat, ug, n_sw = self._apply_update(p, sw, x, sat, ug, dx, dbg,
                                                          frozen=n_flips >= MAX_CELL_SWITCHES)
