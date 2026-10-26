@@ -125,8 +125,9 @@ def test_wet_gas_mass_balance_and_vaporization(tmp_path):
     assert float(rv.max()) > 0 and float(rv.min()) >= 0
 
 
-_NO_DRSDT_WET = pytest.mark.skip(reason="VAPOIL без DRSDT: Ньютон зацикливается на переключении Rs <-> Sg "
-                                         "в нефтяных ячейках (известная ошибка, docs/ROADMAP.md)")
+_NO_DRSDT_WET = pytest.mark.skip(reason="синтетическая колода некорректна без DRSDT (OPM Flow тоже закрывает INJ "
+                                         "на t = 0); VAPOIL+VAPPARS без DRSDT проверяет "
+                                         "test_eclipse_benchmarks::test_vappars_wet_gas_matches_opm")
 
 
 @_NO_DRSDT_WET

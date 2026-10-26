@@ -34,7 +34,7 @@ FLAG_KEYWORDS = {
 IGNORED = {"TITLE", "EQLDIMS", "TABDIMS", "WELLDIMS", "RPTSCHED", "RPTRST", "RPTSOL", "RPTPROPS",
            "RPTGRID", "RPTRUNSP", "NSTACK", "MESSAGES", "TUNING", "SPECGRID", "GRIDFILE", "MAPAXES", "GRIDUNIT"}
 # влияют на физику, но пока не поддерживаются
-UNSUPPORTED = {"SWFN", "SGFN", "SOF3", "SLGOF", "AQUFETP", "AQUCT", "PBVD", "PDVD", "RVVD",
+UNSUPPORTED = {"SWFN", "SGFN", "SOF3", "SLGOF", "AQUFETP", "AQUCT", "PBVD", "PDVD",
                "PRESSURE", "SWAT", "SGAS", "RS", "NNC", "EDITNNC",
                "DRVDT", "ROCKTAB", "WECON", "TRANX", "TRANY", "TRANZ",
                "COMPORD", "OPERATE", "MINPVV", "MINPORV",
@@ -208,7 +208,7 @@ class EclipseCase:
         self.multflt = []
         self.multregt = []
         self.pinch = None
-        self.minpv = 0.0
+        self.minpv = 1e-6   # м³, умолчание OPM при отсутствии MINPV
         self.region_tables = {}
         self.endscale = False
         self.scalecrs = False
@@ -313,9 +313,12 @@ class EclipseCase:
                 self.region_tables["equil"] = [
                     dict(datum=r[0] * u["L"], p=r[1] * u["p"], woc=_get(r, 2, 1e9 / u["L"]) * u["L"],
                          pcwoc=_get(r, 3, 0.0) * u["p"], goc=_get(r, 4, -1e9 / u["L"]) * u["L"],
-                         pcgoc=_get(r, 5, 0.0) * u["p"]) for r in recs if r]
+                         pcgoc=_get(r, 5, 0.0) * u["p"], rvvd=int(_get(r, 7, 0) or 0) > 0) for r in recs if r]
             elif kw == "RSVD":
                 self.region_tables["rsvd"] = [[(r[0] * u["L"], r[1] * u["gas"] / u["liq"]) for r in self._rows(rec, 2)]
+                                              for rec in recs if rec]
+            elif kw == "RVVD":
+                self.region_tables["rvvd"] = [[(r[0] * u["L"], r[1] * u["liq"] / u["gas"]) for r in self._rows(rec, 2)]
                                               for rec in recs if rec]
             elif kw == "DRSDT":
                 # DRSDT и VAPPARS взаимоисключающие: действует заданный последним (сообщение Eclipse
@@ -1205,6 +1208,8 @@ class EclipseCase:
                 raise ValueError(f"EQLNUM {r + 1}: нет записи EQUIL")
             eq = eqls[r]
             rsvd = rsvds[r] if rsvds is not None and r < len(rsvds) else None
+            rvvds = rt.get("rvvd")
+            rvvd = rvvds[r] if rvvds is not None and r < len(rvvds) and eq.get("rvvd") else None
             m = regs["EQLNUM"] == r
             pv_r = int(np.bincount(regs["PVTNUM"][m]).argmax())
             pvt = pvts[pv_r]
@@ -1249,7 +1254,12 @@ class EclipseCase:
                     rr = rs_s
                 rs[idx[k]] = np.where(sg[idx[k]] > 0, rs_s, rr)
                 # Rv без RVVD (EQUIL item 8 ≤ 0): насыщенный при давлении ячейки в газе (как OPM RvSatAtContact)
-                rv[idx[k]] = pvts[pv].rv_sat(pt).cpu().numpy()
+                rv_s = pvts[pv].rv_sat(pt).cpu().numpy()
+                if rvvd is not None:
+                    rvr = np.minimum(np.interp(z[k], [q[0] for q in rvvd], [q[1] for q in rvvd]), rv_s)
+                    so = 1.0 - sw[idx[k]] - sg[idx[k]]
+                    rv_s = np.where(so > 0, rv_s, rvr)
+                rv[idx[k]] = rv_s
         to = lambda a: torch.tensor(a, dtype=dt, device=device)
         return to(p_cell), to(sw), to(sg), to(rs), to(rv)
 

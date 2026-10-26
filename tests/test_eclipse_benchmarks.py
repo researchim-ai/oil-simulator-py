@@ -17,8 +17,8 @@ DATA = os.path.join(ROOT, "tests", "data")
 
 
 def _run(case, deck, base):
-    refs = {"eclipse": EclSummary(os.path.join(DATA, case, "eclipse", base)),
-            "opm": EclSummary(os.path.join(DATA, case, "opm", base))}
+    refs = {name: EclSummary(os.path.join(DATA, case, name, base)) for name in ("eclipse", "opm")
+            if os.path.exists(os.path.join(DATA, case, name, base + ".SMSPEC"))}
     summary, _ = run_deck(os.path.join(DATA, case, deck), device=torch.device("cpu"))
     return compare(summary, refs)
 
@@ -49,3 +49,10 @@ def test_spe9_matches_eclipse_and_opm():
         return 0.02
 
     _check(rows, tol)
+
+
+@pytest.mark.slow
+def test_vappars_wet_gas_matches_opm():
+    rows = _run("vappars", "VAPPARS-01.DATA", "VAPPARS-01")
+    assert len(rows) >= 4
+    _check(rows, lambda key: 0.02)
