@@ -251,6 +251,9 @@ class Simulator:
                 self.current_time += h_try
                 self.fluid.prev_pressure = self.fluid.pressure.clone()
                 self.fluid.prev_sw = self.fluid.s_w.clone()
+                hook = getattr(self, "substep_hook", None)
+                if hook is not None:
+                    hook(self.current_time / 86400.0)     # экономические пределы и WTEST — после каждого шага
                 it = max(self.fim_solver.last_newton_iters, 1)
                 if opm:
                     h_new = self._opm_dt(h_try, it, p0, s0, target_it, pid_tol)

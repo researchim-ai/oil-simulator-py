@@ -73,6 +73,54 @@ class WellTestState:
         self.testing = set()
         self.events = []     # [(t сут, скважина, 'close' | 'test' | 'reopen')]
 
+    def substep(self, case, step, t, wm, fw):
+        """
+        После каждого шага по времени (как OPM): экономические пределы WECON — добывающая с дебитом ниже
+        минимального (или с превышением отношения при процедуре WELL) закрывается по причине 'E'; закрытая
+        по 'E' открывается на пробу, когда прошёл интервал WTEST, и остаётся открытой, если пределы выполнены.
+        """
+        wecon, wtest = case.wecon_steps[step], case.wtest_steps[step]
+        for w in wm.wells:
+            cfg = wecon.get(w.name)
+            if cfg is None or w.type != "producer" or w.control_type == "shut":
+                continue
+            if w.name in self.closed and w.name not in self.testing:
+                continue
+            k = fw.wells.index(w)
+            if not bool((fw.conn_open[fw.conn_well == k] > 0).any()):
+                continue
+            q = getattr(w, "last_surface_rates", None) or {}
+            if self._violates(cfg, q):
+                prev = self.closed.get(w.name)
+                self.closed[w.name] = dict(reason="E", t=t, tests=prev["tests"] if prev else 0)
+                self.testing.discard(w.name)
+                fw.set_open(k, False)
+                self.events.append((t, w.name, "close"))
+            elif w.name in self.testing:
+                self.testing.discard(w.name)
+                self._reopen(t, w.name)
+        for w in wm.wells:
+            st, wt = self.closed.get(w.name), wtest.get(w.name)
+            if st is None or st["reason"] != "E" or w.name in self.testing or wt is None or "E" not in wt["reasons"] \
+                    or w.control_type == "shut":
+                continue
+            if (wt["tests"] == 0 or st["tests"] < wt["tests"]) and t - st["t"] >= wt["interval"] - 1e-9:
+                st["tests"] += 1
+                self.testing.add(w.name)
+                fw.set_open(fw.wells.index(w), True)
+                self.events.append((t, w.name, "test"))
+
+    @staticmethod
+    def _violates(cfg, q):
+        qo, qw, qg = (max(q.get(ph, 0.0), 0.0) for ph in ("oil", "water", "gas"))
+        if any(cfg[k] and v < cfg[k] for k, v in (("oil", qo), ("gas", qg), ("liq", qo + qw))):
+            return True
+        if cfg["work"] != "WELL":
+            return False
+        ratio = lambda a, b: a / b if b > 0 else 0.0
+        return any(cfg[k] and v > cfg[k] for k, v in (("wct", ratio(qw, qo + qw)), ("gor", ratio(qg, qo)),
+                                                     ("wgr", ratio(qw, qg)), ("glr", ratio(qg, qo + qw))))
+
     def before_step(self, case, step, t, wm, fw):
         for name in case.reopen_steps[step]:
             self.closed.pop(name, None)
@@ -342,11 +390,13 @@ def iter_deck(path, device=None, sim_overrides=None, cells=(), quiet=True, max_d
         apply_controls(case, n, wm, solver)
         if wtest is not None:
             wtest.before_step(case, n, t, wm, fw)
+            sim.substep_hook = (lambda tt, n=n: wtest.substep(case, n, tt, wm, fw)) if case.wecon_steps[n] else None
         if control_hook is not None:
             control_hook(n, t, wm, solver)
         buf = io.StringIO()
         with contextlib.redirect_stdout(buf) if quiet else contextlib.nullcontext():
             ok = sim.run_step(d * DAY)
+        sim.substep_hook = None
         log = buf.getvalue()
         newton += log.count("Iter ") - log.count("Converged!")
         substeps += log.count("Converged!")

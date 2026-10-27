@@ -37,7 +37,7 @@ IGNORED = {"TITLE", "EQLDIMS", "TABDIMS", "WELLDIMS", "RPTSCHED", "RPTRST", "RPT
 # влияют на физику, но пока не поддерживаются
 UNSUPPORTED = {"SWFN", "SGFN", "SOF3", "SLGOF", "AQUFETP", "AQUCT", "PDVD",
                "PRESSURE", "SWAT", "SGAS", "RS", "NNC", "EDITNNC",
-               "DRVDT", "ROCKTAB", "WECON", "TRANX", "TRANY", "TRANZ",
+               "DRVDT", "ROCKTAB", "TRANX", "TRANY", "TRANZ",
                "COMPORD", "OPERATE", "MINPVV", "MINPORV",
                "OLDTRAN", "HYSTER", "LGR", "CARFIN"}
 ARRAY_KEYWORDS = {"DX", "DY", "DZ", "TOPS", "PORO", "PERMX", "PERMY", "PERMZ", "NTG", "ACTNUM",
@@ -246,6 +246,8 @@ class EclipseCase:
         self.conn_steps = []     # на каждый отчётный шаг: {скважина: {ijk: параметры соединения}}
         self.wtest = {}          # текущие WTEST: {скважина: dict(interval сут, reasons, tests)}
         self.wtest_steps = []    # снимок WTEST на каждый отчётный шаг
+        self.wecon = {}          # WECON: {скважина: dict(oil, gas, liq — мин. дебиты м³/сут; wct, gor, wgr, glr; work)}
+        self.wecon_steps = []
         self.reopen_steps = []   # скважины с явным WELOPEN OPEN перед отчётным шагом
         self._reopen = set()
         self.vfp = {}            # текущие таблицы VFP: {номер: VFPProd, ('INJ', номер): VFPInj}
@@ -523,6 +525,24 @@ class EclipseCase:
                 for r in recs:
                     if r:
                         self._wtest(r)
+            elif kw == "WECON":
+                for r in recs:
+                    if not r:
+                        continue
+                    work = str(_get(r, 6, "NONE")).upper()
+                    if str(_get(r, 9, "RATE")).upper() != "RATE":
+                        raise NotImplementedError(f"WECON {r[0]}: пределы по потенциалу (POTN)")
+                    if str(_get(r, 7, "NO")).upper().startswith("Y"):
+                        raise NotImplementedError(f"WECON {r[0]}: остановка расчёта (END RUN)")
+                    lim = lambda k, s: None if not _get(r, k) else float(_get(r, k)) * s
+                    cfg = dict(oil=lim(1, u["liq"]), gas=lim(2, u["gas"]), liq=lim(13, u["liq"]),
+                               wct=lim(3, 1.0), gor=lim(4, u["gas"] / u["liq"]), wgr=lim(5, u["liq"] / u["gas"]),
+                               glr=lim(12, u["gas"] / u["liq"]), work=work)
+                    ratios = any(cfg[k] for k in ("wct", "gor", "wgr", "glr"))
+                    if ratios and work not in ("NONE", "WELL"):
+                        raise NotImplementedError(f"WECON {r[0]}: процедура {work} (поддержаны NONE и WELL)")
+                    for name in self._match_wells(str(r[0])):
+                        self.wecon[name] = cfg
             elif kw == "START":
                 r = recs[0]
                 self.start = _date(r)
@@ -663,6 +683,7 @@ class EclipseCase:
 
     def _close_step_events(self):
         self.wtest_steps.append({k: dict(v) for k, v in self.wtest.items()})
+        self.wecon_steps.append(dict(self.wecon))
         self.vfp_steps.append(dict(self.vfp))
         self.liftopt_steps.append(self.liftopt)
         self.wliftopt_steps.append(dict(self.wliftopt))

@@ -115,3 +115,25 @@ def test_network_matches_opm(case):
         return 0.01
 
     _check(rows, tol)
+
+
+@pytest.mark.slow
+def test_wecon_wtest_network_matches_opm():
+    """NETWORK-01-WTEST (opm-tests): WECON — минимальный дебит нефти 2000 м³/сут, WTEST раз в сутки по причине E.
+    PROD2 циклически закрывается и открывается на пробу; мгновенные дебиты зависят от фазы цикла в момент отчёта,
+    поэтому строго сверяются накопленные."""
+    ref = EclSummary(os.path.join(DATA, "network", "opm", "NETWORK-01-WTEST"))
+    summary, info = run_deck(os.path.join(DATA, "network", "NETWORK-01-WTEST.DATA"), device=torch.device("cpu"))
+    ev = [(name, kind) for _, name, kind in info["well_events"]]
+    assert ("PROD2", "close") in ev and ("PROD2", "test") in ev and ("PROD2", "reopen") in ev
+    rows = compare(summary, {"opm": ref})
+
+    def tol(key):
+        kw = key.split(":")[0]
+        if kw.endswith("PT") or kw.endswith("IT"):
+            return 0.02
+        if kw.endswith("SAT"):
+            return 0.03
+        return 0.2
+
+    _check(rows, tol)

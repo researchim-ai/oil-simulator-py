@@ -19,7 +19,7 @@
 
 ## 2. Скважины и прогнозные расчёты
 
-1. **WECON, WCUTBACK** — экономические ограничения (NETWORK-01-WTEST из opm-tests ждёт WECON), WVFPDP.
+1. **WCUTBACK, WVFPDP**; в WECON — POTN, END RUN и workover CON (WECON с WTEST сделан, NETWORK-01-WTEST).
    VFPPROD/VFPINJ, THP, газлифт и поверхностная сеть (BRANPROP/NODEPROP/GRUPNET) сделаны.
 2. **Сеть глубже**: GSATPROD/GCONSUMP, сеть закачки (GNETINJE), NODEPROP с дросселем, GEFAC.
 3. **Группы глубже**: GCONPROD/GCONINJE со всеми режимами, приоритеты, ограничения по газу и жидкости на платформу.
