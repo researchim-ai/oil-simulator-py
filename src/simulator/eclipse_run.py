@@ -22,9 +22,13 @@ def apply_controls(case, step, wm, solver):
         fw.groups = (GroupTree(case.group_parent, case.well_group), case.group_constraints(step))
     if fw is not None and hasattr(fw, "vfp"):
         fw.vfp, fw.depth_top = case.vfp_steps[step], getattr(case, "depth_top", 0.0)
+        fw.liftopt, fw.wliftopt = case.liftopt_steps[step], case.wliftopt_steps[step]
+        fw.alq_si = case.u["gas"] / 86400.0
+        fw.gliftopt = case.gliftopt_steps[step]
     for idx, w in enumerate(wm.wells):
         cfg = case.control_cfg(w.name, controls.get(w.name))
         w.thp_limit, w.vfp_table, w.alq = cfg.get("thp_limit"), cfg.get("vfp_table"), cfg.get("alq", 0.0)
+        w.eff = case.wefac_steps[step].get(w.name, 1.0)
         retype = cfg["type"] != w.type or (
             cfg["type"] == "injector" and cfg.get("injected_phase", w.injected_phase) != w.injected_phase)
         if retype and cfg["control_type"] != "shut":
@@ -117,9 +121,9 @@ def _requests(case, cells):
     out = []
     names = [w for w in case.wells]
     for kw, recs in case.summary_requests:
-        if kw[0] == "F" and kw in ("FOPR", "FWPR", "FGPR", "FGOR", "FWCT", "FOPT", "FWPT", "FGPT", "FWIR", "FGIR"):
+        if kw[0] == "F" and kw in ("FOPR", "FWPR", "FGPR", "FGOR", "FWCT", "FOPT", "FWPT", "FGPT", "FWIR", "FGIR", "FGLIR"):
             out.append((kw, "F", None))
-        elif kw[0] == "W" and kw[1:] in ("BHP", "THP", "OPR", "WPR", "GPR", "WIR", "GIR", "OIR", "OPT", "WPT", "GPT",
+        elif kw[0] == "W" and kw[1:] in ("BHP", "THP", "GLIR", "OPR", "WPR", "GPR", "WIR", "GIR", "OIR", "OPT", "WPT", "GPT",
                                          "OIT", "WIT", "GIT", "GOR"):
             listed = [str(v) for r in recs for v in r if v is not None] or names
             for n in listed:
@@ -224,12 +228,15 @@ def iter_deck(path, device=None, sim_overrides=None, cells=(), quiet=True, max_d
         for w in wm.wells:
             q = rates(w)
             wr[w.name] = q
+            e = float(getattr(w, "eff", 1.0) or 1.0)          # WEFAC: групповые дебиты — ε·q
             for ph in f:
                 if w.type == "producer":
-                    f[ph] += q[ph]
+                    f[ph] += e * q[ph]
                 elif ph in fi:
-                    fi[ph] += -q[ph]
-        vals = {"FOPR": f["oil"], "FWPR": f["water"], "FGPR": f["gas"], "FWIR": fi["water"], "FGIR": fi["gas"],
+                    fi[ph] += -e * q[ph]
+        lift = lambda w: float(getattr(w, "alq", 0.0) or 0.0) if (
+            w.type == "producer" and w.control_type != "shut" and getattr(w, "vfp_table", None) is not None) else 0.0
+        vals = {"FGLIR": sum(lift(w) * float(getattr(w, "eff", 1.0) or 1.0) for w in wm.wells), "FOPR": f["oil"], "FWPR": f["water"], "FGPR": f["gas"], "FWIR": fi["water"], "FGIR": fi["gas"],
                 "FGOR": f["gas"] / f["oil"] if f["oil"] > 0 else np.nan,
                 "FWCT": f["water"] / (f["water"] + f["oil"]) if f["water"] + f["oil"] > 0 else np.nan}
         cum = {w.name: {ph: (getattr(w, "cum_prod", None) or {}).get(ph, 0.0) / rate_u[ph]
@@ -250,6 +257,8 @@ def iter_deck(path, device=None, sim_overrides=None, cells=(), quiet=True, max_d
                     v = np.nan if getattr(w, "bhp_mpa", None) is None else w.bhp_mpa * 1e6 / u["p"]
                     if w.control_type == "shut":
                         v = 0.0
+                elif kw == "WGLIR":
+                    v = lift(w)
                 elif kw == "WTHP":
                     v = 0.0 if getattr(w, "thp_mpa", None) is None else w.thp_mpa * 1e6 / u["p"]
                 elif kw == "WGOR":
@@ -277,7 +286,7 @@ def iter_deck(path, device=None, sim_overrides=None, cells=(), quiet=True, max_d
                         continue
                     if (w.type == "producer") != prod:
                         continue
-                    v += wr[w.name][ph] if prod else -wr[w.name][ph]
+                    v += float(getattr(w, "eff", 1.0) or 1.0) * (wr[w.name][ph] if prod else -wr[w.name][ph])
             else:
                 v = block_value(*arg)
             summary.setdefault(key, []).append(v)

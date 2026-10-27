@@ -243,6 +243,13 @@ class EclipseCase:
         self._reopen = set()
         self.vfp = {}            # текущие таблицы VFP: {номер: VFPProd, ('INJ', номер): VFPInj}
         self.vfp_steps = []      # снимок таблиц VFP на каждый отчётный шаг
+        self.liftopt = None      # LIFTOPT: dict(inc — шаг газлифта в ед. ALQ, grad — мин. ст. м³ нефти / ст. м³ газа,
+                                 # interval — мин. интервал оптимизации, сут)
+        self.wliftopt = {}       # WLIFTOPT: {скважина: dict(opt, max — None: по таблице VFP, weight, min)}
+        self.liftopt_steps, self.wliftopt_steps = [], []
+        self.wefac = {}          # WEFAC: {скважина: коэффициент эксплуатации}
+        self.gliftopt = {}       # GLIFTOPT: {группа: макс. газлифт, ед. ALQ}
+        self.wefac_steps, self.gliftopt_steps = [], []
         gcon = {}
         date = None
         opened = {}
@@ -451,6 +458,27 @@ class EclipseCase:
                 from .vfp import VFPProd
                 t = VFPProd(recs, u)
                 self.vfp[t.number] = t
+            elif kw == "WEFAC":
+                for r in recs:
+                    if r:
+                        for name in self._match_wells(str(r[0])):
+                            self.wefac[name] = float(_get(r, 1, 1.0) or 1.0)
+            elif kw == "GLIFTOPT":
+                for r in recs:
+                    if r and _get(r, 1) is not None:
+                        self.gliftopt[str(r[0])] = float(r[1])
+            elif kw == "LIFTOPT":
+                r = recs[0]
+                self.liftopt = dict(inc=float(_get(r, 0, 0.0) or 0.0), grad=float(_get(r, 1, 0.0) or 0.0)
+                                    * u["liq"] / u["gas"], interval=float(_get(r, 2, 0.0) or 0.0))
+            elif kw == "WLIFTOPT":
+                for r in recs:
+                    if not r:
+                        continue
+                    cfg = dict(opt=str(_get(r, 1, "NO")).upper().startswith("Y"), max=_get(r, 2),
+                               weight=float(_get(r, 3, 1.0) or 1.0), min=float(_get(r, 4, 0.0) or 0.0))
+                    for name in self._match_wells(str(r[0])):
+                        self.wliftopt[name] = cfg
             elif kw == "VFPINJ":
                 from .vfp import VFPInj
                 t = VFPInj(recs, u)
@@ -600,6 +628,10 @@ class EclipseCase:
     def _close_step_events(self):
         self.wtest_steps.append({k: dict(v) for k, v in self.wtest.items()})
         self.vfp_steps.append(dict(self.vfp))
+        self.liftopt_steps.append(self.liftopt)
+        self.wliftopt_steps.append(dict(self.wliftopt))
+        self.wefac_steps.append(dict(self.wefac))
+        self.gliftopt_steps.append(dict(self.gliftopt))
         self.reopen_steps.append(self._reopen)
         self._reopen = set()
 
@@ -1069,6 +1101,13 @@ class EclipseCase:
         for key, r in self.group_steps[step].items():
             g = key[0]
             mode = str(_get(r, 1 if key[1] == "prod" else 2, "NONE")).upper()
+            if key[1] == "prod" and str(_get(r, 6, "NONE")).upper() == "RATE":
+                # ограничения дебитов с действием RATE при превышении — группа переходит на этот дебит
+                for m, ph, cv in ((2, "oil", u["liq"]), (3, "water", u["liq"]), (4, "gas", u["gas"]),
+                                  (5, "liquid", u["liq"])):
+                    lim = _get(r, m)
+                    if lim is not None and float(lim) > 0 and {"ORAT": 2, "WRAT": 3, "GRAT": 4, "LRAT": 5}.get(mode) != m:
+                        out.append(dict(group=g, kind="prod", phase=ph, target=float(lim) * cv))
             if mode in ("NONE", "FLD", "' '"):
                 continue
             if key[1] == "prod":

@@ -71,3 +71,24 @@ def test_vfpinj_thp_control_matches_opm():
     assert any(r["vector"] == "WTHP:INJ1" for r in rows)
     # BWSAT в переходной зоне у INJ2 расходится с OPM на 0.0045 уже в начальном равновесии
     _check(rows, lambda key: 0.05 if key.startswith("BWSAT") else 0.01)
+
+
+@pytest.mark.slow
+def test_gaslift_matches_opm():
+    """GASLIFT-04 (opm-tests): газлифт LIFTOPT/WLIFTOPT, THP, групповая цель, WEFAC. Сверка до 213 сут: дальше
+    OPM закрывает скважины без газлифта и не открывает их по WTEST (в его эталоне нули до конца)."""
+    ref = EclSummary(os.path.join(DATA, "gaslift", "opm", "GASLIFT-04"))
+    summary, _ = run_deck(os.path.join(DATA, "gaslift", "GASLIFT-04.DATA"), device=torch.device("cpu"),
+                          max_days=213)
+    rows = compare(summary, {"opm": ref})
+    assert any(r["vector"] == "FGLIR" for r in rows)
+
+    def tol(key):
+        kw = key.split(":")[0]
+        if kw.endswith("GLIR"):
+            return 0.2          # шаг газлифта 40 000: OPM доводит газлифт до цели не кратно шагу
+        if kw in ("FWPR", "FWIR"):
+            return 0.08
+        return 0.01
+
+    _check(rows, tol)
