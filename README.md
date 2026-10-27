@@ -87,5 +87,5 @@ python scripts/export_pdf.py  # PDF в site/pdf/OilSimulatorDocs.pdf
 
 ## План
 
-[`docs/ROADMAP.md`](docs/ROADMAP.md): ускорение (float32, пакетный прогон), VFP и устьевые ограничения,
-многосегментные скважины, вывод в форматах Eclipse, градиенты для оптимизации.
+[`docs/ROADMAP.md`](docs/ROADMAP.md): ускорение (float32, пакетный прогон), неявные многосегментные скважины
+с клапанами, вывод в форматах Eclipse, градиенты для оптимизации.
