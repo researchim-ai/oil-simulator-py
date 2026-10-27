@@ -248,6 +248,10 @@ class EclipseCase:
         self.wtest_steps = []    # снимок WTEST на каждый отчётный шаг
         self.wecon = {}          # WECON: {скважина: dict(oil, gas, liq — мин. дебиты м³/сут; wct, gor, wgr, glr; work)}
         self.wecon_steps = []
+        self.wcutback = {}       # WCUTBACK: {скважина: dict(wct, gor, glr, wgr, factor, phase, bhp, thp — МПа)}
+        self.wcutback_steps = []
+        self.cutback_reset_steps = []  # скважины, у которых на шаге заново заданы WCONPROD/WCONHIST/WCUTBACK
+        self._cut_reset = set()
         self.reopen_steps = []   # скважины с явным WELOPEN OPEN перед отчётным шагом
         self._reopen = set()
         self.vfp = {}            # текущие таблицы VFP: {номер: VFPProd, ('INJ', номер): VFPInj}
@@ -440,6 +444,7 @@ class EclipseCase:
                     st = str(_get(r, 1 if kw in ("WCONPROD", "WCONHIST") else 2, "OPEN")).upper()
                     for name in self._match_wells(r[0]):
                         controls[name] = (kw, r, st)
+                        self._cut_reset.add(name)
                         opened.setdefault(name, len(self.steps) if st == "OPEN" else None)
             elif kw == "GRUPTREE":
                 for r in recs:
@@ -543,6 +548,22 @@ class EclipseCase:
                         raise NotImplementedError(f"WECON {r[0]}: процедура {work} (поддержаны NONE и WELL)")
                     for name in self._match_wells(str(r[0])):
                         self.wecon[name] = cfg
+            elif kw == "WCUTBACK":
+                for r in recs:
+                    if not r:
+                        continue
+                    lim = lambda k, s: None if not _get(r, k) else float(_get(r, k)) * s
+                    phase = _get(r, 6)
+                    phase = None if phase is None else str(phase).upper()[:3]
+                    if phase not in (None, "OIL", "WAT", "GAS", "LIQ"):
+                        raise NotImplementedError(f"WCUTBACK {r[0]}: фаза управления {phase}")
+                    cfg = dict(wct=lim(1, 1.0), gor=lim(2, u["gas"] / u["liq"]), glr=lim(3, u["gas"] / u["liq"]),
+                               wgr=lim(4, u["liq"] / u["gas"]), factor=float(_get(r, 5, 1.0) or 1.0),
+                               phase={"OIL": "oil", "WAT": "water", "GAS": "gas", "LIQ": "liquid"}.get(phase),
+                               bhp=lim(7, u["p"] / 1e6), thp=lim(8, u["p"] / 1e6))
+                    for name in self._match_wells(str(r[0])):
+                        self.wcutback[name] = cfg
+                        self._cut_reset.add(name)
             elif kw == "START":
                 r = recs[0]
                 self.start = _date(r)
@@ -684,6 +705,9 @@ class EclipseCase:
     def _close_step_events(self):
         self.wtest_steps.append({k: dict(v) for k, v in self.wtest.items()})
         self.wecon_steps.append(dict(self.wecon))
+        self.wcutback_steps.append(dict(self.wcutback))
+        self.cutback_reset_steps.append(self._cut_reset)
+        self._cut_reset = set()
         self.vfp_steps.append(dict(self.vfp))
         self.liftopt_steps.append(self.liftopt)
         self.wliftopt_steps.append(dict(self.wliftopt))

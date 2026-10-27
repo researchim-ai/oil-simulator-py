@@ -137,3 +137,23 @@ def test_wecon_wtest_network_matches_opm():
         return 0.2
 
     _check(rows, tol)
+
+
+@pytest.mark.slow
+def test_wcutback_gor_spe1(tmp_path):
+    """WCUTBACK на SPE1 (эталона нет: OPM Flow WCUTBACK не поддерживает): после прорыва газа GOR PROD выше
+    2 тыс. фут³/барр., и в конце каждого шага её дебит нефти умножается на 0.8, пока предел нарушен."""
+    src = open(os.path.join(DATA, "spe1", "SPE1CASE1.DATA")).read().replace("SUMMARY\n", "SUMMARY\nFOPT\n", 1)
+    key = "'PROD' 'OPEN' 'ORAT' 20000 4* 1000 /\n/\n"
+    assert key in src
+    (tmp_path / "BASE.DATA").write_text(src)
+    (tmp_path / "CUT.DATA").write_text(src.replace(key, key + "\nWCUTBACK\n 'PROD' 1* 2.0 2* 0.8 /\n/\n"))
+    base, _ = run_deck(str(tmp_path / "BASE.DATA"), device=torch.device("cpu"), max_days=1100)
+    cut, info = run_deck(str(tmp_path / "CUT.DATA"), device=torch.device("cpu"), max_days=1100)
+    times = [t for t, name, kind in info["well_events"] if name == "PROD" and kind == "cutback"]
+    assert len(times) >= 5
+    for t, q, gor in zip(cut["TIME"][1:], cut["WOPR:PROD"][1:], cut["WGOR:PROD"][1:]):
+        k = sum(tc < t - 1e-6 for tc in times)
+        assert q == pytest.approx(20000 * 0.8 ** k, rel=1e-4)
+        assert (gor > 2.0) == any(abs(tc - t) < 1e-6 for tc in times)
+    assert cut["FOPT"][-1] < 0.9 * base["FOPT"][-1]

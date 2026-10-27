@@ -110,6 +110,63 @@ class WellTestState:
                 fw.set_open(fw.wells.index(w), True)
                 self.events.append((t, w.name, "test"))
 
+    def apply_cutbacks(self, case, step, wm, fw):
+        """Сокращения WCUTBACK, накопленные раньше, переживают смену шага (сброс — новым WCONPROD/WCUTBACK)."""
+        cut = self.__dict__.setdefault("cut", {})
+        for name in case.cutback_reset_steps[step]:
+            cut.pop(name, None)
+        for w in wm.wells:
+            c = cut.get(w.name)
+            if c is not None and w.control_type != "shut":
+                self._rate_control(w, fw, c["phase"], c["value"])
+                w.rate_limits = {ph: v * c["mult"] for ph, v in w.rate_limits.items()}
+
+    def cutback(self, case, step, t, wm, fw):
+        """
+        WCUTBACK после каждого шага по времени (как Eclipse): добывающая, у которой отношение (WCT, GOR, GLR, WGR)
+        выше предела или BHP/THP ниже предела, переводится на дебит = текущий × коэффициент; на контроле по
+        дебиту — по своей фазе, на контроле по давлению — по фазе из WCUTBACK. Сокращение не отменяется.
+        """
+        cut = self.__dict__.setdefault("cut", {})
+        for w in wm.wells:
+            cfg = case.wcutback_steps[step].get(w.name)
+            if cfg is None or w.type != "producer" or w.control_type == "shut":
+                continue
+            k = fw.wells.index(w)
+            if not bool((fw.conn_open[fw.conn_well == k] > 0).any()):
+                continue
+            q = {ph: max(v, 0.0) for ph, v in (getattr(w, "last_surface_rates", None) or {}).items()}
+            qo, qw, qg = q.get("oil", 0.0), q.get("water", 0.0), q.get("gas", 0.0)
+            ratio = lambda a, b: a / b if b > 0 else 0.0
+            bhp, thp = getattr(w, "bhp_mpa", None), getattr(w, "thp_mpa", None)
+            hit = any(cfg[k_] and v > cfg[k_] for k_, v in (
+                ("wct", ratio(qw, qo + qw)), ("gor", ratio(qg, qo)), ("glr", ratio(qg, qo + qw)),
+                ("wgr", ratio(qw, qg))))
+            hit = hit or (cfg["bhp"] and bhp is not None and bhp < cfg["bhp"]) \
+                or (cfg["thp"] and thp is not None and thp < cfg["thp"])
+            if not hit:
+                continue
+            if w.grup:
+                raise NotImplementedError(f"WCUTBACK {w.name}: скважина под групповым управлением (GRUP)")
+            mode = fw.mode[k] if hasattr(fw, "mode") else w.control_type
+            own = w.surface_phase if w.control_type == "rate" else None
+            phase = (own if mode == "rate" else cfg["phase"] or own) or "liquid"
+            prev = cut.get(w.name, {"mult": 1.0})
+            cut[w.name] = dict(phase=phase, value=q.get(phase, 0.0) * cfg["factor"],
+                               mult=prev["mult"] * cfg["factor"])
+            self._rate_control(w, fw, phase, cut[w.name]["value"])
+            w.rate_limits = {ph: v * cfg["factor"] for ph, v in w.rate_limits.items()}
+            self.events.append((t, w.name, "cutback"))
+
+    @staticmethod
+    def _rate_control(w, fw, phase, value):
+        k = fw.wells.index(w)
+        if phase != w.surface_phase and hasattr(fw, "rate_w"):
+            fw.set_surface_phase(k, phase)
+        w.control_type, w.control_value, w.surface_phase, w.start_mode = "rate", value, phase, None
+        if hasattr(fw, "mode"):
+            fw.mode[k] = "rate"
+
     @staticmethod
     def _violates(cfg, q):
         qo, qw, qg = (max(q.get(ph, 0.0), 0.0) for ph in ("oil", "water", "gas"))
@@ -390,7 +447,10 @@ def iter_deck(path, device=None, sim_overrides=None, cells=(), quiet=True, max_d
         apply_controls(case, n, wm, solver)
         if wtest is not None:
             wtest.before_step(case, n, t, wm, fw)
-            sim.substep_hook = (lambda tt, n=n: wtest.substep(case, n, tt, wm, fw)) if case.wecon_steps[n] else None
+            wtest.apply_cutbacks(case, n, wm, fw)
+            hooks = ([wtest.substep] if case.wecon_steps[n] else []) + \
+                ([wtest.cutback] if case.wcutback_steps[n] else [])
+            sim.substep_hook = (lambda tt, n=n, hooks=hooks: [h(case, n, tt, wm, fw) for h in hooks]) if hooks else None
         if control_hook is not None:
             control_hook(n, t, wm, solver)
         buf = io.StringIO()
