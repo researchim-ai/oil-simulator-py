@@ -12,8 +12,6 @@
 где b = 1/B. Свойства ячейки и их производные по (P, Sw, X) берутся прямым режимом AD (torch.func.jvp),
 потоки по граням и скважины собираются вручную с upwind по потенциалу каждой фазы.
 """
-import os
-
 import numpy as np
 import torch
 import torch.nn.functional as F
@@ -383,7 +381,7 @@ class BlackOilWells(FIMWells):
             self._mix = None
             if self.wellbore_mixing:
                 q, dqb = self._wellbore_mixing(q, is_inj_w & ~inj, inj, dq, dqb)
-        if self.wellbore_mixing and not os.environ.get("NO_PXF"):
+        if self.wellbore_mixing:
             back = ~self.is_inj[cw] & (dpp < 0.0) & (wi > 0)
             if bool(back.any()):
                 q, dq, dqb = self._producer_crossflow(v, d, q, dq, dqb, dpp, back, wi)
@@ -392,10 +390,10 @@ class BlackOilWells(FIMWells):
     def _producer_crossflow(self, v, d, q, dq, dqb, dpp, back, wi):
         """
         Переток из ствола добывающей в пласт (как OPM Flow): пластовый расход r = WI·λt·Δp (λt — суммарная
-        подвижность ячейки) несёт смесь ствола — нетто-состав потока скважины на поверхность (WFrac/GFrac
-        OPM); поверхностные объёмы — r / Σ(смесь в пластовых условиях ячейки: b, Rs, Rv). У многосегментной
-        смесь — нетто-поток своего сегмента (все перфорации его поддерева). Состав зависит от самого перетока —
-        несколько итераций неподвижной точки; без притока в ствол — флюид ячейки. В линеаризации состав заморожен.
+        подвижность ячейки) несёт смесь ствола; поверхностные объёмы — r / Σ(смесь в пластовых условиях ячейки:
+        b, Rs, Rv). У обычной скважины смесь — суммарный приток её продуктивных перфораций. У многосегментной —
+        нетто-поток своего сегмента (все перфорации его поддерева); он зависит от самого перетока — несколько
+        итераций неподвижной точки, при нетто-потоке ~0 — состав притока. В линеаризации состав заморожен.
         """
         c, cw, rho = self.conn_cell, self.conn_well, self.rho_sc
         prod = ~self.is_inj[cw]
@@ -419,16 +417,12 @@ class BlackOilWells(FIMWells):
         seg_conn = torch.zeros_like(back)
         for m in getattr(self, "msw", {}).values():
             seg_conn[m["conns"]] = True
-        if not os.environ.get("ALLXF"):
-            back = back & seg_conn
         s_in = through(torch.where((prod & (dpp > 0)).unsqueeze(1), q0, torch.zeros_like(q0))).clamp_min(0.0)
         for _ in range(6):
             s = through(torch.where(prod.unsqueeze(1), q, torch.zeros_like(q)))
             # нетто-поток ~0 (остановленная скважина с внутренним перетоком) — состав притока
             weak = (s.clamp_min(0.0).sum(1) < 1e-3 * s_in.sum(1)) | (s < -1e-9 * s_in.sum(1, keepdim=True)).any(1) | ~seg_conn
             s = torch.where(weak.unsqueeze(1), s_in, s.clamp_min(0.0))
-            if os.environ.get("CELLCOMP"):
-                s = (-q0 / rho).clamp_min(0.0)
             tot = s.sum(1)
             cm = s / tot.clamp_min(1e-300).unsqueeze(1)
             sel = back & (tot > 0)
@@ -886,8 +880,7 @@ class BlackOilWells(FIMWells):
                 self._net_iter += 1
                 msgs.append("сеть: " + ", ".join(f"{k} {v / 1e5:.2f} бар" for k, v in self.node_p.items()
                                                   if v is not None))
-        if self.switches >= 4 * max(1, self.n_w):
-            return msgs
+        capped = self.switches >= 4 * max(1, self.n_w)
         for w_idx, w in enumerate(self.wells):
             ctrl, val = self.step_targets[w_idx]
             if ctrl != 'rate':
@@ -927,8 +920,10 @@ class BlackOilWells(FIMWells):
                     new = 'thp_limit'
                 elif mode == 'thp_limit' and (thp_b is None or sg * pb < sg * lim):
                     new = 'bhp_limit'
-            # не больше 3 переключений скважины за шаг (как max_number_of_well_switches в OPM)
-            if new is not None and self.well_switches[w_idx] < 3:
+            # не больше 3 переключений скважины за шаг (как max_number_of_well_switches в OPM); возврат на дебит
+            # разрешён всегда: решение на ограничении с дебитом выше уставки недопустимо
+            exhausted = capped or self.well_switches[w_idx] >= 3
+            if new is not None and (not exhausted or new == 'rate'):
                 self.step_mode[w_idx] = new
                 self.switches += 1
                 self.well_switches[w_idx] += 1
