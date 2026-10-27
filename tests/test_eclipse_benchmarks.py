@@ -140,6 +140,26 @@ def test_wecon_wtest_network_matches_opm():
 
 
 @pytest.mark.slow
+@pytest.mark.parametrize("case", ["MSW_MODEL_1", "BASE_MODEL_1"])
+def test_model1_msw_matches_opm(case):
+    """
+    MODEL1 (opm-tests): STONE1, разные DENSITY по PVTNUM, SWATINIT, WCONHIST RESV. MSW_MODEL_1 — те же скважины
+    многосегментными (WELSEGS/COMPSEGS). У PROD-3 барьер между слоями 4 и 5: нефть слоя 5 через ствол уходит
+    в газовую шапку (переток смесью ствола; у многосегментной — смесью своего сегмента).
+    """
+    rows = compare(run_deck(os.path.join(DATA, "model1", case + ".DATA"), device=torch.device("cpu"))[0],
+                   {"opm": EclSummary(os.path.join(DATA, "model1", "opm", case))})
+    assert any(r["vector"] == "WOPR:PROD-3" for r in rows)
+
+    def tol(key):
+        if case == "BASE_MODEL_1" and key.endswith("PROD-3") and key[:4] in ("WGOR", "WOPR"):
+            return 0.06         # первый месяц после пуска PROD-3: OPM считает его меньшими шагами
+        return 0.03
+
+    _check(rows, tol)
+
+
+@pytest.mark.slow
 def test_wcutback_gor_spe1(tmp_path):
     """WCUTBACK на SPE1 (эталона нет: OPM Flow WCUTBACK не поддерживает): после прорыва газа GOR PROD выше
     2 тыс. фут³/барр., и в конце каждого шага её дебит нефти умножается на 0.8, пока предел нарушен."""

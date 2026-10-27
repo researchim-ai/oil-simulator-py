@@ -14,6 +14,7 @@
 """
 import datetime
 import fnmatch
+import math
 import re
 from pathlib import Path
 
@@ -33,12 +34,12 @@ FLAG_KEYWORDS = {
 # ключевые слова, которые читаются, но не влияют на расчёт
 IGNORED = {"TITLE", "EQLDIMS", "TABDIMS", "WELLDIMS", "RPTSCHED", "RPTRST", "RPTSOL", "RPTPROPS",
            "RPTGRID", "RPTRUNSP", "NSTACK", "MESSAGES", "TUNING", "SPECGRID", "GRIDFILE", "MAPAXES", "GRIDUNIT",
-           "NETWORK"}
+           "NETWORK", "COMPORD"}
 # влияют на физику, но пока не поддерживаются
 UNSUPPORTED = {"SWFN", "SGFN", "SOF3", "SLGOF", "AQUFETP", "AQUCT", "PDVD",
                "PRESSURE", "SWAT", "SGAS", "RS", "NNC", "EDITNNC",
                "DRVDT", "ROCKTAB", "TRANX", "TRANY", "TRANZ",
-               "COMPORD", "OPERATE", "MINPVV", "MINPORV",
+               "OPERATE", "MINPVV", "MINPORV",
                "OLDTRAN", "HYSTER", "LGR", "CARFIN"}
 ARRAY_KEYWORDS = {"DX", "DY", "DZ", "TOPS", "PORO", "PERMX", "PERMY", "PERMZ", "NTG", "ACTNUM",
                   "MULTX", "MULTY", "MULTZ", "MULTX-", "MULTY-", "MULTZ-", "MULTPV", "FLUXNUM", "MULTNUM",
@@ -206,10 +207,11 @@ class EclipseCase:
         if "LAB" in kws:
             raise NotImplementedError("единицы LAB не поддерживаются")
         self.u = UNITS[self.units_name]
-        self.kro_model = "stone2" if ("STONE2" in kws or "STONE" in kws) else "default"
+        self.kro_model = "stone2" if ("STONE2" in kws or "STONE" in kws) else \
+            "stone1" if "STONE1" in kws else "default"
         self.vapoil = "VAPOIL" in kws
-        if "STONE1" in kws and not grid_only:
-            raise NotImplementedError("STONE1 не поддерживается")
+        if "STONE1EX" in kws and not grid_only:
+            raise NotImplementedError("STONE1EX не поддерживается (показатель Stone I = 1)")
         self._read()
 
     # ------------------------------------------------------------ разбор
@@ -248,6 +250,8 @@ class EclipseCase:
         self.wtest_steps = []    # снимок WTEST на каждый отчётный шаг
         self.wecon = {}          # WECON: {скважина: dict(oil, gas, liq — мин. дебиты м³/сут; wct, gor, wgr, glr; work)}
         self.wecon_steps = []
+        self.welsegs = {}        # WELSEGS: {скважина: dict(segs, comp)}
+        self.compsegs = {}       # COMPSEGS: {скважина: {ijk: dict(branch, start, end, depth, seg)}}
         self.wcutback = {}       # WCUTBACK: {скважина: dict(wct, gor, glr, wgr, factor, phase, bhp, thp — МПа)}
         self.wcutback_steps = []
         self.cutback_reset_steps = []  # скважины, у которых на шаге заново заданы WCONPROD/WCONHIST/WCUTBACK
@@ -548,6 +552,19 @@ class EclipseCase:
                         raise NotImplementedError(f"WECON {r[0]}: процедура {work} (поддержаны NONE и WELL)")
                     for name in self._match_wells(str(r[0])):
                         self.wecon[name] = cfg
+            elif kw == "WELSEGS":
+                self._welsegs([r for r in recs if r])
+            elif kw == "COMPSEGS":
+                recs = [r for r in recs if r]
+                for wn in self._match_wells(str(recs[0][0])):
+                    cs = self.compsegs.setdefault(wn, {})
+                    for r in recs[1:]:
+                        if _get(r, 4) is None or _get(r, 5) is None:
+                            raise NotImplementedError(f"COMPSEGS {wn}: длины соединения по умолчанию")
+                        ijk = (int(r[0]) - 1, int(r[1]) - 1, int(r[2]) - 1)
+                        cs[ijk] = dict(branch=int(r[3]), start=float(r[4]) * u["L"], end=float(r[5]) * u["L"],
+                                       depth=None if not _get(r, 8) else float(r[8]) * u["L"],
+                                       seg=int(_get(r, 10, 0) or 0) or None)
             elif kw == "WCUTBACK":
                 for r in recs:
                     if not r:
@@ -650,6 +667,85 @@ class EclipseCase:
     @property
     def report_days(self):
         return [d for d, _ in self.steps]
+
+    def _welsegs(self, recs):
+        """
+        WELSEGS: дерево сегментов {номер: dict(outlet, branch, length — от устья по стволу, depth, diam, rough,
+        area)}; длины и глубины INC — приращения к выходному сегменту, ABS — абсолютные (внутри диапазона —
+        линейно от выходного). Сегмент 1 — верхний, его глубина — опорная для BHP.
+        """
+        u = self.u
+        h = recs[0]
+        mode = str(_get(h, 4, "INC")).upper()
+        comp = str(_get(h, 5, "HFA")).upper()
+        if str(_get(h, 6, "HO")).upper() != "HO":
+            raise NotImplementedError(f"WELSEGS {h[0]}: модель потока {_get(h, 6)} (поддержана HO)")
+        if comp not in ("HFA", "HF-", "H--"):
+            raise NotImplementedError(f"WELSEGS {h[0]}: потери давления {comp}")
+        segs = {1: dict(outlet=0, branch=1, length=float(_get(h, 2, 0.0) or 0.0) * u["L"],
+                        depth=float(h[1]) * u["L"], diam=None, rough=0.0, area=None)}
+        for r in recs[1:]:
+            s1, s2, br, out = (int(r[k]) for k in range(4))
+            ln, dz = float(r[4]) * u["L"], float(r[5]) * u["L"]
+            diam = float(r[6]) * u["L"]
+            rough = float(_get(r, 7, 0.0) or 0.0) * u["L"]
+            area = float(_get(r, 8)) * u["L"] ** 2 if _get(r, 8) else math.pi * diam * diam / 4.0
+            n = s2 - s1 + 1
+            for k, s in enumerate(range(s1, s2 + 1)):
+                o = out if k == 0 else s - 1
+                if o not in segs:
+                    raise ValueError(f"WELSEGS {h[0]}: выходной сегмент {o} сегмента {s} не задан")
+                p = segs[o]
+                if mode == "INC":
+                    length, depth = p["length"] + ln, p["depth"] + dz
+                else:
+                    p0 = segs[out]
+                    length = p0["length"] + (ln - p0["length"]) * (k + 1) / n
+                    depth = p0["depth"] + (dz - p0["depth"]) * (k + 1) / n
+                segs[s] = dict(outlet=o, branch=br, length=length, depth=depth, diam=diam, rough=rough, area=area)
+        for wn in self._match_wells(str(h[0])):
+            self.welsegs[wn] = dict(segs=segs, comp=comp)
+
+    def msw_config(self, name, conns):
+        """
+        Многосегментная скважина для симулятора (глубины — от depth_top): сегменты в порядке номеров, выход
+        (индекс, −1 у верхнего), длина участка до выхода; соединения (в порядке conns) — сегмент и глубина
+        перфорации. По умолчанию соединение относится к сегменту ветви с узлом, ближайшим к середине
+        соединения, а глубина перфорации — линейно по узлам ветви.
+        """
+        ws = self.welsegs.get(name)
+        if ws is None:
+            return None
+        segs = ws["segs"]
+        nums = sorted(segs)
+        pos = {s: i for i, s in enumerate(nums)}
+        cs = self.compsegs.get(name, {})
+        conn_seg, conn_depth = [], []
+        for c in conns:
+            rec = cs.get(tuple(c["ijk"]))
+            if rec is None:
+                raise ValueError(f"{name}: соединение {tuple(x + 1 for x in c['ijk'])} без COMPSEGS")
+            mid = 0.5 * (rec["start"] + rec["end"])
+            on_branch = [s for s in nums if segs[s]["branch"] == rec["branch"]]
+            if not on_branch:
+                raise ValueError(f"{name}: COMPSEGS на ветви {rec['branch']} без сегментов")
+            seg = rec["seg"] or min(on_branch, key=lambda s: abs(segs[s]["length"] - mid))
+            if rec["depth"] is not None:
+                depth = rec["depth"]
+            else:
+                first = segs[on_branch[0]]["outlet"]
+                pts = ([(segs[first]["length"], segs[first]["depth"])] if first in segs else []) + \
+                    [(segs[s]["length"], segs[s]["depth"]) for s in on_branch]
+                pts.sort()
+                depth = float(np.interp(mid, [a for a, _ in pts], [b for _, b in pts]))
+            conn_seg.append(pos[seg])
+            conn_depth.append(depth - self.depth_top)
+        return dict(comp=ws["comp"], depth=[segs[s]["depth"] - self.depth_top for s in nums],
+                    outlet=[pos[segs[s]["outlet"]] if segs[s]["outlet"] in segs else -1 for s in nums],
+                    length=[segs[s]["length"] - (segs[segs[s]["outlet"]]["length"] if segs[s]["outlet"] in segs
+                                                 else segs[s]["length"]) for s in nums],
+                    diam=[segs[s]["diam"] or 0.0 for s in nums], rough=[segs[s]["rough"] for s in nums],
+                    area=[segs[s]["area"] or 0.0 for s in nums], conn_seg=conn_seg, conn_depth=conn_depth)
 
     def _compdat(self, r):
         """COMPDAT: соединения (I, J, K1..K2) с CF, диаметром, Kh, скином, направлением и Ro; повтор — замена."""
@@ -813,8 +909,15 @@ class EclipseCase:
 
     @staticmethod
     def _rows(rec, width):
-        vals = [0.0 if v is None else float(v) for v in rec]
-        return [vals[i:i + width] for i in range(0, len(vals) - len(vals) % width, width)]
+        """Строки таблицы; значения по умолчанию (1*) — линейная интерполяция по первому столбцу, как в Eclipse."""
+        vals = [None if v is None else float(v) for v in rec]
+        rows = [vals[i:i + width] for i in range(0, len(vals) - len(vals) % width, width)]
+        for j in range(1, width):
+            known = [(r[0], r[j]) for r in rows if r[j] is not None]
+            for r in rows:
+                if r[j] is None:
+                    r[j] = float(np.interp(r[0], [a for a, _ in known], [b for _, b in known])) if known else 0.0
+        return [[0.0 if v is None else v for v in r] for r in rows]
 
     def _pvtg(self, recs):
         """PVTG: запись 'P Rv Bg μg [Rv Bg μg ...]' → (P, [(Rv, Bg, μg)]) в СИ (Rv — м³ нефти / м³ газа)."""
@@ -1132,6 +1235,10 @@ class EclipseCase:
                    "skin": conns[0]["skin"], "connections": conns}
             if w["ref_depth"] is not None:
                 cfg["ref_depth"] = w["ref_depth"] - self.depth_top
+            msw = self.msw_config(w["name"], conns)
+            if msw is not None:
+                cfg["msw"] = msw
+                cfg["ref_depth"] = msw["depth"][0]
             cfg.update(self.control_cfg(w["name"], controls.get(w["name"])))
             out.append(cfg)
         return out

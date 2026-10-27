@@ -55,14 +55,19 @@ class _Bound:
 
 
 class RegionPVT(_Bound):
-    """PVT по PVTNUM: tables — список DeckPVT, reg [n_cells] (0-based)."""
+    """
+    PVT по PVTNUM: tables — список DeckPVT, reg [n_cells] (0-based). Массы компонентов считаются с плотностями
+    первого региона (rho_sc): это постоянный множитель к поверхностным объёмам, которые и сохраняются. При разных
+    DENSITY плотности ячеек в пласте — по своему региону (rho_cell [3, n_cells]).
+    """
 
     def __init__(self, tables, reg):
-        rho = {t.rho_sc for t in tables}
-        if len(rho) > 1:
-            raise NotImplementedError("DENSITY различается по регионам PVTNUM — не поддерживается")
         self.tables = tables
         self.rho_sc = tables[0].rho_sc
+        self.rho_cell = None
+        if len({tuple(t.rho_sc) for t in tables}) > 1:
+            rho = torch.tensor([list(t.rho_sc) for t in tables], dtype=torch.float64, device=reg.device)
+            self.rho_cell = rho[reg.long()].T.contiguous()
         self.has_pvt = any(t.has_pvt for t in tables)
         self.live = any(getattr(t, "live", False) for t in tables)
         self.rs_max = max(t.rs_max for t in tables)

@@ -350,6 +350,20 @@ class BlackOilPVT:
         return 1.0 / interp1(p, self.P, self.Bg), interp1(p, self.P, self.mu_g)
 
 
+def stone1_kro(sw, sg, krow, krog, swco, krocw):
+    """
+    Stone I (STONE1) в форме OPM Flow — без SOM, показатель STONE1EX = 1:
+        kro = krow(Sw)·krog(Sg)/krocw · So*/((1 − Sw*)(1 − Sg*)),  Sw* = (Sw − Swco)/(1 − Swco), Sg* = Sg/(1 − Swco)
+    """
+    d = torch.clamp(1.0 - torch.as_tensor(swco, dtype=sw.dtype, device=sw.device), min=1e-12)
+    ssw = torch.clamp(sw - swco, min=0.0) / d
+    ssg = sg / d
+    den = (1.0 - ssw) * (1.0 - ssg)
+    ok = (ssw < 1.0) & (ssg < 1.0)
+    beta = torch.where(ok, (1.0 - ssw - ssg) / torch.where(ok, den, torch.ones_like(den)), torch.zeros_like(den))
+    return torch.clamp(beta.clamp_min(0.0) * krow * krog / krocw, 0.0, 1.0)
+
+
 class ThreePhaseRelPerm:
     """
     Трёхфазные ОФП: krw(Sw), krg(Sg) и kro по Stone II (как в Eclipse STONE2):
@@ -427,6 +441,8 @@ class ThreePhaseRelPerm:
             kro = torch.where(small, krow_o, (sg * krog_o + (sw_e - self.swc) * krow_o) / den_s)
             return krw, torch.clamp(kro, min=0.0), krg
         c = self.krocw
+        if self.kro_model == 'stone1':
+            return krw, stone1_kro(sw, sg, krow, krog, self.swc, c), krg
         kro = c * ((krow / c + krw) * (krog / c + krg) - krw - krg)
         return krw, torch.clamp(kro, min=0.0), krg
 

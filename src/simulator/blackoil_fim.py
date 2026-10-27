@@ -12,6 +12,8 @@
 где b = 1/B. Свойства ячейки и их производные по (P, Sw, X) берутся прямым режимом AD (torch.func.jvp),
 потоки по граням и скважины собираются вручную с upwind по потенциалу каждой фазы.
 """
+import os
+
 import numpy as np
 import torch
 import torch.nn.functional as F
@@ -49,25 +51,40 @@ SO_FILLED = 1e-4
 # ячейка, сменившая переменные столько раз за шаг, до конца шага не переключается (иначе Ньютон зацикливается)
 MAX_CELL_SWITCHES = 3
 
-def surface_to_reservoir(pvt, p, qo, qw, qg, rs_max=None, rv_max=None):
+def surface_to_reservoir(pvt, p, qo, qw, qg, rs_max=None, rv_max=None, with_mu=False):
     """
     Пластовые объёмы фаз по поверхностным (Qo, Qw, Qg) при давлении p (разгазирование и выпадение конденсата):
     Rs = min(Rs_max, Qg/Qo), Rv = min(Rv_max, Qo/Qg), D = 1 − Rs·Rv,
     Vo = (Qo − Rv·Qg)/(bo·D), Vg = (Qg − Rs·Qo)/(bg·D), Vw = Qw/bw.
-    Rs_max, Rv_max по умолчанию — насыщенные при p.
+    Rs_max, Rv_max по умолчанию — насыщенные при p. with_mu — ещё и вязкости фаз (μo, μw, μg).
     """
     rs_s, rv_s = pvt.rs_sat(p), pvt.rv_sat(p)
     rs_cap = rs_s if rs_max is None else torch.minimum(rs_s, rs_max)
     rv_cap = rv_s if rv_max is None else torch.minimum(rv_s, rv_max)
     rs = torch.where(qo > 0, torch.minimum(rs_cap, qg / qo.clamp_min(1e-300)), torch.zeros_like(p))
     rv = torch.where(qg > 0, torch.minimum(rv_cap, qo / qg.clamp_min(1e-300)), torch.zeros_like(p))
-    bo, _ = pvt.oil(p, rs, rs >= rs_s - 1e-12)
-    bw = pvt.water(p)[0]
-    bg = pvt.gas(p, rv, rv >= rv_s - 1e-12)[0] if getattr(pvt, "wet", False) else pvt.gas(p)[0]
+    bo, mu_o = pvt.oil(p, rs, rs >= rs_s - 1e-12)
+    bw, mu_w = pvt.water(p)
+    bg, mu_g = pvt.gas(p, rv, rv >= rv_s - 1e-12) if getattr(pvt, "wet", False) else pvt.gas(p)
     D = (1.0 - rs * rv).clamp_min(1e-12)
     vo = ((qo - rv * qg) / (bo * D)).clamp_min(0.0)
     vg = ((qg - rs * qo) / (bg * D)).clamp_min(0.0)
+    if with_mu:
+        return vo, qw / bw, vg, (mu_o, mu_w, mu_g)
     return vo, qw / bw, vg
+
+
+def friction_factor(re, diam, rough):
+    """Фаннинг (как OPM Flow): 16/Re при Re < 2000, Хааланд при Re > 4000, между — линейно."""
+    def haaland(r):
+        s = -3.6 * torch.log10(6.9 / r + (rough / (3.7 * diam)) ** (10.0 / 9.0))
+        return 1.0 / (s * s)
+    re_s = re.clamp_min(1e-30)
+    f1 = 16.0 / 2000.0
+    f2 = haaland(torch.full_like(re_s, 4000.0))
+    lin = f1 + (f2 - f1) * (re_s - 2000.0) / 2000.0
+    f = torch.where(re_s < 2000.0, 16.0 / re_s, torch.where(re_s > 4000.0, haaland(re_s.clamp_min(4000.0)), lin))
+    return torch.where(re > 0, f, torch.zeros_like(f))
 
 
 class BlackOilWells(FIMWells):
@@ -100,6 +117,36 @@ class BlackOilWells(FIMWells):
         self.pvt = None
         self.wellbore_density = 'flash'   # 'flash' (OPM/Eclipse) | 'cell' (средняя по ячейкам)
         self.conn_head = torch.zeros_like(self.conn_dz)
+        self.msw = {}
+        for w_idx, w in enumerate(self.wells):
+            m = getattr(w, "msw", None)
+            if m is None:
+                continue
+            T = lambda a: torch.tensor(a, dtype=torch.float64, device=device)
+            outlet = list(m["outlet"])
+            level = [0] * len(outlet)
+            for s in range(len(outlet)):
+                o, n = outlet[s], 0
+                while o >= 0:
+                    o, n = outlet[o], n + 1
+                level[s] = n
+            idx = (self.conn_well == w_idx).nonzero().view(-1)
+            anc = []
+            for s in m["conn_seg"]:
+                chain, o = set(), s
+                while o >= 0:
+                    chain.add(o)
+                    o = outlet[o]
+                anc.append(chain)
+            # sub[i, j] = 1: сегмент соединения j — в поддереве сегмента соединения i (поток j проходит через него)
+            sub = T([[1.0 if si in anc[j] else 0.0 for j in range(len(anc))] for si in m["conn_seg"]])
+            self.msw[w_idx] = dict(
+                sub=sub,
+                conns=idx, conn_seg=torch.tensor(m["conn_seg"], dtype=torch.long, device=device),
+                conn_depth=T(m["conn_depth"]), depth=T(m["depth"]), outlet=outlet,
+                order=sorted(range(len(outlet)), key=lambda s: level[s]),     # сверху вниз
+                length=T(m["length"]), diam=T(m["diam"]), rough=T(m["rough"]), area=T(m["area"]),
+                friction="F" in m["comp"], head=None)
         self.conn_open = torch.ones_like(self.conn_wi)   # 0 — соединения закрытой скважины (SHUT/STOP)
         self.conn_a = self.rate_w[self.conn_well]         # веса уравнения дебита по соединениям (на шаг)
         self.conn_eff = torch.ones_like(self.conn_wi)     # WEFAC скважины по соединениям
@@ -305,11 +352,12 @@ class BlackOilWells(FIMWells):
         q = torch.zeros((n_c, 3), dtype=torch.float64, device=self.device)
         dq = torch.zeros((n_c, 3, 3), dtype=torch.float64, device=self.device)
         dqb = torch.zeros((n_c, 3), dtype=torch.float64, device=self.device)
+        # депрессия по давлению нефти ячейки для всех фаз, без капиллярного давления (как OPM Flow)
+        dpp = v[I_P][c] - p_wc
         for comp, ph, mi in self.flux_terms:
             M, dM = v[mi][c], d[mi][c]
-            dpp = v[I_P + ph][c] - p_wc
             q[:, comp] += wi * M * dpp
-            dq[:, comp, :] += wi.unsqueeze(1) * (dM * dpp.unsqueeze(1) + M.unsqueeze(1) * d[I_P + ph][c])
+            dq[:, comp, :] += wi.unsqueeze(1) * (dM * dpp.unsqueeze(1) + M.unsqueeze(1) * d[I_P][c])
             dqb[:, comp] -= wi * M
 
         inj = self.is_inj[cw]
@@ -335,6 +383,66 @@ class BlackOilWells(FIMWells):
             self._mix = None
             if self.wellbore_mixing:
                 q, dqb = self._wellbore_mixing(q, is_inj_w & ~inj, inj, dq, dqb)
+        if self.wellbore_mixing and not os.environ.get("NO_PXF"):
+            back = ~self.is_inj[cw] & (dpp < 0.0) & (wi > 0)
+            if bool(back.any()):
+                q, dq, dqb = self._producer_crossflow(v, d, q, dq, dqb, dpp, back, wi)
+        return q, dq, dqb
+
+    def _producer_crossflow(self, v, d, q, dq, dqb, dpp, back, wi):
+        """
+        Переток из ствола добывающей в пласт (как OPM Flow): пластовый расход r = WI·λt·Δp (λt — суммарная
+        подвижность ячейки) несёт смесь ствола — нетто-состав потока скважины на поверхность (WFrac/GFrac
+        OPM); поверхностные объёмы — r / Σ(смесь в пластовых условиях ячейки: b, Rs, Rv). У многосегментной
+        смесь — нетто-поток своего сегмента (все перфорации его поддерева). Состав зависит от самого перетока —
+        несколько итераций неподвижной точки; без притока в ствол — флюид ячейки. В линеаризации состав заморожен.
+        """
+        c, cw, rho = self.conn_cell, self.conn_well, self.rho_sc
+        prod = ~self.is_inj[cw]
+        bo, bw, bg = (v[I_B + m][c].clamp_min(1e-12) for m in range(3))
+        rs = torch.where(v[I_MOO][c] > 0, v[I_MGO][c] / v[I_MOO][c].clamp_min(1e-300) * rho[OIL] / rho[GAS],
+                         torch.zeros_like(bo))
+        rv = torch.where(v[I_MGG][c] > 0, v[I_MOG][c] / v[I_MGG][c].clamp_min(1e-300) * rho[GAS] / rho[OIL],
+                         torch.zeros_like(bo))
+        D = (1.0 - rs * rv).clamp_min(1e-12)
+        lt, dlt = v[I_LT][c], d[I_LT][c]
+        q0, sel = q, back & False
+
+        def through(qq):
+            """Поток через ствол у соединения: по скважине, у многосегментной — по поддереву сегмента."""
+            B = torch.zeros((self.n_w, 3), dtype=torch.float64, device=q.device).index_add_(0, cw, qq)[cw]
+            for m in getattr(self, "msw", {}).values():
+                idx = m["conns"]
+                B[idx] = m["sub"] @ qq[idx]
+            return B / rho
+
+        seg_conn = torch.zeros_like(back)
+        for m in getattr(self, "msw", {}).values():
+            seg_conn[m["conns"]] = True
+        if not os.environ.get("ALLXF"):
+            back = back & seg_conn
+        s_in = through(torch.where((prod & (dpp > 0)).unsqueeze(1), q0, torch.zeros_like(q0))).clamp_min(0.0)
+        for _ in range(6):
+            s = through(torch.where(prod.unsqueeze(1), q, torch.zeros_like(q)))
+            # нетто-поток ~0 (остановленная скважина с внутренним перетоком) — состав притока
+            weak = (s.clamp_min(0.0).sum(1) < 1e-3 * s_in.sum(1)) | (s < -1e-9 * s_in.sum(1, keepdim=True)).any(1) | ~seg_conn
+            s = torch.where(weak.unsqueeze(1), s_in, s.clamp_min(0.0))
+            if os.environ.get("CELLCOMP"):
+                s = (-q0 / rho).clamp_min(0.0)
+            tot = s.sum(1)
+            cm = s / tot.clamp_min(1e-300).unsqueeze(1)
+            sel = back & (tot > 0)
+            if not bool(sel.any()):
+                return q0, dq, dqb
+            vr = cm[:, WAT] / bw + (cm[:, OIL] - rv * cm[:, GAS]) / (D * bo) \
+                + (cm[:, GAS] - rs * cm[:, OIL]) / (D * bg)
+            k = rho * cm / vr.clamp_min(1e-300).unsqueeze(1)
+            qx = k * (wi * lt * dpp).unsqueeze(1)
+            q = torch.where(sel.unsqueeze(1), qx, q0)
+        dqx = k.unsqueeze(2) * (wi.unsqueeze(1) * (dlt * dpp.unsqueeze(1) + lt.unsqueeze(1) * d[I_P][c])).unsqueeze(1)
+        dqbx = -k * (wi * lt).unsqueeze(1)
+        dq = torch.where(sel.view(-1, 1, 1), dqx, dq)
+        dqb = torch.where(sel.unsqueeze(1), dqbx, dqb)
         return q, dq, dqb
 
     def _wellbore_mixing(self, q, back, into, dq=None, dqb=None):
@@ -867,6 +975,9 @@ class BlackOilWells(FIMWells):
             self.conn_head = self._flash_heads(v, mix)
         else:
             self.conn_head = self.rho_wb[cw] * G * self.conn_dz
+        if self.pvt is not None:
+            for w_idx in getattr(self, "msw", {}):
+                self._msw_heads(v, mix[self.msw[w_idx]["conns"]], w_idx)
 
         # дебит линеен по p_bh при замороженной ячейке: q(pb) = q(0) + D·pb
         q, _, dqb = self._conn_flows(v, d, zeros)
@@ -986,6 +1097,76 @@ class BlackOilWells(FIMWells):
                 h = torch.cumsum(rho * G * seg, 0)
             heads[order] = h
         return heads
+
+    def _msw_heads(self, v, mix_cell, w_idx):
+        """
+        Многосегментная скважина (WELSEGS/COMPSEGS, однородная модель HO), явно по состоянию начала шага.
+        Поверхностные притоки соединений (по депрессии прошлого шага) копятся по дереву сегментов к верхнему;
+        давление сегмента = давление выходного + ρ_сегм·g·Δz + трение (HFA, Фаннинг: 2fLw²/(A²Dρ)), ρ и μ
+        смеси — по составу потока при давлении сегмента. Напор соединения (p_conn − p_bh): давление сегмента,
+        перепад сегмент → перфорация по плотности сегмента и перфорация → центр ячейки по плотности ячейки.
+        """
+        m = self.msw[w_idx]
+        idx, cs = m["conns"], m["conn_seg"]
+        c = self.conn_cell[idx]
+        wi = (self.conn_wi * self.conn_sched * self.conn_open)[idx]
+        rho_sc = self.rho_sc
+        p_cell = v[I_P][c]
+        d_cell = self.conn_dz[idx] + self.ref_depth[w_idx]
+        if self.p_bh is not None and m["head"] is not None:
+            pb = self.p_bh[w_idx]
+            dd = p_cell - pb - m["head"]
+        else:
+            pb = (p_cell - mix_cell * G * self.conn_dz[idx]).min()
+            dd = torch.ones_like(p_cell)
+        if self.is_inj[w_idx]:
+            ph = int(self.inj_phase[w_idx])
+            q = torch.zeros((idx.numel(), 3), dtype=torch.float64, device=self.device)
+            b = v[I_B + ph][c]
+            q[:, ph] = -wi * b * v[I_LT][c] * (-dd).clamp_min(0.0)
+        else:
+            q = torch.stack([wi * (v[I_MOO][c] + v[I_MOG][c]) / rho_sc[OIL], wi * v[I_MWW][c] / rho_sc[WAT],
+                             wi * (v[I_MGG][c] + v[I_MGO][c]) / rho_sc[GAS]], 1) * dd.clamp_min(0.0).unsqueeze(1)
+        n_s = len(m["outlet"])
+        Q = torch.zeros((n_s, 3), dtype=torch.float64, device=self.device).index_add_(0, cs, q)
+        for s in reversed(m["order"]):
+            o = m["outlet"][s]
+            if o >= 0:
+                Q[o] += Q[s]
+        cnt = torch.zeros(n_s, dtype=torch.float64, device=self.device).index_add_(0, cs, torch.ones_like(p_cell))
+        rho_c = torch.zeros(n_s, dtype=torch.float64, device=self.device).index_add_(0, cs, mix_cell)
+        rho_def = torch.where(cnt > 0, rho_c / cnt.clamp_min(1), mix_cell.mean())
+        pvt = self.pvt.at(c[0:1].expand(n_s))
+        p_seg = torch.full((n_s,), float(pb), dtype=torch.float64, device=self.device)
+        Qa = Q.abs()
+        mass = (Qa * rho_sc).sum(1)
+        for _ in range(2):
+            vo, vw, vg, (mu_o, mu_w, mu_g) = surface_to_reservoir(pvt, p_seg.clamp_min(1e5), Qa[:, 0], Qa[:, 1],
+                                                                  Qa[:, 2], with_mu=True)
+            vol = vo + vw + vg
+            flow = (mass > 0) & (vol > 0)
+            rho = torch.where(flow, mass / vol.clamp_min(1e-300), rho_def)
+            mu = torch.where(flow, (vo * mu_o + vw * mu_w + vg * mu_g) / vol.clamp_min(1e-300), torch.ones_like(vol))
+            fr = torch.zeros_like(p_seg)
+            if m["friction"]:
+                A, D = m["area"], m["diam"]
+                ok = (A > 0) & (D > 0) & flow
+                A_, D_ = torch.where(ok, A, 1.0), torch.where(ok, D, 1.0)
+                re = D_ * mass / (A_ * mu)
+                f = friction_factor(re, D_, m["rough"])
+                sgn = torch.sign((Q * rho_sc).sum(1))
+                fr = torch.where(ok, sgn * 2.0 * f * m["length"] * mass ** 2 / (A_ ** 2 * D_ * rho), 0.0 * fr)
+            new = p_seg.clone()
+            for s in m["order"]:
+                o = m["outlet"][s]
+                if o >= 0:
+                    new[s] = new[o] + rho[s] * G * (m["depth"][s] - m["depth"][o]) + fr[s]
+            p_seg = new
+        head = (p_seg[cs] - pb) + rho[cs] * G * (m["conn_depth"] - m["depth"][cs]) \
+            - mix_cell * G * (m["conn_depth"] - d_cell)
+        m["head"] = head
+        m["p_seg"], m["rho"] = p_seg, rho
+        self.conn_head[idx] = head
 
     def assemble(self, R, J_vals, diag_map, v, d, p_bh):
         if self.n_w == 0:
@@ -1218,6 +1399,8 @@ class BlackOilFIMSolver(ManualFIMSolver):
     def _cell_fn(self, sat, ug=None):
         kr = self.kr
         rho_o, rho_w, rho_g = self.pvt.rho_sc
+        rho_cell = getattr(self.pvt, "rho_cell", None)
+        ro, rw, rg = (rho_o, rho_w, rho_g) if rho_cell is None else rho_cell
         wet = self.wet and ug is not None
 
         def fn(p, sw, x):
@@ -1231,14 +1414,14 @@ class BlackOilFIMSolver(ManualFIMSolver):
                 pcow, pcog = kr.pc(sw, sg)
             mo, mw, mg = kro * bo / mu_o, krw * bw / mu_w, krg * bg / mu_g
             if wet:
-                rho_gr = (rho_g + rv * rho_o) * bg
+                rho_gr = (rg + rv * ro) * bg
                 m_og = rho_o * rv * mg
             else:
-                rho_gr, m_og = rho_g * bg, 0.0 * p
+                rho_gr, m_og = rg * bg, 0.0 * p
             return torch.stack([
                 *st["acc"],
                 p, p - pcow, p + pcog,
-                (rho_o + rs * rho_g) * bo, rho_w * bw, rho_gr,
+                (ro + rs * rg) * bo, rw * bw, rho_gr,
                 rho_o * mo, rho_w * mw, rho_g * mg, rho_g * rs * mo,
                 kro / mu_o + krw / mu_w + krg / mu_g,
                 bo, bw, bg, m_og])

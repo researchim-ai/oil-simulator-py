@@ -19,7 +19,7 @@ SGU, SOGCR, KRW, KRO, KRG, PCW, PCG поверх таблиц SWOF/SGOF реги
 import numpy as np
 import torch
 
-from .blackoil_props import interp1
+from .blackoil_props import interp1, stone1_kro
 
 KEYS = ("SWL", "SWCR", "SWU", "SOWCR", "SGL", "SGCR", "SGU", "SOGCR", "KRW", "KRO", "KRG", "PCW", "PCG")
 
@@ -192,6 +192,8 @@ class ScaledRelPerm:
             # krow при той же So (Sw' = Sw + Sg), krog при той же So (Sg' = Sg + Sw − SWL)
             krow_o, krog_o = self._two_at(r, sw_e + sg, sg + sw_e - swl)
             kro = torch.where(small, krow_o, (sg * krog_o + (sw_e - swl) * krow_o) / torch.where(small, 1.0, den))
+        elif self.kro_model == "stone1":
+            kro = stone1_kro(sw, sg, krow, krog, swl, c["KRO"])
         else:
             cw = c["KRO"]
             kro = cw * ((krow / cw + krw) * (krog / cw + krg) - krw - krg)
