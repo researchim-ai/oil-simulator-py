@@ -112,6 +112,8 @@ class BlackOilWells(FIMWells):
         self.alq_opt, self._lift_t = {}, None             # оптимизированный газлифт {скважина: ALQ}; время, сут
         self.alq_si = 1.0 / DAY                           # ALQ (ед. deck) → ст. м³/с газа
         self.pbh_override = {}                            # забой при переходе на THP (устойчивая ветвь)
+        self.network = None                               # расширенная сеть шага (BRANPROP/NODEPROP/NETBALAN)
+        self.node_p, self._net_iter = {}, 0               # давления узлов сети, Па; балансировок за шаг
         self.rs_avg = self.rv_avg = None                  # средние Rs, Rv (для RESV)
         self.flux_terms = FLUX_TERMS
         self.groups = None                                # (GroupTree, [ограничения]) — групповые контроли
@@ -172,7 +174,7 @@ class BlackOilWells(FIMWells):
     def set_open(self, w_idx, is_open):
         self.conn_open[self.conn_well == w_idx] = 1.0 if is_open else 0.0
 
-    def _apply_groups(self, v, q, dqb):
+    def _apply_groups(self, v, q, dqb, d=None):
         """Групповые цели → цели скважин (явно на шаг): guide rate = потенциал при предельном BHP."""
         from .groups import group_targets
         tree, constraints = self.groups
@@ -196,6 +198,15 @@ class BlackOilWells(FIMWells):
             onehot[m][m] = 1.0 / rho[m]
         pot_ph = [per_well(onehot[m].expand_as(q), lim) for m in range(3)]
         cur_ph = [per_well(onehot[m].expand_as(q), pb) for m in range(3)]
+        if d is not None and bool(self.is_inj.any()):
+            # линеаризация q(0) + D·pb — по ветви притока; закачка идёт с полной подвижностью ячейки
+            for p_w, out in ((lim, pot_ph), (pb, cur_ph)):
+                qi = self._conn_flows(v, d, p_w)[0]
+                for m in range(3):
+                    tot = (-zeros.clone().index_add_(0, cw, qi[:, m] / rho[m])).clamp_min(0.0).tolist()
+                    for i in range(self.n_w):
+                        if self.wells[i].type == 'injector':
+                            out[m][i] = tot[i]
         pot_res, cur_res = per_well(rw, lim), per_well(rw, pb)
         pot, cur, prod_res, info = {}, {}, {}, []
         names = {0: "oil", 1: "water", 2: "gas"}
@@ -221,6 +232,7 @@ class BlackOilWells(FIMWells):
             grup = bool(getattr(w, 'grup', False))
             info.append(dict(name=w.name, type=w.type, open=ctrl != 'shut', grup=grup,
                              phase=None if grup else phase, value=None if grup else val * eff[i],
+                             limits={ph: x * eff[i] / DAY for ph, x in (getattr(w, "rate_limits", None) or {}).items()},
                              inj_phase=(w.injected_phase or 'water').lower() if w.type == 'injector' else None))
         cons = [dict(c, target=c["target"] / DAY) for c in constraints]
         new = group_targets(tree, cons, info, pot, cur, prod_res)
@@ -433,11 +445,15 @@ class BlackOilWells(FIMWells):
         p0 = float(pb0[w_idx])
         hi = float(self.p_cell_max[w_idx]) if getattr(self, "p_cell_max", None) is not None else p0 * 1.5
         grid = torch.linspace(lim, max(hi, lim + 1e5), 41, dtype=torch.float64, device=q.device)
+        # весь скан — одним вызовом таблицы
+        w, tab, sg = self.wells[w_idx], self._lift(w_idx), self._sgn(w_idx)
+        QG = ((qw.sum(0) + cw_.sum(0) * (grid - p0).unsqueeze(1)) / self.rho_sc).clamp_min(0.0)
+        a_ = float(getattr(w, "alq", 0.0) or 0.0) if alq is None else alq
+        with torch.no_grad():
+            FG = (grid - tab.bhp(sg * QG[:, 0], sg * QG[:, 1], sg * QG[:, 2], float(w.thp_limit) * 1e6, a_)
+                  - self._vfp_hydro(w_idx, tab)).tolist()
         prev = None
-        for pb in grid.tolist():
-            qq = qw + cw_ * (pb - p0)
-            Q = qq.sum(0) / self.rho_sc
-            f = pb - self._vfp_bhp(w_idx, Q.clamp_min(0.0), alq=alq)
+        for pb, f, Q in zip(grid.tolist(), FG, QG):
             if prev is None and f > 0:
                 return (lim, Q.clamp_min(0.0)) if phases else (lim, None)
             if prev is not None and prev[1] <= 0 < f:
@@ -541,6 +557,199 @@ class BlackOilWells(FIMWells):
             alq[best] += best_k * lo["inc"]
         return {self.wells[i].name: a for i, a in alq.items()}
 
+    def _network_pressures(self, Q):
+        """
+        Давления узлов расширенной сети (как OPM): от узлов с заданным давлением вниз по веткам BRANPROP,
+        давление нижнего узла — BHP таблицы шлейфа при THP = давлению верхнего узла и суммарных добыче
+        его скважин (с WEFAC) и газлифте, если NODEPROP включает его в шлейф. Q — (n_w, 3), ст. м³/с.
+        """
+        net = self.network
+        tree = self.groups[0] if self.groups is not None else None
+        out = {}
+        children = {}
+        for down, br in net["branches"].items():
+            children.setdefault(br["up"], []).append(down)
+
+        def rates(node, depth=0):
+            """Расход узла — по дереву сети (BRANPROP), а не GRUPTREE: свои скважины + подчинённые узлы."""
+            R = torch.zeros(3, dtype=torch.float64, device=self.device)
+            if depth > 50:
+                return R
+            for ch in children.get(node, []):
+                R = R + rates(ch, depth + 1)
+            lift = net["nodes"].get(node, {}).get("lift", False)
+            for i, w in enumerate(self.wells):
+                if tree is None or tree.well_group.get(w.name, "FIELD") != node:
+                    continue
+                if w.type != 'producer' or self.step_targets[i][0] == 'shut':
+                    continue
+                eff = float(getattr(w, "eff", 1.0) or 1.0)
+                R = R + eff * Q[i].clamp_min(0.0)
+                if lift:
+                    R[2] = R[2] + eff * float(getattr(w, "alq", 0.0) or 0.0) * self.alq_si
+            return R
+
+        def press(node, depth=0):
+            if node in out:
+                return out[node]
+            br, nd = net["branches"].get(node), net["nodes"].get(node, {})
+            if br is None or depth > 50:
+                p = nd.get("p")
+            else:
+                p_up = press(br["up"], depth + 1)
+                tab = self.vfp.get(br["vfp"])
+                if br["vfp"] == 9999:                   # 9999 — ветка без потерь давления
+                    p = p_up
+                elif p_up is None or tab is None:
+                    p = None
+                else:
+                    R = rates(node)
+                    with torch.no_grad():
+                        p = float(tab.bhp(R[0:1], R[1:2], R[2:3], p_up, br["alq"]))
+            out[node] = p
+            return p
+
+        for node in set(net["branches"]) | set(net["nodes"]):
+            press(node)
+        return out
+
+    def _balance_network(self, lin):
+        """
+        Балансировка сети при замороженных ячейках (начало шага): давление узла p — корень
+        VFP_ветки(расход узла при p, p_верх) = p, расход узла — сумма дебитов его скважин на устойчивой ветви
+        THP = p (не выше уставки) и подчинённых узлов, сбалансированных при p. Из корней — с наибольшим
+        расходом (первый снизу). Простая итерация «дебиты → давления» на нулевых дебитах застревает:
+        остановленные скважины дают высокое давление узла и не запускаются.
+        """
+        net = self.network
+        tree = self.groups[0] if self.groups is not None else None
+        children = {}
+        for down, br in net["branches"].items():
+            children.setdefault(br["up"], []).append(down)
+        p_max = float(self.p_cell_max.max()) if self.p_cell_max is not None else None
+        zero = torch.zeros(3, dtype=torch.float64, device=self.device)
+        out = {}
+
+        def wells_rate(node, p):
+            R = zero.clone()
+            for i, w in enumerate(self.wells):
+                if tree is None or tree.well_group.get(w.name, "FIELD") != node or w.type != 'producer' \
+                        or self.step_targets[i][0] != 'rate' or self._lift(i) is None:
+                    continue
+                old = w.thp_limit
+                w.thp_limit = p / 1e6
+                try:
+                    st = self._thp_stable(i, self.bhp_limit(w), lin=lin, phases=True)
+                finally:
+                    w.thp_limit = old
+                if st is None:
+                    continue
+                Qw = st[1]
+                own = self.step_targets[i][1]
+                a_c = self.conn_a[self.conn_well == i][0] * self.rho_sc
+                qt = float((a_c * Qw).sum())
+                if qt > own > 0:
+                    Qw = Qw * (own / qt)
+                R = R + float(getattr(w, "eff", 1.0) or 1.0) * Qw
+            if net["nodes"].get(node, {}).get("lift", False):
+                R[2] = R[2] + sum(float(getattr(w, "eff", 1.0) or 1.0) * float(getattr(w, "alq", 0.0) or 0.0)
+                                  * self.alq_si for w in self.wells if tree is not None and w.type == 'producer'
+                                  and tree.well_group.get(w.name, "FIELD") == node)
+            return R
+
+        # расход узла как функция его давления — таблицей на сетке P: дебиты скважин считаются один раз на точку,
+        # корни вложенных узлов — по интерполяции таблиц
+        fixed = [nd["p"] for nd in net["nodes"].values() if nd.get("p") is not None]
+        if not fixed:
+            return out
+        lo = min(fixed)
+        hi = max(p_max or lo, lo) + 1e5
+        # верх сетки — давление, выше которого не течёт ни одна скважина сети: дебит падает до нуля на
+        # нескольких барах, и грубая сетка теряет рабочий корень
+        leaves = {tree.well_group.get(w.name, "FIELD") for w in self.wells} if tree is not None else set()
+        for p in torch.linspace(lo, hi, 21, dtype=torch.float64).tolist()[1:]:
+            if not any(float(wells_rate(n, p).sum()) > 0 for n in leaves):
+                hi = p
+                break
+        P = torch.linspace(lo, hi, 41, dtype=torch.float64, device=self.device)
+        tabs = {}
+
+        def interp(T, p):
+            x = (p - lo) / (hi - lo) * (P.numel() - 1)
+            k = int(min(max(x, 0.0), P.numel() - 2))
+            f = min(max(x - k, 0.0), 1.0)
+            return T[k] * (1 - f) + T[k + 1] * f
+
+        def solve(ch, p_up):
+            """Давление и расход узла ch при давлении верхнего узла p_up."""
+            br, T = net["branches"][ch], table(ch)
+            if br["vfp"] == 9999:
+                return p_up, interp(T, p_up)
+            tab = self.vfp.get(br["vfp"])
+            if tab is None:
+                return None, zero
+
+            def h(p):
+                R = interp(T, p)
+                with torch.no_grad():
+                    return float(tab.bhp(R[0:1], R[1:2], R[2:3], p_up, br["alq"])) - p
+
+            with torch.no_grad():
+                hv = (tab.bhp(T[:, 0], T[:, 1], T[:, 2], p_up, br["alq"]) - P).tolist()
+            pts = [(p_up, h(p_up))] + [(float(P[j]), hv[j]) for j in range(P.numel()) if float(P[j]) > p_up]
+            if pts[0][1] <= 0:
+                return p_up, interp(T, p_up)
+            for (a, _), (b, hb) in zip(pts, pts[1:]):
+                if hb <= 0:
+                    for _ in range(30):
+                        m = 0.5 * (a + b)
+                        if h(m) > 0:
+                            a = m
+                        else:
+                            b = m
+                    return b, interp(T, b)
+            return hi, zero
+
+        def table(node, depth=0):
+            if node not in tabs:
+                T = torch.stack([wells_rate(node, float(p)) for p in P])
+                for ch in children.get(node, []):
+                    if depth > 20:
+                        break
+                    table(ch, depth + 1)
+                    T = T + torch.stack([solve(ch, float(p))[1] for p in P])
+                tabs[node] = T
+            return tabs[node]
+
+        def down(node, p):
+            out[node] = p
+            for ch in children.get(node, []):
+                pc, _ = solve(ch, p)
+                if pc is not None:
+                    down(ch, pc)
+
+        for root, nd in net["nodes"].items():
+            if nd.get("p") is not None and root not in net["branches"]:
+                down(root, nd["p"])
+        return out
+
+    def _apply_network(self, Q, pressures=None):
+        """Давление узла сети — ограничение THP скважин его группы. True, если оно сдвинулось больше допуска."""
+        self.node_p = pressures if pressures is not None else self._network_pressures(Q)
+        tol = self.network["balan"]["tol"]
+        moved = False
+        for i, w in enumerate(self.wells):
+            if w.type != 'producer' or getattr(w, "vfp_table", None) is None:
+                continue
+            p = self.node_p.get(self.groups[0].well_group.get(w.name, "FIELD")) if self.groups else None
+            if p is None:
+                continue
+            old = getattr(w, "thp_limit", None)
+            if old is None or abs(old * 1e6 - p) > tol:
+                moved = True
+            w.thp_limit = p / 1e6
+        return moved
+
     def solve_thp(self, p_bh):
         """
         Локальное решение уравнения THP после шага Ньютона (как solveWellEquation в OPM): забой скважин в режиме
@@ -564,6 +773,11 @@ class BlackOilWells(FIMWells):
         """Переключение дебит ↔ BHP ↔ THP: работает самое жёсткое из ограничений (как в Eclipse/OPM)."""
         msgs = []
         self.pbh_override = {}
+        if self.network is not None and self._Q is not None and self._net_iter < self.network["balan"]["iters"]:
+            if self._apply_network(self._Q):
+                self._net_iter += 1
+                msgs.append("сеть: " + ", ".join(f"{k} {v / 1e5:.2f} бар" for k, v in self.node_p.items()
+                                                  if v is not None))
         if self.switches >= 4 * max(1, self.n_w):
             return msgs
         for w_idx, w in enumerate(self.wells):
@@ -658,8 +872,11 @@ class BlackOilWells(FIMWells):
         q, _, dqb = self._conn_flows(v, d, zeros)
         self.p_cell_max = zeros.clone().index_reduce_(0, cw, v[I_P][c], "amax", include_self=False)
         lin0 = (q, dqb, zeros)
+        if self.network is not None:
+            self._net_iter = 0
+            self._apply_network(None, self._balance_network(lin0))
         if self.groups is not None:
-            self._apply_groups(v, q, dqb)
+            self._apply_groups(v, q, dqb, d)
         # газлифт — после групповых долей: каждой скважине — до её доли (как стадия 1 газлифта OPM)
         if self.liftopt is not None and self.wliftopt:
             due = self._lift_t is None or t_days - self._lift_t >= self.liftopt["interval"] - 1e-9

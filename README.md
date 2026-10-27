@@ -18,7 +18,7 @@ RTX 3090 Ti. Накопленная нефть отличается от Eclipse
   с допусками CNV и баланса массы.
 - **GPU-решатель:** FGMRES + CPR (классический AMG по давлению, блочный Якоби), float64.
 - **Deck Eclipse:** COORD/ZCORN, разломы, NNC, PINCH, MINPV, MULTFLT, регионы PVT/SATNUM/EQLNUM, EQUIL,
-  ENDSCALE, гистерезис, THPRES, VAPPARS, VFPPROD, VFPINJ, газлифт LIFTOPT/WLIFTOPT/GLIFTOPT, WEFAC.
+  ENDSCALE, гистерезис, THPRES, VAPPARS, VFPPROD, VFPINJ, газлифт LIFTOPT/WLIFTOPT/GLIFTOPT, WEFAC, поверхностная сеть BRANPROP/NODEPROP/GRUPNET.
 - **Скважины:** WCONPROD/WCONINJE/WCONHIST/WCONINJH (RESV), COMPDAT, WELOPEN, WTEST, группы, переток в стволе, ограничение THP.
 - **Сравнение:** чтение сводок Eclipse/OPM, `scripts/compare_eclipse.py`.
 - **Агенты:** `iter_deck`, чекпоинты, среда gymnasium `DeckEnv`.

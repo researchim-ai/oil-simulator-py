@@ -25,6 +25,7 @@ def apply_controls(case, step, wm, solver):
         fw.liftopt, fw.wliftopt = case.liftopt_steps[step], case.wliftopt_steps[step]
         fw.alq_si = case.u["gas"] / 86400.0
         fw.gliftopt = case.gliftopt_steps[step]
+        fw.network = case.network_steps[step]
     for idx, w in enumerate(wm.wells):
         cfg = case.control_cfg(w.name, controls.get(w.name))
         w.thp_limit, w.vfp_table, w.alq = cfg.get("thp_limit"), cfg.get("vfp_table"), cfg.get("alq", 0.0)
@@ -40,6 +41,7 @@ def apply_controls(case, step, wm, solver):
         old = (w.control_type, w.control_value, w.surface_phase, w.bhp_min, w.bhp_max,
                getattr(w, "hist_rates", None), getattr(w, "start_mode", None))
         w.grup = bool(cfg.get("grup", False))
+        w.rate_limits = cfg.get("rate_limits") or {}
         if fw is not None and getattr(w, "connections", None) is not None and hasattr(fw, "set_connections"):
             fw.set_connections(fw.wells.index(w), case.well_connections(w.name, step))
         if fw is not None and hasattr(fw, "set_open"):
@@ -129,6 +131,11 @@ def _requests(case, cells):
             for n in listed:
                 for m in case._match_wells(n):
                     out.append((f"{kw}:{m}", "W", (kw, m)))
+        elif kw == "GPR":
+            listed = [str(v) for r in recs for v in r if v is not None] or \
+                ["FIELD"] + sorted(set(case.group_parent) - {"FIELD"})
+            for g in listed:
+                out.append((f"{kw}:{g}", "N", g))
         elif kw[0] == "G" and kw[1:] in ("OPR", "WPR", "GPR", "WIR", "GIR", "OPT", "WPT", "GPT", "WIT", "GIT"):
             listed = [str(v) for r in recs for v in r if v is not None] or ["FIELD"]
             for g in listed:
@@ -146,7 +153,8 @@ def _requests(case, cells):
     for kw in ("FOPR", "FWPR", "FGPR", "FGOR", "FWIR", "FGIR"):
         if all(k != kw for k, _, _ in out):
             out.append((kw, "F", None))
-    return out
+    seen = set()
+    return [r for r in out if not (r[0] in seen or seen.add(r[0]))]
 
 
 def run_deck(path, device=None, sim_overrides=None, cells=(), quiet=True, max_days=None, progress=None,
@@ -287,6 +295,9 @@ def iter_deck(path, device=None, sim_overrides=None, cells=(), quiet=True, max_d
                     if (w.type == "producer") != prod:
                         continue
                     v += float(getattr(w, "eff", 1.0) or 1.0) * (wr[w.name][ph] if prod else -wr[w.name][ph])
+            elif kind == "N":
+                p = (getattr(getattr(solver, "wells", None), "node_p", None) or {}).get(arg)
+                v = np.nan if p is None else p / u["p"]
             else:
                 v = block_value(*arg)
             summary.setdefault(key, []).append(v)

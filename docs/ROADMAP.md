@@ -19,8 +19,9 @@
 
 ## 2. Скважины и прогнозные расчёты
 
-1. **Поверхностная сеть (NETWORK/BRANPROP/NODEPROP), WVFPDP** (VFPPROD/VFPINJ, THP и газлифт LIFTOPT сделаны).
-2. **WECON, WCUTBACK** — экономические ограничения и автоматические закрытия.
+1. **WECON, WCUTBACK** — экономические ограничения (NETWORK-01-WTEST из opm-tests ждёт WECON), WVFPDP.
+   VFPPROD/VFPINJ, THP, газлифт и поверхностная сеть (BRANPROP/NODEPROP/GRUPNET) сделаны.
+2. **Сеть глубже**: GSATPROD/GCONSUMP, сеть закачки (GNETINJE), NODEPROP с дросселем, GEFAC.
 3. **Группы глубже**: GCONPROD/GCONINJE со всеми режимами, приоритеты, ограничения по газу и жидкости на платформу.
 4. **Многосегментные скважины (WELSEGS/COMPSEGS)** — Norne MSW-варианты в opm-tests дают готовую сверку.
 5. **Разбор оставшихся выбросов Norne по скважинам** (вода E-4AH, B-1H) против OPM restart.

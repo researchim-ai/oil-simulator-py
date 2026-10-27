@@ -32,7 +32,8 @@ FLAG_KEYWORDS = {
 }
 # ключевые слова, которые читаются, но не влияют на расчёт
 IGNORED = {"TITLE", "EQLDIMS", "TABDIMS", "WELLDIMS", "RPTSCHED", "RPTRST", "RPTSOL", "RPTPROPS",
-           "RPTGRID", "RPTRUNSP", "NSTACK", "MESSAGES", "TUNING", "SPECGRID", "GRIDFILE", "MAPAXES", "GRIDUNIT"}
+           "RPTGRID", "RPTRUNSP", "NSTACK", "MESSAGES", "TUNING", "SPECGRID", "GRIDFILE", "MAPAXES", "GRIDUNIT",
+           "NETWORK"}
 # влияют на физику, но пока не поддерживаются
 UNSUPPORTED = {"SWFN", "SGFN", "SOF3", "SLGOF", "AQUFETP", "AQUCT", "PDVD",
                "PRESSURE", "SWAT", "SGAS", "RS", "NNC", "EDITNNC",
@@ -99,7 +100,11 @@ def parse_deck(path, paths=None):
     """
     if paths is None:
         paths = {"": Path(path).parent}
-    text = Path(path).read_text(encoding="utf-8", errors="replace")
+    if Path(path).suffix == ".gz":
+        import gzip
+        text = gzip.decompress(Path(path).read_bytes()).decode("utf-8", errors="replace")
+    else:
+        text = Path(path).read_text(encoding="utf-8", errors="replace")
     lines = [_strip_comment(l).rstrip() for l in text.splitlines()]
     out = []
     i, n = 0, len(lines)
@@ -151,6 +156,8 @@ def parse_deck(path, paths=None):
                 inc = Path(str(paths[m_alias.group(1)]) + m_alias.group(2))
             else:
                 inc = Path(path).parent / name
+            if not inc.exists() and inc.with_name(inc.name + ".gz").exists():
+                inc = inc.with_name(inc.name + ".gz")        # сжатая копия (большие таблицы в tests/data)
             if not inc.exists():
                 raise FileNotFoundError(f"INCLUDE: файл {inc} не найден")
             out.extend(parse_deck(inc, paths))
@@ -250,6 +257,11 @@ class EclipseCase:
         self.wefac = {}          # WEFAC: {скважина: коэффициент эксплуатации}
         self.gliftopt = {}       # GLIFTOPT: {группа: макс. газлифт, ед. ALQ}
         self.wefac_steps, self.gliftopt_steps = [], []
+        self.branches = {}       # BRANPROP: {нижний узел: dict(up — верхний узел, vfp — таблица шлейфа, alq)}
+        self.nodes = {}          # NODEPROP: {узел: dict(p — заданное давление, Па, или None; lift — газлифт в шлейф)}
+        self.netbalan = dict(interval=0.0, tol=0.1 * u["p"], iters=10)
+        self.grupnet = {}        # GRUPNET (стандартная сеть): {группа: dict(p, vfp, alq)}, ветка — к родителю GRUPTREE
+        self.network_steps = []
         gcon = {}
         date = None
         opened = {}
@@ -463,6 +475,30 @@ class EclipseCase:
                     if r:
                         for name in self._match_wells(str(r[0])):
                             self.wefac[name] = float(_get(r, 1, 1.0) or 1.0)
+            elif kw == "BRANPROP":
+                for r in recs:
+                    if r:
+                        vfp = int(_get(r, 2, 0) or 0)
+                        if vfp > 0:
+                            self.branches[str(r[0])] = dict(up=str(r[1]), vfp=vfp, alq=float(_get(r, 3, 0.0) or 0.0))
+                        else:
+                            self.branches.pop(str(r[0]), None)
+            elif kw == "NODEPROP":
+                for r in recs:
+                    if r:
+                        p = _get(r, 1)
+                        self.nodes[str(r[0])] = dict(p=None if p is None else float(p) * u["p"],
+                                                     lift=str(_get(r, 3, "NO")).upper().startswith("Y"))
+            elif kw == "GRUPNET":
+                for r in recs:
+                    if r:
+                        p = _get(r, 1)
+                        self.grupnet[str(r[0])] = dict(p=None if p is None else float(p) * u["p"],
+                                                       vfp=int(_get(r, 2, 0) or 0), alq=float(_get(r, 3, 0.0) or 0.0))
+            elif kw == "NETBALAN":
+                r = recs[0] if recs else []
+                self.netbalan = dict(interval=float(_get(r, 0, 0.0) or 0.0),
+                                     tol=float(_get(r, 1, 0.1) or 0.1) * u["p"], iters=int(_get(r, 2, 10) or 10))
             elif kw == "GLIFTOPT":
                 for r in recs:
                     if r and _get(r, 1) is not None:
@@ -632,6 +668,15 @@ class EclipseCase:
         self.wliftopt_steps.append(dict(self.wliftopt))
         self.wefac_steps.append(dict(self.wefac))
         self.gliftopt_steps.append(dict(self.gliftopt))
+        branches = {k: dict(v) for k, v in self.branches.items()}
+        nodes = {k: dict(v) for k, v in self.nodes.items()}
+        for g, r in self.grupnet.items():
+            if r["vfp"] > 0 and g != "FIELD":
+                branches[g] = dict(up=self.group_parent.get(g, "FIELD"), vfp=r["vfp"], alq=r["alq"])
+            if r["p"] is not None:
+                nodes[g] = dict(p=r["p"], lift=False)
+        self.network_steps.append(dict(branches=branches, nodes=nodes, balan=dict(self.netbalan))
+                                  if branches else None)
         self.reopen_steps.append(self._reopen)
         self._reopen = set()
 
@@ -1125,9 +1170,11 @@ class EclipseCase:
                 if mode == "RATE":
                     out.append(dict(group=g, kind="inj", phase=ph, target=float(r[3]) * cv))
                 elif mode == "REIN":
-                    out.append(dict(group=g, kind="inj", phase=ph, target=0.0, mode="REIN", frac=float(r[5])))
+                    out.append(dict(group=g, kind="inj", phase=ph, target=0.0, mode="REIN", frac=float(r[5]),
+                                    src=str(_get(r, 10, g))))
                 elif mode == "VREP":
-                    out.append(dict(group=g, kind="inj", phase=ph, target=0.0, mode="VREP", frac=float(r[6])))
+                    out.append(dict(group=g, kind="inj", phase=ph, target=0.0, mode="VREP", frac=float(r[6]),
+                                    src=str(_get(r, 11, g))))
                 else:
                     raise NotImplementedError(f"GCONINJE {g}: режим {mode}")
         return out
@@ -1170,7 +1217,8 @@ class EclipseCase:
             elif mode == "BHP":
                 cfg.update(control_type="bhp", control_value=float(r[bhp_idx]) * u["p"] / 1e6)
             elif mode == "GRUP" and not hist:
-                cfg.update(control_type="rate", control_value=1e20, surface_phase="liquid", grup=True)
+                cfg.update(control_type="rate", control_value=1e20, surface_phase="liquid", grup=True,
+                           rate_limits={ph: v * cv for v, ph, cv in rates.values() if v > 0})
             elif mode == "THP" and not hist:
                 # режим THP = управление по дебиту-ограничению, начатое на ограничении по THP (как в OPM)
                 lim = next(((v, ph, cv) for key, (v, ph, cv) in rates.items() if v > 0), None)
@@ -1209,7 +1257,9 @@ class EclipseCase:
             elif mode == "BHP":
                 cfg.update(control_type="bhp", control_value=float(r[bhp_idx]) * u["p"] / 1e6)
             elif mode == "GRUP" and not hist:
-                cfg.update(control_type="rate", control_value=1e20, grup=True)
+                lim = float(_get(r, rate_idx, 0.0) or 0.0) * cv
+                cfg.update(control_type="rate", control_value=1e20, grup=True,
+                           rate_limits={cfg["injected_phase"]: lim} if lim > 0 else {})
             elif mode == "THP" and not hist:
                 val = float(_get(r, rate_idx, 0.0) or 0.0) * cv
                 cfg.update(control_type="rate", control_value=val if val > 0 else 1e20, start_mode="thp_limit")

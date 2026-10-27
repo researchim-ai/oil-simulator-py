@@ -91,10 +91,10 @@ def group_targets(tree, constraints, wells, pot, current, prod_res=None):
         ph = con["phase"]
         target = con["target"]
         if con.get("mode") == "REIN":
-            src = tree.wells_of(con["group"], names)
+            src = tree.wells_of(con.get("src") or con["group"], names)
             target = con["frac"] * sum(current[n].get(ph, 0.0) for n in src if by[n]["type"] == "producer")
         elif con.get("mode") == "VREP":
-            src = tree.wells_of(con["group"], names)
+            src = tree.wells_of(con.get("src") or con["group"], names)
             target = con["frac"] * sum((prod_res or {}).get(n, 0.0) for n in src if by[n]["type"] == "producer")
         cap = []
         for n in members:
@@ -107,6 +107,11 @@ def group_targets(tree, constraints, wells, pot, current, prod_res=None):
                 own = rate_in(n, by[n]["phase"])
                 if own > 0 and by[n]["value"] is not None:
                     c = min(c, c * by[n]["value"] / own)
+            # пределы дебитов WCONPROD у скважины под групповым управлением (GRUP)
+            for lph, lv in (by[n].get("limits") or {}).items():
+                own = rate_in(n, lph)
+                if own > lv:
+                    c = c * lv / own
             cap.append(c)
         cap = np.array(cap)
         if not any(by[n]["grup"] for n in members) and cap.sum() <= target * (1 + 1e-9):

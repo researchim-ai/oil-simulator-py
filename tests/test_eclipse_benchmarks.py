@@ -92,3 +92,26 @@ def test_gaslift_matches_opm():
         return 0.01
 
     _check(rows, tol)
+
+
+@pytest.mark.slow
+@pytest.mark.parametrize("case", ["NETWORK-01", "NETWORK-01-REROUTE"])
+def test_network_matches_opm(case):
+    """Расширенная сеть (BRANPROP/NODEPROP/NETBALAN) из opm-tests: давление узлов — ограничение THP скважин,
+    групповая цель, VREP закачка. REROUTE — смена маршрута шлейфов и ветка 9999 без потерь."""
+    ref = EclSummary(os.path.join(DATA, "network", "opm", case))
+    summary, _ = run_deck(os.path.join(DATA, "network", case + ".DATA"), device=torch.device("cpu"))
+    rows = compare(summary, {"opm": ref})
+    assert any(r["vector"] == "GPR:PROD" for r in rows)
+
+    def tol(key):
+        kw = key.split(":")[0]
+        if kw in ("FWIR", "WWIR"):
+            return 0.08         # VREP: закачка по отбору прошлого шага, первый интервал после пуска
+        if kw.endswith("SAT"):
+            return 0.03         # ячейка у нагнетательной — вслед за закачкой
+        if "REROUTE" in case and kw[0] in "FWG" and kw[-2:] in ("PR", "PT"):
+            return 0.03         # первые сутки после смены маршрута: OPM балансирует сеть по ходу Ньютона
+        return 0.01
+
+    _check(rows, tol)

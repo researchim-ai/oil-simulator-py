@@ -23,6 +23,13 @@ def _axis_weights(axis, x):
 
 
 class _VFP:
+    def _on(self, dev):
+        """Оси (THP, WFR, GFR, ALQ, FLO) и таблица на устройстве dev — копия на устройство один раз."""
+        cache = self.__dict__.setdefault("_dev", {})
+        if dev not in cache:
+            cache[dev] = ([a.to(dev) for a in (self.thp, self.wfr, self.gfr, self.alq, self.flo)], self.table.to(dev))
+        return cache[dev]
+
     def thp_from_bhp(self, bhp, qo, qw, qg, alq=0.0):
         """Обратная задача: THP, при котором таблица даёт bhp (BHP линейна по THP на интервале оси)."""
         thp = self.thp.to(bhp.device)
@@ -92,9 +99,8 @@ class VFPProd(_VFP):
         flo, wfr, gfr = self._ratios(qo, qw, qg)
         thp = torch.as_tensor(thp, dtype=torch.float64, device=dev).expand_as(flo)
         alq = torch.as_tensor(alq, dtype=torch.float64, device=dev).expand_as(flo)
-        axes = [a.to(dev) for a in (self.thp, self.wfr, self.gfr, self.alq, self.flo)]
+        axes, tab = self._on(dev)
         idx, frac = zip(*(_axis_weights(a, x) for a, x in zip(axes, (thp, wfr, gfr, alq, flo))))
-        tab = self.table.to(dev)
         out = torch.zeros_like(flo)
         for corner in itertools.product((0, 1), repeat=5):
             w = torch.ones_like(flo)
