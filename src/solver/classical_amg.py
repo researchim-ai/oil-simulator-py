@@ -1374,7 +1374,7 @@ class ClassicalAMG:
                 if n > 0:
                     b_local[:1].zero_()
     
-                if torch.cuda.is_current_stream_capturing():
+                if A_dense.is_cuda and torch.cuda.is_current_stream_capturing():
                     # без проверки ошибок (она синхронизирует GPU, что запрещено при записи CUDA-графа)
                     x = torch.linalg.solve_ex(A_dense, b_local, check_errors=False)[0]
                 else:

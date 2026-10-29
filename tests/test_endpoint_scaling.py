@@ -167,3 +167,30 @@ def test_hysteresis_changes_gas_injection_response(tmp_path):
     h, _ = run_deck(_hyst_deck(tmp_path, isgcr=0.15), max_days=1200)
     assert np.isfinite(h["FOPR"][1:]).all()
     assert np.abs(h["FGPR"][1:] - base["FGPR"][1:]).max() > 1e-4 * base["FGPR"][1:].max()
+
+
+@pytest.mark.parametrize("three_point", [False, True])
+def test_scaled_hysteresis_checkpoint_after_forward_ad(tmp_path, three_point):
+    path = _hyst_deck(tmp_path, isgcr=0.15)
+    if three_point:
+        path = _deck(tmp_path, path, runspec="SCALECRS\n YES /\n", name="SAVE.DATA")
+    _, fluid, _, _ = EclipseCase(path).build()
+    kr = fluid.blackoil_relperm
+    sw = torch.full_like(fluid.s_w.reshape(-1), 0.3)
+    sg = torch.full_like(sw, 0.2)
+
+    def evaluate(model):
+        def properties(water):
+            rates, capillary = model.kr_pc(water, sg)
+            return torch.stack((*rates, *capillary))
+        return torch.func.jvp(properties, (sw,), (torch.ones_like(sw),))
+
+    before = evaluate(kr)
+    checkpoint = tmp_path / "scaled_hysteresis.pt"
+    torch.save(kr, checkpoint)
+    restored = torch.load(checkpoint, weights_only=False)
+    after = evaluate(restored)
+    for expected, actual in zip(before, after):
+        assert torch.equal(expected, actual)
+    # The restored id-based cache must also be safe to checkpoint after another AD call.
+    torch.save(restored, checkpoint)

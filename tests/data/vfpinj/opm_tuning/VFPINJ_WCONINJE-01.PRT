@@ -1,0 +1,727 @@
+
+
+
+ ########  #          ######   #           #
+ #         #         #      #   #         # 
+ #####     #         #      #    #   #   #  
+ #         #         #      #     # # # #   
+ #         #######    ######       #   #    
+
+Flow is a simulator for fully implicit three-phase black-oil flow, and is part of OPM.
+For more information visit: https://opm-project.org 
+
+Flow Version     =  2026.04 (Ubuntu 24.04.4 LTS: 2026.04-1~noble)
+Machine name     =  c5fc1e3cf189 (Number of logical cores: 24, Memory size: 63931.82 MB) 
+Operating system =  Linux x86_64 (Kernel: 6.17.0-22-generic, #22~24.04.1-Ubuntu SMP PREEMPT_DYNAMIC Thu Mar 26 15:25:54 UTC 2 )
+Build time       =  
+Simulation started on 29-10-2026 at 13:51:14 hrs
+Using 1 MPI processes with 2 OMP threads on each 
+Parameters used by Flow:
+# [known parameters which were specified at run-time]
+EclDeckFileName="/case/VFPINJ_WCONINJE-01.DATA" # default: ""
+OutputDir="/out" # default: ""
+EnableTuning="true" # default: "0"
+# [parameters which were specified at compile-time]
+AcceleratorMode="none"
+ActionParsingStrictness="normal"
+AddCorners="0"
+AllowDistributedWells="0"
+AllowSplittingInactiveWells="1"
+AlternativeWellRateInit="1"
+CheckGroupConstraintsInnerWellIterations="1"
+CheckSatfuncConsistency="1"
+ConserveInnerEnergyThermal="0"
+ContinueOnConvergenceError="0"
+ConvergenceMonitoring="0"
+ConvergenceMonitoringCutOff="6"
+ConvergenceMonitoringDecayFactor="0.75"
+CprReuseInterval="30"
+CprReuseSetup="4"
+CprWeightsThreadParallel="0"
+DbhpMaxRel="1"
+DebugEmitCellPartition="0"
+DebugVerbosityLevel="1"
+DpMaxRel="0.3"
+DsMax="0.2"
+DwellFractionMax="0.2"
+EclOutputDoublePrecision="0"
+EclOutputInterval="-1"
+EdgeConformal="0"
+EdgeWeightsMethod="transmissibility"
+EnableAdaptiveTimeStepping="1"
+EnableAsyncEclOutput="1"
+EnableAsyncVtkOutput="1"
+EnableDriftCompensation="0"
+EnableDriftCompensationTemp="1"
+EnableDryRun="auto"
+EnableEclOutput="1"
+EnableEsmry="1"
+EnableGravity="1"
+EnableGridAdaptation="0"
+EnableIntensiveQuantityCache="1"
+EnableLoggingFalloutWarning="0"
+EnableOpmRstFile="0"
+EnableStorageCache="1"
+EnableTerminalOutput="1"
+EnableThermodynamicHints="0"
+EnableVtkOutput="0"
+EnableWellOperabilityCheck="1"
+EnableWellOperabilityCheckIter="0"
+EnableWriteAllSolutions="0"
+EndTime="1e+100"
+ExplicitRockCompaction="0"
+ExternalPartition=""
+ForceDisableFluidInPlaceOutput="0"
+ForceDisableResvFluidInPlaceOutput="0"
+FullTimeStepInitially="0"
+GpuAwareMpi="0"
+GpuDeviceId="0"
+HybridNewtonConfigFile="hybridNewtonConfig.json"
+IgnoreKeywords=""
+IluFillinLevel="0"
+IluRedblack="0"
+IluRelaxation="0.9"
+IluReorderSpheres="0"
+ImbalanceTol="1.1"
+InitialTimeStepInDays="1"
+InitialTimeStepSize="86400"
+InjMultDampMult="0.9"
+InjMultMinDampFactor="0.05"
+InjMultOscThreshold="0.1"
+InputSkipMode="100"
+LinearSolver="cprw"
+LinearSolverAccelerator="cpu"
+LinearSolverIgnoreConvergenceFailure="0"
+LinearSolverMaxIter="200"
+LinearSolverPrintJsonDefinition="1"
+LinearSolverReduction="0.01"
+LinearSolverRestart="40"
+LinearSolverVerbosity="0"
+LoadFile=""
+LoadStep="-1"
+LocalDomainsOrderingMeasure="maxpressure"
+LocalDomainsPartitionWellNeighborLevels="1"
+LocalDomainsPartitioningImbalance="1.03"
+LocalDomainsPartitioningMethod="zoltan"
+LocalSolveApproach="gauss-seidel"
+LocalToleranceScalingCnv="0.1"
+LocalToleranceScalingMb="1"
+LocalWellSolveControlSwitching="1"
+MatrixAddWellContributions="0"
+MaxInnerIterMsWells="100"
+MaxInnerIterWells="50"
+MaxLocalSolveIterations="20"
+MaxNewtonIterationsWithInnerWellIterations="99"
+MaxPressureChangeMsWells="1e+06"
+MaxResidualAllowed="1e+07"
+MaxSinglePrecisionDays="20"
+MaxTemperatureChange="5"
+MaxTimeStepDivisions="10"
+MaxTimeStepSize="inf"
+MaxWellStatusSwitchForWells="99"
+MaxWellStatusSwitchInInnerIterWells="99"
+MaxWelleqIter="30"
+MaximumNumberOfGroupSwitches="3"
+MaximumNumberOfWellSwitches="3"
+MaximumWaterSaturation="1"
+MetisParams="default"
+MiluVariant="ilu"
+MinStrictCnvIter="-1"
+MinStrictMbIter="-1"
+MinTimeStepBasedOnNewtonIterations="0"
+MinTimeStepBeforeShuttingProblematicWellsInDays="0.01"
+MinTimeStepSize="0"
+NetworkMaxOuterIterations="3"
+NetworkMaxPressureUpdateInBars="5"
+NetworkMaxStrictOuterIterations="10"
+NetworkMaxSubIterations="100"
+NetworkPressureUpdateDampingFactor="0.1"
+NewtonMaxError="1e+100"
+NewtonMaxIterations="20"
+NewtonMaxRelax="0.5"
+NewtonMinIterations="2"
+NewtonRelaxationType="dampen"
+NewtonTargetIterations="10"
+NewtonTolerance="0.01"
+NewtonVerbose="1"
+NewtonWriteConvergence="0"
+NlddLocalLinearSolver="ilu0"
+NlddLocalLinearSolverMaxIter="200"
+NlddLocalLinearSolverReduction="0.01"
+NlddNumInitialNewtonIter="1"
+NlddRelativeMobilityChangeTol="0.1"
+NonlinearSolver="newton"
+NumLocalDomains="0"
+NumOverlap="1"
+NumPressurePointsEquil="2000"
+NumSatfuncConsistencySamplePoints="5"
+NupcolGroupRateTolerance="0.001"
+OpenclIluParallel="1"
+OpenclPlatformId="0"
+OutputExtraConvergenceInfo="none"
+OutputInterval="1"
+OutputMode="all"
+OwnerCellsFirst="1"
+ParameterFile=""
+ParsingStrictness="normal"
+PartitionMethod="zoltanwell"
+PreSolveNetwork="1"
+PredeterminedTimeStepsFile=""
+PressureMax="1e+99"
+PressureMin="-1e+99"
+PressureScale="1"
+PriVarOscilationThreshold="1e-05"
+PrintParameters="2"
+ProjectSaturations="0"
+RegularizationFactorWells="100"
+RelaxedLinearSolverReduction="0.01"
+RelaxedMaxPvFraction="0.03"
+RelaxedPressureTolMsw="10000"
+RelaxedWellFlowTol="0.001"
+RestartTime="-1e+35"
+RestartWritingInterval="16777215"
+SaveFile=""
+SaveStep=""
+ScaleLinearSystem="0"
+SchedRestart="0"
+SerialPartitioning="0"
+ShutUnsolvableWells="1"
+Slave="0"
+SolveWelleqInitially="1"
+SolverContinueOnConvergenceFailure="0"
+SolverGrowthFactor="2"
+SolverMaxGrowth="3"
+SolverMaxRestarts="10"
+SolverMaxTimeStepInDays="365"
+SolverMinTimeStep="1e-12"
+SolverRestartFactor="0.33"
+SolverVerbosity="1"
+StrictInnerIterWells="40"
+StrictOuterIterWells="6"
+TemperatureMax="1e+09"
+TemperatureMin="0"
+ThreadsPerProcess="2"
+TimeStepAfterEventInDays="-1"
+TimeStepControl="pid+newtoniteration"
+TimeStepControlDecayDampingFactor="1"
+TimeStepControlDecayRate="0.75"
+TimeStepControlFileName="timesteps"
+TimeStepControlGrowthDampingFactor="3.2"
+TimeStepControlGrowthRate="1.25"
+TimeStepControlMaxReductionTimeStep="0.1"
+TimeStepControlParameters="0.125;0.25;0.125;0.75;0.25"
+TimeStepControlRejectCompletedStep="0"
+TimeStepControlSafetyFactor="0.8"
+TimeStepControlTargetIterations="30"
+TimeStepControlTargetNewtonIterations="8"
+TimeStepControlTolerance="0.1"
+TimeStepControlToleranceTestVersion="standard"
+TimeStepVerbosity="1"
+ToleranceCnv="0.01"
+ToleranceCnvEnergy="0.4182"
+ToleranceCnvEnergyRelaxed="41.82"
+ToleranceCnvRelaxed="1"
+ToleranceEnergyBalance="4.182e-06"
+ToleranceEnergyBalanceRelaxed="4.182e-05"
+ToleranceMaxDp="0"
+ToleranceMaxDrs="0"
+ToleranceMaxDrv="0"
+ToleranceMaxDs="0"
+ToleranceMb="1e-07"
+ToleranceMbRelaxed="1e-06"
+TolerancePressureMsWells="1000"
+ToleranceWellControl="1e-07"
+ToleranceWells="0.0001"
+TpsaIluFillinLevel="0"
+TpsaIluRelaxation="0.9"
+TpsaLinearSolver="ilu0"
+TpsaLinearSolverIgnoreConvergenceFailure="0"
+TpsaLinearSolverMaxIter="200"
+TpsaLinearSolverPrintJsonDefinition="0"
+TpsaLinearSolverReduction="0.001"
+TpsaLinearSolverRestart="40"
+TpsaLinearSolverVerbosity="0"
+TpsaNewtonMaxError="1e+100"
+TpsaNewtonMaxIterations="20"
+TpsaNewtonMinIterations="1"
+TpsaNewtonTargetIterations="10"
+TpsaNewtonTolerance="0.001"
+TpsaNewtonVerbosity="1"
+TpsaRelaxedLinearSolverReduction="0.001"
+TpsaUseGmres="0"
+UpdateEquationsScaling="0"
+UseAverageDensityMsWells="0"
+UseGmres="0"
+UseHybridNewton="0"
+UseImplicitIpr="1"
+UseMultisegmentWell="1"
+UseUpdateStabilization="1"
+VerifyGpuAwareMpi="0"
+VtkWriteAverageMolarMasses="0"
+VtkWriteDensities="1"
+VtkWriteDiffusionCoefficients="0"
+VtkWriteDofIndex="0"
+VtkWriteEffectiveDiffusionCoefficients="0"
+VtkWriteExtrusionFactor="0"
+VtkWriteFilterVelocities="0"
+VtkWriteFugacities="0"
+VtkWriteFugacityCoeffs="0"
+VtkWriteGasDissolutionFactor="0"
+VtkWriteGasFormationVolumeFactor="0"
+VtkWriteGasSaturationPressure="0"
+VtkWriteIntrinsicPermeabilities="0"
+VtkWriteMassFractions="0"
+VtkWriteMobilities="0"
+VtkWriteMolarities="0"
+VtkWriteMoleFractions="1"
+VtkWriteOilFormationVolumeFactor="0"
+VtkWriteOilSaturationPressure="0"
+VtkWriteOilVaporizationFactor="0"
+VtkWritePorosity="1"
+VtkWritePotentialGradients="0"
+VtkWritePressures="1"
+VtkWritePrimaryVars="0"
+VtkWritePrimaryVarsMeaning="0"
+VtkWriteProcessRank="0"
+VtkWriteRelativePermeabilities="1"
+VtkWriteSaturatedGasOilVaporizationFactor="0"
+VtkWriteSaturatedOilGasDissolutionFactor="0"
+VtkWriteSaturationRatios="0"
+VtkWriteSaturations="1"
+VtkWriteTemperature="1"
+VtkWriteTortuosities="0"
+VtkWriteTotalMassFractions="0"
+VtkWriteTotalMoleFractions="0"
+VtkWriteTracerConcentration="0"
+VtkWriteViscosities="0"
+VtkWriteWaterFormationVolumeFactor="0"
+WaterOnlyThreshold="1"
+WellGroupConstraintsMaxIterations="1"
+ZoltanImbalanceTol="1.1"
+ZoltanParams="graph"
+ZoltanPhgEdgeSizeThreshold="0.35"
+
+Reading deck file '/case/VFPINJ_WCONINJE-01.DATA'
+    0 Reading RUNSPEC  in /case/VFPINJ_WCONINJE-01.DATA line 14
+    1 Reading DIMENS   in /case/VFPINJ_WCONINJE-01.DATA line 18
+    2 Reading OIL      in /case/VFPINJ_WCONINJE-01.DATA line 22
+    3 Reading WATER    in /case/VFPINJ_WCONINJE-01.DATA line 23
+    4 Reading GAS      in /case/VFPINJ_WCONINJE-01.DATA line 24
+    5 Reading DISGAS   in /case/VFPINJ_WCONINJE-01.DATA line 25
+    6 Reading VAPOIL   in /case/VFPINJ_WCONINJE-01.DATA line 26
+    7 Reading METRIC   in /case/VFPINJ_WCONINJE-01.DATA line 28
+    8 Reading START    in /case/VFPINJ_WCONINJE-01.DATA line 30
+    9 Reading GRIDOPTS in /case/VFPINJ_WCONINJE-01.DATA line 34
+   10 Reading EQLDIMS  in /case/VFPINJ_WCONINJE-01.DATA line 37
+   11 Reading EQLOPTS  in /case/VFPINJ_WCONINJE-01.DATA line 41
+   12 Reading REGDIMS  in /case/VFPINJ_WCONINJE-01.DATA line 45
+   13 Reading WELLDIMS in /case/VFPINJ_WCONINJE-01.DATA line 50
+   14 Reading TABDIMS  in /case/VFPINJ_WCONINJE-01.DATA line 55
+   15 Reading VFPPDIMS in /case/VFPINJ_WCONINJE-01.DATA line 60
+   16 Reading VFPIDIMS in /case/VFPINJ_WCONINJE-01.DATA line 65
+   17 Reading FAULTDIM in /case/VFPINJ_WCONINJE-01.DATA line 70
+   18 Reading UNIFIN   in /case/VFPINJ_WCONINJE-01.DATA line 74
+   19 Reading UNIFOUT  in /case/VFPINJ_WCONINJE-01.DATA line 75
+   20 Reading GRID     in /case/VFPINJ_WCONINJE-01.DATA line 78
+   21 Reading NEWTRAN  in /case/VFPINJ_WCONINJE-01.DATA line 82
+   22 Reading GRIDFILE in /case/VFPINJ_WCONINJE-01.DATA line 85
+   23 Reading INIT     in /case/VFPINJ_WCONINJE-01.DATA line 90
+   24 Reading SPECGRID in /case/include/mod2a_13x22x11.grdecl line 10
+   25 Reading COORD    in /case/include/mod2a_13x22x11.grdecl line 13
+   26 Reading ZCORN    in /case/include/mod2a_13x22x11.grdecl line 338
+   27 Reading ACTNUM   in /case/include/mod2a_13x22x11.grdecl line 4535
+   28 Reading FLUXNUM  in /case/include/fluxmun.grdecl line 11
+   29 Reading PORO     in /case/include/poro.grdecl line 11
+   30 Reading PERMX    in /case/include/permx.grdecl line 11
+   31 Reading NTG      in /case/include/ntg.grdecl line 11
+   32 Reading COPY     in /case/VFPINJ_WCONINJE-01.DATA line 110
+   33 Reading PERMZ    in /case/include/permz.grdecl line 11
+   34 Reading RPTGRID  in /case/VFPINJ_WCONINJE-01.DATA line 119
+   35 Reading EDIT     in /case/VFPINJ_WCONINJE-01.DATA line 123
+   36 Reading PROPS    in /case/VFPINJ_WCONINJE-01.DATA line 128
+   37 Reading NOECHO   in /case/VFPINJ_WCONINJE-01.DATA line 131
+   38 Reading PVTO     in /case/include/norne_pvt.inc line 18
+   39 Reading PVTG     in /case/include/norne_pvt.inc line 194
+   40 Reading PVTW     in /case/include/norne_pvt.inc line 263
+   41 Reading DENSITY  in /case/include/norne_pvt.inc line 272
+   42 Reading ROCK     in /case/include/rock.inc line 14
+   43 Reading SWOF     in /case/include/relperm_ow.inc line 11
+   44 Reading SGOF     in /case/include/relperm_go.inc line 10
+   45 Reading REGIONS  in /case/VFPINJ_WCONINJE-01.DATA line 147
+   46 Reading EQLNUM   in /case/include/eqlnum.grdecl line 11
+   47 Reading FIPNUM   in /case/include/fipnum.grdecl line 11
+   48 Reading SATNUM   in /case/include/satnum.grdecl line 11
+   49 Reading SOLUTION in /case/VFPINJ_WCONINJE-01.DATA line 160
+   50 Reading RPTRST   in /case/VFPINJ_WCONINJE-01.DATA line 164
+   51 Reading EQUIL    in /case/VFPINJ_WCONINJE-01.DATA line 167
+   52 Reading RSVD     in /case/VFPINJ_WCONINJE-01.DATA line 172
+   53 Reading THPRES   in /case/VFPINJ_WCONINJE-01.DATA line 184
+   54 Reading SUMMARY  in /case/VFPINJ_WCONINJE-01.DATA line 190
+   55 Reading FPR      in /case/include/summary.inc line 15
+   56 Reading FOPR     in /case/include/summary.inc line 16
+   57 Reading FWPR     in /case/include/summary.inc line 17
+   58 Reading FGPR     in /case/include/summary.inc line 18
+   59 Reading FGSR     in /case/include/summary.inc line 19
+   60 Reading FLPR     in /case/include/summary.inc line 20
+   61 Reading FOPRH    in /case/include/summary.inc line 21
+   62 Reading FWPRH    in /case/include/summary.inc line 22
+   63 Reading FGPRH    in /case/include/summary.inc line 23
+   64 Reading FOPT     in /case/include/summary.inc line 25
+   65 Reading FWPT     in /case/include/summary.inc line 26
+   66 Reading FGPT     in /case/include/summary.inc line 27
+   67 Reading FLPT     in /case/include/summary.inc line 28
+   68 Reading FGOR     in /case/include/summary.inc line 30
+   69 Reading FGORH    in /case/include/summary.inc line 31
+   70 Reading FWCT     in /case/include/summary.inc line 32
+   71 Reading FWCTH    in /case/include/summary.inc line 33
+   72 Reading FMCTP    in /case/include/summary.inc line 35
+   73 Reading FMCTW    in /case/include/summary.inc line 36
+   74 Reading FMCTG    in /case/include/summary.inc line 37
+   75 Reading RPR      in /case/include/summary.inc line 46
+   76 Reading WOPR     in /case/include/summary.inc line 54
+   77 Reading WGPR     in /case/include/summary.inc line 57
+   78 Reading WWPR     in /case/include/summary.inc line 60
+   79 Reading WLPR     in /case/include/summary.inc line 63
+   80 Reading WOPRH    in /case/include/summary.inc line 67
+   81 Reading WGPRH    in /case/include/summary.inc line 70
+   82 Reading WWPRH    in /case/include/summary.inc line 73
+   83 Reading WOPT     in /case/include/summary.inc line 77
+   84 Reading WGPT     in /case/include/summary.inc line 80
+   85 Reading WWPT     in /case/include/summary.inc line 83
+   86 Reading WLPT     in /case/include/summary.inc line 86
+   87 Reading WOPTH    in /case/include/summary.inc line 90
+   88 Reading WGPTH    in /case/include/summary.inc line 93
+   89 Reading WWPTH    in /case/include/summary.inc line 96
+   90 Reading WGOR     in /case/include/summary.inc line 101
+   91 Reading WWCT     in /case/include/summary.inc line 104
+   92 Reading WGORH    in /case/include/summary.inc line 107
+   93 Reading WWCTH    in /case/include/summary.inc line 110
+   94 Reading WGIR     in /case/include/summary.inc line 115
+   95 Reading WWIR     in /case/include/summary.inc line 118
+   96 Reading WGIRH    in /case/include/summary.inc line 121
+   97 Reading WWIRH    in /case/include/summary.inc line 124
+   98 Reading WBHP     in /case/include/summary.inc line 129
+   99 Reading WTHP     in /case/include/summary.inc line 132
+  100 Reading WGIP     in /case/include/summary.inc line 137
+  101 Reading WWIP     in /case/include/summary.inc line 140
+  102 Reading WOPP     in /case/include/summary.inc line 144
+  103 Reading WGPP     in /case/include/summary.inc line 147
+  104 Reading WWPP     in /case/include/summary.inc line 150
+  105 Reading WOPGR    in /case/include/summary.inc line 154
+  106 Reading WGPGR    in /case/include/summary.inc line 156
+  107 Reading WWPGR    in /case/include/summary.inc line 158
+  108 Reading WVPGR    in /case/include/summary.inc line 160
+  109 Reading WOIGR    in /case/include/summary.inc line 163
+  110 Reading WWIGR    in /case/include/summary.inc line 165
+  111 Reading WGIGR    in /case/include/summary.inc line 167
+  112 Reading GOPR     in /case/include/summary.inc line 172
+  113 Reading GWPR     in /case/include/summary.inc line 174
+  114 Reading GGPR     in /case/include/summary.inc line 176
+  115 Reading GGSR     in /case/include/summary.inc line 178
+  116 Reading GLPR     in /case/include/summary.inc line 180
+  117 Reading GMCTP    in /case/include/summary.inc line 183
+  118 Reading GMCTW    in /case/include/summary.inc line 185
+  119 Reading GMCTG    in /case/include/summary.inc line 187
+  120 Reading GOPGR    in /case/include/summary.inc line 189
+  121 Reading GGPGR    in /case/include/summary.inc line 191
+  122 Reading GWPGR    in /case/include/summary.inc line 193
+  123 Reading GVPGR    in /case/include/summary.inc line 195
+  124 Reading GOIGR    in /case/include/summary.inc line 198
+  125 Reading GWIGR    in /case/include/summary.inc line 200
+  126 Reading GGIGR    in /case/include/summary.inc line 202
+  127 Reading GOPT     in /case/include/summary.inc line 206
+  128 Reading GWPT     in /case/include/summary.inc line 208
+  129 Reading GGPT     in /case/include/summary.inc line 210
+  130 Reading GLPT     in /case/include/summary.inc line 212
+  131 Reading GWIR     in /case/include/summary.inc line 215
+  132 Reading GGIR     in /case/include/summary.inc line 217
+  133 Reading GWIT     in /case/include/summary.inc line 220
+  134 Reading GGIT     in /case/include/summary.inc line 222
+  135 Reading GOPP     in /case/include/summary.inc line 225
+  136 Reading GGPP     in /case/include/summary.inc line 227
+  137 Reading GWPP     in /case/include/summary.inc line 229
+  138 Reading GWPI     in /case/include/summary.inc line 232
+  139 Reading GGPI     in /case/include/summary.inc line 234
+  140 Reading BPR      in /case/include/summary.inc line 241
+  141 Reading BWSAT    in /case/include/summary.inc line 246
+  142 Reading BGSAT    in /case/include/summary.inc line 252
+  143 Reading BWSAT    in /case/include/summary.inc line 258
+  144 Reading BGSAT    in /case/include/summary.inc line 262
+  145 Reading BOSAT    in /case/include/summary.inc line 266
+  146 Reading BKRW     in /case/include/summary.inc line 272
+  147 Reading BKRO     in /case/include/summary.inc line 277
+  148 Reading BKROW    in /case/include/summary.inc line 282
+  149 Reading BKRG     in /case/include/summary.inc line 287
+  150 Reading BKROG    in /case/include/summary.inc line 292
+  151 Reading RPR      in /case/include/summary.inc line 299
+  152 Reading ROIP     in /case/include/summary.inc line 302
+  153 Reading RGIP     in /case/include/summary.inc line 305
+  154 Reading SCHEDULE in /case/VFPINJ_WCONINJE-01.DATA line 199
+  155 Reading TUNING   in /case/VFPINJ_WCONINJE-01.DATA line 202
+  156 Reading RPTRST   in /case/VFPINJ_WCONINJE-01.DATA line 207
+  157 Reading VFPINJ   in /case/include/inj1_vfp_gas.inc line 1
+  158 Reading VFPINJ   in /case/include/inj2_vfp_wat.inc line 1
+  159 Reading GRUPTREE in /case/VFPINJ_WCONINJE-01.DATA line 220
+  160 Reading WELSPECS in /case/VFPINJ_WCONINJE-01.DATA line 225
+  161 Reading COMPDAT  in /case/VFPINJ_WCONINJE-01.DATA line 230
+  162 Reading WCONINJE in /case/VFPINJ_WCONINJE-01.DATA line 247
+  163 Reading WCONPROD in /case/VFPINJ_WCONINJE-01.DATA line 253
+  164 Reading DATES    in /case/VFPINJ_WCONINJE-01.DATA line 258
+  165 Reading WELSPECS in /case/VFPINJ_WCONINJE-01.DATA line 263
+  166 Reading COMPDAT  in /case/VFPINJ_WCONINJE-01.DATA line 267
+  167 Reading WELSPECS in /case/VFPINJ_WCONINJE-01.DATA line 275
+  168 Reading COMPDAT  in /case/VFPINJ_WCONINJE-01.DATA line 279
+  169 Reading WCONPROD in /case/VFPINJ_WCONINJE-01.DATA line 285
+  170 Reading WCONINJE in /case/VFPINJ_WCONINJE-01.DATA line 291
+  171 Reading DATES    in /case/VFPINJ_WCONINJE-01.DATA line 297
+  172 Reading WCONINJE in /case/VFPINJ_WCONINJE-01.DATA line 301
+  173 Reading DATES    in /case/VFPINJ_WCONINJE-01.DATA line 306
+
+Warning: Unsupported keywords or keyword items:
+
+  RPTGRID: keyword not supported
+  In file: /case/VFPINJ_WCONINJE-01.DATA, line 119
+
+  NOECHO: keyword not supported
+  In file: /case/VFPINJ_WCONINJE-01.DATA, line 131
+
+Creating corner-point grid from keywords COORD, ZCORN and others
+3 fluid phases are active
+
+Processing dynamic information from
+/case/VFPINJ_WCONINJE-01.DATA line 199
+Initializing report step 0/3 at 2018-11-01 0 DAYS line 199
+Processing keyword TUNING at line 202
+Processing keyword RPTRST at line 207
+Reading from: /case/include/inj1_vfp_gas.inc line 1
+Processing keyword VFPINJ at line 1
+Reading from: /case/include/inj2_vfp_wat.inc line 1
+Processing keyword VFPINJ at line 1
+Reading from: /case/VFPINJ_WCONINJE-01.DATA line 220
+Processing keyword GRUPTREE at line 220
+Processing keyword WELSPECS at line 225
+Processing keyword COMPDAT at line 230
+Processing keyword WCONINJE at line 247
+Processing keyword WCONPROD at line 253
+Complete report step 1 (9 DAYS) at 2018-11-10 (0 DAYS)
+
+Initializing report step 2/3 at 2018-11-10 (0 DAYS) line 258
+Processing keyword WELSPECS at line 263
+Processing keyword COMPDAT at line 267
+Processing keyword WELSPECS at line 275
+Processing keyword COMPDAT at line 279
+Processing keyword WCONPROD at line 285
+Processing keyword WCONINJE at line 291
+Complete report step 2 (10 DAYS) at 2018-11-20 (9 DAYS)
+
+Initializing report step 3/3 at 2018-11-20 (9 DAYS) line 297
+Processing keyword WCONINJE at line 301
+Complete report step 3 (10 DAYS) at 2018-11-30 (19 DAYS)
+
+
+Processing grid
+Total number of active cells: 2794 / total pore volume: 58414012 RM3
+
+Property tree for linear solvers:
+{
+    "maxiter": "20",
+    "tol": "0.0050000000000000001",
+    "verbosity": "0",
+    "solver": "bicgstab",
+    "preconditioner": {
+        "type": "cprw",
+        "use_well_weights": "false",
+        "add_wells": "true",
+        "weight_type": "trueimpes",
+        "pre_smooth": "0",
+        "post_smooth": "1",
+        "finesmoother": {
+            "type": "paroverilu0",
+            "relaxation": "1"
+        },
+        "verbosity": "0",
+        "coarsesolver": {
+            "maxiter": "1",
+            "tol": "0.10000000000000001",
+            "solver": "loopsolver",
+            "verbosity": "0",
+            "preconditioner": {
+                "type": "amg",
+                "alpha": "0.33333333333300003",
+                "relaxation": "1",
+                "iterations": "1",
+                "coarsenTarget": "1200",
+                "pre_smooth": "1",
+                "post_smooth": "1",
+                "beta": "0",
+                "smoother": "ilu0",
+                "verbosity": "0",
+                "maxlevel": "15",
+                "skip_isolated": "0",
+                "accumulate": "1",
+                "prolongationdamping": "1",
+                "maxdistance": "2",
+                "maxconnectivity": "15",
+                "maxaggsize": "6",
+                "minaggsize": "4"
+            }
+        }
+    }
+}
+
+
+Warning: Unhandled summary keyword WOIGR
+In /case/include/summary.inc line 163
+
+Warning: Unhandled summary keyword GOIGR
+In /case/include/summary.inc line 198
+
+LIST OF ALL NON-ZERO THRESHOLD PRESSURES
+----------------------------------------
+
+    FLOW FROM REGION             TO REGION                     THRESHOLD PRESSURE
+    ----------------             ---------                     ------------------
+         1                            2                           2.486798       BARSA
+    ----------------             ---------                     ------------------
+
+
+
+================ Starting main simulation loop ===============
+
+
+Report step  0/3 at day 0/29, date = 01-Nov-2018
+Using Newton nonlinear solver.
+Restart file written for report step 0/3, date = 01-Nov-2018 00:00:00
+
+Starting time step 0, stepsize 1 days, at day 0/9, date = 01-Nov-2018
+ Newton its= 3, linearizations= 4 (0.0sec), linear its=  3 (0.0sec)
+
+Starting time step 1, stepsize 1 days, at day 1/9, date = 02-Nov-2018
+    Oscillating behavior detected: Relaxation set to 0.900000
+ Newton its= 6, linearizations= 7 (0.0sec), linear its=  3 (0.0sec)
+
+Starting time step 2, stepsize 1 days, at day 2/9, date = 03-Nov-2018
+ Newton its= 2, linearizations= 3 (0.0sec), linear its=  2 (0.0sec)
+
+Starting time step 3, stepsize 1 days, at day 3/9, date = 04-Nov-2018
+ Newton its= 3, linearizations= 4 (0.0sec), linear its=  1 (0.0sec)
+
+Starting time step 4, stepsize 1 days, at day 4/9, date = 05-Nov-2018
+ Newton its= 2, linearizations= 3 (0.0sec), linear its=  2 (0.0sec)
+
+Starting time step 5, stepsize 1 days, at day 5/9, date = 06-Nov-2018
+ Newton its= 3, linearizations= 4 (0.0sec), linear its=  3 (0.0sec)
+
+Starting time step 6, stepsize 1 days, at day 6/9, date = 07-Nov-2018
+ Newton its= 2, linearizations= 3 (0.0sec), linear its=  2 (0.0sec)
+
+Starting time step 7, stepsize 1 days, at day 7/9, date = 08-Nov-2018
+    Oscillating behavior detected: Relaxation set to 0.900000
+    Oscillating behavior detected: Relaxation set to 0.800000
+ Newton its= 7, linearizations= 8 (0.0sec), linear its=  6 (0.0sec)
+
+Starting time step 8, stepsize 1 days, at day 8/9, date = 09-Nov-2018
+ Newton its= 2, linearizations= 3 (0.0sec), linear its=  2 (0.0sec)
+
+
+Report step  1/3 at day 9/29, date = 10-Nov-2018
+
+Starting time step 0, stepsize 1 days, at day 9/19, date = 10-Nov-2018
+Restart file written for report step 1/3, date = 10-Nov-2018 00:00:00
+    Well INJ1 control mode changed from RATE to THP
+ Newton its= 3, linearizations= 4 (0.0sec), linear its=  3 (0.0sec)
+
+Starting time step 1, stepsize 1 days, at day 10/19, date = 11-Nov-2018
+ Newton its= 3, linearizations= 4 (0.0sec), linear its=  4 (0.0sec)
+
+Starting time step 2, stepsize 1 days, at day 11/19, date = 12-Nov-2018
+ Newton its= 3, linearizations= 4 (0.0sec), linear its=  4 (0.0sec)
+
+Starting time step 3, stepsize 1 days, at day 12/19, date = 13-Nov-2018
+ Newton its= 4, linearizations= 5 (0.0sec), linear its=  5 (0.0sec)
+
+Starting time step 4, stepsize 1 days, at day 13/19, date = 14-Nov-2018
+ Newton its= 3, linearizations= 4 (0.0sec), linear its=  3 (0.0sec)
+
+Starting time step 5, stepsize 1 days, at day 14/19, date = 15-Nov-2018
+ Newton its= 3, linearizations= 4 (0.0sec), linear its=  3 (0.0sec)
+
+Starting time step 6, stepsize 1 days, at day 15/19, date = 16-Nov-2018
+ Newton its= 2, linearizations= 3 (0.0sec), linear its=  2 (0.0sec)
+
+Starting time step 7, stepsize 1 days, at day 16/19, date = 17-Nov-2018
+ Newton its= 4, linearizations= 5 (0.0sec), linear its=  5 (0.0sec)
+
+Starting time step 8, stepsize 1 days, at day 17/19, date = 18-Nov-2018
+ Newton its= 2, linearizations= 3 (0.0sec), linear its=  2 (0.0sec)
+
+Starting time step 9, stepsize 1 days, at day 18/19, date = 19-Nov-2018
+ Newton its= 2, linearizations= 3 (0.0sec), linear its=  3 (0.0sec)
+
+
+Report step  2/3 at day 19/29, date = 20-Nov-2018
+
+Starting time step 0, stepsize 1 days, at day 19/29, date = 20-Nov-2018
+Restart file written for report step 2/3, date = 20-Nov-2018 00:00:00
+ Newton its= 2, linearizations= 3 (0.0sec), linear its=  3 (0.0sec)
+
+Starting time step 1, stepsize 1 days, at day 20/29, date = 21-Nov-2018
+    Well INJ2 control mode changed from RATE to THP
+ Newton its= 3, linearizations= 4 (0.0sec), linear its=  5 (0.0sec)
+
+Starting time step 2, stepsize 1 days, at day 21/29, date = 22-Nov-2018
+ Newton its= 2, linearizations= 3 (0.0sec), linear its=  2 (0.0sec)
+
+Starting time step 3, stepsize 1 days, at day 22/29, date = 23-Nov-2018
+ Newton its= 2, linearizations= 3 (0.0sec), linear its=  2 (0.0sec)
+
+Starting time step 4, stepsize 1 days, at day 23/29, date = 24-Nov-2018
+ Newton its= 3, linearizations= 4 (0.0sec), linear its=  4 (0.0sec)
+
+Starting time step 5, stepsize 1 days, at day 24/29, date = 25-Nov-2018
+ Newton its= 2, linearizations= 3 (0.0sec), linear its=  2 (0.0sec)
+
+Starting time step 6, stepsize 1 days, at day 25/29, date = 26-Nov-2018
+ Newton its= 3, linearizations= 4 (0.0sec), linear its=  3 (0.0sec)
+
+Starting time step 7, stepsize 1 days, at day 26/29, date = 27-Nov-2018
+ Newton its= 2, linearizations= 3 (0.0sec), linear its=  3 (0.0sec)
+
+Starting time step 8, stepsize 1 days, at day 27/29, date = 28-Nov-2018
+ Newton its= 3, linearizations= 4 (0.0sec), linear its=  3 (0.0sec)
+
+Starting time step 9, stepsize 1 days, at day 28/29, date = 29-Nov-2018
+ Newton its= 3, linearizations= 4 (0.0sec), linear its=  4 (0.0sec)
+
+Restart file written for report step 3/3, date = 30-Nov-2018 00:00:00
+
+
+================    End of simulation     ===============
+
+Number of MPI processes:         1
+Threads per MPI process:         2
+Setup time:                      0.10 s
+  Deck input:                    0.06 s
+Number of timesteps:            29
+Simulation time:                 0.53 s
+  Assembly time:                 0.12 s (Wasted: 0.0 s; 0.0%)
+    Well assembly:               0.01 s (Wasted: 0.0 s; 0.0%)
+  Linear solve time:             0.29 s (Wasted: 0.0 s; 0.0%)
+    Linear setup:                0.21 s (Wasted: 0.0 s; 0.0%)
+  Props/update time:             0.06 s (Wasted: 0.0 s; 0.0%)
+  Pre/post step:                 0.05 s (Wasted: 0.0 s; 0.0%)
+  Output write time:             0.01 s
+Overall Linearizations:        113      (Wasted:     0; 0.0%)
+Overall Newton Iterations:      84      (Wasted:     0; 0.0%)
+Overall Linear Iterations:      89      (Wasted:     0; 0.0%)
+
+
+
+Error summary:
+Warnings          3
+Info              283
+Errors            0
+Bugs              0
+Debug             0
+Problems          0
+

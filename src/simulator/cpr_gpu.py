@@ -29,10 +29,11 @@ class CPRPreconditionerGPU:
     use_graphs = True
 
     def __init__(self, J_vals, indptr, indices, n_cells, device, amg=None, smoother_sweeps=1,
-                 amg_verbose=False):
+                 amg_verbose=False, graph_pool=None):
         self.n_cells = n_cells
         self.device = device
         self.smoother_sweeps = max(1, int(smoother_sweeps))
+        self._graph_pool = graph_pool
         crow = indptr.long()
         col = indices.long()
         self.rows = torch.repeat_interleave(torch.arange(n_cells, device=J_vals.device), crow[1:] - crow[:-1])
@@ -119,7 +120,14 @@ class CPRPreconditionerGPU:
             return self._matvec_eager(r)
         if self._graph == "warm":
             r_in = r.clone()
-            graph, out = capture(lambda: self._matvec_eager(r_in), r.device)
+            pool = self._graph_pool
+            graph, out = capture(lambda: self._matvec_eager(r_in), r.device,
+                                 pool=pool["handle"] if pool is not None else None,
+                                 stream=pool["stream"] if pool is not None else None)
+            # Keep the pool registered between consecutive CPR graph lifetimes.
+            # This first graph is never replayed after its own linear solve.
+            if pool is not None and pool["anchor"] is None:
+                pool["anchor"] = graph
             self._graph = (graph, r_in, out)
         graph, r_in, out = self._graph
         r_in.copy_(r)

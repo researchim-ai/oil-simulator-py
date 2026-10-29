@@ -58,7 +58,8 @@ def test_injected_phase_change(tmp_path):
 def test_zero_rate_target_stops_well(tmp_path):
     path = _deck(tmp_path, "WCONINJE\n 'INJ' 'GAS' 'OPEN' 'RATE' 0 1* 9014 /\n/\n", "R0.DATA")
     case = EclipseCase(path)
-    assert case.control_cfg("INJ", case.steps[12][1]["INJ"])["control_type"] == "shut"
+    cfg = case.control_cfg("INJ", case.steps[12][1]["INJ"])
+    assert cfg["control_type"] == "rate" and cfg["stopped"] and cfg["control_value"] == 0
     s, info = run_deck(path, max_days=MAX_DAYS)
     n = int(np.searchsorted(s["TIME"], 365.0)) + 1
     assert np.all(s["FGIR"][n:] == 0.0) and np.all(s["FGIR"][1:n] > 0)

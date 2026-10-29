@@ -1,0 +1,32 @@
+{
+  "flow_version": "2026.04 (Ubuntu 24.04.4 LTS: 2026.04-1~noble)",
+  "container_image": "openporousmedia/opmreleases@sha256:18c497f6a918c160cd290081d4163abf6e2c349797e18e3b5669c9095044adff",
+  "container_image_id_short": "a3aedae0558b",
+  "generated_date": "2026-10-29",
+  "command": "OMP_NUM_THREADS=2 flow /case/VFPINJ_WCONINJE-01.DATA --output-dir=/out --enable-tuning=true",
+  "inputs": {
+    "VFPINJ_WCONINJE-01.DATA": "9ba4645ccc16bc77a924ede216962a7a84e6798a7c27df5c9b513561ba6b2d6b",
+    "include/eqlnum.grdecl": "633df24f41315706709df240fd99f9200a3faa3bfb4715f0dbe60723b77c827a",
+    "include/fipnum.grdecl": "4d6ba6bdbfbd24585a0e4c12112c0c4a992179889d63cd9c74e4f7c5dea72c69",
+    "include/fluxmun.grdecl": "7f90cb53f9f0abeb2e68fba18558fb40876f14dbe51de5c4c1903fa28e5a8bbf",
+    "include/inj1_vfp_gas.inc": "cd8e75dca4604a0181a9d416c191dadeb740cebe2045a36ea68e33c7379abc73",
+    "include/inj2_vfp_wat.inc": "122b2daee6561c7ae71bef73a61bf386400e6eae640c1bed7b0f0a2773352cbf",
+    "include/mod2a_13x22x11.grdecl": "430f10a977c8769c19ea07c014546deccac767d0b92ad997575c9ea803de6966",
+    "include/norne_pvt.inc": "412326ca0a60108164a79366eaacaded2e5003dd580996a43883b8ea13ede9ae",
+    "include/ntg.grdecl": "e6df61518ae3d7641929cafeb45e47960cb51e839ac263f8e355eeccb1bab714",
+    "include/permx.grdecl": "b50895203166b3de910688517f198741ba6e750f4fbe4f5b1f5567150d3a5ad9",
+    "include/permz.grdecl": "c762ce505f5c956d3f4c9abc3e45e5de8ee5ff52e58cd94d052c6d219e904e8c",
+    "include/poro.grdecl": "9ddac1774725ce5791804171893b014b67886f9476a913a0fd44eac671fb080f",
+    "include/relperm_go.inc": "bb8b2e48ab022d584263ef92d975b6cc167c2882fb4d51b77a636851c24ff9b9",
+    "include/relperm_ow.inc": "1b44f8503fdf0558b717646752d5b060860441865df885fad22fd9c55d0e8315",
+    "include/rock.inc": "b47c2c483534bb88978495143a0948a96a2a4b6643aefc06a0cabae6313c5fb7",
+    "include/satnum.grdecl": "b4233cedf960627332dbc47edf8e515daf8c006b3c8f63706a0887df109d79ba",
+    "include/summary.inc": "5131ef2f777a132dd874a60ad8d7eb0ca0fe1c79ed8771ea3b37375100aa8684"
+  },
+  "outputs": {
+    "VFPINJ_WCONINJE-01.SMSPEC": "f9b977ff3db4efd94a2aeefb48e82a3afa5a1105801d8fc5e5df88a5708a1a9a",
+    "VFPINJ_WCONINJE-01.PRT": "d25c92894c43dc9feecea8c73ae82336c31e4b4b9aaee0dc30e7998d36d7492d",
+    "VFPINJ_WCONINJE-01.UNSMRY": "b4b7fef4b1ab5419b96c402fd12bf4090119360e0ef1f5d2e99fecb611fe956d"
+  },
+  "container_image_id": "sha256:a3aedae0558b137cbe6c0204414969670dd49834d8ef8d69a49a4254c4d90105"
+}

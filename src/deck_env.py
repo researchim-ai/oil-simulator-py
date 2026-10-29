@@ -59,16 +59,22 @@ class DeckEnv(gym.Env):
         try:
             _, t, _ = next(self._gen)
         except StopIteration:
-            return self._obs(), 0.0, True, False, {"t": self.t, "end_of_schedule": True}
+            return self._obs(), 0.0, True, False, self._step_info(end_of_schedule=True)
         except RuntimeError as ex:
-            return self._obs(), float(self.fail_penalty), True, False, {"t": self.t, "failed": str(ex)[:300]}
+            return self._obs(), float(self.fail_penalty), True, False, self._step_info(failed=str(ex)[:300])
         self.t, self.n_steps = t, self.n_steps + 1
         d = self._cum() - before
         po, cw, ci, cg = self.prices
         reward = (po * d[0] - cw * d[1] - ci * d[2] - cg * d[3]) / self.reward_scale
         done = t >= self._t_end - 1e-9 or (self.max_steps is not None and self.n_steps >= self.max_steps)
-        info = {"t": t, "oil_m3": d[0], "water_m3": d[1], "water_inj_m3": d[2], "gas_inj_m3": d[3]}
+        info = self._step_info(d)
         return self._obs(), float(reward), bool(done), False, info
+
+    def _step_info(self, volumes=None, **status):
+        # Объёмы относятся только к успешно завершённому отчётному интервалу.
+        d = np.zeros(4) if volumes is None else volumes
+        return {"t": self.t, "oil_m3": float(d[0]), "water_m3": float(d[1]),
+                "water_inj_m3": float(d[2]), "gas_inj_m3": float(d[3]), **status}
 
     def close(self):
         if self._gen is not None:

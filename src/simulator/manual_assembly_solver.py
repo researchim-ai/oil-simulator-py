@@ -12,6 +12,7 @@
 """
 import contextlib
 import io
+import math
 import time
 
 import torch
@@ -35,6 +36,8 @@ class ManualFIMSolver:
     Fully Implicit Solver с ручной сборкой разреженного блочного Якобиана (BSR 2x2) на GPU.
     """
     def __init__(self, reservoir: Reservoir, fluid: Fluid, well_manager: WellManager, params: dict):
+        if any(getattr(w, "stopped", False) for w in well_manager.wells):
+            raise NotImplementedError("Внутренний переток STOP требует fim_model='blackoil'")
         self.reservoir = reservoir
         self.fluid = fluid
         self.well_manager = well_manager
@@ -66,6 +69,12 @@ class ManualFIMSolver:
             print(f"  Скважина {w.name}: перфораций {len(w.perforations)}, WI = "
                   + ", ".join(f"{v:.3e}" for v in w.connection_wi) + " м³")
         self._p_bh_cur = None
+
+    def __getstate__(self):
+        state = self.__dict__.copy()
+        # CUDA pool handles belong to a process/context; recreate after checkpoint load.
+        state["_cpr_graph_pool"] = None
+        return state
 
     def _init_params(self, params):
         # Воспроизводимость: ядра torch с накоплением (scatter/index_add, разреженное умножение в AMG) иначе
@@ -104,6 +113,7 @@ class ManualFIMSolver:
         self.linear_verbose = bool(params.get('linear_verbose', False))
         self.amg_verbose = bool(params.get('amg_verbose', False))
         self._amg = None
+        self._cpr_graph_pool = None
         self.last_newton_iters = 0
         self.last_max_dsw = 0.0
         self.last_max_dp = 0.0
@@ -506,11 +516,24 @@ class ManualFIMSolver:
         if sub is not None:
             keep, iso, vpos, indptr_s, indices_s, rows_s = sub
             dx_full = torch.zeros_like(rhs)
-            dx_full[iso] = torch.linalg.solve(J[self.builder.diag_map[iso]], rhs[iso].unsqueeze(-1)).squeeze(-1)
+            local, info = torch.linalg.solve_ex(J[self.builder.diag_map[iso]], rhs[iso].unsqueeze(-1))
+            if bool((info != 0).any()) or not bool(torch.isfinite(local).all()):
+                self._last_linear_stats = dict(stats, backend="local_blocks", reason="singular_local_block")
+                return None
+            dx_full[iso] = local.squeeze(-1)
             Js, rhs_s, n_s = J[vpos], rhs[keep], int(keep.numel())
         else:
             Js, rhs_s, n_s = J, rhs, n
             indptr_s, indices_s, rows_s = self.builder.indptr, self.builder.indices, rows
+        if n_s == 0:
+            # Закрытый набор несвязанных ячеек уже решён локальными блоками: пустой AMG не нужен.
+            residual = torch.bmm(J[self.builder.diag_map], dx_full.unsqueeze(-1)).squeeze(-1) - rhs
+            true_rel = float(residual.norm() / rhs.norm().clamp_min(1e-300))
+            self._last_linear_stats = dict(stats, backend="local_blocks", true_rel_res=true_rel, iters=0)
+            if not torch.isfinite(dx_full).all() or not math.isfinite(true_rel) or true_rel > self.lin_accept:
+                return None
+            dpw = self.wells.recover_dpw(wsys, dx_full) if wells_on else rhs.new_zeros(0)
+            return dx_full, dpw
         b = rhs_s.reshape(-1)
 
         def matvec(x):
@@ -528,13 +551,21 @@ class ManualFIMSolver:
 
         t0 = time.perf_counter()
         amg_in = None if (rebuild_amg or self._amg is None) else self._amg
+        # Consecutive CPR graphs belong to the same sequential Newton solver.
+        # Reuse its private pool instead of reserving a new pool at every iteration.
+        # Never share this pool between independent simulators or with the cell graph.
+        if Js.is_cuda and CPRPreconditionerGPU.use_graphs and getattr(self, "_cpr_graph_pool", None) is None:
+            with torch.cuda.device(Js.device):
+                self._cpr_graph_pool = {"handle": torch.cuda.graph_pool_handle(),
+                                        "stream": torch.cuda.Stream(device=Js.device), "anchor": None}
+        pool = getattr(self, "_cpr_graph_pool", None)
         cpr = CPRPreconditionerGPU(Js, indptr_s, indices_s, n_s, self.device,
                                    amg=amg_in, smoother_sweeps=self.cpr_smoother_sweeps,
-                                   amg_verbose=self.amg_verbose)
+                                   amg_verbose=self.amg_verbose, graph_pool=pool)
         if cpr.amg is None and amg_in is not None:
             cpr = CPRPreconditionerGPU(Js, indptr_s, indices_s, n_s, self.device,
                                        amg=None, smoother_sweeps=self.cpr_smoother_sweeps,
-                                       amg_verbose=self.amg_verbose)
+                                       amg_verbose=self.amg_verbose, graph_pool=pool)
         self._amg = cpr.amg
         stats.update(amg_levels=cpr.amg_levels, amg_rebuilt=cpr.amg_rebuilt, amg_setup_s=cpr.amg_build_s,
                      amg_error=cpr.amg_error, precond_setup_s=time.perf_counter() - t0)

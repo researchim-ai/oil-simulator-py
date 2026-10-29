@@ -87,10 +87,10 @@ def test_pvtg_saturated_branch_is_continuous(tmp_path):
     assert torch.all(b0 < b_sat)  # меньше конденсата — больше Bg (по таблице +0.5%)
 
 
-def _run(path, days):
+def _run(path, days, sim_overrides=None):
     case = EclipseCase(path)
     with contextlib.redirect_stdout(io.StringIO()):
-        res, fluid, wm, prm = case.build()
+        res, fluid, wm, prm = case.build(sim_overrides=sim_overrides)
         sim = Simulator(res, fluid, wm, prm, device=torch.device("cpu"))
     s = sim.fim_solver
 
@@ -114,6 +114,28 @@ def _run(path, days):
         c = w.cum_surface
         cum += np.array([c["oil"] * rho[0], c["water"] * rho[1], c["gas"] * rho[2]])
     return m0.numpy(), mass().numpy(), cum, n_ug, s
+
+
+def test_strict_wet_gas_crosses_repeated_phase_changes(tmp_path, monkeypatch):
+    """Freezing the primary variable after three flips used to stall near day 28.22."""
+    from simulator.blackoil_fim import BlackOilFIMSolver
+
+    original = BlackOilFIMSolver.step
+    attempts = []
+
+    def bounded_step(self, dt, current_time=None):
+        attempts.append(dt)
+        assert len(attempts) <= 25, "phase switching stalls the 31-day interval"
+        return original(self, dt, current_time=current_time)
+
+    monkeypatch.setattr(BlackOilFIMSolver, "step", bounded_step)
+    m0, m1, cum, _, solver = _run(_wet_deck(tmp_path, 1e-4), 31,
+                                  {"convergence_profile": "strict"})
+    assert solver.relaxed_max_pv_fraction == 0
+    for comp in (0, 2):
+        assert abs((m0[comp] - m1[comp]) - cum[comp]) <= 1e-5 * max(abs(m0[comp]), 1.0)
+    assert float(solver.fluid.s_g.min()) >= -1e-12
+    assert float(solver.fluid.s_o.min()) >= -1e-12
 
 
 def test_wet_gas_mass_balance_and_vaporization(tmp_path):

@@ -3,7 +3,7 @@
     NORNE_DIR=путь/к/opm-tests/norne NORNE_OUT=results/norne python scripts/norne_figures.py
 
 Сравнение с Eclipse 2014.2 из NORNE_DIR/ECL.2014.2; рисунки пишутся в web/assets (NORNE_FIGS — другой каталог).
-Объёмные виды требуют pyvista с OpenGL. Сводные цифры печатаются в stdout в JSON.
+Объёмные виды строятся на CPU через Matplotlib без OpenGL. Сводные цифры печатаются в stdout в JSON.
 """
 import json
 import os
@@ -22,6 +22,7 @@ from simulator.ecl_io import EclSummary, read_ecl_arrays
 ROOT = os.environ.get("NORNE_OUT", "results/norne")
 ECL = os.path.join(os.environ.get("NORNE_DIR", "opm-tests/norne"), "ECL.2014.2", "NORNE_ATW2013")
 OUT = os.environ.get("NORNE_FIGS", "web/assets")
+os.makedirs(OUT, exist_ok=True)
 
 for p in (
     "/usr/share/fonts/truetype/noto/NotoSans-Regular.ttf",
@@ -36,6 +37,7 @@ plt.rcParams.update({
     "figure.facecolor": BG, "axes.facecolor": BG, "savefig.facecolor": BG,
     "axes.edgecolor": GRID, "axes.labelcolor": MUTED, "xtick.color": MUTED, "ytick.color": MUTED,
     "text.color": INK, "font.size": 11,
+    "axes.unicode_minus": False,
     "axes.grid": True, "grid.color": GRID, "grid.linewidth": 0.6,
     "axes.spines.top": False, "axes.spines.right": False,
     "axes.titleweight": "medium",
@@ -61,8 +63,7 @@ def at_ecl(kw, name=None):
     v = ecl(kw, name)
     if v is None:
         return None
-    idx = np.array([int(np.argmin(np.abs(te - x))) for x in t])
-    return v[idx]
+    return np.interp(t, te, v)
 
 
 def style_ax(ax):
@@ -224,7 +225,7 @@ ok = sub[sub[:, 2] > 0]
 bad = sub[sub[:, 2] == 0]
 fig, axes = plt.subplots(1, 3, figsize=(12.4, 3.55), dpi=150)
 ax = axes[0]
-ax.semilogy(yr(ok[:, 0]), ok[:, 1], color=OURS, lw=0, marker=".", ms=3.2, alpha=0.9)
+ax.semilogy(yr(ok[:, 0] + ok[:, 1]), ok[:, 1], color=OURS, lw=0, marker=".", ms=3.2, alpha=0.9)
 if len(bad):
     ax.semilogy(yr(bad[:, 0]), np.maximum(bad[:, 1], 1e-3), color="#e07a5f", lw=0, marker="x", ms=5, label="отказ шага")
     ax.legend(frameon=False, fontsize=10, labelcolor=MUTED)
@@ -235,8 +236,9 @@ ax.hist(ok[:, 3], bins=np.arange(0, ok[:, 3].max() + 2) - 0.5, color=OURS, edgec
 ax.set_title("Итераций Ньютона", loc="left", fontsize=13, color=INK, pad=8)
 style_ax(ax)
 ax = axes[2]
-ax.plot(yr(sub[:, 0] + sub[:, 1]), np.cumsum(sub[:, 4]) / 60, color=OURS, lw=1.8)
-ax.set_title("Время, мин", loc="left", fontsize=13, color=INK, pad=8)
+progress = np.maximum.accumulate(np.where(sub[:, 2] > 0, sub[:, 0] + sub[:, 1], sub[:, 0]))
+ax.plot(yr(progress), np.cumsum(sub[:, 4]) / 60, color=OURS, lw=1.8)
+ax.set_title("Время подшагов, мин", loc="left", fontsize=13, color=INK, pad=8)
 style_ax(ax)
 fig.tight_layout(pad=1.0)
 fig.savefig(f"{OUT}/solver.png")
@@ -249,8 +251,11 @@ def cum(rate):
 
 
 rows = []
+report_path = os.path.join(ROOT, "comparison.json")
+report = json.load(open(report_path)) if os.path.exists(report_path) else {}
 for k, rk in (("FOPT", "FOPR"), ("FWPT", "FWPR"), ("FGPT", "FGPR"), ("FWIT", "FWIR"), ("FGIT", "FGIR")):
-    ours = float(s[k][-1] if k in s else cum(s[rk])[-1])
+    audited = report.get("field_cumulative", {}).get(k)
+    ours = float(audited["ours"] if audited else (s[k][-1] if k in s else cum(s[rk])[-1]))
     ev = float(at_ecl(k)[-1])
     rows.append({"k": k, "ours": ours, "ecl": ev, "pct": 100 * (ours - ev) / ev})
 rate_err = {}
@@ -269,56 +274,74 @@ for day in (365, 1000, 2000, 3312):
     i = int(np.argmin(np.abs(t - day)))
     ev = float(at_ecl("FOPT")[i])
     marks[str(day)] = {"t": float(t[i]), "pct": 100 * (float(s["FOPT"][i]) - ev) / ev}
-print(json.dumps({"cum": rows, "rate": rate_err, "wells": wells, "marks": marks,
+numbers = {"cum": rows, "rate": rate_err, "wells": wells, "marks": marks,
                   "n_act": int(act.sum()), "fpr_end_ours": float(fpr[-1]),
-                  "fpr_end_ecl": float(ecl("FPR")[np.argmin(np.abs(te - t[-1]))])}, ensure_ascii=False, indent=2))
+                  "fpr_end_ecl": float(np.interp(t[-1], te, ecl("FPR")))}
+with open(os.path.join(OUT, "norne-numbers.json"), "w") as stream:
+    json.dump(numbers, stream, ensure_ascii=False, indent=2, allow_nan=False)
+print(json.dumps(numbers, ensure_ascii=False, indent=2))
 
-# ---------------------------------------------------------------- 3D, тот же ракурс на всех кадрах
-try:
-    import pyvista as pv
-    pts = np.empty((2 * nx, 2 * ny, 2 * nz, 3))
-    for di in (0, 1):
-        for dj in (0, 1):
-            pil = coord[dj:dj + ny, di:di + nx].transpose(1, 0, 2)
-            x1, y1, z1, x2, y2, z2 = (pil[..., q][..., None] for q in range(6))
-            for dk in (0, 1):
-                z = zc[dk::2, dj::2, di::2].transpose(2, 1, 0)
-                f = np.where(np.abs(z2 - z1) > 1e-9, (z - z1) / np.where(np.abs(z2 - z1) > 1e-9, z2 - z1, 1), 0)
-                pts[di::2, dj::2, dk::2] = np.stack([x1 + f * (x2 - x1), y1 + f * (y2 - y1), z], -1)
-    pts[..., 2] *= -5.0
-    grid = pv.ExplicitStructuredGrid(np.array([nx + 1, ny + 1, nz + 1]), pts.reshape(-1, 3, order="F"))
-    grid = grid.compute_connectivity()
-    shots = []
-    for key, cmap, clim in (("so", "YlOrBr", (0, 0.9)), ("sw", "Blues", (0, 1)), ("sg", "Greens", (0, 0.6))):
-        for tag, n in (("start", 0), ("end", len(F["t"]) - 1)):
-            gg = grid.copy()
-            gg.cell_data["v"] = F[key][n].ravel(order="F")
-            gg.cell_data["act"] = act.ravel(order="F").astype(np.uint8)
-            gg = gg.threshold(0.5, scalars="act")
-            p = pv.Plotter(off_screen=True, window_size=(1500, 980))
-            p.set_background(BG)
-            p.add_mesh(gg, scalars="v", cmap=cmap, clim=clim, show_edges=False, show_scalar_bar=False)
-            p.camera_position = "iso"
-            p.camera.azimuth = 35
-            p.camera.elevation = 18
-            p.camera.zoom(1.05)
-            path = f"{OUT}/3d_{key}_{tag}.png"
-            p.screenshot(path)
-            p.close()
-            shots.append(path)
-    ims = [np.array(Image.open(p).convert("RGB")) for p in shots]
-    bg = np.array([0x14, 0x11, 0x0e])
-    boxes = []
-    for im in ims:
-        d = np.abs(im.astype(np.int16) - bg).sum(-1)
-        ys, xs = np.where(d > 12)
-        boxes.append((xs.min(), ys.min(), xs.max(), ys.max()))
-    x0 = max(0, min(b[0] for b in boxes) - 28)
-    y0 = max(0, min(b[1] for b in boxes) - 22)
-    x1 = min(ims[0].shape[1], max(b[2] for b in boxes) + 28)
-    y1 = min(ims[0].shape[0], max(b[3] for b in boxes) + 22)
-    for p, im in zip(shots, ims):
-        Image.fromarray(im[y0:y1, x0:x1]).save(p, optimize=True)
-    print("3d", x1 - x0, y1 - y0)
-except Exception as ex:
-    print("3D пропущен:", type(ex).__name__, ex)
+# ---------------------------------------------------------------- 3D: CPU renderer, no OpenGL/GPU context
+from mpl_toolkits.mplot3d.art3d import Poly3DCollection
+from matplotlib.colors import Normalize
+
+pts = np.empty((2 * nx, 2 * ny, 2 * nz, 3))
+for di in (0, 1):
+    for dj in (0, 1):
+        pil = coord[dj:dj + ny, di:di + nx].transpose(1, 0, 2)
+        x1, y1, z1, x2, y2, z2 = (pil[..., q][..., None] for q in range(6))
+        for dk in (0, 1):
+            z = zc[dk::2, dj::2, di::2].transpose(2, 1, 0)
+            f = np.where(np.abs(z2-z1) > 1e-9, (z-z1)/np.where(np.abs(z2-z1) > 1e-9, z2-z1, 1), 0)
+            pts[di::2, dj::2, dk::2] = np.stack([x1+f*(x2-x1), y1+f*(y2-y1), -5*z], -1)
+
+# Keep exterior faces and separated faces across faults; omit shared interiors.
+faces, indices, lighting = [], [], []
+for axis in range(3):
+    others = [a for a in range(3) if a != axis]
+    def vertices(side):
+        corners = []
+        for a, b in [(0,0), (1,0), (1,1), (0,1)]:
+            bits = [0,0,0]; bits[axis] = side; bits[others[0]] = a; bits[others[1]] = b
+            corners.append(pts[bits[0]::2, bits[1]::2, bits[2]::2])
+        return np.stack(corners, -2)
+    for side in (0,1):
+        shift = 1 if side == 0 else -1
+        neighbor = np.roll(act, shift, axis=axis)
+        boundary = [slice(None)]*3; boundary[axis] = 0 if side == 0 else -1
+        neighbor[tuple(boundary)] = False
+        vv = vertices(side)
+        other = np.roll(vertices(1-side), shift, axis=axis)
+        separated = np.max(np.abs(vv-other), axis=(-2,-1)) > 1e-3
+        mask = act & (~neighbor | separated)
+        faces.append(vv[mask]); indices.append(np.argwhere(mask))
+        lighting.append(np.full(int(mask.sum()), [.70,.88,1.0][axis] * (1.0 if side else .91)))
+faces, indices, lighting = np.concatenate(faces), np.concatenate(indices), np.concatenate(lighting)
+lo, hi = faces.min((0,1)), faces.max((0,1))
+center = (lo+hi)/2
+faces -= center
+extent = hi-lo
+shots = []
+for key, cmap, clim in (("so","YlOrBr",(0,.9)), ("sw","Blues",(0,1)), ("sg","Greens",(0,.6))):
+    for tag, n in (("start",0), ("end",len(F["t"])-1)):
+        values = F[key][n][tuple(indices.T)]
+        colors = plt.get_cmap(cmap)(Normalize(*clim)(values))
+        colors[:,:3] *= lighting[:,None]
+        fig = plt.figure(figsize=(10,7), dpi=140)
+        ax = fig.add_axes([0,0,1,1], projection="3d", computed_zorder=False)
+        ax.set_facecolor(BG); ax.set_axis_off(); ax.set_proj_type("ortho")
+        ax.add_collection3d(Poly3DCollection(faces, facecolors=colors, edgecolors="none", linewidths=0, zsort="average"))
+        ax.set_xlim(-extent[0]/2,extent[0]/2); ax.set_ylim(-extent[1]/2,extent[1]/2); ax.set_zlim(-extent[2]/2,extent[2]/2)
+        ax.set_box_aspect(extent.copy()); ax.view_init(elev=24,azim=-55)
+        path = f"{OUT}/3d_{key}_{tag}.png"
+        fig.savefig(path,facecolor=BG); plt.close(fig); shots.append(path)
+ims = [np.array(Image.open(p).convert("RGB")) for p in shots]
+bg = np.array([0x14,0x11,0x0e]); boxes = []
+for im in ims:
+    yy, xx = np.where(np.abs(im.astype(np.int16)-bg).sum(-1)>12)
+    boxes.append((xx.min(),yy.min(),xx.max(),yy.max()))
+x0=max(0,min(b[0] for b in boxes)-28); y0=max(0,min(b[1] for b in boxes)-22)
+x1=min(ims[0].shape[1],max(b[2] for b in boxes)+28); y1=min(ims[0].shape[0],max(b[3] for b in boxes)+22)
+for path, im in zip(shots,ims):
+    Image.fromarray(im[y0:y1,x0:x1]).save(path,optimize=True)
+print("3D CPU:",len(faces),"faces;",x1-x0,y1-y0)

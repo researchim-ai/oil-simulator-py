@@ -240,7 +240,8 @@ class Simulator:
         while t_end - self.current_time > 1e-6:
             h_try = min(h, t_end - self.current_time)
             # не оставлять крошечный хвост в конце интервала
-            if t_end - self.current_time - h_try < 0.25 * h_try:
+            if (t_end - self.current_time <= dt_max and
+                    t_end - self.current_time - h_try < 0.25 * h_try):
                 h_try = t_end - self.current_time
             if verbose:
                 print(f"  FIM подшаг: t = {self.current_time/86400:.4f} сут, dt = {h_try/86400:.4g} сут")

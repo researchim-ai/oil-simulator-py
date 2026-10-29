@@ -67,7 +67,10 @@ def test_jacobian_matches_finite_differences():
             assert np.abs(fd - col).max() <= 1e-6 * np.abs(fd).max(), (cell, var)
 
 
-def test_newton_converges_quadratically():
+def test_newton_converges_quadratically(monkeypatch):
+    def forbidden_cuda_call():
+        raise AssertionError("CPU solve must not query a CUDA stream")
+    monkeypatch.setattr(torch.cuda, "is_current_stream_capturing", forbidden_cuda_call)
     solver, fluid = _build(tol=1e-8)
     p_init = fluid.pressure.clone()
     for step in range(3):

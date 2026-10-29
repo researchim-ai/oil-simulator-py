@@ -158,10 +158,12 @@ class WellManager:
                 ref_depth=w.get('ref_depth'),
             )
             well.connections = w.get('connections')
+            well.connection_order = w.get('connection_order', 'INPUT')
             well.thp_limit = w.get('thp_limit')      # МПа; вместе с vfp_table — ограничение по устьевому давлению
             well.vfp_table = w.get('vfp_table')
             well.alq = w.get('alq', 0.0)
             well.start_mode = w.get('start_mode')
+            well.stopped = bool(w.get('stopped', False))
             well.msw = w.get('msw')                  # многосегментная скважина (WELSEGS/COMPSEGS) или None
             self.wells.append(well)
             print(f"  > Скважина '{well.name}' добавлена в менеджер.")

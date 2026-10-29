@@ -1,0 +1,30 @@
+{
+  "flow_version": "2026.04 (Ubuntu 24.04.4 LTS: 2026.04-1~noble)",
+  "container_image": "openporousmedia/opmreleases@sha256:18c497f6a918c160cd290081d4163abf6e2c349797e18e3b5669c9095044adff",
+  "container_image_id_short": "a3aedae0558b",
+  "generated_date": "2026-10-29",
+  "command": "OMP_NUM_THREADS=2 flow /case/BASE_MODEL_1.DATA --output-dir=/out --enable-tuning=true",
+  "inputs": {
+    "BASE_MODEL_1.DATA": "556e93f12f8d432591b036fbcf2bdf7f7e71d2a0fd4b09096e7b2c421c4ba3e2",
+    "include/eqlnum_basemod1.inc": "90a790a00c0e27d3f73e84f36eacf5be058a6847018cc902a4b8f42ddc711015",
+    "include/grid_basemod1.grdecl": "99813f55adab7386708742a794ae70c30d374a6a41022bdd95fb23f357062436",
+    "include/history_basemod1.sch": "773c28f35aaf70ed7ac4eac684ccf3585ca254df93dc6f68e644996cafa73c7f",
+    "include/history_msw.sch": "15d32586ad94aa1e47ff57a3a467fd26a4f8b923d08b2543d3b33501cd00dc77",
+    "include/multnum_basemod1.inc": "b2f6de5b10756559b0d466411c3bf279234acf8af68edc840353971a17905a9e",
+    "include/multz_basemod1.inc": "9af0e778a254c6fdf948b0203d86aef68670fe3ef2ddf2d79089a89712a7964c",
+    "include/permx_basemod1.inc": "efa6fd6bd19eb7a5165f910692593bb394d4ce5a5d1e0e8ad075a040b61f5194",
+    "include/poro_basemod1.inc": "1ef97d4edbb31365bedf9dc93868d9cee952969143b77193f3bfe1f1e020b53f",
+    "include/pvt_basemod1.pvt": "2e02c0a17ea7abd617785beae8294a6d640bc7d16e9d5c3ef635a273036aa97d",
+    "include/pvtnum_basemod1.inc": "45d865e54f4b79ff4b76b4f966aa7685dabf71dd945ded5a3a79c3e36cff8170",
+    "include/satnum_basemod1.inc": "93154a22c6288f762f02ed76d42954892864b054ec8db17fa36aa7c7e1f61fa9",
+    "include/sattab_basemod1.sattab": "c6ba2cabfb629c2b8ef2fbe51ddf79d2a7d2e9a544f15246f8c27a77595197b2",
+    "include/std_summary.inc": "7666cf9415537520cb9f444780498921bf3c541fb4511d282d83edc3c6c650e4",
+    "include/swatinit.grdecl": "e7d6940b25febf3749aaa5f1d3eda0868ac29bb6ce1999d8da6057b2365c7dea"
+  },
+  "outputs": {
+    "BASE_MODEL_1.UNSMRY": "1411623d292ed216b12c4d6fa5396397daf1d045ce588c69761785f257d44018",
+    "BASE_MODEL_1.PRT": "b9e3e2b5bc89d046dc9e8434d775bff897cd1334b62269bb20350826c21272a2",
+    "BASE_MODEL_1.SMSPEC": "b8be0c1da02ad67de73ed18e51cc28852256361feb079acbdf4f22b35a8e6e3e"
+  },
+  "container_image_id": "sha256:a3aedae0558b137cbe6c0204414969670dd49834d8ef8d69a49a4254c4d90105"
+}

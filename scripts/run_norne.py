@@ -28,6 +28,7 @@ DECK = os.path.join(os.environ.get("NORNE_DIR", "opm-tests/norne"), "NORNE_ATW20
 SNAP_AT = [float(d) for d in os.environ.get("NORNE_SNAP_AT", "").split(",") if d.strip()]
 CKPT = os.environ.get("NORNE_CKPT")
 RESUME = os.environ.get("NORNE_RESUME")
+PROFILE = os.environ.get("NORNE_CONVERGENCE_PROFILE", "strict")
 t0 = time.time()
 H = {"solver": None, "sub": [], "snap_t": [], "snap": {k: [] for k in ("p", "sw", "sg", "so", "rs")},
      "next_snap": 0.0, "summary": None, "pv": None, "status": "running", "error": None}
@@ -103,6 +104,10 @@ def save_meta(info=None):
             "cpu": platform.processor() or platform.machine(), "threads": torch.get_num_threads(),
             "device": torch.cuda.get_device_name(DEV) if DEV.type == "cuda" else "cpu",
             "torch": torch.__version__, "python": platform.python_version(),
+            "convergence": {"tol_cnv": sol.tol_cnv, "tol_mb": sol.tol_mb,
+                            "max_strict_iter": sol.max_strict_iter,
+                            "relaxed_max_pv_fraction": sol.relaxed_max_pv_fraction,
+                            "tol_cnv_relaxed": sol.tol_cnv_relaxed, "tol_mb_relaxed": sol.tol_mb_relaxed},
             "well_events": [list(map(str, e)) for e in (info or {}).get("well_events", [])]}
     try:
         meta["cpu"] = next(l.split(":", 1)[1].strip() for l in open("/proc/cpuinfo") if l.startswith("model name"))
@@ -147,6 +152,7 @@ B.BlackOilFIMSolver.__init__, B.BlackOilFIMSolver.step = init, step
 DEV = torch.device(os.environ.get("NORNE_DEVICE", "cuda:0" if torch.cuda.is_available() else "cpu"))
 try:
     s, info = run_deck(DECK, device=DEV, progress=progress, quiet=False,
+                       sim_overrides={"convergence_profile": PROFILE},
                        max_days=float(sys.argv[1]) if len(sys.argv) > 1 else None,
                        checkpoint=CKPT, checkpoint_every=int(os.environ.get("NORNE_CKPT_EVERY", "1")),
                        resume=RESUME)

@@ -27,7 +27,9 @@ def apply_controls(case, step, wm, solver):
         fw.gliftopt = case.gliftopt_steps[step]
         fw.network = case.network_steps[step]
     for idx, w in enumerate(wm.wells):
+        w.connection_order = case.compord_steps[step].get(w.name, "TRACK")
         cfg = case.control_cfg(w.name, controls.get(w.name))
+        w.stopped = bool(cfg.get("stopped", False))
         w.thp_limit, w.vfp_table, w.alq = cfg.get("thp_limit"), cfg.get("vfp_table"), cfg.get("alq", 0.0)
         w.eff = case.wefac_steps[step].get(w.name, 1.0)
         retype = cfg["type"] != w.type or (
@@ -443,6 +445,19 @@ def iter_deck(path, device=None, sim_overrides=None, cells=(), quiet=True, max_d
             continue
         if max_days is not None and t + d > max_days + 1e-9:
             break
+        # Scheduled time controls persist, while explicit build overrides win.
+        time_overrides = set(sim.sim_params.get("_deck_tuning_overrides", ()))
+        for key, value in case.tuning_steps[n].items():
+            if key not in time_overrides:
+                sim.sim_params[key] = value
+        restart = case.tuning_restart_steps[n]
+        if restart is not None and "initial_time_step_days" not in time_overrides:
+            sim._fim_dt = restart * DAY
+        well_event = (n == 0 or case.steps[n][1] != case.steps[n - 1][1]
+                      or case.conn_steps[n] != case.conn_steps[n - 1])
+        after_event = sim.sim_params.get("time_step_after_well_event_days")
+        if well_event and after_event is not None and after_event > 0:
+            sim._fim_dt = after_event * DAY
         apply_controls(case, n, wm, solver)
         if wtest is not None:
             wtest.before_step(case, n, t, wm, fw)
@@ -472,5 +487,10 @@ def iter_deck(path, device=None, sim_overrides=None, cells=(), quiet=True, max_d
     summary = {k: np.array(v, dtype=np.float64) for k, v in summary.items()}
     info = {"wall_s": time.perf_counter() - t0, "newton_iters": newton, "substeps": substeps,
             "units": case.units_name, "case": case, "solver": solver,
+            "convergence": {"tol_cnv": solver.tol_cnv, "tol_mb": solver.tol_mb,
+                            "relaxed_max_pv_fraction": solver.relaxed_max_pv_fraction,
+                            "max_strict_iter": solver.max_strict_iter,
+                            "tol_cnv_relaxed": solver.tol_cnv_relaxed,
+                            "tol_mb_relaxed": solver.tol_mb_relaxed},
             "well_events": wtest.events if wtest is not None else []}
     return summary, info

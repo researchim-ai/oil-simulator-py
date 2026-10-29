@@ -96,6 +96,30 @@ class ScaledRelPerm:
         self.hyst = None
         self._t = tab_ep[0]
         self._segs = {}
+        self._prepare_maps()
+
+    def _prepare_maps(self):
+        """Constant mapping coefficients must be created outside jvp/vmap transforms."""
+        s = self.cell["SWL"]
+        for t in self.tab_ep:
+            self._t = t
+            self._sw_kr(s)
+            self._sw_o(s)
+            self._sg_kr(s)
+            self._sg_o(s)
+            self._map(s, 9, lambda: ([self.cell["SWL"], self.cell["SWU"]], [t["SWL"], t["SWU"]]))
+            self._map(s, 10, lambda: ([self.cell["SGL"], self.cell["SGU"]], [t["SGL"], t["SGU"]]))
+
+    def __getstate__(self):
+        state = self.__dict__.copy()
+        # Cache keys contain dictionary ids, which are invalid after loading.
+        state["_segs"] = {}
+        return state
+
+    def __setstate__(self, state):
+        self.__dict__.update(state)
+        self._segs = {}
+        self._prepare_maps()
 
     # ------------------------------------------------------------ гистерезис
     def _hyst_krow(self, sw, kd):

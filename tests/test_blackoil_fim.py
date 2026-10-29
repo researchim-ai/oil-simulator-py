@@ -53,6 +53,32 @@ def _mixed_state(s, seed=1):
     return p, sw, torch.where(sat, sg, rs), sat
 
 
+def test_drsdt_does_not_create_components_in_closed_cell():
+    cfg = copy.deepcopy(BASE)
+    cfg["reservoir"]["dimensions"] = [1, 1, 1]
+    cfg["wells"] = []
+    cfg["fluid"]["s_g"] = 0.15
+    cfg["simulation"].update(newton_tol_cnv=1e-8, newton_tol_mb=1e-10,
+                             newton_relaxed_max_pv_fraction=0.0)
+    res, fluid, wm = _objects(cfg)
+    solver = BlackOilFIMSolver(res, fluid, wm, cfg["simulation"])
+    p = fluid.pressure.reshape(-1).double()
+    sw = fluid.s_w.reshape(-1).double()
+    # Свободный газ с ещё не полностью растворённым Rs допустим при DRSDT.
+    rs = solver.rs_sat_eff(p) * 0.5
+    fluid.rs = rs.view_as(fluid.pressure).clone()
+    solver._rs_cap = rs.clone()
+    solver.drsdt = float(rs[0]) * 0.01 / 86400
+    initial = solver.masses(p, sw, solver.x, solver.sat, solver.ug).sum(1)
+    for dt in (86400.0, 43200.0):
+        assert solver.step(dt)
+        mass = solver.masses(fluid.pressure.reshape(-1).double(), fluid.s_w.reshape(-1).double(),
+                             solver.x, solver.sat, solver.ug).sum(1)
+        assert torch.allclose(mass, initial, rtol=1e-8, atol=1e-6), (mass - initial) / initial
+    assert bool((fluid.rs.reshape(-1) > rs).all())
+    assert bool((fluid.rs.reshape(-1) <= rs + solver.drsdt * 129600.0 + 1e-10).all())
+
+
 def test_blackoil_jacobian_matches_finite_differences():
     cfg = copy.deepcopy(BASE)
     cfg['fluid']['capillary_pressure'] = {"pc_scale": 2e4, "pc_exponent": 1.5}

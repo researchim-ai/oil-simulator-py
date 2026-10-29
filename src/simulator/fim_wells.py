@@ -22,6 +22,32 @@ G = 9.80665
 DAY = 86400.0
 
 
+def connection_order(perforations, depths, head, mode="TRACK"):
+    """Topological connection order; TRACK uses logical IJ distance, then depth.
+
+    Match Eclipse/OPM's nearest-neighbour TRACK ordering, including stable ties
+    and swaps. Depth need not increase along the resulting well path.
+    """
+    mode = mode.upper()
+    order = list(range(len(perforations)))
+    if mode == "INPUT":
+        return order
+    if mode == "DEPTH":
+        return sorted(order, key=lambda n: depths[n])
+    if mode != "TRACK":
+        raise ValueError(f"Unknown connection ordering: {mode}")
+    i, j = head
+    z = 0.0
+    for pos in range(max(0, len(order) - 1)):
+        best = min(range(pos, len(order)), key=lambda q: (
+            (perforations[order[q]][0] - i)**2 + (perforations[order[q]][1] - j)**2,
+            abs(depths[order[q]] - z)))
+        order[pos], order[best] = order[best], order[pos]
+        n = order[pos]
+        i, j, z = perforations[n][0], perforations[n][1], depths[n]
+    return order
+
+
 def peaceman_wi(kx, ky, dx, dy, h, rw, skin=0.0):
     """Индекс скважины Писмена для вертикального ствола в анизотропной ячейке, м^3."""
     kx = max(float(kx), 1e-30)
@@ -121,6 +147,21 @@ class FIMWells:
         self.step_targets = None
         self.mode = [getattr(w, 'start_mode', None) or w.control_type for w in self.wells]
         self.rho_wb = torch.zeros(self.n_w, dtype=torch.float64, device=device)
+        self._well_path_depths = [d + self.ref_depth[w] for d, w in zip(depths, owner)]
+        self.well_conn_order = [self._well_connection_order(i, w.connections) for i, w in enumerate(self.wells)]
+
+    def _well_connection_order(self, w_idx, conns):
+        w = self.wells[w_idx]
+        present = [n for n in range(len(w.perforations))
+                   if conns is None or conns[n].get("present", True)]
+        perfs = [w.perforations[n] for n in present]
+        offset = sum(len(x.perforations) for x in self.wells[:w_idx])
+        if getattr(self, "_well_path_depths", None) is not None:
+            depths = [self._well_path_depths[offset + n] for n in present]
+        else:
+            depths = [float(self.conn_dz[offset + n]) + self.ref_depth[w_idx] for n in present]
+        order = connection_order(perfs, depths, (w.i, w.j), getattr(w, "connection_order", "INPUT"))
+        return torch.tensor([offset + present[n] for n in order], dtype=torch.long, device=self.device)
 
     def _cell(self, i, j, k):
         """Расчётная ячейка перфорации (i, j, k); −1 — неактивная."""
@@ -144,6 +185,11 @@ class FIMWells:
         self.conn_sched[idx] = op
         self.wells[w_idx].connections = conns
         self.wells[w_idx].connection_wi = wi.tolist()
+        # Old checkpoints predate the topology cache: derive depths from the
+        # stored connection elevations without changing the accepted state.
+        if not hasattr(self, "well_conn_order"):
+            self.well_conn_order = [self._well_connection_order(i, w.connections) for i, w in enumerate(self.wells)]
+        self.well_conn_order[w_idx] = self._well_connection_order(w_idx, conns)
 
     def has_open_connections(self, w_idx):
         return bool((self.conn_sched[self.conn_well == w_idx] > 0).any())

@@ -2,6 +2,7 @@
 import os
 import sys
 
+import numpy as np
 import pytest
 import torch
 
@@ -16,9 +17,10 @@ from simulator.eclipse_run import run_deck  # noqa: E402
 DATA = os.path.join(ROOT, "tests", "data")
 
 
-def _run(case, deck, base):
-    refs = {name: EclSummary(os.path.join(DATA, case, name, base)) for name in ("eclipse", "opm")
-            if os.path.exists(os.path.join(DATA, case, name, base + ".SMSPEC"))}
+def _run(case, deck, base, opm_dir="opm"):
+    dirs = {"eclipse": "eclipse", "opm": opm_dir}
+    refs = {name: EclSummary(os.path.join(DATA, case, folder, base)) for name, folder in dirs.items()
+            if os.path.exists(os.path.join(DATA, case, folder, base + ".SMSPEC"))}
     summary, _ = run_deck(os.path.join(DATA, case, deck), device=torch.device("cpu"))
     return compare(summary, refs)
 
@@ -67,9 +69,10 @@ def test_vfpprod_thp_control_matches_opm():
 
 @pytest.mark.slow
 def test_vfpinj_thp_control_matches_opm():
-    rows = _run("vfpinj", "VFPINJ_WCONINJE-01.DATA", "VFPINJ_WCONINJE-01")
+    # The legacy reference ignored TUNING (1-day cap); compare to an
+    # independent OPM run honoring the same deck settings. Keep both fixtures.
+    rows = _run("vfpinj", "VFPINJ_WCONINJE-01.DATA", "VFPINJ_WCONINJE-01", opm_dir="opm_tuning")
     assert any(r["vector"] == "WTHP:INJ1" for r in rows)
-    # BWSAT в переходной зоне у INJ2 расходится с OPM на 0.0045 уже в начальном равновесии
     _check(rows, lambda key: 0.05 if key.startswith("BWSAT") else 0.01)
 
 
@@ -107,14 +110,21 @@ def test_network_matches_opm(case):
     def tol(key):
         kw = key.split(":")[0]
         if kw in ("FWIR", "WWIR"):
-            return 0.08         # VREP: закачка по отбору прошлого шага, первый интервал после пуска
+            return 0.08         # переходный процесс при запуске закачки по VREP
         if kw.endswith("SAT"):
             return 0.03         # ячейка у нагнетательной — вслед за закачкой
         if "REROUTE" in case and kw[0] in "FWG" and kw[-2:] in ("PR", "PT"):
-            return 0.03         # первые сутки после смены маршрута: OPM балансирует сеть по ходу Ньютона
+            return 0.03         # короткий переходный процесс после смены маршрута
         return 0.01
 
     _check(rows, tol)
+
+    if case == "NETWORK-01-REROUTE":
+        # Средняя ошибка за всю историю не должна скрывать неправильную долю
+        # PROD2 сразу после смены маршрута (прежде ~895 вместо ~1320 м³/сут).
+        ours = float(np.interp(62.0, summary["TIME"], summary["WOPR:PROD2"]))
+        expected = float(np.interp(62.0, ref.days, ref.get("WOPR", "PROD2")))
+        assert abs(ours - expected) < 0.02 * abs(expected)
 
 
 @pytest.mark.slow
@@ -147,8 +157,10 @@ def test_model1_msw_matches_opm(case):
     многосегментными (WELSEGS/COMPSEGS). У PROD-3 барьер между слоями 4 и 5: нефть слоя 5 через ствол уходит
     в газовую шапку (переток смесью ствола; у многосегментной — смесью своего сегмента).
     """
-    rows = compare(run_deck(os.path.join(DATA, "model1", case + ".DATA"), device=torch.device("cpu"))[0],
-                   {"opm": EclSummary(os.path.join(DATA, "model1", "opm", case))})
+    # BASE_MODEL_1 requires an OPM reference with TUNING enabled, as here.
+    # Original references remain available for diagnosing timestep effects.
+    ref_dir = "opm_tuning" if case == "BASE_MODEL_1" else "opm"
+    rows = _run("model1", case + ".DATA", case, opm_dir=ref_dir)
     assert any(r["vector"] == "WOPR:PROD-3" for r in rows)
 
     def tol(key):

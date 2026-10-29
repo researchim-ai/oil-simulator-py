@@ -46,6 +46,22 @@ class CarlsonHysteresis:
         self.on_g = torch.zeros(n, dtype=torch.bool, device=dev)
         # (any(on_w), any(on_g)) числами Python на время записи CUDA-графа, где синхронизация с GPU запрещена
         self.flags = None
+        # Identical drainage/imbibition data must be an exact identity.
+        # Numerically inverting a flat/critical segment otherwise introduces
+        # tiny shifts that can change an adaptive Newton trajectory.
+        same_tables = True
+        pairs = torch.stack([drain.reg, imb.reg], dim=1).unique(dim=0).cpu().tolist()
+        for rd, ri in pairs:
+            for td, ti in zip(drain.tables[rd], imb.tables[ri]):
+                if td is None or ti is None:
+                    same_tables = same_tables and td is ti
+                else:
+                    same_tables = same_tables and td.keys() == ti.keys() and all(
+                        torch.equal(td[key], ti[key]) for key in td)
+        self._identical_curves = (
+            same_tables and drain.three_point == imb.three_point and drain.kro_model == imb.kro_model
+            and drain.cell.keys() == imb.cell.keys()
+            and all(torch.equal(drain.cell[key], imb.cell[key]) for key in drain.cell))
 
     # ------------------------------------------------------------ кривые со сдвигом
     def krow(self, sw, kd):
@@ -69,6 +85,8 @@ class CarlsonHysteresis:
         sw_ow = torch.maximum(sw, self.drain.cell["SWL"]) + sg if self.drain.kro_model == "default" else sw
         self.sw_min = torch.minimum(self.sw_min, sw_ow)
         self.sg_max = torch.maximum(self.sg_max, sg)
+        if getattr(self, "_identical_curves", False):
+            return
         d, i, c = self.drain, self.imb, self.imb.cell
         # нефть: krow убывает по Sw
         h = self.drain.hyst

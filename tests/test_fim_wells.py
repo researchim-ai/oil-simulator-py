@@ -39,6 +39,21 @@ def _objects(cfg, dev=torch.device('cpu')):
     return res, fluid, wells
 
 
+def test_report_tail_never_exceeds_maximum_time_step():
+    cfg = copy.deepcopy(BASE)
+    cfg['wells'] = []
+    cfg['reservoir']['dimensions'] = [1, 1, 1]
+    cfg['simulation'].update(initial_time_step_days=1., max_time_step_days=1.)
+    res, fluid, wm = _objects(cfg)
+    sim = Simulator(res, fluid, wm, cfg['simulation'], device=torch.device('cpu'))
+    accepted = [0.]
+    sim.substep_hook = accepted.append
+    for _ in range(2):
+        assert sim.run_step(2.2 * 86400.)
+    assert np.max(np.diff(accepted)) <= 1. + 1e-12
+    assert abs(accepted[-1] - 4.4) < 1e-12
+
+
 def test_well_schur_blocks_match_finite_differences():
     cfg = copy.deepcopy(BASE)
     res, fluid, wm = _objects(cfg)

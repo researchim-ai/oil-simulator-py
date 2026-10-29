@@ -35,12 +35,6 @@ def test_water_cell_does_not_chatter_between_sg_and_rs():
     _, _, _, sat2, _, n_sw = fim._apply_update(p, sw, x, sat, ug, zero, dbg)
     assert not bool(sat2.any()) and n_sw == n
 
-    # замороженная (зациклившаяся за шаг) ячейка не переключается
-    frozen = torch.zeros(n, dtype=torch.bool, device=p.device)
-    frozen[0] = True
-    _, _, _, sat4, _, n_sw = fim._apply_update(p, sw, x, sat, ug, zero, dbg, frozen=frozen)
-    assert bool(sat4[0]) and not bool(sat4[1:].any()) and n_sw == n - 1
-
     # ячейка на Rs без нефти — переводится в Sg
     sw = torch.full((n,), 1.0, **f)
     x = torch.zeros((n,), **f)

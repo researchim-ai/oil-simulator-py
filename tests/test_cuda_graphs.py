@@ -52,7 +52,25 @@ def test_cpr_graph_matches_eager():
     CPRPreconditionerGPU.matvec = matvec
     try:
         with contextlib.redirect_stdout(io.StringIO()):
-            assert f.step(86400.0, current_time=0.0)
+            for day in range(3):
+                assert f.step(86400.0, current_time=day * 86400.0)
+            assert f._cpr_graph_pool["anchor"] is not None
+            assert f.__getstate__()["_cpr_graph_pool"] is None
     finally:
         CPRPreconditionerGPU.matvec = orig
     assert seen and all(seen)
+
+
+def test_stopped_well_mixing_on_cuda_conserves_components():
+    from test_stopped_wells import _model
+    dev = torch.device("cuda", torch.cuda.device_count() - 1)
+    with contextlib.redirect_stdout(io.StringIO()):
+        sim = _model(device=dev)
+        s, f = sim.fim_solver, sim.fluid
+        def mass():
+            return s.masses(f.pressure.reshape(-1), f.s_w.reshape(-1), s.x, s.sat, s.ug).sum(1)
+        before = mass().clone()
+        assert sim.run_step(.01 * 86400)
+    torch.testing.assert_close(mass(), before, rtol=1e-9, atol=1e-5)
+    assert s.wells._producer_mix
+    assert max(abs(x) for x in s.wells.wells[0].last_net_connection_rates.values()) < 1e-5

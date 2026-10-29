@@ -16,6 +16,7 @@ import datetime
 import fnmatch
 import math
 import re
+import warnings
 from pathlib import Path
 
 import numpy as np
@@ -33,8 +34,8 @@ FLAG_KEYWORDS = {
 }
 # ключевые слова, которые читаются, но не влияют на расчёт
 IGNORED = {"TITLE", "EQLDIMS", "TABDIMS", "WELLDIMS", "RPTSCHED", "RPTRST", "RPTSOL", "RPTPROPS",
-           "RPTGRID", "RPTRUNSP", "NSTACK", "MESSAGES", "TUNING", "SPECGRID", "GRIDFILE", "MAPAXES", "GRIDUNIT",
-           "NETWORK", "COMPORD"}
+           "RPTGRID", "RPTRUNSP", "NSTACK", "MESSAGES", "SPECGRID", "GRIDFILE", "MAPAXES", "GRIDUNIT",
+           "NETWORK"}
 # влияют на физику, но пока не поддерживаются
 UNSUPPORTED = {"SWFN", "SGFN", "SOF3", "SLGOF", "AQUFETP", "AQUCT", "PDVD",
                "PRESSURE", "SWAT", "SGAS", "RS", "NNC", "EDITNNC",
@@ -221,6 +222,12 @@ class EclipseCase:
         self.raw = {}
         box = None
         self.wells = {}
+        self.compord = {}
+        self.compord_steps = []
+        self.tuning = {}
+        self.tolcrit = 1e-6
+        self.tuning_steps, self.tuning_restart_steps = [], []
+        self._tuning_restart = None
         self.steps = []          # [(сутки, {скважина: (ключевое слово, запись)}), ...]
         controls = {}
         self.summary_requests = []
@@ -339,6 +346,10 @@ class EclipseCase:
                 self.region_tables["rock"] = [(r[0] * u["p"], _get(r, 1, 0.0) * u["comp"]) for r in recs if r]
             elif kw == "DENSITY":
                 self.region_tables["density"] = [tuple(float(v) * u["rho"] for v in r[:3]) for r in recs if r]
+            elif kw == "TOLCRIT":
+                self.tolcrit = float(_get(recs[0] if recs else [], 0, 1e-6))
+                if not math.isfinite(self.tolcrit) or self.tolcrit < 0:
+                    raise ValueError(f"TOLCRIT: недопустимое значение {self.tolcrit}")
             elif kw == "SWOF":
                 tabs = []
                 for rec in recs:
@@ -419,6 +430,46 @@ class EclipseCase:
                     self.wells[r[0]] = dict(name=r[0], i=int(r[2]) - 1, j=int(r[3]) - 1,
                                             ref_depth=None if _get(r, 4) is None else r[4] * u["L"],
                                             phase=str(_get(r, 5, "OIL")).upper(), conns={})
+            elif kw == "TUNING":
+                # Time controls are independent of the named nonlinear
+                # convergence profile: never silently relax CNV/MB here.
+                time_fields = {0: "initial_time_step_days", 1: "max_time_step_days",
+                               2: "min_time_step_days", 4: "dt_increase_factor", 6: "dt_restart_factor",
+                               9: "time_step_after_well_event_days"}
+                row = recs[0] if recs else []
+                for col, key in time_fields.items():
+                    value = _get(row, col)
+                    if value is None:
+                        continue
+                    value = float(value)
+                    if (not math.isfinite(value) or value < 0 or (value == 0 and col != 9)
+                            or (col == 4 and value < 1) or (col == 6 and value >= 1)):
+                        raise ValueError(f"TUNING: недопустимое значение {key}={value}")
+                    self.tuning[key] = value
+                    if col == 0:
+                        self._tuning_restart = value
+                if len(recs) > 1 and _get(recs[1], 0) is not None:
+                    value = float(recs[1][0])
+                    if not math.isfinite(value) or value <= 0:
+                        raise ValueError(f"TUNING: TRGTTE={value}")
+                    self.tuning["dt_pid_tol"] = value
+                if self.tuning.get("max_time_step_days", math.inf) < self.tuning.get("min_time_step_days", 0):
+                    raise ValueError("TUNING: TSMAXZ < TSMINZ")
+                supported = (set(time_fields), {0}, set())
+                if any(value is not None and col not in supported[min(n, 2)]
+                       for n, record in enumerate(recs) for col, value in enumerate(record)):
+                    warnings.warn("TUNING: импортированы TSINIT/TSMAXZ/TSMINZ/TSFMAX/TSFCNV/TMAXWC/TRGTTE; "
+                                  "остальные явно заданные поля пока не применяются. "
+                                  "Допуски CNV/MB задаёт convergence_profile.", UserWarning, stacklevel=2)
+            elif kw == "COMPORD":
+                for r in recs:
+                    if not r:
+                        continue
+                    mode = str(_get(r, 1, "TRACK")).upper()
+                    if mode not in ("TRACK", "INPUT", "DEPTH"):
+                        raise NotImplementedError(f"COMPORD {r[0]}: {mode}")
+                    for name in self._match_wells(str(r[0])):
+                        self.compord[name] = mode
             elif kw == "VAPPARS":
                 if self.steps:
                     raise NotImplementedError("VAPPARS после начала расписания не поддерживается")
@@ -612,6 +663,13 @@ class EclipseCase:
             else:
                 unknown.add(kw)
         rt = self.region_tables
+        # Eclipse/OPM truncate tabulated relative permeabilities before both
+        # interpolation and critical-endpoint extraction, not after evaluation.
+        # Apply after reading PROPS so TOLCRIT may follow its tables.
+        for name, curves in (("swof", ("krw", "kro")), ("sgof", ("krg", "kro"))):
+            for table in rt.get(name, []):
+                for curve in curves:
+                    table[curve] = [value if value > self.tolcrit else 0.0 for value in table[curve]]
         for key in ("pvto", "pvdo", "pvdg", "pvtg", "pvtw", "swof", "sgof"):
             if key in rt:
                 self.tables[key] = rt[key][0]
@@ -650,7 +708,11 @@ class EclipseCase:
         self.well_type = {}
         for name in self.wells:
             ctl = [c[name] for _, c in self.steps if name in c]
-            live = [x for x in ctl if self.control_cfg(name, x)["control_type"] != "shut"]
+            live = []
+            for x in ctl:
+                cfg = self.control_cfg(name, x)
+                if cfg["control_type"] != "shut" and not cfg.get("stopped", False):
+                    live.append(x)
             kw = (live or ctl)[0][0]
             self.well_type[name] = "producer" if kw in ("WCONPROD", "WCONHIST") else "injector"
         if "pvdg" not in self.tables and "pvtg" not in self.tables:
@@ -799,6 +861,10 @@ class EclipseCase:
                 self.wtest[name] = dict(interval=interval, reasons=reasons, tests=tests)
 
     def _close_step_events(self):
+        self.compord_steps.append(dict(self.compord))
+        self.tuning_steps.append(dict(self.tuning))
+        self.tuning_restart_steps.append(self._tuning_restart)
+        self._tuning_restart = None
         self.wtest_steps.append({k: dict(v) for k, v in self.wtest.items()})
         self.wecon_steps.append(dict(self.wecon))
         self.wcutback_steps.append(dict(self.wcutback))
@@ -844,7 +910,7 @@ class EclipseCase:
             if c is None:
                 spec["open"] = False
             conv = (u["liq"] / DAY) * 1e-3 / u["p"]
-            out.append(dict(ijk=ijk, open=bool(spec["open"]), dir=spec["dir"], skin=spec["skin"],
+            out.append(dict(ijk=ijk, present=c is not None, open=bool(spec["open"]), dir=spec["dir"], skin=spec["skin"],
                             wi=None if spec["cf"] is None else float(spec["cf"]) * conv,
                             rw=0.5 * float(spec["diam"] if spec["diam"] is not None else 1.0 / u["L"] * 0.3048) * u["L"],
                             kh=None if spec["kh"] is None else float(spec["kh"]) * MD * u["L"],
@@ -1043,12 +1109,32 @@ class EclipseCase:
         fluid.prev_pressure = fluid.pressure.clone()
 
         wm = WellManager(self.well_configs(), res)
+        overrides = dict(sim_overrides or {})
+        profile = overrides.pop("convergence_profile", "strict")
+        if profile not in ("strict", "relaxed"):
+            raise ValueError("convergence_profile: ожидается strict или relaxed")
         sim = {"solver_type": "fully_implicit", "fim_model": "blackoil", "drsdt": self.drsdt,
                "initial_time_step_days": 1.0, "newton_max_iter": 20, "max_time_step_attempts": 10,
-               # шаг и сходимость — умолчания OPM Flow
-               "dt_control": "opm", "newton_tol_cnv": 1e-2, "newton_max_strict_iter": 0,
+               "dt_control": "opm", "newton_tol_cnv": 1e-3,
+               "newton_relaxed_max_pv_fraction": 0.0,
                "newton_tol_well_rate": 1e-4}
-        sim.update(sim_overrides or {})
+        sim.update(self.tuning_steps[0])
+        sim["_deck_tuning_overrides"] = tuple(k for k in overrides if k in self.tuning)
+        # Совместимый быстрый профиль не выдаём за строгую сходимость: ниже обязательное предупреждение.
+        if profile == "relaxed":
+            sim.update(newton_tol_cnv=1e-2, newton_max_strict_iter=0,
+                       newton_relaxed_max_pv_fraction=0.03)
+        sim.update(overrides)
+        if sim["newton_relaxed_max_pv_fraction"] > 0:
+            warnings.warn(
+                "deck: разрешена ослабленная сходимость: "
+                f"CNV={sim['newton_tol_cnv']:g}, "
+                f"relaxed CNV={sim.get('newton_tol_cnv_relaxed', 1.0):g}, "
+                f"MB={sim.get('newton_tol_mb', 1e-7):g}, "
+                f"relaxed MB={sim.get('newton_tol_mb_relaxed', 1e-6):g}, "
+                f"доля PV={sim['newton_relaxed_max_pv_fraction']:g}. "
+                'Для строгой проверки задайте convergence_profile="strict"; он может требовать меньшего шага.',
+                RuntimeWarning, stacklevel=2)
         return res, fluid, wm, sim
 
     def _build_grid(self, Reservoir, device):
@@ -1231,6 +1317,7 @@ class EclipseCase:
             if not conns:
                 raise ValueError(f"скважина {w['name']}: нет COMPDAT")
             cfg = {"name": w["name"], "i": w["i"], "j": w["j"], "k": conns[0]["ijk"][2],
+                   "connection_order": self.compord_steps[step].get(w["name"], "TRACK"),
                    "perforations": [list(c["ijk"]) for c in conns], "radius": conns[0]["rw"],
                    "skin": conns[0]["skin"], "connections": conns}
             if w["ref_depth"] is not None:
@@ -1334,7 +1421,7 @@ class EclipseCase:
     def control_cfg(self, name, control):
         """
         Режим скважины из записи WCONPROD/WCONINJE/WCONHIST/WCONINJH (единицы симулятора: м³/сут, МПа).
-        Статус SHUT/STOP или отсутствие режима — control_type 'shut' (соединения закрыты, перетока нет).
+        SHUT закрывает соединения; STOP и нулевая цель сохраняют внутренний переток при нулевом отборе.
         WCONHIST RESV: control_type 'resv', исторические поверхностные дебиты — в 'hist_rates'.
         """
         u = self.u
@@ -1342,10 +1429,11 @@ class EclipseCase:
             typ = self.well_type[name]
         else:
             typ = "producer" if control[0] in ("WCONPROD", "WCONHIST") else "injector"
-        if control is None or control[2] in ("SHUT", "STOP"):
+        if control is None or control[2] == "SHUT":
             return {"type": typ, "control_type": "shut", "control_value": 0.0}
         kw, r, status = control
-        if status != "OPEN":
+        stopped = status == "STOP"
+        if status not in ("OPEN", "STOP"):
             raise NotImplementedError(f"{name}: статус {status} не поддерживается")
         p_atm = 14.7 if self.units_name == "FIELD" else 1.01325
         cfg = {"type": typ}
@@ -1387,11 +1475,14 @@ class EclipseCase:
                         raise ValueError(f"WCONPROD {name}: нет таблицы VFPPROD {table}")
                     cfg.update(thp_limit=float(thp) * u["p"] / 1e6, vfp_table=table,
                                alq=float(_get(r, 11, 0.0) or 0.0))
-            # нулевая цель по дебиту — скважина остановлена (как stoppedOrZeroRateTarget в OPM)
+            # A stopped well has zero surface throughput, but retains its
+            # reservoir connections and may redistribute fluid internally.
             zero = max(qo, qw, qg) <= 0 if hist else (cfg["control_type"] in ("rate", "resv")
                                                        and not cfg.get("grup") and cfg["control_value"] <= 0)
-            if cfg["control_type"] in ("rate", "resv") and zero:
-                return {"type": typ, "control_type": "shut", "control_value": 0.0}
+            if stopped or (cfg["control_type"] in ("rate", "resv") and zero):
+                cfg.update(control_type="rate", control_value=0.0, stopped=True, start_mode="stop",
+                           surface_phase="liquid")
+                cfg.pop("hist_rates", None)
             # в истории ограничение по BHP — 1 атм (WELTARG не поддерживается)
             cfg["bhp_min"] = float(p_atm if hist else _get(r, bhp_idx, p_atm)) * u["p"] / 1e6
         else:
@@ -1405,7 +1496,7 @@ class EclipseCase:
             if mode == "RATE":
                 cfg.update(control_type="rate", control_value=float(_get(r, rate_idx, 0.0) or 0.0) * cv)
                 if cfg["control_value"] <= 0:
-                    return {"type": typ, "control_type": "shut", "control_value": 0.0}
+                    stopped = True
             elif mode == "BHP":
                 cfg.update(control_type="bhp", control_value=float(r[bhp_idx]) * u["p"] / 1e6)
             elif mode == "GRUP" and not hist:
@@ -1429,6 +1520,8 @@ class EclipseCase:
             lim = None if hist else _get(r, bhp_idx)
             cfg["bhp_max"] = float(lim if lim is not None else (1e5 if self.units_name == "FIELD" else 6895.0)) \
                 * u["p"] / 1e6
+            if stopped:
+                cfg.update(control_type="rate", control_value=0.0, stopped=True, start_mode="stop")
         return cfg
 
     # ------------------------------------------------------------ равновесие
@@ -1601,6 +1694,31 @@ class EclipseCase:
             sg = np.where(np.isnan(inv), np.where(z < eq["goc"], np.minimum(sgu, 1.0 - swl), 0.0), inv)
             sg = np.clip(np.minimum(sg, 1.0 - sw), 0.0, None)
             gas = sg >= 1.0 - sw - 1e-12
+            if pw is not None:
+                # Когда нефти нет, её экстраполированный гидростатический профиль
+                # не задаёт давление: Pcow(Sw) + Pcog(1-Sw) = pg-pw.
+                # Раздельное обращение двух кривых с последующей обрезкой Sg
+                # нарушало это равенство и завышало начальный Sw в газовой зоне.
+                oil_free = gas & (sg > 0)
+                if np.any(oil_free):
+                    ids = idx[oil_free]
+                    target = (pg - pw)[oil_free]
+                    current = sw[oil_free]
+
+                    def pc_sum(s):
+                        return ep.pc_value(ids, "w", s) + ep.pc_value(ids, "g", 1.0 - s)
+
+                    lo, hi = swl[oil_free].copy(), swu[oil_free].copy()
+                    tolerance = 1e-6 + 1e-10 * np.abs(target)
+                    needs_solve = ((np.abs(pc_sum(current) - target) > tolerance)
+                                   & (pc_sum(lo) - pc_sum(hi) > tolerance))
+                    if np.any(needs_solve):
+                        for _ in range(40):
+                            mid = 0.5 * (lo + hi)
+                            above = pc_sum(mid) > target
+                            lo, hi = np.where(above, mid, lo), np.where(above, hi, mid)
+                        sw[oil_free] = np.where(needs_solve, 0.5 * (lo + hi), current)
+                        sg[oil_free] = 1.0 - sw[oil_free]
             pcg = ep.pc_value(idx, "g", sg) if ep.tables[0][1] is not None else np.zeros(len(idx))
             p_cell = np.where(gas & (sg > 0), pg - pcg, p_cell)
         return p_cell, sw, sg

@@ -1,0 +1,1198 @@
+
+
+
+ ########  #          ######   #           #
+ #         #         #      #   #         # 
+ #####     #         #      #    #   #   #  
+ #         #         #      #     # # # #   
+ #         #######    ######       #   #    
+
+Flow is a simulator for fully implicit three-phase black-oil flow, and is part of OPM.
+For more information visit: https://opm-project.org 
+
+Flow Version     =  2026.04 (Ubuntu 24.04.4 LTS: 2026.04-1~noble)
+Machine name     =  ccdd6b110a37 (Number of logical cores: 24, Memory size: 63931.82 MB) 
+Operating system =  Linux x86_64 (Kernel: 6.17.0-22-generic, #22~24.04.1-Ubuntu SMP PREEMPT_DYNAMIC Thu Mar 26 15:25:54 UTC 2 )
+Build time       =  
+Simulation started on 29-10-2026 at 13:51:35 hrs
+Using 1 MPI processes with 2 OMP threads on each 
+Parameters used by Flow:
+# [known parameters which were specified at run-time]
+EclDeckFileName="/case/BASE_MODEL_1.DATA" # default: ""
+OutputDir="/out" # default: ""
+EnableTuning="true" # default: "0"
+# [parameters which were specified at compile-time]
+AcceleratorMode="none"
+ActionParsingStrictness="normal"
+AddCorners="0"
+AllowDistributedWells="0"
+AllowSplittingInactiveWells="1"
+AlternativeWellRateInit="1"
+CheckGroupConstraintsInnerWellIterations="1"
+CheckSatfuncConsistency="1"
+ConserveInnerEnergyThermal="0"
+ContinueOnConvergenceError="0"
+ConvergenceMonitoring="0"
+ConvergenceMonitoringCutOff="6"
+ConvergenceMonitoringDecayFactor="0.75"
+CprReuseInterval="30"
+CprReuseSetup="4"
+CprWeightsThreadParallel="0"
+DbhpMaxRel="1"
+DebugEmitCellPartition="0"
+DebugVerbosityLevel="1"
+DpMaxRel="0.3"
+DsMax="0.2"
+DwellFractionMax="0.2"
+EclOutputDoublePrecision="0"
+EclOutputInterval="-1"
+EdgeConformal="0"
+EdgeWeightsMethod="transmissibility"
+EnableAdaptiveTimeStepping="1"
+EnableAsyncEclOutput="1"
+EnableAsyncVtkOutput="1"
+EnableDriftCompensation="0"
+EnableDriftCompensationTemp="1"
+EnableDryRun="auto"
+EnableEclOutput="1"
+EnableEsmry="1"
+EnableGravity="1"
+EnableGridAdaptation="0"
+EnableIntensiveQuantityCache="1"
+EnableLoggingFalloutWarning="0"
+EnableOpmRstFile="0"
+EnableStorageCache="1"
+EnableTerminalOutput="1"
+EnableThermodynamicHints="0"
+EnableVtkOutput="0"
+EnableWellOperabilityCheck="1"
+EnableWellOperabilityCheckIter="0"
+EnableWriteAllSolutions="0"
+EndTime="1e+100"
+ExplicitRockCompaction="0"
+ExternalPartition=""
+ForceDisableFluidInPlaceOutput="0"
+ForceDisableResvFluidInPlaceOutput="0"
+FullTimeStepInitially="0"
+GpuAwareMpi="0"
+GpuDeviceId="0"
+HybridNewtonConfigFile="hybridNewtonConfig.json"
+IgnoreKeywords=""
+IluFillinLevel="0"
+IluRedblack="0"
+IluRelaxation="0.9"
+IluReorderSpheres="0"
+ImbalanceTol="1.1"
+InitialTimeStepInDays="1"
+InitialTimeStepSize="86400"
+InjMultDampMult="0.9"
+InjMultMinDampFactor="0.05"
+InjMultOscThreshold="0.1"
+InputSkipMode="100"
+LinearSolver="cprw"
+LinearSolverAccelerator="cpu"
+LinearSolverIgnoreConvergenceFailure="0"
+LinearSolverMaxIter="200"
+LinearSolverPrintJsonDefinition="1"
+LinearSolverReduction="0.01"
+LinearSolverRestart="40"
+LinearSolverVerbosity="0"
+LoadFile=""
+LoadStep="-1"
+LocalDomainsOrderingMeasure="maxpressure"
+LocalDomainsPartitionWellNeighborLevels="1"
+LocalDomainsPartitioningImbalance="1.03"
+LocalDomainsPartitioningMethod="zoltan"
+LocalSolveApproach="gauss-seidel"
+LocalToleranceScalingCnv="0.1"
+LocalToleranceScalingMb="1"
+LocalWellSolveControlSwitching="1"
+MatrixAddWellContributions="0"
+MaxInnerIterMsWells="100"
+MaxInnerIterWells="50"
+MaxLocalSolveIterations="20"
+MaxNewtonIterationsWithInnerWellIterations="99"
+MaxPressureChangeMsWells="1e+06"
+MaxResidualAllowed="1e+07"
+MaxSinglePrecisionDays="20"
+MaxTemperatureChange="5"
+MaxTimeStepDivisions="10"
+MaxTimeStepSize="inf"
+MaxWellStatusSwitchForWells="99"
+MaxWellStatusSwitchInInnerIterWells="99"
+MaxWelleqIter="30"
+MaximumNumberOfGroupSwitches="3"
+MaximumNumberOfWellSwitches="3"
+MaximumWaterSaturation="1"
+MetisParams="default"
+MiluVariant="ilu"
+MinStrictCnvIter="-1"
+MinStrictMbIter="-1"
+MinTimeStepBasedOnNewtonIterations="0"
+MinTimeStepBeforeShuttingProblematicWellsInDays="0.01"
+MinTimeStepSize="0"
+NetworkMaxOuterIterations="3"
+NetworkMaxPressureUpdateInBars="5"
+NetworkMaxStrictOuterIterations="10"
+NetworkMaxSubIterations="100"
+NetworkPressureUpdateDampingFactor="0.1"
+NewtonMaxError="1e+100"
+NewtonMaxIterations="20"
+NewtonMaxRelax="0.5"
+NewtonMinIterations="2"
+NewtonRelaxationType="dampen"
+NewtonTargetIterations="10"
+NewtonTolerance="0.01"
+NewtonVerbose="1"
+NewtonWriteConvergence="0"
+NlddLocalLinearSolver="ilu0"
+NlddLocalLinearSolverMaxIter="200"
+NlddLocalLinearSolverReduction="0.01"
+NlddNumInitialNewtonIter="1"
+NlddRelativeMobilityChangeTol="0.1"
+NonlinearSolver="newton"
+NumLocalDomains="0"
+NumOverlap="1"
+NumPressurePointsEquil="2000"
+NumSatfuncConsistencySamplePoints="5"
+NupcolGroupRateTolerance="0.001"
+OpenclIluParallel="1"
+OpenclPlatformId="0"
+OutputExtraConvergenceInfo="none"
+OutputInterval="1"
+OutputMode="all"
+OwnerCellsFirst="1"
+ParameterFile=""
+ParsingStrictness="normal"
+PartitionMethod="zoltanwell"
+PreSolveNetwork="1"
+PredeterminedTimeStepsFile=""
+PressureMax="1e+99"
+PressureMin="-1e+99"
+PressureScale="1"
+PriVarOscilationThreshold="1e-05"
+PrintParameters="2"
+ProjectSaturations="0"
+RegularizationFactorWells="100"
+RelaxedLinearSolverReduction="0.01"
+RelaxedMaxPvFraction="0.03"
+RelaxedPressureTolMsw="10000"
+RelaxedWellFlowTol="0.001"
+RestartTime="-1e+35"
+RestartWritingInterval="16777215"
+SaveFile=""
+SaveStep=""
+ScaleLinearSystem="0"
+SchedRestart="0"
+SerialPartitioning="0"
+ShutUnsolvableWells="1"
+Slave="0"
+SolveWelleqInitially="1"
+SolverContinueOnConvergenceFailure="0"
+SolverGrowthFactor="2"
+SolverMaxGrowth="3"
+SolverMaxRestarts="10"
+SolverMaxTimeStepInDays="365"
+SolverMinTimeStep="1e-12"
+SolverRestartFactor="0.33"
+SolverVerbosity="1"
+StrictInnerIterWells="40"
+StrictOuterIterWells="6"
+TemperatureMax="1e+09"
+TemperatureMin="0"
+ThreadsPerProcess="2"
+TimeStepAfterEventInDays="-1"
+TimeStepControl="pid+newtoniteration"
+TimeStepControlDecayDampingFactor="1"
+TimeStepControlDecayRate="0.75"
+TimeStepControlFileName="timesteps"
+TimeStepControlGrowthDampingFactor="3.2"
+TimeStepControlGrowthRate="1.25"
+TimeStepControlMaxReductionTimeStep="0.1"
+TimeStepControlParameters="0.125;0.25;0.125;0.75;0.25"
+TimeStepControlRejectCompletedStep="0"
+TimeStepControlSafetyFactor="0.8"
+TimeStepControlTargetIterations="30"
+TimeStepControlTargetNewtonIterations="8"
+TimeStepControlTolerance="0.1"
+TimeStepControlToleranceTestVersion="standard"
+TimeStepVerbosity="1"
+ToleranceCnv="0.01"
+ToleranceCnvEnergy="0.4182"
+ToleranceCnvEnergyRelaxed="41.82"
+ToleranceCnvRelaxed="1"
+ToleranceEnergyBalance="4.182e-06"
+ToleranceEnergyBalanceRelaxed="4.182e-05"
+ToleranceMaxDp="0"
+ToleranceMaxDrs="0"
+ToleranceMaxDrv="0"
+ToleranceMaxDs="0"
+ToleranceMb="1e-07"
+ToleranceMbRelaxed="1e-06"
+TolerancePressureMsWells="1000"
+ToleranceWellControl="1e-07"
+ToleranceWells="0.0001"
+TpsaIluFillinLevel="0"
+TpsaIluRelaxation="0.9"
+TpsaLinearSolver="ilu0"
+TpsaLinearSolverIgnoreConvergenceFailure="0"
+TpsaLinearSolverMaxIter="200"
+TpsaLinearSolverPrintJsonDefinition="0"
+TpsaLinearSolverReduction="0.001"
+TpsaLinearSolverRestart="40"
+TpsaLinearSolverVerbosity="0"
+TpsaNewtonMaxError="1e+100"
+TpsaNewtonMaxIterations="20"
+TpsaNewtonMinIterations="1"
+TpsaNewtonTargetIterations="10"
+TpsaNewtonTolerance="0.001"
+TpsaNewtonVerbosity="1"
+TpsaRelaxedLinearSolverReduction="0.001"
+TpsaUseGmres="0"
+UpdateEquationsScaling="0"
+UseAverageDensityMsWells="0"
+UseGmres="0"
+UseHybridNewton="0"
+UseImplicitIpr="1"
+UseMultisegmentWell="1"
+UseUpdateStabilization="1"
+VerifyGpuAwareMpi="0"
+VtkWriteAverageMolarMasses="0"
+VtkWriteDensities="1"
+VtkWriteDiffusionCoefficients="0"
+VtkWriteDofIndex="0"
+VtkWriteEffectiveDiffusionCoefficients="0"
+VtkWriteExtrusionFactor="0"
+VtkWriteFilterVelocities="0"
+VtkWriteFugacities="0"
+VtkWriteFugacityCoeffs="0"
+VtkWriteGasDissolutionFactor="0"
+VtkWriteGasFormationVolumeFactor="0"
+VtkWriteGasSaturationPressure="0"
+VtkWriteIntrinsicPermeabilities="0"
+VtkWriteMassFractions="0"
+VtkWriteMobilities="0"
+VtkWriteMolarities="0"
+VtkWriteMoleFractions="1"
+VtkWriteOilFormationVolumeFactor="0"
+VtkWriteOilSaturationPressure="0"
+VtkWriteOilVaporizationFactor="0"
+VtkWritePorosity="1"
+VtkWritePotentialGradients="0"
+VtkWritePressures="1"
+VtkWritePrimaryVars="0"
+VtkWritePrimaryVarsMeaning="0"
+VtkWriteProcessRank="0"
+VtkWriteRelativePermeabilities="1"
+VtkWriteSaturatedGasOilVaporizationFactor="0"
+VtkWriteSaturatedOilGasDissolutionFactor="0"
+VtkWriteSaturationRatios="0"
+VtkWriteSaturations="1"
+VtkWriteTemperature="1"
+VtkWriteTortuosities="0"
+VtkWriteTotalMassFractions="0"
+VtkWriteTotalMoleFractions="0"
+VtkWriteTracerConcentration="0"
+VtkWriteViscosities="0"
+VtkWriteWaterFormationVolumeFactor="0"
+WaterOnlyThreshold="1"
+WellGroupConstraintsMaxIterations="1"
+ZoltanImbalanceTol="1.1"
+ZoltanParams="graph"
+ZoltanPhgEdgeSizeThreshold="0.35"
+
+Reading deck file '/case/BASE_MODEL_1.DATA'
+    0 Reading RUNSPEC  in /case/BASE_MODEL_1.DATA line 20
+    1 Reading TITLE    in /case/BASE_MODEL_1.DATA line 24
+    2 Reading NOECHO   in /case/BASE_MODEL_1.DATA line 29
+    3 Reading DIMENS   in /case/BASE_MODEL_1.DATA line 33
+    4 Reading START    in /case/BASE_MODEL_1.DATA line 37
+    5 Reading OIL      in /case/BASE_MODEL_1.DATA line 41
+    6 Reading WATER    in /case/BASE_MODEL_1.DATA line 42
+    7 Reading GAS      in /case/BASE_MODEL_1.DATA line 43
+    8 Reading DISGAS   in /case/BASE_MODEL_1.DATA line 44
+    9 Reading VAPOIL   in /case/BASE_MODEL_1.DATA line 45
+   10 Reading EXTRAPMS in /case/BASE_MODEL_1.DATA line 52
+   11 Reading METRIC   in /case/BASE_MODEL_1.DATA line 57
+   12 Reading GRIDOPTS in /case/BASE_MODEL_1.DATA line 60
+   13 Reading EQLOPTS  in /case/BASE_MODEL_1.DATA line 66
+   14 Reading TABDIMS  in /case/BASE_MODEL_1.DATA line 82
+   15 Reading EQLDIMS  in /case/BASE_MODEL_1.DATA line 92
+   16 Reading REGDIMS  in /case/BASE_MODEL_1.DATA line 101
+   17 Reading SMRYDIMS in /case/BASE_MODEL_1.DATA line 106
+   18 Reading FAULTDIM in /case/BASE_MODEL_1.DATA line 111
+   19 Reading WELLDIMS in /case/BASE_MODEL_1.DATA line 120
+   20 Reading WSEGDIMS in /case/BASE_MODEL_1.DATA line 125
+   21 Reading VFPIDIMS in /case/BASE_MODEL_1.DATA line 134
+   22 Reading VFPPDIMS in /case/BASE_MODEL_1.DATA line 145
+   23 Reading UNIFIN   in /case/BASE_MODEL_1.DATA line 155
+   24 Reading UNIFOUT  in /case/BASE_MODEL_1.DATA line 157
+   25 Reading NSTACK   in /case/BASE_MODEL_1.DATA line 161
+   26 Reading GRID     in /case/BASE_MODEL_1.DATA line 168
+   27 Reading RPTGRID  in /case/BASE_MODEL_1.DATA line 173
+   28 Reading GRIDFILE in /case/BASE_MODEL_1.DATA line 177
+   29 Reading INIT     in /case/BASE_MODEL_1.DATA line 180
+   30 Reading NEWTRAN  in /case/BASE_MODEL_1.DATA line 183
+   31 Reading SPECGRID in /case/include/grid_basemod1.grdecl line 13
+   32 Reading COORD    in /case/include/grid_basemod1.grdecl line 16
+   33 Reading ZCORN    in /case/include/grid_basemod1.grdecl line 82
+   34 Reading ACTNUM   in /case/include/grid_basemod1.grdecl line 533
+   35 Reading PERMX    in /case/include/permx_basemod1.inc line 14
+   36 Reading PORO     in /case/include/poro_basemod1.inc line 14
+   37 Reading COPY     in /case/BASE_MODEL_1.DATA line 201
+   38 Reading MULTIPLY in /case/BASE_MODEL_1.DATA line 206
+   39 Reading MULTZ    in /case/include/multz_basemod1.inc line 14
+   40 Reading MULTNUM  in /case/include/multnum_basemod1.inc line 14
+   41 Reading EDIT     in /case/BASE_MODEL_1.DATA line 221
+   42 Reading PROPS    in /case/BASE_MODEL_1.DATA line 228
+   43 Reading SWOF     in /case/include/sattab_basemod1.sattab line 13
+   44 Reading SGOF     in /case/include/sattab_basemod1.sattab line 234
+   45 Reading STONE1   in /case/BASE_MODEL_1.DATA line 239
+   46 Reading ROCK     in /case/include/pvt_basemod1.pvt line 13
+   47 Reading PVTW     in /case/include/pvt_basemod1.pvt line 18
+   48 Reading DENSITY  in /case/include/pvt_basemod1.pvt line 24
+   49 Reading PVTO     in /case/include/pvt_basemod1.pvt line 34
+   50 Reading PVTG     in /case/include/pvt_basemod1.pvt line 373
+   51 Reading SWATINIT in /case/include/swatinit.grdecl line 13
+   52 Reading FILLEPS  in /case/BASE_MODEL_1.DATA line 258
+   53 Reading REGIONS  in /case/BASE_MODEL_1.DATA line 265
+   54 Reading SATNUM   in /case/include/satnum_basemod1.inc line 13
+   55 Reading PVTNUM   in /case/include/pvtnum_basemod1.inc line 13
+   56 Reading EQLNUM   in /case/include/eqlnum_basemod1.inc line 13
+   57 Reading SOLUTION in /case/BASE_MODEL_1.DATA line 279
+   58 Reading EQUIL    in /case/BASE_MODEL_1.DATA line 285
+   59 Reading RSVD     in /case/BASE_MODEL_1.DATA line 293
+   60 Reading RVVD     in /case/BASE_MODEL_1.DATA line 310
+   61 Reading THPRES   in /case/BASE_MODEL_1.DATA line 322
+   62 Reading RPTSOL   in /case/BASE_MODEL_1.DATA line 330
+   63 Reading SUMMARY  in /case/BASE_MODEL_1.DATA line 334
+   64 Reading DATE     in /case/include/std_summary.inc line 14
+   65 Reading FMWPR    in /case/include/std_summary.inc line 15
+   66 Reading FMWIN    in /case/include/std_summary.inc line 16
+   67 Reading FOPT     in /case/include/std_summary.inc line 17
+   68 Reading FOPTH    in /case/include/std_summary.inc line 18
+   69 Reading FOPR     in /case/include/std_summary.inc line 19
+   70 Reading FOPRH    in /case/include/std_summary.inc line 20
+   71 Reading FOE      in /case/include/std_summary.inc line 21
+   72 Reading FOIP     in /case/include/std_summary.inc line 22
+   73 Reading FGPT     in /case/include/std_summary.inc line 24
+   74 Reading FGPTH    in /case/include/std_summary.inc line 25
+   75 Reading FGIT     in /case/include/std_summary.inc line 26
+   76 Reading FGITH    in /case/include/std_summary.inc line 27
+   77 Reading FGIR     in /case/include/std_summary.inc line 29
+   78 Reading FWPT     in /case/include/std_summary.inc line 30
+   79 Reading FWPTH    in /case/include/std_summary.inc line 31
+   80 Reading FWIT     in /case/include/std_summary.inc line 32
+   81 Reading FVPT     in /case/include/std_summary.inc line 33
+   82 Reading FVIT     in /case/include/std_summary.inc line 34
+   83 Reading FPR      in /case/include/std_summary.inc line 35
+   84 Reading FGOR     in /case/include/std_summary.inc line 36
+   85 Reading FGORH    in /case/include/std_summary.inc line 37
+   86 Reading FWCT     in /case/include/std_summary.inc line 38
+   87 Reading FWCTH    in /case/include/std_summary.inc line 39
+   88 Reading FLPR     in /case/include/std_summary.inc line 40
+   89 Reading FGPRF    in /case/include/std_summary.inc line 41
+   90 Reading FGPRS    in /case/include/std_summary.inc line 42
+   91 Reading FGPR     in /case/include/std_summary.inc line 43
+   92 Reading FGPRH    in /case/include/std_summary.inc line 44
+   93 Reading FWPR     in /case/include/std_summary.inc line 45
+   94 Reading FWPRH    in /case/include/std_summary.inc line 46
+   95 Reading FGIR     in /case/include/std_summary.inc line 47
+   96 Reading FWIR     in /case/include/std_summary.inc line 48
+   97 Reading FVPR     in /case/include/std_summary.inc line 49
+   98 Reading FVIR     in /case/include/std_summary.inc line 50
+   99 Reading ROPR     in /case/include/std_summary.inc line 53
+  100 Reading ROPT     in /case/include/std_summary.inc line 55
+  101 Reading RGPR     in /case/include/std_summary.inc line 57
+  102 Reading RGPT     in /case/include/std_summary.inc line 59
+  103 Reading RWPR     in /case/include/std_summary.inc line 61
+  104 Reading RGIR     in /case/include/std_summary.inc line 63
+  105 Reading RGIT     in /case/include/std_summary.inc line 65
+  106 Reading RWIR     in /case/include/std_summary.inc line 67
+  107 Reading RWIT     in /case/include/std_summary.inc line 69
+  108 Reading RWPT     in /case/include/std_summary.inc line 71
+  109 Reading RPR      in /case/include/std_summary.inc line 73
+  110 Reading ROIP     in /case/include/std_summary.inc line 75
+  111 Reading ROIPL    in /case/include/std_summary.inc line 77
+  112 Reading ROIPG    in /case/include/std_summary.inc line 79
+  113 Reading RGIP     in /case/include/std_summary.inc line 81
+  114 Reading RGIPL    in /case/include/std_summary.inc line 83
+  115 Reading RGIPG    in /case/include/std_summary.inc line 85
+  116 Reading RWIP     in /case/include/std_summary.inc line 87
+  117 Reading RPPO     in /case/include/std_summary.inc line 89
+  118 Reading GPR      in /case/include/std_summary.inc line 92
+  119 Reading GPRG     in /case/include/std_summary.inc line 94
+  120 Reading GPRW     in /case/include/std_summary.inc line 96
+  121 Reading GPRB     in /case/include/std_summary.inc line 98
+  122 Reading GOPT     in /case/include/std_summary.inc line 100
+  123 Reading GOPTF    in /case/include/std_summary.inc line 102
+  124 Reading GOPTS    in /case/include/std_summary.inc line 104
+  125 Reading GOPTH    in /case/include/std_summary.inc line 106
+  126 Reading GOPR     in /case/include/std_summary.inc line 108
+  127 Reading GOPRS    in /case/include/std_summary.inc line 110
+  128 Reading GOPRF    in /case/include/std_summary.inc line 112
+  129 Reading GOPRH    in /case/include/std_summary.inc line 114
+  130 Reading GGPT     in /case/include/std_summary.inc line 116
+  131 Reading GGPTF    in /case/include/std_summary.inc line 118
+  132 Reading GGPTS    in /case/include/std_summary.inc line 120
+  133 Reading GGPTH    in /case/include/std_summary.inc line 122
+  134 Reading GGPR     in /case/include/std_summary.inc line 124
+  135 Reading GGPRF    in /case/include/std_summary.inc line 126
+  136 Reading GGPRS    in /case/include/std_summary.inc line 128
+  137 Reading GGPRH    in /case/include/std_summary.inc line 130
+  138 Reading GWPT     in /case/include/std_summary.inc line 132
+  139 Reading GWPTH    in /case/include/std_summary.inc line 134
+  140 Reading GWPR     in /case/include/std_summary.inc line 136
+  141 Reading GWPRH    in /case/include/std_summary.inc line 138
+  142 Reading GGOR     in /case/include/std_summary.inc line 140
+  143 Reading GGORH    in /case/include/std_summary.inc line 142
+  144 Reading GGLR     in /case/include/std_summary.inc line 144
+  145 Reading GGLIR    in /case/include/std_summary.inc line 146
+  146 Reading GGLRH    in /case/include/std_summary.inc line 148
+  147 Reading GWCT     in /case/include/std_summary.inc line 150
+  148 Reading GWCTH    in /case/include/std_summary.inc line 152
+  149 Reading GLPR     in /case/include/std_summary.inc line 154
+  150 Reading GLPRH    in /case/include/std_summary.inc line 156
+  151 Reading GVPR     in /case/include/std_summary.inc line 158
+  152 Reading GVPT     in /case/include/std_summary.inc line 160
+  153 Reading GMCTP    in /case/include/std_summary.inc line 162
+  154 Reading GGIT     in /case/include/std_summary.inc line 164
+  155 Reading GGITH    in /case/include/std_summary.inc line 166
+  156 Reading GGIR     in /case/include/std_summary.inc line 168
+  157 Reading GGIRH    in /case/include/std_summary.inc line 170
+  158 Reading GWIT     in /case/include/std_summary.inc line 172
+  159 Reading GWIR     in /case/include/std_summary.inc line 174
+  160 Reading GWIRH    in /case/include/std_summary.inc line 176
+  161 Reading GOPP     in /case/include/std_summary.inc line 178
+  162 Reading GVIR     in /case/include/std_summary.inc line 180
+  163 Reading GVIT     in /case/include/std_summary.inc line 182
+  164 Reading GVPRT    in /case/include/std_summary.inc line 184
+  165 Reading WOPT     in /case/include/std_summary.inc line 189
+  166 Reading WOPTF    in /case/include/std_summary.inc line 191
+  167 Reading WOPTS    in /case/include/std_summary.inc line 193
+  168 Reading WOPTH    in /case/include/std_summary.inc line 195
+  169 Reading WOPR     in /case/include/std_summary.inc line 197
+  170 Reading WOPRS    in /case/include/std_summary.inc line 199
+  171 Reading WOPRF    in /case/include/std_summary.inc line 201
+  172 Reading WOPRH    in /case/include/std_summary.inc line 203
+  173 Reading WGPT     in /case/include/std_summary.inc line 205
+  174 Reading WGPTF    in /case/include/std_summary.inc line 207
+  175 Reading WGPTS    in /case/include/std_summary.inc line 209
+  176 Reading WGPTH    in /case/include/std_summary.inc line 211
+  177 Reading WGPR     in /case/include/std_summary.inc line 213
+  178 Reading WGPRF    in /case/include/std_summary.inc line 215
+  179 Reading WGPRS    in /case/include/std_summary.inc line 217
+  180 Reading WGPRH    in /case/include/std_summary.inc line 219
+  181 Reading WWPT     in /case/include/std_summary.inc line 221
+  182 Reading WWPTH    in /case/include/std_summary.inc line 223
+  183 Reading WWPR     in /case/include/std_summary.inc line 225
+  184 Reading WWPRH    in /case/include/std_summary.inc line 227
+  185 Reading WBHP     in /case/include/std_summary.inc line 229
+  186 Reading WBP      in /case/include/std_summary.inc line 231
+  187 Reading WBP4     in /case/include/std_summary.inc line 233
+  188 Reading WBHPH    in /case/include/std_summary.inc line 235
+  189 Reading WTHP     in /case/include/std_summary.inc line 237
+  190 Reading WTHPH    in /case/include/std_summary.inc line 239
+  191 Reading WGOR     in /case/include/std_summary.inc line 241
+  192 Reading WGORH    in /case/include/std_summary.inc line 243
+  193 Reading WGLR     in /case/include/std_summary.inc line 245
+  194 Reading WGLIR    in /case/include/std_summary.inc line 247
+  195 Reading WGLRH    in /case/include/std_summary.inc line 249
+  196 Reading WWCT     in /case/include/std_summary.inc line 251
+  197 Reading WWCTH    in /case/include/std_summary.inc line 253
+  198 Reading WLPR     in /case/include/std_summary.inc line 255
+  199 Reading WLPRH    in /case/include/std_summary.inc line 257
+  200 Reading WVPR     in /case/include/std_summary.inc line 259
+  201 Reading WVPT     in /case/include/std_summary.inc line 261
+  202 Reading WGIT     in /case/include/std_summary.inc line 263
+  203 Reading WGITH    in /case/include/std_summary.inc line 265
+  204 Reading WGIR     in /case/include/std_summary.inc line 267
+  205 Reading WGIRH    in /case/include/std_summary.inc line 269
+  206 Reading WWIT     in /case/include/std_summary.inc line 271
+  207 Reading WWIR     in /case/include/std_summary.inc line 273
+  208 Reading WWIRH    in /case/include/std_summary.inc line 275
+  209 Reading WOPP     in /case/include/std_summary.inc line 277
+  210 Reading WVIR     in /case/include/std_summary.inc line 279
+  211 Reading WVIT     in /case/include/std_summary.inc line 281
+  212 Reading WPI      in /case/include/std_summary.inc line 283
+  213 Reading WMCTL    in /case/include/std_summary.inc line 285
+  214 Reading DATE     in /case/include/std_summary.inc line 308
+  215 Reading MAXDPR   in /case/include/std_summary.inc line 309
+  216 Reading MAXDSO   in /case/include/std_summary.inc line 310
+  217 Reading MAXDSW   in /case/include/std_summary.inc line 311
+  218 Reading MAXDSG   in /case/include/std_summary.inc line 312
+  219 Reading NEWTON   in /case/include/std_summary.inc line 313
+  220 Reading NLINEARS in /case/include/std_summary.inc line 314
+  221 Reading TIMESTEP in /case/include/std_summary.inc line 317
+  222 Reading MSUMLINS in /case/include/std_summary.inc line 319
+  223 Reading MLINEARS in /case/include/std_summary.inc line 320
+  224 Reading WNEWTON  in /case/include/std_summary.inc line 322
+  225 Reading STEPTYPE in /case/include/std_summary.inc line 324
+  226 Reading SCHEDULE in /case/BASE_MODEL_1.DATA line 343
+  227 Reading TUNING   in /case/BASE_MODEL_1.DATA line 349
+  228 Reading RPTRST   in /case/include/history_basemod1.sch line 16
+  229 Reading WELSPECS in /case/include/history_basemod1.sch line 21
+  230 Reading COMPDAT  in /case/include/history_basemod1.sch line 29
+  231 Reading COMPORD  in /case/include/history_basemod1.sch line 60
+  232 Reading GRUPTREE in /case/include/history_basemod1.sch line 66
+  233 Reading WCONHIST in /case/include/history_basemod1.sch line 79
+  234 Reading WCONINJH in /case/include/history_basemod1.sch line 84
+  235 Reading WRFTPLT  in /case/include/history_basemod1.sch line 91
+  236 Reading DATES    in /case/include/history_basemod1.sch line 96
+  237 Reading WELSPECS in /case/include/history_basemod1.sch line 101
+  238 Reading COMPDAT  in /case/include/history_basemod1.sch line 105
+  239 Reading WCONHIST in /case/include/history_basemod1.sch line 135
+  240 Reading WCONINJH in /case/include/history_basemod1.sch line 140
+  241 Reading DATES    in /case/include/history_basemod1.sch line 146
+  242 Reading WCONHIST in /case/include/history_basemod1.sch line 152
+  243 Reading WCONINJH in /case/include/history_basemod1.sch line 157
+  244 Reading DATES    in /case/include/history_basemod1.sch line 162
+  245 Reading WELSPECS in /case/include/history_basemod1.sch line 166
+  246 Reading COMPDAT  in /case/include/history_basemod1.sch line 170
+  247 Reading WCONHIST in /case/include/history_basemod1.sch line 193
+  248 Reading WCONINJH in /case/include/history_basemod1.sch line 199
+  249 Reading DATES    in /case/include/history_basemod1.sch line 204
+  250 Reading WCONHIST in /case/include/history_basemod1.sch line 208
+  251 Reading WCONINJH in /case/include/history_basemod1.sch line 214
+  252 Reading DATES    in /case/include/history_basemod1.sch line 219
+  253 Reading WELSPECS in /case/include/history_basemod1.sch line 224
+  254 Reading COMPDAT  in /case/include/history_basemod1.sch line 229
+  255 Reading WCONHIST in /case/include/history_basemod1.sch line 238
+  256 Reading WCONINJH in /case/include/history_basemod1.sch line 245
+  257 Reading DATES    in /case/include/history_basemod1.sch line 251
+  258 Reading WCONHIST in /case/include/history_basemod1.sch line 255
+  259 Reading WCONINJH in /case/include/history_basemod1.sch line 262
+  260 Reading DATES    in /case/include/history_basemod1.sch line 268
+  261 Reading WCONHIST in /case/include/history_basemod1.sch line 272
+  262 Reading WCONINJH in /case/include/history_basemod1.sch line 279
+  263 Reading DATES    in /case/include/history_basemod1.sch line 284
+  264 Reading WCONHIST in /case/include/history_basemod1.sch line 288
+  265 Reading WCONINJH in /case/include/history_basemod1.sch line 295
+  266 Reading DATES    in /case/include/history_basemod1.sch line 300
+  267 Reading WCONHIST in /case/include/history_basemod1.sch line 304
+  268 Reading WCONINJH in /case/include/history_basemod1.sch line 311
+  269 Reading DATES    in /case/include/history_basemod1.sch line 317
+  270 Reading WCONHIST in /case/include/history_basemod1.sch line 321
+  271 Reading WCONINJH in /case/include/history_basemod1.sch line 328
+  272 Reading DATES    in /case/include/history_basemod1.sch line 334
+  273 Reading WCONHIST in /case/include/history_basemod1.sch line 338
+  274 Reading WCONINJH in /case/include/history_basemod1.sch line 344
+  275 Reading RPTRST   in /case/include/history_basemod1.sch line 350
+  276 Reading DATES    in /case/include/history_basemod1.sch line 354
+
+Warning: Unsupported keywords or keyword items:
+
+  NOECHO: keyword not supported
+  In file: /case/BASE_MODEL_1.DATA, line 29
+
+  EXTRAPMS: keyword not supported
+  In file: /case/BASE_MODEL_1.DATA, line 52
+
+  NSTACK: keyword not supported
+  In file: /case/BASE_MODEL_1.DATA, line 161
+
+  RPTGRID: keyword not supported
+  In file: /case/BASE_MODEL_1.DATA, line 173
+
+  RPTSOL: keyword not supported
+  In file: /case/BASE_MODEL_1.DATA, line 330
+
+Creating corner-point grid from keywords COORD, ZCORN and others
+3 fluid phases are active
+
+Warning: Error in keyword RPTSOL, unrecognized mnemonic THPRES
+In /case/BASE_MODEL_1.DATA line 330.
+
+Processing dynamic information from
+/case/BASE_MODEL_1.DATA line 343
+Initializing report step 0/12 at 2000-01-01 0 DAYS line 343
+Processing keyword TUNING at line 349
+Reading from: /case/include/history_basemod1.sch line 16
+Processing keyword RPTRST at line 16
+Processing keyword WELSPECS at line 21
+Processing keyword COMPDAT at line 29
+Processing keyword COMPORD at line 60
+Processing keyword GRUPTREE at line 66
+Processing keyword WCONHIST at line 79
+Processing keyword WCONINJH at line 84
+Processing keyword WRFTPLT at line 91
+Complete report step 1 (31 DAYS) at 2000-02-01 (0 DAYS)
+
+Initializing report step 2/12 at 2000-02-01 (0 DAYS) line 96
+Processing keyword WELSPECS at line 101
+Processing keyword COMPDAT at line 105
+Processing keyword WCONHIST at line 135
+Processing keyword WCONINJH at line 140
+Complete report step 2 (29 DAYS) at 2000-03-01 (31 DAYS)
+
+Initializing report step 3/12 at 2000-03-01 (31 DAYS) line 146
+Processing keyword WCONHIST at line 152
+Processing keyword WCONINJH at line 157
+Complete report step 3 (31 DAYS) at 2000-04-01 (60 DAYS)
+
+Initializing report step 4/12 at 2000-04-01 (60 DAYS) line 162
+Processing keyword WELSPECS at line 166
+Processing keyword COMPDAT at line 170
+Processing keyword WCONHIST at line 193
+Processing keyword WCONINJH at line 199
+Complete report step 4 (30 DAYS) at 2000-05-01 (91 DAYS)
+
+Initializing report step 5/12 at 2000-05-01 (91 DAYS) line 204
+Processing keyword WCONHIST at line 208
+Processing keyword WCONINJH at line 214
+Complete report step 5 (31 DAYS) at 2000-06-01 (121 DAYS)
+Report limit reached, see PRT-file for remaining Schedule initialization.
+
+Initializing report step 6/12 at 2000-06-01 (121 DAYS) line 219
+Processing keyword WELSPECS at line 224
+Processing keyword COMPDAT at line 229
+Processing keyword WCONHIST at line 238
+Processing keyword WCONINJH at line 245
+Complete report step 6 (30 DAYS) at 2000-07-01 (152 DAYS)
+
+Initializing report step 7/12 at 2000-07-01 (152 DAYS) line 251
+Processing keyword WCONHIST at line 255
+Processing keyword WCONINJH at line 262
+Complete report step 7 (31 DAYS) at 2000-08-01 (182 DAYS)
+
+Initializing report step 8/12 at 2000-08-01 (182 DAYS) line 268
+Processing keyword WCONHIST at line 272
+Processing keyword WCONINJH at line 279
+Complete report step 8 (31 DAYS) at 2000-09-01 (213 DAYS)
+
+Initializing report step 9/12 at 2000-09-01 (213 DAYS) line 284
+Processing keyword WCONHIST at line 288
+Processing keyword WCONINJH at line 295
+Complete report step 9 (30 DAYS) at 2000-10-01 (244 DAYS)
+
+Initializing report step 10/12 at 2000-10-01 (244 DAYS) line 300
+Processing keyword WCONHIST at line 304
+Processing keyword WCONINJH at line 311
+Complete report step 10 (31 DAYS) at 2000-11-01 (274 DAYS)
+
+Initializing report step 11/12 at 2000-11-01 (274 DAYS) line 317
+Processing keyword WCONHIST at line 321
+Processing keyword WCONINJH at line 328
+Complete report step 11 (30 DAYS) at 2000-12-01 (305 DAYS)
+
+Initializing report step 12/12 at 2000-12-01 (305 DAYS) line 334
+Processing keyword WCONHIST at line 338
+Processing keyword WCONINJH at line 344
+Processing keyword RPTRST at line 350
+Complete report step 12 (29 DAYS) at 2000-12-30 (335 DAYS)
+
+
+Warning: The network node keyword GPR is not supported in runs without networks
+In /case/include/std_summary.inc line 92
+
+Warning: The network node keyword GPRG is not supported in runs without networks
+In /case/include/std_summary.inc line 94
+
+Warning: The network node keyword GPRW is not supported in runs without networks
+In /case/include/std_summary.inc line 96
+
+Processing grid
+Total number of active cells: 336 / total pore volume: 262800000 RM3
+
+Property tree for linear solvers:
+{
+    "maxiter": "20",
+    "tol": "0.0050000000000000001",
+    "verbosity": "0",
+    "solver": "bicgstab",
+    "preconditioner": {
+        "type": "cprw",
+        "use_well_weights": "false",
+        "add_wells": "true",
+        "weight_type": "trueimpes",
+        "pre_smooth": "0",
+        "post_smooth": "1",
+        "finesmoother": {
+            "type": "paroverilu0",
+            "relaxation": "1"
+        },
+        "verbosity": "0",
+        "coarsesolver": {
+            "maxiter": "1",
+            "tol": "0.10000000000000001",
+            "solver": "loopsolver",
+            "verbosity": "0",
+            "preconditioner": {
+                "type": "amg",
+                "alpha": "0.33333333333300003",
+                "relaxation": "1",
+                "iterations": "1",
+                "coarsenTarget": "1200",
+                "pre_smooth": "1",
+                "post_smooth": "1",
+                "beta": "0",
+                "smoother": "ilu0",
+                "verbosity": "0",
+                "maxlevel": "15",
+                "skip_isolated": "0",
+                "accumulate": "1",
+                "prolongationdamping": "1",
+                "maxdistance": "2",
+                "maxconnectivity": "15",
+                "maxaggsize": "6",
+                "minaggsize": "4"
+            }
+        }
+    }
+}
+
+
+Warning: Unhandled summary keyword RPPO
+In /case/include/std_summary.inc line 89
+
+Warning: Unhandled summary keyword GPRB
+In /case/include/std_summary.inc line 98
+
+Warning: Unhandled summary keyword DATE/DAY
+In /case/include/std_summary.inc line 308
+
+Warning: Unhandled summary keyword DATE/MONTH
+In /case/include/std_summary.inc line 308
+
+Warning: Unhandled summary keyword DATE/YEAR
+In /case/include/std_summary.inc line 308
+
+Warning: Unhandled summary keyword MAXDPR
+In /case/include/std_summary.inc line 309
+
+Warning: Unhandled summary keyword MAXDSO
+In /case/include/std_summary.inc line 310
+
+Warning: Unhandled summary keyword MAXDSW
+In /case/include/std_summary.inc line 311
+
+Warning: Unhandled summary keyword MAXDSG
+In /case/include/std_summary.inc line 312
+
+Warning: Unhandled summary keyword WNEWTON
+In /case/include/std_summary.inc line 322
+
+LIST OF ALL NON-ZERO THRESHOLD PRESSURES
+----------------------------------------
+
+    FLOW FROM REGION             TO REGION                     THRESHOLD PRESSURE
+    ----------------             ---------                     ------------------
+         1                            2                           1.538311       BARSA
+         3                            4                          0.2754888       BARSA
+    ----------------             ---------                     ------------------
+
+
+                              **************************************************************************
+  BALANCE  AT         0  DAYS *                  BASE MODEL 1                                          *
+  REPORT    0    01 Jan 2000  *                                             Flow  version     2026.04  *
+                              **************************************************************************
+
+
+                                                     ==================================================
+                                                     :                  FIELD TOTALS                  :
+                                                     :        PAV  =           260  BARSA             :
+                                                     :        PORV =     262800000  RM3               :
+                                                     : Pressure is weighted by hydrocarbon pore volume:
+                                                     : Pore volumes are taken at reference conditions :
+                           :--------------- OIL  SM3 ------------------:-- WAT    SM3 --:--------------  GAS     SM3 ---------------:
+                           :    LIQUID         VAPOUR        TOTAL     :     TOTAL      :     FREE        DISSOLVED       TOTAL     :
+ :-------------------------:-------------------------------------------:----------------:-------------------------------------------:
+ :CURRENTLY IN PLACE       :   58759892        263851       59023743   :   154532472    :  3167245565     8509968520   11677214085  :
+ :-------------------------:-------------------------------------------:----------------:-------------------------------------------:
+ :ORIGINALLY IN PLACE      :   58759892        263851       59023743   :   154532472    :  3167245565     8509968520   11677214085  :
+ ====================================================================================================================================
+
+
+
+                                                     ==================================================
+                                                     :              FIPNUM REPORT REGION  1           :
+                                                     :        PAV  =           260  BARSA             :
+                                                     :        PORV =     262800000  RM3               :
+                           :--------------- OIL  SM3 ------------------:-- WAT    SM3 --:--------------  GAS     SM3 ---------------:
+                           :    LIQUID         VAPOUR        TOTAL     :     TOTAL      :     FREE        DISSOLVED       TOTAL     :
+ :-------------------------:-------------------------------------------:----------------:-------------------------------------------:
+ :CURRENTLY IN PLACE       :   58759892        263851       59023743   :   154532472    :  3167245565     8509968520   11677214085  :
+ :-------------------------:-------------------------------------------:----------------:-------------------------------------------:
+ :ORIGINALLY IN PLACE      :   58759892        263851       59023743   :   154532472    :  3167245565     8509968520   11677214085  :
+ :-------------------------:-------------------------------------------:----------------:-------------------------------------------:
+ ====================================================================================================================================
+
+
+
+
+================ Starting main simulation loop ===============
+
+
+Report step  0/12 at day 0/364, date = 01-Jan-2000
+Using Newton nonlinear solver.
+
+Warning: Tuning item 3-3 (LITMAX) is not supported.
+
+Warning: Tuning item 3-4 (LITMIN) is not supported.
+
+Warning: Tuning item 3-5 (MXWSIT) is not supported.
+
+Warning: Tuning item 3-6 (MXWPIT) is not supported.
+
+Starting time step 0, stepsize 1 days, at day 0/31, date = 01-Jan-2000
+Restart file written for report step  0/12, date = 01-Jan-2000 00:00:00
+ Newton its= 2, linearizations= 3 (0.0sec), linear its=  0 (0.0sec)
+
+Starting time step 1, stepsize 3 days, at day 1/31, date = 02-Jan-2000
+    Oscillating behavior detected: Relaxation set to 0.900000
+ Newton its= 4, linearizations= 5 (0.0sec), linear its=  1 (0.0sec)
+
+Starting time step 2, stepsize 5 days, at day 4/31, date = 05-Jan-2000
+    Oscillating behavior detected: Relaxation set to 0.900000
+    Oscillating behavior detected: Relaxation set to 0.800000
+ Newton its= 6, linearizations= 7 (0.0sec), linear its=  5 (0.0sec)
+
+Starting time step 3, stepsize 5 days, at day 9/31, date = 10-Jan-2000
+ Newton its= 4, linearizations= 5 (0.0sec), linear its=  3 (0.0sec)
+
+Starting time step 4, stepsize 5 days, at day 14/31, date = 15-Jan-2000
+ Newton its= 2, linearizations= 3 (0.0sec), linear its=  1 (0.0sec)
+
+Starting time step 5, stepsize 5 days, at day 19/31, date = 20-Jan-2000
+ Newton its= 3, linearizations= 4 (0.0sec), linear its=  1 (0.0sec)
+
+Starting time step 6, stepsize 3.5 days, at day 24/31, date = 25-Jan-2000
+ Newton its= 2, linearizations= 3 (0.0sec), linear its=  0 (0.0sec)
+
+Starting time step 7, stepsize 3.5 days, at day 27.5/31, date = 28-Jan-2000
+ Newton its= 2, linearizations= 3 (0.0sec), linear its=  0 (0.0sec)
+
+
+Report step  1/12 at day 31/364, date = 01-Feb-2000
+
+Starting time step 0, stepsize 1 days, at day 31/60, date = 01-Feb-2000
+Restart file written for report step  1/12, date = 01-Feb-2000 00:00:00
+ Newton its= 2, linearizations= 3 (0.0sec), linear its=  1 (0.0sec)
+
+Starting time step 1, stepsize 3 days, at day 32/60, date = 02-Feb-2000
+ Newton its= 2, linearizations= 3 (0.0sec), linear its=  1 (0.0sec)
+
+Starting time step 2, stepsize 5 days, at day 35/60, date = 05-Feb-2000
+ Newton its= 2, linearizations= 3 (0.0sec), linear its=  2 (0.0sec)
+
+Starting time step 3, stepsize 5 days, at day 40/60, date = 10-Feb-2000
+ Newton its= 2, linearizations= 3 (0.0sec), linear its=  1 (0.0sec)
+
+Starting time step 4, stepsize 5 days, at day 45/60, date = 15-Feb-2000
+ Newton its= 2, linearizations= 3 (0.0sec), linear its=  1 (0.0sec)
+
+Starting time step 5, stepsize 5 days, at day 50/60, date = 20-Feb-2000
+ Newton its= 2, linearizations= 3 (0.0sec), linear its=  2 (0.0sec)
+
+Starting time step 6, stepsize 5 days, at day 55/60, date = 25-Feb-2000
+ Newton its= 1, linearizations= 2 (0.0sec), linear its=  1 (0.0sec)
+
+
+Report step  2/12 at day 60/364, date = 01-Mar-2000
+
+Starting time step 0, stepsize 1 days, at day 60/91, date = 01-Mar-2000
+Restart file written for report step  2/12, date = 01-Mar-2000 00:00:00
+ Newton its= 1, linearizations= 2 (0.0sec), linear its=  0 (0.0sec)
+
+Starting time step 1, stepsize 3 days, at day 61/91, date = 02-Mar-2000
+ Newton its= 1, linearizations= 2 (0.0sec), linear its=  1 (0.0sec)
+
+Starting time step 2, stepsize 5 days, at day 64/91, date = 05-Mar-2000
+ Newton its= 2, linearizations= 3 (0.0sec), linear its=  2 (0.0sec)
+
+Starting time step 3, stepsize 5 days, at day 69/91, date = 10-Mar-2000
+ Newton its= 2, linearizations= 3 (0.0sec), linear its=  1 (0.0sec)
+
+Starting time step 4, stepsize 5 days, at day 74/91, date = 15-Mar-2000
+ Newton its= 1, linearizations= 2 (0.0sec), linear its=  1 (0.0sec)
+
+Starting time step 5, stepsize 5 days, at day 79/91, date = 20-Mar-2000
+ Newton its= 1, linearizations= 2 (0.0sec), linear its=  1 (0.0sec)
+
+Starting time step 6, stepsize 3.5 days, at day 84/91, date = 25-Mar-2000
+ Newton its= 1, linearizations= 2 (0.0sec), linear its=  1 (0.0sec)
+
+Starting time step 7, stepsize 3.5 days, at day 87.5/91, date = 28-Mar-2000
+ Newton its= 1, linearizations= 2 (0.0sec), linear its=  1 (0.0sec)
+
+
+Report step  3/12 at day 91/364, date = 01-Apr-2000
+
+Starting time step 0, stepsize 1 days, at day 91/121, date = 01-Apr-2000
+Restart file written for report step  3/12, date = 01-Apr-2000 00:00:00
+ Newton its= 1, linearizations= 2 (0.0sec), linear its=  0 (0.0sec)
+
+Starting time step 1, stepsize 3 days, at day 92/121, date = 02-Apr-2000
+ Newton its= 1, linearizations= 2 (0.0sec), linear its=  1 (0.0sec)
+
+Starting time step 2, stepsize 5 days, at day 95/121, date = 05-Apr-2000
+ Newton its= 1, linearizations= 2 (0.0sec), linear its=  1 (0.0sec)
+
+Starting time step 3, stepsize 5 days, at day 100/121, date = 10-Apr-2000
+ Newton its= 1, linearizations= 2 (0.0sec), linear its=  1 (0.0sec)
+
+Starting time step 4, stepsize 5 days, at day 105/121, date = 15-Apr-2000
+ Newton its= 1, linearizations= 2 (0.0sec), linear its=  1 (0.0sec)
+
+Starting time step 5, stepsize 5 days, at day 110/121, date = 20-Apr-2000
+ Newton its= 1, linearizations= 2 (0.0sec), linear its=  1 (0.0sec)
+
+Starting time step 6, stepsize 3 days, at day 115/121, date = 25-Apr-2000
+ Newton its= 2, linearizations= 3 (0.0sec), linear its=  0 (0.0sec)
+
+Starting time step 7, stepsize 3 days, at day 118/121, date = 28-Apr-2000
+ Newton its= 2, linearizations= 3 (0.0sec), linear its=  0 (0.0sec)
+
+
+Report step  4/12 at day 121/364, date = 01-May-2000
+
+Starting time step 0, stepsize 1 days, at day 121/152, date = 01-May-2000
+Restart file written for report step  4/12, date = 01-May-2000 00:00:00
+ Newton its= 1, linearizations= 2 (0.0sec), linear its=  0 (0.0sec)
+
+Starting time step 1, stepsize 3 days, at day 122/152, date = 02-May-2000
+ Newton its= 2, linearizations= 3 (0.0sec), linear its=  1 (0.0sec)
+
+Starting time step 2, stepsize 5 days, at day 125/152, date = 05-May-2000
+ Newton its= 1, linearizations= 2 (0.0sec), linear its=  1 (0.0sec)
+
+Starting time step 3, stepsize 5 days, at day 130/152, date = 10-May-2000
+ Newton its= 1, linearizations= 2 (0.0sec), linear its=  1 (0.0sec)
+
+Starting time step 4, stepsize 5 days, at day 135/152, date = 15-May-2000
+ Newton its= 2, linearizations= 3 (0.0sec), linear its=  2 (0.0sec)
+
+Starting time step 5, stepsize 5 days, at day 140/152, date = 20-May-2000
+ Newton its= 1, linearizations= 2 (0.0sec), linear its=  1 (0.0sec)
+
+Starting time step 6, stepsize 3.5 days, at day 145/152, date = 25-May-2000
+ Newton its= 1, linearizations= 2 (0.0sec), linear its=  1 (0.0sec)
+
+Starting time step 7, stepsize 3.5 days, at day 148.5/152, date = 28-May-2000
+ Newton its= 1, linearizations= 2 (0.0sec), linear its=  1 (0.0sec)
+
+
+Report step  5/12 at day 152/364, date = 01-Jun-2000
+
+Starting time step 0, stepsize 1 days, at day 152/182, date = 01-Jun-2000
+Restart file written for report step  5/12, date = 01-Jun-2000 00:00:00
+ Newton its= 1, linearizations= 2 (0.0sec), linear its=  1 (0.0sec)
+
+Starting time step 1, stepsize 3 days, at day 153/182, date = 02-Jun-2000
+ Newton its= 1, linearizations= 2 (0.0sec), linear its=  1 (0.0sec)
+
+Starting time step 2, stepsize 5 days, at day 156/182, date = 05-Jun-2000
+ Newton its= 2, linearizations= 3 (0.0sec), linear its=  2 (0.0sec)
+
+Starting time step 3, stepsize 5 days, at day 161/182, date = 10-Jun-2000
+ Newton its= 3, linearizations= 4 (0.0sec), linear its=  3 (0.0sec)
+
+Starting time step 4, stepsize 5 days, at day 166/182, date = 15-Jun-2000
+ Newton its= 2, linearizations= 3 (0.0sec), linear its=  1 (0.0sec)
+
+Starting time step 5, stepsize 5 days, at day 171/182, date = 20-Jun-2000
+ Newton its= 2, linearizations= 3 (0.0sec), linear its=  2 (0.0sec)
+
+Starting time step 6, stepsize 3 days, at day 176/182, date = 25-Jun-2000
+ Newton its= 1, linearizations= 2 (0.0sec), linear its=  1 (0.0sec)
+
+Starting time step 7, stepsize 3 days, at day 179/182, date = 28-Jun-2000
+ Newton its= 1, linearizations= 2 (0.0sec), linear its=  1 (0.0sec)
+
+
+Report step  6/12 at day 182/364, date = 01-Jul-2000
+
+Starting time step 0, stepsize 1 days, at day 182/213, date = 01-Jul-2000
+Restart file written for report step  6/12, date = 01-Jul-2000 00:00:00
+ Newton its= 1, linearizations= 2 (0.0sec), linear its=  1 (0.0sec)
+
+Starting time step 1, stepsize 3 days, at day 183/213, date = 02-Jul-2000
+ Newton its= 2, linearizations= 3 (0.0sec), linear its=  2 (0.0sec)
+
+Starting time step 2, stepsize 5 days, at day 186/213, date = 05-Jul-2000
+ Newton its= 2, linearizations= 3 (0.0sec), linear its=  2 (0.0sec)
+
+Starting time step 3, stepsize 5 days, at day 191/213, date = 10-Jul-2000
+ Newton its= 2, linearizations= 3 (0.0sec), linear its=  2 (0.0sec)
+
+Starting time step 4, stepsize 5 days, at day 196/213, date = 15-Jul-2000
+ Newton its= 2, linearizations= 3 (0.0sec), linear its=  1 (0.0sec)
+
+Starting time step 5, stepsize 5 days, at day 201/213, date = 20-Jul-2000
+ Newton its= 2, linearizations= 3 (0.0sec), linear its=  2 (0.0sec)
+
+Starting time step 6, stepsize 3.5 days, at day 206/213, date = 25-Jul-2000
+ Newton its= 1, linearizations= 2 (0.0sec), linear its=  1 (0.0sec)
+
+Starting time step 7, stepsize 3.5 days, at day 209.5/213, date = 28-Jul-2000
+ Newton its= 1, linearizations= 2 (0.0sec), linear its=  1 (0.0sec)
+
+
+Report step  7/12 at day 213/364, date = 01-Aug-2000
+
+Starting time step 0, stepsize 1 days, at day 213/244, date = 01-Aug-2000
+Restart file written for report step  7/12, date = 01-Aug-2000 00:00:00
+ Newton its= 1, linearizations= 2 (0.0sec), linear its=  1 (0.0sec)
+
+Starting time step 1, stepsize 3 days, at day 214/244, date = 02-Aug-2000
+ Newton its= 1, linearizations= 2 (0.0sec), linear its=  1 (0.0sec)
+
+Starting time step 2, stepsize 5 days, at day 217/244, date = 05-Aug-2000
+ Newton its= 1, linearizations= 2 (0.0sec), linear its=  1 (0.0sec)
+
+Starting time step 3, stepsize 5 days, at day 222/244, date = 10-Aug-2000
+ Newton its= 1, linearizations= 2 (0.0sec), linear its=  1 (0.0sec)
+
+Starting time step 4, stepsize 5 days, at day 227/244, date = 15-Aug-2000
+ Newton its= 1, linearizations= 2 (0.0sec), linear its=  1 (0.0sec)
+
+Starting time step 5, stepsize 5 days, at day 232/244, date = 20-Aug-2000
+ Newton its= 1, linearizations= 2 (0.0sec), linear its=  1 (0.0sec)
+
+Starting time step 6, stepsize 3.5 days, at day 237/244, date = 25-Aug-2000
+ Newton its= 1, linearizations= 2 (0.0sec), linear its=  1 (0.0sec)
+
+Starting time step 7, stepsize 3.5 days, at day 240.5/244, date = 28-Aug-2000
+ Newton its= 1, linearizations= 2 (0.0sec), linear its=  1 (0.0sec)
+
+
+Report step  8/12 at day 244/364, date = 01-Sep-2000
+
+Starting time step 0, stepsize 1 days, at day 244/274, date = 01-Sep-2000
+Restart file written for report step  8/12, date = 01-Sep-2000 00:00:00
+ Newton its= 1, linearizations= 2 (0.0sec), linear its=  1 (0.0sec)
+
+Starting time step 1, stepsize 3 days, at day 245/274, date = 02-Sep-2000
+ Newton its= 1, linearizations= 2 (0.0sec), linear its=  1 (0.0sec)
+
+Starting time step 2, stepsize 5 days, at day 248/274, date = 05-Sep-2000
+ Newton its= 1, linearizations= 2 (0.0sec), linear its=  1 (0.0sec)
+
+Starting time step 3, stepsize 5 days, at day 253/274, date = 10-Sep-2000
+ Newton its= 1, linearizations= 2 (0.0sec), linear its=  1 (0.0sec)
+
+Starting time step 4, stepsize 5 days, at day 258/274, date = 15-Sep-2000
+ Newton its= 1, linearizations= 2 (0.0sec), linear its=  1 (0.0sec)
+
+Starting time step 5, stepsize 5 days, at day 263/274, date = 20-Sep-2000
+ Newton its= 1, linearizations= 2 (0.0sec), linear its=  1 (0.0sec)
+
+Starting time step 6, stepsize 3 days, at day 268/274, date = 25-Sep-2000
+ Newton its= 1, linearizations= 2 (0.0sec), linear its=  1 (0.0sec)
+
+Starting time step 7, stepsize 3 days, at day 271/274, date = 28-Sep-2000
+ Newton its= 1, linearizations= 2 (0.0sec), linear its=  1 (0.0sec)
+
+
+Report step  9/12 at day 274/364, date = 01-Oct-2000
+
+Starting time step 0, stepsize 1 days, at day 274/305, date = 01-Oct-2000
+Restart file written for report step  9/12, date = 01-Oct-2000 00:00:00
+ Newton its= 1, linearizations= 2 (0.0sec), linear its=  1 (0.0sec)
+
+Starting time step 1, stepsize 3 days, at day 275/305, date = 02-Oct-2000
+ Newton its= 1, linearizations= 2 (0.0sec), linear its=  1 (0.0sec)
+
+Starting time step 2, stepsize 5 days, at day 278/305, date = 05-Oct-2000
+ Newton its= 1, linearizations= 2 (0.0sec), linear its=  1 (0.0sec)
+
+Starting time step 3, stepsize 5 days, at day 283/305, date = 10-Oct-2000
+ Newton its= 1, linearizations= 2 (0.0sec), linear its=  1 (0.0sec)
+
+Starting time step 4, stepsize 5 days, at day 288/305, date = 15-Oct-2000
+ Newton its= 1, linearizations= 2 (0.0sec), linear its=  1 (0.0sec)
+
+Starting time step 5, stepsize 5 days, at day 293/305, date = 20-Oct-2000
+ Newton its= 1, linearizations= 2 (0.0sec), linear its=  1 (0.0sec)
+
+Starting time step 6, stepsize 3.5 days, at day 298/305, date = 25-Oct-2000
+ Newton its= 1, linearizations= 2 (0.0sec), linear its=  1 (0.0sec)
+
+Starting time step 7, stepsize 3.5 days, at day 301.5/305, date = 28-Oct-2000
+ Newton its= 1, linearizations= 2 (0.0sec), linear its=  1 (0.0sec)
+
+
+Report step 10/12 at day 305/364, date = 01-Nov-2000
+
+Starting time step 0, stepsize 1 days, at day 305/335, date = 01-Nov-2000
+Restart file written for report step 10/12, date = 01-Nov-2000 00:00:00
+ Newton its= 1, linearizations= 2 (0.0sec), linear its=  1 (0.0sec)
+
+Starting time step 1, stepsize 3 days, at day 306/335, date = 02-Nov-2000
+ Newton its= 1, linearizations= 2 (0.0sec), linear its=  1 (0.0sec)
+
+Starting time step 2, stepsize 5 days, at day 309/335, date = 05-Nov-2000
+ Newton its= 1, linearizations= 2 (0.0sec), linear its=  1 (0.0sec)
+
+Starting time step 3, stepsize 5 days, at day 314/335, date = 10-Nov-2000
+ Newton its= 1, linearizations= 2 (0.0sec), linear its=  1 (0.0sec)
+
+Starting time step 4, stepsize 5 days, at day 319/335, date = 15-Nov-2000
+ Newton its= 1, linearizations= 2 (0.0sec), linear its=  1 (0.0sec)
+
+Starting time step 5, stepsize 5 days, at day 324/335, date = 20-Nov-2000
+ Newton its= 1, linearizations= 2 (0.0sec), linear its=  1 (0.0sec)
+
+Starting time step 6, stepsize 3 days, at day 329/335, date = 25-Nov-2000
+ Newton its= 1, linearizations= 2 (0.0sec), linear its=  1 (0.0sec)
+
+Starting time step 7, stepsize 3 days, at day 332/335, date = 28-Nov-2000
+ Newton its= 1, linearizations= 2 (0.0sec), linear its=  1 (0.0sec)
+
+
+Report step 11/12 at day 335/364, date = 01-Dec-2000
+
+Starting time step 0, stepsize 1 days, at day 335/364, date = 01-Dec-2000
+Restart file written for report step 11/12, date = 01-Dec-2000 00:00:00
+ Newton its= 1, linearizations= 2 (0.0sec), linear its=  1 (0.0sec)
+
+Starting time step 1, stepsize 3 days, at day 336/364, date = 02-Dec-2000
+ Newton its= 1, linearizations= 2 (0.0sec), linear its=  1 (0.0sec)
+
+Starting time step 2, stepsize 5 days, at day 339/364, date = 05-Dec-2000
+ Newton its= 1, linearizations= 2 (0.0sec), linear its=  1 (0.0sec)
+
+Starting time step 3, stepsize 5 days, at day 344/364, date = 10-Dec-2000
+ Newton its= 2, linearizations= 3 (0.0sec), linear its=  1 (0.0sec)
+
+Starting time step 4, stepsize 5 days, at day 349/364, date = 15-Dec-2000
+ Newton its= 1, linearizations= 2 (0.0sec), linear its=  1 (0.0sec)
+
+Starting time step 5, stepsize 5 days, at day 354/364, date = 20-Dec-2000
+ Newton its= 1, linearizations= 2 (0.0sec), linear its=  1 (0.0sec)
+
+Starting time step 6, stepsize 5 days, at day 359/364, date = 25-Dec-2000
+ Newton its= 1, linearizations= 2 (0.0sec), linear its=  1 (0.0sec)
+
+Restart file written for report step 12/12, date = 30-Dec-2000 00:00:00
+
+
+================    End of simulation     ===============
+
+Number of MPI processes:         1
+Threads per MPI process:         2
+Setup time:                      0.03 s
+  Deck input:                    0.02 s
+Number of timesteps:            94
+Simulation time:                 0.34 s
+  Assembly time:                 0.06 s (Wasted: 0.0 s; 0.0%)
+    Well assembly:               0.03 s (Wasted: 0.0 s; 0.0%)
+  Linear solve time:             0.10 s (Wasted: 0.0 s; 0.0%)
+    Linear setup:                0.09 s (Wasted: 0.0 s; 0.0%)
+  Props/update time:             0.02 s (Wasted: 0.0 s; 0.0%)
+  Pre/post step:                 0.15 s (Wasted: 0.0 s; 0.0%)
+  Output write time:             0.01 s
+Overall Linearizations:        228      (Wasted:     0; 0.0%)
+Overall Newton Iterations:     134      (Wasted:     0; 0.0%)
+Overall Linear Iterations:     104      (Wasted:     0; 0.0%)
+
+
+
+Error summary:
+Warnings          19
+Info              540
+Errors            0
+Bugs              0
+Debug             0
+Problems          0
+

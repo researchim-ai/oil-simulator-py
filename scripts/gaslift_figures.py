@@ -1,6 +1,8 @@
 """Графики страницы web/gaslift.html: GASLIFT-04 (opm-tests), наш солвер против OPM Flow до 213 сут."""
 import os
 import sys
+import json
+import time
 
 import matplotlib
 matplotlib.use("Agg")
@@ -12,6 +14,8 @@ ROOT = os.path.join(os.path.dirname(__file__), "..")
 sys.path.insert(0, os.path.join(ROOT, "src"))
 from simulator.ecl_io import EclSummary  # noqa: E402
 from simulator.eclipse_run import run_deck  # noqa: E402
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from compare_eclipse import compare  # noqa: E402
 
 D = os.path.join(ROOT, "tests", "data", "gaslift")
 OUT = os.path.join(ROOT, "web", "assets")
@@ -26,7 +30,9 @@ plt.rcParams.update({
     "axes.grid": True, "grid.color": GRID, "grid.linewidth": 0.6,
 })
 
-s, _ = run_deck(os.path.join(D, "GASLIFT-04.DATA"), device=torch.device("cpu"), max_days=T_END)
+started = time.perf_counter()
+s, info = run_deck(os.path.join(D, "GASLIFT-04.DATA"), device=torch.device("cpu"), max_days=T_END)
+wall_s = time.perf_counter() - started
 s = {k: np.asarray(v, dtype=float) for k, v in s.items()}
 r = EclSummary(os.path.join(D, "opm", "GASLIFT-04"))
 tr = np.asarray(r.get("TIME"))
@@ -70,6 +76,16 @@ def total(t, q):
 
 
 t0 = s["TIME"][1:]
+numbers = {"days": T_END, "device": "cpu", "wall_s": wall_s,
+           "metrics": compare(s, {"opm": r}), "cumulative": {},
+           "convergence": info["convergence"],
+           "samples": {"days": t0.tolist(), "ours": {}, "opm": {}}}
 for k in ("FOPR", "FGLIR"):
     a, b = total(t0, ours(k)[1:]), total(tr[m], opm(k))
+    numbers["cumulative"][k] = {"ours": a, "opm": b, "relative_error_pct": 100*(a/b-1)}
     print(f"{k}: наш {a:.4g}, OPM {b:.4g}, {100 * (a / b - 1):+.1f}%")
+for k in ["FOPR", "FGLIR", "WGLIR:OP-A01", "WGLIR:OP-B01"]:
+    numbers["samples"]["ours"][k] = ours(k)[1:].tolist()
+    numbers["samples"]["opm"][k] = np.interp(t0, tr[m], opm(k)).tolist()
+with open(os.path.join(OUT, "gaslift-numbers.json"), "w") as stream:
+    json.dump(numbers, stream, ensure_ascii=False, indent=2, allow_nan=False)

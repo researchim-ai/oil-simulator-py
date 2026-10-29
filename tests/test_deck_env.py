@@ -19,6 +19,7 @@ def _roll(env, action):
     oil = 0.0
     for _ in range(N):
         obs, r, done, _, info = env.step(action)
+        assert "failed" not in info, info
         oil += info["oil_m3"]
     return obs, oil, info["t"]
 
@@ -29,6 +30,8 @@ def test_unit_action_reproduces_run_deck():
     assert obs0.shape == env.observation_space.shape and np.isfinite(obs0).all()
     obs, oil, t = _roll(env, np.ones(env.action_space.shape))
     s, info = run_deck(SPE1, max_days=t)
+    assert info["convergence"]["tol_cnv"] == 1e-3
+    assert info["convergence"]["relaxed_max_pv_fraction"] == 0
     liq = info["case"].u["liq"]     # м³ на единицу объёма жидкости deck
     k = env.well_names.index("PROD")
     assert np.isclose(obs[4 * k], s["FOPR"][-1] * liq, rtol=1e-6)
@@ -56,3 +59,24 @@ def test_start_from_checkpoint(tmp_path):
     assert np.isclose(info["t"], s["TIME"][-1])
     obs, r, done, _, info = env.step(np.ones(env.action_space.shape))
     assert info["t"] > s["TIME"][-1] and np.isfinite(r)
+
+
+@pytest.mark.parametrize("failure", [True, False])
+def test_terminal_info_has_consistent_volume_keys(failure):
+    env = DeckEnv.__new__(DeckEnv)
+    env.t, env.fail_penalty = 12.0, -100.0
+    env._cum = lambda: np.zeros(4)
+    env._obs = lambda: np.zeros(1)
+
+    def stopped():
+        if failure:
+            raise RuntimeError("linear solver failed")
+        return
+        yield
+
+    env._gen = stopped()
+    _, reward, done, _, info = env.step(np.ones(1))
+    assert done and info["t"] == 12.0
+    assert all(info[k] == 0 for k in ("oil_m3", "water_m3", "water_inj_m3", "gas_inj_m3"))
+    assert ("failed" in info) == failure
+    assert reward == (-100.0 if failure else 0.0)

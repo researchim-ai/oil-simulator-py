@@ -9,8 +9,10 @@
 |наш − эталон| / max|эталон| (нормировка на масштаб вектора устойчива к нулевым дебитам).
 """
 import argparse
+import json
 import os
 import sys
+import warnings
 
 import numpy as np
 
@@ -55,14 +57,33 @@ def _scale(ref, key, rv):
     return s
 
 
-def compare(summary, refs):
+def _valid_samples(key, ours, reference):
+    valid = np.isfinite(ours) & np.isfinite(reference)
+    # 0/0 при остановленной добыче — неопределённый GOR/обводнённость, а не отказ расчёта.
+    if not valid.all() and key.split(":")[0] not in ("FGOR", "FWCT", "GPR", "GPRB"):
+        raise ValueError(f"{key}: нечисловые результаты или эталон в выбранном интервале")
+    return valid
+
+
+def compare(summary, refs, metric="mean", start_day=None, end_day=None):
     """[{'vector': ключ, имя_эталона: ошибка, 'a↔b': ошибка между эталонами}, ...]"""
-    t = summary["TIME"][1:]
+    if metric not in ("mean", "max", "final"):
+        raise ValueError("metric: ожидается mean, max или final")
+    all_t = np.asarray(summary["TIME"], dtype=float)[1:]
+    mask = np.ones(all_t.shape, dtype=bool)
+    if start_day is not None:
+        mask &= all_t >= start_day
+    if end_day is not None:
+        mask &= all_t <= end_day
+    t = all_t[mask]
+    if not len(t):
+        raise ValueError("В выбранном интервале нет отчётных дат")
+    reduce = {"mean": np.mean, "max": np.max, "final": lambda x: x[-1]}[metric]
     rows = []
     for key in summary:
         if key == "TIME":
             continue
-        ours = summary[key][1:]
+        ours = np.asarray(summary[key])[1:][mask]
         row = {"vector": key}
         series = {}
         for name, ref in refs.items():
@@ -73,12 +94,53 @@ def compare(summary, refs):
         if not series:
             continue
         for name, rv in series.items():
-            row[name] = float(np.mean(np.abs(ours - rv)) / _scale(refs[name], key, rv))
+            valid = _valid_samples(key, ours, rv)
+            if valid.any():
+                row[name] = float(reduce(np.abs(ours[valid] - rv[valid])) / _scale(refs[name], key, rv[valid]))
+            else:
+                warnings.warn(f"{key}: нет определённых значений для сравнения с {name}; вектор пропущен",
+                              RuntimeWarning, stacklevel=2)
         if len(series) == 2:
             (n1, a), (n2, b) = series.items()
-            row[f"{n1}↔{n2}"] = float(np.mean(np.abs(a - b)) / _scale(refs[n1], key, a))
-        rows.append(row)
+            valid = _valid_samples(key, ours, a) & _valid_samples(key, ours, b)
+            if valid.any():
+                row[f"{n1}↔{n2}"] = float(reduce(np.abs(a[valid] - b[valid])) / _scale(refs[n1], key, a[valid]))
+        if len(row) > 1:
+            rows.append(row)
     return rows
+
+
+def comparison_report(summary, refs, start_day=None, end_day=None):
+    """Полные векторы, без агрегации скважин: пики, итог и абсолютная ошибка в единицах SUMMARY."""
+    report = {m: compare(summary, refs, m, start_day, end_day) for m in ("mean", "max", "final")}
+    t = np.asarray(summary["TIME"])[1:]
+    mask = ((t >= start_day) if start_day is not None else np.ones(t.shape, bool))
+    if end_day is not None:
+        mask &= t <= end_day
+    t = t[mask]
+    peaks = []
+    for row in report["max"]:
+        key = row["vector"]
+        ours = np.asarray(summary[key])[1:][mask]
+        for name, ref in refs.items():
+            if name not in row:
+                continue
+            rv = np.interp(t, *ref_series(ref, key))
+            valid = _valid_samples(key, ours, rv)
+            ov, ev, tv = ours[valid], rv[valid], t[valid]
+            delta = ov - ev
+            k = int(np.argmax(np.abs(delta)))
+            peaks.append(dict(vector=key, reference=name, day=float(tv[k]),
+                              samples_compared=int(valid.sum()), samples_undefined=int((~valid).sum()),
+                              last_compared_day=float(tv[-1]),
+                              ours=float(ov[k]), reference_value=float(ev[k]),
+                              absolute_error=float(abs(delta[k])), final_signed_error=float(delta[-1]),
+                              final_ours=float(ov[-1]), final_reference=float(ev[-1]),
+                              final_relative_error=(float(delta[-1] / abs(ev[-1]))
+                                                    if abs(ev[-1]) > 1e-12 else None)))
+    return dict(start_day=float(t[0]), end_day=float(t[-1]),
+                normalization="reference scale with small-vector floors; not pointwise relative error",
+                metrics=report, peaks=peaks)
 
 
 def family_table(rows):
@@ -132,19 +194,30 @@ def main():
     ap.add_argument("--cell", action="append", default=[], help="i,j,k — добавить BPR/BGSAT ячейки")
     ap.add_argument("--cuda", action="store_true")
     ap.add_argument("--all", action="store_true", help="печатать все векторы, а не свод по семействам")
+    ap.add_argument("--metric", choices=("mean", "max", "final"), default="mean")
+    ap.add_argument("--start-day", type=float, help="начало окна сравнения, сутки")
+    ap.add_argument("--end-day", type=float, help="конец окна сравнения, сутки")
+    ap.add_argument("--report-json", help="полный отчёт: среднее, максимум, итог и даты пиков по скважинам")
+    ap.add_argument("--convergence-profile", choices=("strict", "relaxed"), default="strict")
     a = ap.parse_args()
     import torch
     refs = {r.split("=", 1)[0]: EclSummary(r.split("=", 1)[1]) for r in a.ref}
     cells = [tuple(int(v) for v in c.split(",")) for c in a.cell]
     summary, info = run_deck(a.deck, device=torch.device("cuda" if a.cuda else "cpu"), cells=cells,
-                             max_days=a.days)
+                             max_days=a.days, sim_overrides={"convergence_profile": a.convergence_profile})
     print(f"Расчёт: {info['wall_s']:.1f} с, подшагов {info['substeps']}, итераций Ньютона {info['newton_iters']}")
-    rows = compare(summary, refs)
+    rows = compare(summary, refs, a.metric, a.start_day, a.end_day)
     table = {r["vector"]: r for r in rows} if a.all else family_table(rows)
     names = sorted({k for r in table.values() for k in r if k != "vector"}, key=lambda s: ("↔" in s, s))
-    print(f"{'вектор':30s}" + "".join(f"{n:>16s}" for n in names) + "   (средняя ошибка / масштаб)")
+    print(f"{'вектор':30s}" + "".join(f"{n:>16s}" for n in names) + f"   ({a.metric} / масштаб)")
     for key, r in table.items():
         print(f"{key:30s}" + "".join(f"{100 * r.get(n, np.nan):15.2f}%" for n in names))
+    if a.report_json:
+        report = comparison_report(summary, refs, a.start_day, a.end_day)
+        report["convergence_profile"] = a.convergence_profile
+        report["convergence"] = info["convergence"]
+        with open(a.report_json, "w") as f:
+            json.dump(report, f, ensure_ascii=False, indent=2, allow_nan=False)
     if a.plot:
         plot(summary, refs, a.plot)
         print(f"График: {a.plot}")

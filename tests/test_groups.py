@@ -33,6 +33,54 @@ def test_group_targets_hierarchy_and_own_limits():
     assert new["P1"][1] == pytest.approx(27.5) and new["P2"][1] == pytest.approx(27.5)
 
 
+def test_group_iteration_can_restore_nominal_well_targets():
+    from types import SimpleNamespace
+    import torch
+    from simulator.blackoil_fim import BlackOilWells, DAY
+
+    tree = GroupTree({}, {"P1": "FIELD", "P2": "FIELD"})
+    constraint = dict(group="FIELD", kind="prod", phase="oil", target=60.0 * DAY)
+    wells = [SimpleNamespace(name=n, type="producer", surface_phase="oil", grup=False,
+                             rate_limits={}) for n in ("P1", "P2")]
+    q = torch.tensor([[100., 0., 0.], [100., 0., 0.]], dtype=torch.float64)
+    a = torch.tensor([[1., 0., 0.], [1., 0., 0.]], dtype=torch.float64)
+    nominal = [("rate", 50.0), ("rate", 50.0)]
+    fake = SimpleNamespace(groups=(tree, [constraint]), conn_well=torch.arange(2), n_w=2,
+                           device="cpu", rho_sc=torch.ones(3), wells=wells, p_bh=torch.zeros(2),
+                           is_inj=torch.zeros(2, dtype=torch.bool), _resv_idx=set(), liftopt=None,
+                           has_thp=lambda i: False, bhp_limit=lambda w: 0.0,
+                           _resv_weights=lambda v: torch.ones_like(q), conn_a=a.clone(),
+                           step_targets=list(nominal), _group_base_targets=nominal, _group_base_a=a)
+    BlackOilWells._apply_groups(fake, None, q, torch.zeros_like(q))
+    assert [val for _, val in fake.step_targets] == pytest.approx([30., 30.])
+    constraint["target"] = 120.0 * DAY
+    BlackOilWells._apply_groups(fake, None, q, torch.zeros_like(q))
+    assert fake.step_targets == nominal
+
+
+def test_network_capacity_uses_pressure_control_until_rate_limit_binds():
+    from types import SimpleNamespace
+    import torch
+    from simulator.blackoil_fim import BlackOilWells
+
+    fake = SimpleNamespace(network=None, _Q=torch.ones(1, 3), _lin=object(), n_w=1,
+                           wells=[SimpleNamespace(name="P")], step_targets=[("rate", 10.0)],
+                           step_mode=["rate"], switches=0, well_switches=[0],
+                           bhp_limit=lambda w: 80.0, has_thp=lambda i: True,
+                           _vfp_bhp=lambda i, q: 100.0, _sgn=lambda i: 1.0,
+                           _thp_stable=lambda i, lim: (100.0, 10.0), _group_capacity_limited={0})
+    pb, q = torch.tensor([100.0]), torch.tensor([10.01])
+    BlackOilWells.update_controls(fake, pb, q)
+    assert fake.step_mode == ["thp_limit"]
+    BlackOilWells.update_controls(fake, pb, q)
+    assert fake.step_mode == ["thp_limit"]
+    # Теперь ограничение группы ниже потенциала: реальную уставку дебита превышать нельзя.
+    fake._group_capacity_limited.clear()
+    fake.step_targets = [("rate", 9.0)]
+    BlackOilWells.update_controls(fake, pb, q)
+    assert fake.step_mode == ["rate"]
+
+
 def _spe9_with_groups(tmp_path, extra):
     text = open(os.path.join(SPE9_DIR, "SPE9_CP.DATA")).read()
     for inc in ("'SPE9.GRDECL'", "PERMVALUES.DATA"):
