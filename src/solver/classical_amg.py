@@ -892,8 +892,10 @@ class ClassicalAMG:
                  mixed_precision: bool = False,
                  mixed_start_level: int = 2,
                  cpu_offload: bool = False,
-                 offload_level: int = 3):
+                 offload_level: int = 3,
+                 verbose: bool = True):
         """Инициализация AMG иерархии."""
+        self.verbose = bool(verbose)
         self.theta = theta
         self.max_levels = max_levels
         self.coarsest_size = coarsest_size
@@ -955,13 +957,15 @@ class ClassicalAMG:
         self.device = device
         self.levels = []
         
-        print(f"[ClassicalAMG] Строим algebraic AMG с theta={theta}...")
+        if self.verbose:
+            print(f"[ClassicalAMG] Строим algebraic AMG с theta={theta}...")
         
         n_total = A_csr.size(0)
         self.n_initial = n_total
         dynamic_target = int(max(1, n_total * self.coarsest_fraction))
         self.coarsest_target = max(self.coarsest_size, dynamic_target)
-        print(f"[ClassicalAMG] Целевой размер coarsest уровня: {self.coarsest_target} (из {self.coarsest_size})")
+        if self.verbose:
+            print(f"[ClassicalAMG] Целевой размер coarsest уровня: {self.coarsest_target} (из {self.coarsest_size})")
         if self._external_coords is not None:
             coords_ext = self._external_coords
             if coords_ext.dim() == 1:
@@ -989,8 +993,10 @@ class ClassicalAMG:
         use_equilibration = (diag_median < EQUILIBRATION_THRESHOLD)
         self.use_equilibration = use_equilibration
         
-        print(f"🔍 [ClassicalAMG] diag: min={diag_orig.min():.3e}, median={diag_median:.3e}, max={diag_orig.max():.3e}")
-        print(f"🔍 [ClassicalAMG] Equilibration: {'ON' if use_equilibration else 'OFF'} (threshold={EQUILIBRATION_THRESHOLD:.0e})")
+        if self.verbose:
+            print(f"🔍 [ClassicalAMG] diag: min={diag_orig.min():.3e}, median={diag_median:.3e}, max={diag_orig.max():.3e}")
+        if self.verbose:
+            print(f"🔍 [ClassicalAMG] Equilibration: {'ON' if use_equilibration else 'OFF'} (threshold={EQUILIBRATION_THRESHOLD:.0e})")
         
         if use_equilibration:
             Dhalf_inv = 1.0 / torch.sqrt(diag_orig)
@@ -1010,7 +1016,8 @@ class ClassicalAMG:
             A_csr = _apply_reference_fix(A_csr, int(self.anchor_idx))
         
         diag_scaled = self._extract_diag(A_csr).abs()
-        print(f"[ClassicalAMG] Equilibration: diag {diag_orig.min():.2e}..{diag_orig.max():.2e} → {diag_scaled.min():.2e}..{diag_scaled.max():.2e}")
+        if self.verbose:
+            print(f"[ClassicalAMG] Equilibration: diag {diag_orig.min():.2e}..{diag_orig.max():.2e} → {diag_scaled.min():.2e}..{diag_scaled.max():.2e}")
         
         A_current = A_csr
         if self._external_nullspace is not None:
@@ -1047,7 +1054,8 @@ class ClassicalAMG:
                     'basis': basis_current,
                     'is_coarsest': True
                 })
-                print(f"[ClassicalAMG] L{lvl}: n={n} ≤ {coarsest_size}, coarsest level")
+                if self.verbose:
+                    print(f"[ClassicalAMG] L{lvl}: n={n} ≤ {coarsest_size}, coarsest level")
                 self._update_level_metrics(len(self.levels) - 1)
                 self._apply_memory_policy(len(self.levels) - 1)
                 break
@@ -1082,10 +1090,11 @@ class ClassicalAMG:
                     break
 
             stage_after_cf = time.perf_counter()
-            print(
-                f"[ClassicalAMG] L{lvl} timings: strong+coarsen={stage_after_cf - level_start:.3f}s "
-                f"(theta={theta_eff:.3f}, c_frac={c_fraction:.3f}, retries={retries})"
-            )
+            if self.verbose:
+                print(
+                    f"[ClassicalAMG] L{lvl} timings: strong+coarsen={stage_after_cf - level_start:.3f}s "
+                    f"(theta={theta_eff:.3f}, c_frac={c_fraction:.3f}, retries={retries})"
+                )
             
             if self.anchor_idx is not None and self.anchor_idx < n:
                 cf_marker[self.anchor_idx] = 0
@@ -1112,9 +1121,10 @@ class ClassicalAMG:
                     
                 n_coarse = int((cf_marker == 0).sum().item())
                 c_fraction = n_coarse / max(n, 1)
-                print(
-                    f"[ClassicalAMG] L{lvl}: FORCED coarsening (stride={stride}) → c_frac={c_fraction:.3f}"
-                )
+                if self.verbose:
+                    print(
+                        f"[ClassicalAMG] L{lvl}: FORCED coarsening (stride={stride}) → c_frac={c_fraction:.3f}"
+                    )
             
             P, cf_marker, fine2coarse_map, coarse_nodes, F_nodes = build_prolongation_rs_full(
                 A_current,
@@ -1128,10 +1138,11 @@ class ClassicalAMG:
                 fallback_used=fallback_used # Pass fallback flag to avoid promoting orphans
             )
             stage_after_prol = time.perf_counter()
-            print(
-                f"[ClassicalAMG] L{lvl} timings: prolongation={stage_after_prol - stage_after_cf:.3f}s "
-                f"(blend={blend_lvl:.2f}, fallback={fallback_used})"
-            )
+            if self.verbose:
+                print(
+                    f"[ClassicalAMG] L{lvl} timings: prolongation={stage_after_prol - stage_after_cf:.3f}s "
+                    f"(blend={blend_lvl:.2f}, fallback={fallback_used})"
+                )
             if P.device != self.device:
                 P = P.to(self.device)
             fine2coarse_map = fine2coarse_map.to(self.device)
@@ -1142,8 +1153,10 @@ class ClassicalAMG:
 
             A_coarse = rap_torch(A_current, P, self.device, drop_tol=self.rap_drop_tol)
             stage_after_rap = time.perf_counter()
-            print(f"[ClassicalAMG] L{lvl} timings: RAP={stage_after_rap - stage_after_prol:.3f}s")
-            print(f"[ClassicalAMG] L{lvl} total build time={stage_after_rap - level_start:.3f}s")
+            if self.verbose:
+                print(f"[ClassicalAMG] L{lvl} timings: RAP={stage_after_rap - stage_after_prol:.3f}s")
+            if self.verbose:
+                print(f"[ClassicalAMG] L{lvl} total build time={stage_after_rap - level_start:.3f}s")
 
             n_coarse_actual = P.size(1)
             num_coarse_marked = int((cf_marker == 0).sum().item())
@@ -1151,7 +1164,8 @@ class ClassicalAMG:
             c_pct = 100.0 * n_coarse_actual / n
             orphan_count = n_coarse_actual - num_coarse_marked
 
-            print(f"[ClassicalAMG] L{lvl}: n={n} → n_c={n_coarse_actual} (ratio={ratio:.1f}x), C-points={num_coarse_marked}+{orphan_count} orphans/{n} ({c_pct:.1f}%)")
+            if self.verbose:
+                print(f"[ClassicalAMG] L{lvl}: n={n} → n_c={n_coarse_actual} (ratio={ratio:.1f}x), C-points={num_coarse_marked}+{orphan_count} orphans/{n} ({c_pct:.1f}%)")
             
             diag_abs = self._extract_diag(A_current).abs()
             row_abs = self._row_abs_sum(A_current)
@@ -1205,12 +1219,14 @@ class ClassicalAMG:
                 'basis': basis_current,
                 'is_coarsest': True
             })
-            print(f"[ClassicalAMG] L{len(self.levels)-1}: reached max_levels → coarsest, n={n_c}")
+            if self.verbose:
+                print(f"[ClassicalAMG] L{len(self.levels)-1}: reached max_levels → coarsest, n={n_c}")
             self._update_level_metrics(len(self.levels) - 1)
             self._apply_memory_policy(len(self.levels) - 1)
         
         total_build = time.perf_counter() - build_start
-        print(f"✅ ClassicalAMG: построено {len(self.levels)} уровней за {total_build:.2f} c")
+        if self.verbose:
+            print(f"✅ ClassicalAMG: построено {len(self.levels)} уровней за {total_build:.2f} c")
     
     def _extract_diag(self, A_csr: torch.Tensor) -> torch.Tensor:
         """Извлекает диагональ из CSR матрицы."""
@@ -1259,10 +1275,13 @@ class ClassicalAMG:
         Returns:
             y = A*x или y = A^T*x
         """
-        if not transpose and A_csr.is_cuda and A_csr.size(0) > 20000:
-            # y = A * x на GPU для больших уровней: cuSPARSE (порядок суммирования другой — результат отличается
-            # на уровне округления; малые матрицы считаются как раньше)
-            return (A_csr @ x.unsqueeze(1)).squeeze(1)
+        if A_csr.is_cuda:
+            # Deterministic scatter_add sorts the same row indices on every
+            # application. CSR already contains that grouping, at every level.
+            # Restriction uses a cached CSR transpose instead of a scatter.
+            matrix = self._transpose_csr(A_csr) if transpose else A_csr
+            from .csr_spmv import csr_spmv
+            return csr_spmv(matrix, x)
         crow = A_csr.crow_indices()
         col = A_csr.col_indices()
         val = A_csr.values()
@@ -1275,6 +1294,20 @@ class ClassicalAMG:
         y = torch.zeros(A_csr.size(1), device=A_csr.device, dtype=A_csr.dtype)
         y.scatter_add_(0, col, val * x[self._row_idx(A_csr)])
         return y
+
+    def _transpose_csr(self, matrix: torch.Tensor) -> torch.Tensor:
+        """Invalidate on replacement or an in-place change of sparse storage."""
+        cache = self.__dict__.setdefault('_transpose_csr_cache', {})
+        hit = cache.get(id(matrix))
+        if hit is not None and hit[0] is matrix and hit[1] == matrix._version:
+            return hit[2]
+        transposed = matrix.transpose(0, 1).to_sparse_csr()
+        live = {id(l[k]) for l in getattr(self, 'levels', []) for k in ('A', 'P', 'R')
+                if torch.is_tensor(l.get(k))}
+        for key in [key for key in cache if key not in live]:
+            del cache[key]
+        cache[id(matrix)] = (matrix, matrix._version, transposed)
+        return transposed
 
     def _row_idx(self, A_csr: torch.Tensor) -> torch.Tensor:
         """Номер строки каждого ненуля CSR. Кэш — по объекту матрицы: матрицы уровней при обновлении
@@ -1774,11 +1807,12 @@ class ClassicalAMG:
         diag_median = diag_orig.median().item()
         use_equilibration = (diag_median < self.equilibration_threshold)
         self.use_equilibration = use_equilibration
-        print(
-            f"[ClassicalAMG] update: diag min={diag_orig.min():.3e}, "
-            f"median={diag_median:.3e}, max={diag_orig.max():.3e}, "
-            f"equil={'ON' if use_equilibration else 'OFF'}"
-        )
+        if getattr(self, 'verbose', True):
+            print(
+                f"[ClassicalAMG] update: diag min={diag_orig.min():.3e}, "
+                f"median={diag_median:.3e}, max={diag_orig.max():.3e}, "
+                f"equil={'ON' if use_equilibration else 'OFF'}"
+            )
 
         if use_equilibration:
             Dhalf_inv = 1.0 / torch.sqrt(diag_orig)
@@ -1796,11 +1830,12 @@ class ClassicalAMG:
         if self.anchor_idx is not None:
             A_csr = _apply_reference_fix(A_csr, int(self.anchor_idx))
 
-        diag_scaled = self._extract_diag(A_csr).abs()
-        print(
-            f"[ClassicalAMG] update: diag scaled range {diag_orig.min():.2e}..{diag_orig.max():.2e} → "
-            f"{diag_scaled.min():.2e}..{diag_scaled.max():.2e}"
-        )
+        if getattr(self, 'verbose', True):
+            diag_scaled = self._extract_diag(A_csr).abs()
+            print(
+                f"[ClassicalAMG] update: diag scaled range {diag_orig.min():.2e}..{diag_orig.max():.2e} → "
+                f"{diag_scaled.min():.2e}..{diag_scaled.max():.2e}"
+            )
 
         if A_csr.size(0) != self.levels[0]['n']:
             raise ValueError(f"AMG hierarchy built for n={self.levels[0]['n']}, получена матрица n={A_csr.size(0)}")
@@ -1861,7 +1896,8 @@ class ClassicalAMG:
             A_current = self.levels[lvl + 1]['A']
             basis_current = self.levels[lvl + 1]['basis']
 
-        print(f"[ClassicalAMG] Иерархия обновлена без перестроения структуры (diag median={diag_median:.3e})")
+        if getattr(self, 'verbose', True):
+            print(f"[ClassicalAMG] Иерархия обновлена без перестроения структуры (diag median={diag_median:.3e})")
 
 
 def orthonormalize_columns(B: torch.Tensor) -> torch.Tensor:

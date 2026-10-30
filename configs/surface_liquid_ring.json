@@ -1,0 +1,27 @@
+{
+  "model": "incompressible_liquid",
+  "fluid": {
+    "density_kg_m3": 1000.0,
+    "viscosity_pa_s": 0.001,
+    "vapor_pressure_pa": 2300.0
+  },
+  "nodes": [
+    {"name": "well_a", "elevation_m": 0.0, "source_mass_rate_kg_s": 20.0},
+    {"name": "well_b", "elevation_m": 5.0, "source_mass_rate_kg_s": 10.0},
+    {"name": "manifold", "elevation_m": 10.0},
+    {"name": "bypass", "elevation_m": 8.0},
+    {"name": "outlet", "elevation_m": 12.0, "pressure_pa": 400000.0}
+  ],
+  "pipes": [
+    {"name": "a_manifold", "start": "well_a", "end": "manifold", "length_m": 1200.0,
+     "diameter_m": 0.15, "roughness_m": 0.00005, "minor_loss_coefficient": 2.0},
+    {"name": "b_bypass", "start": "well_b", "end": "bypass", "length_m": 800.0,
+     "diameter_m": 0.12, "roughness_m": 0.00005, "minor_loss_coefficient": 2.0},
+    {"name": "bypass_manifold", "start": "bypass", "end": "manifold", "length_m": 500.0,
+     "diameter_m": 0.12, "roughness_m": 0.00005, "minor_loss_coefficient": 1.0},
+    {"name": "a_bypass", "start": "well_a", "end": "bypass", "length_m": 600.0,
+     "diameter_m": 0.12, "roughness_m": 0.00005, "minor_loss_coefficient": 1.0},
+    {"name": "manifold_outlet", "start": "manifold", "end": "outlet", "length_m": 1500.0,
+     "diameter_m": 0.2, "roughness_m": 0.00005, "minor_loss_coefficient": 4.0}
+  ]
+}

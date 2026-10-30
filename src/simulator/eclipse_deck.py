@@ -1308,6 +1308,36 @@ class EclipseCase:
         conn["T"] = conn["T"] * m
         return {"grid": g, "active": active, "pv": np.where(active, pv, 0.0), "conn": conn}
 
+    def _default_reference_depth(self, name):
+        """Default WELSPECS datum: first ordered connection when first defined.
+
+        The simulation preallocates future completions. Neither their depths
+        nor their future COMPORD may change the pressure datum of an earlier
+        well. Closed but already defined connections still belong to its path.
+        """
+        from .fim_wells import connection_order
+        cache = self.__dict__.setdefault('_default_ref_depths', {})
+        if name in cache:
+            return cache[name]
+        snapshots = self.conn_steps or [self._conn_snapshot()]
+        first_step, conns = next((n, snap[name]) for n, snap in enumerate(snapshots)
+                                if snap.get(name))
+        perfs = list(conns)
+        nx, ny, nz = self.dims
+        full = np.array([(i*ny+j)*nz+k for i,j,k in perfs])
+        if self.cells is not None:
+            positions = np.searchsorted(self.cells, full)
+            if np.any(positions >= len(self.cells)) or np.any(self.cells[positions] != full):
+                raise ValueError(f'{name}: reference connection in inactive cell')
+        else:
+            positions = full
+        depths = np.asarray(self.cell_depth_abs).reshape(-1)[positions].tolist()
+        well = self.wells[name]
+        mode = self.compord_steps[first_step].get(name, 'TRACK')
+        order = connection_order(perfs, depths, (well['i'], well['j']), mode)
+        cache[name] = depths[order[0]]
+        return cache[name]
+
     def well_configs(self, step=0):
         u = self.u
         out = []
@@ -1320,8 +1350,10 @@ class EclipseCase:
                    "connection_order": self.compord_steps[step].get(w["name"], "TRACK"),
                    "perforations": [list(c["ijk"]) for c in conns], "radius": conns[0]["rw"],
                    "skin": conns[0]["skin"], "connections": conns}
-            if w["ref_depth"] is not None:
-                cfg["ref_depth"] = w["ref_depth"] - self.depth_top
+            ref = w["ref_depth"]
+            if ref is None or ref < 0:
+                ref = self._default_reference_depth(w['name'])
+            cfg["ref_depth"] = ref - self.depth_top
             msw = self.msw_config(w["name"], conns)
             if msw is not None:
                 cfg["msw"] = msw
@@ -1650,8 +1682,10 @@ class EclipseCase:
                 else:
                     rr = rs_s
                 rs[idx[k]] = np.where(sg[idx[k]] > 0, rs_s, rr)
-                # Rv без RVVD (EQUIL item 8 ≤ 0): насыщенный при давлении ячейки в газе (как OPM RvSatAtContact)
-                rv_s = pvts[pv].rv_sat(pt).cpu().numpy()
+                # Gas PVT uses gas pressure, including the oil/gas capillary jump.
+                pg_cell = p_cell[idx[k]] + ep.pc_value(idx[k], "g", sg[idx[k]])
+                pg_t = torch.tensor(pg_cell, dtype=dt, device=device)
+                rv_s = pvts[pv].rv_sat(pg_t).cpu().numpy()
                 if rvvd is not None:
                     rvr = np.minimum(np.interp(z[k], [q[0] for q in rvvd], [q[1] for q in rvvd]), rv_s)
                     so = 1.0 - sw[idx[k]] - sg[idx[k]]

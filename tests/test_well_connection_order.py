@@ -45,6 +45,33 @@ def test_flash_hydrostatics_integrates_signed_segments_along_well(monkeypatch, s
     torch.testing.assert_close(heads, expected)
 
 
+def test_flash_density_uses_mean_segment_pressure(monkeypatch):
+    # For rho(p) = a + b*p, midpoint hydrostatic integration has an
+    # analytical fixed point. Endpoint density overestimates the head.
+    pb, depth, a, b = 1e7, 1000., 500., 1e-5
+    head = G * depth * (a + b * pb) / (1 - 0.5 * b * G * depth)
+    v = torch.zeros((bo.N_PROPS, 1), dtype=torch.float64)
+    v[bo.I_P] = pb + head + 1e5
+    v[bo.I_MWW] = 1000.
+    fake = SimpleNamespace(
+        conn_cell=torch.tensor([0]), conn_well=torch.tensor([0]),
+        conn_wi=torch.ones(1), conn_sched=torch.ones(1),
+        rho_sc=torch.tensor([800., 1000., 1.], dtype=torch.float64),
+        n_w=1, device=torch.device('cpu'),
+        p_bh=torch.tensor([pb], dtype=torch.float64),
+        conn_head=torch.tensor([head], dtype=torch.float64),
+        conn_dz=torch.tensor([depth], dtype=torch.float64),
+        wells=[SimpleNamespace(type='producer', stopped=False)],
+        well_conn_order=[torch.tensor([0])], pvt=SimpleNamespace(at=lambda c: None))
+
+    def compressible_volume(pvt, p, qo, qw, qg):
+        return qo, qw * 1000. / (a + b * p), qg
+
+    monkeypatch.setattr(bo, 'surface_to_reservoir', compressible_volume)
+    actual = bo.BlackOilWells._flash_heads(fake, v, torch.tensor([600.]))
+    torch.testing.assert_close(actual, torch.tensor([head], dtype=torch.float64))
+
+
 def test_compord_is_snapshotted_in_schedule(tmp_path):
     source = Path(__file__).parent / 'data/spe9/SPE9_CP.DATA'
     text = source.read_text()

@@ -9,6 +9,7 @@ import torch
 
 from .eclipse_deck import EclipseCase, DAY
 from .simulation import Simulator
+from .manual_assembly_solver import configure_torch_execution
 
 _PHASE = {"O": "oil", "W": "water", "G": "gas"}
 
@@ -306,6 +307,9 @@ def iter_deck(path, device=None, sim_overrides=None, cells=(), quiet=True, max_d
         finally:
             torch._utils._validate_loaded_sparse_tensors = validate
         sim, wm, fluid = state["sim"], state["wm"], state["fluid"]
+        # torch.load restores tensors and controller history, not process-wide
+        # execution flags. Match a fresh solver before any resumed substep.
+        configure_torch_execution(sim.sim_params)
     else:
         out = io.StringIO()
         with contextlib.redirect_stdout(out) if quiet else contextlib.nullcontext():

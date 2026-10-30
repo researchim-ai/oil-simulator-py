@@ -48,11 +48,11 @@ public = dict(schema_version=1, run_id=root.name,
                               files_sha256={name:sha(root/name) for name in ['summary.npz','fields.npz','substeps.npz','manifest.json','comparison.json']}))
 (output/'norne-results.json').write_text(json.dumps(public,ensure_ascii=False,indent=2,allow_nan=False)+'\n')
 with (output/'norne-wells.csv').open('w',newline='') as stream:
-    rows=report['wells_cumulative'];writer=csv.DictWriter(stream,fieldnames=list(rows[0]));writer.writeheader();writer.writerows(rows)
+    rows=report['wells_cumulative'];writer=csv.DictWriter(stream,fieldnames=list(rows[0]),lineterminator='\n');writer.writeheader();writer.writerows(rows)
 reference=EclSummary(Path(os.environ.get('NORNE_DIR','opm-tests/norne'))/'ECL.2014.2/NORNE_ATW2013')
 summary=np.load(root/'summary.npz')
 with (output/'norne-field.csv').open('w',newline='') as stream:
-    writer=csv.writer(stream);writer.writerow(['day']+[p+'_'+key for key in keys for p in ['ours','eclipse']])
+    writer=csv.writer(stream,lineterminator='\n');writer.writerow(['day']+[p+'_'+key for key in keys for p in ['ours','eclipse']])
     for i,day in enumerate(summary['TIME']):
         row=[float(day)]
         for key in keys:

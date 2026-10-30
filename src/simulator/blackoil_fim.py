@@ -21,6 +21,7 @@ from .blackoil_props import BlackOilPVT, ThreePhaseRelPerm
 from .cuda_graphs import capture
 from .fim_wells import FIMWells, G, DAY
 from .manual_assembly_solver import ManualFIMSolver
+from .fim_transaction import atomic_fim_step
 from .sparse_utils import SparseMatrixBuilder
 
 OIL, WAT, GAS = 0, 1, 2
@@ -443,13 +444,70 @@ class BlackOilWells(FIMWells):
                 q, dq, dqb = self._producer_crossflow(v, d, q, dq, dqb, dpp, back, wi)
         return q, dq, dqb
 
+    @staticmethod
+    def _standard_crossflow_blocks(rho, raw, raw_jac, raw_bhp, props, prop_jac,
+                                   dp_jac, draw, wi, positive, back):
+        """Exact standard-well mixture derivatives without a dense AD trace.
+
+        With incoming component masses S, the backflow is S*q_res/V(S).
+        V is linear in S at fixed cell PVT. Its derivative therefore splits
+        into a mixture matrix and a local PVT/drawdown contribution.
+        Degenerate volume conversions retain the general AD implementation.
+        """
+        incoming_raw = torch.where(positive[:, None], raw, torch.zeros_like(raw)).sum(0)
+        incoming = incoming_raw.clamp_min(0.0)
+        if not bool((incoming / rho).sum() > 1e-100):
+            return None
+        bo, bw, bg = props[:3].clamp_min(1e-12).unbind(0)
+        dbo, dbw, dbg = (prop_jac[:3] * (props[:3] >= 1e-12)[:, :, None]).unbind(0)
+        rs, rv, lt = props[3], props[4], props[5]
+        drs, drv, dlt = prop_jac[3], prop_jac[4], prop_jac[5]
+        determinant = 1.0 - rs * rv
+        det = determinant.clamp_min(1e-12)
+        ddet = -(rv[:, None] * drs + rs[:, None] * drv)
+        ddet = ddet * (determinant >= 1e-12)[:, None]
+        ao, ag = 1.0 / (det * bo), 1.0 / (det * bg)
+        dao = -ao[:, None] * (dbo / bo[:, None] + ddet / det[:, None])
+        dag = -ag[:, None] * (dbg / bg[:, None] + ddet / det[:, None])
+        alpha = torch.stack(((ao - rs * ag) / rho[OIL], 1.0 / (bw * rho[WAT]),
+                             (ag - rv * ao) / rho[GAS]), 1)
+        dalpha = torch.stack(((dao - drs * ag[:, None] - rs[:, None] * dag) / rho[OIL],
+                              -dbw / (bw.square() * rho[WAT])[:, None],
+                              (dag - drv * ao[:, None] - rv[:, None] * dao) / rho[GAS]), 1)
+        volume = alpha @ incoming
+        if not bool(torch.isfinite(volume[back]).all() & (volume[back] > 1e-100).all()):
+            return None
+        volume = volume.clamp_min(1e-100)
+        reservoir_rate = wi * lt * draw
+        factor = reservoir_rate / volume
+        mixture_jac = factor[:, None, None] * (
+            torch.eye(3, dtype=raw.dtype, device=raw.device)[None]
+            - incoming[None, :, None] * alpha[:, None, :] / volume[:, None, None])
+        # Match clamp_min's derivative, including its value at zero.
+        source_jac = raw_jac * positive[:, None, None] * (incoming_raw >= 0)[None, :, None]
+        source_bhp = (raw_bhp * positive[:, None] * (incoming_raw >= 0)[None]).sum(0)
+        blocks = torch.einsum('iac,jck->ijak', mixture_jac, source_jac)
+        dvolume = torch.einsum('ick,c->ik', dalpha, incoming)
+        drate = wi[:, None] * (dlt * draw[:, None] + lt[:, None] * dp_jac)
+        local = incoming[None, :, None] * (
+            drate / volume[:, None] - factor[:, None] * dvolume / volume[:, None])[:, None, :]
+        diagonal = torch.arange(raw.shape[0], device=raw.device)
+        blocks[diagonal, diagonal] += local
+        blocks = torch.where(back[:, None, None, None], blocks, torch.zeros_like(blocks))
+        blocks[diagonal, diagonal] += torch.where(back[:, None, None], torch.zeros_like(raw_jac), raw_jac)
+        value = torch.where(back[:, None], incoming[None] * factor[:, None], raw)
+        bhp = torch.einsum('iac,c->ia', mixture_jac, source_bhp)
+        bhp -= incoming[None] * (wi * lt / volume)[:, None]
+        bhp = torch.where(back[:, None], bhp, raw_bhp)
+        return blocks.detach(), value.detach(), bhp.detach()
+
     def _producer_crossflow(self, v, d, q, dq, dqb, dpp, back, wi):
         """Mixture backflow with full cell/cell and BHP derivatives.
 
-        Differentiate only the small well-local mixture calculation. Cell PVT
-        values enter through their already computed derivatives; the reservoir
-        Jacobian and its unknown count are unchanged. Standard wells have one
-        explicit mixture; MSW retain the six subtree-mixture iterations.
+        Standard wells use analytic derivatives of their single mixture;
+        MSW differentiate the six subtree-mixture iterations. Cell PVT values
+        enter through their already computed derivatives; the reservoir
+        Jacobian and its unknown count are unchanged.
         """
         c, cw, rho = self.conn_cell, self.conn_well, self.rho_sc
         q, dq, dqb = q.clone(), dq.clone(), dqb.clone()
@@ -500,13 +558,19 @@ class BlackOilWells(FIMWells):
                     mixed = torch.where((mask_back & (total > 0))[:, None], flow, raw)
                 return mixed, mixed
 
-            zero = torch.zeros(3 * n + 1, dtype=q.dtype, device=q.device)
-            jac, value = jacfwd(mixture, has_aux=True)(zero)
-            blocks = jac[:, :, :-1].reshape(n, 3, n, 3).permute(0, 2, 1, 3).detach()
+            analytic = (BlackOilWells._standard_crossflow_blocks(rho, base_q, base_dq, base_db, props, prop_jac,
+                        dp_jac, draw0, wi_local, positive, mask_back) if subtree is None else None)
+            if analytic is None:
+                zero = torch.zeros(3 * n + 1, dtype=q.dtype, device=q.device)
+                jac, value = jacfwd(mixture, has_aux=True)(zero)
+                blocks = jac[:, :, :-1].reshape(n, 3, n, 3).permute(0, 2, 1, 3).detach()
+                bhp_derivative = jac[:, :, -1].detach()
+            else:
+                blocks, value, bhp_derivative = analytic
             diagonal = torch.arange(n, device=q.device)
             q[idx] = value.detach()
             dq[idx] = blocks[diagonal, diagonal]
-            dqb[idx] = jac[:, :, -1].detach()
+            dqb[idx] = bhp_derivative
             pc, pd = idx.repeat_interleave(n), idx.repeat(n)
             off = pc != pd
             pos = None
@@ -737,60 +801,26 @@ class BlackOilWells(FIMWells):
         return {self.wells[i].name: a for i, a in alq.items()}
 
     def _network_pressures(self, Q):
-        """
-        Давления узлов расширенной сети (как OPM): от узлов с заданным давлением вниз по веткам BRANPROP,
-        давление нижнего узла — BHP таблицы шлейфа при THP = давлению верхнего узла и суммарных добыче
-        его скважин (с WEFAC) и газлифте, если NODEPROP включает его в шлейф. Q — (n_w, 3), ст. м³/с.
-        """
-        net = self.network
-        tree = self.groups[0] if self.groups is not None else None
-        out = {}
-        children = {}
-        for down, br in net["branches"].items():
-            children.setdefault(br["up"], []).append(down)
+        """Existing VFP network: collect actual well rates, then evaluate its tree."""
+        try:
+            from ..surface.vfp_network import evaluate_vfp_network
+        except ImportError:
+            from surface.vfp_network import evaluate_vfp_network
 
-        def rates(node, depth=0):
-            """Расход узла — по дереву сети (BRANPROP), а не GRUPTREE: свои скважины + подчинённые узлы."""
-            R = torch.zeros(3, dtype=torch.float64, device=self.device)
-            if depth > 50:
-                return R
-            for ch in children.get(node, []):
-                R = R + rates(ch, depth + 1)
-            lift = net["nodes"].get(node, {}).get("lift", False)
+        tree = self.groups[0] if self.groups is not None else None
+        own_rates = {}
+        if tree is not None:
             for i, w in enumerate(self.wells):
-                if tree is None or tree.well_group.get(w.name, "FIELD") != node:
-                    continue
                 if w.type != 'producer' or self.step_targets[i][0] == 'shut':
                     continue
-                eff = float(getattr(w, "eff", 1.0) or 1.0)
-                R = R + eff * Q[i].clamp_min(0.0)
-                if lift:
-                    R[2] = R[2] + eff * float(getattr(w, "alq", 0.0) or 0.0) * self.alq_si
-            return R
-
-        def press(node, depth=0):
-            if node in out:
-                return out[node]
-            br, nd = net["branches"].get(node), net["nodes"].get(node, {})
-            if br is None or depth > 50:
-                p = nd.get("p")
-            else:
-                p_up = press(br["up"], depth + 1)
-                tab = self.vfp.get(br["vfp"])
-                if br["vfp"] == 9999:                   # 9999 — ветка без потерь давления
-                    p = p_up
-                elif p_up is None or tab is None:
-                    p = None
-                else:
-                    R = rates(node)
-                    with torch.no_grad():
-                        p = float(tab.bhp(R[0:1], R[1:2], R[2:3], p_up, br["alq"]))
-            out[node] = p
-            return p
-
-        for node in set(net["branches"]) | set(net["nodes"]):
-            press(node)
-        return out
+                node = tree.well_group.get(w.name, 'FIELD')
+                eff = float(getattr(w, 'eff', 1.0) or 1.0)
+                lift = None
+                if self.network['nodes'].get(node, {}).get('lift', False):
+                    lift = eff * float(getattr(w, 'alq', 0.0) or 0.0) * self.alq_si
+                own_rates.setdefault(node, []).append((eff * Q[i].clamp_min(0.), lift))
+        zero = torch.zeros(3, dtype=torch.float64, device=self.device)
+        return evaluate_vfp_network(self.network, self.vfp, own_rates, zero)
 
     def _balance_network(self, lin):
         """
@@ -1187,7 +1217,11 @@ class BlackOilWells(FIMWells):
                 h = head_old[order]
                 pb = p_bh[w_idx]
             for _ in range(2):
-                p = (pb + h).clamp_min(1e5)
+                # A segment spans the previous connection (or BHP datum)
+                # and this connection. Evaluate compressible-fluid density
+                # at its mean pressure, as in StandardWellConnections.
+                h_above = torch.cat((torch.zeros_like(h[:1]), h[:-1]))
+                p = (pb + 0.5 * (h_above + h)).clamp_min(1e5)
                 vo, vw, vg = surface_to_reservoir(self.pvt.at(c[order]), p, Qo, Qw, Qg)
                 vol = vo + vw + vg
                 rho = torch.where((mass > 0) & (vol > 0), mass / vol.clamp_min(1e-300), mix_cell[order])
@@ -1450,7 +1484,8 @@ class BlackOilFIMSolver(ManualFIMSolver):
         self.x = torch.where(self.sat, sg, rs)
         sw0 = fluid.s_w.detach().reshape(-1).double().to(dev)
         rv = getattr(fluid, 'rv', None)
-        rv_s = self.pvt.rv_sat(p)
+        pg = self._phase_pressures(p, sw0, sg)[1]
+        rv_s = self.pvt.rv_sat(pg)
         rv = rv_s if rv is None else torch.minimum(rv.detach().reshape(-1).double().to(dev), rv_s)
         self.ug = (sg > 0) & (1.0 - sw0 - sg <= 1e-12) & self.wet
         self.sat = self.sat & ~self.ug
@@ -1491,8 +1526,12 @@ class BlackOilFIMSolver(ManualFIMSolver):
         f = (so.clamp_min(1e-3) / som.clamp_min(1e-30)) ** self.vap1
         return rv * torch.where((som > 0.01) & (so < som), f, torch.ones_like(f))
 
-    def _phase_state(self, p, sw, x, sat, ug):
-        """Насыщенности, Rs/Rv, объёмные коэффициенты и вязкости фаз ячейки (без ОФП) и массы компонентов."""
+    def _phase_pressures(self, p, sw, sg):
+        pcow, pcog = self.kr.pc(sw, sg)
+        return p - pcow, p + pcog
+
+    def _phase_state(self, p, sw, x, sat, ug, phase_pressures=None):
+        """Phase properties and component masses, using each phase's pressure."""
         pvt = self.pvt
         rho_o, rho_w, rho_g = pvt.rho_sc
         cap = self._rs_cap
@@ -1501,27 +1540,29 @@ class BlackOilFIMSolver(ManualFIMSolver):
             sg = torch.where(sat, x, torch.where(ug, 1.0 - sw, 0.0 * x))
         else:
             sg = torch.where(sat, x, 0.0 * x)
+        pw, pg = self._phase_pressures(p, sw, sg) if phase_pressures is None else phase_pressures
         rs_s = pvt.rs_sat(p)
         on_sat_line = sat if cap is None else sat & (rs_s.detach() <= cap)
         rs_sat = rs_s if cap is None else torch.minimum(rs_s, cap)
         rs = torch.where(sat, rs_sat, torch.where(ug, rs_sat, x) if wet else x)
         so = 1.0 - sw - sg
         bo, mu_o = pvt.oil(p, rs, on_sat_line | ug if wet else on_sat_line)
-        bw, mu_w = pvt.water(p)
+        bw, mu_w = pvt.water(pw)
         if wet:
-            rv = torch.where(ug, x, self.rv_sat_eff(p, so))
+            rv = torch.where(ug, x, self.rv_sat_eff(pg, so))
             # при VAPPARS насыщенный газ недонасыщен относительно PVTG — по Rv (ветви непрерывны)
-            bg, mu_g = pvt.gas(p, rv, ~ug if self.vap1 is None else None)
+            bg, mu_g = pvt.gas(pg, rv, ~ug if self.vap1 is None else None)
         else:
             rv = None
-            bg, mu_g = pvt.gas(p)
+            bg, mu_g = pvt.gas(pg)
         pv = self._pv(p)
         if wet:
             acc_o = pv * so * bo * rho_o + pv * sg * bg * rv * rho_o
         else:
             acc_o = pv * so * bo * rho_o
         acc = (acc_o, pv * sw * bw * rho_w, pv * (sg * bg + so * bo * rs) * rho_g)
-        return dict(sg=sg, rs=rs, so=so, rv=rv, bo=bo, mu_o=mu_o, bw=bw, mu_w=mu_w, bg=bg, mu_g=mu_g, acc=acc)
+        return dict(sg=sg, rs=rs, so=so, rv=rv, bo=bo, mu_o=mu_o, bw=bw, mu_w=mu_w,
+                    bg=bg, mu_g=mu_g, pw=pw, pg=pg, acc=acc)
 
     def masses(self, p, sw, x, sat, ug=None):
         """Массы компонентов ячеек [3, N] (o, w, g) — то же, что строки I_ACC свойств, без ОФП и Pc."""
@@ -1535,14 +1576,15 @@ class BlackOilFIMSolver(ManualFIMSolver):
         wet = self.wet and ug is not None
 
         def fn(p, sw, x):
-            st = self._phase_state(p, sw, x, sat, ug)
-            sg, rs, so, rv = st["sg"], st["rs"], st["so"], st["rv"]
-            bo, mu_o, bw, mu_w, bg, mu_g = st["bo"], st["mu_o"], st["bw"], st["mu_w"], st["bg"], st["mu_g"]
+            sg = torch.where(sat, x, torch.where(ug, 1.0 - sw, 0.0 * x)) if wet else torch.where(sat, x, 0.0 * x)
             if hasattr(kr, "kr_pc"):
                 (krw, kro, krg), (pcow, pcog) = kr.kr_pc(sw, sg)
             else:
                 krw, kro, krg = kr(sw, sg)
                 pcow, pcog = kr.pc(sw, sg)
+            st = self._phase_state(p, sw, x, sat, ug, (p - pcow, p + pcog))
+            sg, rs, so, rv = st["sg"], st["rs"], st["so"], st["rv"]
+            bo, mu_o, bw, mu_w, bg, mu_g = st["bo"], st["mu_o"], st["bw"], st["mu_w"], st["bg"], st["mu_g"]
             mo, mw, mg = kro * bo / mu_o, krw * bw / mu_w, krg * bg / mu_g
             if wet:
                 rho_gr = (rg + rv * ro) * bg
@@ -1794,8 +1836,9 @@ class BlackOilFIMSolver(ManualFIMSolver):
         sg = torch.where(sat, x, torch.where(ug, 1.0 - sw, torch.zeros_like(x)))
         return sg, torch.where(sat | ug, rs_s, x)
 
-    def _rv(self, p, x, ug, so):
-        return torch.where(ug, x, self.rv_sat_eff(p, so))
+    def _rv(self, p, sw, x, ug, so):
+        pg = self._phase_pressures(p, sw, 1.0 - sw - so)[1]
+        return torch.where(ug, x, self.rv_sat_eff(pg, so))
 
     def _update_resv_averages(self, p, sw):
         """RateConverter state, weighted by current hydrocarbon pore volume."""
@@ -1813,14 +1856,15 @@ class BlackOilFIMSolver(ManualFIMSolver):
             self.wells.rv_avg = float((hc * rv.reshape(-1).double()).sum() / hc_sum) \
                 if self.wet and rv is not None else None
 
+    @atomic_fim_step
     def step(self, dt, current_time=None):
         dbg = self.debug
         log = (lambda *a, **k: None) if (dbg.enabled and dbg.console) else print
         t_days = (current_time or 0.0) / 86400.0
         shp = (self.nx, self.ny, self.nz)
 
-        p_old = self.fluid.pressure.detach().reshape(-1).double().clone()
-        sw_old = self.fluid.s_w.detach().reshape(-1).double().clone()
+        p_old = self._step_initial['pressure'].reshape(-1)
+        sw_old = self._step_initial['s_w'].reshape(-1)
         sat_old, x_old, ug_old = self.sat.clone(), self.x.clone(), self.ug.clone()
         if self.drsdt is not None and self.pvt.has_pvt:
             rs_old = self.fluid.rs.reshape(-1).double()
@@ -1905,7 +1949,6 @@ class BlackOilFIMSolver(ManualFIMSolver):
                 initial_cnv = max(crit["cnv"]) + 1e-300
 
             if ok and k >= self.min_newton:
-                log("  Converged!")
                 sg, rs = self._sg_rs(p, x, sat, ug, sw)
                 so, so_old = 1.0 - sw - sg, 1.0 - sw_old - sg_old
                 self.last_newton_iters = k
@@ -1913,7 +1956,6 @@ class BlackOilFIMSolver(ManualFIMSolver):
                                                        (so - so_old).abs().max()]).max())
                 self.last_max_dp = float((p - p_old).abs().max())
                 dbg.converged_iter()
-                dbg.end_step(True, "converged", p.view(shp), sw.view(shp))
                 f = self.fluid
                 dtp = f.pressure.dtype
                 f.pressure.copy_(p.view(shp).to(dtp))
@@ -1921,7 +1963,7 @@ class BlackOilFIMSolver(ManualFIMSolver):
                 f.s_g = sg.view(shp).to(dtp).clone()
                 f.s_o = so.view(shp).to(dtp).clone()
                 f.rs = rs.view(shp).clone()
-                f.rv = self._rv(p, x, ug, so).view(shp).clone()
+                f.rv = state[0][I_RV].view(shp).clone()
                 self.so_max = torch.maximum(self.so_max, so.clamp_min(0.0))
                 self.sat, self.x, self.ug = sat, x, ug
                 hyst = getattr(self.kr, "hyst", None)
@@ -1931,6 +1973,8 @@ class BlackOilFIMSolver(ManualFIMSolver):
                     self.wells.commit(p_bh)
                     self._store_well_results(wsys, p_bh, dt)
                 self._p_bh_cur = None
+                dbg.end_step(True, "converged", p.view(shp), sw.view(shp))
+                log("  Converged!")
                 return True
 
             dbg.jacobian(J, self.builder.diag_map)
@@ -2002,7 +2046,8 @@ class BlackOilFIMSolver(ManualFIMSolver):
         Первичная переменная ячейки в новом состоянии (sat, ug) так, чтобы масса компонента, по которому
         произошло переключение, совпала с массой в исходном состоянии (sat_old, ug_old) — по той же функции
         свойств ячейки: при появлении/исчезновении газа сохраняется газ, нефти — нефть.
-        Sg в насыщенной ячейке входит в массы линейно (точно за один шаг), Rs/Rv — секущими.
+        Sg may enter nonlinearly through capillary phase pressures and VAPPARS;
+        refine its initial linear estimate with a bracketed secant solve.
         """
         target_m = self.masses(p, sw, x, sat_old, ug_old)
         a = 1.0 - sw
@@ -2024,10 +2069,33 @@ class BlackOilFIMSolver(ManualFIMSolver):
             f0, f1 = mass(torch.where(to_sat, z0, x)), mass(torch.where(to_sat, z1, x))
             den = torch.where((f1 - f0).abs() > 1e-300, f1 - f0, torch.ones_like(f0))
             x_new = torch.where(to_sat, (a * (tgt - f0) / den).clamp(min=0.0).minimum(a), x_new)
+            lo, hi = z0, z1
+            flo, fhi = f0 - tgt, f1 - tgt
+            bracketed = to_sat & ((flo * fhi) <= 0)
+            previous_x, previous_f = z0, flo
+            for _ in range(12):
+                fx = mass(x_new) - tgt
+                active = bracketed & (fx.abs() > 1e-12 * tgt.abs().clamp_min(1.0))
+                if not bool(active.any()):
+                    break
+                upper = active & ((flo * fx) <= 0)
+                lower = active & ~upper
+                lo, flo = torch.where(lower, x_new, lo), torch.where(lower, fx, flo)
+                hi, fhi = torch.where(upper, x_new, hi), torch.where(upper, fx, fhi)
+                delta = fx - previous_f
+                den = torch.where(delta.abs() > 1e-300, delta, torch.ones_like(delta))
+                root = x_new - fx * (x_new - previous_x) / den
+                safe = torch.isfinite(root) & (root > lo) & (root < hi) & (delta.abs() > 1e-300)
+                bracket_den = torch.where((fhi - flo).abs() > 1e-300, fhi - flo, torch.ones_like(flo))
+                fallback = lo - flo * (hi - lo) / bracket_den
+                root = torch.where(safe, root, fallback).maximum(lo).minimum(hi)
+                previous_x, previous_f = x_new, fx
+                x_new = torch.where(active, root, x_new)
         to_us = changed & ~sat
         if bool(to_us.any()):
             rs_s = self.rs_sat_eff(p)
-            rv_s = self.rv_sat_eff(p, torch.zeros_like(p)) if self.wet else torch.zeros_like(p)
+            pg = self._phase_pressures(p, sw, 1.0 - sw)[1] if self.wet else p
+            rv_s = self.rv_sat_eff(pg, torch.zeros_like(p)) if self.wet else torch.zeros_like(p)
             hi = rs_s if ug is None else torch.where(ug, rv_s, rs_s)
             xa, xb = torch.zeros_like(x), hi
             fa = mass(torch.where(to_us, xa, x_new)) - tgt
@@ -2064,7 +2132,8 @@ class BlackOilFIMSolver(ManualFIMSolver):
         x = x + torch.where(sat, dsg, drs)
         n_switch = 0
         if self.wet:
-            rs_s, rv_s = self.rs_sat_eff(p), self.rv_sat_eff(p, torch.zeros_like(p))   # rv_s — для ячеек без нефти
+            pg = self._phase_pressures(p, sw, 1.0 - sw)[1]
+            rs_s, rv_s = self.rs_sat_eff(p), self.rv_sat_eff(pg, torch.zeros_like(p))   # rv_s — для ячеек без нефти
             uo = ~sat & ~ug
             es, er = SWITCH_EPS_S, SWITCH_EPS_R
             no_oil = 1.0 - sw <= SO_EMPTY

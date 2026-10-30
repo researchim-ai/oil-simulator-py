@@ -228,8 +228,13 @@ class Simulator:
             cut = 1.0 / float(p.get("dt_restart_factor", 0.33))
             target_it = float(p.get("newton_target_iter", 8))
             pid_tol = float(p.get("dt_pid_tol", 0.1))
-            if getattr(self, "_pid_err", None) is None:
+            # Earlier checkpoints stored sqrt(delta2 / state2). OPM uses
+            # delta2 / state2, including all phase saturations. Never mix
+            # histories with different definitions after a restart.
+            if (getattr(self, "_pid_error_version", None) != 2 or
+                    getattr(self, "_pid_err", None) is None):
                 self._pid_err = [pid_tol] * 3
+                self._pid_error_version = 2
         h = getattr(self, "_fim_dt", None) or float(p.get("initial_time_step_days", dt / 86400.0)) * 86400.0
         h = min(max(h, dt_min), dt_max)
         dbg = self.fim_solver.debug
@@ -288,10 +293,13 @@ class Simulator:
         """Следующий шаг по PIDAndIterationCountTimeStepControl OPM Flow (kP, kI, kD — Turek)."""
         p1 = self.fluid.pressure.detach().double()
         s1 = torch.stack([self.fluid.s_w.detach().double(), self.fluid.s_g.detach().double()])
-        num = ((p1 - p0) ** 2).sum() + ((s1 - s0) ** 2).sum()
-        den = (p1 ** 2).sum() + (s1 ** 2).sum()
+        # BlackoilModel::relativeChange returns the squared norm ratio,
+        # not its square root. Include the dependent oil saturation too.
+        so0, so1 = 1.0 - s0.sum(0), 1.0 - s1.sum(0)
+        num = ((p1 - p0) ** 2).sum() + ((s1 - s0) ** 2).sum() + ((so1 - so0) ** 2).sum()
+        den = (p1 ** 2).sum() + (s1 ** 2).sum() + (so1 ** 2).sum()
         e = self._pid_err
-        e[0], e[1], e[2] = e[1], e[2], float(torch.sqrt(num / den))
+        e[0], e[1], e[2] = e[1], e[2], float(num / den) if bool(den > 0) else 0.0
         if e[2] > tol:
             dt_pid = dt * tol / e[2]
         elif e[0] == 0 or e[1] == 0 or e[2] == 0:

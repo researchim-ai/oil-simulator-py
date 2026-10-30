@@ -1,0 +1,103 @@
+{
+  "reference": "OpenWaterAnalytics EPANET v2.2",
+  "source": {
+    "url": "https://codeload.github.com/OpenWaterAnalytics/EPANET/tar.gz/refs/tags/v2.2",
+    "sha256": "0deffd034363fd7cf4275fff0a795c88a0eae1ce964c7f4fb95de8a38b892b1b",
+    "version": "2.2.0"
+  },
+  "input": {
+    "model": "incompressible_liquid",
+    "fluid": {
+      "density_kg_m3": 1000.0,
+      "viscosity_pa_s": 0.00102193344,
+      "vapor_pressure_pa": 2300.0
+    },
+    "nodes": [
+      {
+        "name": "well_a",
+        "elevation_m": 0.0,
+        "source_mass_rate_kg_s": 20.0
+      },
+      {
+        "name": "well_b",
+        "elevation_m": 5.0,
+        "source_mass_rate_kg_s": 10.0
+      },
+      {
+        "name": "manifold",
+        "elevation_m": 10.0
+      },
+      {
+        "name": "bypass",
+        "elevation_m": 8.0
+      },
+      {
+        "name": "outlet",
+        "elevation_m": 12.0,
+        "pressure_pa": 400000.0
+      }
+    ],
+    "pipes": [
+      {
+        "name": "a_manifold",
+        "start": "well_a",
+        "end": "manifold",
+        "length_m": 1200.0,
+        "diameter_m": 0.15,
+        "roughness_m": 5e-05,
+        "minor_loss_coefficient": 2.0
+      },
+      {
+        "name": "b_bypass",
+        "start": "well_b",
+        "end": "bypass",
+        "length_m": 800.0,
+        "diameter_m": 0.12,
+        "roughness_m": 5e-05,
+        "minor_loss_coefficient": 2.0
+      },
+      {
+        "name": "bypass_manifold",
+        "start": "bypass",
+        "end": "manifold",
+        "length_m": 500.0,
+        "diameter_m": 0.12,
+        "roughness_m": 5e-05,
+        "minor_loss_coefficient": 1.0
+      },
+      {
+        "name": "a_bypass",
+        "start": "well_a",
+        "end": "bypass",
+        "length_m": 600.0,
+        "diameter_m": 0.12,
+        "roughness_m": 5e-05,
+        "minor_loss_coefficient": 1.0
+      },
+      {
+        "name": "manifold_outlet",
+        "start": "manifold",
+        "end": "outlet",
+        "length_m": 1500.0,
+        "diameter_m": 0.2,
+        "roughness_m": 5e-05,
+        "minor_loss_coefficient": 4.0
+      }
+    ]
+  },
+  "epanet_heads_m": {
+    "well_a": 65.76278354537459,
+    "well_b": 70.50462856351685,
+    "manifold": 59.112401484897006,
+    "bypass": 65.12933803446543,
+    "outlet": 52.78864851911713
+  },
+  "epanet_flows_lps": {
+    "a_manifold": 16.33488096208659,
+    "b_bypass": 9.999999999999998,
+    "bypass_manifold": 13.66511903791336,
+    "a_bypass": 3.6651190379134353,
+    "manifold_outlet": 29.99999999999992
+  },
+  "note": "EPANET uses g=32.2 ft/s2 and rounded local-loss coefficient; production uses standard g=9.80665 m/s2. Viscosity explicitly matched."
+}

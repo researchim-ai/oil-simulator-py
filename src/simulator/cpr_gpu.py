@@ -36,11 +36,19 @@ class CPRPreconditionerGPU:
         self._graph_pool = graph_pool
         crow = indptr.long()
         col = indices.long()
-        self.rows = torch.repeat_interleave(torch.arange(n_cells, device=J_vals.device), crow[1:] - crow[:-1])
+        self.rows = torch.repeat_interleave(torch.arange(n_cells, device=J_vals.device),
+                                            crow[1:] - crow[:-1], output_size=J_vals.shape[0])
         self.col = col
         self.J_vals = J_vals
 
         self.nb = J_vals.shape[1]
+        # cuSPARSE BSR kernels use int32. Convert once per matrix rather
+        # than inside every Krylov/CPR product. Values keep their precision.
+        bsr_dtype = (torch.int32 if max(n_cells*self.nb, J_vals.shape[0]) <= 2**31-1
+                     else torch.int64)
+        self._J_bsr = (torch.sparse_bsr_tensor(crow.to(bsr_dtype), col.to(bsr_dtype), J_vals,
+                                              size=(n_cells*self.nb, n_cells*self.nb))
+                       if J_vals.is_cuda else None)
         diag_mask = self.rows == col
         diag = J_vals[diag_mask]
         if diag.shape[0] != n_cells:
@@ -77,10 +85,12 @@ class CPRPreconditionerGPU:
         try:
             with redirect:
                 if amg is not None:
+                    amg.verbose = bool(amg_verbose)
                     amg.update_matrix(A_p)
                     self.amg = amg
                 else:
-                    self.amg = ClassicalAMG(A_p, max_levels=15, theta=0.25, mixed_precision=True, nullspace_dim=0)
+                    self.amg = ClassicalAMG(A_p, max_levels=15, theta=0.25, mixed_precision=True,
+                                            nullspace_dim=0, verbose=amg_verbose)
                     self.amg_rebuilt = True
             self.amg_levels = [int(lvl['n']) for lvl in self.amg.levels]
         except Exception as e:
@@ -91,6 +101,8 @@ class CPRPreconditionerGPU:
         self._graph = None if CPRPreconditionerGPU.use_graphs else False
 
     def apply_A(self, x):
+        if self._J_bsr is not None:
+            return (self._J_bsr @ x.unsqueeze(1)).squeeze(1)
         x_blk = x.view(-1, self.nb)
         y_vals = torch.bmm(self.J_vals, x_blk[self.col].unsqueeze(-1)).squeeze(-1)
         y = torch.zeros_like(x_blk)
@@ -133,6 +145,7 @@ class CPRPreconditionerGPU:
         r_in.copy_(r)
         graph.replay()
         return out.clone()
+
 
     def _matvec_eager(self, r):
         x = torch.zeros_like(r)

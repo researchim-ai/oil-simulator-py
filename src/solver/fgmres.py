@@ -1,5 +1,6 @@
 import torch
 import time
+from .krylov_cuda import rotate_givens
 
 def fgmres(A_mv, b, M_mv=None, max_iter=100, tol=1e-5, restart=20, verbose=False, stats=None):
     """
@@ -83,8 +84,6 @@ def fgmres(A_mv, b, M_mv=None, max_iter=100, tol=1e-5, restart=20, verbose=False
                 Z[j] = M_mv(V[j])
             else:
                 Z[j] = V[j]
-                
-            # 2. Matrix-vector: w = A z_j
             w = A_mv(Z[j])
             
             # 3. Gram-Schmidt Orthogonalization
@@ -94,34 +93,10 @@ def fgmres(A_mv, b, M_mv=None, max_iter=100, tol=1e-5, restart=20, verbose=False
                 
             H[j + 1, j] = torch.norm(w)
             
-            # Check for breakdown
-            if H[j + 1, j] < 1e-14:
-                # Happy breakdown or exact solution found?
-                pass
-                
             V[j + 1] = w / (H[j + 1, j] + 1e-15)
             
             # 4. Apply Givens Rotations to H column
-            for i in range(j):
-                temp = cs[i] * H[i, j] + sn[i] * H[i + 1, j]
-                H[i + 1, j] = -sn[i] * H[i, j] + cs[i] * H[i + 1, j]
-                H[i, j] = temp
-                
-            # 5. Compute new Givens rotation
-            # eliminate H[j+1, j]
-            h_jj = H[j, j]
-            h_j1j = H[j + 1, j]
-            
-            sq = torch.sqrt(h_jj**2 + h_j1j**2)
-            cs[j] = h_jj / sq
-            sn[j] = h_j1j / sq
-            
-            H[j, j] = cs[j] * h_jj + sn[j] * h_j1j
-            H[j + 1, j] = 0.0
-            
-            # 6. Apply rotation to RHS g
-            g[j + 1] = -sn[j] * g[j]
-            g[j] = cs[j] * g[j]
+            rotate_givens(H, cs, sn, g, j)
             
             # Check convergence
             rel_error = abs(g[j + 1].item()) / b_norm

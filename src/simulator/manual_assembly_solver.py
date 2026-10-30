@@ -29,6 +29,13 @@ try:
 except (ImportError, ValueError):
     from solver.fgmres import fgmres
 from .cpr_gpu import CPRPreconditionerGPU
+from .fim_transaction import atomic_fim_step
+
+
+def configure_torch_execution(params):
+    """Apply process-wide solver options for both fresh and resumed runs."""
+    if bool(params.get('deterministic', True)):
+        torch.use_deterministic_algorithms(True, warn_only=True)
 
 
 class ManualFIMSolver:
@@ -79,8 +86,7 @@ class ManualFIMSolver:
     def _init_params(self, params):
         # Воспроизводимость: ядра torch с накоплением (scatter/index_add, разреженное умножение в AMG) иначе
         # недетерминированы, и расхождения ~1e-14 усиливаются Ньютоном до различий в результатах (~1e-5)
-        if bool(params.get('deterministic', True)):
-            torch.use_deterministic_algorithms(True, warn_only=True)
+        configure_torch_execution(params)
         # --- Нелинейный решатель ---
         self.max_newton = int(params.get('newton_max_iter', 15))
         self.min_newton = int(params.get('newton_min_iter', 0))
@@ -341,14 +347,15 @@ class ManualFIMSolver:
         return ok, {"cnv": cnv_l, "mb": mb_l, "well_rate_rel_err": well_err}
 
     # ------------------------------------------------------------------ шаг
+    @atomic_fim_step
     def step(self, dt, current_time=None):
         """Шаг по времени dt [с]. Состояние флюида и скважин фиксируется только при сходимости."""
         dbg = self.debug
         log = (lambda *a, **k: None) if (dbg.enabled and dbg.console) else print
         t_days = (current_time or 0.0) / 86400.0
 
-        p_old = self.fluid.pressure.detach().reshape(-1).double().clone()
-        sw_old = self.fluid.s_w.detach().reshape(-1).double().clone()
+        p_old = self._step_initial['pressure'].reshape(-1)
+        sw_old = self._step_initial['s_w'].reshape(-1)
         p_curr, sw_curr = p_old.clone(), sw_old.clone()
         m_o_old, m_w_old = self.calc_masses(p_old, sw_old)
         m_o_old, m_w_old = m_o_old.reshape(-1), m_w_old.reshape(-1)
@@ -400,12 +407,10 @@ class ManualFIMSolver:
                 initial_cnv = max(crit["cnv"]) + 1e-300
 
             if ok and k >= self.min_newton:
-                log("  Converged!")
                 self.last_newton_iters = k
                 self.last_max_dsw = float((sw_curr - sw_old).abs().max())
                 self.last_max_dp = float((p_curr - p_old).abs().max())
                 dbg.converged_iter()
-                dbg.end_step(True, "converged", p_curr.view(shp), sw_curr.view(shp))
                 self.fluid.pressure.copy_(p_curr.view(shp).to(self.fluid.pressure.dtype))
                 self.fluid.s_w.copy_(sw_curr.view(shp).to(self.fluid.s_w.dtype))
                 self.fluid.s_o.copy_((1.0 - sw_curr).view(shp).to(self.fluid.s_o.dtype))
@@ -413,6 +418,8 @@ class ManualFIMSolver:
                     self.wells.commit(p_bh)
                     self._store_well_results(wsys, p_bh)
                 self._p_bh_cur = None
+                dbg.end_step(True, "converged", p_curr.view(shp), sw_curr.view(shp))
+                log("  Converged!")
                 return True
 
             dbg.jacobian(J, self.builder.diag_map)
@@ -505,7 +512,8 @@ class ManualFIMSolver:
         ref = torch.where(d > 1e-8 * row_max, d, row_max)
         scale = torch.where(ref > 0, 1.0 / ref.clamp_min(1e-300), torch.ones_like(ref))
         rows = torch.repeat_interleave(torch.arange(n, device=J.device),
-                                       self.builder.indptr[1:] - self.builder.indptr[:-1])
+                                       self.builder.indptr[1:] - self.builder.indptr[:-1],
+                                       output_size=J.shape[0])
         J.mul_(scale[rows].unsqueeze(2))
         rhs = rhs * scale
 
@@ -535,11 +543,17 @@ class ManualFIMSolver:
             dpw = self.wells.recover_dpw(wsys, dx_full) if wells_on else rhs.new_zeros(0)
             return dx_full, dpw
         b = rhs_s.reshape(-1)
+        bsr_dtype = torch.int32 if max(n_s*nb, Js.shape[0]) <= 2**31-1 else torch.int64
+        J_bsr = (torch.sparse_bsr_tensor(indptr_s.to(bsr_dtype), indices_s.to(bsr_dtype), Js,
+                                         size=(n_s*nb, n_s*nb)) if Js.is_cuda else None)
 
         def matvec(x):
             xb = x.view(-1, nb)
-            y = torch.zeros_like(xb)
-            y.index_add_(0, rows_s, torch.bmm(Js, xb[indices_s].unsqueeze(-1)).squeeze(-1))
+            if J_bsr is not None:
+                y = (J_bsr @ x.unsqueeze(1)).view(-1, nb)
+            else:
+                y = torch.zeros_like(xb)
+                y.index_add_(0, rows_s, torch.bmm(Js, xb[indices_s].unsqueeze(-1)).squeeze(-1))
             if wells_on:
                 if sub is None:
                     y += self.wells.schur_correction(wsys, xb, local_included=True) * scale

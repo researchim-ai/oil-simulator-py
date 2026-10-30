@@ -5,7 +5,7 @@
 <meta charset="utf-8"/>
 <meta content="width=device-width, initial-scale=1" name="viewport"/>
 <title>oil-simulator — открытый black-oil симулятор на PyTorch</title>
-<meta content="Открытый black-oil симулятор на PyTorch. Norne: 3312 суток за 16 мин 41 с на RTX 3090, строгие CNV/MB, сравнение с Eclipse и OPM." name="description"/>
+<meta content="Открытый black-oil симулятор на PyTorch: полный строгий Norne за 11 мин 6 с на RTX 3090, сравнение с Eclipse и OPM, баланс и побитовый перезапуск." name="description"/>
 <meta content="#14110e" name="theme-color"/>
 <link href="favicon.svg" rel="icon" type="image/svg+xml"/>
 <link href="style.css?v=20261029-resv" rel="stylesheet"/>
@@ -42,7 +42,7 @@
 <h1>Симулятор пласта<br/><em>на одной видеокарте.</em></h1>
 <p class="lede">Открытый гидродинамический симулятор: берёт DATA-файл Eclipse и считает трёхфазный пласт целиком — сетку с разломами, жирный газ, скважины по расписанию. Python и PyTorch, без лицензий.</p>
 <div class="metrics">
-<div><b>16:41</b><span>мин:с · Norne · RTX 3090</span></div>
+<div><b>11:06</b><span>мин:с · строгий Norne · RTX 3090</span></div>
 <div><b>−0,064%</b><span>накопленная нефть против Eclipse</span></div>
 <div><b>0,01%</b><span>дебит нефти SPE9 против Eclipse</span></div>
 <div><b>1 млн</b><span>ячеек на 24 ГБ GPU</span></div>
@@ -50,7 +50,7 @@
 <p class="cta"><a href="norne.html">Прогон Norne против Eclipse →</a></p>
 </div>
 <figure class="shot">
-<img alt="Corner-point модель Norne, нефтенасыщенность" src="assets/3d_so_end.png?v=20261029-resv"/>
+<img alt="Corner-point модель Norne, нефтенасыщенность" src="assets/3d_so_end.png?v=20261030-fused"/>
 <figcaption>Norne · So · расчёт oil-simulator</figcaption>
 </figure>
 </div>
@@ -98,7 +98,7 @@
 </div>
 <ul class="limits">
 <li><strong>GPU и CPU</strong>Один код PyTorch для обоих устройств. CUDA-графы свойств и CPR используют переиспользуемые пулы памяти; в последнем полном Norne графы работали до конца. Расчёт идёт только по активным ячейкам.</li>
-<li><strong>Чекпоинты</strong>Сохраняются на отчётных шагах. Проверка продолжения Norne: 379 векторов SUMMARY совпали с непрерывным расчётом с максимумом 4,32×10<sup>−12</sup> от масштаба вектора.</li>
+<li><strong>Чекпоинты и откат</strong>Перезапуск из нового состояния 2105 суток до 2265 суток совпал побитово по 379 векторам SUMMARY: 6443 определённых значения, максимальная нормированная разница 0. Неудачные попытки откатывают физическое состояние до повторного шага.</li>
 <li><strong>Строгая сходимость</strong>CNV ≤ 10<sup>−3</sup>, MB ≤ 10<sup>−7</sup> без ослабления. Адаптивный шаг, дробление при отказе и импорт временных параметров TUNING; отчётный интервал проходится полностью.</li>
 <li><strong>Python до конца</strong>Свойства, сборка, предобуславливатель — читаемый код на PyTorch, который легко менять и встраивать в свои эксперименты.</li>
 </ul>
@@ -108,7 +108,7 @@
 <div class="wrap">
 <p class="index">03 — проверка</p>
 <h2>Рядом с Eclipse</h2>
-<div class="prose"><p>Последняя проверка Norne: весь исходный deck, 3312 суток, строгие CNV/MB без ослабления. Итоги накопленной добычи ниже относятся к 29 октября 2026. Старый расчёт OPM flow_legacy показан отдельно: это другая версия решателя, а не современный OPM с идентичными настройками.</p><p>Все 12 эталонных тестов пройдены с прежними допусками. В строках SPE1/SPE9 указан допуск теста, а не новая точечная оценка ошибки; значения Norne и газлифта — измеренные результаты. Нормированная ошибка на отчётных датах отличается от ошибки итогового накопленного объёма.</p></div>
+<div class="prose"><p>Последняя проверка Norne: весь исходный deck, 3312 суток, строгие CNV/MB без ослабления. Итоги накопленной добычи ниже относятся к 30 октября 2026. Старый расчёт OPM flow_legacy показан отдельно: это другая версия решателя, а не современный OPM с идентичными настройками.</p><p>Все 12 эталонных тестов пройдены с прежними допусками. В строках SPE1/SPE9 указан допуск теста, а не новая точечная оценка ошибки; значения Norne и газлифта — измеренные результаты. Нормированная ошибка на отчётных датах отличается от ошибки итогового накопленного объёма.</p></div>
 <div class="table-wrap">
 <table class="bench">
 <thead>
@@ -118,8 +118,8 @@
 <tr><td>SPE1, 10×10×3, 10 лет</td><td>векторы SUMMARY против Eclipse/OPM</td><td class="num">допуск 1% · пройден</td><td class="num">эталон</td></tr>
 <tr><td>SPE9, 24×25×15, 26 скважин</td><td>месторождение / ячейки / забои</td><td class="num">допуск 0,5% · пройден</td><td class="num">эталон</td></tr>
 <tr><td>SPE9</td><td>остальные векторы скважин</td><td class="num">допуск 2,5% · пройден</td><td class="num">эталон</td></tr>
-<tr><td><a href="norne.html">Norne · strict · 3312 суток</a></td><td>накопленные нефть / вода / газ, против Eclipse</td><td class="num">−0,064% / +0,158% / −0,099%</td><td class="num">legacy: −0,21% / +1,40% / −0,44%</td></tr>
-<tr><td>Norne</td><td>закачка воды / газа, против Eclipse</td><td class="num">−0,00704% / −0,000023%</td><td class="num">legacy: +0,392% / +0,000024%</td></tr>
+<tr><td><a href="norne.html">Norne · strict · 3312 суток</a></td><td>накопленные нефть / вода / газ, против Eclipse</td><td class="num">−0,064% / +0,130% / −0,088%</td><td class="num">legacy: −0,21% / +1,40% / −0,44%</td></tr>
+<tr><td>Norne</td><td>закачка воды / газа, против Eclipse</td><td class="num">−0,01567% / −0,000034%</td><td class="num">legacy: +0,392% / +0,000024%</td></tr>
 <tr><td>SPE1 VFP1 (opm-tests), таблица лифта, переход на THP</td><td>забой / устье / дебиты / FOPT, против OPM Flow</td><td class="num">до 1%</td><td class="num">эталон</td></tr>
 <tr><td><a href="gaslift.html">GASLIFT-04</a> · первые 213 суток</td><td>нормированная ошибка дебита нефти / газлифта</td><td class="num">0,64% / 6,10%</td><td class="num">эталон OPM</td></tr>
 <tr><td>NETWORK-01 и NETWORK-01-REROUTE</td><td>баланс сети, VREP и смена маршрута</td><td class="num">оба эталонных теста пройдены</td><td class="num">эталон OPM</td></tr>
@@ -129,7 +129,7 @@
 </table>
 </div>
 <figure>
-<img alt="Дебиты Norne: наш солвер, Eclipse и история" class="chart" src="assets/rates.png?v=20261029-resv"/>
+<img alt="Дебиты Norne: наш солвер, Eclipse и история" class="chart" src="assets/rates.png?v=20261030-fused"/>
 <figcaption>Norne, месторождение целиком: голубая — Eclipse 2014.2, оранжевый пунктир — oil-simulator, точки — история. Подробно — на <a href="norne.html">странице прогона</a>.</figcaption>
 </figure>
 </div>
@@ -137,14 +137,14 @@
 <section id="speed">
 <div class="wrap">
 <p class="index">04 — скорость</p>
-<h2>16 минут 41 секунда на всю историю</h2>
-<div class="prose"><p>Последний полный Norne на RTX 3090: 1000,8 с, 654 принятых подшага, 32 отказа с дроблением, 3322 итерации Ньютона. Float64, CNV 10<sup>−3</sup>, MB 10<sup>−7</sup>, один CPU-поток; запись чекпоинтов и аудит включены во время. Графы оставались включены, резерв памяти в конце — 1712 MiB.</p><p>Исправление состава потока RESV уменьшило итоговую ошибку воды E-4AH с +6,37% до −0,55%. Полные производные собраны пакетно для всех скважин. Время двух запусков различается на 1,8%; это наблюдение отдельных прогонов, а не статистический тест скорости.</p></div>
+<h2>11 минут 6 секунд на строгую историю</h2>
+<div class="prose"><p>Полный строгий Norne: 665,53 с (11 мин 6 с) на RTX 3090, 649 принятых подшагов, 29 отклонённых попыток с дроблением и 3437 итераций Ньютона. Float64, один CPU-поток; исходная инициализация, аудит и запись чекпоинтов включены во время.</p><p>На одинаковом участке 2105–2177 суток два последовательных повтора каждой версии дали медианы 42,83 → 30,96 с: экономия времени 27,71%. Повторы новой версии совпали побитово. Прежние 23 мин 29 с получены при параллельной нагрузке, поэтому всю разницу полного времени нельзя приписывать изменению кода.</p><p>Отдельная векторизация VFP ускорила вызов таблицы примерно в 3,9 раза на CPU. Это отдельное измерение, а не ускорение всего Norne в 3,9 раза.</p></div>
 <div class="table-wrap">
 <table class="bench">
 <thead>
 <tr><th>версия</th><th>что изменилось</th><th class="num">Norne, мин</th><th class="num">итераций Ньютона</th></tr>
 </thead>
-<tbody><tr><td>До исправления RESV</td><td>STOP, полный переток и его производные · strict</td><td class="num">16,38</td><td class="num">3479</td></tr><tr><td>Текущий прогон</td><td>+ фактический состав потока RESV · strict</td><td class="num">16,68</td><td class="num">3322</td></tr></tbody>
+<tbody><tr><td>Полный строгий Norne</td><td>CSR/BSR, фиксированная редукция; аудит включён</td><td class="num">11,09</td><td class="num">3437</td></tr></tbody>
 </table>
 </div>
 <ul class="limits">
@@ -205,7 +205,7 @@ python scripts/norne_figures.py</pre>
 </section>
 </main>
 <footer class="wrap foot">
-<div>oil-simulator · researchim · данные обновлены 29 октября 2026</div>
+<div>oil-simulator · researchim · данные обновлены 30 октября 2026</div>
 <nav>
 <a href="norne.html">Norne</a>
 <a href="gaslift.html">Газлифт</a>
@@ -214,6 +214,6 @@ python scripts/norne_figures.py</pre>
 <a href="https://researchim-ai.github.io/">researchim.ai</a>
 </nav>
 </footer>
-<script src="main.js?v=20261029-resv"></script>
+<script src="main.js?v=20261030-fused"></script>
 </body>
 </html>

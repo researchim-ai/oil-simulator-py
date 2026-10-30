@@ -16,7 +16,9 @@ def _axis_weights(axis, x):
     """Индекс левого узла и доля внутри интервала (может выходить за [0, 1] — экстраполяция)."""
     n = axis.numel()
     if n == 1:
-        return torch.zeros_like(x, dtype=torch.long), torch.zeros_like(x)
+        # A constant axis still has a defined (zero) derivative. Retain the
+        # graph so a constant lift table can participate in Newton assembly.
+        return torch.zeros_like(x, dtype=torch.long), x * 0.0
     i = (torch.searchsorted(axis, x.detach().contiguous(), right=True) - 1).clamp(0, n - 2)
     x0, x1 = axis[i], axis[i + 1]
     return i, (x - x0) / (x1 - x0)
@@ -101,20 +103,26 @@ class VFPProd(_VFP):
         alq = torch.as_tensor(alq, dtype=torch.float64, device=dev).expand_as(flo)
         axes, tab = self._on(dev)
         idx, frac = zip(*(_axis_weights(a, x) for a, x in zip(axes, (thp, wfr, gfr, alq, flo))))
-        out = torch.zeros_like(flo)
-        for corner in itertools.product((0, 1), repeat=5):
-            w = torch.ones_like(flo)
-            ii = []
-            for k, c in enumerate(corner):
-                n = axes[k].numel()
-                if c and n == 1:
-                    w = None
-                    break
-                w = w * (frac[k] if c else 1.0 - frac[k])
-                ii.append(idx[k] + c)
-            if w is not None:
-                out = out + w * tab[ii[0], ii[1], ii[2], ii[3], ii[4]]
-        return out
+        # Batch the corners: network balancing calls this table repeatedly
+        # during root searches. Avoid launching a tensor operation for every
+        # axis of every corner. Singleton axes contribute just one corner.
+        cache = self.__dict__.setdefault('_corner_cache', {})
+        if dev not in cache:
+            bits = torch.tensor(list(itertools.product(
+                *((0, 1) if a.numel() > 1 else (0,) for a in axes))),
+                dtype=torch.long, device=dev)
+            strides = tab.contiguous().stride()  # offsets address reshape(-1)
+            offsets = sum(bits[:, k] * strides[k] for k in range(5))
+            cache[dev] = (bits.bool(), offsets, strides)
+        bits, offsets, strides = cache[dev]
+        shape = (-1,) + (1,) * flo.ndim
+        weight = torch.ones((offsets.numel(),) + flo.shape, dtype=flo.dtype, device=dev)
+        base = torch.zeros_like(flo, dtype=torch.long)
+        for k in range(5):
+            base = base + idx[k] * strides[k]
+            weight = weight * torch.where(bits[:, k].reshape(shape), frac[k], 1.0 - frac[k])
+        values = tab.reshape(-1)[base.unsqueeze(0) + offsets.reshape(shape)]
+        return (weight * values).sum(0)
 
 
 class VFPInj(_VFP):

@@ -14,6 +14,26 @@ from simulator.simulation import Simulator
 from solver.classical_amg import ClassicalAMG, _apply_reference_fix
 
 
+def test_quiet_amg_update_preserves_matrix_and_solution(capsys):
+    A = (torch.diag(torch.full((7,), 4., dtype=torch.float64))
+         - torch.diag(torch.ones(6, dtype=torch.float64), 1)
+         - torch.diag(torch.ones(6, dtype=torch.float64), -1)).to_sparse_csr()
+    amg = ClassicalAMG(A, max_levels=1, nullspace_dim=0, verbose=False)
+    assert capsys.readouterr().out == ''
+    changed = A.clone()
+    changed.values().mul_(1.2)
+    amg.update_matrix(changed)
+    assert capsys.readouterr().out == ''
+    quiet_values = amg.levels[0]['A'].values().clone()
+    rhs = torch.arange(7, dtype=torch.float64)
+    quiet_solution = amg.solve(rhs, max_iter=1)
+    amg.verbose = True
+    amg.update_matrix(changed)
+    assert '[ClassicalAMG] update:' in capsys.readouterr().out
+    assert torch.equal(quiet_values, amg.levels[0]['A'].values())
+    assert torch.equal(quiet_solution, amg.solve(rhs, max_iter=1))
+
+
 def _run_one_step_with_solver(config_path: str, solver_name: str):
     with open(config_path, 'r') as f:
         config = json.load(f)

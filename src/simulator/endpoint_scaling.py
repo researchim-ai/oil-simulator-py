@@ -191,6 +191,21 @@ class ScaledRelPerm:
         return self._map(sg, 8, lambda: ([c["SGL"], 1.0 - c["SWL"] - c["SOGCR"]], [t["SGL"], 1.0 - t["SWL"] - t["SOGCR"]]))
 
     # ------------------------------------------------------------ ОФП и Pc
+    def _region_pc(self, r, sw, sg):
+        tw, tg = self.tables[r]
+        t, c = self.tab_ep[r], self.cell
+        self._t = t
+        if t["PCW"] > 0:
+            sw_pc = self._map(sw, 9, lambda: ([c["SWL"], c["SWU"]], [t["SWL"], t["SWU"]]))
+            pcow = interp1(sw_pc, tw["sw"], tw["pcow"]) * (c["PCW"] / t["PCW"])
+        else:
+            pcow = 0.0 * sw
+        if tg is None or t["PCG"] <= 0:
+            return pcow, 0.0 * sg
+        sg_pc = self._map(sg, 10, lambda: ([c["SGL"], c["SGU"]], [t["SGL"], t["SGU"]]))
+        pcog = interp1(sg_pc, tg["sg"], tg["pcog"]) * (c["PCG"] / t["PCG"])
+        return pcow, pcog
+
     def _region(self, r, sw, sg):
         tw, tg = self.tables[r]
         t, c = self.tab_ep[r], self.cell
@@ -199,12 +214,9 @@ class ScaledRelPerm:
         krw = interp1(self._sw_kr(sw), tw["sw"], tw["krw"]) * (c["KRW"] / max(t["KRW"], 1e-30))
         kr_o_scale = c["KRO"] / max(t["KRO"], 1e-30)
         krow = self._hyst_krow(sw, interp1(self._sw_o(sw), tw["sw"], tw["kro"]) * kr_o_scale)
-        sw_pc = self._map(sw, 9, lambda: ([swl, c["SWU"]], [t["SWL"], t["SWU"]]))
-        pcow = interp1(sw_pc, tw["sw"], tw["pcow"]) * (c["PCW"] / t["PCW"] if t["PCW"] > 0 else 0.0)
+        pcow, pcog = self._region_pc(r, sw, sg)
         if tg is not None:
             krg = self._hyst_krg(sg, interp1(self._sg_kr(sg), tg["sg"], tg["krg"]) * (c["KRG"] / max(t["KRG"], 1e-30)))
-            sg_pc = self._map(sg, 10, lambda: ([c["SGL"], c["SGU"]], [t["SGL"], t["SGU"]]))
-            pcog = interp1(sg_pc, tg["sg"], tg["pcog"]) * (c["PCG"] / t["PCG"] if t["PCG"] > 0 else 0.0)
             krog = interp1(self._sg_o(sg), tg["sg"], tg["kro"]) * kr_o_scale
         else:
             krg, pcog = 0.0 * sg, 0.0 * sg
@@ -251,7 +263,13 @@ class ScaledRelPerm:
         return (krw, kro, krg), (pcow, pcog)
 
     def pc(self, sw, sg):
-        _, _, _, pcow, pcog = self._all(sw, sg)
+        # PVT and conservative phase switching need capillary pressures only.
+        # Do not evaluate relative permeabilities or hysteresis on this path.
+        pcow, pcog = self._region_pc(0, sw, sg)
+        for r in range(1, len(self.tables)):
+            pw, pg = self._region_pc(r, sw, sg)
+            mask = self.reg == r
+            pcow, pcog = torch.where(mask, pw, pcow), torch.where(mask, pg, pcog)
         return pcow, pcog
 
     # ------------------------------------------------------------ для равновесия (numpy, по ячейкам)
