@@ -1340,6 +1340,12 @@ class ClassicalAMG:
         omega = 0.7
         inv_relax = self.levels[lvl]['inv_relax']
         for it in range(nu):
+            if not debug and x.is_cuda:
+                from .csr_spmv import csr_jacobi
+                fused = csr_jacobi(self.levels[lvl]['A'], x, b, inv_relax)
+                if fused is not None:
+                    x = fused
+                    continue
             r = b - self._matvec(lvl, x)
             delta = omega * inv_relax * r
             x = x + delta
@@ -1396,13 +1402,15 @@ class ClassicalAMG:
             
             if n <= 2000:
                 # плотная матрица — по объекту A уровня (to_dense синхронизирует GPU)
-                if level.get('_dense_of') is not level['A']:
+                version = None if level['A'].is_inference() else level['A']._version
+                if level.get('_dense_of') is not level['A'] or level.get('_dense_version') != version:
                     A_dense = level['A'].to_dense().clone()
                     if n > 0:
                         A_dense[0, :] = 0.0
                         A_dense[:, 0] = 0.0
                         A_dense[0, 0] = 1.0
                     level['_dense'], level['_dense_of'] = A_dense, level['A']
+                    level['_dense_version'] = version
                 A_dense = level['_dense']
                 if n > 0:
                     b_local[:1].zero_()

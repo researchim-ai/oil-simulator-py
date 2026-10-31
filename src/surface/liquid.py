@@ -9,12 +9,14 @@ There is no gas, multiphase holdup, temperature solve, or automatic cavitation c
 from __future__ import annotations
 
 import math
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, field, replace
 from numbers import Real
 
 import numpy as np
 import scipy.sparse as sp
 from scipy.sparse.linalg import splu
+
+from .curves import EquipmentCurve
 
 G = 9.80665
 
@@ -77,6 +79,7 @@ class Pipe:
     roughness_m: float = 0.0
     minor_loss_coefficient: float = 0.0
     open: bool = True
+    check_valve: bool = False
 
     def __post_init__(self):
         for name in (self.name, self.start, self.end):
@@ -89,6 +92,8 @@ class Pipe:
         _number(self.minor_loss_coefficient, "minor_loss_coefficient", nonnegative=True)
         if self.roughness_m / self.diameter_m > 0.05:
             raise ValueError(f"{self.name}: relative roughness exceeds 0.05")
+        if not isinstance(self.check_valve, bool):
+            raise TypeError("check_valve must be boolean")
         if not isinstance(self.open, bool):
             raise TypeError(f"{self.name}: open must be boolean")
 
@@ -137,6 +142,201 @@ class Pipe:
         return loss, gradient
 
 
+class EquipmentOperatingError(ValueError):
+    """A converged hydraulic state is outside an equipment operating envelope."""
+
+
+class PropertyModelError(EquipmentOperatingError):
+    """The property model cannot represent the supplied physical state."""
+
+
+class ConservationError(HydraulicConvergenceError):
+    """A computed state fails mass or energy conservation; never a capacity bound."""
+
+
+@dataclass(frozen=True)
+class Pump:
+    """Forward-only fixed-speed centrifugal pump with a bounded quadratic curve.
+
+    H(q, speed) = speed**2 * shutoff_head_m - curve_coefficient_s2_m5 * q**2.
+    Numerical continuation to negative q is only for Newton; reverse operation
+    is rejected unless an enabled check valve blocks it. This is not a turbine.
+    """
+
+    name: str
+    start: str
+    end: str
+    shutoff_head_m: float
+    curve_coefficient_s2_m5: float
+    max_flow_m3_s: float
+    efficiency: float = 0.75
+    speed_ratio: float = 1.0
+    max_shaft_power_w: float | None = None
+    npsh_required_m: float | None = None
+    inlet_diameter_m: float | None = None
+    open: bool = True
+    check_valve: bool = False
+
+    head_curve: EquipmentCurve | None = None
+    efficiency_curve: EquipmentCurve | None = None
+    npsh_curve: EquipmentCurve | None = None
+
+    def __post_init__(self):
+        for name in (self.name, self.start, self.end):
+            _name(name)
+        if self.start == self.end:
+            raise ValueError(f"{self.name}: pump endpoints must differ")
+        for name in (
+            "shutoff_head_m",
+            "curve_coefficient_s2_m5",
+            "max_flow_m3_s",
+            "efficiency",
+            "speed_ratio",
+        ):
+            _number(getattr(self, name), name, positive=True)
+        if self.efficiency > 1:
+            raise ValueError("Pump efficiency must not exceed 1")
+        if (
+            self.head_curve is None
+            and self.curve_coefficient_s2_m5 * self.max_flow_m3_s**2 > self.shutoff_head_m
+        ):
+            raise ValueError("Pump maximum flow extends into negative head")
+        for name in ("max_shaft_power_w", "inlet_diameter_m"):
+            if getattr(self, name) is not None:
+                _number(getattr(self, name), name, positive=True)
+        if self.npsh_required_m is not None:
+            _number(self.npsh_required_m, "npsh_required_m", nonnegative=True)
+            if self.inlet_diameter_m is None:
+                raise ValueError("NPSH check requires inlet_diameter_m")
+        for name in ("head_curve", "efficiency_curve", "npsh_curve"):
+            curve = getattr(self, name)
+            if isinstance(curve, dict):
+                curve = EquipmentCurve(**curve)
+                object.__setattr__(self, name, curve)
+            if curve is None:
+                continue
+            if not isinstance(curve, EquipmentCurve):
+                raise TypeError(f"{name} must be an EquipmentCurve")
+            if curve.flow_m3_s[0] != 0 or curve.flow_m3_s[-1] < self.max_flow_m3_s:
+                raise ValueError(f"{name} must cover zero through nominal maximum flow")
+            if name == "head_curve":
+                if any(v < 0 for v in curve.values) or any(
+                    b >= a for a, b in zip(curve.values, curve.values[1:])
+                ):
+                    raise ValueError("Pump head curve must be nonnegative and strictly decreasing")
+                if not math.isclose(curve.values[0], self.shutoff_head_m, rel_tol=1e-12):
+                    raise ValueError("Head curve shutoff must match shutoff_head_m")
+            elif name == "efficiency_curve" and any(not 0 < v <= 1 for v in curve.values):
+                raise ValueError("Efficiency map must be in (0, 1]")
+            elif name == "npsh_curve":
+                if any(v < 0 for v in curve.values) or self.inlet_diameter_m is None:
+                    raise ValueError("NPSH map requires nonnegative values and inlet_diameter_m")
+        if not isinstance(self.check_valve, bool):
+            raise TypeError("check_valve must be boolean")
+        if not isinstance(self.open, bool):
+            raise TypeError("Pump open must be boolean")
+
+    def loss_and_gradient(self, q_m3_s, liquid):
+        q = _number(q_m3_s, "q_m3_s")
+        coefficient = liquid.density_kg_m3 * G
+        if self.head_curve is not None:
+            head, slope = self.head_curve.evaluate(abs(q) / self.speed_ratio, extrapolate=True)
+            sign = 1 if q >= 0 else -1
+            return (
+                coefficient
+                * self.speed_ratio**2
+                * (-self.shutoff_head_m + sign * (self.shutoff_head_m - head)),
+                -coefficient * self.speed_ratio * slope,
+            )
+        return (
+            coefficient
+            * (
+                self.curve_coefficient_s2_m5 * q * abs(q)
+                - self.speed_ratio**2 * self.shutoff_head_m
+            ),
+            coefficient * 2 * self.curve_coefficient_s2_m5 * abs(q),
+        )
+
+    def efficiency_at(self, q):
+        return (
+            self.efficiency_curve.evaluate(q / self.speed_ratio)[0]
+            if self.efficiency_curve is not None
+            else self.efficiency
+        )
+
+    def loss_speed_gradient(self, q_m3_s, liquid):
+        """Partial d(pressure loss)/d(speed) at fixed volume flow."""
+        q = _number(q_m3_s, "q_m3_s")
+        coefficient = liquid.density_kg_m3 * G
+        if self.head_curve is None:
+            return -2 * coefficient * self.speed_ratio * self.shutoff_head_m
+        head, slope = self.head_curve.evaluate(abs(q) / self.speed_ratio, extrapolate=True)
+        sign = 1 if q >= 0 else -1
+        base = -self.shutoff_head_m + sign * (self.shutoff_head_m - head)
+        return coefficient * (2 * self.speed_ratio * base + sign * abs(q) * slope)
+
+    def required_npsh_at(self, q):
+        required = self.npsh_required_m
+        if self.npsh_curve is not None:
+            # Approximate affinity model for the nominal-speed NPSH map.
+            mapped = self.speed_ratio**2 * self.npsh_curve.evaluate(q / self.speed_ratio)[0]
+            required = max(required or 0.0, mapped)
+        return required
+
+    def operating_state(self, q, suction_pressure_pa, liquid):
+        if q < 0 or q > self.speed_ratio * self.max_flow_m3_s:
+            raise EquipmentOperatingError(f"{self.name}: flow outside forward pump curve")
+        hydraulic = -q * self.loss_and_gradient(q, liquid)[0]
+        shaft = hydraulic / self.efficiency_at(q)
+        if self.max_shaft_power_w is not None and shaft > self.max_shaft_power_w:
+            raise EquipmentOperatingError(f"{self.name}: shaft power limit exceeded")
+        npsh = None
+        if self.inlet_diameter_m is not None:
+            velocity = q / (math.pi * self.inlet_diameter_m**2 / 4)
+            npsh = (suction_pressure_pa - liquid.vapor_pressure_pa) / (
+                liquid.density_kg_m3 * G
+            ) + velocity**2 / (2 * G)
+        required = self.required_npsh_at(q)
+        if required is not None and npsh < required:
+            raise EquipmentOperatingError(f"{self.name}: insufficient NPSH")
+        return hydraulic, shaft, npsh
+
+
+@dataclass(frozen=True)
+class ThrottleValve:
+    """Nonflashing incompressible orifice; opening is fractional flow area."""
+
+    name: str
+    start: str
+    end: str
+    diameter_m: float
+    discharge_coefficient: float = 0.62
+    opening: float = 1.0
+    open: bool = True
+    check_valve: bool = False
+
+    def __post_init__(self):
+        for name in (self.name, self.start, self.end):
+            _name(name)
+        if self.start == self.end:
+            raise ValueError("Valve endpoints must differ")
+        _number(self.diameter_m, "diameter_m", positive=True)
+        _number(self.discharge_coefficient, "discharge_coefficient", positive=True)
+        _number(self.opening, "opening", nonnegative=True)
+        if self.opening > 1 or self.discharge_coefficient > 1:
+            raise ValueError("Opening and discharge coefficient must not exceed 1")
+        if not isinstance(self.open, bool) or not isinstance(self.check_valve, bool):
+            raise TypeError("Valve status must be boolean")
+
+    def loss_and_gradient(self, q_m3_s, liquid):
+        q = _number(q_m3_s, "q_m3_s")
+        if self.opening == 0:
+            raise ValueError("Closed valve has no flow equation")
+        area = math.pi * self.diameter_m**2 / 4 * self.opening
+        coefficient = liquid.density_kg_m3 / (2 * (self.discharge_coefficient * area) ** 2)
+        return coefficient * q * abs(q), 2 * coefficient * abs(q)
+
+
 @dataclass(frozen=True)
 class NetworkResult:
     pressures_pa: dict
@@ -148,6 +348,23 @@ class NetworkResult:
     pipe_dissipation_w: dict
     power_balance_error_w: float
     iterations: int
+    valve_mass_rates_kg_s: dict = field(default_factory=dict)
+    valve_volume_rates_m3_s: dict = field(default_factory=dict)
+    valve_equation_residuals_pa: dict = field(default_factory=dict)
+    valve_dissipation_w: dict = field(default_factory=dict)
+    pump_mass_rates_kg_s: dict = field(default_factory=dict)
+    pump_volume_rates_m3_s: dict = field(default_factory=dict)
+    pump_equation_residuals_pa: dict = field(default_factory=dict)
+    pump_hydraulic_power_w: dict = field(default_factory=dict)
+    pump_shaft_power_w: dict = field(default_factory=dict)
+    pump_npsh_available_m: dict = field(default_factory=dict)
+    pump_npsh_required_m: dict = field(default_factory=dict)
+    pump_npsh_margin_m: dict = field(default_factory=dict)
+    pump_efficiencies: dict = field(default_factory=dict)
+    pump_head_gains_m: dict = field(default_factory=dict)
+    branch_states: dict = field(default_factory=dict)
+    check_valve_driving_pressure_pa: dict = field(default_factory=dict)
+    operating_controls: dict = field(default_factory=dict)
 
     def to_dict(self):
         return asdict(self)
@@ -165,7 +382,7 @@ class LiquidNetwork:
     mass necessary to hold pressure; those rates are returned explicitly.
     """
 
-    def __init__(self, fluid, nodes, pipes):
+    def __init__(self, fluid, nodes, pipes, pumps=(), valves=()):
         if not isinstance(fluid, Liquid):
             raise TypeError("This network requires one incompressible Liquid")
         self.fluid, self.nodes, self.pipes = fluid, tuple(nodes), tuple(pipes)
@@ -173,19 +390,33 @@ class LiquidNetwork:
             raise ValueError("Provide at least one Node")
         if not all(isinstance(p, Pipe) for p in self.pipes):
             raise ValueError("All branches must be Pipe objects")
+        self.pumps = tuple(pumps)
+        if not all(isinstance(p, Pump) for p in self.pumps):
+            raise ValueError("All pumps must be Pump objects")
+        self.valves = tuple(valves)
+        if not all(isinstance(v, ThrottleValve) for v in self.valves):
+            raise TypeError("All valves must be ThrottleValve objects")
+        self._branches = self.pipes + self.pumps + self.valves
         self._index = {n.name: i for i, n in enumerate(self.nodes)}
         if len(self._index) != len(self.nodes):
             raise ValueError("Duplicate node names")
-        if len({p.name for p in self.pipes}) != len(self.pipes):
-            raise ValueError("Duplicate pipe names")
+        if len({p.name for p in self._branches}) != len(self._branches):
+            raise ValueError("Duplicate branch names")
         # Geometry and endpoints remain valid when closed branches reopen.
-        for p in self.pipes:
+        for p in self._branches:
             if p.start not in self._index or p.end not in self._index:
                 raise ValueError(f"{p.name}: unknown endpoint")
             a, b = self._index[p.start], self._index[p.end]
-            if abs(self.nodes[a].elevation_m - self.nodes[b].elevation_m) > p.length_m + 1e-9:
+            if (
+                isinstance(p, Pipe)
+                and abs(self.nodes[a].elevation_m - self.nodes[b].elevation_m) > p.length_m + 1e-9
+            ):
                 raise ValueError(f"{p.name}: length is less than its elevation difference")
-        self._active = tuple(p for p in self.pipes if p.open)
+        self._active = tuple(
+            p
+            for p in self._branches
+            if p.open and not (isinstance(p, ThrottleValve) and p.opening == 0)
+        )
         rows, cols, values = [], [], []
         for e, p in enumerate(self._active):
             a, b = self._index[p.start], self._index[p.end]
@@ -198,13 +429,15 @@ class LiquidNetwork:
 
     @classmethod
     def from_dict(cls, data):
-        unknown = set(data) - {"model", "fluid", "nodes", "pipes"}
+        unknown = set(data) - {"model", "fluid", "nodes", "pipes", "pumps", "valves"}
         if unknown or data.get("model", "incompressible_liquid") != "incompressible_liquid":
             raise ValueError(f"Unsupported surface model or fields: {sorted(unknown)}")
         return cls(
             Liquid(**data["fluid"]),
             [Node(**n) for n in data["nodes"]],
             [Pipe(**p) for p in data["pipes"]],
+            [Pump(**p) for p in data.get("pumps", [])],
+            [ThrottleValve(**v) for v in data.get("valves", [])],
         )
 
     def to_dict(self):
@@ -213,7 +446,146 @@ class LiquidNetwork:
             "fluid": asdict(self.fluid),
             "nodes": [asdict(n) for n in self.nodes],
             "pipes": [asdict(p) for p in self.pipes],
+            "pumps": [asdict(p) for p in self.pumps],
+            "valves": [asdict(v) for v in self.valves],
         }
+
+    def with_controls(self, pump_speed_ratios=None, pump_status=None, valve_openings=None):
+        """Return an effective immutable equipment configuration."""
+        speeds, status, openings = pump_speed_ratios or {}, pump_status or {}, valve_openings or {}
+        names = {p.name for p in self.pumps}
+        unknown = (set(speeds) | set(status)) - names
+        if unknown:
+            raise ValueError(f"Unknown pump controls: {sorted(unknown)}")
+        unknown = set(openings) - {v.name for v in self.valves}
+        if unknown:
+            raise ValueError(f"Unknown valve controls: {sorted(unknown)}")
+        pumps = [replace(p, speed_ratio=speeds.get(p.name, p.speed_ratio),
+                         open=status.get(p.name, p.open)) for p in self.pumps]
+        valves = [replace(v, opening=openings.get(v.name, v.opening)) for v in self.valves]
+        return LiquidNetwork(self.fluid, self.nodes, self.pipes, pumps, valves)
+
+    def _equipment_controls(self):
+        return {"pump_speed_ratios": {p.name: p.speed_ratio for p in self.pumps},
+                "pump_status": {p.name: p.open for p in self.pumps},
+                "valve_openings": {v.name: v.opening for v in self.valves}}
+
+    def pressure_sensitivities(self, result, source_nodes, pressure_nodes, *,
+                               regulated_pump=None, regulated_node=None):
+        """d(node pressure)/d(source mass rate), with the current active set fixed.
+
+        Recorded operating controls recover the effective configuration. With
+        regulation the speed response is included as an extra unknown. At an
+        active-set transition the derivative is one-sided, not a smooth map.
+        """
+        if (regulated_pump is None) != (regulated_node is None):
+            raise ValueError("A regulated pump and node must be supplied together")
+        if result.operating_controls and result.operating_controls != self._equipment_controls():
+            return self.with_controls(**result.operating_controls).pressure_sensitivities(
+                result, source_nodes, pressure_nodes, regulated_pump=regulated_pump,
+                regulated_node=regulated_node)
+        return self._pressure_tangent(result, source_nodes, pressure_nodes,
+                                      regulated_pump, regulated_node)
+
+    def pump_speed_sensitivities(self, result, pump_names, pressure_nodes):
+        """d(node pressure)/d(pump speed), for the recorded equipment state."""
+        if result.operating_controls and result.operating_controls != self._equipment_controls():
+            return self.with_controls(**result.operating_controls).pump_speed_sensitivities(
+                result, pump_names, pressure_nodes)
+        return self._pressure_tangent(result, (), pressure_nodes, speed_pumps=tuple(pump_names))
+
+    def _pressure_tangent(self, result, source_nodes, pressure_nodes,
+                          regulated_pump=None, regulated_node=None, speed_pumps=()):
+        source_nodes, pressure_nodes = tuple(source_nodes), tuple(pressure_nodes)
+        for name in source_nodes + pressure_nodes:
+            if name not in self._index:
+                raise ValueError(f"Unknown sensitivity node: {name}")
+        rho = self.fluid.density_kg_m3
+        fixed = np.array([n.name in result.boundary_mass_rates_kg_s for n in self.nodes])
+        if any(fixed[self._index[name]] for name in source_nodes):
+            raise ValueError("Source sensitivity requires a free-pressure node")
+        free = np.flatnonzero(~fixed)
+        Bf = self._B[free].tocsc()
+        rates = dict(
+            result.pipe_volume_rates_m3_s,
+            **result.pump_volume_rates_m3_s,
+            **result.valve_volume_rates_m3_s,
+        )
+        q = np.array([rates[p.name] for p in self._active])
+        heads = np.array(
+            [
+                _number(result.pressures_pa[n.name], "sensitivity pressure", positive=True)
+                + rho * G * n.elevation_m
+                for n in self.nodes
+            ]
+        )
+        losses = np.array(
+            [p.loss_and_gradient(float(v), self.fluid) for p, v in zip(self._active, q)]
+        ).reshape(-1, 2)
+        blocked = np.array([result.branch_states.get(p.name) == "blocked" for p in self._active], dtype=bool)
+        driving = self._B.T @ heads - losses[:, 0]
+        if (
+            np.max(np.abs(driving[~blocked]), initial=0) > 1e-3
+            or np.max(driving[blocked], initial=0) > 1e-3
+        ):
+            raise ValueError("Sensitivity state does not satisfy this network configuration")
+        ps = max(1e5, float(np.abs(heads).max(initial=0)))
+        qs = max(1e-6, float(np.abs(q).max(initial=0)))
+        ms = rho * qs
+        tangent = np.where(blocked, 1.0, losses[:, 1] * qs / ps)
+        jac = sp.bmat(
+            [
+                [sp.diags((~blocked).astype(float)) @ Bf.T, -sp.diags(tangent)],
+                [sp.csc_matrix((len(free), len(free))), Bf * (rho * qs / ms)],
+            ],
+            format="csc",
+        )
+        count = len(speed_pumps) if speed_pumps else len(source_nodes)
+        rhs = np.zeros((len(self._active) + len(free), count))
+        free_position = {int(node): i for i, node in enumerate(free)}
+        for col, name in enumerate(source_nodes):
+            rhs[len(self._active) + free_position[self._index[name]], col] = 1 / ms
+        pump_positions = {p.name: i for i, p in enumerate(self._active) if isinstance(p, Pump)}
+        for col, name in enumerate(speed_pumps):
+            if name not in {p.name for p in self.pumps}:
+                raise ValueError(f"Unknown sensitivity pump: {name}")
+            if name in pump_positions:
+                pos = pump_positions[name]
+                if not blocked[pos]:
+                    rhs[pos, col] = self._active[pos].loss_speed_gradient(q[pos], self.fluid) / ps
+        if regulated_pump is not None:
+            regulated_names = ((regulated_pump,) if isinstance(regulated_pump, str)
+                               else tuple(regulated_pump))
+            if not regulated_names or len(set(regulated_names)) != len(regulated_names):
+                raise ValueError("Regulated pump group must be nonempty and distinct")
+            if set(regulated_names) - set(pump_positions) or regulated_node not in self._index:
+                raise ValueError("Unknown/closed regulated pump or node")
+            node = self._index[regulated_node]
+            if fixed[node]:
+                raise ValueError("Regulated sensitivity node must be free")
+            positions = [pump_positions[name] for name in regulated_names]
+            if all(blocked[pos] for pos in positions):
+                raise HydraulicConvergenceError("Blocked pump cannot regulate pressure")
+            column = np.zeros((jac.shape[0], 1))
+            for pos in positions:
+                if not blocked[pos]:
+                    column[pos, 0] = -self._active[pos].loss_speed_gradient(q[pos], self.fluid) / ps
+            row = np.zeros((1, jac.shape[1]))
+            row[0, free_position[node]] = 1.0
+            jac = sp.bmat([[jac, sp.csc_matrix(column)],
+                           [sp.csc_matrix(row), sp.csc_matrix((1, 1))]], format="csc")
+            rhs = np.vstack([rhs, np.zeros((1, count))])
+        if jac.shape[0] == 0:
+            return np.zeros((len(pressure_nodes), count))
+        try:
+            solution = splu(jac).solve(rhs)
+        except RuntimeError as error:
+            raise HydraulicConvergenceError("Singular network sensitivity system") from error
+        if not np.isfinite(solution).all():
+            raise HydraulicConvergenceError("Nonfinite network sensitivity")
+        derivative = np.zeros((len(self.nodes), count))
+        derivative[free] = ps * solution[: len(free)]
+        return derivative[[self._index[name] for name in pressure_nodes]]
 
     def solve(
         self,
@@ -223,6 +595,9 @@ class LiquidNetwork:
         pressure_tolerance_pa=1e-3,
         mass_tolerance_kg_s=1e-8,
         max_iterations=60,
+        pump_speed_ratios=None,
+        pump_status=None,
+        valve_openings=None,
     ):
         """Solve without mutating the model or the previous result.
 
@@ -231,6 +606,12 @@ class LiquidNetwork:
         the interface for subsequent well/facility coupling, not a coupled
         reservoir solve in this first single-liquid implementation.
         """
+        if pump_speed_ratios or pump_status or valve_openings:
+            return self.with_controls(pump_speed_ratios, pump_status, valve_openings).solve(
+                source_mass_rates_kg_s=source_mass_rates_kg_s,
+                boundary_pressures_pa=boundary_pressures_pa, initial=initial,
+                pressure_tolerance_pa=pressure_tolerance_pa,
+                mass_tolerance_kg_s=mass_tolerance_kg_s, max_iterations=max_iterations)
         ptol = _number(pressure_tolerance_pa, "pressure_tolerance_pa", positive=True)
         mtol = _number(mass_tolerance_kg_s, "mass_tolerance_kg_s", positive=True)
         if (
@@ -269,23 +650,38 @@ class LiquidNetwork:
         free = np.flatnonzero(~fixed)
         Bf, B = self._B[free].tocsc(), self._B
         H = np.where(fixed, pressures + rho * G * z, 0.0)
-        if initial is None:
-            conductance = np.array(
-                [
-                    math.pi * p.diameter_m**4 / (128 * self.fluid.viscosity_pa_s * p.length_m)
-                    for p in self._active
-                ]
+
+        def initial_conductance(branch):
+            if isinstance(branch, Pipe):
+                return (
+                    math.pi
+                    * branch.diameter_m**4
+                    / (128 * self.fluid.viscosity_pa_s * branch.length_m)
+                )
+            if isinstance(branch, Pump):
+                return branch.max_flow_m3_s / (rho * G * branch.speed_ratio * branch.shutoff_head_m)
+            area = (
+                math.pi * branch.diameter_m**2 / 4 * branch.opening * branch.discharge_coefficient
             )
+            return area * math.sqrt(2 / (rho * 1e5))
+
+        if initial is None:
+            conductance = np.array([initial_conductance(p) for p in self._active])
+            offsets = np.array([p.loss_and_gradient(0.0, self.fluid)[0] for p in self._active])
             if len(free):
                 A = Bf @ sp.diags(conductance) @ Bf.T
                 H[free] = splu(A.tocsc()).solve(
-                    sources[free] / rho - Bf @ (conductance * (B.T @ H))
+                    sources[free] / rho - Bf @ (conductance * (B.T @ H - offsets))
                 )
-            q = conductance * (B.T @ H)
+            q = conductance * (B.T @ H - offsets)
         else:
             if set(initial.pressures_pa) != set(self._index) or set(
-                initial.pipe_mass_rates_kg_s
-            ) != {p.name for p in self.pipes}:
+                dict(
+                    initial.pipe_mass_rates_kg_s,
+                    **initial.pump_mass_rates_kg_s,
+                    **initial.valve_mass_rates_kg_s,
+                )
+            ) != {p.name for p in self._branches}:
                 raise ValueError("Initial result does not match network node/pipe names")
             H[free] = [
                 _number(initial.pressures_pa[self.nodes[i].name], "initial pressure", positive=True)
@@ -294,7 +690,17 @@ class LiquidNetwork:
             ]
             q = np.array(
                 [
-                    _number(initial.pipe_mass_rates_kg_s[p.name], "initial rate") / rho
+                    _number(
+                        (
+                            initial.pipe_mass_rates_kg_s
+                            if isinstance(p, Pipe)
+                            else initial.pump_mass_rates_kg_s
+                            if isinstance(p, Pump)
+                            else initial.valve_mass_rates_kg_s
+                        )[p.name],
+                        "initial rate",
+                    )
+                    / rho
                     for p in self._active
                 ]
             )
@@ -302,32 +708,62 @@ class LiquidNetwork:
         qscale = max(
             1e-8,
             float(np.abs(sources).sum()) / rho,
-            max((math.pi * p.diameter_m**2 / 4 for p in self._active), default=0.0),
+            max(
+                (
+                    math.pi * p.diameter_m**2 / 4
+                    if not isinstance(p, Pump)
+                    else p.speed_ratio * p.max_flow_m3_s
+                    for p in self._active
+                ),
+                default=0.0,
+            ),
         )
         mscale = max(1.0, rho * qscale)
+
+        protected = np.array([p.check_valve for p in self._active], dtype=bool)
 
         def residual(head, rate):
             losses = np.array(
                 [p.loss_and_gradient(float(v), self.fluid) for p, v in zip(self._active, rate)]
             ).reshape(-1, 2)
-            re = B.T @ head - losses[:, 0]
+            driving = B.T @ head - losses[:, 0]
+            # Complementarity: q >= 0, driving <= 0, q*driving = 0.
+            # max(driving/pscale, -q/qscale)=0 admits a shut non-return valve
+            # without introducing artificial leakage or large resistances.
+            blocked = protected & (-rate / qscale >= driving / pscale)
+            re = np.where(blocked, -rate * pscale / qscale, driving)
             rm = rho * (Bf @ rate) - sources[free]
-            return losses, re, rm, np.concatenate((re / pscale, rm / mscale))
+            return losses, re, rm, np.concatenate((re / pscale, rm / mscale)), blocked
 
         for iteration in range(max_iterations + 1):
-            losses, re, rm, r = residual(H, q)
+            losses, re, rm, r, blocked = residual(H, q)
             if not np.isfinite(r).all():
                 raise HydraulicConvergenceError("Nonfinite hydraulic residual")
             if np.max(np.abs(re), initial=0.0) <= ptol and np.max(np.abs(rm), initial=0.0) <= mtol:
-                break
+                if np.any(blocked & (q != 0)):
+                    q[blocked] = 0.0
+                    losses, re, rm, r, blocked = residual(H, q)
+                if (
+                    np.max(np.abs(re), initial=0.0) <= ptol
+                    and np.max(np.abs(rm), initial=0.0) <= mtol
+                ):
+                    break
             if iteration == max_iterations:
                 raise HydraulicConvergenceError(
                     f"Iteration limit: pressure={abs(re).max(initial=0.0)} Pa, "
                     f"mass={abs(rm).max(initial=0.0)} kg/s"
                 )
+            tangent = losses[:, 1].copy()
+            for e, branch in enumerate(self._active):
+                if tangent[e] == 0 and not blocked[e]:
+                    # Exact quadratic/orifice residual; startup secant only.
+                    tangent[e] = 1 / initial_conductance(branch)
             J = sp.bmat(
                 [
-                    [Bf.T, -sp.diags(losses[:, 1] * qscale / pscale)],
+                    [
+                        sp.diags((~blocked).astype(float)) @ Bf.T,
+                        -sp.diags(np.where(blocked, 1.0, tangent * qscale / pscale)),
+                    ],
                     [sp.csc_matrix((len(free), len(free))), Bf * (rho * qscale / mscale)],
                 ],
                 format="csc",
@@ -344,7 +780,7 @@ class LiquidNetwork:
                 trial_H = H.copy()
                 trial_H[free] += alpha * pscale * step[: len(free)]
                 trial_q = q + alpha * qscale * step[len(free) :]
-                _, _, _, trial_r = residual(trial_H, trial_q)
+                _, _, _, trial_r, _ = residual(trial_H, trial_q)
                 if (
                     np.isfinite(trial_r).all()
                     and np.linalg.norm(trial_r) <= (1 - 1e-4 * alpha) * norm
@@ -354,6 +790,14 @@ class LiquidNetwork:
                 alpha *= 0.5
             else:
                 raise HydraulicConvergenceError("Hydraulic line search failed")
+        if blocked.any():
+            live = B[:, ~blocked]
+            _, components = sp.csgraph.connected_components(abs(live) @ abs(live.T), directed=False)
+            for component in np.unique(components):
+                if not fixed[components == component].any():
+                    raise EquipmentOperatingError(
+                        "Pressure is undetermined in a component isolated by non-return valves"
+                    )
         solved_pressures = H - rho * G * z
         solved_pressures[fixed] = pressures[fixed]
         pressures = solved_pressures
@@ -367,8 +811,53 @@ class LiquidNetwork:
         boundary = np.where(fixed, rho * (B @ q) - sources, 0.0)
         mass_residual = rho * (B @ q) - sources - boundary
         mass_rates = dict.fromkeys((p.name for p in self.pipes), 0.0)
-        mass_rates.update({p.name: float(v * rho) for p, v in zip(self._active, q)})
-        dissipation = {p.name: float(v * loss) for p, v, loss in zip(self._active, q, losses[:, 0])}
+        mass_rates.update(
+            {p.name: float(v * rho) for p, v in zip(self._active, q) if isinstance(p, Pipe)}
+        )
+        pump_rates = dict.fromkeys((p.name for p in self.pumps), 0.0)
+        hydraulic, shaft, npsh = {}, {}, {}
+        required_npsh, npsh_margin, efficiencies, head_gains = {}, {}, {}, {}
+        states = {p.name: "closed" for p in self._branches}
+        valve_driving = {}
+        raw_driving = B.T @ H - losses[:, 0]
+        for p, v, shut, driving in zip(self._active, q, blocked, raw_driving):
+            states[p.name] = "blocked" if shut else "open"
+            if p.check_valve:
+                valve_driving[p.name] = float(driving)
+            if isinstance(p, Pump) and not shut:
+                power, drive, available = p.operating_state(
+                    float(v), pressures[self._index[p.start]], self.fluid
+                )
+                pump_rates[p.name] = float(v * rho)
+                hydraulic[p.name], shaft[p.name] = float(power), float(drive)
+                efficiencies[p.name] = float(p.efficiency_at(float(v)))
+                head_gains[p.name] = float(
+                    -p.loss_and_gradient(float(v), self.fluid)[0] / (rho * G)
+                )
+                required = p.required_npsh_at(float(v))
+                if available is not None:
+                    npsh[p.name] = float(available)
+                if required is not None:
+                    required_npsh[p.name] = float(required)
+                    npsh_margin[p.name] = float(available - required)
+        dissipation = {
+            p.name: float(v * loss)
+            for p, v, loss in zip(self._active, q, losses[:, 0])
+            if isinstance(p, Pipe)
+        }
+        valve_rates = dict.fromkeys((v.name for v in self.valves), 0.0)
+        valve_rates.update(
+            {
+                p.name: float(v * rho)
+                for p, v in zip(self._active, q)
+                if isinstance(p, ThrottleValve)
+            }
+        )
+        valve_dissipation = {
+            p.name: float(v * loss)
+            for p, v, loss in zip(self._active, q, losses[:, 0])
+            if isinstance(p, ThrottleValve)
+        }
         return NetworkResult(
             pressures_pa={n.name: float(v) for n, v in zip(self.nodes, pressures)},
             pipe_mass_rates_kg_s=mass_rates,
@@ -377,8 +866,36 @@ class LiquidNetwork:
                 n.name: float(boundary[i]) for i, n in enumerate(self.nodes) if fixed[i]
             },
             node_mass_residuals_kg_s={n.name: float(v) for n, v in zip(self.nodes, mass_residual)},
-            pipe_equation_residuals_pa={p.name: float(v) for p, v in zip(self._active, re)},
+            pipe_equation_residuals_pa={
+                p.name: float(v) for p, v in zip(self._active, re) if isinstance(p, Pipe)
+            },
             pipe_dissipation_w=dissipation,
-            power_balance_error_w=float(H @ (sources + boundary) / rho - sum(dissipation.values())),
+            power_balance_error_w=float(
+                H @ (sources + boundary) / rho
+                + sum(hydraulic.values())
+                - sum(dissipation.values())
+                - sum(valve_dissipation.values())
+            ),
             iterations=iteration,
+            valve_mass_rates_kg_s=valve_rates,
+            valve_volume_rates_m3_s={name: v / rho for name, v in valve_rates.items()},
+            valve_equation_residuals_pa={
+                p.name: float(v) for p, v in zip(self._active, re) if isinstance(p, ThrottleValve)
+            },
+            valve_dissipation_w=valve_dissipation,
+            pump_mass_rates_kg_s=pump_rates,
+            pump_volume_rates_m3_s={name: v / rho for name, v in pump_rates.items()},
+            pump_equation_residuals_pa={
+                p.name: float(v) for p, v in zip(self._active, re) if isinstance(p, Pump)
+            },
+            pump_hydraulic_power_w=hydraulic,
+            pump_shaft_power_w=shaft,
+            pump_npsh_available_m=npsh,
+            pump_npsh_required_m=required_npsh,
+            pump_npsh_margin_m=npsh_margin,
+            pump_efficiencies=efficiencies,
+            pump_head_gains_m=head_gains,
+            branch_states=states,
+            check_valve_driving_pressure_pa=valve_driving,
+            operating_controls=self._equipment_controls(),
         )

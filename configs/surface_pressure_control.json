@@ -1,0 +1,9 @@
+{
+  "pump": "booster",
+  "node": "discharge",
+  "target_pressure_pa": 216000,
+  "min_speed_ratio": 0.5,
+  "max_speed_ratio": 1.2,
+  "pressure_tolerance_pa": 1.0,
+  "max_evaluations": 50
+}

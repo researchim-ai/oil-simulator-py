@@ -1,0 +1,63 @@
+{
+  "reference": "OpenWaterAnalytics EPANET v2.2",
+  "source": {
+    "url": "https://codeload.github.com/OpenWaterAnalytics/EPANET/tar.gz/refs/tags/v2.2",
+    "sha256": "0deffd034363fd7cf4275fff0a795c88a0eae1ce964c7f4fb95de8a38b892b1b",
+    "version": "2.2.0"
+  },
+  "input": {
+    "model": "incompressible_liquid",
+    "fluid": {
+      "density_kg_m3": 850,
+      "viscosity_pa_s": 0.1,
+      "vapor_pressure_pa": 2000
+    },
+    "nodes": [
+      {
+        "name": "suction",
+        "pressure_pa": 200000
+      },
+      {
+        "name": "discharge"
+      },
+      {
+        "name": "outlet",
+        "pressure_pa": 200000
+      }
+    ],
+    "pipes": [
+      {
+        "name": "line",
+        "start": "discharge",
+        "end": "outlet",
+        "length_m": 100,
+        "diameter_m": 0.1
+      }
+    ],
+    "pumps": [
+      {
+        "name": "booster",
+        "start": "suction",
+        "end": "discharge",
+        "shutoff_head_m": 20,
+        "curve_coefficient_s2_m5": 1000000,
+        "max_flow_m3_s": 0.0044,
+        "efficiency": 0.75,
+        "speed_ratio": 1.0,
+        "max_shaft_power_w": 1500,
+        "npsh_required_m": 3,
+        "inlet_diameter_m": 0.1
+      }
+    ]
+  },
+  "epanet_heads_m": {
+    "suction": 23.99332265830419,
+    "discharge": 26.061465897465546,
+    "outlet": 23.99332265830419
+  },
+  "epanet_flows_lps": {
+    "line": 4.234602314366577,
+    "booster": 4.234602314366563
+  },
+  "note": "EPANET uses g=32.2 ft/s2 and rounded local-loss coefficient; production uses standard g=9.80665 m/s2. Viscosity explicitly matched."
+}

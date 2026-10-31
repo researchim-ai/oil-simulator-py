@@ -122,6 +122,10 @@ nav:
       - Продвинутые возможности: ADVANCED_FEATURES.md
       - 3D Визуализация: 3D_VISUALIZATION.md
       - ParaView: PARAVIEW.md
+  - Наземное моделирование:
+      - Модели и ограничения: SURFACE_MODELING.md
+      - Термодинамика: THERMODYNAMICS.md
+      - Справочник конфигурации: SURFACE_CONFIG_REFERENCE.md
   - Производительность:
       - Производительность: PERFORMANCE.md
       - План развития: ROADMAP.md

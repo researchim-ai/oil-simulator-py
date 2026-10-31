@@ -30,6 +30,7 @@ except (ImportError, ValueError):
     from solver.fgmres import fgmres
 from .cpr_gpu import CPRPreconditionerGPU
 from .fim_transaction import atomic_fim_step
+from .surface_coupling import SurfaceCoupledWaterWells, surface_step_failure
 
 
 def configure_torch_execution(params):
@@ -71,7 +72,15 @@ class ManualFIMSolver:
         self.no = float(getattr(fluid, 'no', 2.0))
 
         self._build_connections()
-        self.wells = FIMWells(well_manager, reservoir, fluid, reservoir.dimensions, self.device)
+        if params.get("physical_surface_network") is not None:
+            for field in ("pressure", "s_w", "s_o"):
+                setattr(fluid, field, getattr(fluid, field).double())
+            self.wells = SurfaceCoupledWaterWells(
+                well_manager, reservoir, fluid, reservoir.dimensions,
+                self.device, params["physical_surface_network"],
+            )
+        else:
+            self.wells = FIMWells(well_manager, reservoir, fluid, reservoir.dimensions, self.device)
         for w in self.wells.wells:
             print(f"  Скважина {w.name}: перфораций {len(w.perforations)}, WI = "
                   + ", ".join(f"{v:.3e}" for v in w.connection_wi) + " м³")
@@ -337,7 +346,8 @@ class ManualFIMSolver:
         if wsys is not None:
             rate = wsys["is_rate"]
             tgt = wsys["target"].abs()
-            rel = wsys["r_w"].abs() / torch.clamp(tgt, min=1e-12)
+            normalization = wsys.get("rate_normalization", torch.clamp(tgt, min=1e-12))
+            rel = wsys["r_w"].abs() / normalization
             rate_err = torch.where(rate, rel, torch.zeros_like(rel))
             bhp_err = torch.where(rate, torch.zeros_like(rel), wsys["r_w"].abs())
             well_err = float(rate_err.max()) if rate.any() else 0.0
@@ -347,6 +357,7 @@ class ManualFIMSolver:
         return ok, {"cnv": cnv_l, "mb": mb_l, "well_rate_rel_err": well_err}
 
     # ------------------------------------------------------------------ шаг
+    @surface_step_failure
     @atomic_fim_step
     def step(self, dt, current_time=None):
         """Шаг по времени dt [с]. Состояние флюида и скважин фиксируется только при сходимости."""

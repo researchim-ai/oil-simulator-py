@@ -1,0 +1,238 @@
+{
+  "simulation": {
+    "solver_type": "fully_implicit",
+    "fim_model": "blackoil",
+    "newton_max_iter": 30,
+    "newton_tol_cnv": 1e-07,
+    "newton_tol_mb": 1e-08,
+    "newton_tol_well_bhp": 0.1,
+    "newton_relaxed_max_pv_fraction": 0.0,
+    "physical_surface_network": {
+      "well_nodes": {
+        "P1": "bottom_1",
+        "P2": "bottom_2"
+      },
+      "network": {
+        "model": "homogeneous_blackoil_tree",
+        "pvt": {
+          "pressure_MPa": [
+            0.1,
+            1.0,
+            5.0
+          ],
+          "Bo": [
+            1.0,
+            1.04,
+            1.16
+          ],
+          "Bw": [
+            1,
+            1,
+            1
+          ],
+          "Bg": [
+            1.0,
+            0.1,
+            0.02
+          ],
+          "mu_o_cP": [
+            5.0,
+            4.2,
+            1.8
+          ],
+          "mu_w_cP": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "mu_g_cP": [
+            0.01,
+            0.012,
+            0.015
+          ],
+          "Rs_m3m3": [
+            0.0,
+            20.0,
+            80.0
+          ],
+          "Rv_m3m3": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "extended": {
+            "oil": {
+              "rs_values": [
+                0.0,
+                20.0,
+                80.0
+              ],
+              "tables": {
+                "0.0": {
+                  "pressure_MPa": [
+                    0.1,
+                    1.0,
+                    5.0
+                  ],
+                  "Bo": [
+                    1.0,
+                    0.9991,
+                    0.9951
+                  ],
+                  "mu_o_cP": [
+                    5.0,
+                    5.009,
+                    5.049
+                  ]
+                },
+                "20.0": {
+                  "pressure_MPa": [
+                    0.1,
+                    1.0,
+                    5.0
+                  ],
+                  "Bo": [
+                    1.0409,
+                    1.04,
+                    1.036
+                  ],
+                  "mu_o_cP": [
+                    4.191,
+                    4.2,
+                    4.24
+                  ]
+                },
+                "80.0": {
+                  "pressure_MPa": [
+                    0.1,
+                    1.0,
+                    5.0
+                  ],
+                  "Bo": [
+                    1.1648999999999998,
+                    1.164,
+                    1.16
+                  ],
+                  "mu_o_cP": [
+                    1.751,
+                    1.7599999999999998,
+                    1.7999999999999998
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "stock_densities": {
+          "oil_kg_m3": 850,
+          "water_kg_m3": 1000,
+          "gas_kg_m3": 1.2
+        },
+        "nodes": [
+          {
+            "name": "bottom_1",
+            "elevation_m": -40
+          },
+          {
+            "name": "bottom_2",
+            "elevation_m": -40
+          },
+          {
+            "name": "header",
+            "elevation_m": -10
+          },
+          {
+            "name": "outlet",
+            "pressure_pa": 1000000.0
+          }
+        ],
+        "pipes": [
+          {
+            "name": "tube1",
+            "start": "bottom_1",
+            "end": "header",
+            "length_m": 300,
+            "diameter_m": 0.025,
+            "roughness_m": 1e-05
+          },
+          {
+            "name": "tube2",
+            "start": "bottom_2",
+            "end": "header",
+            "length_m": 300,
+            "diameter_m": 0.025,
+            "roughness_m": 1e-05
+          },
+          {
+            "name": "collector",
+            "start": "header",
+            "end": "outlet",
+            "length_m": 700,
+            "diameter_m": 0.02,
+            "roughness_m": 1e-05,
+            "loss_coefficient": 80,
+            "valve_opening": 0.8
+          }
+        ]
+      }
+    }
+  },
+  "reservoir": {
+    "dimensions": [
+      3,
+      1,
+      1
+    ],
+    "grid_size": [
+      20,
+      20,
+      80
+    ],
+    "porosity": 0.2,
+    "permeability": 100
+  },
+  "fluid": {
+    "pressure": 3.0,
+    "s_w": 0.35,
+    "s_g": 0.03,
+    "rho_oil": 850,
+    "rho_water": 1000,
+    "rho_gas": 1.2,
+    "pvt_path": "configs/pvt/pvt_surface_coupled.json",
+    "c_rock": 1e-05,
+    "relative_permeability": {
+      "nw": 2,
+      "no": 2,
+      "ng": 2,
+      "sw_cr": 0.2,
+      "so_r": 0.2,
+      "sg_cr": 0.02
+    }
+  },
+  "wells": [
+    {
+      "name": "P1",
+      "type": "producer",
+      "i": 0,
+      "j": 0,
+      "k": 0,
+      "radius": 0.1,
+      "control_type": "rate",
+      "control_value": 100,
+      "surface_phase": "liquid",
+      "well_index": 1e-12
+    },
+    {
+      "name": "P2",
+      "type": "producer",
+      "i": 2,
+      "j": 0,
+      "k": 0,
+      "radius": 0.1,
+      "control_type": "rate",
+      "control_value": 100,
+      "surface_phase": "liquid",
+      "well_index": 1e-12
+    }
+  ]
+}

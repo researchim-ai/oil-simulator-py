@@ -1,0 +1,16 @@
+{
+  "model": "incompressible_liquid",
+  "fluid": {"density_kg_m3": 1000, "viscosity_pa_s": 0.001, "vapor_pressure_pa": 2300},
+  "nodes": [
+    {"name": "supply", "pressure_pa": 200000},
+    {"name": "header"},
+    {"name": "outlet", "pressure_pa": 500000}
+  ],
+  "pipes": [{"name": "line", "start": "header", "end": "outlet", "length_m": 100, "diameter_m": 0.1}],
+  "pumps": [
+    {"name": "strong", "start": "supply", "end": "header", "shutoff_head_m": 40,
+     "curve_coefficient_s2_m5": 1000000, "max_flow_m3_s": 0.006, "check_valve": true},
+    {"name": "weak", "start": "supply", "end": "header", "shutoff_head_m": 10,
+     "curve_coefficient_s2_m5": 1000000, "max_flow_m3_s": 0.003, "check_valve": true}
+  ]
+}

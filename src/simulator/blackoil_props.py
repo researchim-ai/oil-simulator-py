@@ -3,6 +3,7 @@
 """
 import math
 
+import numpy as np
 import torch
 
 _BOUNDS = {}
@@ -301,6 +302,43 @@ class BlackOilPVT:
         self.Bo, self.Bw, self.Bg = T(t.Bo), T(t.Bw), T(t.Bg)
         self.mu_o, self.mu_w, self.mu_g = T(t.mu_o * 1e-3), T(t.mu_w * 1e-3), T(t.mu_g * 1e-3)
         self.Rs = T(t.Rs)
+        self.oil_rs_axis = T(t.oil_rs) if len(t.oil_rs) >= 2 else None
+        if self.oil_rs_axis is not None:
+            tables = [t.oil_tables[float(r)] for r in t.oil_rs]
+            if not np.isfinite(t.oil_rs).all() or np.any(np.diff(t.oil_rs) <= 0):
+                raise ValueError("Extended PVTO Rs axis must be finite and strictly increasing")
+            for row in tables:
+                xp, bo, mu = row["pressure_MPa"], row["Bo"], row["mu_o_cP"]
+                if (
+                    len(xp) == 0
+                    or not np.isfinite(xp).all()
+                    or np.any(np.diff(xp) <= 0)
+                    or bo.shape != xp.shape
+                    or mu.shape != xp.shape
+                    or not np.isfinite(bo).all()
+                    or not np.isfinite(mu).all()
+                    or np.any(bo <= 0)
+                    or np.any(mu <= 0)
+                ):
+                    raise ValueError("Invalid extended PVTO pressure/Bo/viscosity table")
+            # A common union of knots represents every piecewise-linear row
+            # exactly. Four flattened gathers per cell avoid an Rs x cells
+            # temporary (and preserve constant extrapolation of PVTTable).
+            pressure_axis = np.unique(np.concatenate([row["pressure_MPa"] for row in tables]))
+            self.oil_pressure_axis = T(pressure_axis * 1e6)
+            self.oil_pressure_bounds = (float(pressure_axis[0] * 1e6), float(pressure_axis[-1] * 1e6))
+            self.oil_pressure_count = len(pressure_axis)
+            self.oil_bo_grid = T(
+                np.stack([np.interp(pressure_axis, row["pressure_MPa"], row["Bo"]) for row in tables])
+            ).reshape(-1)
+            self.oil_mu_grid = T(
+                np.stack(
+                    [
+                        np.interp(pressure_axis, row["pressure_MPa"], row["mu_o_cP"]) * 1e-3
+                        for row in tables
+                    ]
+                )
+            ).reshape(-1)
         rs = t.Rs
         k = int(rs.argmax())
         keep = [0] + [i for i in range(1, k + 1) if rs[i] > rs[i - 1] * (1 + 1e-12)]
@@ -331,9 +369,35 @@ class BlackOilPVT:
         if not self.has_pvt:
             return 1.0 + self.c[0] * (p - 1e5), self.mu[0] + 0.0 * p
         Bo_s, mu_s = interp1(p, self.P, self.Bo), interp1(p, self.P, self.mu_o)
-        pb = interp1(rs, self.inv_rs, self.inv_p)
-        Bo_u = interp1(pb, self.P, self.Bo) * torch.exp(-self.c_o * (p - pb))
-        mu_u = interp1(pb, self.P, self.mu_o) * torch.exp(self.c_mu * (p - pb))
+        if self.oil_rs_axis is not None:
+            axis = self.oil_rs_axis
+            lo = (torch.searchsorted(axis, rs.contiguous(), right=True) - 1).clamp(0, len(axis) - 2)
+            hi = lo + 1
+            weight = ((rs - axis[lo]) / (axis[hi] - axis[lo])).clamp(0, 1)
+            n = self.oil_pressure_count
+            if n == 1:
+                Bo_u = (1 - weight) * self.oil_bo_grid[lo] + weight * self.oil_bo_grid[hi]
+                mu_u = (1 - weight) * self.oil_mu_grid[lo] + weight * self.oil_mu_grid[hi]
+            else:
+                pl, pu = self.oil_pressure_bounds
+                pc = torch.where(p < pl, pl, torch.where(p > pu, pu, p))
+                ip = (
+                    torch.searchsorted(self.oil_pressure_axis, pc.detach().contiguous(), right=True) - 1
+                ).clamp(0, n - 2)
+                wp = (pc - self.oil_pressure_axis[ip]) / (
+                    self.oil_pressure_axis[ip + 1] - self.oil_pressure_axis[ip]
+                )
+
+                def evaluate(grid):
+                    low = (1 - wp) * grid[lo * n + ip] + wp * grid[lo * n + ip + 1]
+                    high = (1 - wp) * grid[hi * n + ip] + wp * grid[hi * n + ip + 1]
+                    return (1 - weight) * low + weight * high
+
+                Bo_u, mu_u = evaluate(self.oil_bo_grid), evaluate(self.oil_mu_grid)
+        else:
+            pb = interp1(rs, self.inv_rs, self.inv_p)
+            Bo_u = interp1(pb, self.P, self.Bo) * torch.exp(-self.c_o * (p - pb))
+            mu_u = interp1(pb, self.P, self.mu_o) * torch.exp(self.c_mu * (p - pb))
         return 1.0 / torch.where(sat, Bo_s, Bo_u), torch.where(sat, mu_s, mu_u)
 
     def water(self, p):

@@ -1,0 +1,479 @@
+{
+  "facility": {
+    "stock_densities": {
+      "oil_kg_m3": 850,
+      "water_kg_m3": 1000,
+      "gas_kg_m3": 1.2
+    },
+    "feeds": [
+      {
+        "oil_m3_s": 0.0007,
+        "water_m3_s": 0.0014,
+        "gas_m3_s": 0.035
+      },
+      {
+        "oil_m3_s": 0.0003,
+        "water_m3_s": 0.0006,
+        "gas_m3_s": 0.025
+      }
+    ],
+    "pvt": {
+      "pressure_MPa": [
+        0.1,
+        1.0,
+        5.0
+      ],
+      "Bo": [
+        1.0,
+        1.04,
+        1.16
+      ],
+      "Bw": [
+        1,
+        1,
+        1
+      ],
+      "Bg": [
+        1.0,
+        0.1,
+        0.02
+      ],
+      "mu_o_cP": [
+        5.0,
+        4.2,
+        1.8
+      ],
+      "mu_w_cP": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "mu_g_cP": [
+        0.01,
+        0.012,
+        0.015
+      ],
+      "Rs_m3m3": [
+        0.0,
+        20.0,
+        80.0
+      ],
+      "Rv_m3m3": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "extended": {
+        "oil": {
+          "rs_values": [
+            0.0,
+            20.0,
+            80.0
+          ],
+          "tables": {
+            "0.0": {
+              "pressure_MPa": [
+                0.1,
+                1.0,
+                5.0
+              ],
+              "Bo": [
+                1.0,
+                0.9991,
+                0.9951
+              ],
+              "mu_o_cP": [
+                5.0,
+                5.009,
+                5.049
+              ]
+            },
+            "20.0": {
+              "pressure_MPa": [
+                0.1,
+                1.0,
+                5.0
+              ],
+              "Bo": [
+                1.0409,
+                1.04,
+                1.036
+              ],
+              "mu_o_cP": [
+                4.191,
+                4.2,
+                4.24
+              ]
+            },
+            "80.0": {
+              "pressure_MPa": [
+                0.1,
+                1.0,
+                5.0
+              ],
+              "Bo": [
+                1.1648999999999998,
+                1.164,
+                1.16
+              ],
+              "mu_o_cP": [
+                1.751,
+                1.7599999999999998,
+                1.7999999999999998
+              ]
+            }
+          }
+        }
+      }
+    },
+    "separator_stages": [
+      {
+        "name": "high_pressure",
+        "pressure_pa": 1000000.0
+      },
+      {
+        "name": "stock_tank",
+        "pressure_pa": 100000.0
+      }
+    ],
+    "water_feed_node": "water_inlet",
+    "water_network": {
+      "model": "incompressible_liquid",
+      "fluid": {
+        "density_kg_m3": 1000,
+        "viscosity_pa_s": 0.001,
+        "vapor_pressure_pa": 2300
+      },
+      "nodes": [
+        {
+          "name": "water_inlet"
+        },
+        {
+          "name": "header"
+        },
+        {
+          "name": "valve_in"
+        },
+        {
+          "name": "disposal",
+          "pressure_pa": 400000
+        }
+      ],
+      "pipes": [
+        {
+          "name": "water_line",
+          "start": "header",
+          "end": "valve_in",
+          "length_m": 100,
+          "diameter_m": 0.1
+        }
+      ],
+      "pumps": [
+        {
+          "name": "water_booster",
+          "start": "water_inlet",
+          "end": "header",
+          "shutoff_head_m": 20,
+          "curve_coefficient_s2_m5": 1000000,
+          "max_flow_m3_s": 0.004,
+          "head_curve": {
+            "flow_m3_s": [
+              0,
+              0.002,
+              0.004
+            ],
+            "values": [
+              20,
+              16,
+              8
+            ]
+          },
+          "efficiency_curve": {
+            "flow_m3_s": [
+              0,
+              0.002,
+              0.004
+            ],
+            "values": [
+              0.65,
+              0.8,
+              0.7
+            ]
+          },
+          "npsh_curve": {
+            "flow_m3_s": [
+              0,
+              0.002,
+              0.004
+            ],
+            "values": [
+              1,
+              2,
+              4
+            ]
+          },
+          "inlet_diameter_m": 0.1,
+          "check_valve": true,
+          "max_shaft_power_w": 1000
+        }
+      ],
+      "valves": [
+        {
+          "name": "water_choke",
+          "start": "valve_in",
+          "end": "disposal",
+          "diameter_m": 0.02,
+          "discharge_coefficient": 0.62,
+          "opening": 0.8
+        }
+      ]
+    },
+    "limits": [
+      {
+        "name": "water_pumps",
+        "metric": "shaft_power_total_w",
+        "unit": "W",
+        "maximum": 1000
+      },
+      {
+        "name": "first_stage_gas",
+        "metric": "separator:high_pressure:gas_m3_s",
+        "unit": "m3/s",
+        "maximum": 0.02
+      },
+      {
+        "name": "water_capacity",
+        "metric": "water_handoff_mass_kg_s",
+        "unit": "kg/s",
+        "maximum": 2.5
+      },
+      {
+        "name": "header_rating",
+        "metric": "pressure:header",
+        "unit": "Pa",
+        "maximum": 1000000
+      },
+      {
+        "name": "total_utilities",
+        "metric": "facility_drive_power_total_w",
+        "unit": "W",
+        "maximum": 50000
+      },
+      {
+        "name": "gas_cooling",
+        "metric": "gas_cooling_duty_w",
+        "unit": "W",
+        "maximum": 50000
+      },
+      {
+        "name": "gas_delivery",
+        "metric": "gas_export_pressure_pa",
+        "unit": "Pa",
+        "minimum": 5900000
+      }
+    ],
+    "gas_export": {
+      "header_pressure_pa": 6000000,
+      "inlet_temperature_k": 300,
+      "cooling_temperature_k": 300,
+      "standard_pressure_pa": 100000,
+      "standard_temperature_k": 300,
+      "heat_capacity_ratio": 1.3,
+      "max_stage_pressure_ratio": 4,
+      "cooler_pressure_loss_fraction": 0.02,
+      "export_pipe": {
+        "name": "gas_export",
+        "length_m": 500,
+        "diameter_m": 0.05,
+        "roughness_m": 1e-05
+      }
+    }
+  },
+  "gathering": {
+    "model": "homogeneous_blackoil_tree",
+    "pvt": {
+      "pressure_MPa": [
+        0.1,
+        1.0,
+        5.0
+      ],
+      "Bo": [
+        1.0,
+        1.04,
+        1.16
+      ],
+      "Bw": [
+        1,
+        1,
+        1
+      ],
+      "Bg": [
+        1.0,
+        0.1,
+        0.02
+      ],
+      "mu_o_cP": [
+        5.0,
+        4.2,
+        1.8
+      ],
+      "mu_w_cP": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "mu_g_cP": [
+        0.01,
+        0.012,
+        0.015
+      ],
+      "Rs_m3m3": [
+        0.0,
+        20.0,
+        80.0
+      ],
+      "Rv_m3m3": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "extended": {
+        "oil": {
+          "rs_values": [
+            0.0,
+            20.0,
+            80.0
+          ],
+          "tables": {
+            "0.0": {
+              "pressure_MPa": [
+                0.1,
+                1.0,
+                5.0
+              ],
+              "Bo": [
+                1.0,
+                0.9991,
+                0.9951
+              ],
+              "mu_o_cP": [
+                5.0,
+                5.009,
+                5.049
+              ]
+            },
+            "20.0": {
+              "pressure_MPa": [
+                0.1,
+                1.0,
+                5.0
+              ],
+              "Bo": [
+                1.0409,
+                1.04,
+                1.036
+              ],
+              "mu_o_cP": [
+                4.191,
+                4.2,
+                4.24
+              ]
+            },
+            "80.0": {
+              "pressure_MPa": [
+                0.1,
+                1.0,
+                5.0
+              ],
+              "Bo": [
+                1.1648999999999998,
+                1.164,
+                1.16
+              ],
+              "mu_o_cP": [
+                1.751,
+                1.7599999999999998,
+                1.7999999999999998
+              ]
+            }
+          }
+        }
+      }
+    },
+    "stock_densities": {
+      "oil_kg_m3": 850,
+      "water_kg_m3": 1000,
+      "gas_kg_m3": 1.2
+    },
+    "nodes": [
+      {
+        "name": "A",
+        "elevation_m": -40
+      },
+      {
+        "name": "B",
+        "elevation_m": -30
+      },
+      {
+        "name": "header",
+        "elevation_m": -10
+      },
+      {
+        "name": "separator",
+        "elevation_m": 0,
+        "pressure_pa": 1000000.0
+      }
+    ],
+    "pipes": [
+      {
+        "name": "a",
+        "start": "A",
+        "end": "header",
+        "length_m": 300,
+        "diameter_m": 0.06,
+        "roughness_m": 1e-05,
+        "loss_coefficient": 50,
+        "valve_opening": 0.8
+      },
+      {
+        "name": "b",
+        "start": "B",
+        "end": "header",
+        "length_m": 200,
+        "diameter_m": 0.06,
+        "roughness_m": 1e-05,
+        "loss_coefficient": 50,
+        "valve_opening": 0.8
+      },
+      {
+        "name": "export",
+        "start": "header",
+        "end": "separator",
+        "length_m": 700,
+        "diameter_m": 0.07,
+        "roughness_m": 1e-05,
+        "loss_coefficient": 50,
+        "valve_opening": 0.8
+      }
+    ]
+  },
+  "feed_nodes": [
+    "A",
+    "B"
+  ],
+  "limits": [
+    {
+      "name": "well_A_pressure",
+      "metric": "gathering_pressure:A",
+      "unit": "Pa",
+      "maximum": 2000000.0
+    }
+  ],
+  "pressure_control": {
+    "valve": "export",
+    "node": "header",
+    "target_pressure_pa": 1249727.919735213,
+    "min_opening": 0.4,
+    "max_opening": 1.0
+  }
+}

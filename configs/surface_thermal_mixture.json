@@ -1,0 +1,61 @@
+{
+  "fluid": {
+    "components": [
+      {
+        "name": "Methane",
+        "critical_temperature_k": 190.564,
+        "critical_pressure_pa": 4599200.0,
+        "acentric_factor": 0.01142,
+        "molar_mass_kg_mol": 0.0160428,
+        "ideal_cp_j_mol_k": 35.7,
+        "min_temperature_k": 160.0,
+        "max_temperature_k": 500.0
+      },
+      {
+        "name": "Ethane",
+        "critical_temperature_k": 305.322,
+        "critical_pressure_pa": 4872200.0,
+        "acentric_factor": 0.099,
+        "molar_mass_kg_mol": 0.03006904,
+        "ideal_cp_j_mol_k": 52.5,
+        "min_temperature_k": 160.0,
+        "max_temperature_k": 500.0
+      }
+    ],
+    "binary_interactions": [
+      [
+        0,
+        0
+      ],
+      [
+        0,
+        0
+      ]
+    ]
+  },
+  "operations": [
+    {
+      "type": "pt",
+      "pressure_pa": 3000000.0,
+      "temperature_k": 220,
+      "mole_fractions": [
+        0.5,
+        0.5
+      ]
+    },
+    {
+      "type": "letdown",
+      "equipment": {
+        "name": "mixture-letdown",
+        "outlet_pressure_pa": 1000000.0
+      },
+      "inlet_pressure_pa": 3000000.0,
+      "inlet_temperature_k": 260,
+      "mass_rate_kg_s": 0.25,
+      "mole_fractions": [
+        0.5,
+        0.5
+      ]
+    }
+  ]
+}

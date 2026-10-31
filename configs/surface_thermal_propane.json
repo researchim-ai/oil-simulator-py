@@ -1,0 +1,76 @@
+{
+  "fluid": {
+    "name": "propane",
+    "critical_temperature_k": 369.89,
+    "critical_pressure_pa": 4251200.0,
+    "acentric_factor": 0.1521,
+    "molar_mass_kg_mol": 0.04409562,
+    "ideal_cp_j_mol_k": 73.6,
+    "min_temperature_k": 200.0,
+    "max_temperature_k": 550.0
+  },
+  "operations": [
+    {
+      "type": "state",
+      "pressure_pa": 2000000.0,
+      "temperature_k": 300.0
+    },
+    {
+      "type": "saturation_temperature",
+      "temperature_k": 300.0
+    },
+    {
+      "type": "saturation_pressure",
+      "pressure_pa": 101325.0
+    },
+    {
+      "type": "letdown",
+      "equipment": {
+        "name": "thermal_trim",
+        "outlet_pressure_pa": 101325.0
+      },
+      "inlet_pressure_pa": 2000000.0,
+      "inlet_temperature_k": 300.0,
+      "mass_rate_kg_s": 0.25
+    },
+    {
+      "type": "nozzle",
+      "equipment": {
+        "name": "equilibrium_trim",
+        "throat_area_m2": 1e-05,
+        "minimum_pressure_pa": 101325.0,
+        "discharge_coefficient": 0.8,
+        "scan_points": 33
+      },
+      "inlet_pressure_pa": 2000000.0,
+      "inlet_temperature_k": 300.0,
+      "back_pressure_pa": 101325.0
+    },
+    {
+      "type": "nozzle",
+      "equipment": {
+        "name": "equilibrium_trim",
+        "throat_area_m2": 1e-05,
+        "minimum_pressure_pa": 101325.0,
+        "discharge_coefficient": 0.8,
+        "scan_points": 33
+      },
+      "inlet_pressure_pa": 2000000.0,
+      "inlet_temperature_k": 300.0,
+      "back_pressure_pa": 300000.0
+    },
+    {
+      "type": "nozzle",
+      "equipment": {
+        "name": "equilibrium_trim",
+        "throat_area_m2": 1e-05,
+        "minimum_pressure_pa": 101325.0,
+        "discharge_coefficient": 0.8,
+        "scan_points": 33
+      },
+      "inlet_pressure_pa": 2000000.0,
+      "inlet_temperature_k": 300.0,
+      "back_pressure_pa": 1500000.0
+    }
+  ]
+}

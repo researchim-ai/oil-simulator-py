@@ -1,0 +1,12 @@
+{
+  "fluid": {
+    "oil_density_kg_m3": 850,
+    "water_density_kg_m3": 1000,
+    "oil_viscosity_pa_s": 0.005,
+    "water_viscosity_pa_s": 0.001,
+    "gas": {"specific_gas_constant_j_kg_k": 500, "heat_capacity_ratio": 1.3, "viscosity_pa_s": 0.00001},
+    "minimum_pressure_pa": 10000
+  },
+  "pipe": {"name": "three_phase_riser", "length_m": 1200, "diameter_m": 0.08, "elevation_change_m": 300, "roughness_m": 0.00001},
+  "inlet": {"inlet_pressure_pa": 8000000, "temperature_k": 320, "oil_kg_s": 1, "water_kg_s": 1, "gas_kg_s": 0.1}
+}

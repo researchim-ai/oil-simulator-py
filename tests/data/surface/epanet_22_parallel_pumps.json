@@ -1,0 +1,80 @@
+{
+  "reference": "OpenWaterAnalytics EPANET v2.2",
+  "source": {
+    "url": "https://codeload.github.com/OpenWaterAnalytics/EPANET/tar.gz/refs/tags/v2.2",
+    "sha256": "0deffd034363fd7cf4275fff0a795c88a0eae1ce964c7f4fb95de8a38b892b1b",
+    "version": "2.2.0"
+  },
+  "input": {
+    "model": "incompressible_liquid",
+    "fluid": {
+      "density_kg_m3": 1000,
+      "viscosity_pa_s": 0.001,
+      "vapor_pressure_pa": 2300
+    },
+    "nodes": [
+      {
+        "name": "supply",
+        "pressure_pa": 200000
+      },
+      {
+        "name": "header"
+      },
+      {
+        "name": "outlet",
+        "pressure_pa": 500000
+      }
+    ],
+    "pipes": [
+      {
+        "name": "line",
+        "start": "header",
+        "end": "outlet",
+        "length_m": 100,
+        "diameter_m": 0.1
+      }
+    ],
+    "pumps": [
+      {
+        "name": "strong",
+        "start": "supply",
+        "end": "header",
+        "shutoff_head_m": 40,
+        "curve_coefficient_s2_m5": 1000000,
+        "max_flow_m3_s": 0.006,
+        "check_valve": true
+      },
+      {
+        "name": "weak",
+        "start": "supply",
+        "end": "header",
+        "shutoff_head_m": 10,
+        "curve_coefficient_s2_m5": 1000000,
+        "max_flow_m3_s": 0.003,
+        "check_valve": true
+      }
+    ]
+  },
+  "epanet_heads_m": {
+    "supply": 20.39432425955857,
+    "header": 51.15379424232169,
+    "outlet": 50.98581064889641
+  },
+  "epanet_flows_lps": {
+    "line": 3.039795434294234,
+    "strong": 3.0398240109316856,
+    "weak": 0.0
+  },
+  "epanet_link_status": {
+    "line": 1.0,
+    "strong": 1.0,
+    "weak": 0.0
+  },
+  "epanet_warnings": [
+    {
+      "function": "EN_solveH",
+      "code": 4
+    }
+  ],
+  "note": "EPANET uses g=32.2 ft/s2 and rounded local-loss coefficient; production uses standard g=9.80665 m/s2. Viscosity explicitly matched."
+}

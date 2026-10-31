@@ -1,0 +1,18 @@
+{
+  "model": "incompressible_liquid",
+  "fluid": {"density_kg_m3": 850, "viscosity_pa_s": 0.1, "vapor_pressure_pa": 2000},
+  "nodes": [
+    {"name": "suction", "pressure_pa": 200000},
+    {"name": "discharge"},
+    {"name": "outlet", "pressure_pa": 200000}
+  ],
+  "pipes": [
+    {"name": "line", "start": "discharge", "end": "outlet", "length_m": 100, "diameter_m": 0.1}
+  ],
+  "pumps": [
+    {"name": "booster", "start": "suction", "end": "discharge",
+     "shutoff_head_m": 20, "curve_coefficient_s2_m5": 1000000, "max_flow_m3_s": 0.0044,
+     "efficiency": 0.75, "speed_ratio": 1.0, "max_shaft_power_w": 1500,
+     "npsh_required_m": 3, "inlet_diameter_m": 0.1}
+  ]
+}

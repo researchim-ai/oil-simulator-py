@@ -1,0 +1,29 @@
+{
+  "periods": [
+    {
+      "name": "regulated",
+      "duration_s": 3600
+    },
+    {
+      "name": "branch_restriction",
+      "duration_s": 3600,
+      "gathering_valve_openings": {
+        "a": 0.6
+      }
+    },
+    {
+      "name": "raised_target",
+      "duration_s": 3600,
+      "gathering_target_pressure_pa": 1283474.5877890717
+    },
+    {
+      "name": "shutdown",
+      "duration_s": 600,
+      "shutdown": true
+    },
+    {
+      "name": "restart",
+      "duration_s": 1800
+    }
+  ]
+}

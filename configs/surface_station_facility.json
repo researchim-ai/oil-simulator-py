@@ -1,0 +1,309 @@
+{
+  "stock_densities": {
+    "oil_kg_m3": 850,
+    "water_kg_m3": 1000,
+    "gas_kg_m3": 1.2
+  },
+  "feeds": [
+    {
+      "oil_m3_s": 0.0006,
+      "water_m3_s": 0.0024,
+      "gas_m3_s": 0.072
+    },
+    {
+      "oil_m3_s": 0.0004,
+      "water_m3_s": 0.0016,
+      "gas_m3_s": 0.048
+    }
+  ],
+  "pvt": {
+    "pressure_MPa": [
+      0.1,
+      1.0,
+      5.0
+    ],
+    "Bo": [
+      1.0,
+      1.05,
+      1.15
+    ],
+    "Bw": [
+      1.0,
+      1.0,
+      1.0
+    ],
+    "Bg": [
+      1.0,
+      0.1,
+      0.02
+    ],
+    "Rs_m3m3": [
+      0.0,
+      20.0,
+      80.0
+    ],
+    "Rv_m3m3": [
+      0.0,
+      0.0,
+      0.0
+    ],
+    "mu_o_cP": [
+      5.0,
+      3.0,
+      1.0
+    ],
+    "mu_w_cP": [
+      1.0,
+      1.0,
+      1.0
+    ],
+    "mu_g_cP": [
+      0.01,
+      0.012,
+      0.015
+    ]
+  },
+  "separator_stages": [
+    {
+      "name": "high_pressure",
+      "pressure_pa": 5000000
+    },
+    {
+      "name": "low_pressure",
+      "pressure_pa": 1000000
+    },
+    {
+      "name": "stock_tank",
+      "pressure_pa": 100000
+    }
+  ],
+  "water_feed_node": "water_inlet",
+  "water_network": {
+    "model": "incompressible_liquid",
+    "fluid": {
+      "density_kg_m3": 1000,
+      "viscosity_pa_s": 0.001,
+      "vapor_pressure_pa": 2300
+    },
+    "nodes": [
+      {
+        "name": "water_inlet"
+      },
+      {
+        "name": "header"
+      },
+      {
+        "name": "valve_in"
+      },
+      {
+        "name": "disposal",
+        "pressure_pa": 400000
+      }
+    ],
+    "pipes": [
+      {
+        "name": "water_line",
+        "start": "header",
+        "end": "valve_in",
+        "length_m": 100,
+        "diameter_m": 0.1
+      }
+    ],
+    "pumps": [
+      {
+        "name": "water_booster_1",
+        "start": "water_inlet",
+        "end": "header",
+        "shutoff_head_m": 20,
+        "curve_coefficient_s2_m5": 1000000,
+        "max_flow_m3_s": 0.004,
+        "head_curve": {
+          "flow_m3_s": [
+            0,
+            0.002,
+            0.004
+          ],
+          "values": [
+            20,
+            16,
+            8
+          ]
+        },
+        "efficiency_curve": {
+          "flow_m3_s": [
+            0,
+            0.002,
+            0.004
+          ],
+          "values": [
+            0.65,
+            0.8,
+            0.7
+          ]
+        },
+        "npsh_curve": {
+          "flow_m3_s": [
+            0,
+            0.002,
+            0.004
+          ],
+          "values": [
+            1,
+            2,
+            4
+          ]
+        },
+        "inlet_diameter_m": 0.1,
+        "check_valve": true,
+        "max_shaft_power_w": 600
+      },
+      {
+        "name": "water_booster_2",
+        "start": "water_inlet",
+        "end": "header",
+        "shutoff_head_m": 20,
+        "curve_coefficient_s2_m5": 1000000,
+        "max_flow_m3_s": 0.004,
+        "head_curve": {
+          "flow_m3_s": [
+            0,
+            0.002,
+            0.004
+          ],
+          "values": [
+            20,
+            16,
+            8
+          ]
+        },
+        "efficiency_curve": {
+          "flow_m3_s": [
+            0,
+            0.002,
+            0.004
+          ],
+          "values": [
+            0.65,
+            0.8,
+            0.7
+          ]
+        },
+        "npsh_curve": {
+          "flow_m3_s": [
+            0,
+            0.002,
+            0.004
+          ],
+          "values": [
+            1,
+            2,
+            4
+          ]
+        },
+        "inlet_diameter_m": 0.1,
+        "check_valve": true,
+        "max_shaft_power_w": 600
+      },
+      {
+        "name": "water_booster_3",
+        "start": "water_inlet",
+        "end": "header",
+        "shutoff_head_m": 20,
+        "curve_coefficient_s2_m5": 1000000,
+        "max_flow_m3_s": 0.004,
+        "head_curve": {
+          "flow_m3_s": [
+            0,
+            0.002,
+            0.004
+          ],
+          "values": [
+            20,
+            16,
+            8
+          ]
+        },
+        "efficiency_curve": {
+          "flow_m3_s": [
+            0,
+            0.002,
+            0.004
+          ],
+          "values": [
+            0.65,
+            0.8,
+            0.7
+          ]
+        },
+        "npsh_curve": {
+          "flow_m3_s": [
+            0,
+            0.002,
+            0.004
+          ],
+          "values": [
+            1,
+            2,
+            4
+          ]
+        },
+        "inlet_diameter_m": 0.1,
+        "check_valve": true,
+        "max_shaft_power_w": 600
+      }
+    ],
+    "valves": [
+      {
+        "name": "water_choke",
+        "start": "valve_in",
+        "end": "disposal",
+        "diameter_m": 0.035,
+        "discharge_coefficient": 0.62,
+        "opening": 0.8
+      }
+    ]
+  },
+  "limits": [
+    {
+      "name": "platform_power",
+      "metric": "shaft_power_total_w",
+      "unit": "W",
+      "maximum": 1000
+    },
+    {
+      "name": "first_stage_gas",
+      "metric": "separator:high_pressure:gas_m3_s",
+      "unit": "m3/s",
+      "maximum": 0.001
+    },
+    {
+      "name": "water_capacity",
+      "metric": "water_handoff_mass_kg_s",
+      "unit": "kg/s",
+      "maximum": 8.0
+    },
+    {
+      "name": "header_rating",
+      "metric": "pressure:header",
+      "unit": "Pa",
+      "maximum": 1000000
+    }
+  ],
+  "pump_station_control": {
+    "pumps": [
+      "water_booster_1",
+      "water_booster_2",
+      "water_booster_3"
+    ],
+    "node": "water_inlet",
+    "target_pressure_pa": 300000.0,
+    "min_speed_ratio": 0.5,
+    "max_speed_ratio": 1.2,
+    "max_station_power_w": 850.0,
+    "min_npsh_margin_m": 0.5,
+    "min_pump_flow_m3_s": 0.0007,
+    "switch_saving_w": 20.0,
+    "pressure_tolerance_pa": 0.01,
+    "scan_points": 17
+  }
+}

@@ -18,7 +18,7 @@ _WELL_FIELDS = (
 )
 # These caches are replaced, rather than modified, by assembly. Preserve their
 # bindings without copying dense cross-perforation Jacobian blocks.
-_WELL_BINDINGS = ('_Q', '_lin', 'p_cell_max', '_mix', '_mix_sel', '_producer_mix')
+_WELL_BINDINGS = ('_surface_flow_linearization', 'surface_report', '_Q', '_lin', 'p_cell_max', '_mix', '_mix_sel', '_producer_mix')
 _SOLVER_BINDINGS = (
     'x', 'sat', 'ug', 'so_max', '_rs_cap', '_th_cache', '_p_bh_cur',
     '_last_well_sys', '_prev_norm', '_newton_iter',

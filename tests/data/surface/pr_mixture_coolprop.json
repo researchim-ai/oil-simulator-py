@@ -1,0 +1,210 @@
+{
+  "source": "https://coolprop.org/coolprop/Cubics.html",
+  "version": "7.2.0",
+  "backend": "PR",
+  "inputs": "PQ flash, not homogeneous PT root; constant kij explicitly set",
+  "components": [
+    {
+      "name": "Methane",
+      "critical_temperature_k": 190.564,
+      "critical_pressure_pa": 4599200.0,
+      "acentric_factor": 0.01142,
+      "molar_mass_kg_mol": 0.0160428,
+      "ideal_cp_j_mol_k": 35.7,
+      "min_temperature_k": 160.0,
+      "max_temperature_k": 500.0
+    },
+    {
+      "name": "Ethane",
+      "critical_temperature_k": 305.322,
+      "critical_pressure_pa": 4872200.0,
+      "acentric_factor": 0.099,
+      "molar_mass_kg_mol": 0.03006904,
+      "ideal_cp_j_mol_k": 52.5,
+      "min_temperature_k": 160.0,
+      "max_temperature_k": 500.0
+    }
+  ],
+  "cases": [
+    {
+      "pressure_pa": 1000000.0,
+      "temperature_k": 168.72082487357164,
+      "kij": 0,
+      "vapor_molar_fraction": 0.1,
+      "density_kg_m3": 141.79971137352274,
+      "liquid_mole_fractions": [
+        0.4481100041939966,
+        0.5518899958060034
+      ],
+      "vapor_mole_fractions": [
+        0.9670099627275096,
+        0.03299003727249029
+      ]
+    },
+    {
+      "pressure_pa": 1000000.0,
+      "temperature_k": 196.20442540188213,
+      "kij": 0,
+      "vapor_molar_fraction": 0.5,
+      "density_kg_m3": 30.624812431295418,
+      "liquid_mole_fractions": [
+        0.18573473026280146,
+        0.8142652697371985
+      ],
+      "vapor_mole_fractions": [
+        0.8142652696036127,
+        0.18573473039638747
+      ]
+    },
+    {
+      "pressure_pa": 1000000.0,
+      "temperature_k": 216.9450180719987,
+      "kij": 0,
+      "vapor_molar_fraction": 0.9,
+      "density_kg_m3": 16.06687452724545,
+      "liquid_mole_fractions": [
+        0.08803532968663126,
+        0.9119646703133687
+      ],
+      "vapor_mole_fractions": [
+        0.545773852256989,
+        0.45422614774301084
+      ]
+    },
+    {
+      "pressure_pa": 3000000.0,
+      "temperature_k": 209.64590194620905,
+      "kij": 0,
+      "vapor_molar_fraction": 0.1,
+      "density_kg_m3": 254.08518695704717,
+      "liquid_mole_fractions": [
+        0.458023970735964,
+        0.5419760292640361
+      ],
+      "vapor_mole_fractions": [
+        0.8777842639782341,
+        0.12221573602176591
+      ]
+    },
+    {
+      "pressure_pa": 3000000.0,
+      "temperature_k": 231.38105777636068,
+      "kij": 0,
+      "vapor_molar_fraction": 0.5,
+      "density_kg_m3": 85.96388861289772,
+      "liquid_mole_fractions": [
+        0.28292519441193537,
+        0.7170748055880647
+      ],
+      "vapor_mole_fractions": [
+        0.7170748062571562,
+        0.28292519374284375
+      ]
+    },
+    {
+      "pressure_pa": 3000000.0,
+      "temperature_k": 247.95275699858536,
+      "kij": 0,
+      "vapor_molar_fraction": 0.9,
+      "density_kg_m3": 50.59830522452733,
+      "liquid_mole_fractions": [
+        0.1848207805301216,
+        0.8151792194698784
+      ],
+      "vapor_mole_fractions": [
+        0.5350199132790902,
+        0.46498008672090996
+      ]
+    },
+    {
+      "pressure_pa": 1000000.0,
+      "temperature_k": 171.9041772869534,
+      "kij": -0.03,
+      "vapor_molar_fraction": 0.1,
+      "density_kg_m3": 139.01438614213643,
+      "liquid_mole_fractions": [
+        0.4486977259738762,
+        0.5513022740261238
+      ],
+      "vapor_mole_fractions": [
+        0.9617204662416826,
+        0.03827953375831735
+      ]
+    },
+    {
+      "pressure_pa": 1000000.0,
+      "temperature_k": 198.5199918816757,
+      "kij": -0.03,
+      "vapor_molar_fraction": 0.5,
+      "density_kg_m3": 30.300223013366242,
+      "liquid_mole_fractions": [
+        0.20105216001245602,
+        0.7989478399875439
+      ],
+      "vapor_mole_fractions": [
+        0.7989478400146626,
+        0.2010521599853374
+      ]
+    },
+    {
+      "pressure_pa": 1000000.0,
+      "temperature_k": 217.39906620734507,
+      "kij": -0.03,
+      "vapor_molar_fraction": 0.9,
+      "density_kg_m3": 16.06642796332171,
+      "liquid_mole_fractions": [
+        0.10035376716462686,
+        0.8996462328353731
+      ],
+      "vapor_mole_fractions": [
+        0.5444051369816884,
+        0.4555948630183117
+      ]
+    },
+    {
+      "pressure_pa": 3000000.0,
+      "temperature_k": 213.06610710101486,
+      "kij": -0.03,
+      "vapor_molar_fraction": 0.1,
+      "density_kg_m3": 250.0294530496111,
+      "liquid_mole_fractions": [
+        0.45924126403079935,
+        0.5407587359692008
+      ],
+      "vapor_mole_fractions": [
+        0.8668286239013258,
+        0.13317137609867427
+      ]
+    },
+    {
+      "pressure_pa": 3000000.0,
+      "temperature_k": 233.71930260499457,
+      "kij": -0.03,
+      "vapor_molar_fraction": 0.5,
+      "density_kg_m3": 85.4112925124018,
+      "liquid_mole_fractions": [
+        0.2951974392557065,
+        0.7048025607442935
+      ],
+      "vapor_mole_fractions": [
+        0.7048025609568093,
+        0.29519743904319073
+      ]
+    },
+    {
+      "pressure_pa": 3000000.0,
+      "temperature_k": 248.83414780475445,
+      "kij": -0.03,
+      "vapor_molar_fraction": 0.9,
+      "density_kg_m3": 50.708746414599695,
+      "liquid_mole_fractions": [
+        0.19917746501430061,
+        0.8008225349856994
+      ],
+      "vapor_mole_fractions": [
+        0.5334247261089858,
+        0.4665752738910142
+      ]
+    }
+  ]
+}

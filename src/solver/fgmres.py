@@ -1,5 +1,4 @@
 import torch
-import time
 from .krylov_cuda import rotate_givens
 
 def fgmres(A_mv, b, M_mv=None, max_iter=100, tol=1e-5, restart=20, verbose=False, stats=None):
@@ -70,8 +69,8 @@ def fgmres(A_mv, b, M_mv=None, max_iter=100, tol=1e-5, restart=20, verbose=False
     for outer_iter in range(max_iter):
         # Arnoldi Iteration
         
+        # r_norm was computed for this exact residual at initialization/restart.
         # Normalize first basis vector
-        r_norm = torch.norm(r).item()
         V[0] = r / r_norm
         g[0] = r_norm
         g[1:] = 0

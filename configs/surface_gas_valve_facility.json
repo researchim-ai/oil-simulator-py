@@ -1,0 +1,239 @@
+{
+  "stock_densities": {
+    "oil_kg_m3": 850,
+    "water_kg_m3": 1000,
+    "gas_kg_m3": 1.2
+  },
+  "feeds": [
+    {
+      "oil_m3_s": 0.0006,
+      "water_m3_s": 0.0012,
+      "gas_m3_s": 0.072
+    },
+    {
+      "oil_m3_s": 0.0004,
+      "water_m3_s": 0.0008,
+      "gas_m3_s": 0.048
+    }
+  ],
+  "pvt": {
+    "pressure_MPa": [
+      0.1,
+      1.0,
+      5.0
+    ],
+    "Bo": [
+      1.0,
+      1.05,
+      1.15
+    ],
+    "Bw": [
+      1.0,
+      1.0,
+      1.0
+    ],
+    "Bg": [
+      1.0,
+      0.1,
+      0.02
+    ],
+    "Rs_m3m3": [
+      0.0,
+      20.0,
+      80.0
+    ],
+    "Rv_m3m3": [
+      0.0,
+      0.0,
+      0.0
+    ],
+    "mu_o_cP": [
+      5.0,
+      3.0,
+      1.0
+    ],
+    "mu_w_cP": [
+      1.0,
+      1.0,
+      1.0
+    ],
+    "mu_g_cP": [
+      0.01,
+      0.012,
+      0.015
+    ]
+  },
+  "separator_stages": [
+    {
+      "name": "high_pressure",
+      "pressure_pa": 5000000
+    },
+    {
+      "name": "low_pressure",
+      "pressure_pa": 1000000
+    },
+    {
+      "name": "stock_tank",
+      "pressure_pa": 100000
+    }
+  ],
+  "water_feed_node": "water_inlet",
+  "water_network": {
+    "model": "incompressible_liquid",
+    "fluid": {
+      "density_kg_m3": 1000,
+      "viscosity_pa_s": 0.001,
+      "vapor_pressure_pa": 2300
+    },
+    "nodes": [
+      {
+        "name": "water_inlet"
+      },
+      {
+        "name": "header"
+      },
+      {
+        "name": "valve_in"
+      },
+      {
+        "name": "disposal",
+        "pressure_pa": 400000
+      }
+    ],
+    "pipes": [
+      {
+        "name": "water_line",
+        "start": "header",
+        "end": "valve_in",
+        "length_m": 100,
+        "diameter_m": 0.1
+      }
+    ],
+    "pumps": [
+      {
+        "name": "water_booster",
+        "start": "water_inlet",
+        "end": "header",
+        "shutoff_head_m": 20,
+        "curve_coefficient_s2_m5": 1000000,
+        "max_flow_m3_s": 0.004,
+        "head_curve": {
+          "flow_m3_s": [
+            0,
+            0.002,
+            0.004
+          ],
+          "values": [
+            20,
+            16,
+            8
+          ]
+        },
+        "efficiency_curve": {
+          "flow_m3_s": [
+            0,
+            0.002,
+            0.004
+          ],
+          "values": [
+            0.65,
+            0.8,
+            0.7
+          ]
+        },
+        "npsh_curve": {
+          "flow_m3_s": [
+            0,
+            0.002,
+            0.004
+          ],
+          "values": [
+            1,
+            2,
+            4
+          ]
+        },
+        "inlet_diameter_m": 0.1,
+        "check_valve": true,
+        "max_shaft_power_w": 1000
+      }
+    ],
+    "valves": [
+      {
+        "name": "water_choke",
+        "start": "valve_in",
+        "end": "disposal",
+        "diameter_m": 0.02,
+        "discharge_coefficient": 0.62,
+        "opening": 0.8
+      }
+    ]
+  },
+  "limits": [
+    {
+      "name": "water_pumps",
+      "metric": "shaft_power_total_w",
+      "unit": "W",
+      "maximum": 1000
+    },
+    {
+      "name": "first_stage_gas",
+      "metric": "separator:high_pressure:gas_m3_s",
+      "unit": "m3/s",
+      "maximum": 0.001
+    },
+    {
+      "name": "water_capacity",
+      "metric": "water_handoff_mass_kg_s",
+      "unit": "kg/s",
+      "maximum": 2.5
+    },
+    {
+      "name": "header_rating",
+      "metric": "pressure:header",
+      "unit": "Pa",
+      "maximum": 1000000
+    },
+    {
+      "name": "total_utilities",
+      "metric": "facility_drive_power_total_w",
+      "unit": "W",
+      "maximum": 50000
+    },
+    {
+      "name": "gas_cooling",
+      "metric": "gas_cooling_duty_w",
+      "unit": "W",
+      "maximum": 50000
+    },
+    {
+      "name": "gas_delivery",
+      "metric": "gas_export_pressure_pa",
+      "unit": "Pa",
+      "minimum": 1900000.0
+    }
+  ],
+  "gas_export": {
+    "header_pressure_pa": 6000000,
+    "inlet_temperature_k": 300,
+    "cooling_temperature_k": 300,
+    "standard_pressure_pa": 100000,
+    "standard_temperature_k": 300,
+    "heat_capacity_ratio": 1.3,
+    "max_stage_pressure_ratio": 4,
+    "cooler_pressure_loss_fraction": 0.02,
+    "export_pipe": {
+      "name": "gas_export",
+      "length_m": 500,
+      "diameter_m": 0.05,
+      "roughness_m": 1e-05
+    },
+    "export_valve": {
+      "name": "export_trim",
+      "outlet_pressure_pa": 2000000.0,
+      "throat_area_m2": 2e-05,
+      "discharge_coefficient": 0.8,
+      "max_opening": 1.0
+    }
+  }
+}

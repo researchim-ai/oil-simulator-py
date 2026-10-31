@@ -1,0 +1,7 @@
+{
+  "min_fraction": 0.05,
+  "max_fraction": 1.0,
+  "fraction_tolerance": 0.00001,
+  "scan_points": 17,
+  "max_evaluations": 80
+}

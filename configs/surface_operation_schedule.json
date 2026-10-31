@@ -1,0 +1,11 @@
+{
+  "capacity_control": {"min_fraction": 0.05, "max_fraction": 1, "fraction_tolerance": 0.00001, "scan_points": 17, "max_evaluations": 80},
+  "periods": [
+    {"name": "normal", "duration_s": 3600},
+    {"name": "water_routing", "duration_s": 3600, "valve_openings": {"water_choke": 0.9}},
+    {"name": "reduced_available_feed", "duration_s": 1800, "feed_scales": [0.8, 0.5]},
+    {"name": "planned_shutdown", "duration_s": 900, "shutdown": true, "valve_openings": {"water_choke": 0}},
+    {"name": "restart", "duration_s": 3600, "feed_scales": [1, 1], "valve_openings": {"water_choke": 0.8}},
+    {"name": "higher_export_pressure", "duration_s": 3600, "gas_header_pressure_pa": 6500000}
+  ]
+}

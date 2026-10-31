@@ -22,6 +22,7 @@ from .cuda_graphs import capture
 from .fim_wells import FIMWells, G, DAY
 from .manual_assembly_solver import ManualFIMSolver
 from .fim_transaction import atomic_fim_step
+from .surface_coupling import surface_step_failure
 from .sparse_utils import SparseMatrixBuilder
 
 OIL, WAT, GAS = 0, 1, 2
@@ -397,12 +398,10 @@ class BlackOilWells(FIMWells):
         value, columns = vmap(lambda t: jvp(volume, (mass_rate,), (t,)))(tangents)
         return value[0].detach(), columns.T.detach()
 
-    def _conn_flows(self, v, d, p_bh):
+    def _production_connection_flows(self, v, d, p_bh):
         """Массовые потоки компонентов по перфорациям q [n_conn,3], dq/dx [n_conn,3,3], dq/dp_bh [n_conn,3]."""
         c, cw, wi = self.conn_cell, self.conn_well, self.conn_wi * self.conn_open * self.conn_sched
         n_c = c.numel()
-        self._mix = None
-        self._producer_mix = {}
         p_wc = p_bh[cw] + self.conn_head
         q = torch.zeros((n_c, 3), dtype=torch.float64, device=self.device)
         dq = torch.zeros((n_c, 3, 3), dtype=torch.float64, device=self.device)
@@ -414,6 +413,15 @@ class BlackOilWells(FIMWells):
             q[:, comp] += wi * M * dpp
             dq[:, comp, :] += wi.unsqueeze(1) * (dM * dpp.unsqueeze(1) + M.unsqueeze(1) * d[I_P][c])
             dqb[:, comp] -= wi * M
+
+        return q, dq, dqb, dpp, wi, p_wc
+
+    def _conn_flows(self, v, d, p_bh):
+        self._mix = None
+        self._producer_mix = {}
+        c, cw = self.conn_cell, self.conn_well
+        n_c = c.numel()
+        q, dq, dqb, dpp, wi, p_wc = self._production_connection_flows(v, d, p_bh)
 
         inj = self.is_inj[cw]
         if bool(inj.any()):
@@ -987,13 +995,16 @@ class BlackOilWells(FIMWells):
                 self._net_iter += 1
                 msgs.append("сеть: " + ", ".join(f"{k} {v / 1e5:.2f} бар" for k, v in self.node_p.items()
                                                   if v is not None))
+        # One small host snapshot instead of a device wait per well/value.
+        host_values = torch.cat([p_bh, q_surf]).detach().cpu().tolist()
+        host_bhp, host_rate = host_values[:self.n_w], host_values[self.n_w:]
         capped = self.switches >= 4 * max(1, self.n_w)
         for w_idx, w in enumerate(self.wells):
             ctrl, val = self.step_targets[w_idx]
             if ctrl != 'rate':
                 continue
             lim = self.bhp_limit(w)
-            pb = float(p_bh[w_idx])
+            pb = host_bhp[w_idx]
             mode = self.step_mode[w_idx]
             if mode == 'stop':
                 continue
@@ -1021,7 +1032,7 @@ class BlackOilWells(FIMWells):
                 if sg * pb < sg * eff:
                     new = 'thp_limit' if thp_harder else 'bhp_limit'
             else:
-                q = float(q_surf[w_idx])
+                q = host_rate[w_idx]
                 if q > val * (1 + 1e-9) and w_idx not in getattr(self, "_group_capacity_limited", ()):
                     new = 'rate'
                 elif mode == 'bhp_limit' and thp_harder:
@@ -1035,7 +1046,7 @@ class BlackOilWells(FIMWells):
                 self.step_mode[w_idx] = new
                 self.switches += 1
                 self.well_switches[w_idx] += 1
-                msgs.append(f"{w.name}: {mode}→{new} (p_bh {pb/1e6:.3f} МПа, дебит {float(q_surf[w_idx])*DAY:.2f})")
+                msgs.append(f"{w.name}: {mode}→{new} (p_bh {pb/1e6:.3f} МПа, дебит {host_rate[w_idx]*DAY:.2f})")
         return msgs
 
     def begin_step(self, v, d, t_days):
@@ -1300,12 +1311,9 @@ class BlackOilWells(FIMWells):
         m["p_seg"], m["rho"] = p_seg, rho
         self.conn_head[idx] = head
 
-    def assemble(self, R, J_vals, diag_map, v, d, p_bh):
-        if self.n_w == 0:
-            return None
-        if self.step_targets is None:
-            raise RuntimeError("BlackOilWells.begin_step() не вызван")
-        c, cw = self.conn_cell, self.conn_well
+    def assemble_connections(self, R, J_vals, diag_map, v, d, p_bh):
+        """Reservoir flux/Jacobian contributions, without choosing well control rows."""
+        c = self.conn_cell
         q, dq, Cv = self._conn_flows(v, d, p_bh)
         # WEFAC: пласт видит средний во времени отбор ε·q, уравнение скважины — рабочий дебит q
         eff = self.conn_eff
@@ -1320,6 +1328,16 @@ class BlackOilWells(FIMWells):
             if positions is not None:
                 J_vals.index_add_(0, positions, blocks * eff[pc, None, None])
 
+        return q, dq, Cv, jd
+
+    def assemble(self, R, J_vals, diag_map, v, d, p_bh):
+        if self.n_w == 0:
+            return None
+        if self.step_targets is None:
+            raise RuntimeError("BlackOilWells.begin_step() не вызван")
+        cw = self.conn_well
+        q, dq, Cv, jd = self.assemble_connections(R, J_vals, diag_map, v, d, p_bh)
+        eff = self.conn_eff
         a = self.conn_a.clone()
         zeros = torch.zeros(self.n_w, dtype=torch.float64, device=self.device)
         resv_indices = []
@@ -1414,6 +1432,9 @@ class BlackOilFIMSolver(ManualFIMSolver):
     nb = 3
 
     def __init__(self, reservoir, fluid, well_manager, params):
+        surface_spec = params.get("physical_surface_network")
+        if surface_spec is not None and surface_spec.get("network", {}).get("model") != "homogeneous_blackoil_tree":
+            raise NotImplementedError("Single-liquid physical network requires oil_water; black-oil FIM requires homogeneous_blackoil_tree")
         self.reservoir = reservoir
         self.fluid = fluid
         self.well_manager = well_manager
@@ -1457,7 +1478,11 @@ class BlackOilFIMSolver(ManualFIMSolver):
             raise NotImplementedError("VAPPARS: VAP2 ≠ 0 не поддерживается")
         self.vap1 = float(vp[0]) if vp is not None and float(vp[0]) > 0.0 else None
 
-        self.wells = BlackOilWells(well_manager, reservoir, fluid, reservoir.dimensions, dev)
+        if surface_spec is None:
+            self.wells = BlackOilWells(well_manager, reservoir, fluid, reservoir.dimensions, dev)
+        else:
+            from .blackoil_surface_coupling import SurfaceCoupledBlackOilWells
+            self.wells = SurfaceCoupledBlackOilWells(well_manager, reservoir, fluid, reservoir.dimensions, dev, surface_spec)
         print("Building sparse matrix structure (black-oil, блоки 3x3)...")
         wc = self.wells.conn_cell
         self.builder = SparseMatrixBuilder(self.nx, self.ny, self.nz, block_size=3, device=self.device,
@@ -1792,41 +1817,60 @@ class BlackOilFIMSolver(ManualFIMSolver):
         cnv = cnv_cell.max(dim=0).values
         mb = scale * Rb.sum(dim=0).abs() / pv.sum()
         bad = cnv_cell.max(dim=1).values > self.tol_cnv
-        # ослабление — после max_strict_iter итераций или раньше, если Ньютон застрял (невязка не убывает)
-        prev = getattr(self, "_prev_norm", None)
-        norm = max(max(c / self.tol_cnv, m / self.tol_mb) for c, m in zip(cnv.tolist(), mb.tolist()))
-        stagnant = prev is not None and norm > 0.99 * prev
-        relaxed = ((getattr(self, "_newton_iter", 0) >= self.max_strict_iter or stagnant) and bool(bad.any())
-                   and float(pv[bad].sum() / pv.sum()) <= self.relaxed_max_pv_fraction)
-        tol_cnv = self.tol_cnv_relaxed if relaxed else self.tol_cnv
-        tol_mb = self.tol_mb_relaxed if relaxed else self.tol_mb
-        well_ok, well_err = True, 0.0
-        if wsys is not None:
+        # Keep the original selected-PV reduction (including its floating
+        # point order), but compute/read it once, rather than repeatedly.
+        fraction = pv[bad].sum() / pv.sum()
+        packet = [cnv, mb, fraction.reshape(1), bad.any().to(cnv.dtype).reshape(1),
+                  torch.isfinite(R).all().to(cnv.dtype).reshape(1)]
+        has_wells = wsys is not None and wsys["is_rate"].numel() > 0
+        missing_stopped_rates = False
+        if has_wells:
             rate = wsys["is_rate"]
-            # нулевая уставка (группа без отбора) — абсолютная невязка в долях 0.01 ст. м³/сут
             rel = wsys["r_w"].abs() / torch.clamp(wsys["target"].abs(), min=0.01 / DAY)
             rate_err = torch.where(rate, rel, torch.zeros_like(rel))
             bhp_err = torch.where(rate, torch.zeros_like(rel), wsys["r_w"].abs())
-            # таблица VFP кусочно-линейна: у узлов Ньютон по THP колеблется на 0.01–0.05 бар — допуск 0.01 бар,
-            # с 4-й итерации 0.1 бар (как ослабленный CNV)
             tol_thp = 1e3 if getattr(self, "_newton_iter", 0) < 4 else 1e4
-            tol_p = torch.where(wsys.get("is_thp", torch.zeros_like(rate)), torch.full_like(rel, max(self.tol_well_bhp, tol_thp)),
+            tol_p = torch.where(wsys.get("is_thp", torch.zeros_like(rate)),
+                                torch.full_like(rel, max(self.tol_well_bhp, tol_thp)),
                                 torch.full_like(rel, self.tol_well_bhp))
-            well_err = float(rate_err.max()) if bool(rate.any()) else 0.0
-            well_ok = bool((rate_err <= self.tol_well_rate).all() and (bhp_err <= tol_p).all())
+            well_ok_tensor = (rate_err <= self.tol_well_rate).all() & (bhp_err <= tol_p).all()
+            component_max = rate_err.new_zeros(())
             stopped = wsys.get("is_stopped")
-            if stopped is not None and bool(stopped.any()):
-                # A zero total surface rate alone must never hide oil/gas
-                # cancellation. Every stopped-well component must be zero.
-                component_err = wsys["component_rates"][stopped].abs() / (0.01 / DAY)
-                well_err = max(well_err, float(component_err.max()))
-                well_ok = well_ok and bool((component_err <= self.tol_well_rate).all())
-        cnv_l, mb_l = cnv.tolist(), mb.tolist()
+            if stopped is not None:
+                if "component_rates" in wsys:
+                    # Masked maximum has the same nonnegative selected max
+                    # without a second dynamically-sized CUDA nonzero/index.
+                    error = torch.where(stopped[:,None], wsys["component_rates"].abs() / (0.01/DAY), 0.)
+                    component_max = error.max()
+                    well_ok_tensor = well_ok_tensor & (error <= self.tol_well_rate).all()
+                else:
+                    missing_stopped_rates = True
+            packet.extend([rate_err.max().reshape(1), well_ok_tensor.to(cnv.dtype).reshape(1), component_max.reshape(1)])
+            if missing_stopped_rates:
+                packet.append(stopped.any().to(cnv.dtype).reshape(1))
+        factor_status = wsys.get("_surface_factor_bad") if wsys is not None else None
+        if factor_status is not None:
+            packet.append(factor_status.to(cnv.dtype).reshape(1))
+        host = torch.cat(packet).detach().cpu().tolist()
+        if factor_status is not None:
+            wsys["_surface_factor_validated"]=not bool(host.pop())
+        cnv_l, mb_l = host[:3], host[3:6]
+        fraction_value, any_bad, residual_finite = host[6], bool(host[7]), bool(host[8])
+        prev = getattr(self, "_prev_norm", None)
+        norm = max(max(c/self.tol_cnv, m/self.tol_mb) for c,m in zip(cnv_l,mb_l))
+        stagnant = prev is not None and norm > 0.99*prev
+        relaxed = ((getattr(self, "_newton_iter", 0) >= self.max_strict_iter or stagnant)
+                   and any_bad and fraction_value <= self.relaxed_max_pv_fraction)
+        tol_cnv = self.tol_cnv_relaxed if relaxed else self.tol_cnv
+        tol_mb = self.tol_mb_relaxed if relaxed else self.tol_mb
+        well_err, well_ok = (max(host[9],host[11]),bool(host[10])) if has_wells else (0.,True)
+        if missing_stopped_rates and bool(host[12]):
+            raise KeyError("component_rates")
         ok = max(cnv_l) <= tol_cnv and max(mb_l) <= tol_mb and well_ok
-        return ok, {"cnv": cnv_l, "mb": mb_l, "well_rate_rel_err": well_err, "cnv_relaxed": relaxed,
-                    "tol_cnv_used": tol_cnv, "tol_mb_used": tol_mb,
-                    "unrelaxed_converged": max(cnv_l) <= self.tol_cnv and max(mb_l) <= self.tol_mb and well_ok,
-                    "cnv_bad_pv_fraction": float(pv[bad].sum() / pv.sum())}
+        return ok, {"cnv":cnv_l,"mb":mb_l,"well_rate_rel_err":well_err,"cnv_relaxed":relaxed,
+                    "tol_cnv_used":tol_cnv,"tol_mb_used":tol_mb,
+                    "unrelaxed_converged":max(cnv_l)<=self.tol_cnv and max(mb_l)<=self.tol_mb and well_ok,
+                    "cnv_bad_pv_fraction":fraction_value,"residual_finite":residual_finite}
 
     # ------------------------------------------------------------ шаг
     def _sg_rs(self, p, x, sat, ug=None, sw=None):
@@ -1841,21 +1885,25 @@ class BlackOilFIMSolver(ManualFIMSolver):
         return torch.where(ug, x, self.rv_sat_eff(pg, so))
 
     def _update_resv_averages(self, p, sw):
-        """RateConverter state, weighted by current hydrocarbon pore volume."""
+        """RateConverter averages: identical reductions, one host packet."""
         pv_current = self._pv(p.view(-1))
         hc = pv_current * (1.0 - sw.view(-1)).clamp_min(0.0)
-        if float(hc.sum()) <= 0:
-            hc = pv_current
+        hc = torch.where(hc.sum() <= 0, pv_current, hc)
         hc_sum = hc.sum().clamp_min(1e-30)
-        self.wells.p_avg = float((hc * p.view(-1)).sum() / hc_sum)
+        values = [(hc * p.view(-1)).sum() / hc_sum]
+        rv = getattr(self.fluid, "rv", None)
+        has_rv = self.wet and rv is not None
         if self.pvt.has_pvt:
-            # RateConverter averages all three quantities over the SAME
-            # hydrocarbon pore volume, not separate oil/gas phase volumes.
-            self.wells.rs_avg = float((hc * self.fluid.rs.reshape(-1).double()).sum() / hc_sum)
-            rv = getattr(self.fluid, "rv", None)
-            self.wells.rv_avg = float((hc * rv.reshape(-1).double()).sum() / hc_sum) \
-                if self.wet and rv is not None else None
+            values.append((hc * self.fluid.rs.reshape(-1).double()).sum() / hc_sum)
+            if has_rv:
+                values.append((hc * rv.reshape(-1).double()).sum() / hc_sum)
+        host = torch.stack(values).detach().cpu().tolist()
+        self.wells.p_avg = host[0]
+        if self.pvt.has_pvt:
+            self.wells.rs_avg = host[1]
+            self.wells.rv_avg = host[2] if has_rv else None
 
+    @surface_step_failure
     @atomic_fim_step
     def step(self, dt, current_time=None):
         dbg = self.debug
@@ -1942,7 +1990,7 @@ class BlackOilFIMSolver(ManualFIMSolver):
                 + f", MB = {max(crit['mb']):.2e}, wells = {crit['well_rate_rel_err']:.1e}"
                 + (f", переключений фаз {n_switch}" if n_switch else ""))
 
-            if not torch.isfinite(R).all():
+            if not crit["residual_finite"]:
                 dbg.converged_iter()
                 return fail("nan_residual", R, J)
             if initial_cnv is None:
@@ -2168,16 +2216,34 @@ class BlackOilFIMSolver(ManualFIMSolver):
 
     def _store_well_results(self, wsys, p_bh, dt):
         rho = self.pvt.rho_sc
+        if not self.wells.wells:
+            return
+        groups = getattr(self, "_well_report_groups", None)
+        if groups is None or groups[0] is not self.wells.conn_well:
+            owners = self.wells.conn_well.detach().cpu().tolist()
+            indices = [
+                torch.tensor([i for i, owner in enumerate(owners) if owner == w],
+                             dtype=torch.long, device=wsys["q"].device)
+                for w in range(len(self.wells.wells))
+            ]
+            self._well_report_groups = (self.wells.conn_well, indices)
+        else:
+            indices = groups[1]
+        # Preserve each original reduction's shape and connection ordering.
+        selected = [wsys["q"].index_select(0, idx) for idx in indices]
+        net = torch.stack([q.sum(dim=0) for q in selected])
+        production = torch.stack([q.clamp_min(0.0).sum(dim=0) for q in selected])
+        packet = torch.cat([net.reshape(-1), production.reshape(-1), p_bh]).detach().cpu().tolist()
+        nw = len(self.wells.wells)
         for w_idx, w in enumerate(self.wells.wells):
-            m = self.wells.conn_well == w_idx
-            q = wsys["q"][m].sum(dim=0)
-            q_o, q_w, q_g = (float(q[i]) / rho[i] * DAY for i in range(3))
+            q = net[w_idx]
+            q_o, q_w, q_g = (packet[3 * w_idx + i] / rho[i] * DAY for i in range(3))
             w.last_net_connection_rates = {"oil": q_o, "water": q_w, "gas": q_g}
             if getattr(w, "stopped", False):
                 # Prescribed zero surface boundary; keep the actual connection
                 # imbalance above for diagnostics and check it in convergence.
                 q_o = q_w = q_g = 0.0
-            w.bhp_mpa = float(p_bh[w_idx]) / 1e6
+            w.bhp_mpa = packet[6 * nw + w_idx] / 1e6
             tab = self.wells._lift(w_idx)
             if tab is not None:
                 Q = self.wells._sgn(w_idx) * q / self.wells.rho_sc
@@ -2187,8 +2253,8 @@ class BlackOilFIMSolver(ManualFIMSolver):
                 w.thp_mpa = float(thp) / 1e6
             w.last_surface_rates = {"oil": q_o, "water": q_w, "gas": q_g, "liquid": q_o + q_w}
             # добыча без перетоков (перфорации с обратным потоком в пласт не вычитаются, как в Eclipse)
-            qp = wsys["q"][m].clamp_min(0.0).sum(dim=0)
-            w.last_surface_prod = {ph: float(qp[i]) / rho[i] * DAY for i, ph in enumerate(("oil", "water", "gas"))}
+            w.last_surface_prod = {ph: packet[3 * nw + 3 * w_idx + i] / rho[i] * DAY
+                                   for i, ph in enumerate(("oil", "water", "gas"))}
             # накопленные поверхностные объёмы, м³ (знак как у дебитов: + отбор); отдельно — за периоды
             # добычи (cum_prod) и закачки (cum_inj, + закачка) у скважин, меняющих тип
             zero = {"oil": 0.0, "water": 0.0, "gas": 0.0}

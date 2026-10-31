@@ -1,0 +1,31 @@
+{
+  "simulation": {
+    "solver_type": "fully_implicit", "fim_model": "oil_water", "newton_max_iter": 30,
+    "newton_tol_cnv": 0.000001, "newton_tol_mb": 0.0000001,
+    "newton_tol_well_bhp": 0.1, "linear_tol_max": 0.000001, "linear_tol_min": 0.000000001,
+    "physical_surface_network": {
+      "well_nodes": {"P1": "bottom_1", "P2": "bottom_2"},
+      "network": {
+        "model": "incompressible_liquid",
+        "fluid": {"density_kg_m3": 1000, "viscosity_pa_s": 0.001, "vapor_pressure_pa": 2300},
+        "nodes": [{"name": "bottom_1", "elevation_m": -1000}, {"name": "bottom_2", "elevation_m": -1000},
+                  {"name": "header"}, {"name": "outlet", "pressure_pa": 8000000}],
+        "pipes": [
+          {"name": "tubing_1", "start": "bottom_1", "end": "header", "length_m": 1000, "diameter_m": 0.03},
+          {"name": "tubing_2", "start": "bottom_2", "end": "header", "length_m": 1000, "diameter_m": 0.03},
+          {"name": "collector", "start": "header", "end": "outlet", "length_m": 1000, "diameter_m": 0.02}
+        ]
+      }
+    }
+  },
+  "reservoir": {"dimensions": [3, 1, 1], "grid_size": [20, 20, 2000], "porosity": 0.2, "permeability": 100},
+  "fluid": {"pressure": 20, "s_w": 0.8, "mu_oil": 1, "mu_water": 1,
+            "rho_oil": 850, "rho_water": 1000, "c_oil": 0, "c_water": 0.001, "c_rock": 0,
+            "s_wr": 0.2, "s_or": 0.2, "pc_scale": 0},
+  "wells": [
+    {"name": "P1", "type": "producer", "i": 0, "j": 0, "k": 0, "radius": 0.1,
+     "control_type": "rate", "control_value": 100, "surface_phase": "water", "well_index": 0.0000000000001},
+    {"name": "P2", "type": "producer", "i": 2, "j": 0, "k": 0, "radius": 0.1,
+     "control_type": "rate", "control_value": 100, "surface_phase": "water", "well_index": 0.0000000000001}
+  ]
+}

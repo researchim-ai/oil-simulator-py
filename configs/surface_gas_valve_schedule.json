@@ -1,0 +1,42 @@
+{
+  "capacity_control": {
+    "min_fraction": 0.05,
+    "max_fraction": 1.0,
+    "fraction_tolerance": 1e-05,
+    "scan_points": 9,
+    "max_evaluations": 80
+  },
+  "periods": [
+    {
+      "name": "normal_choked",
+      "duration_s": 3600
+    },
+    {
+      "name": "restricted_area",
+      "duration_s": 3600,
+      "gas_valve_max_opening": 0.1
+    },
+    {
+      "name": "high_backpressure",
+      "duration_s": 3600,
+      "gas_valve_outlet_pressure_pa": 5000000.0
+    },
+    {
+      "name": "restore_area",
+      "duration_s": 3600,
+      "gas_valve_max_opening": 1.0
+    },
+    {
+      "name": "planned_shutdown",
+      "duration_s": 600,
+      "shutdown": true,
+      "gas_valve_max_opening": 0.0
+    },
+    {
+      "name": "restart_choked",
+      "duration_s": 1800,
+      "gas_valve_max_opening": 1.0,
+      "gas_valve_outlet_pressure_pa": 2000000.0
+    }
+  ]
+}

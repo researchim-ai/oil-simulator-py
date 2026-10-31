@@ -6,7 +6,7 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
-from surface import HydraulicConvergenceError, LiquidNetwork, NetworkResult
+from surface import HydraulicConvergenceError, LiquidNetwork, NetworkResult, PumpPressureControl
 
 
 def main():
@@ -16,15 +16,21 @@ def main():
     parser.add_argument(
         "--initial-state", type=Path, help="Previous result as Newton initial guess"
     )
+    parser.add_argument(
+        "--pressure-control", type=Path, help="JSON specification for one pump pressure regulator"
+    )
     args = parser.parse_args()
     try:
         network = LiquidNetwork.from_dict(json.loads(args.config.read_text()))
+        saved = json.loads(args.initial_state.read_text()) if args.initial_state else None
         initial = (
-            NetworkResult.from_dict(json.loads(args.initial_state.read_text()))
-            if args.initial_state
-            else None
+            NetworkResult.from_dict(saved.get("network", saved)) if saved is not None else None
         )
-        result = network.solve(initial=initial)
+        if args.pressure_control:
+            control = PumpPressureControl(**json.loads(args.pressure_control.read_text()))
+            result = control.solve(network, initial=initial)
+        else:
+            result = network.solve(initial=initial)
     except (OSError, KeyError, TypeError, ValueError, HydraulicConvergenceError) as error:
         parser.error(str(error))
     text = json.dumps(result.to_dict(), ensure_ascii=False, indent=2, allow_nan=False) + "\n"

@@ -126,3 +126,19 @@ def test_classical_amg_quality_on_laplacian():
         assert rel < 5e-2, f"AMG self-check не проходит (rel={rel:.3e})"
 
 
+
+
+def test_coarse_dense_cache_tracks_inplace_matrix_changes(monkeypatch):
+    monkeypatch.setattr(torch.cuda, 'is_available', lambda: False)
+    A = (torch.eye(7, dtype=torch.float64)*4
+         - torch.diag(torch.ones(6, dtype=torch.float64), 1)
+         - torch.diag(torch.ones(6, dtype=torch.float64), -1)).to_sparse_csr()
+    amg = ClassicalAMG(A, max_levels=1, nullspace_dim=0, verbose=False)
+    b = torch.arange(7, dtype=torch.float64)
+    for scale in (1., 1.2):
+        amg.levels[0]['A'].values().mul_(scale)
+        actual = amg._v_cycle(0, torch.zeros_like(b), b)
+        dense = amg.levels[0]['A'].to_dense().clone()
+        dense[0, :] = 0.; dense[:, 0] = 0.; dense[0, 0] = 1.
+        rhs = b.clone(); rhs[0] = 0.
+        assert torch.equal(actual, torch.linalg.solve(dense, rhs))

@@ -60,6 +60,21 @@ class Simulator:
                 params=sim_params
             )
         
+        self.facility_coupling = None
+        if sim_params.get('coupled_facility') is not None:
+            if self.solver_type != 'fully_implicit':
+                raise ValueError('coupled_facility requires black-oil FIM')
+            from .facility_coupling import FacilityCoupledFIM
+            try:
+                from ..surface import SurfaceFacility
+            except ImportError:
+                from surface import SurfaceFacility
+            spec = sim_params['coupled_facility']
+            if set(spec) - {'facility', 'control'}:
+                raise ValueError('Unknown coupled_facility fields')
+            self.facility_coupling = FacilityCoupledFIM(
+                self.fim_solver, SurfaceFacility.from_dict(spec['facility']), spec.get('control'))
+
         # Инициализация проводимостей для IMPES схемы
         if self.solver_type == 'impes':
             # Получаем размеры ячеек и проницаемости
@@ -253,7 +268,8 @@ class Simulator:
             if opm:
                 p0 = self.fluid.pressure.detach().double().clone()
                 s0 = torch.stack([self.fluid.s_w.detach().double(), self.fluid.s_g.detach().double()])
-            if self.fim_solver.step(h_try, current_time=self.current_time):
+            stepper = getattr(self, "facility_coupling", None) or self.fim_solver
+            if stepper.step(h_try, current_time=self.current_time):
                 self.current_time += h_try
                 self.fluid.prev_pressure = self.fluid.pressure.clone()
                 self.fluid.prev_sw = self.fluid.s_w.clone()

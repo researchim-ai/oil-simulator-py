@@ -1,0 +1,29 @@
+{
+  "periods": [
+    {
+      "name": "normal_duty",
+      "duration_s": 3600.0
+    },
+    {
+      "name": "unit_1_unavailable",
+      "duration_s": 3600.0,
+      "unavailable_pumps": [
+        "water_booster_1"
+      ]
+    },
+    {
+      "name": "unit_1_recovered",
+      "duration_s": 3600.0,
+      "unavailable_pumps": []
+    },
+    {
+      "name": "plant_shutdown",
+      "duration_s": 600.0,
+      "shutdown": true
+    },
+    {
+      "name": "plant_restart",
+      "duration_s": 1800.0
+    }
+  ]
+}

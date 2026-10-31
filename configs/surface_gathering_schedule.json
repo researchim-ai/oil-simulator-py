@@ -1,0 +1,8 @@
+{
+  "periods": [
+    {"name": "nominal", "duration_s": 3600},
+    {"name": "reduced", "duration_s": 1200, "feed_scales": [0.7, 0.6]},
+    {"name": "shutdown", "duration_s": 600, "shutdown": true},
+    {"name": "restart", "duration_s": 900, "feed_scales": [1, 1]}
+  ]
+}
