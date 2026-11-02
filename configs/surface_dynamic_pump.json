@@ -1,0 +1,131 @@
+{
+  "system": {
+    "network": {
+      "model": "incompressible_liquid",
+      "fluid": {
+        "density_kg_m3": 1000,
+        "viscosity_pa_s": 0.1,
+        "vapor_pressure_pa": 2000
+      },
+      "nodes": [
+        {
+          "name": "suction",
+          "pressure_pa": 200000
+        },
+        {
+          "name": "delivery"
+        },
+        {
+          "name": "export",
+          "pressure_pa": 250000
+        }
+      ],
+      "pipes": [
+        {
+          "name": "line",
+          "start": "delivery",
+          "end": "export",
+          "length_m": 100,
+          "diameter_m": 0.1
+        }
+      ],
+      "pumps": [
+        {
+          "name": "pump",
+          "start": "suction",
+          "end": "delivery",
+          "shutoff_head_m": 20,
+          "curve_coefficient_s2_m5": 1000000,
+          "max_flow_m3_s": 0.004,
+          "efficiency": 0.8,
+          "check_valve": true,
+          "max_shaft_power_w": 1000.0,
+          "npsh_required_m": 3.0,
+          "inlet_diameter_m": 0.1
+        }
+      ]
+    },
+    "drive": {
+      "inertia_kg_m2": 1,
+      "max_speed_rad_s": 150,
+      "max_motor_torque_nm": 20,
+      "max_braking_torque_nm": 10,
+      "viscous_drag_nm_s": 0.02,
+      "motor_efficiency": 0.9,
+      "regeneration_efficiency": 0.7,
+      "max_electrical_draw_w": 2000,
+      "max_electrical_export_w": 500
+    },
+    "nominal_speed_rad_s": 100,
+    "controller": {
+      "proportional_gain": 0.003,
+      "integral_gain": 0.0003,
+      "derivative_gain": 0,
+      "min_output": -10,
+      "max_output": 20,
+      "tracking_time_s": 0.3
+    },
+    "measurement": "pressure",
+    "measurement_node": "delivery",
+    "control_interval_s": 0.2,
+    "maximum_dt_s": 0.1,
+    "minimum_dt_s": 1e-07,
+    "max_speed_change_rad_s": 2,
+    "no_flow_power_w_at_nominal": 20.0
+  },
+  "initial": {
+    "angular_velocity_rad_s": 0
+  },
+  "periods": [
+    {
+      "duration_s": 60,
+      "mode": "auto",
+      "setpoint": 260000
+    },
+    {
+      "duration_s": 5,
+      "mode": "manual",
+      "motor_torque_nm": 4
+    },
+    {
+      "duration_s": 30,
+      "mode": "auto",
+      "setpoint": 262000,
+      "network_options": {
+        "boundary_pressures_pa": {
+          "export": 255000.0
+        }
+      }
+    },
+    {
+      "duration_s": 5,
+      "mode": "trip",
+      "network_options": {
+        "boundary_pressures_pa": {
+          "export": 255000.0
+        }
+      }
+    },
+    {
+      "duration_s": 5,
+      "mode": "auto",
+      "setpoint": 262000,
+      "network_options": {
+        "boundary_pressures_pa": {
+          "export": 255000.0
+        }
+      }
+    },
+    {
+      "duration_s": 15,
+      "mode": "manual",
+      "motor_torque_nm": -6,
+      "reset_trip": true,
+      "network_options": {
+        "boundary_pressures_pa": {
+          "export": 255000.0
+        }
+      }
+    }
+  ]
+}

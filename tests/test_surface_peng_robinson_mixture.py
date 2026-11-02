@@ -195,7 +195,7 @@ def test_cli_mixture_and_unknown_operation():
         ],
     }
     assert module.run_case(case)["operations"][0]["result"]["phase_count"] == 2
-    case["operations"][0]["type"] = "nozzle"
+    case["operations"][0]["type"] = "unsupported"
     with pytest.raises(ValueError, match="Unsupported mixture operation"):
         module.run_case(case)
 
@@ -224,3 +224,20 @@ def test_degenerate_pure_coexistence_needs_quality():
     p = c.saturation_at_temperature(240)["pressure_pa"]
     with pytest.raises(PropertyModelError, match="Degenerate coexistence"):
         m.flash_pt(p, 240, [0.4, 0.6])
+
+
+def test_incipient_phase_not_rejected_by_absolute_gibbs_gain():
+    m = mixture()
+    r = m.flash_pt(3e6, 205.752, [0.5, 0.5])
+    assert r["phase_count"] == 2
+    assert r["vapor_molar_fraction"] == pytest.approx(2.32130962e-5, rel=1e-6)
+    assert r["log_fugacity_error"] < 1e-9
+
+
+def test_near_dew_bounded_optimizer_must_satisfy_actual_residual():
+    m = mixture()
+    r = m.flash_pt(2166248.9107809598, 240.9752268266243, [0.5, 0.5])
+    assert r["phase_count"] == 2
+    assert r["vapor_molar_fraction"] == pytest.approx(0.9999999139629543, abs=1e-9)
+    assert r["log_fugacity_error"] < 1e-9
+    assert r["component_balance_error"] < 1e-10

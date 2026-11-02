@@ -125,6 +125,21 @@ nav:
   - Наземное моделирование:
       - Модели и ограничения: SURFACE_MODELING.md
       - Термодинамика: THERMODYNAMICS.md
+      - Тепловая подготовка: THERMAL_PROCESS.md
+      - Динамический сосуд: DYNAMIC_VESSEL.md
+      - Динамическая сеть: DYNAMIC_NETWORK.md
+      - События и защиты: NETWORK_PROTECTIONS.md
+      - Тепловая инерция стенок: VESSEL_WALL.md
+      - Механика приводов: ROTATING_DRIVE.md
+      - Насос, сеть и PID: DYNAMIC_PUMP.md
+      - Динамическая насосная станция: DYNAMIC_STATION.md
+      - Компрессор и антипомпаж: COMPRESSOR_TRAIN.md
+      - Приводы соединений: CONNECTION_ACTUATORS.md
+      - Распределённая труба: TRANSIENT_PIPE.md
+      - Энергетика трубы: THERMAL_PIPE.md
+      - Численный поток трубы: THERMAL_NUMERICS.md
+      - Независимые эталоны: REFERENCE_VALIDATION.md
+      - Уровень сепаратора: SEPARATOR_LEVEL.md
       - Справочник конфигурации: SURFACE_CONFIG_REFERENCE.md
   - Производительность:
       - Производительность: PERFORMANCE.md

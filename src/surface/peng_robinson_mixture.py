@@ -11,7 +11,7 @@ import numpy as np
 from scipy.optimize import least_squares, minimize
 from scipy.special import softmax
 
-from .liquid import HydraulicConvergenceError, PropertyModelError
+from .liquid import HydraulicConvergenceError, PropertyModelError, _number
 from .peng_robinson import PengRobinsonFluid, R
 
 
@@ -238,18 +238,23 @@ class PengRobinsonMixture:
                 w = np.array(trial["mole_fractions"])
                 starts.extend([np.log(w / z), np.log(z / w)])
         candidates = []
+        unique_starts = []
         for lk in starts:
+            if not any(np.max(np.abs(lk - previous)) < 1e-7 for previous in unique_starts):
+                unique_starts.append(lk)
+
+        def solve_start(lk, beta_guess):
             fit = least_squares(
                 residual,
-                np.r_[np.clip(lk, -30, 30), 0.5],
+                np.r_[np.clip(lk, -30, 30), beta_guess],
                 bounds=(np.r_[np.full(len(z), -40), 1e-9], np.r_[np.full(len(z), 40), 1 - 1e-9]),
                 xtol=1e-12,
                 ftol=1e-12,
-                gtol=1e-12,
+                gtol=None,  # Bounded gradient is scaled by distance to beta=0/1.
                 max_nfev=250,
             )
             if np.max(np.abs(residual(fit.x))) > 1e-8 or np.max(np.abs(fit.x[:-1])) < 1e-5:
-                continue
+                return False
             k, beta = np.exp(fit.x[:-1]), float(fit.x[-1])
             x = z / (1 + beta * (k - 1))
             y = k * x
@@ -260,11 +265,37 @@ class PengRobinsonMixture:
                 @ (np.log(q["mole_fractions"]) + q["log_fugacity_coefficients"])
             )
             g = (1 - beta) * gibbs(l) + beta * gibbs(v)
-            if g >= gibbs(feed) - 1e-9 or l["molar_volume_m3_mol"] >= v["molar_volume_m3_mol"]:
-                continue
+            # Near bubble/dew onset the total Gibbs gain is quadratic in
+            # the tiny new phase fraction; a fixed required gain rejects valid
+            # splits even when TPD is negative. Reject increases, not small gains.
+            if g > gibbs(feed) + 1e-12 or l["molar_volume_m3_mol"] >= v["molar_volume_m3_mol"]:
+                return False
             candidates.append((g, beta, l, v))
+            return True
+
+        for lk in unique_starts:
+            solve_start(lk, 0.5)
         if not candidates:
-            raise HydraulicConvergenceError("Unstable feed: no resolved nontrivial VLE flash")
+            # A fixed beta=0.5 can land on K=1 or an infeasible beta bound
+            # despite negative TPD. Recover with the SAME equations and
+            # acceptance criteria; never treat numerical failure as one phase.
+            from scipy.optimize import brentq
+
+            for lk in unique_starts:
+                k = np.exp(np.clip(lk, -30, 30))
+
+                def rr(beta, k=k):
+                    return float(np.sum(z * (k - 1) / (1 + beta * (k - 1))))
+
+                f0, f1 = rr(0.0), rr(1.0)
+                guess = brentq(rr, 0.0, 1.0) if f0 * f1 < 0 else (0.1 if f0 <= 0 else 0.9)
+                for beta_guess in (min(1 - 1e-6, max(1e-6, guess)), 0.1, 0.9):
+                    if solve_start(lk, beta_guess):
+                        break
+        if not candidates:
+            raise HydraulicConvergenceError(
+                f"Unstable feed: no resolved nontrivial VLE flash at P={p} Pa, T={t} K"
+            )
         _, beta, liquid, vapor = min(candidates, key=lambda c: c[0])
         d = np.log(liquid["mole_fractions"]) + liquid["log_fugacity_coefficients"]
         post = self._tpd(p, t, z, d)
@@ -310,7 +341,7 @@ class PengRobinsonMixture:
             "density_kg_m3": average("molar_mass_kg_mol") / average("molar_volume_m3_mol"),
         }
 
-    def _flash_property(self, pressure_pa, target, mole_fractions, key):
+    def _flash_property(self, pressure_pa, target, mole_fractions, key, temperature_guess_k=None):
         from scipy.optimize import brentq
 
         if not math.isfinite(target):
@@ -321,14 +352,33 @@ class PengRobinsonMixture:
         if low >= high:
             raise PropertyModelError("No common caloric temperature interval")
 
-        def residual(t):
-            return self.flash_pt(pressure_pa, t, z)[key] - target
+        cache = {}
 
-        f_low, f_high = residual(low), residual(high)
+        def residual(t):
+            if t not in cache:
+                cache[t] = self.flash_pt(pressure_pa, t, z)
+            return cache[t][key] - target
+
+        if temperature_guess_k is not None:
+            guess = _number(temperature_guess_k, "temperature_guess_k", positive=True)
+            if not math.isfinite(guess) or not low <= guess <= high:
+                raise PropertyModelError("Temperature guess outside declared range")
+            span = max(0.5, guess * 0.005)
+            domain_low, domain_high = low, high
+            while True:
+                low = max(domain_low, guess - span)
+                high = min(domain_high, guess + span)
+                f_low, f_high = residual(low), residual(high)
+                if f_low * f_high <= 0 or low == domain_low and high == domain_high:
+                    break
+                span *= 2
+        else:
+            f_low, f_high = residual(low), residual(high)
         if f_low * f_high > 0:
             raise PropertyModelError("Target outside declared temperature bracket")
         temperature = brentq(residual, low, high, xtol=1e-9, rtol=1e-13)
-        result = self.flash_pt(pressure_pa, temperature, z)
+        residual(temperature)
+        result = dict(cache[temperature])
         result["property_residual"] = result[key] - target
         if abs(result["property_residual"]) > max(1e-6, abs(target) * 1e-9):
             raise HydraulicConvergenceError("Thermal flash residual exceeds tolerance")
@@ -339,7 +389,13 @@ class PengRobinsonMixture:
             pressure_pa, molar_enthalpy_j_mol, mole_fractions, "molar_enthalpy_j_mol"
         )
 
-    def flash_ps(self, pressure_pa, molar_entropy_j_mol_k, mole_fractions):
+    def flash_ps(
+        self, pressure_pa, molar_entropy_j_mol_k, mole_fractions, temperature_guess_k=None
+    ):
         return self._flash_property(
-            pressure_pa, molar_entropy_j_mol_k, mole_fractions, "molar_entropy_j_mol_k"
+            pressure_pa,
+            molar_entropy_j_mol_k,
+            mole_fractions,
+            "molar_entropy_j_mol_k",
+            temperature_guess_k,
         )

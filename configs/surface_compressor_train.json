@@ -1,0 +1,191 @@
+{
+  "system": {
+    "compressor": {
+      "map": {
+        "corrected_speed_rad_s": [
+          60.0,
+          100.0,
+          140.0
+        ],
+        "beta": [
+          0.0,
+          0.5,
+          1.0
+        ],
+        "corrected_mass_flow_kg_s": [
+          [
+            0.12,
+            0.3,
+            0.48
+          ],
+          [
+            0.25,
+            0.5,
+            0.75
+          ],
+          [
+            0.4,
+            0.8,
+            1.2
+          ]
+        ],
+        "pressure_ratio": [
+          [
+            1.2,
+            1.12,
+            1.02
+          ],
+          [
+            1.5,
+            1.3,
+            1.05
+          ],
+          [
+            1.9,
+            1.6,
+            1.1
+          ]
+        ],
+        "isentropic_efficiency": [
+          [
+            0.65,
+            0.78,
+            0.65
+          ],
+          [
+            0.68,
+            0.8,
+            0.67
+          ],
+          [
+            0.65,
+            0.78,
+            0.65
+          ]
+        ],
+        "reference_temperature_k": 300.0,
+        "reference_pressure_pa": 100000.0
+      },
+      "gas": {
+        "specific_gas_constant_j_kg_k": 500,
+        "heat_capacity_ratio": 1.3,
+        "viscosity_pa_s": 1e-05
+      },
+      "mechanical_efficiency": 0.95,
+      "max_discharge_temperature_k": 500.0,
+      "max_shaft_power_w": 60000
+    },
+    "drive": {
+      "inertia_kg_m2": 5,
+      "max_speed_rad_s": 140,
+      "max_motor_torque_nm": 400,
+      "max_braking_torque_nm": 200,
+      "viscous_drag_nm_s": 0.2,
+      "motor_efficiency": 0.9,
+      "regeneration_efficiency": 0.7,
+      "max_electrical_draw_w": 50000,
+      "max_electrical_export_w": 20000
+    },
+    "recycle_actuator": {
+      "opening_rate_per_s": 3,
+      "closing_rate_per_s": 0.5,
+      "fail_position": 1,
+      "time_constant_s": 0.05,
+      "max_position_change": 0.1
+    },
+    "anti_surge_controller": {
+      "proportional_gain": 0.6,
+      "integral_gain": 1,
+      "derivative_gain": 0,
+      "min_output": 0,
+      "max_output": 1,
+      "derivative_filter_s": 0.1,
+      "tracking_time_s": 0.2,
+      "bias": 0.0,
+      "direction": 1
+    },
+    "speed_controller": {
+      "proportional_gain": 8,
+      "integral_gain": 10,
+      "derivative_gain": 0,
+      "min_output": -200,
+      "max_output": 400,
+      "derivative_filter_s": 0.1,
+      "tracking_time_s": 0.2,
+      "bias": 0.0,
+      "direction": 1
+    },
+    "plenum_volume_m3": 2.0,
+    "suction_pressure_pa": 100000.0,
+    "suction_temperature_k": 300.0,
+    "export_back_pressure_pa": 100000.0,
+    "export_area_m2": 0.002,
+    "recycle_area_m2": 0.003,
+    "target_surge_margin": 0.25,
+    "control_interval_s": 0.05,
+    "maximum_dt_s": 0.01,
+    "minimum_dt_s": 1e-07,
+    "ambient_temperature_k": 300.0,
+    "min_temperature_k": 150.0,
+    "max_temperature_k": 700.0,
+    "max_pressure_pa": 10000000.0,
+    "max_fractional_mass_change": 0.05,
+    "max_temperature_change_k": 5.0,
+    "max_speed_change_rad_s": 2.0,
+    "heat_transfer_w_k": 20.0,
+    "fast_open_margin": 0.1,
+    "max_recycle_cooling_w": 60000,
+    "max_recycle_heating_w": 30000
+  },
+  "initial": {},
+  "periods": [
+    {
+      "duration_s": 4.4,
+      "mode": "standby",
+      "motor_torque_nm": 100,
+      "export_opening": 0
+    },
+    {
+      "duration_s": 8.0,
+      "mode": "run",
+      "speed_setpoint_rad_s": 85,
+      "export_opening": 0.8
+    },
+    {
+      "duration_s": 8.0,
+      "mode": "run",
+      "speed_setpoint_rad_s": 85,
+      "export_opening": 0.05
+    },
+    {
+      "duration_s": 8.0,
+      "mode": "run",
+      "speed_setpoint_rad_s": 85,
+      "export_opening": 0
+    },
+    {
+      "duration_s": 8.0,
+      "mode": "run",
+      "speed_setpoint_rad_s": 140,
+      "export_opening": 0.5
+    },
+    {
+      "duration_s": 2.0,
+      "mode": "trip",
+      "export_opening": 0.5
+    },
+    {
+      "duration_s": 2.0,
+      "mode": "run",
+      "speed_setpoint_rad_s": 85,
+      "export_opening": 0.5
+    },
+    {
+      "duration_s": 5.0,
+      "mode": "standby",
+      "motor_torque_nm": -150,
+      "reset_trip": true,
+      "export_opening": 0.5
+    }
+  ]
+}

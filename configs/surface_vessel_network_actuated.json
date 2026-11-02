@@ -1,0 +1,150 @@
+{
+  "fluid": {
+    "components": [
+      {
+        "name": "Methane",
+        "critical_temperature_k": 190.564,
+        "critical_pressure_pa": 4599200.0,
+        "acentric_factor": 0.01142,
+        "molar_mass_kg_mol": 0.0160428,
+        "ideal_cp_j_mol_k": 35.7,
+        "min_temperature_k": 160.0,
+        "max_temperature_k": 500.0
+      },
+      {
+        "name": "Ethane",
+        "critical_temperature_k": 305.322,
+        "critical_pressure_pa": 4872200.0,
+        "acentric_factor": 0.099,
+        "molar_mass_kg_mol": 0.03006904,
+        "ideal_cp_j_mol_k": 52.5,
+        "min_temperature_k": 160.0,
+        "max_temperature_k": 500.0
+      }
+    ],
+    "binary_interactions": [
+      [
+        0,
+        0
+      ],
+      [
+        0,
+        0
+      ]
+    ]
+  },
+  "vessels": {
+    "upstream": {
+      "volume_m3": 0.01,
+      "min_pressure_pa": 100000.0,
+      "max_pressure_pa": 5000000.0
+    },
+    "receiver": {
+      "volume_m3": 0.01,
+      "min_pressure_pa": 100000.0,
+      "max_pressure_pa": 5000000.0
+    }
+  },
+  "connections": [
+    {
+      "name": "transfer",
+      "source": "upstream",
+      "target": "receiver",
+      "molar_conductance_mol_s_pa": 1e-07,
+      "max_pressure_difference_pa": 2000000.0,
+      "max_molar_rate_mol_s": 0.2,
+      "allow_reverse": true
+    }
+  ],
+  "initial": {
+    "upstream": {
+      "pressure_pa": 2000000.0,
+      "temperature_k": 300,
+      "mole_fractions": [
+        0.3,
+        0.7
+      ],
+      "wall_temperature_k": 350
+    },
+    "receiver": {
+      "pressure_pa": 1000000.0,
+      "temperature_k": 300,
+      "mole_fractions": [
+        0.7,
+        0.3
+      ],
+      "wall_temperature_k": 350
+    }
+  },
+  "stepper": {
+    "initial_dt_s": 0.5,
+    "maximum_dt_s": 0.5,
+    "minimum_dt_s": 0.001
+  },
+  "periods": [
+    {
+      "duration_s": 1
+    },
+    {
+      "duration_s": 1,
+      "actuator_modes": {
+        "transfer": "stuck"
+      }
+    },
+    {
+      "duration_s": 1,
+      "actuator_modes": {
+        "transfer": "fail_safe"
+      }
+    },
+    {
+      "duration_s": 2,
+      "reset_trips": [
+        "receiver_high_p"
+      ]
+    }
+  ],
+  "walls": {
+    "upstream": {
+      "heat_capacity_j_k": 1000,
+      "fluid_ua_w_k": 10,
+      "ambient_ua_w_k": 2,
+      "ambient_temperature_k": 280,
+      "min_temperature_k": 200,
+      "max_temperature_k": 450
+    },
+    "receiver": {
+      "heat_capacity_j_k": 1000,
+      "fluid_ua_w_k": 10,
+      "ambient_ua_w_k": 2,
+      "ambient_temperature_k": 280,
+      "min_temperature_k": 200,
+      "max_temperature_k": 450
+    }
+  },
+  "actuators": {
+    "transfer": {
+      "opening_rate_per_s": 0.5,
+      "closing_rate_per_s": 0.25,
+      "time_constant_s": 0.2,
+      "fail_position": 1,
+      "max_position_change": 0.1
+    }
+  },
+  "actuator_positions": {
+    "transfer": 0
+  },
+  "protections": [
+    {
+      "name": "receiver_high_p",
+      "vessel": "receiver",
+      "metric": "pressure_pa",
+      "direction": "above",
+      "threshold": 1010000,
+      "value_tolerance": 0.01,
+      "close_connections": [
+        "transfer"
+      ]
+    }
+  ]
+}

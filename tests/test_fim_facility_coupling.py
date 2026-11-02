@@ -161,3 +161,53 @@ def test_simulator_uses_coupled_stepper_and_pickles_one_shared_solver():
     assert sim.run_step(86400) and saved.run_step(86400)
     assert sim.current_time == saved.current_time == 172800
     assert torch.equal(sim.fluid.pressure, saved.fluid.pressure)
+
+
+def test_integrated_material_account_capacity_change_and_exact_restart():
+    c = build(False)
+    initial = masses(c.solver).tolist()
+    assert c.step(86400)
+    assert c.report["fraction"] == 1
+    previous_produced = c.report["material_account"]["produced_kg"].copy()
+    c.controls = {"gas_valve_max_opening": 0.01}
+    saved = pickle.loads(pickle.dumps(c))
+    assert c.step(43200) and saved.step(43200)
+    assert c.report == saved.report
+    assert c.report["fraction"] < 1
+    account = c.report["material_account"]
+    assert account["elapsed_s"] == 129600
+    assert list(account["initial_inventory_kg"].values()) == initial
+    step = account["step"]
+    rates = report_rates(c.solver).sum(0).tolist()
+    for i, component in enumerate(("oil", "water", "gas")):
+        assert step["produced_kg"][component] == pytest.approx(rates[i] * 43200, rel=1e-12)
+        assert account["produced_kg"][component] == pytest.approx(
+            previous_produced[component] + step["produced_kg"][component], rel=1e-12
+        )
+        assert sum(p[component] for p in account["products_kg"].values()) == pytest.approx(
+            account["produced_kg"][component], rel=1e-12, abs=1e-12
+        )
+        assert abs(account["end_to_end_residual_kg"][component]) < 0.02
+    c.controls = {}
+    assert c.step(21600)
+    assert c.report["fraction"] == 1
+    assert c.report["material_account"]["elapsed_s"] == 151200
+
+
+def test_material_account_rejects_corrupted_products_and_rolls_back(monkeypatch):
+    c = build(False)
+    assert c.step(86400)
+    previous = copy.deepcopy(c.report)
+    inventory = masses(c.solver).clone()
+    original = SurfaceFacility.run
+
+    def corrupt(self, *args, **kwargs):
+        result = original(self, *args, **kwargs)
+        result["products"]["oil"]["oil_m3_s"] *= 1.01
+        return result
+
+    monkeypatch.setattr(SurfaceFacility, "run", corrupt)
+    assert not c.step(86400)
+    assert "products" in c.last_attempt["reason"]
+    assert c.report == previous
+    assert torch.equal(masses(c.solver), inventory)

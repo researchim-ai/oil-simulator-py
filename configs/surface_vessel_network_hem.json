@@ -1,0 +1,97 @@
+{
+  "fluid": {
+    "components": [
+      {
+        "name": "Methane",
+        "critical_temperature_k": 190.564,
+        "critical_pressure_pa": 4599200.0,
+        "acentric_factor": 0.01142,
+        "molar_mass_kg_mol": 0.0160428,
+        "ideal_cp_j_mol_k": 35.7,
+        "min_temperature_k": 160.0,
+        "max_temperature_k": 500.0
+      },
+      {
+        "name": "Ethane",
+        "critical_temperature_k": 305.322,
+        "critical_pressure_pa": 4872200.0,
+        "acentric_factor": 0.099,
+        "molar_mass_kg_mol": 0.03006904,
+        "ideal_cp_j_mol_k": 52.5,
+        "min_temperature_k": 160.0,
+        "max_temperature_k": 500.0
+      }
+    ],
+    "binary_interactions": [
+      [
+        0,
+        0
+      ],
+      [
+        0,
+        0
+      ]
+    ]
+  },
+  "vessels": {
+    "upstream": {
+      "volume_m3": 0.01,
+      "min_pressure_pa": 100000.0,
+      "max_pressure_pa": 5000000.0
+    },
+    "receiver": {
+      "volume_m3": 0.01,
+      "min_pressure_pa": 100000.0,
+      "max_pressure_pa": 5000000.0
+    }
+  },
+  "connections": [
+    {
+      "model": "pr_hem_nozzle",
+      "name": "hem-transfer",
+      "source": "upstream",
+      "target": "receiver",
+      "throat_area_m2": 1e-08,
+      "minimum_pressure_pa": 500000.0,
+      "max_pressure_difference_pa": 3000000.0,
+      "max_molar_rate_mol_s": 0.1,
+      "discharge_coefficient": 0.8,
+      "scan_points": 9,
+      "allow_reverse": true
+    }
+  ],
+  "initial": {
+    "upstream": {
+      "pressure_pa": 3000000.0,
+      "temperature_k": 220,
+      "mole_fractions": [
+        0.5,
+        0.5
+      ]
+    },
+    "receiver": {
+      "pressure_pa": 1000000.0,
+      "temperature_k": 220,
+      "mole_fractions": [
+        0.5,
+        0.5
+      ]
+    }
+  },
+  "stepper": {
+    "initial_dt_s": 0.01,
+    "maximum_dt_s": 0.01,
+    "minimum_dt_s": 1e-05
+  },
+  "periods": [
+    {
+      "duration_s": 0.01
+    },
+    {
+      "duration_s": 0.01,
+      "connection_factors": {
+        "hem-transfer": 0
+      }
+    }
+  ]
+}

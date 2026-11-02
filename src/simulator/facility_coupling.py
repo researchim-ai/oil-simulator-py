@@ -10,6 +10,7 @@ from copy import copy
 from dataclasses import dataclass
 
 import numpy as np
+import torch
 
 from .blackoil_surface_coupling import SurfaceCoupledBlackOilWells
 from .fim_transaction import _StepState
@@ -17,6 +18,7 @@ from .fim_transaction import _StepState
 try:
     from ..surface import (
         ComponentStream,
+        ConservationError,
         EquipmentOperatingError,
         HydraulicConvergenceError,
         PropertyModelError,
@@ -26,6 +28,7 @@ try:
 except ImportError:
     from surface import (
         ComponentStream,
+        ConservationError,
         EquipmentOperatingError,
         HydraulicConvergenceError,
         PropertyModelError,
@@ -99,6 +102,78 @@ class FacilityCoupledFIM:
         self.last_attempt = None
         self.controls = {}
 
+    def _inventory(self):
+        """Reduce on the reservoir device; transfer only three component totals."""
+        s = self.solver
+        with torch.no_grad():
+            values = (
+                s.masses(s.fluid.pressure.flatten(), s.fluid.s_w.flatten(), s.x, s.sat, s.ug)
+                .sum(1)
+                .detach()
+                .cpu()
+                .numpy()
+            )
+        if not np.isfinite(values).all() or (values < 0).any():
+            raise ConservationError("Invalid coupled reservoir component inventory")
+        return dict(zip(("oil", "water", "gas"), map(float, values)))
+
+    def _material_account(self, before, plant, dt):
+        """Audit actual accepted material, never requested caps or rejected trials."""
+        after = self._inventory()
+        rho = self.facility.densities
+        feed = ComponentStream(**plant["feed"]).mass_rates(rho)
+        products = {
+            name: ComponentStream(**stream).mass_rates(rho)
+            for name, stream in plant["products"].items()
+        }
+        outgoing = {c: math.fsum(stream[c] for stream in products.values()) for c in before}
+        if any(
+            not math.isclose(feed[c], outgoing[c], rel_tol=1e-12, abs_tol=1e-14) for c in before
+        ):
+            raise ConservationError("Coupled facility products do not match actual feed")
+        produced = {c: feed[c] * dt for c in before}
+        delivered = {name: {c: rate[c] * dt for c in before} for name, rate in products.items()}
+        previous = None if self.report is None else self.report.get("material_account")
+        initial = before if previous is None else previous["initial_inventory_kg"]
+        cumulative = {
+            c: math.fsum([produced[c], 0.0 if previous is None else previous["produced_kg"][c]])
+            for c in before
+        }
+        cumulative_products = {
+            name: {
+                c: math.fsum(
+                    [
+                        delivered[name][c],
+                        0.0
+                        if previous is None
+                        else previous["products_kg"].get(name, {}).get(c, 0.0),
+                    ]
+                )
+                for c in before
+            }
+            for name in delivered
+        }
+        return {
+            "scope": "Stock-component masses, closed producer-only reservoir; no surface storage. Reservoir residuals are diagnostics, not a replacement for FIM CNV/MB.",
+            "step": {
+                "inventory_before_kg": before,
+                "inventory_after_kg": after,
+                "produced_kg": produced,
+                "products_kg": delivered,
+                "reservoir_residual_kg": {c: before[c] - after[c] - produced[c] for c in before},
+                "surface_residual_kg": {c: (feed[c] - outgoing[c]) * dt for c in before},
+            },
+            "elapsed_s": dt + (0.0 if previous is None else previous["elapsed_s"]),
+            "initial_inventory_kg": dict(initial),
+            "current_inventory_kg": after,
+            "produced_kg": cumulative,
+            "products_kg": cumulative_products,
+            "end_to_end_residual_kg": {
+                c: initial[c] - after[c] - math.fsum(p[c] for p in cumulative_products.values())
+                for c in before
+            },
+        }
+
     def step(self, dt, current_time=None):
         if isinstance(dt, bool) or not math.isfinite(dt) or dt <= 0:
             raise ValueError("dt must be positive and finite")
@@ -133,6 +208,7 @@ class FacilityCoupledFIM:
         # becoming the live mutable arrays of the next trial.
         initial = _StepState(solver)
         previous = self.report
+        inventory_before = self._inventory()
         caps = [w.control_value for w in solver.wells.wells]
         trace = []
         accepted = False
@@ -222,6 +298,7 @@ class FacilityCoupledFIM:
                 ok, plant = trial(chosen)
                 if not ok:
                     raise HydraulicConvergenceError("Selected coupled facility mode failed replay")
+            material_account = self._material_account(inventory_before, plant, dt)
             self.report = {
                 "model": "outer_rate_cap_coupled_blackoil_fim_facility",
                 "fraction": chosen,
@@ -229,6 +306,7 @@ class FacilityCoupledFIM:
                 "evaluations": len(trace),
                 "trace": trace,
                 "facility": plant,
+                "material_account": material_account,
                 "applied_rate_caps_m3_day": [cap * chosen for cap in caps],
                 "scope": "Common producer rate-cap multiplier; each trial solves the same FIM step. No monolithic facility Jacobian.",
             }

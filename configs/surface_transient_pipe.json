@@ -1,0 +1,52 @@
+{
+  "pipe": {
+    "length_m": 10,
+    "diameter_m": 0.1,
+    "cells": 8,
+    "liquid_density_kg_m3": 850,
+    "gas_constant_j_kg_k": 500,
+    "temperature_k": 300,
+    "distribution_parameter": 1.1,
+    "drift_velocity_m_s": 0.1,
+    "darcy_factor": 0.02
+  },
+  "initial": {
+    "pressure_pa": 1000000.0,
+    "gas_void_fraction": 0.2
+  },
+  "stepper": {
+    "initial_dt_s": 0.01,
+    "maximum_dt_s": 0.01
+  },
+  "periods": [
+    {
+      "duration_s": 0.02,
+      "left": {
+        "pressure_pa": 1010000,
+        "gas_void_fraction": 0.2,
+        "mixture_velocity_m_s": 0
+      },
+      "right": {
+        "pressure_pa": 1000000,
+        "gas_void_fraction": 0.2,
+        "mixture_velocity_m_s": 0
+      }
+    },
+    {
+      "duration_s": 0.02
+    },
+    {
+      "duration_s": 0.02,
+      "left": {
+        "pressure_pa": 1000000,
+        "gas_void_fraction": 0.2,
+        "mixture_velocity_m_s": 0
+      },
+      "right": {
+        "pressure_pa": 1010000,
+        "gas_void_fraction": 0.2,
+        "mixture_velocity_m_s": 0
+      }
+    }
+  ]
+}

@@ -200,5 +200,242 @@ python scripts/run_fim_blackoil_surface.py configs/fim_blackoil_facility_coupled
 
 Для `letdown`: `equipment` содержит `name` и `outlet_pressure_pa`; режим —
 `inlet_pressure_pa`, `inlet_temperature_k`, `mass_rate_kg_s`, `mole_fractions`.
-Операция `nozzle` для смеси явно отклоняется. Уравнения, соглашения по единицам
+Для `nozzle` `equipment` содержит `name`, `throat_area_m2`,
+`minimum_pressure_pa`, необязательные `discharge_coefficient` (1),
+`scan_points` (33, целое не меньше 9), `pressure_tolerance_pa` (0.01).
+Режим: `inlet_pressure_pa`, `inlet_temperature_k`, `back_pressure_pa`,
+`mole_fractions`, необязательное `opening` (1, от 0 до 1).
+Пример: `configs/surface_thermal_mixture_nozzle.json`. Уравнения, соглашения по единицам
 и ограничения находятся в [термодинамике](THERMODYNAMICS.md).
+
+
+## Компонентная тепловая схема
+
+Конфигурация `configs/surface_thermal_process.json` содержит `fluid`,
+`units`, `periods` и необязательный `resource_limits`. `fluid` — явные `components` и `binary_interactions`, как выше.
+
+Каждый аппарат: `name`, `type`, `inputs` (список имён), `outputs` (список имён),
+`parameters` (объект). Типы и параметры:
+
+- `mix`: несколько входов, один выход, пустые `parameters`; давления равны.
+- `split`: один вход, два выхода; `fraction` от 0 до 1.
+- `letdown`: один вход/выход; `pressure_pa`.
+- `heat_exchanger`: один вход/выход; `outlet_temperature_k`,
+  `utility_temperature_k`, необязательные `pressure_drop_pa` (0), `max_abs_duty_w`.
+- `pressure_raiser`: один вход/выход; `outlet_pressure_pa`, `isentropic_efficiency`,
+  необязательные `max_power_w`, `max_outlet_temperature_k`.
+- `separator`: один вход, два выхода; `pressure_pa`, необязательный
+  `single_phase_outlet` (0 или 1, без значения однофазная сепарация отклоняется).
+
+Имя аппарата не дублируется в `parameters`. Один поток расходуется один раз;
+для нескольких потребителей нужен `split`. Непотреблённые потоки — продукты.
+
+Период содержит `duration_s` и `feeds`: отображение имени подачи в
+`pressure_pa`, `temperature_k`, `molar_rate_mol_s`, `mole_fractions`.
+Нулевая подача допустима. Необязательный `unit_controls` периода — отображение
+имени аппарата в переопределяемые поля его `parameters`; команды применяются
+к базовому `units` независимо для каждого периода. Подключения потоков менять нельзя.
+
+`resource_limits` корня или периода содержит `max_shaft_power_w`, `max_heating_w`,
+`max_cooling_w`: неотрицательные пределы в Вт, null/пропуск — без ограничения.
+Блок периода полностью заменяет корневой для этого периода. Нагрев и охлаждение
+учитываются раздельно. При наличии блока контроллер выбирает общий множитель
+подач с учётом этих пределов и абсолютных лимитов аппаратов, затем пересчитывает
+физическую схему. Пример: `configs/surface_thermal_process_controlled.json`.
+
+```bash
+python scripts/run_surface_process.py configs/surface_thermal_process.json --output /tmp/process.json
+```
+
+`--stop-after N` выполняет не больше N очередных периодов, `--checkpoint PATH`
+продолжает проверенный JSON. Схема/расписание/модель должны совпадать с сохранением.
+Уравнения и точные границы применимости: [тепловая подготовка](THERMAL_PROCESS.md).
+
+
+## Динамический сосуд PR-смеси
+
+`configs/surface_dynamic_vessel.json` запускается через `scripts/run_dynamic_vessel.py`.
+Поля, единицы, фазовые порты, ограничения шага и перезапуск описаны
+в [руководстве динамического сосуда](DYNAMIC_VESSEL.md).
+Команды постоянны внутри периода; их интегрирование сохраняет компонентные
+запасы и внутреннюю энергию, в отличие от накопления продукции steady-схемы.
+
+
+## Монолитная динамическая сеть
+
+Пример `configs/surface_vessel_network.json`, команда `scripts/run_vessel_network.py`.
+Отдельные `vessels`, `connections` и `initial` задают геометрию, проводимости
+и исходные состояния; `periods` — внешние потоки, тепло и `connection_factors`.
+Полный формат и ограничения линейной связи: [динамическая сеть](DYNAMIC_NETWORK.md).
+
+
+Для нелинейной однофазной связи задаётся `model: "pr_single_phase_nozzle"`,
+`throat_area_m2`, `discharge_coefficient` (1), `minimum_pressure_ratio` (0.4),
+`pressure_tolerance_pa` (0.001) и обязательные предельные перепад/молярный расход.
+Общие поля соединения и порты сохраняются; `connection_factors` масштабирует
+площадь. Пример: `configs/surface_vessel_network_pr_nozzle.json`.
+Старый формат без `model` остаётся линейным; область применимости —
+в [описании динамической сети](DYNAMIC_NETWORK.md).
+
+
+Для двухфазной связи задаётся `model: "pr_hem_nozzle"` с `throat_area_m2`,
+`minimum_pressure_pa`, предельными перепадом/молярным расходом и
+необязательными `discharge_coefficient` (1), `scan_points` (9),
+`pressure_tolerance_pa` (0.01). Порты, reverse и масштаб площади общие.
+Пример: `configs/surface_vessel_network_hem.json`; область и численный
+якобиан описаны в [HEM-связи](DYNAMIC_NETWORK.md).
+
+
+## Событийные защиты сети
+
+Корневые `protections` (массив `NetworkTrip`) и `event_time_tolerance_s`
+(1e-7 s) необязательны. Периодное `reset_trips` сбрасывает перечисленные
+защёлки; при сохраняющемся нарушении они срабатывают снова.
+Метрики, единицы численного допуска, действия и приоритеты команд:
+[события и защиты](NETWORK_PROTECTIONS.md).
+Пример: `configs/surface_vessel_network_protected.json`.
+
+## Стенки динамических аппаратов
+
+Корневой `walls` и начальный `wall_temperature_k` добавляют конечную
+теплоёмкость стенок; `ambient_temperatures` задаёт окружение по периодам.
+Параметры и воспроизводимый пример: [тепловая инерция](VESSEL_WALL.md).
+
+## Приводы динамических соединений
+
+Корневые `actuators` и `actuator_positions` задают характеристики и начальные
+положения. Периодические `connection_factors` становятся командами приводов,
+`actuator_modes` задаёт normal/fail_safe/stuck. Параметры, приоритеты защит
+и сохранение: [руководство](CONNECTION_ACTUATORS.md).
+
+## Труба с распределёнными запасами и уровень сепаратора
+
+Отдельный CLI `run_transient_pipe.py`: корневые `pipe`, `initial`, `periods`,
+опциональный `stepper`; см. [уравнения и единицы](TRANSIENT_PIPE.md).
+В PR-сети корневой `geometries` задаёт цилиндры, `withdrawals.phase_0`
+принимает объект ограниченного регулятора. Метрика защиты `liquid_level_m`
+использует высоту жидкости; см. [геометрический уровень](SEPARATOR_LEVEL.md).
+
+В CLI трубы `model: thermal_homogeneous` выбирает [полную энергию](THERMAL_PIPE.md).
+Нужны C0=1, Vd=0, горизонтальная геометрия; температуры открытых границ
+задаются явно. `surface_thermal_pipe.json` содержит полный пример.
+
+### Численная диссипация тепловой трубы
+
+Для `ThermalHomogeneousPipe`: `numerical_flux` принимает `entropy_stable`
+(по умолчанию) или `rusanov`. `adaptive_entropy_dissipation` — строго boolean,
+по умолчанию true: локальный датчик вычисляется из принятого состояния
+и фиксируется во время нелинейного решения подшага.
+`thermal_entropy_dissipation` — конечное неотрицательное число,
+по умолчанию 1.4. Это численный коэффициент, не свойство реального флюида.
+Для воспроизведения прежнего постоянного энтропийного потока нужны
+`adaptive_entropy_dissipation=false` и `thermal_entropy_dissipation=0.75`.
+Подробности и область проверки: [численный метод](THERMAL_NUMERICS.md).
+
+### Вращающийся привод
+
+`configs/surface_rotating_drive.json` задаёт `drive`, `initial`, `periods`.
+Основные параметры: `inertia_kg_m2`, `max_speed_rad_s`, `max_motor_torque_nm`,
+`max_braking_torque_nm`. Необязательные: `viscous_drag_nm_s` (0),
+`motor_efficiency` (1), `regeneration_efficiency` (1),
+`max_electrical_draw_w`/`max_electrical_export_w` (null — предел не задан).
+Каждый период содержит `duration_s`, `motor_torque_nm` и необязательный
+`load_torque_nm` (0). Моменты постоянны внутри периода. Начальное состояние
+задаётся `angular_velocity_rad_s` и необязательным `time_s` (оба 0).
+Физика, работа ограничений и restart: [руководство привода](ROTATING_DRIVE.md).
+
+### Динамический насос с сетью и PID
+
+`configs/surface_dynamic_pump.json` содержит `system`, `initial`, `periods`.
+В `system`: существующий `network` формата LiquidNetwork, `drive` формата
+RotatingDrive, `nominal_speed_rad_s`, необязательный `controller` (null без
+авторегулирования), `measurement` (pressure/flow/speed), `measurement_node`,
+`control_interval_s` (0.1), `maximum_dt_s` (0.02), `minimum_dt_s` (1e-7),
+`max_speed_change_rad_s` (2), `no_flow_power_w_at_nominal` (0).
+
+PID: `proportional_gain`, `integral_gain`, `derivative_gain`, `min_output`,
+`max_output`; необязательные `derivative_filter_s` (0.1), `tracking_time_s`
+(0.5), `bias` (0), `direction` (+1 или −1). Выход — момент в N m,
+единицы обратной связи задаются `measurement`.
+
+Период: `duration_s`; необязательные `mode` (auto/manual/off/trip),
+`setpoint`, `motor_torque_nm`, `network_options`, `reset_trip` (false),
+`max_substeps` (100000). Auto требует контроллер. Пределы насосных карт
+не расширяются при запуске. Ограничения привода меняют фактический момент
+с сохранением учёта энергии; ошибка регулирования остаётся явной.
+Поведение команд, перезапуска и область применимости:
+[насос, сеть и PID](DYNAMIC_PUMP.md).
+
+### Компрессор с коллектором и рециркуляцией
+
+`configs/surface_compressor_train.json`: поля `system`, `initial`, `periods`.
+В `system`: `compressor` (map, gas, mechanical_efficiency,
+max_discharge_temperature_k, max_shaft_power_w), `drive`, `recycle_actuator`
+(fail_position=1), `anti_surge_controller` (выход [0,1]), необязательный
+`speed_controller`, объём коллектора, давления/температура резервуаров,
+площади экспортного/рециркуляционного сопел.
+
+Карта: `corrected_speed_rad_s`, `beta` (0 surge, 1 choke), матрицы
+`corrected_mass_flow_kg_s`, `pressure_ratio`, `isentropic_efficiency`;
+`reference_temperature_k` (300), `reference_pressure_pa` (1e5).
+Матрицы имеют размер скорость × beta. Входные условия относятся к одному
+и тому же идеальному газу, скорость задаётся в rad/s, расход в kg/s.
+
+Основные настройки: `target_surge_margin` (0.25), `fast_open_margin` (0.1),
+`control_interval_s` (0.05), `maximum_dt_s` (0.01), `minimum_dt_s` (1e-7),
+`heat_transfer_w_k` (0), `ambient_temperature_k` (300),
+`min_temperature_k` (150), `max_temperature_k` (700), `max_pressure_pa` (1e7),
+необязательные пределы `max_recycle_cooling_w`/`max_recycle_heating_w` (null).
+Точность состояния: `max_fractional_mass_change` (0.05),
+`max_temperature_change_k` (5), `max_speed_change_rad_s` (2).
+
+Период: `duration_s`, `mode` (run/standby/off/trip),
+`speed_control_mode` (auto/manual), `speed_setpoint_rad_s`, `motor_torque_nm`,
+`export_opening` (1), `anti_surge_mode` (auto/manual),
+`manual_recycle_opening` (1), `recycle_actuator_mode` (normal/fail_safe/stuck),
+`reset_trip` (false), `max_substeps` (100000). Run ниже диапазона карты
+не заменяется экстраполированной характеристикой: запуск требует standby.
+Схема нагнетательного trim-клапана, знаки потоков/тепла и ограничения:
+[руководство](COMPRESSOR_TRAIN.md).
+
+### Динамическая параллельная насосная станция
+
+`configs/surface_dynamic_station.json`: поля `system`, `initial`, `periods`.
+`system.network` — существующая `LiquidNetwork` с 1–8 открытыми
+параллельными насосами с обратными клапанами и границами давления.
+`drives` — словарь имя насоса → параметры `RotatingDrive`;
+`nominal_speeds_rad_s` — имя → номинальная скорость.
+`speed_controllers` — имя → PID или null, `pressure_controller` — PID
+или null, `pressure_node` — узел обратной связи. Внешний PID требует
+локального PID каждого агрегата; его выход — общая относительная скорость
+с нижней границей ноль. Выход локального PID — момент в N m.
+
+`dispatch_policy` — параметры существующего `PumpStationControl` или null;
+имена насосов и узел должны соответствовать станции. Ограничения количества,
+диапазон общей скорости, NPSH/расход и допустимое число конфигураций
+относятся к выбору стационарного кандидата. В динамическом блоке его
+стоимость пересчитывается в электрическое потребление с потерями приводов.
+
+Настройки: `control_interval_s` (0.2), `maximum_dt_s` (0.05),
+`minimum_dt_s` (1e-7), `max_speed_change_rad_s` (2),
+`minimum_stage_dwell_s` (5), `dispatch_power_deadband_w` (10),
+`max_station_electrical_draw_w`/`max_station_electrical_export_w`
+(null без общего ограничения; ноль допустим),
+`no_flow_power_w_at_nominal` (словарь, пропущенные агрегаты имеют P0=0 W).
+
+`initial`: необязательные `speeds_rad_s` (словарь, по умолчанию нули),
+`time_s` (0), `unavailable` (пустой список), `network_options`.
+Период: `duration_s`, `mode` (auto/manual/torque/off/trip, default auto),
+`pressure_setpoint_pa` (по умолчанию цель политики), `speed_ratio` (1),
+`running_pumps` (список), `motor_torques_nm` (словарь), `unavailable`,
+`network_options`, `reset_trip` (false), `redispatch` (false),
+`max_substeps` (100000). В torque при пропущенном running_pumps используются
+ключи motor_torques_nm; недоступные агрегаты не включаются.
+Manual задаёт скорость, torque — моменты. Network options разрешает только
+`boundary_pressures_pa` и `valve_openings`.
+
+Пропущенный `unavailable` сохраняет предыдущую недоступность; пустой список
+возвращает доступность. Отключённый двигатель не обнуляет скорость вала
+или расход выбегающего насоса. Trip имеет защёлку. На рестарте полный
+предшествующий журнал воспроизводится один раз с проверкой исходников,
+физики, PID и диспетчеризации. Подробнее: [модель станции](DYNAMIC_STATION.md).

@@ -1,0 +1,65 @@
+{
+  "pipe": {
+    "length_m": 10,
+    "diameter_m": 0.1,
+    "cells": 8,
+    "liquid_density_kg_m3": 850,
+    "gas_constant_j_kg_k": 500,
+    "temperature_k": 300,
+    "distribution_parameter": 1,
+    "drift_velocity_m_s": 0,
+    "darcy_factor": 0.02,
+    "liquid_cv_j_kg_k": 2000,
+    "gas_cv_j_kg_k": 1500,
+    "heat_transfer_w_m_k": 100,
+    "ambient_temperature_k": 340,
+    "numerical_flux": "entropy_stable",
+    "thermal_entropy_dissipation": 1.4,
+    "adaptive_entropy_dissipation": true
+  },
+  "initial": {
+    "pressure_pa": 1000000.0,
+    "gas_void_fraction": 0.2,
+    "temperature_k": 300
+  },
+  "stepper": {
+    "initial_dt_s": 0.01,
+    "maximum_dt_s": 0.01
+  },
+  "periods": [
+    {
+      "duration_s": 0.02,
+      "left": {
+        "pressure_pa": 1010000,
+        "gas_void_fraction": 0.2,
+        "mixture_velocity_m_s": 0,
+        "temperature_k": 330
+      },
+      "right": {
+        "pressure_pa": 1000000,
+        "gas_void_fraction": 0.2,
+        "mixture_velocity_m_s": 0,
+        "temperature_k": 300
+      }
+    },
+    {
+      "duration_s": 0.02
+    },
+    {
+      "duration_s": 0.02,
+      "left": {
+        "pressure_pa": 1000000,
+        "gas_void_fraction": 0.2,
+        "mixture_velocity_m_s": 0,
+        "temperature_k": 300
+      },
+      "right": {
+        "pressure_pa": 1010000,
+        "gas_void_fraction": 0.2,
+        "mixture_velocity_m_s": 0,
+        "temperature_k": 330
+      }
+    }
+  ],
+  "model": "thermal_homogeneous"
+}

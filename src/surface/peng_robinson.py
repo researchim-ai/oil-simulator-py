@@ -57,13 +57,17 @@ class PengRobinsonFluid:
     def b(self):
         return OMEGA_B * R * self.critical_temperature_k / self.critical_pressure_pa
 
+    @property
+    def attraction_coefficient(self):
+        return OMEGA_A * R**2 * self.critical_temperature_k**2 / self.critical_pressure_pa
+
     def _a(self, t):
         k = 0.37464 + 1.54226 * self.acentric_factor - 0.26992 * self.acentric_factor**2
         tr = (t / self.critical_temperature_k) ** 0.5
         m = 1 + k * (1 - tr)
         if float(m.detach() if torch.is_tensor(m) else m) <= 0:
             raise PropertyModelError("PR alpha outside supported branch")
-        constant = OMEGA_A * R**2 * self.critical_temperature_k**2 / self.critical_pressure_pa
+        constant = self.attraction_coefficient
         return constant * m * m, -constant * k * m / (self.critical_temperature_k * tr)
 
     def _validate(self, p, t):

@@ -9,6 +9,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 from surface import (
     EquilibriumNozzle,
     HydraulicConvergenceError,
+    MixtureEquilibriumNozzle,
     MixtureLetdown,
     PengRobinsonFluid,
     PengRobinsonMixture,
@@ -33,9 +34,10 @@ def run_case(data):
     for spec in data["operations"]:
         operation = dict(spec)
         kind = operation.pop("type")
-        if is_mixture and kind in ("letdown", "pt", "ph", "ps", "state", "stability"):
-            if kind == "letdown":
-                result = MixtureLetdown(**operation.pop("equipment")).run(fluid=fluid, **operation)
+        if is_mixture and kind in ("letdown", "nozzle", "pt", "ph", "ps", "state", "stability"):
+            if kind in ("letdown", "nozzle"):
+                model = MixtureLetdown if kind == "letdown" else MixtureEquilibriumNozzle
+                result = model(**operation.pop("equipment")).run(fluid=fluid, **operation)
             else:
                 method = {
                     "pt": "flash_pt",

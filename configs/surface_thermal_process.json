@@ -1,0 +1,237 @@
+{
+  "fluid": {
+    "components": [
+      {
+        "name": "Methane",
+        "critical_temperature_k": 190.564,
+        "critical_pressure_pa": 4599200.0,
+        "acentric_factor": 0.01142,
+        "molar_mass_kg_mol": 0.0160428,
+        "ideal_cp_j_mol_k": 35.7,
+        "min_temperature_k": 160.0,
+        "max_temperature_k": 500.0
+      },
+      {
+        "name": "Ethane",
+        "critical_temperature_k": 305.322,
+        "critical_pressure_pa": 4872200.0,
+        "acentric_factor": 0.099,
+        "molar_mass_kg_mol": 0.03006904,
+        "ideal_cp_j_mol_k": 52.5,
+        "min_temperature_k": 160.0,
+        "max_temperature_k": 500.0
+      }
+    ],
+    "binary_interactions": [
+      [
+        0,
+        0
+      ],
+      [
+        0,
+        0
+      ]
+    ]
+  },
+  "units": [
+    {
+      "name": "feed-mixer",
+      "type": "mix",
+      "inputs": [
+        "feed-a",
+        "feed-b"
+      ],
+      "outputs": [
+        "mixed"
+      ],
+      "parameters": {}
+    },
+    {
+      "name": "bypass-split",
+      "type": "split",
+      "inputs": [
+        "mixed"
+      ],
+      "outputs": [
+        "main",
+        "bypass"
+      ],
+      "parameters": {
+        "fraction": 0.9
+      }
+    },
+    {
+      "name": "cold-stage",
+      "type": "heat_exchanger",
+      "inputs": [
+        "main"
+      ],
+      "outputs": [
+        "cold"
+      ],
+      "parameters": {
+        "outlet_temperature_k": 220,
+        "utility_temperature_k": 180,
+        "pressure_drop_pa": 100000.0,
+        "max_abs_duty_w": 200000
+      }
+    },
+    {
+      "name": "flash-drum",
+      "type": "separator",
+      "inputs": [
+        "cold"
+      ],
+      "outputs": [
+        "dense",
+        "light"
+      ],
+      "parameters": {
+        "pressure_pa": 2800000.0
+      }
+    },
+    {
+      "name": "vapor-preheater",
+      "type": "heat_exchanger",
+      "inputs": [
+        "light"
+      ],
+      "outputs": [
+        "warm"
+      ],
+      "parameters": {
+        "outlet_temperature_k": 300,
+        "utility_temperature_k": 360,
+        "max_abs_duty_w": 100000
+      }
+    },
+    {
+      "name": "gas-booster",
+      "type": "pressure_raiser",
+      "inputs": [
+        "warm"
+      ],
+      "outputs": [
+        "compressed"
+      ],
+      "parameters": {
+        "outlet_pressure_pa": 4000000.0,
+        "isentropic_efficiency": 0.8,
+        "max_power_w": 50000,
+        "max_outlet_temperature_k": 450
+      }
+    },
+    {
+      "name": "aftercooler",
+      "type": "heat_exchanger",
+      "inputs": [
+        "compressed"
+      ],
+      "outputs": [
+        "gas-product"
+      ],
+      "parameters": {
+        "outlet_temperature_k": 310,
+        "utility_temperature_k": 290,
+        "max_abs_duty_w": 100000
+      }
+    },
+    {
+      "name": "liquid-letdown",
+      "type": "letdown",
+      "inputs": [
+        "dense"
+      ],
+      "outputs": [
+        "liquid-product"
+      ],
+      "parameters": {
+        "pressure_pa": 1000000.0
+      }
+    },
+    {
+      "name": "bypass-letdown",
+      "type": "letdown",
+      "inputs": [
+        "bypass"
+      ],
+      "outputs": [
+        "bypass-product"
+      ],
+      "parameters": {
+        "pressure_pa": 1000000.0
+      }
+    }
+  ],
+  "periods": [
+    {
+      "duration_s": 3600,
+      "feeds": {
+        "feed-a": {
+          "pressure_pa": 3000000.0,
+          "temperature_k": 260,
+          "molar_rate_mol_s": 10,
+          "mole_fractions": [
+            0.5,
+            0.5
+          ]
+        },
+        "feed-b": {
+          "pressure_pa": 3000000.0,
+          "temperature_k": 280,
+          "molar_rate_mol_s": 2,
+          "mole_fractions": [
+            0.4,
+            0.6
+          ]
+        }
+      }
+    },
+    {
+      "duration_s": 600,
+      "feeds": {
+        "feed-a": {
+          "pressure_pa": 3000000.0,
+          "temperature_k": 260,
+          "molar_rate_mol_s": 0,
+          "mole_fractions": [
+            0.5,
+            0.5
+          ]
+        },
+        "feed-b": {
+          "pressure_pa": 3000000.0,
+          "temperature_k": 280,
+          "molar_rate_mol_s": 0,
+          "mole_fractions": [
+            0.4,
+            0.6
+          ]
+        }
+      }
+    },
+    {
+      "duration_s": 3600,
+      "feeds": {
+        "feed-a": {
+          "pressure_pa": 3000000.0,
+          "temperature_k": 260,
+          "molar_rate_mol_s": 7.0,
+          "mole_fractions": [
+            0.5,
+            0.5
+          ]
+        },
+        "feed-b": {
+          "pressure_pa": 3000000.0,
+          "temperature_k": 280,
+          "molar_rate_mol_s": 1.4,
+          "mole_fractions": [
+            0.4,
+            0.6
+          ]
+        }
+      }
+    }
+  ]
+}

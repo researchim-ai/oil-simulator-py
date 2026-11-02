@@ -1,0 +1,55 @@
+{
+  "fluid": {
+    "components": [
+      {
+        "name": "Methane",
+        "critical_temperature_k": 190.564,
+        "critical_pressure_pa": 4599200.0,
+        "acentric_factor": 0.01142,
+        "molar_mass_kg_mol": 0.0160428,
+        "ideal_cp_j_mol_k": 35.7,
+        "min_temperature_k": 160.0,
+        "max_temperature_k": 500.0
+      },
+      {
+        "name": "Ethane",
+        "critical_temperature_k": 305.322,
+        "critical_pressure_pa": 4872200.0,
+        "acentric_factor": 0.099,
+        "molar_mass_kg_mol": 0.03006904,
+        "ideal_cp_j_mol_k": 52.5,
+        "min_temperature_k": 160.0,
+        "max_temperature_k": 500.0
+      }
+    ],
+    "binary_interactions": [
+      [
+        0,
+        0
+      ],
+      [
+        0,
+        0
+      ]
+    ]
+  },
+  "operations": [
+    {
+      "type": "nozzle",
+      "equipment": {
+        "name": "mixture-nozzle",
+        "throat_area_m2": 1e-05,
+        "minimum_pressure_pa": 500000.0,
+        "discharge_coefficient": 0.8,
+        "scan_points": 9
+      },
+      "inlet_pressure_pa": 3000000.0,
+      "inlet_temperature_k": 260,
+      "back_pressure_pa": 500000.0,
+      "mole_fractions": [
+        0.5,
+        0.5
+      ]
+    }
+  ]
+}

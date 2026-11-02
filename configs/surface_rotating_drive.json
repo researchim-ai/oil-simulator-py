@@ -1,0 +1,19 @@
+{
+  "drive": {
+    "inertia_kg_m2": 5.0,
+    "max_speed_rad_s": 200.0,
+    "max_motor_torque_nm": 50.0,
+    "max_braking_torque_nm": 30.0,
+    "viscous_drag_nm_s": 0.2,
+    "motor_efficiency": 0.9,
+    "regeneration_efficiency": 0.7,
+    "max_electrical_draw_w": 10000.0,
+    "max_electrical_export_w": 5000.0
+  },
+  "initial": {"angular_velocity_rad_s": 0.0},
+  "periods": [
+    {"duration_s": 10.0, "motor_torque_nm": 20.0, "load_torque_nm": 5.0},
+    {"duration_s": 5.0, "motor_torque_nm": 0.0},
+    {"duration_s": 20.0, "motor_torque_nm": -10.0, "load_torque_nm": 2.0}
+  ]
+}

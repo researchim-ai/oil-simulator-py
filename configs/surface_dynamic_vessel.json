@@ -1,0 +1,77 @@
+{
+  "fluid": {
+    "components": [
+      {
+        "name": "Methane",
+        "critical_temperature_k": 190.564,
+        "critical_pressure_pa": 4599200.0,
+        "acentric_factor": 0.01142,
+        "molar_mass_kg_mol": 0.0160428,
+        "ideal_cp_j_mol_k": 35.7,
+        "min_temperature_k": 160.0,
+        "max_temperature_k": 500.0
+      },
+      {
+        "name": "Ethane",
+        "critical_temperature_k": 305.322,
+        "critical_pressure_pa": 4872200.0,
+        "acentric_factor": 0.099,
+        "molar_mass_kg_mol": 0.03006904,
+        "ideal_cp_j_mol_k": 52.5,
+        "min_temperature_k": 160.0,
+        "max_temperature_k": 500.0
+      }
+    ],
+    "binary_interactions": [
+      [
+        0,
+        0
+      ],
+      [
+        0,
+        0
+      ]
+    ]
+  },
+  "vessel": {
+    "name": "dynamic-separator",
+    "volume_m3": 0.1,
+    "min_pressure_pa": 100000.0,
+    "max_pressure_pa": 5000000.0,
+    "min_liquid_volume_fraction": 0.1,
+    "max_liquid_volume_fraction": 0.8
+  },
+  "initial": {
+    "pressure_pa": 3000000.0,
+    "temperature_k": 220,
+    "mole_fractions": [
+      0.5,
+      0.5
+    ]
+  },
+  "stepper": {
+    "initial_dt_s": 0.2,
+    "maximum_dt_s": 0.2,
+    "minimum_dt_s": 0.0001
+  },
+  "periods": [
+    {
+      "duration_s": 0.6,
+      "withdrawals": {
+        "phase_1": 0.1
+      }
+    },
+    {
+      "duration_s": 0.4,
+      "heat_w": 10,
+      "utility_temperature_k": 300
+    },
+    {
+      "duration_s": 0.6,
+      "withdrawals": {
+        "phase_0": 0.1,
+        "phase_1": 0.1
+      }
+    }
+  ]
+}
