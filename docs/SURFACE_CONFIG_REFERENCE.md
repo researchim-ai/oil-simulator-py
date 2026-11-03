@@ -439,3 +439,253 @@ Manual задаёт скорость, torque — моменты. Network options
 или расход выбегающего насоса. Trip имеет защёлку. На рестарте полный
 предшествующий журнал воспроизводится один раз с проверкой исходников,
 физики, PID и диспетчеризации. Подробнее: [модель станции](DYNAMIC_STATION.md).
+
+### Слабосжимаемая жидкостная сеть с валами
+
+`configs/surface_liquid_transient.json`: `system`, `initial`, `periods`.
+`system.network` — формат LiquidNetwork; используются геометрия,
+карты и вязкость, но уравнения динамики решает `LiquidTransientNetwork`.
+Все высоты и узловые постоянные источники равны нулю. Трубы открыты,
+без встроенных обратных клапанов; закрытие/невозвратный режим задаются
+отдельными `ThrottleValve`. Насосы параллельные с обратными клапанами.
+
+`storage_volumes_m3`: имя каждого свободного узла → полный объём (m³),
+строго положительный. `bulk_modulus_pa`: эффективный K (Pa).
+`reference_pressure_pa` (1e6) задаёт плотность и нуль акустической энергии.
+`drives` и `nominal_speeds_rad_s` соответствуют всем насосам;
+`no_flow_power_w_at_nominal` задаёт их P0 (W).
+Общие `max_station_electrical_draw_w`/`max_station_electrical_export_w`
+по умолчанию null, ноль допустим. Без насосов словари приводов пустые.
+
+Шаг: `maximum_dt_s` (0.005), `minimum_dt_s` (1e-8),
+`acoustic_courant` (0.5, максимум 1), `max_speed_change_rad_s` (2),
+`max_pressure_change_pa` (2e5). Область: `max_pressure_pa` (1e8),
+`max_compression_fraction` (0.01, максимум 0.05); давление выше vapor_pressure.
+Сжимаемость линейная, модель не учитывает кавитацию.
+
+Временная точность: `temporal_error_control` (true),
+`relative_tolerance` (1e-5), `pressure_tolerance_pa` (1),
+`flow_tolerance_m3_s` (1e-9), `speed_tolerance_rad_s` (1e-5).
+Полный и два половинных шага оценивают локальную ошибку; принимаются
+консервативные половинные шаги. Эти допуски управляют точностью траектории,
+а не заменяют критерий нелинейной сходимости или баланс энергии.
+
+`initial`: `pressures_pa` свободных узлов (по умолчанию p_ref),
+`pipe_volume_rates_m3_s` (по умолчанию 0), `speeds_rad_s` (0),
+`time_s` (0), `unavailable` (пустой список). Запасы вычисляются из давлений
+по линейному закону. Потоки насосов/клапанов алгебраические, не сохраняются
+как независимые инерционные состояния.
+
+Период: `duration_s`; `mode` (torque/off/trip, default torque),
+`motor_torques_nm` (словарь), `boundary_pressures_pa` (только уже фиксированные
+узлы), `valve_openings` ([0,1]), `unavailable`, `reset_trip` (false),
+`max_substeps` (100000). Недоступность и trip сохраняются, открытия/границы
+при пропуске возвращаются к значениям модели. Низкоуровневый API не включает
+PID; отдельный контур приведён ниже. Формулы, баланс механической энергии и restart:
+[жидкостная динамика](LIQUID_TRANSIENT.md).
+
+### PID и диспетчеризация динамической жидкостной сети
+
+`configs/surface_controlled_liquid.json`: `system`, `initial`, `periods`.
+`system.physics` — полная конфигурация `LiquidTransientNetwork` из предыдущего
+раздела. `pressure_node` — свободный узел с конечным объёмом;
+`pressure_controller` — PID с min_output=0, выходом является относительная
+скорость. `speed_controllers` — имя каждого насоса → PID с выходом в N m;
+границы должны укладываться в моторный/тормозной моменты его привода.
+`dispatch_policy` — PumpStationControl или null (доступные/прежние агрегаты
+без оптимизации). Целевая вершина и набор насосов совпадают с моделью.
+Диапазон внешнего PID покрывает диапазон скоростей планировщика.
+
+`control_interval_s` (0.05), `minimum_stage_dwell_s` (0.5),
+`dispatch_power_deadband_w` (10). Общие электрические и физические
+ограничения задаются внутри physics, не дублируются контроллером.
+Номер и начало цифрового такта сохраняются через границы отчётов.
+
+JSON `initial`: необязательный `physical_initial` (поля инициализации
+LiquidTransientNetwork), `running_pumps` (пустой список),
+`applied_torques_nm` (словарь для уже выбранных агрегатов),
+`pressure_setpoint_pa` (для согласованной первоначальной памяти PID).
+В Python также можно передать готовый LiquidTransientState через physical;
+это создание нового контроллера, не замена полного restart.
+
+Период: `duration_s`, `mode` (auto/manual/torque/off/trip, default auto),
+`pressure_setpoint_pa` (default цель политики), `speed_ratio` (1),
+`running_pumps`, `motor_torques_nm`, `unavailable`, `boundary_pressures_pa`,
+`valve_openings`, `reset_trip` (false), `redispatch` (false),
+`max_substeps` (100000), `max_control_samples` (100000).
+
+Auto использует планировщик; manual задаёт общую скорость выбранных насосов;
+torque задаёт моменты. Уставки/ручные моменты считываются на такте, а
+off/trip и недоступность снимают момент немедленно. Резерв выбирается
+на ближайшем такте; положительный момент может появиться на следующем
+из-за перехода PID без скачка. Непрочитанная уставка короткого периода не становится
+постоянной настройкой. Явный redispatch сохраняется до допустимого отсчёта;
+unavailable и защёлка trip сохраняются до явной команды изменения/сброса.
+
+Состояние включает physical, оба уровня PID, held_torques_nm,
+torque_integrals_nm_s, feedback_duration_s, selected, clock_origin_s,
+next_tick, last_switch_time_s, dispatch_signature/status, pending_redispatch
+и model_id. Полное расписание с source fingerprint воспроизводится
+при restart, в том числе если checkpoint сделан внутри цифрового окна.
+Семантика часов, статусов и замкнутого выхода:
+[контур динамической сети](CONTROLLED_LIQUID.md).
+
+### Предохранительный сброс и переходные защиты
+
+В `LiquidTransientNetwork` добавлено необязательное `relief_valves`:
+словарь имя существующей ThrottleValve → `cracking_pressure_pa`,
+`full_open_pressure_pa`. Это перепады между концами ветви (Pa),
+0 ≤ cracking < full_open. Носитель требует open=true,
+check_valve=true, opening=0; диаметр и Cd задают конечную площадь.
+Динамика определяет открытие сама; обычный valve_openings для такой
+ветви отклоняется. При отсутствии relief_valves действуют прежние уравнения.
+
+`configs/surface_protected_liquid.json`: `system`, `initial`, `periods`.
+В system: `controller` формата ControlledLiquidStation, `rules`
+(непустой список), `protection_interval_s` (0.01).
+
+Правило LiquidTrip:
+
+- name, equipment — уникальное имя правила и имя узла/насоса;
+- metric — pressure_pa / pump_flow_m3_s / npsh_margin_m;
+- direction — above или below, threshold — положительный порог в единицах метрики;
+- stop_pumps — список отключаемых приводов, trip_station — глобальный trip;
+  хотя бы одно действие обязательно;
+- delay_s (0), startup_grace_s (0), min_speed_ratio (0.6), reset_margin (0).
+
+Давление наблюдается всегда, насосные метрики — при выбранном разрешённом
+агрегате с достаточной скоростью. Для NPSH нужны inlet_diameter_m и
+npsh_required_m/npsh_curve. Верхний/нижний порог давления должен находиться
+строго внутри жёсткой области модели. Пусковая выдержка предшествует
+накоплению delay_s; при исчезновении нарушения выдержка сбрасывается.
+
+JSON initial содержит `controller_initial` с полями инициализации
+ControlledLiquidStation. Периоды поддерживают его управляющие команды
+и дополнительно `reset_trips` (список имён, default пустой),
+`max_protection_samples` (100000). max_substeps и max_control_samples
+относятся ко всему отчёту. Redispatch сохраняется через внутренние окна,
+а не повторно посылается на каждом отсчёте защиты.
+
+reset_trip снимает операторскую защёлку; reset_trips снимает только
+названные защиты при безопасном сигнале или невооружённом насосе.
+Внешняя unavailable хранится независимо и не исчезает при таком сбросе.
+Контроллер, обе шкалы времени, таймеры и источники запретов входят в
+source-bound checkpoint с полным replay. Формулы и ограничения:
+[сброс давления и защиты](LIQUID_PROTECTION.md).
+
+
+## Регулируемая рециркуляция однофазной жидкости
+
+`LiquidTransientNetwork.actuated_valves` — mapping имён обычных открытых
+ThrottleValve в параметры ConnectionActuator: opening_rate_per_s,
+closing_rate_per_s, fail_position, time_constant_s (0), max_position_change (0.1).
+Совмещение с relief_valves запрещено. initialize.actuator_positions задаёт
+начальное фактическое положение; default — opening исходного клапана.
+В периоде valve_openings становится целевым положением приводного клапана;
+actuator_modes — normal/fail_safe/stuck. Неприводные клапаны управляются как раньше.
+
+`ControlledLiquidStation.planning_valve_openings` (default {}) задаёт
+номинальные открытия только для стационарной диспетчеризации.
+Фактическая динамика продолжает использовать команды и запасы приводов.
+
+`RecyclingLiquidStation`: protected (ProtectedLiquidStation), loops,
+control_interval_s (0.05). Каждый loop: name, valve, pumps, controller
+(PIDController с положительным направлением и выходом [0,1]),
+minimum_flow_m3_s, min_speed_ratio (0.6), startup_opening (1), inactive_opening (0).
+Насосы и клапаны между контурами не пересекаются. Возвратная ветвь с обратным
+клапаном непосредственно соединяет общее нагнетание и всасывание своих насосов;
+для неё обязательно planning_valve_openings[valve]=0.
+
+Initial: protected_initial с параметрами initialize защищённой станции.
+Периоды: её команды плюс recycle_mode (auto/manual/off), recycle_openings,
+actuator_modes, max_recycle_samples (100000). Manual требует всех клапанов
+контуров в recycle_openings. Прямой valve_openings для них запрещён.
+Управление сторонними клапанами остаётся в valve_openings.
+
+Состояние содержит protected, pids, targets, clock_origin_s, next_tick, model_id.
+В отчёте recycle_samples содержит фактическую позицию, команду, вооружённые
+насосы, измеренный минимум расхода и дефицит; recycled_volume_m3 интегрируется
+по физическим подшагам отдельно от экспортного потока.
+[Формулы, ограничения и команды запуска](LIQUID_RECYCLE.md).
+
+
+## Тепловые запасы жидкостной рециркуляции
+
+`ThermalLiquidStation`: recycling (RecyclingLiquidStation), heat,
+temperature_trips (default []), thermostats ([]), control_interval_s (0.05 с),
+max_heating_w/max_cooling_w (None). Общие пределы относятся к мощности
+контролируемых тепловых утилит, не к электрическому потреблению холодильников.
+
+`heat` использует ту же physics, что recycling; в JSON станции physics
+повторно не указывается. Обязательные параметры:
+
+- specific_heat_j_kg_k — постоянная положительная удельная теплоёмкость;
+- boundary_temperatures_k — заданные температуры бесконечных границ;
+- boundary_reservoirs_kg — начальные массы конечных граничных запасов ({}).
+
+Каждая граница давления должна присутствовать ровно в одном из двух mapping.
+Масса конечного резервуара изменяется по фактическому переносу, подпитки нет.
+
+Остальные параметры heat:
+
+- pipe_cells — mapping имени трубы в положительное целое N, default один;
+  имена полученных ячеек: pipe_name::0 ... pipe_name::(N-1),
+  совпадения с именами гидравлических узлов запрещены;
+- walls — mapping конечного жидкостного запаса в параметры VesselWall;
+- reference_temperature_k (298.15), min_temperature_k (250), max_temperature_k (450);
+- pump_heat_to_fluid_fraction (1), shaft_heat_to_fluid_fraction (0),
+  motor_heat_to_fluid_fraction (0), каждая доля в [0,1];
+- maximum_dt_s (1), minimum_dt_s (1e-10), positivity_courant (0.8, <=1);
+- maximum_temperature_change_k (1), temporal_error_control (true),
+  temperature_tolerance_k (1e-5), relative_tolerance (1e-7);
+- store_step_temperatures (true): false сохраняет конечный запас и аудиты,
+  но исключает полные промежуточные поля из журнала.
+
+`LiquidTemperatureTrip`: name, location, threshold_k; direction above/below
+(default above), metric fluid_temperature_k/wall_temperature_k
+(default fluid_temperature_k), delay_s (0), reset_margin_k (0),
+stop_pumps ([]), trip_station (false). Требуется хотя бы одно действие.
+Порог должен находиться строго внутри температурной области датчика.
+
+`LiquidThermostat`: name, location, setpoint_k, controller (PIDController).
+Положительное направление PID, выход — тепловая мощность в Вт; отрицательная
+означает охлаждение. Два термостата не могут управлять одним жидкостным запасом.
+
+Initial: recycling_initial с параметрами инициализации RecyclingLiquidStation,
+temperatures_k и wall_temperatures_k по именам запасов/стенок. По умолчанию
+жидкость имеет reference_temperature_k, стенка — начальную температуру жидкости.
+
+Периоды поддерживают команды recycling и дополнительно:
+
+- reset_temperature_trips — список имён, сброс только при безопасной температуре;
+- boundary_temperatures_k — команды только бесконечных границ;
+- ambient_temperatures_k — температуры окружения по именам стенок;
+- heat_duties_w — явно внешние источники/отборы в конечных запасах, не занятых термостатами;
+- temperature_setpoints_k — уставки по именам термостатов;
+- temperature_control_modes — auto/manual/off по именам термостатов;
+- temperature_manual_duties_w — ручные мощности в пределах локального PID;
+- max_thermal_samples (100000), max_thermal_substeps (100000).
+
+Все бюджеты нижних регуляторов и физических подшагов действуют на весь
+отчётный интервал. Температурные PID/защиты сохраняют свой цифровой такт между
+отчётами. Снятие температурной защёлки не снимает операторский trip, внешнюю
+unavailable или защиту давления/расхода/NPSH.
+
+Результаты: thermal_steps с локальными энергетическими аудитами,
+thermal_audits с совместным механическим/тепловым балансом,
+temperature_samples, temperature_events, latched_temperature_trips,
+thermal_properties. Состояние хранит отдельные источники запретов,
+температуры, тепловые массы, PID и часы.
+
+Температурные зависимости плотности/вязкости и фазовая область здесь
+не рассчитываются. [Уравнения, команды запуска и ограничения](THERMAL_LIQUID.md).
+
+## Устройство жидкостной динамики
+
+В `LiquidTransientNetwork` доступны `backend` (`torch` по умолчанию или
+`scipy_reference`) и `device` (`cpu` по умолчанию, либо `cuda:N`).
+`LiquidHeatNetwork` наследует их от физики; явные значения можно задать
+в блоке `heat`. SciPy-эталон поддерживает только CPU.
+CLI жидкостных расписаний принимает `--backend` и `--device`. Недоступная
+CUDA вызывает ошибку. Модель/checkpoint привязаны к устройству и версиям
+численных исходников. Подробнее: [PyTorch](PYTORCH_SURFACE.md).

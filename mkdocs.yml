@@ -133,6 +133,12 @@ nav:
       - Механика приводов: ROTATING_DRIVE.md
       - Насос, сеть и PID: DYNAMIC_PUMP.md
       - Динамическая насосная станция: DYNAMIC_STATION.md
+      - Жидкостные запасы и инерционные трубы: LIQUID_TRANSIENT.md
+      - Регулирование динамической сети: CONTROLLED_LIQUID.md
+      - Сброс давления и защиты: LIQUID_PROTECTION.md
+      - Рециркуляция жидкостной станции: LIQUID_RECYCLE.md
+      - Тепловые запасы рециркуляции: THERMAL_LIQUID.md
+      - PyTorch CPU/CUDA: PYTORCH_SURFACE.md
       - Компрессор и антипомпаж: COMPRESSOR_TRAIN.md
       - Приводы соединений: CONNECTION_ACTUATORS.md
       - Распределённая труба: TRANSIENT_PIPE.md

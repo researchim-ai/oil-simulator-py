@@ -1,0 +1,281 @@
+{
+  "system": {
+    "network": {
+      "model": "incompressible_liquid",
+      "fluid": {
+        "density_kg_m3": 1000,
+        "viscosity_pa_s": 0.01,
+        "vapor_pressure_pa": 2000
+      },
+      "nodes": [
+        {
+          "name": "suction",
+          "elevation_m": 0.0,
+          "pressure_pa": 400000,
+          "source_mass_rate_kg_s": 0.0
+        },
+        {
+          "name": "header",
+          "elevation_m": 0.0,
+          "pressure_pa": null,
+          "source_mass_rate_kg_s": 0.0
+        },
+        {
+          "name": "c0",
+          "elevation_m": 0.0,
+          "pressure_pa": null,
+          "source_mass_rate_kg_s": 0.0
+        },
+        {
+          "name": "c1",
+          "elevation_m": 0.0,
+          "pressure_pa": null,
+          "source_mass_rate_kg_s": 0.0
+        },
+        {
+          "name": "c2",
+          "elevation_m": 0.0,
+          "pressure_pa": null,
+          "source_mass_rate_kg_s": 0.0
+        },
+        {
+          "name": "c3",
+          "elevation_m": 0.0,
+          "pressure_pa": null,
+          "source_mass_rate_kg_s": 0.0
+        },
+        {
+          "name": "outlet",
+          "elevation_m": 0.0,
+          "pressure_pa": null,
+          "source_mass_rate_kg_s": 0.0
+        },
+        {
+          "name": "reservoir",
+          "elevation_m": 0.0,
+          "pressure_pa": 500000,
+          "source_mass_rate_kg_s": 0.0
+        }
+      ],
+      "pipes": [
+        {
+          "name": "line0",
+          "start": "header",
+          "end": "c0",
+          "length_m": 2.5,
+          "diameter_m": 0.1,
+          "roughness_m": 0.0,
+          "minor_loss_coefficient": 0.0,
+          "open": true,
+          "check_valve": false
+        },
+        {
+          "name": "line1",
+          "start": "c0",
+          "end": "c1",
+          "length_m": 5,
+          "diameter_m": 0.1,
+          "roughness_m": 0.0,
+          "minor_loss_coefficient": 0.0,
+          "open": true,
+          "check_valve": false
+        },
+        {
+          "name": "line2",
+          "start": "c1",
+          "end": "c2",
+          "length_m": 5,
+          "diameter_m": 0.1,
+          "roughness_m": 0.0,
+          "minor_loss_coefficient": 0.0,
+          "open": true,
+          "check_valve": false
+        },
+        {
+          "name": "line3",
+          "start": "c2",
+          "end": "c3",
+          "length_m": 5,
+          "diameter_m": 0.1,
+          "roughness_m": 0.0,
+          "minor_loss_coefficient": 0.0,
+          "open": true,
+          "check_valve": false
+        },
+        {
+          "name": "line4",
+          "start": "c3",
+          "end": "outlet",
+          "length_m": 2.5,
+          "diameter_m": 0.1,
+          "roughness_m": 0.0,
+          "minor_loss_coefficient": 0.0,
+          "open": true,
+          "check_valve": false
+        }
+      ],
+      "pumps": [
+        {
+          "name": "p1",
+          "start": "suction",
+          "end": "header",
+          "shutoff_head_m": 20,
+          "curve_coefficient_s2_m5": 1000000.0,
+          "max_flow_m3_s": 0.004,
+          "efficiency": 0.8,
+          "speed_ratio": 1.0,
+          "max_shaft_power_w": null,
+          "npsh_required_m": null,
+          "inlet_diameter_m": null,
+          "open": true,
+          "check_valve": true,
+          "head_curve": null,
+          "efficiency_curve": null,
+          "npsh_curve": null
+        },
+        {
+          "name": "p2",
+          "start": "suction",
+          "end": "header",
+          "shutoff_head_m": 20,
+          "curve_coefficient_s2_m5": 1000000.0,
+          "max_flow_m3_s": 0.004,
+          "efficiency": 0.8,
+          "speed_ratio": 1.0,
+          "max_shaft_power_w": null,
+          "npsh_required_m": null,
+          "inlet_diameter_m": null,
+          "open": true,
+          "check_valve": true,
+          "head_curve": null,
+          "efficiency_curve": null,
+          "npsh_curve": null
+        }
+      ],
+      "valves": [
+        {
+          "name": "export",
+          "start": "outlet",
+          "end": "reservoir",
+          "diameter_m": 0.02,
+          "discharge_coefficient": 0.7,
+          "opening": 1.0,
+          "open": true,
+          "check_valve": false
+        }
+      ]
+    },
+    "drives": {
+      "p1": {
+        "inertia_kg_m2": 0.5,
+        "max_speed_rad_s": 130,
+        "max_motor_torque_nm": 20,
+        "max_braking_torque_nm": 15,
+        "viscous_drag_nm_s": 0.005,
+        "motor_efficiency": 0.9,
+        "regeneration_efficiency": 0.7,
+        "max_electrical_draw_w": 1500,
+        "max_electrical_export_w": 1000
+      },
+      "p2": {
+        "inertia_kg_m2": 0.5,
+        "max_speed_rad_s": 130,
+        "max_motor_torque_nm": 20,
+        "max_braking_torque_nm": 15,
+        "viscous_drag_nm_s": 0.005,
+        "motor_efficiency": 0.9,
+        "regeneration_efficiency": 0.7,
+        "max_electrical_draw_w": 1500,
+        "max_electrical_export_w": 1000
+      }
+    },
+    "storage_volumes_m3": {
+      "header": 0.01,
+      "c0": 0.039269908169872414,
+      "c1": 0.039269908169872414,
+      "c2": 0.039269908169872414,
+      "c3": 0.039269908169872414,
+      "outlet": 0.001
+    },
+    "bulk_modulus_pa": 100000000.0,
+    "reference_pressure_pa": 500000.0,
+    "nominal_speeds_rad_s": {
+      "p1": 100,
+      "p2": 100
+    },
+    "no_flow_power_w_at_nominal": {
+      "p1": 0.0,
+      "p2": 0.0
+    },
+    "max_station_electrical_draw_w": 1800,
+    "max_station_electrical_export_w": 1000,
+    "maximum_dt_s": 0.005,
+    "minimum_dt_s": 1e-08,
+    "acoustic_courant": 0.5,
+    "max_pressure_pa": 100000000.0,
+    "max_compression_fraction": 0.01,
+    "max_speed_change_rad_s": 2.0,
+    "max_pressure_change_pa": 200000.0,
+    "temporal_error_control": true,
+    "relative_tolerance": 1e-05,
+    "pressure_tolerance_pa": 1.0,
+    "flow_tolerance_m3_s": 1e-09,
+    "speed_tolerance_rad_s": 1e-05
+  },
+  "initial": {
+    "pressures_pa": {
+      "header": 577795.8202406828,
+      "c0": 577737.5487943926,
+      "c1": 577621.0059018122,
+      "c2": 577504.4630092318,
+      "c3": 577387.9201166513,
+      "outlet": 577329.6486703611
+    },
+    "pipe_volume_rates_m3_s": {
+      "line0": 0.0027348652257402936,
+      "line1": 0.0027348652257402936,
+      "line2": 0.0027348652257402936,
+      "line3": 0.0027348652257402936,
+      "line4": 0.0027348652257402936
+    },
+    "speeds_rad_s": {
+      "p1": 100,
+      "p2": 100
+    }
+  },
+  "periods": [
+    {
+      "duration_s": 0.05,
+      "motor_torques_nm": {
+        "p1": 3.539047537754182,
+        "p2": 3.539047537754182
+      }
+    },
+    {
+      "duration_s": 0.08,
+      "motor_torques_nm": {
+        "p1": 3.539047537754182,
+        "p2": 3.539047537754182
+      },
+      "valve_openings": {
+        "export": 0
+      }
+    },
+    {
+      "duration_s": 0.15,
+      "mode": "trip",
+      "valve_openings": {
+        "export": 0.8
+      }
+    },
+    {
+      "duration_s": 5,
+      "mode": "torque",
+      "reset_trip": true,
+      "motor_torques_nm": {
+        "p1": -10,
+        "p2": -10
+      }
+    }
+  ]
+}

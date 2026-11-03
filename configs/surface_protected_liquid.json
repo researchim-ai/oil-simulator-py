@@ -1,0 +1,391 @@
+{
+  "system": {
+    "controller": {
+      "physics": {
+        "network": {
+          "model": "incompressible_liquid",
+          "fluid": {
+            "density_kg_m3": 1000,
+            "viscosity_pa_s": 0.1,
+            "vapor_pressure_pa": 2000
+          },
+          "nodes": [
+            {
+              "name": "in",
+              "elevation_m": 0.0,
+              "pressure_pa": 400000,
+              "source_mass_rate_kg_s": 0.0
+            },
+            {
+              "name": "h",
+              "elevation_m": 0.0,
+              "pressure_pa": null,
+              "source_mass_rate_kg_s": 0.0
+            },
+            {
+              "name": "t",
+              "elevation_m": 0.0,
+              "pressure_pa": null,
+              "source_mass_rate_kg_s": 0.0
+            },
+            {
+              "name": "out",
+              "elevation_m": 0.0,
+              "pressure_pa": 480000,
+              "source_mass_rate_kg_s": 0.0
+            }
+          ],
+          "pipes": [
+            {
+              "name": "line",
+              "start": "h",
+              "end": "t",
+              "length_m": 10,
+              "diameter_m": 0.05,
+              "roughness_m": 0.0,
+              "minor_loss_coefficient": 0.0,
+              "open": true,
+              "check_valve": false
+            }
+          ],
+          "pumps": [
+            {
+              "name": "p1",
+              "start": "in",
+              "end": "h",
+              "shutoff_head_m": 20,
+              "curve_coefficient_s2_m5": 1000000.0,
+              "max_flow_m3_s": 0.004,
+              "efficiency": 0.8,
+              "speed_ratio": 1.0,
+              "max_shaft_power_w": null,
+              "npsh_required_m": 3,
+              "inlet_diameter_m": 0.05,
+              "open": true,
+              "check_valve": true,
+              "head_curve": null,
+              "efficiency_curve": null,
+              "npsh_curve": null
+            },
+            {
+              "name": "p2",
+              "start": "in",
+              "end": "h",
+              "shutoff_head_m": 20,
+              "curve_coefficient_s2_m5": 1000000.0,
+              "max_flow_m3_s": 0.004,
+              "efficiency": 0.8,
+              "speed_ratio": 1.0,
+              "max_shaft_power_w": null,
+              "npsh_required_m": 3,
+              "inlet_diameter_m": 0.05,
+              "open": true,
+              "check_valve": true,
+              "head_curve": null,
+              "efficiency_curve": null,
+              "npsh_curve": null
+            },
+            {
+              "name": "p3",
+              "start": "in",
+              "end": "h",
+              "shutoff_head_m": 20,
+              "curve_coefficient_s2_m5": 1000000.0,
+              "max_flow_m3_s": 0.004,
+              "efficiency": 0.8,
+              "speed_ratio": 1.0,
+              "max_shaft_power_w": null,
+              "npsh_required_m": 3,
+              "inlet_diameter_m": 0.05,
+              "open": true,
+              "check_valve": true,
+              "head_curve": null,
+              "efficiency_curve": null,
+              "npsh_curve": null
+            }
+          ],
+          "valves": [
+            {
+              "name": "export",
+              "start": "t",
+              "end": "out",
+              "diameter_m": 0.02,
+              "discharge_coefficient": 0.7,
+              "opening": 1.0,
+              "open": true,
+              "check_valve": false
+            },
+            {
+              "name": "relief",
+              "start": "t",
+              "end": "out",
+              "diameter_m": 0.008,
+              "opening": 0,
+              "check_valve": true
+            }
+          ]
+        },
+        "drives": {
+          "p1": {
+            "inertia_kg_m2": 0.1,
+            "max_speed_rad_s": 130,
+            "max_motor_torque_nm": 20,
+            "max_braking_torque_nm": 15,
+            "viscous_drag_nm_s": 0.005,
+            "motor_efficiency": 0.9,
+            "regeneration_efficiency": 0.7,
+            "max_electrical_draw_w": 1500,
+            "max_electrical_export_w": 1000
+          },
+          "p2": {
+            "inertia_kg_m2": 0.1,
+            "max_speed_rad_s": 130,
+            "max_motor_torque_nm": 20,
+            "max_braking_torque_nm": 15,
+            "viscous_drag_nm_s": 0.005,
+            "motor_efficiency": 0.9,
+            "regeneration_efficiency": 0.7,
+            "max_electrical_draw_w": 1500,
+            "max_electrical_export_w": 1000
+          },
+          "p3": {
+            "inertia_kg_m2": 0.1,
+            "max_speed_rad_s": 130,
+            "max_motor_torque_nm": 20,
+            "max_braking_torque_nm": 15,
+            "viscous_drag_nm_s": 0.005,
+            "motor_efficiency": 0.9,
+            "regeneration_efficiency": 0.7,
+            "max_electrical_draw_w": 1500,
+            "max_electrical_export_w": 1000
+          }
+        },
+        "storage_volumes_m3": {
+          "h": 0.1,
+          "t": 0.1
+        },
+        "bulk_modulus_pa": 50000000.0,
+        "reference_pressure_pa": 500000.0,
+        "nominal_speeds_rad_s": {
+          "p1": 100,
+          "p2": 100,
+          "p3": 100
+        },
+        "no_flow_power_w_at_nominal": {
+          "p1": 10.0,
+          "p2": 10.0,
+          "p3": 10.0
+        },
+        "max_station_electrical_draw_w": 1800,
+        "max_station_electrical_export_w": 1000,
+        "maximum_dt_s": 0.02,
+        "minimum_dt_s": 1e-08,
+        "acoustic_courant": 0.5,
+        "max_pressure_pa": 100000000.0,
+        "max_compression_fraction": 0.01,
+        "max_speed_change_rad_s": 2.0,
+        "max_pressure_change_pa": 200000.0,
+        "temporal_error_control": true,
+        "relative_tolerance": 1e-05,
+        "pressure_tolerance_pa": 1.0,
+        "flow_tolerance_m3_s": 1e-09,
+        "speed_tolerance_rad_s": 1e-05,
+        "relief_valves": {
+          "relief": {
+            "cracking_pressure_pa": 200000,
+            "full_open_pressure_pa": 230000
+          }
+        }
+      },
+      "pressure_node": "h",
+      "pressure_controller": {
+        "proportional_gain": 1e-06,
+        "integral_gain": 2e-06,
+        "derivative_gain": 0,
+        "min_output": 0,
+        "max_output": 1.3,
+        "derivative_filter_s": 0.1,
+        "tracking_time_s": 2,
+        "bias": 0.0,
+        "direction": 1
+      },
+      "speed_controllers": {
+        "p1": {
+          "proportional_gain": 0.7,
+          "integral_gain": 3,
+          "derivative_gain": 0,
+          "min_output": -15,
+          "max_output": 20,
+          "derivative_filter_s": 0.1,
+          "tracking_time_s": 0.2,
+          "bias": 0.0,
+          "direction": 1
+        },
+        "p2": {
+          "proportional_gain": 0.7,
+          "integral_gain": 3,
+          "derivative_gain": 0,
+          "min_output": -15,
+          "max_output": 20,
+          "derivative_filter_s": 0.1,
+          "tracking_time_s": 0.2,
+          "bias": 0.0,
+          "direction": 1
+        },
+        "p3": {
+          "proportional_gain": 0.7,
+          "integral_gain": 3,
+          "derivative_gain": 0,
+          "min_output": -15,
+          "max_output": 20,
+          "derivative_filter_s": 0.1,
+          "tracking_time_s": 0.2,
+          "bias": 0.0,
+          "direction": 1
+        }
+      },
+      "dispatch_policy": {
+        "pumps": [
+          "p1",
+          "p2",
+          "p3"
+        ],
+        "node": "h",
+        "target_pressure_pa": 650000,
+        "min_speed_ratio": 0.6,
+        "max_speed_ratio": 1.3,
+        "min_running": 1,
+        "max_running": 3,
+        "max_station_power_w": null,
+        "min_npsh_margin_m": 0.0,
+        "min_pump_flow_m3_s": 0.0,
+        "switch_saving_w": 0.0,
+        "pressure_tolerance_pa": 0.1,
+        "scan_points": 9,
+        "max_configurations": 64,
+        "max_control_evaluations": 60,
+        "response_direction": "auto"
+      },
+      "control_interval_s": 0.05,
+      "minimum_stage_dwell_s": 0.5,
+      "dispatch_power_deadband_w": 10.0
+    },
+    "rules": [
+      {
+        "name": "npsh-p1",
+        "equipment": "p1",
+        "metric": "npsh_margin_m",
+        "direction": "below",
+        "threshold": 10,
+        "stop_pumps": [
+          "p1"
+        ],
+        "min_speed_ratio": 0.6
+      },
+      {
+        "name": "minflow-p2",
+        "equipment": "p2",
+        "metric": "pump_flow_m3_s",
+        "direction": "below",
+        "threshold": 0.0009,
+        "stop_pumps": [
+          "p2"
+        ],
+        "delay_s": 0.08,
+        "startup_grace_s": 1.0,
+        "min_speed_ratio": 0.6
+      },
+      {
+        "name": "minflow-p3",
+        "equipment": "p3",
+        "metric": "pump_flow_m3_s",
+        "direction": "below",
+        "threshold": 0.0009,
+        "stop_pumps": [
+          "p3"
+        ],
+        "delay_s": 0.08,
+        "startup_grace_s": 1.0,
+        "min_speed_ratio": 0.6
+      },
+      {
+        "name": "high-terminal",
+        "equipment": "t",
+        "metric": "pressure_pa",
+        "direction": "above",
+        "threshold": 730000,
+        "trip_station": true,
+        "reset_margin": 20000
+      }
+    ],
+    "protection_interval_s": 0.01
+  },
+  "initial": {},
+  "periods": [
+    {
+      "duration_s": 6
+    },
+    {
+      "duration_s": 0.03,
+      "boundary_pressures_pa": {
+        "in": 100000
+      }
+    },
+    {
+      "duration_s": 4
+    },
+    {
+      "duration_s": 2,
+      "pressure_setpoint_pa": 490000
+    },
+    {
+      "duration_s": 4,
+      "reset_trips": [
+        "npsh-p1",
+        "minflow-p2",
+        "minflow-p3"
+      ]
+    },
+    {
+      "duration_s": 0.1,
+      "valve_openings": {
+        "export": 0
+      }
+    },
+    {
+      "duration_s": 0.02,
+      "valve_openings": {
+        "export": 0
+      },
+      "reset_trips": [
+        "high-terminal"
+      ]
+    },
+    {
+      "duration_s": 0.5
+    },
+    {
+      "duration_s": 3,
+      "reset_trips": [
+        "high-terminal"
+      ]
+    },
+    {
+      "duration_s": 0.013,
+      "mode": "trip"
+    },
+    {
+      "duration_s": 0.024
+    },
+    {
+      "duration_s": 2,
+      "mode": "torque",
+      "reset_trip": true,
+      "motor_torques_nm": {
+        "p1": -10,
+        "p2": -10,
+        "p3": -10
+      }
+    }
+  ]
+}

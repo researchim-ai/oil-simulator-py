@@ -83,9 +83,36 @@ __all__ = [
     "run_separator_train",
 ]
 
-# These CPU PVT tools use torch autograd. Load them on demand so importing the
+# Numerical models are loaded on demand and use torch autograd. Load them on demand so importing the
 # standalone liquid/gas equipment does not acquire the extra startup cost.
 _LAZY_MODELS = {
+    "TorchHeatEquations": "torch_heat",
+    "TorchHeatState": "torch_heat",
+    "TorchHeatInterval": "torch_heat_interval",
+    "TorchLiquidEquations": "torch_liquid",
+    "LiquidHeatNetwork": "liquid_heat",
+    "LiquidHeatState": "liquid_heat",
+    "ThermalLiquidStation": "thermal_liquid",
+    "ThermalLiquidState": "thermal_liquid",
+    "LiquidTemperatureTrip": "thermal_liquid",
+    "LiquidThermostat": "thermal_liquid",
+    "run_thermal_liquid_schedule": "thermal_liquid_schedule",
+    "LiquidRecycleLoop": "liquid_recycle",
+    "RecyclingLiquidState": "liquid_recycle",
+    "RecyclingLiquidStation": "liquid_recycle",
+    "run_recycling_liquid_schedule": "liquid_recycle_schedule",
+    "LiquidRelief": "liquid_relief",
+    "inspect_liquid_pumps": "liquid_relief",
+    "LiquidTrip": "liquid_protection",
+    "ProtectedLiquidStation": "liquid_protection",
+    "ProtectedLiquidState": "liquid_protection",
+    "run_protected_liquid_schedule": "liquid_protection_schedule",
+    "ControlledLiquidStation": "controlled_liquid",
+    "ControlledLiquidState": "controlled_liquid",
+    "run_controlled_liquid_schedule": "controlled_liquid_schedule",
+    "LiquidTransientNetwork": "liquid_transient",
+    "LiquidTransientState": "liquid_transient",
+    "run_liquid_transient_schedule": "liquid_transient_schedule",
     "DynamicPumpStation": "dynamic_station",
     "PumpStationState": "dynamic_station",
     "run_compressor_schedule": "compressor_schedule",
