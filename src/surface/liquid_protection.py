@@ -290,6 +290,10 @@ class ProtectedLiquidStation:
             if isinstance(limit, bool) or not isinstance(limit, int) or limit < 1:
                 raise ValueError("Positive integer work budgets required")
         permitted = {
+            "hydraulic_journal",
+            "hydraulic_journal_branches",
+            "_on_accepted_step",
+            "hydraulic_state_transfer",
             "pressure_setpoint_pa",
             "speed_ratio",
             "running_pumps",

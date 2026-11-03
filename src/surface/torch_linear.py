@@ -116,7 +116,7 @@ def gmres_device(operator, b, diagonal, restart=24, cycles=2):
             cs.append(cosine)
             sn.append(sine)
             H[j, j] = radius
-            H[j + 1, j] = 0
+            H[j + 1, j].zero_()
             old = g[j].clone()
             g[j] = cosine * old
             g[j + 1] = -sine * old

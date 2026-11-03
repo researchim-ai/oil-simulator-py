@@ -38,6 +38,9 @@ def run_thermal_liquid_schedule(system, initial, periods, checkpoint=None, stop_
         "reset_trips",
         "redispatch",
         "max_substeps",
+        "hydraulic_state_transfer",
+        "hydraulic_journal",
+        "hydraulic_journal_branches",
         "max_control_samples",
         "max_protection_samples",
         "recycle_mode",
@@ -52,6 +55,9 @@ def run_thermal_liquid_schedule(system, initial, periods, checkpoint=None, stop_
         "temperature_manual_duties_w",
         "max_thermal_samples",
         "max_thermal_substeps",
+        "thermal_state_transfer",
+        "thermal_execution",
+        "hydraulic_heat_transfer",
     }
     for period in periods:
         if not isinstance(period, dict) or "duration_s" not in period or set(period) - allowed:

@@ -17,6 +17,76 @@ class TorchLiquidBridge:
         self.equations = TorchLiquidEquations(physics, device)
         self.upload_batches = 0
         self.download_batches = 0
+        self.upload_bytes = self.download_bytes = 0
+        self.state_upload_batches = self.state_download_batches = 0
+        self.state_upload_bytes = self.state_download_bytes = 0
+        self.root_vector_download_bytes = self.root_vector_upload_bytes = 0
+        self.journal_download_batches = self.journal_download_bytes = 0
+        self.endpoint_download_batches = self.endpoint_download_bytes = 0
+        self.scalar_download_batches = self.scalar_download_bytes = 0
+        self.sensor_upload_bytes = self.sensor_download_bytes = 0
+        self.cache_hits = self.cache_misses = 0
+        self.model_id = physics.model_id
+        self._interval_cache = None
+        self._fixed_cache = self._command_cache = None
+        self.scalar_parameter_updates = self.scalar_parameter_bytes = 0
+        self.node_index = {n: i for i, n in enumerate(physics._nodes)}
+        free = set(physics.free)
+        self.boundary_nodes = tuple(n for n in physics._nodes if n not in free)
+
+    def transfer_stats(self):
+        names = (
+            "upload_batches",
+            "download_batches",
+            "upload_bytes",
+            "download_bytes",
+            "state_upload_batches",
+            "state_download_batches",
+            "state_upload_bytes",
+            "state_download_bytes",
+            "root_vector_download_bytes",
+            "root_vector_upload_bytes",
+            "journal_download_batches",
+            "journal_download_bytes",
+            "endpoint_download_batches",
+            "endpoint_download_bytes",
+            "scalar_download_batches",
+            "scalar_download_bytes",
+            "sensor_upload_bytes",
+            "sensor_download_bytes",
+            "cache_hits",
+            "cache_misses",
+            "scalar_parameter_updates",
+            "scalar_parameter_bytes",
+        )
+        result = {k: getattr(self, k) for k in names}
+        result["newton_status_reads"] = self.equations.status_reads
+        return result
+
+    def upload(self, value, dtype=None):
+        value = np.asarray(value, dtype=np.int64 if dtype == torch.long else np.float64)
+        self.upload_batches += 1
+        self.upload_bytes += value.nbytes
+        return torch.as_tensor(
+            value, dtype=dtype or self.equations.dtype, device=self.equations.device
+        )
+
+    def download(self, value, kind=None):
+        self.download_batches += 1
+        size = value.numel() * value.element_size()
+        self.download_bytes += size
+        if kind in ("scalar", "journal", "endpoint"):
+            name = kind
+            setattr(self, name + "_download_batches", getattr(self, name + "_download_batches") + 1)
+            setattr(self, name + "_download_bytes", getattr(self, name + "_download_bytes") + size)
+        return value.detach().cpu().numpy()
+
+    def read_scalar(self, value):
+        return float(self.download(value.reshape(1), "scalar")[0])
+
+    def assert_model(self):
+        if self.physics.model_id != self.model_id:
+            raise ValueError("Liquid model changed after Torch kernel construction")
 
     def physical_flags(self, data):
         e = self.equations
@@ -58,8 +128,10 @@ class TorchLiquidBridge:
             *[v.reshape(-1) for v in ledger.values()],
         ]
         sizes = [v.numel() for v in chunks]
-        host = torch.cat(chunks).detach().cpu().numpy()
-        self.download_batches += 1
+        host = self.download(torch.cat(chunks))
+        self.state_download_batches += 1
+        self.state_download_bytes += sum(v.numel() * v.element_size() for v in data[:3])
+        self.root_vector_download_bytes += (x.numel() + residual.numel()) * x.element_size()
         arrays = []
         offset = 0
         for size in sizes:
@@ -104,8 +176,9 @@ class TorchLiquidBridge:
             np.asarray([v.opening for v in midpoint]),
         ]
         sizes = [len(a) for a in arrays]
-        packed = e.tensor(np.concatenate(arrays))
-        self.upload_batches += 1
+        packed = self.upload(np.concatenate(arrays))
+        self.state_upload_batches += 1
+        self.state_upload_bytes += sum(np.asarray(a).nbytes for a in arrays[:3])
         args = []
         offset = 0
         for size in sizes:
@@ -124,8 +197,8 @@ class TorchLiquidBridge:
         def evaluate(value, audit=False):
             nonlocal cached_x, host_r, host_data, flags
             if not np.array_equal(value, cached_x):
-                xt = e.tensor(value)
-                self.upload_batches += 1
+                xt = self.upload(value)
+                self.root_vector_upload_bytes += value.nbytes
                 rt, dat = e.evaluate(xt, op, oq, ow, h, cmd, fixed, openings)
                 ledger = e.mechanical_ledger(op, oq, ow, h, dat, rt)
                 _, host_r, host_data, _, flags = self.pack_result(
@@ -147,20 +220,19 @@ class TorchLiquidBridge:
         boundary, _ = p._controls(boundary_pressures_pa)
         pressure = {**boundary, **dict(state.pressures_pa)}
         speeds = dict(state.speeds_rad_s)
-        packet = e.tensor(
-            [[pressure[b.start], pressure[b.end], speeds[b.name]] for b in p.network.pumps]
+        values = np.asarray(
+            [[pressure[b.start], pressure[b.end], speeds[b.name]] for b in p.network.pumps],
+            dtype=np.float64,
         )
-        self.upload_batches += 1
+        packet = self.upload(values)
+        self.sensor_upload_bytes += values.nbytes
         flow, ratio, margin, outside, npsh = e.pump_sensors(
             packet[:, 0], packet[:, 1], packet[:, 2]
         )
-        host = (
+        host = self.download(
             torch.stack((flow, ratio, margin, outside.to(e.dtype), npsh.to(e.dtype)), dim=1)
-            .detach()
-            .cpu()
-            .numpy()
         )
-        self.download_batches += 1
+        self.sensor_download_bytes += host.nbytes
         result = {}
         for pump, row in zip(p.network.pumps, host):
             if row[3]:
@@ -177,11 +249,11 @@ class TorchLiquidBridge:
             }
         return result
 
-    def finish_step(self, dt, data, evaluations, valves):
+    def finish_step(self, dt, data, evaluations, valves, *, metrics=None, return_report_only=False):
         from .liquid import ConservationError
 
         p = self.physics
-        m = self.metrics
+        m = self.metrics if metrics is None else metrics
         scalar = lambda key: float(m[key][0])
         if (
             scalar("minimum_speed_rad_s") < -1e-10
@@ -226,7 +298,7 @@ class TorchLiquidBridge:
                 },
                 "relief_openings": {
                     v.name: p.relief_valves[v.name].opening(
-                        float(pm[p._nodes.index(v.start)] - pm[p._nodes.index(v.end)])
+                        float(pm[self.node_index[v.start]] - pm[self.node_index[v.end]])
                     )
                     for v in valves
                     if v.name in p.relief_valves
@@ -237,9 +309,8 @@ class TorchLiquidBridge:
                     zip(p.names, map(float, m["unit_shaft_energy_residuals_j"]))
                 ),
                 "boundary_mass_transfers_in_kg": {
-                    n: float(m["boundary_mass_transfers_in_kg"][p._nodes.index(n)])
-                    for n in p._nodes
-                    if n not in p.free
+                    n: float(m["boundary_mass_transfers_in_kg"][self.node_index[n]])
+                    for n in self.boundary_nodes
                 },
                 "nonlinear_evaluations": evaluations,
                 "final_pressures_pa": dict(zip(p.free, map(float, p1))),
@@ -260,6 +331,8 @@ class TorchLiquidBridge:
                 },
             }
         )
+        if return_report_only:
+            return report
         state = tuple(v.detach().clone() for v in self.last_tensor_data[:3])
         state = (state[0], state[1], state[2].clamp_min(0))
         return TorchPhysicalStep((p1, q1, w1), report, state, self.last_tensor_initial)

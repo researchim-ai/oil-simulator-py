@@ -222,6 +222,7 @@ class LiquidTransientNetwork:
                 _number(value, "electrical_capacity", nonnegative=True)
         self._nodes = tuple(n.name for n in network.nodes)
         self._branches = network.pipes + network.pumps + network.valves
+        self._journal_branch_order = {b.name: i for i, b in enumerate(self._branches)}
         node_index = {n: i for i, n in enumerate(self._nodes)}
         count = len(self._branches)
         self._B = coo_matrix(
@@ -403,16 +404,18 @@ class LiquidTransientNetwork:
 
     def inspect(self, state):
         self._check(state)
-        p = np.asarray([dict(state.pressures_pa)[n] for n in self.free])
-        q = np.asarray([dict(state.pipe_volume_rates_m3_s)[b.name] for b in self.network.pipes])
-        w = np.asarray([dict(state.speeds_rad_s)[n] for n in self.names])
+        pressures, rates, speeds = (
+            dict(state.pressures_pa),
+            dict(state.pipe_volume_rates_m3_s),
+            dict(state.speeds_rad_s),
+        )
+        p = np.asarray([pressures[n] for n in self.free])
+        q = np.asarray([rates[b.name] for b in self.network.pipes])
+        w = np.asarray([speeds[n] for n in self.names])
         masses = {
             n: self.network.fluid.density_kg_m3
             * self.storage_volumes_m3[n]
-            * (
-                1
-                + (dict(state.pressures_pa)[n] - self.reference_pressure_pa) / self.bulk_modulus_pa
-            )
+            * (1 + (pressures[n] - self.reference_pressure_pa) / self.bulk_modulus_pa)
             for n in self.free
         }
         return {
@@ -734,7 +737,21 @@ class LiquidTransientNetwork:
             raise HydraulicConvergenceError("Closed pump constraint projection residual")
         return data, fit.x, evaluate, fit.nfev
 
-    def _step(self, oldp, oldq, oldw, dt, commands, boundary, valves):
+    def _step(
+        self,
+        oldp,
+        oldq,
+        oldw,
+        dt,
+        commands,
+        boundary,
+        valves,
+        *,
+        _device_context=None,
+        _interval_driver=None,
+    ):
+        if _interval_driver is not None:
+            return _interval_driver.step((oldp, oldq, oldw), dt, _device_context, valves)
         for v in valves:
             if isinstance(v, _MovingValve):
                 v.actuator.step(v.position, v.target, dt, v.mode)
@@ -980,8 +997,21 @@ class LiquidTransientNetwork:
         unavailable=None,
         reset_trip=False,
         max_substeps=100000,
+        hydraulic_state_transfer="interval",
+        _on_accepted_step=None,
+        hydraulic_journal="full",
+        hydraulic_journal_branches=None,
     ):
         self._check(state)
+        if hydraulic_state_transfer not in ("interval", "solve"):
+            raise ValueError("hydraulic_state_transfer must be interval or solve")
+        from .liquid_journal import journal_branches
+
+        selected_branches = journal_branches(self, hydraulic_journal, hydraulic_journal_branches)
+        if hydraulic_journal == "compact" and (
+            self.backend != "torch" or hydraulic_state_transfer != "interval"
+        ):
+            raise ValueError("Compact journal requires resident Torch interval execution")
         duration = _number(duration_s, "duration_s", positive=True)
         if (
             mode not in ("torque", "off", "trip")
@@ -1031,9 +1061,43 @@ class LiquidTransientNetwork:
                 for n in self.names
             ]
         )
-        p = np.asarray([dict(state.pressures_pa)[n] for n in self.free])
-        q = np.asarray([dict(state.pipe_volume_rates_m3_s)[b.name] for b in self.network.pipes])
-        w = np.asarray([dict(state.speeds_rad_s)[n] for n in self.names])
+        pressures, rates, speeds = (
+            dict(state.pressures_pa),
+            dict(state.pipe_volume_rates_m3_s),
+            dict(state.speeds_rad_s),
+        )
+        p = np.asarray([pressures[n] for n in self.free])
+        q = np.asarray([rates[b.name] for b in self.network.pipes])
+        w = np.asarray([speeds[n] for n in self.names])
+        resident = self.backend == "torch" and hydraulic_state_transfer == "interval"
+        step = self._step
+        interval = None
+        if self.backend == "torch":
+            if self._torch_bridge is None:
+                from .torch_liquid_bridge import TorchLiquidBridge
+
+                self._torch_bridge = TorchLiquidBridge(self, self.device)
+            if not resident:
+                self._torch_bridge.assert_model()
+        if resident:
+            from .torch_liquid_interval import TorchLiquidInterval
+
+            interval = TorchLiquidInterval(self._torch_bridge, hydraulic_journal, selected_branches)
+            (p, q, w), context = interval.begin(state, (p, q, w), commands, boundary)
+
+            def step(p0, q0, w0, h, commands_unused, boundary_unused, valves):
+                return self._step(
+                    p0,
+                    q0,
+                    w0,
+                    h,
+                    commands_unused,
+                    boundary_unused,
+                    valves,
+                    _device_context=context,
+                    _interval_driver=interval,
+                )
+
         speed = math.sqrt(self.bulk_modulus_pa / self.network.fluid.density_kg_m3)
         ceiling = min(
             [self.maximum_dt_s]
@@ -1047,7 +1111,7 @@ class LiquidTransientNetwork:
             remaining = duration - elapsed
             dt = remaining if remaining <= step_dt + 8 * math.ulp(duration) else step_dt
             try:
-                coarse = self._step(p, q, w, dt, commands, boundary, valves)
+                coarse = step(p, q, w, dt, commands, boundary, valves)
                 accepted = [coarse]
                 error_ratio = None
                 # Stops have their own located time. Compare only trajectories
@@ -1055,8 +1119,8 @@ class LiquidTransientNetwork:
                 if self.temporal_error_control and math.isclose(
                     coarse[3]["dt_s"], dt, rel_tol=1e-12, abs_tol=0.0
                 ):
-                    a = self._step(p, q, w, dt / 2, commands, boundary, valves)
-                    b = self._step(
+                    a = step(p, q, w, dt / 2, commands, boundary, valves)
+                    b = step(
                         *a[:3],
                         dt / 2,
                         commands,
@@ -1088,8 +1152,7 @@ class LiquidTransientNetwork:
                                 old.abs(), fine.abs()
                             )
                             errors.append((fine - rough).abs() / (3 * scale))
-                        error_ratio = float(torch.cat(errors).max().detach().cpu())
-                        self._torch_bridge.download_batches += 1
+                        error_ratio = self._torch_bridge.read_scalar(torch.cat(errors).max())
                     else:
                         errors = []
                         for old, fine, rough, atol in zip(
@@ -1110,6 +1173,22 @@ class LiquidTransientNetwork:
                     # Keep the two conservative half steps. Extrapolating the
                     # endpoint would destroy the exact discrete energy ledger.
                     accepted = [a, b]
+                payloads = [None] * len(accepted)
+                if resident:
+                    if _on_accepted_step is not None:
+                        from .torch_liquid_interval import DeviceHydraulicStep
+
+                        payloads = [
+                            DeviceHydraulicStep(
+                                self._torch_bridge.model_id,
+                                item[3].data,
+                                item[3].ledger,
+                                hydraulic_journal,
+                            )
+                            for item in accepted
+                        ]
+                    for accepted_step in accepted:
+                        accepted_step[3].materialize()
             except HydraulicConvergenceError as error:
                 rejected[str(error)] = rejected.get(str(error), 0) + 1
                 if dt / 2 < self.minimum_dt_s:
@@ -1120,7 +1199,7 @@ class LiquidTransientNetwork:
             following = math.fsum((elapsed, macro_dt))
             if following <= elapsed or state.time_s + following <= state.time_s + elapsed:
                 raise ValueError("Transient physical step cannot advance time")
-            for p1, q1, w1, record in accepted:
+            for (p1, q1, w1, record), payload in zip(accepted, payloads):
                 if len(steps) + sum(rejected.values()) >= max_substeps:
                     raise HydraulicConvergenceError("Transient liquid substep budget exhausted")
                 steps.append(
@@ -1130,6 +1209,10 @@ class LiquidTransientNetwork:
                         "temporal_error_ratio": error_ratio,
                     }
                 )
+                # Thermal failures must abort the interval, not enter the
+                # hydraulic retry loop after advancing a thermal trial cursor.
+                if _on_accepted_step is not None:
+                    _on_accepted_step(steps[-1], payload)
                 elapsed = math.fsum((elapsed, record["dt_s"]))
                 p, q, w = p1, q1, w1
                 valves = [
@@ -1142,17 +1225,37 @@ class LiquidTransientNetwork:
                 else min(1.5, max(0.8, 0.9 * error_ratio ** (-1 / 3)))
             )
             step_dt = min(ceiling, max(self.minimum_dt_s, macro_dt * growth))
+        device_state = (p, q, w) if resident else None
+        compact_coordinates = (
+            interval.export_coordinates(device_state) if hydraulic_journal == "compact" else None
+        )
         final = LiquidTransientState(
-            dict(zip(self.free, map(float, p))),
-            {b.name: float(v) for b, v in zip(self.network.pipes, q)},
-            dict(zip(self.names, map(float, w))),
+            dict(zip(self.free, map(float, compact_coordinates[0])))
+            if compact_coordinates is not None
+            else (
+                steps[-1]["final_pressures_pa"] if resident else dict(zip(self.free, map(float, p)))
+            ),
+            {b.name: float(v) for b, v in zip(self.network.pipes, compact_coordinates[1])}
+            if compact_coordinates is not None
+            else (
+                steps[-1]["final_pipe_volume_rates_m3_s"]
+                if resident
+                else {b.name: float(v) for b, v in zip(self.network.pipes, q)}
+            ),
+            dict(zip(self.names, map(float, compact_coordinates[2])))
+            if compact_coordinates is not None
+            else (
+                steps[-1]["final_speeds_rad_s"]
+                if resident
+                else dict(zip(self.names, map(float, w)))
+            ),
             tuple(unavailable),
             state.time_s + duration,
             self.model_id,
             tripped,
             {v.name: v.position for v in valves if isinstance(v, _MovingValve)},
         )
-        return {
+        result = {
             "state": final.to_dict(),
             "properties": self.inspect(final),
             "steps": steps,
@@ -1162,3 +1265,6 @@ class LiquidTransientNetwork:
             "requested_mode": mode,
             "effective_mode": "off" if tripped or mode == "off" else "torque",
         }
+        if interval is not None:
+            interval.commit(final, device_state)
+        return result

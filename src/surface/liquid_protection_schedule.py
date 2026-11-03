@@ -38,6 +38,9 @@ def run_protected_liquid_schedule(system, initial, periods, checkpoint=None, sto
         "reset_trips",
         "redispatch",
         "max_substeps",
+        "hydraulic_state_transfer",
+        "hydraulic_journal",
+        "hydraulic_journal_branches",
         "max_control_samples",
         "max_protection_samples",
     }

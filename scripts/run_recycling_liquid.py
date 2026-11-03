@@ -20,6 +20,13 @@ def main():
     parser.add_argument("--stop-after", type=int)
     parser.add_argument("--device", help="Explicit Torch device, e.g. cpu or cuda:0")
     parser.add_argument("--backend", choices=("torch", "scipy_reference"))
+    parser.add_argument(
+        "--hydraulic-state-transfer",
+        choices=("interval", "solve"),
+        help="Mechanical state transfer strategy; default interval",
+    )
+    parser.add_argument("--hydraulic-journal", choices=("full", "compact"))
+    parser.add_argument("--hydraulic-journal-branches", nargs="*")
     args = parser.parse_args()
     temporary = None
     try:
@@ -27,6 +34,20 @@ def main():
         if set(data) != {"system", "initial", "periods"}:
             raise ValueError("Recycling liquid config requires exactly system, initial, periods")
         data["system"] = liquid_backend_config(data["system"], args.backend, args.device)
+        if args.hydraulic_state_transfer is not None:
+            data["periods"] = [
+                {**p, "hydraulic_state_transfer": args.hydraulic_state_transfer}
+                for p in data["periods"]
+            ]
+        if args.hydraulic_journal is not None:
+            data["periods"] = [
+                {**p, "hydraulic_journal": args.hydraulic_journal} for p in data["periods"]
+            ]
+        if args.hydraulic_journal_branches is not None:
+            data["periods"] = [
+                {**p, "hydraulic_journal_branches": args.hydraulic_journal_branches}
+                for p in data["periods"]
+            ]
         drive = RecyclingLiquidStation.from_dict(data["system"])
         initial = drive.initialize(**data["initial"])
         result = run_recycling_liquid_schedule(

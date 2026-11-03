@@ -1,0 +1,386 @@
+{
+  "system": {
+    "fluid": {
+      "oil_density_kg_m3": 850,
+      "water_density_kg_m3": 1000,
+      "oil_heat_capacity_j_kg_k": 2000,
+      "water_heat_capacity_j_kg_k": 4180,
+      "gas_cv_j_kg_k": 1700,
+      "gas_constant_j_kg_k": 518,
+      "reference_temperature_k": 300.0,
+      "reference_pressure_pa": 100000.0,
+      "min_temperature_k": 275.0,
+      "max_temperature_k": 400.0,
+      "gas_min_temperature_k": 100.0
+    },
+    "vessels": [
+      {
+        "name": "inlet",
+        "geometry": {
+          "diameter_m": 0.5,
+          "length_m": 0.5,
+          "orientation": "vertical"
+        },
+        "min_pressure_pa": 100000.0,
+        "max_pressure_pa": 500000.0,
+        "elevation_m": 0.0,
+        "minimum_gas_volume_fraction": 0.0001,
+        "wall": {
+          "heat_capacity_j_k": 2000,
+          "fluid_ua_w_k": 5,
+          "ambient_ua_w_k": 2,
+          "ambient_temperature_k": 293,
+          "reference_temperature_k": 300,
+          "min_temperature_k": 1.0,
+          "max_temperature_k": 2000.0,
+          "max_temperature_change_k": 5.0
+        }
+      },
+      {
+        "name": "polisher",
+        "geometry": {
+          "diameter_m": 0.5,
+          "length_m": 0.5,
+          "orientation": "vertical"
+        },
+        "min_pressure_pa": 100000.0,
+        "max_pressure_pa": 500000.0,
+        "elevation_m": 0.0,
+        "minimum_gas_volume_fraction": 0.0001,
+        "wall": {
+          "heat_capacity_j_k": 2000,
+          "fluid_ua_w_k": 5,
+          "ambient_ua_w_k": 2,
+          "ambient_temperature_k": 293,
+          "reference_temperature_k": 300,
+          "min_temperature_k": 1.0,
+          "max_temperature_k": 2000.0,
+          "max_temperature_change_k": 5.0
+        }
+      }
+    ],
+    "ports": [
+      {
+        "name": "oil-export",
+        "source": "inlet",
+        "phase": "oil",
+        "height_m": 0.2,
+        "diameter_m": 0.008,
+        "discharge_coefficient": 0.7,
+        "target": null,
+        "target_phase": "oil",
+        "target_height_m": 0.0,
+        "back_pressure_pa": 100000.0,
+        "opening": 1.0,
+        "allow_reverse": false,
+        "pickup_affinities": [
+          1.0,
+          0.01,
+          0.5
+        ],
+        "target_pickup_affinities": [
+          1.0,
+          0.0,
+          0.0
+        ],
+        "control_metric": "liquid_level_m",
+        "setpoint": 0.25464790894703254,
+        "opening_gain": 50,
+        "opening_bias": 0.6,
+        "max_mass_rate_kg_s": null
+      },
+      {
+        "name": "water-export",
+        "source": "inlet",
+        "phase": "water",
+        "height_m": 0.06,
+        "diameter_m": 0.008,
+        "discharge_coefficient": 0.7,
+        "target": null,
+        "target_phase": "water",
+        "target_height_m": 0.0,
+        "back_pressure_pa": 100000.0,
+        "opening": 1.0,
+        "allow_reverse": false,
+        "pickup_affinities": [
+          0.0,
+          1.0,
+          0.0
+        ],
+        "target_pickup_affinities": [
+          0.0,
+          1.0,
+          0.0
+        ],
+        "control_metric": "interface_level_m",
+        "setpoint": 0.12732395447351627,
+        "opening_gain": 80,
+        "opening_bias": 0.6,
+        "max_mass_rate_kg_s": null
+      },
+      {
+        "name": "gas-export",
+        "source": "inlet",
+        "phase": "gas",
+        "height_m": 0.4,
+        "diameter_m": 0.006,
+        "discharge_coefficient": 0.7,
+        "target": null,
+        "target_phase": "gas",
+        "target_height_m": 0.0,
+        "back_pressure_pa": 200000.0,
+        "opening": 1.0,
+        "allow_reverse": false,
+        "pickup_affinities": [
+          0.0,
+          0.0,
+          1.0
+        ],
+        "target_pickup_affinities": [
+          0.0,
+          0.0,
+          1.0
+        ],
+        "control_metric": "pressure_pa",
+        "setpoint": 300000.0,
+        "opening_gain": 1e-05,
+        "opening_bias": 0.2,
+        "max_mass_rate_kg_s": null
+      },
+      {
+        "name": "gas-link",
+        "source": "inlet",
+        "phase": "gas",
+        "height_m": 0.4,
+        "diameter_m": 0.004,
+        "discharge_coefficient": 0.7,
+        "target": "polisher",
+        "target_phase": "gas",
+        "target_height_m": 0.4,
+        "back_pressure_pa": null,
+        "opening": 0.4,
+        "allow_reverse": true,
+        "pickup_affinities": [
+          0.0,
+          0.0,
+          1.0
+        ],
+        "target_pickup_affinities": [
+          0.0,
+          0.0,
+          1.0
+        ],
+        "control_metric": null,
+        "setpoint": null,
+        "opening_gain": 0.0,
+        "opening_bias": 0.0,
+        "max_mass_rate_kg_s": null
+      },
+      {
+        "name": "polisher-oil",
+        "source": "polisher",
+        "phase": "oil",
+        "height_m": 0.15,
+        "diameter_m": 0.004,
+        "discharge_coefficient": 0.7,
+        "target": null,
+        "target_phase": "oil",
+        "target_height_m": 0.0,
+        "back_pressure_pa": 100000.0,
+        "opening": 0.1,
+        "allow_reverse": false,
+        "pickup_affinities": [
+          1.0,
+          0.0,
+          0.0
+        ],
+        "target_pickup_affinities": [
+          1.0,
+          0.0,
+          0.0
+        ],
+        "control_metric": null,
+        "setpoint": null,
+        "opening_gain": 0.0,
+        "opening_bias": 0.0,
+        "max_mass_rate_kg_s": null
+      },
+      {
+        "name": "polisher-water",
+        "source": "polisher",
+        "phase": "water",
+        "height_m": 0.05,
+        "diameter_m": 0.004,
+        "discharge_coefficient": 0.7,
+        "target": null,
+        "target_phase": "water",
+        "target_height_m": 0.0,
+        "back_pressure_pa": 100000.0,
+        "opening": 0.2,
+        "allow_reverse": false,
+        "pickup_affinities": [
+          0.0,
+          1.0,
+          0.0
+        ],
+        "target_pickup_affinities": [
+          0.0,
+          1.0,
+          0.0
+        ],
+        "control_metric": null,
+        "setpoint": null,
+        "opening_gain": 0.0,
+        "opening_bias": 0.0,
+        "max_mass_rate_kg_s": null
+      },
+      {
+        "name": "polisher-gas",
+        "source": "polisher",
+        "phase": "gas",
+        "height_m": 0.4,
+        "diameter_m": 0.006,
+        "discharge_coefficient": 0.7,
+        "target": null,
+        "target_phase": "gas",
+        "target_height_m": 0.0,
+        "back_pressure_pa": 100000.0,
+        "opening": 1.0,
+        "allow_reverse": false,
+        "pickup_affinities": [
+          0.0,
+          0.0,
+          1.0
+        ],
+        "target_pickup_affinities": [
+          0.0,
+          0.0,
+          1.0
+        ],
+        "control_metric": "pressure_pa",
+        "setpoint": 200000.0,
+        "opening_gain": 1e-05,
+        "opening_bias": 0.5,
+        "max_mass_rate_kg_s": null
+      }
+    ],
+    "device": "cpu",
+    "gravity_m_s2": 9.80665,
+    "maximum_dt_s": 0.05,
+    "minimum_dt_s": 1e-07,
+    "max_fractional_inventory_change": 0.1,
+    "max_temperature_change_k": 2.0,
+    "temporal_error_control": true,
+    "relative_tolerance": 0.0001,
+    "temperature_tolerance_k": 0.001
+  },
+  "initial": {
+    "states": {
+      "inlet": {
+        "pressure_pa": 300000.0,
+        "temperature_k": 305,
+        "wall_temperature_k": 300,
+        "oil_volume_m3": 0.025,
+        "water_volume_m3": 0.025
+      },
+      "polisher": {
+        "pressure_pa": 200000.0,
+        "temperature_k": 300,
+        "wall_temperature_k": 300,
+        "oil_volume_m3": 0.015,
+        "water_volume_m3": 0.02
+      }
+    }
+  },
+  "periods": [
+    {
+      "duration_s": 0.2,
+      "feeds": {
+        "inlet": [
+          {
+            "phase_mass_rates_kg_s": [
+              0.4,
+              0.45,
+              0.006
+            ],
+            "pressure_pa": 450000.0,
+            "temperature_k": 305,
+            "elevation_m": 0
+          }
+        ]
+      }
+    },
+    {
+      "duration_s": 0.2,
+      "feeds": {
+        "inlet": [
+          {
+            "phase_mass_rates_kg_s": [
+              0.4,
+              2.0,
+              0.006
+            ],
+            "pressure_pa": 450000.0,
+            "temperature_k": 305,
+            "elevation_m": 0
+          }
+        ]
+      }
+    },
+    {
+      "duration_s": 0.2,
+      "openings": {
+        "oil-export": 0,
+        "water-export": 0,
+        "gas-export": 0,
+        "gas-link": 0,
+        "polisher-oil": 0,
+        "polisher-water": 0,
+        "polisher-gas": 0
+      },
+      "heat_duties_w": {
+        "inlet": 1000
+      },
+      "utility_temperatures_k": {
+        "inlet": 345
+      }
+    },
+    {
+      "duration_s": 0.2,
+      "feeds": {
+        "inlet": [
+          {
+            "phase_mass_rates_kg_s": [
+              0.4,
+              0.45,
+              0.006
+            ],
+            "pressure_pa": 450000.0,
+            "temperature_k": 305,
+            "elevation_m": 0
+          }
+        ]
+      }
+    },
+    {
+      "duration_s": 0.2,
+      "feeds": {
+        "inlet": [
+          {
+            "phase_mass_rates_kg_s": [
+              0.4,
+              0.45,
+              0.006
+            ],
+            "pressure_pa": 450000.0,
+            "temperature_k": 305,
+            "elevation_m": 0
+          }
+        ]
+      },
+      "openings": {
+        "gas-link": 0
+      }
+    }
+  ]
+}

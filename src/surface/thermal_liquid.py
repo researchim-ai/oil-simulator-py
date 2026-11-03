@@ -334,9 +334,22 @@ class ThermalLiquidStation:
         max_control_samples=100000,
         max_protection_samples=100000,
         max_recycle_samples=100000,
+        thermal_state_transfer="report",
+        hydraulic_heat_transfer="auto",
+        thermal_execution="auto",
         **commands,
     ):
         self._check(state)
+        if thermal_state_transfer not in ("report", "window", "record"):
+            raise ValueError("thermal_state_transfer must be report, window or record")
+        if hydraulic_heat_transfer not in ("auto", "host", "device"):
+            raise ValueError("hydraulic_heat_transfer must be auto, host or device")
+        if thermal_execution not in ("auto", "eager", "graph"):
+            raise ValueError("thermal_execution must be auto, eager or graph")
+        if thermal_execution == "graph" and (
+            self.heat.backend != "torch" or not self.heat.device.startswith("cuda:")
+        ):
+            raise ValueError("Thermal graph execution requires CUDA")
         duration = _number(duration_s, "duration_s", positive=True)
         if (
             mode not in ("auto", "manual", "torque", "off", "trip")
@@ -432,6 +445,18 @@ class ThermalLiquidStation:
         thermal_failed = 0
         first = True
         recycled = {x.valve: 0.0 for x in self.recycling.loops}
+        heat_session = None
+        if thermal_state_transfer == "report" and self.heat.backend == "torch":
+            fluid_sensors = sorted(
+                {r.location for r in self.thermostats}
+                | {r.location for r in self.temperature_trips if r.metric == "fluid_temperature_k"}
+            )
+            wall_sensors = sorted(
+                {r.location for r in self.temperature_trips if r.metric == "wall_temperature_k"}
+            )
+            heat_session = self.heat.open_session(
+                heat, fluid_sensors, wall_sensors, execution=thermal_execution
+            )
         while heat.time_s < end:
             now = heat.time_s
             next_time = state.clock_origin_s + tick * self.control_interval_s
@@ -515,6 +540,37 @@ class ThermalLiquidStation:
             }
             if budgets["max_substeps"] < 1:
                 raise HydraulicConvergenceError("Thermal station physical budget exhausted")
+            applied = {**duties, **{r.location: held[r.name] for r in self.thermostats}}
+            heat_budget = max_thermal_substeps - len(thermal_records) - thermal_failed
+            if heat_budget < 1:
+                raise HydraulicConvergenceError("Thermal station heat budget exhausted")
+            physical = self.recycling.physics
+            direct = (
+                heat_session is not None
+                and physical.backend == "torch"
+                and commands.get("hydraulic_state_transfer", "interval") == "interval"
+                and str(physical.device) == str(self.heat.device)
+            )
+            if commands.get("hydraulic_journal", "full") == "compact" and (
+                not direct or hydraulic_heat_transfer == "host"
+            ):
+                raise ValueError("Compact thermal journal requires direct resident heat coupling")
+            if hydraulic_heat_transfer == "device" and not direct:
+                raise ValueError(
+                    "Device heat coupling requires resident Torch physics on one device"
+                )
+            heat_window = None
+            if direct and hydraulic_heat_transfer != "host":
+                from .torch_heat_session import TorchHeatWindow
+
+                heat_window = TorchHeatWindow(
+                    heat_session,
+                    boundary_temperatures_k,
+                    ambient_temperatures_k,
+                    applied,
+                    heat_budget,
+                )
+                segment["_on_accepted_step"] = heat_window.push
             result = self.recycling.advance(
                 current,
                 (end if terminal else min(end, next_time)) - now,
@@ -537,24 +593,33 @@ class ThermalLiquidStation:
                 > budgets["max_recycle_samples"]
             ):
                 raise HydraulicConvergenceError("Thermal station recycle budget exhausted")
-            applied = {**duties, **{r.location: held[r.name] for r in self.thermostats}}
-            for record in result["steps"]:
-                budget = max_thermal_substeps - len(thermal_records) - thermal_failed
-                if budget < 1:
-                    raise HydraulicConvergenceError("Thermal station heat budget exhausted")
-                calc = self.heat.advance_record(
-                    heat, record, boundary_temperatures_k, ambient_temperatures_k, applied, budget
+            if heat_window is not None:
+                calc = heat_window.finish()
+                heat = calc["state"]
+            elif heat_session is not None:
+                calc = heat_session.advance_records(
+                    result["steps"],
+                    boundary_temperatures_k,
+                    ambient_temperatures_k,
+                    applied,
+                    heat_budget,
+                )
+                heat = calc["state"]
+            else:
+                calc = self.heat.advance_records(
+                    heat,
+                    result["steps"],
+                    boundary_temperatures_k,
+                    ambient_temperatures_k,
+                    applied,
+                    heat_budget,
+                    resident=thermal_state_transfer == "window",
+                    execution=thermal_execution,
                 )
                 heat = LiquidHeatState(**calc["state"])
-                thermal_records.extend(calc["steps"])
-                thermal_failed += calc["failed_steps"]
-                thermal_audits.append(
-                    {
-                        "time_s": record["time_s"],
-                        "dt_s": record["dt_s"],
-                        "combined_energy_residual_j": calc["combined_energy_residual_j"],
-                    }
-                )
+            thermal_records.extend(calc["steps"])
+            thermal_failed += calc["failed_steps"]
+            thermal_audits.extend(calc["audits"])
             for key, values in records.items():
                 values.extend(result[key])
             for key, count in result["retry_reasons"].items():
@@ -571,7 +636,11 @@ class ThermalLiquidStation:
             ):
                 raise ValueError("Thermal window did not reach hydraulic endpoint")
             heat = replace(heat, time_s=physical_time)
+            if heat_session is not None:
+                heat_session.align_time(physical_time)
             first = False
+        if heat_session is not None:
+            heat = heat_session.close()
         final = ThermalLiquidState(
             current,
             heat,

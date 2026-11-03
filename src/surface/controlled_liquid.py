@@ -352,8 +352,14 @@ class ControlledLiquidStation:
         redispatch=False,
         max_substeps=100000,
         max_control_samples=100000,
+        hydraulic_state_transfer="interval",
+        _on_accepted_step=None,
+        hydraulic_journal="full",
+        hydraulic_journal_branches=None,
     ):
         self._check(state)
+        if hydraulic_state_transfer not in ("interval", "solve"):
+            raise ValueError("hydraulic_state_transfer must be interval or solve")
         duration = _number(duration_s, "duration_s", positive=True)
         end_time = state.physical.time_s + duration
         if not math.isfinite(end_time) or end_time <= state.physical.time_s:
@@ -581,6 +587,10 @@ class ControlledLiquidStation:
                 unavailable=unavailable,
                 reset_trip=reset_trip if first_segment else False,
                 max_substeps=budget,
+                hydraulic_state_transfer=hydraulic_state_transfer,
+                _on_accepted_step=_on_accepted_step,
+                hydraulic_journal=hydraulic_journal,
+                hydraulic_journal_branches=hydraulic_journal_branches,
             )
             for n in self.names:
                 integrals[n] = math.fsum(

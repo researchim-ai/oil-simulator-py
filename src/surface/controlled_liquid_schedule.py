@@ -37,6 +37,9 @@ def run_controlled_liquid_schedule(system, initial, periods, checkpoint=None, st
         "reset_trip",
         "redispatch",
         "max_substeps",
+        "hydraulic_state_transfer",
+        "hydraulic_journal",
+        "hydraulic_journal_branches",
         "max_control_samples",
     }
     for period in periods:

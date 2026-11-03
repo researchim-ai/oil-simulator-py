@@ -33,6 +33,9 @@ def run_liquid_transient_schedule(system, initial, periods, checkpoint=None, sto
         "unavailable",
         "reset_trip",
         "max_substeps",
+        "hydraulic_state_transfer",
+        "hydraulic_journal",
+        "hydraulic_journal_branches",
     }
     for period in periods:
         if not isinstance(period, dict) or "duration_s" not in period or set(period) - allowed:

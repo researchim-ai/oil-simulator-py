@@ -415,6 +415,98 @@ class LiquidHeatNetwork:
         local = delta - dt * (L @ mid + forcing)
         return t1, delta, adv, ambient_heat, float(np.max(abs(local), initial=0.0))
 
+    def open_session(self, state, fluid_sensors=(), wall_sensors=(), *, execution="auto"):
+        """Keep thermal fields on device until close; export declared sensors only."""
+        from .torch_heat_session import TorchHeatSession
+
+        return TorchHeatSession(self, state, fluid_sensors, wall_sensors, execution)
+
+    def advance_records(
+        self,
+        state,
+        records,
+        boundary_temperatures_k=None,
+        ambient_temperatures_k=None,
+        heat_duties_w=None,
+        max_substeps=100000,
+        *,
+        resident=True,
+        execution="auto",
+    ):
+        """Advance one control window without serializing every thermal state.
+
+        Records retain their own hydraulic/energy audits and adaptive clocks.
+        The input state is never changed, including when a later record fails.
+        ``resident=False`` preserves the per-record path for paired validation.
+        """
+        if execution not in ("auto", "eager", "graph"):
+            raise ValueError("thermal_execution must be auto, eager or graph")
+        if execution == "graph" and (
+            self.backend != "torch" or not self.device.startswith("cuda:")
+        ):
+            raise ValueError("Thermal graph execution requires CUDA")
+        self._check(state)
+        if not isinstance(records, (list, tuple)) or not records:
+            raise ValueError("Thermal window requires nonempty hydraulic records")
+        if not isinstance(resident, bool):
+            raise TypeError("resident must be boolean")
+        if isinstance(max_substeps, bool) or not isinstance(max_substeps, int) or max_substeps < 1:
+            raise ValueError("Positive integer thermal work budget required")
+        bridge = None
+        if self.backend == "torch":
+            if self._torch_bridge is None:
+                from .torch_heat_bridge import TorchHeatBridge
+
+                self._torch_bridge = TorchHeatBridge(self, self.device)
+            bridge = self._torch_bridge
+            if resident:
+                return bridge.advance_records(
+                    state,
+                    records,
+                    boundary_temperatures_k,
+                    ambient_temperatures_k,
+                    heat_duties_w,
+                    max_substeps,
+                    _execution=execution,
+                )
+        before = bridge.transfer_stats() if bridge else {}
+        cursor = state
+        steps, audits = [], []
+        failed = factors = 0
+        for record in records:
+            budget = max_substeps - len(steps) - failed
+            if budget < 1:
+                raise HydraulicConvergenceError("Thermal window work budget exhausted")
+            calc = self.advance_record(
+                cursor,
+                record,
+                boundary_temperatures_k,
+                ambient_temperatures_k,
+                heat_duties_w,
+                budget,
+                execution=execution,
+            )
+            cursor = LiquidHeatState(**calc["state"])
+            steps.extend(calc["steps"])
+            failed += calc["failed_steps"]
+            factors += calc["linear_factorizations"]
+            audits.append(
+                {
+                    "time_s": record["time_s"],
+                    "dt_s": record["dt_s"],
+                    "combined_energy_residual_j": calc["combined_energy_residual_j"],
+                }
+            )
+        after = bridge.transfer_stats() if bridge else {}
+        return {
+            "state": cursor.to_dict(),
+            "steps": steps,
+            "audits": audits,
+            "failed_steps": failed,
+            "linear_factorizations": factors,
+            "transfer_stats": {k: v - before[k] for k, v in after.items()},
+        }
+
     def advance_record(
         self,
         state,
@@ -423,7 +515,15 @@ class LiquidHeatNetwork:
         ambient_temperatures_k=None,
         heat_duties_w=None,
         max_substeps=100000,
+        *,
+        execution="auto",
     ):
+        if execution not in ("auto", "eager", "graph"):
+            raise ValueError("thermal_execution must be auto, eager or graph")
+        if execution == "graph" and (
+            self.backend != "torch" or not self.device.startswith("cuda:")
+        ):
+            raise ValueError("Thermal graph execution requires CUDA")
         if self.backend == "torch":
             if self._torch_bridge is None:
                 from .torch_heat_bridge import TorchHeatBridge
@@ -436,6 +536,7 @@ class LiquidHeatNetwork:
                 ambient_temperatures_k,
                 heat_duties_w,
                 max_substeps,
+                _execution=execution,
             )
         self._check(state)
         dt = _number(record["dt_s"], "dt_s", positive=True)

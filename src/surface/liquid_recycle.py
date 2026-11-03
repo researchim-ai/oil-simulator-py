@@ -183,6 +183,17 @@ class RecyclingLiquidStation:
         **commands,
     ):
         self._check(state)
+        from .liquid_journal import journal_branches
+
+        selected = journal_branches(
+            self.physics,
+            commands.get("hydraulic_journal", "full"),
+            commands.get("hydraulic_journal_branches"),
+        )
+        if commands.get("hydraulic_journal", "full") == "compact":
+            commands["hydraulic_journal_branches"] = tuple(
+                dict.fromkeys((*selected, *(x.valve for x in self.loops)))
+            )
         duration = _number(duration_s, "duration_s", positive=True)
         for budget in (
             max_recycle_samples,

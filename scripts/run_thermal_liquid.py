@@ -20,6 +20,28 @@ def main():
     parser.add_argument("--stop-after", type=int)
     parser.add_argument("--device", help="Explicit Torch device, e.g. cpu or cuda:0")
     parser.add_argument("--backend", choices=("torch", "scipy_reference"))
+    parser.add_argument(
+        "--thermal-state-transfer",
+        choices=("report", "window", "record"),
+        help="Thermal state export frequency; default report",
+    )
+    parser.add_argument(
+        "--hydraulic-state-transfer",
+        choices=("interval", "solve"),
+        help="Mechanical state transfer strategy; default interval",
+    )
+    parser.add_argument(
+        "--hydraulic-heat-transfer",
+        choices=("auto", "host", "device"),
+        help="Accepted hydraulic tensors: direct device or CPU journal",
+    )
+    parser.add_argument(
+        "--thermal-execution",
+        choices=("auto", "eager", "graph"),
+        help="Caloric linear-step execution; auto uses CUDA Graph on CUDA",
+    )
+    parser.add_argument("--hydraulic-journal", choices=("full", "compact"))
+    parser.add_argument("--hydraulic-journal-branches", nargs="*")
     args = parser.parse_args()
     temporary = None
     try:
@@ -29,6 +51,34 @@ def main():
                 "Thermal liquid liquid config requires exactly system, initial, periods"
             )
         data["system"] = liquid_backend_config(data["system"], args.backend, args.device)
+        if args.thermal_state_transfer is not None:
+            data["periods"] = [
+                {**p, "thermal_state_transfer": args.thermal_state_transfer}
+                for p in data["periods"]
+            ]
+        if args.hydraulic_state_transfer is not None:
+            data["periods"] = [
+                {**p, "hydraulic_state_transfer": args.hydraulic_state_transfer}
+                for p in data["periods"]
+            ]
+        if args.hydraulic_heat_transfer is not None:
+            data["periods"] = [
+                {**p, "hydraulic_heat_transfer": args.hydraulic_heat_transfer}
+                for p in data["periods"]
+            ]
+        if args.thermal_execution is not None:
+            data["periods"] = [
+                {**p, "thermal_execution": args.thermal_execution} for p in data["periods"]
+            ]
+        if args.hydraulic_journal is not None:
+            data["periods"] = [
+                {**p, "hydraulic_journal": args.hydraulic_journal} for p in data["periods"]
+            ]
+        if args.hydraulic_journal_branches is not None:
+            data["periods"] = [
+                {**p, "hydraulic_journal_branches": args.hydraulic_journal_branches}
+                for p in data["periods"]
+            ]
         drive = ThermalLiquidStation.from_dict(data["system"])
         initial = drive.initialize(**data["initial"])
         result = run_thermal_liquid_schedule(

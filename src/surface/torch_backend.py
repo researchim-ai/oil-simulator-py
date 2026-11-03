@@ -9,10 +9,14 @@ TORCH_SOURCES = (
     "torch_linear.py",
     "torch_liquid.py",
     "torch_liquid_bridge.py",
+    "torch_liquid_interval.py",
+    "liquid_journal.py",
     "torch_steady.py",
     "torch_heat.py",
+    "torch_heat_graph.py",
     "torch_heat_bridge.py",
     "torch_heat_interval.py",
+    "torch_heat_session.py",
 )
 
 

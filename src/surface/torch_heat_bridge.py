@@ -1,6 +1,7 @@
 """Explicit serialization/adaptivity boundary for the resident Torch heat kernel."""
 
 import math
+from dataclasses import dataclass
 
 import numpy as np
 import torch
@@ -10,16 +11,164 @@ from .liquid_heat import LiquidHeatState
 from .torch_heat import TorchHeatEquations
 
 
+@dataclass(frozen=True)
+class _ResidentHeatState:
+    temperature: torch.Tensor
+    mass: torch.Tensor
+    time_s: float
+    model_id: str
+
+
 class TorchHeatBridge:
     def __init__(self, model, device):
         self.model = model
         self.kernel = TorchHeatEquations(model, device)
         self.upload_batches = 0
         self.download_batches = 0
+        self.upload_bytes = 0
+        self.download_bytes = 0
+        self.state_upload_batches = 0
+        self.state_download_batches = 0
+        self.state_upload_bytes = 0
+        self.state_download_bytes = 0
+        self.history_download_bytes = 0
+        self.history_flushes = 0
+        self.sensor_download_batches = 0
+        self.sensor_download_bytes = 0
+        self.device_hydraulic_records = 0
+        self.device_hydraulic_bytes = 0
+        self.history_buffer_bytes = 16 * 1024 * 1024
+        from .torch_heat_graph import TorchHeatLinearGraphs
+
+        self.linear_graphs = TorchHeatLinearGraphs(self.kernel)
+        self.model_id = model.model_id
+        self.physics_model_id = model.physics.model_id
+
+    def transfer_stats(self):
+        # Logical API packets/bytes, excluding one-time geometry construction.
+        # On CPU these count serialization traffic, not PCIe transfers.
+        names = (
+            "device_hydraulic_records",
+            "device_hydraulic_bytes",
+            "upload_batches",
+            "download_batches",
+            "upload_bytes",
+            "download_bytes",
+            "state_upload_batches",
+            "state_download_batches",
+            "state_upload_bytes",
+            "state_download_bytes",
+            "history_download_bytes",
+            "history_flushes",
+            "sensor_download_batches",
+            "sensor_download_bytes",
+        )
+        return {
+            **{name: getattr(self, name) for name in names},
+            "linear_graph_captures": self.linear_graphs.captures,
+            "linear_graph_replays": self.linear_graphs.replays,
+            "linear_graph_input_bytes": self.linear_graphs.input_bytes,
+            "linear_graph_input_packets": self.linear_graphs.input_packets,
+        }
+
+    def upload(self, value, dtype=None):
+        self.upload_batches += 1
+        self.upload_bytes += value.nbytes
+        return torch.as_tensor(value, dtype=dtype or self.kernel.dtype, device=self.kernel.device)
 
     def download(self, value):
         self.download_batches += 1
+        self.download_bytes += value.numel() * value.element_size()
         return value.detach().cpu().numpy()
+
+    def begin(self, state):
+        m, e = self.model, self.kernel
+        m._check(state)
+        if m.model_id != self.model_id:
+            raise ValueError("Heat model changed after Torch kernel construction")
+        fluid, wall, mass = (
+            dict(state.temperatures_k),
+            dict(state.wall_temperatures_k),
+            dict(state.masses_kg),
+        )
+        packet = self.upload(
+            np.asarray(
+                [fluid[n] for n in m.names]
+                + [wall[n] for n in m.wall_names]
+                + [mass[n] for n in m.names]
+            )
+        )
+        self.state_upload_batches += 1
+        self.state_upload_bytes += packet.numel() * packet.element_size()
+        return _ResidentHeatState(packet[: e.size], packet[e.size :], state.time_s, self.model_id)
+
+    def export(self, state):
+        m, e = self.model, self.kernel
+        host = self.download(torch.cat((state.temperature, state.mass)))
+        self.state_download_batches += 1
+        self.state_download_bytes += host.nbytes
+        final = LiquidHeatState(
+            dict(zip(m.names, map(float, host[: e.nf]))),
+            dict(zip(m.wall_names, map(float, host[e.nf : e.size]))),
+            dict(zip(m.names, map(float, host[e.size :]))),
+            state.time_s,
+            state.model_id,
+        )
+        m._check(final)
+        return final
+
+    def advance_records(
+        self,
+        state,
+        records,
+        boundary,
+        ambient,
+        duties,
+        max_substeps,
+        *,
+        _keep_on_device=False,
+        _execution="auto",
+    ):
+        before = self.transfer_stats()
+        cursor = state if isinstance(state, _ResidentHeatState) else self.begin(state)
+        if isinstance(state, _ResidentHeatState) and not _keep_on_device:
+            raise ValueError("Private resident cursor requires a heat session")
+        steps, audits = [], []
+        failed = factors = 0
+        for record in records:
+            budget = max_substeps - len(steps) - failed
+            if budget < 1:
+                raise HydraulicConvergenceError("Thermal window work budget exhausted")
+            calc = self.advance(
+                cursor,
+                record,
+                boundary,
+                ambient,
+                duties,
+                budget,
+                _keep_on_device=True,
+                _execution=_execution,
+            )
+            cursor = calc["state"]
+            steps.extend(calc["steps"])
+            failed += calc["failed_steps"]
+            factors += calc["linear_factorizations"]
+            audits.append(
+                {
+                    "time_s": record["time_s"],
+                    "dt_s": record["dt_s"],
+                    "combined_energy_residual_j": calc["combined_energy_residual_j"],
+                }
+            )
+        final = cursor if _keep_on_device else self.export(cursor)
+        return {
+            "state": final if _keep_on_device else final.to_dict(),
+            "steps": steps,
+            "audits": audits,
+            "failed_steps": failed,
+            "linear_factorizations": factors,
+            "transfer_stats": {k: v - before[k] for k, v in self.transfer_stats().items()},
+        }
 
     def advance(
         self,
@@ -29,11 +178,37 @@ class TorchHeatBridge:
         ambient_temperatures_k=None,
         heat_duties_w=None,
         max_substeps=100000,
+        *,
+        _keep_on_device=False,
+        _hydraulic=None,
+        _execution="auto",
     ):
         m = self.model
         e = self.kernel
-        m._check(state)
+        if _execution not in ("auto", "eager", "graph"):
+            raise ValueError("thermal_execution must be auto, eager or graph")
+        if _execution == "graph" and e.device.type != "cuda":
+            raise ValueError("Thermal graph execution requires CUDA")
+        graph_enabled = e.device.type == "cuda" and _execution != "eager"
+        resident = isinstance(state, _ResidentHeatState)
+        if resident:
+            if not _keep_on_device or state.model_id != self.model_id:
+                raise ValueError("Resident heat state/model mismatch")
+            if (
+                state.temperature.shape != (e.size,)
+                or state.mass.shape != (e.nf,)
+                or any(
+                    v.dtype != e.dtype or v.device != e.device
+                    for v in (state.temperature, state.mass)
+                )
+            ):
+                raise ValueError("Resident heat state coordinates/device mismatch")
+        else:
+            m._check(state)
+            if m.model_id != self.model_id:
+                raise ValueError("Heat model changed after Torch kernel construction")
         duration = _number(record["dt_s"], "dt_s", positive=True)
+        _number(record["time_s"], "time_s", nonnegative=True)
         if abs(record["time_s"] - state.time_s) > 32 * math.ulp(
             max(1.0, state.time_s, record["time_s"])
         ):
@@ -56,45 +231,112 @@ class TorchHeatBridge:
             _number(t, "ambient_temperature_k", positive=True)
         for q in duties.values():
             _number(q, "heat_duty_w")
-        heat = record["dissipation_heat_j"]
         physics = m.physics
-        if (
-            set(heat) != {"friction", "pump", "shaft_drag", "motor"}
-            or set(heat["friction"])
-            != {b.name for b in physics.network.pipes + physics.network.valves}
-            or any(set(heat[k]) != set(physics.names) for k in ("pump", "shaft_drag", "motor"))
-        ):
-            raise ValueError("Mechanical dissipation equipment mismatch")
+        compact_input = (
+            _hydraulic is not None and getattr(_hydraulic, "journal", "full") == "compact"
+        )
+        if not compact_input or "dissipation_heat_j" in record:
+            heat = record["dissipation_heat_j"]
+            if (
+                set(heat) != {"friction", "pump", "shaft_drag", "motor"}
+                or set(heat["friction"])
+                != {b.name for b in physics.network.pipes + physics.network.valves}
+                or any(set(heat[k]) != set(physics.names) for k in ("pump", "shaft_drag", "motor"))
+            ):
+                raise ValueError("Mechanical dissipation equipment mismatch")
+        if resident:
+            initial_t = initial_m = np.empty(0, dtype=np.float64)
+        else:
+            temperatures, walls, masses = (
+                dict(state.temperatures_k),
+                dict(state.wall_temperatures_k),
+                dict(state.masses_kg),
+            )
+            initial_t = np.asarray(
+                [temperatures[n] for n in m.names] + [walls[n] for n in m.wall_names]
+            )
+            initial_m = np.asarray([masses[n] for n in m.names])
+        if _hydraulic is None:
+            hydraulic_arrays = [
+                np.asarray([record["final_pressures_pa"][n] for n in physics.free]),
+                np.asarray(
+                    [record["midpoint_branch_volume_rates_m3_s"][n] for n in e.branch_names]
+                ),
+                np.asarray(
+                    [
+                        heat["friction"][b.name]
+                        for b in physics.network.pipes + physics.network.valves
+                    ]
+                ),
+                *[
+                    np.asarray([heat[k][n] for n in physics.names])
+                    for k in ("pump", "shaft_drag", "motor")
+                ],
+                np.asarray(
+                    [
+                        record[k]
+                        for k in (
+                            "friction_heat_j",
+                            "pump_heat_j",
+                            "shaft_drag_heat_j",
+                            "motor_heat_j",
+                        )
+                    ]
+                ),
+            ]
+        else:
+            from .torch_liquid_interval import DeviceHydraulicStep
+
+            if (
+                not isinstance(_hydraulic, DeviceHydraulicStep)
+                or _hydraulic.model_id != self.physics_model_id
+                or _hydraulic.journal not in ("full", "compact")
+            ):
+                raise ValueError("Hydraulic device record/model mismatch")
+            data, ledger = _hydraulic.data, _hydraulic.ledger
+            device_inputs = (
+                data[0],
+                data[4],
+                ledger["friction_unit_heat_j"],
+                ledger["pump_unit_heat_j"],
+                ledger["drag_unit_heat_j"],
+                ledger["motor_unit_heat_j"],
+                ledger["boundary_mass_transfers_in_kg"],
+            )
+            shapes = (
+                len(physics.free),
+                len(e.branch_names),
+                len(physics.network.pipes) + len(physics.network.valves),
+                len(physics.names),
+                len(physics.names),
+                len(physics.names),
+                len(physics._nodes),
+            )
+            if any(
+                v.shape != (n,) or v.dtype != e.dtype or v.device != e.device
+                for v, n in zip(device_inputs, shapes)
+            ):
+                raise ValueError("Hydraulic device record coordinates/device mismatch")
+            hydraulic_arrays = [np.empty(0)] * 7
         arrays = [
-            np.asarray(
-                [dict(state.temperatures_k)[n] for n in m.names]
-                + [dict(state.wall_temperatures_k)[n] for n in m.wall_names]
-            ),
-            np.asarray([dict(state.masses_kg)[n] for n in m.names]),
-            np.asarray([record["final_pressures_pa"][n] for n in physics.free]),
-            np.asarray([record["midpoint_branch_volume_rates_m3_s"][n] for n in e.branch_names]),
-            np.asarray(
-                [heat["friction"][b.name] for b in physics.network.pipes + physics.network.valves]
-            ),
-            *[
-                np.asarray([heat[k][n] for n in physics.names])
-                for k in ("pump", "shaft_drag", "motor")
-            ],
-            np.asarray(
-                [
-                    record[k]
-                    for k in ("friction_heat_j", "pump_heat_j", "shaft_drag_heat_j", "motor_heat_j")
-                ]
-            ),
+            initial_t,
+            initial_m,
+            *hydraulic_arrays,
             np.asarray([boundary[n] for n in e.boundary_names]),
             np.asarray([ambient[n] for n in m.wall_names]),
             np.asarray([m._index[n] for n in duties]),
             np.asarray(list(duties.values())),
-            np.asarray([record["boundary_mass_transfers_in_kg"][n] for n in e.reservoir_names]),
+            (
+                np.asarray([record["boundary_mass_transfers_in_kg"][n] for n in e.reservoir_names])
+                if _hydraulic is None
+                else np.empty(0)
+            ),
             np.asarray([duration]),
         ]
-        packet = e.tensor(np.concatenate(arrays))
-        self.upload_batches += 1
+        packet = self.upload(np.concatenate(arrays))
+        if not resident:
+            self.state_upload_batches += 1
+            self.state_upload_bytes += initial_t.nbytes + initial_m.nbytes
         chunks = packet.split([len(a) for a in arrays])
         (
             t,
@@ -113,9 +355,22 @@ class TorchHeatBridge:
             reservoir_transfer,
             physical_dt,
         ) = chunks
+        if _hydraulic is not None:
+            pfinal, flows, friction, pump, shaft, motor, transfers = device_inputs
+            expected = torch.stack(
+                [
+                    ledger[k]
+                    for k in ("friction_heat_j", "pump_heat_j", "shaft_drag_heat_j", "motor_heat_j")
+                ]
+            )
+            reservoir_transfer = transfers.index_select(0, e.reservoir_node)
+            self.device_hydraulic_records += 1
+            self.device_hydraulic_bytes += sum(v.numel() * v.element_size() for v in device_inputs)
         duty = torch.zeros(e.size, dtype=e.dtype, device=e.device).scatter(
             0, duty_index.to(torch.long), duty_values
         )
+        if resident:
+            t, mstart = state.temperature, state.mass
         physical_dt = physical_dt[0]
         mend = e.masses_next(mstart, pfinal, flows, physical_dt, reservoir_transfer)
         groups = (friction, pump, shaft, motor)
@@ -165,7 +420,8 @@ class TorchHeatBridge:
                     factors = factors_cache[h]
                 else:
                     factor_count += 1
-            return e.linear_step(
+            linear_step = self.linear_graphs.linear if graph_enabled else e.linear_step
+            return linear_step(
                 t0, m0, m1, ht, forcing, diagonal, dense, boundary_t, ambient_t, factors
             )
 
@@ -175,6 +431,8 @@ class TorchHeatBridge:
         gpu_records = []
         times = []
         fields = []
+        field_chunks = []
+        field_bytes = 0
         while elapsed < duration:
             if len(times) + retries >= max_substeps:
                 raise HydraulicConvergenceError("Thermal work budget exhausted")
@@ -263,6 +521,13 @@ class TorchHeatBridge:
                 times.append((state.time_s + elapsed, hd))
                 if m.store_step_temperatures:
                     fields.append(t1)
+                    field_bytes += t1.numel() * t1.element_size()
+                    if field_bytes >= self.history_buffer_bytes:
+                        field_chunks.append(self.download(torch.stack(fields)))
+                        self.history_download_bytes += field_bytes
+                        self.history_flushes += 1
+                        fields.clear()
+                        field_bytes = 0
                 elapsed = math.fsum((elapsed, hd))
                 t = t1
             elapsed = following
@@ -272,13 +537,17 @@ class TorchHeatBridge:
                 h * min(1.5, max(0.8, 0.9 * ratio ** (-1 / 3))) if ratio > 0 else h * 1.5,
             )
         # One packed export of the complete accepted audit log and final field.
-        packed = torch.cat((t, mend, torch.stack(gpu_records).flatten(), *[f for f in fields]))
+        state_fields = () if _keep_on_device else (t, mend)
+        packed = torch.cat((*state_fields, torch.stack(gpu_records).flatten(), *fields))
         host = self.download(packed)
+        self.history_download_bytes += field_bytes
         offset = 0
-        tend = host[: e.size]
-        offset += e.size
-        mass = host[offset : offset + e.nf]
-        offset += e.nf
+        if not _keep_on_device:
+            tend = host[: e.size]
+            mass = host[e.size : e.size + e.nf]
+            offset = e.size + e.nf
+            self.state_download_batches += 1
+            self.state_download_bytes += offset * host.itemsize
         audit = host[offset : offset + len(times) * 12].reshape(len(times), 12)
         offset += len(times) * 12
         if not np.all(audit[:, -1]):
@@ -296,24 +565,30 @@ class TorchHeatBridge:
             "temporal_error_ratio",
             "passive_exchange_entropy_j_k",
         )
+        if fields:
+            field_chunks.append(host[offset:].reshape(len(fields), e.size))
+        history = iter(vector for chunk in field_chunks for vector in chunk)
         steps = []
-        for i, ((time, hd), row) in enumerate(zip(times, audit)):
+        for (time, hd), row in zip(times, audit):
             item = {"time_s": time, "dt_s": hd, **dict(zip(keys, map(float, row[:-1])))}
             if m.store_step_temperatures:
-                vector = host[offset + i * e.size : offset + (i + 1) * e.size]
+                vector = next(history)
                 item["final_temperatures_k"] = dict(zip(m.names, map(float, vector[: e.nf])))
                 item["final_wall_temperatures_k"] = dict(
                     zip(m.wall_names, map(float, vector[e.nf :]))
                 )
             steps.append(item)
-        final = LiquidHeatState(
-            dict(zip(m.names, map(float, tend[: e.nf]))),
-            dict(zip(m.wall_names, map(float, tend[e.nf :]))),
-            dict(zip(m.names, map(float, mass))),
-            record["time_s"] + duration,
-            m.model_id,
-        )
-        m._check(final)
+        if _keep_on_device:
+            final = _ResidentHeatState(t, mend, record["time_s"] + duration, self.model_id)
+        else:
+            final = LiquidHeatState(
+                dict(zip(m.names, map(float, tend[: e.nf]))),
+                dict(zip(m.wall_names, map(float, tend[e.nf :]))),
+                dict(zip(m.names, map(float, mass))),
+                record["time_s"] + duration,
+                self.model_id,
+            )
+            m._check(final)
         thermal_delta = math.fsum(
             s["fluid_energy_change_j"] + s["wall_energy_change_j"] for s in steps
         )
@@ -338,7 +613,7 @@ class TorchHeatBridge:
         if abs(total) > 1e-5 + 1e-9 * max(1, abs(thermal_delta), abs(mech)):
             raise ConservationError("Combined liquid mechanical/caloric energy audit failed")
         return {
-            "state": final.to_dict(),
+            "state": final if _keep_on_device else final.to_dict(),
             "steps": steps,
             "failed_steps": retries,
             "combined_energy_residual_j": total,
