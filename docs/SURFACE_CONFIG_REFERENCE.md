@@ -832,3 +832,136 @@ CLI всех пяти жидкостных блоков: `--hydraulic-journal co
 отдельно через `heat.store_step_temperatures`; компактный механический
 журнал не отключает тепловую историю. Политика и список ветвей входят
 в fingerprint расписания; при restart их нужно сохранить.
+
+## Отдельный компонентный PR-сепаратор
+
+Пример `configs/surface_compositional_separator.json` запускается через
+`scripts/run_compositional_separator.py`. Это отдельная схема `system`,
+`initial`, `periods`, не неявная опция существующего `coupled_facility`.
+Методика и ограничения: [COMPOSITIONAL_SEPARATOR.md](COMPOSITIONAL_SEPARATOR.md).
+
+`system`: `fluid` (схема `EquilibriumFluid`), `volume_m3`, список `outlets`,
+необязательная `wall` (схема `VesselWall`), `elevation_m`, `gravity_m_s2`.
+Численные поля: `maximum_dt_s` (0.1), `minimum_dt_s` (1e-7),
+`relative_tolerance` (1e-4), `temperature_tolerance_k` (0.001),
+`temporal_error_control` (true), `maximum_fractional_inventory_change`
+(0.1), `maximum_temperature_change_k` (2). Все величины SI.
+
+Выход: обязательные `name`, `back_pressure_pa`,
+`volume_conductance_m3_s_pa`; `selection` по умолчанию `bulk`,
+также `densest`, `lightest`, `component_rich`. Последний требует `component`
+и допускает `minimum_mole_fraction` (0.5). `opening` по умолчанию 1.
+`maximum_pressure_drop_fraction` (0.05) ограничивает рабочую область.
+Пропорциональная обратная связь: `pressure_setpoint_pa`,
+`opening_gain_per_pa` (0), `opening_bias` (0). Это эмпирический закон
+отбора, не газовое сопло и не геометрия уровней.
+
+`initial`: `pressure_pa`, `temperature_k`, `mole_fractions`, при стенке
+`wall_temperature_k`. Чистый PT точно на линии насыщения не задаёт
+фазовые доли; такой начальный запас задаётся через типизированный
+Python API `EquilibriumInventory`, а не неоднозначным PT в CLI.
+
+Период: обязательный `duration_s`; необязательные `feeds`, `heat_w`,
+`utility_temperature_k`, `openings` (имя выхода → [0,1]), `max_substeps`.
+Ненулевое тепло требует температуру внешнего источника. Питание задаётся
+объектом `{"from_pt": {...}}` с компонентными молярными расходами, P/T
+либо `{"stream": {...}}` с сериализованным `ComponentEnergyStream`.
+Для пассивного питания проверяется давление источника.
+Неизвестные имена выходов и поля периода отвергаются заранее.
+
+CLI: `--device cpu|cuda`, `--output PATH`, `--stop-after N`,
+`--checkpoint PATH`. Checkpoint привязан к исходникам, runtime, устройству
+и всему расписанию; физический повтор префикса обязателен.
+
+## Сеть конечных компонентных PR-сосудов
+
+Пример `configs/surface_compositional_network.json`, CLI
+`scripts/run_compositional_network.py`; методика и область применения:
+[COMPOSITIONAL_NETWORK.md](COMPOSITIONAL_NETWORK.md).
+
+`system.vessels` — словарь имя → конфигурация компонентного сепаратора.
+У всех одна EOS, реестр, энергетические референсы, устройство, g и отметка.
+`system.connections` — список объектов с обязательными `name`, `source`,
+`target`, `volume_conductance_m3_s_pa` (неотрицательная). Поля по умолчанию:
+`allow_reverse=true`, `opening=1`, `maximum_pressure_drop_fraction=0.05`,
+`source_selection=bulk`, `target_selection=bulk`, `minimum_mole_fraction=0.5`.
+При `component_rich` соответствующая сторона требует `source_component`
+или `target_component`. Проводимость использует объёмные условия донора.
+
+Численные параметры сети: `maximum_dt_s=0.1`, `minimum_dt_s=1e-7`,
+`relative_tolerance=1e-4`, `temperature_tolerance_k=0.001`,
+`temporal_error_control=true`, `maximum_branch_attempts=24`.
+Ньютон общий для всей сети; собственные временные параметры отдельных
+сепараторов не заменяют сетевые. Ограничения изменения их запасов и
+температур при этом сохраняются.
+
+`initial`: словарь всех имён сосудов → условия PT/состава/стенки.
+Часы сосудов должны совпадать. Период принимает `duration_s`, `feeds`
+(сосуд → список потоков), `heat_w`, `utility_temperature_k` (по сосудам),
+`outlet_openings` (сосуд → выход → [0,1]), `connection_openings`
+(соединение → [0,1]), `max_substeps`. Все величины SI.
+
+CLI поддерживает `--device cpu|cuda`, `--output`, `--stop-after`,
+`--checkpoint`. Изменение исходников/устройства/расписания запрещает restart.
+Не допускаются разные высоты, скрытая замена GPU на CPU и автоматическое
+сведение разных EOS. Связь с FIM или другими типами оборудования этим
+конфигом не включается.
+
+## Кинематическая PR-геометрия и уровневое регулирование
+
+[Руководство](PR_PHASE_GEOMETRY.md), примеры
+`configs/surface_pr_geometry.json`, `configs/surface_pr_geometry_network.json`.
+Это идеальное разбиение фаз на слои при общем давлении и `gravity_m_s2=0`.
+Гидростатический PR-профиль, осаждение и капельный унос не рассчитываются.
+
+`CompositionalSeparator.geometry`: `diameter_m`, `length_m`,
+`orientation` (`horizontal`/`vertical`); объём должен совпадать с `volume_m3`.
+У выхода пара `height_m`, `diameter_m` задаёт положение и круговую площадь
+фазового отбора. У соединения независимые пары `source_height_m`,
+`source_diameter_m`, `target_height_m`, `target_diameter_m`.
+Заданная пара требует геометрии соответствующего сосуда и полного
+размещения отверстия по высоте; диаметр не превышает диаметр сосуда.
+Без пары остаётся прежнее взвешивание по глобальным фазовым объёмам.
+
+`level_control`: `component`, `setpoint_m`, `opening_gain_per_m`,
+`opening_bias` (0), `minimum_mole_fraction` (0.5). Измеряется верхняя
+граница наиболее богатой указанным компонентом фазы при выполнении
+порога. При отсутствии фазы автоматическое открытие равно нулю.
+У соединения `control_side` — `source` (по умолчанию) либо `target`;
+выбор измеряемого сосуда не меняется при реверсе. У внешнего выхода
+давление и уровень не могут одновременно задавать два автоматических
+открытия. Явное открытие периода имеет приоритет.
+
+Это пропорциональная обратная связь без динамики привода и интегратора.
+Поля входят в model ID и source-bound restart; старые checkpoint после
+изменения исходников намеренно несовместимы.
+
+## Закрытая равновесная PR-колонна с гравитацией
+
+Это отдельный формат: `configs/surface_stratified_pr.json`,
+`surface_stratified_pr_3phase.json`, `surface_stratified_pr_gas.json`.
+CLI `scripts/run_stratified_pr.py`, [методика](STRATIFIED_PR_COLUMN.md).
+Не является периодом `CompositionalNetwork`.
+
+Корень: `system`, `initial`, `samples`. System:
+`fluid` (реестр/кij/область PR), `geometry` (цилиндр),
+`gravity_m_s2=9.80665`, `elevation_m=0`, `quadrature_order=4`,
+`maximum_quadrature_order=16`, `relative_tolerance=1e-6`,
+`temperature_tolerance_k=1e-5`. Оба порядка из 2/4/8/16, максимум выше
+начального; требуется подтверждение уточнением, не только успех Ньютона.
+
+Initial — либо `pressure_pa`, `temperature_k`, `mole_fractions` для
+исходных равномерных фаз с их геометрической потенциальной энергией,
+либо `component_moles`, `total_energy_j`, `pressure_guess_pa`,
+`temperature_guess_k` для прямого задания сохраняемых N и U+PE.
+Равновесную общую температуру находит решение по полной энергии.
+
+Sample: `height_m` либо неотрицательный целый `interface_index` с
+обязательным `side=below|above`; необязательный `molar_rate_mol_s`
+строит локальный `ComponentEnergyStream`. Он не обновляет запас колонны.
+Все величины SI. За пределами геометрии/термодинамики, при вырождении
+слоя или неподтверждённом фазовом наборе результат не публикуется.
+
+CLI: `--device cpu|cuda`, `--output PATH`. Выход атомарный и содержит
+хеши физических исходников до импорта/после расчёта, начальные запасы,
+профиль, интерфейсы, U/PE/S, квадратуру и локальные потоки.

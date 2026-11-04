@@ -86,6 +86,17 @@ __all__ = [
 # Numerical models are loaded on demand and use torch autograd. Load them on demand so importing the
 # standalone liquid/gas equipment does not acquire the extra startup cost.
 _LAZY_MODELS = {
+    "StratifiedPRColumn": "stratified_pr",
+    "StratifiedPRState": "stratified_pr",
+    "EquilibriumLevelControl": "phase_geometry",
+    "CompositionalConnection": "compositional_network",
+    "CompositionalNetwork": "compositional_network",
+    "CompositionalNetworkState": "compositional_network",
+    "run_compositional_network_schedule": "compositional_network_schedule",
+    "CompositionalSeparator": "compositional_separator",
+    "CompositionalSeparatorState": "compositional_separator",
+    "EquilibriumOutlet": "compositional_separator",
+    "run_compositional_separator_schedule": "compositional_separator_schedule",
     "EquilibriumFluid": "equilibrium_properties",
     "EquilibriumComponent": "equilibrium_properties",
     "ComponentEnergyStream": "component_energy",

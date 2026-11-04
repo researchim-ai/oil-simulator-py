@@ -144,7 +144,11 @@ class EquilibriumFluid:
     def _roots(self, A, B):
         """Both mechanically stable cubic roots, no host/numpy root solve."""
         with torch.no_grad():
-            a, b, c = B - 1, A - 3 * B * B - 2 * B, -A * B + B * B + B**3
+            # no_grad disables reverse AD only. Forward AD (jacfwd/JVP)
+            # must not differentiate acos/cuberoot at a degenerate auxiliary
+            # root. Physical dZ is supplied by the implicit correction below.
+            aa, bb = A.detach(), B.detach()
+            a, b, c = bb - 1, aa - 3 * bb * bb - 2 * bb, -aa * bb + bb * bb + bb**3
             q = (a * a - 3 * b) / 9
             r = (2 * a**3 - 9 * a * b + 27 * c) / 54
             disc = r * r - q**3

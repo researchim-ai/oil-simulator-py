@@ -1,0 +1,340 @@
+{
+  "system": {
+    "vessels": {
+      "a": {
+        "fluid": {
+          "components": [
+            {
+              "name": "Methane",
+              "critical_temperature_k": 190.564,
+              "critical_pressure_pa": 4599200.0,
+              "acentric_factor": 0.01142,
+              "molar_mass_kg_mol": 0.0160428,
+              "ideal_cp_j_mol_k": 35.7,
+              "min_temperature_k": 160.0,
+              "max_temperature_k": 500.0,
+              "reference_temperature_k": 298.15,
+              "reference_pressure_pa": 100000.0
+            },
+            {
+              "name": "Ethane",
+              "critical_temperature_k": 305.322,
+              "critical_pressure_pa": 4872200.0,
+              "acentric_factor": 0.099,
+              "molar_mass_kg_mol": 0.03006904,
+              "ideal_cp_j_mol_k": 52.5,
+              "min_temperature_k": 160.0,
+              "max_temperature_k": 500.0,
+              "reference_temperature_k": 298.15,
+              "reference_pressure_pa": 100000.0
+            }
+          ],
+          "binary_interactions": [
+            [
+              0.0,
+              0.0
+            ],
+            [
+              0.0,
+              0.0
+            ]
+          ],
+          "min_pressure_pa": 100.0,
+          "max_pressure_pa": 1000000000.0,
+          "max_phases": 3
+        },
+        "volume_m3": 0.001,
+        "outlets": [],
+        "wall": {
+          "heat_capacity_j_k": 2000,
+          "fluid_ua_w_k": 5,
+          "ambient_ua_w_k": 2,
+          "ambient_temperature_k": 300,
+          "reference_temperature_k": 298.15,
+          "min_temperature_k": 1.0,
+          "max_temperature_k": 2000.0,
+          "max_temperature_change_k": 5.0
+        },
+        "elevation_m": 0.0,
+        "gravity_m_s2": 0.0,
+        "maximum_dt_s": 0.1,
+        "minimum_dt_s": 1e-07,
+        "relative_tolerance": 0.0001,
+        "temperature_tolerance_k": 0.001,
+        "temporal_error_control": true,
+        "maximum_fractional_inventory_change": 0.1,
+        "maximum_temperature_change_k": 2.0
+      },
+      "b": {
+        "fluid": {
+          "components": [
+            {
+              "name": "Methane",
+              "critical_temperature_k": 190.564,
+              "critical_pressure_pa": 4599200.0,
+              "acentric_factor": 0.01142,
+              "molar_mass_kg_mol": 0.0160428,
+              "ideal_cp_j_mol_k": 35.7,
+              "min_temperature_k": 160.0,
+              "max_temperature_k": 500.0,
+              "reference_temperature_k": 298.15,
+              "reference_pressure_pa": 100000.0
+            },
+            {
+              "name": "Ethane",
+              "critical_temperature_k": 305.322,
+              "critical_pressure_pa": 4872200.0,
+              "acentric_factor": 0.099,
+              "molar_mass_kg_mol": 0.03006904,
+              "ideal_cp_j_mol_k": 52.5,
+              "min_temperature_k": 160.0,
+              "max_temperature_k": 500.0,
+              "reference_temperature_k": 298.15,
+              "reference_pressure_pa": 100000.0
+            }
+          ],
+          "binary_interactions": [
+            [
+              0.0,
+              0.0
+            ],
+            [
+              0.0,
+              0.0
+            ]
+          ],
+          "min_pressure_pa": 100.0,
+          "max_pressure_pa": 1000000000.0,
+          "max_phases": 3
+        },
+        "volume_m3": 0.002,
+        "outlets": [],
+        "wall": null,
+        "elevation_m": 0.0,
+        "gravity_m_s2": 0.0,
+        "maximum_dt_s": 0.1,
+        "minimum_dt_s": 1e-07,
+        "relative_tolerance": 0.0001,
+        "temperature_tolerance_k": 0.001,
+        "temporal_error_control": true,
+        "maximum_fractional_inventory_change": 0.1,
+        "maximum_temperature_change_k": 2.0
+      },
+      "c": {
+        "fluid": {
+          "components": [
+            {
+              "name": "Methane",
+              "critical_temperature_k": 190.564,
+              "critical_pressure_pa": 4599200.0,
+              "acentric_factor": 0.01142,
+              "molar_mass_kg_mol": 0.0160428,
+              "ideal_cp_j_mol_k": 35.7,
+              "min_temperature_k": 160.0,
+              "max_temperature_k": 500.0,
+              "reference_temperature_k": 298.15,
+              "reference_pressure_pa": 100000.0
+            },
+            {
+              "name": "Ethane",
+              "critical_temperature_k": 305.322,
+              "critical_pressure_pa": 4872200.0,
+              "acentric_factor": 0.099,
+              "molar_mass_kg_mol": 0.03006904,
+              "ideal_cp_j_mol_k": 52.5,
+              "min_temperature_k": 160.0,
+              "max_temperature_k": 500.0,
+              "reference_temperature_k": 298.15,
+              "reference_pressure_pa": 100000.0
+            }
+          ],
+          "binary_interactions": [
+            [
+              0.0,
+              0.0
+            ],
+            [
+              0.0,
+              0.0
+            ]
+          ],
+          "min_pressure_pa": 100.0,
+          "max_pressure_pa": 1000000000.0,
+          "max_phases": 3
+        },
+        "volume_m3": 0.001,
+        "outlets": [
+          {
+            "name": "export",
+            "back_pressure_pa": 970000.0,
+            "volume_conductance_m3_s_pa": 1e-11,
+            "selection": "bulk",
+            "component": null,
+            "minimum_mole_fraction": 0.5,
+            "opening": 1.0,
+            "maximum_pressure_drop_fraction": 0.05,
+            "pressure_setpoint_pa": null,
+            "opening_gain_per_pa": 0.0,
+            "opening_bias": 0.0
+          }
+        ],
+        "wall": null,
+        "elevation_m": 0.0,
+        "gravity_m_s2": 0.0,
+        "maximum_dt_s": 0.1,
+        "minimum_dt_s": 1e-07,
+        "relative_tolerance": 0.0001,
+        "temperature_tolerance_k": 0.001,
+        "temporal_error_control": true,
+        "maximum_fractional_inventory_change": 0.1,
+        "maximum_temperature_change_k": 2.0
+      }
+    },
+    "connections": [
+      {
+        "name": "ab",
+        "source": "a",
+        "target": "b",
+        "volume_conductance_m3_s_pa": 1e-10,
+        "allow_reverse": true,
+        "opening": 1.0,
+        "maximum_pressure_drop_fraction": 0.05,
+        "source_selection": "bulk",
+        "target_selection": "bulk",
+        "source_component": null,
+        "target_component": null,
+        "minimum_mole_fraction": 0.5
+      },
+      {
+        "name": "bc",
+        "source": "b",
+        "target": "c",
+        "volume_conductance_m3_s_pa": 1e-10,
+        "allow_reverse": true,
+        "opening": 1.0,
+        "maximum_pressure_drop_fraction": 0.05,
+        "source_selection": "bulk",
+        "target_selection": "bulk",
+        "source_component": null,
+        "target_component": null,
+        "minimum_mole_fraction": 0.5
+      },
+      {
+        "name": "ac_check",
+        "source": "a",
+        "target": "c",
+        "volume_conductance_m3_s_pa": 5e-11,
+        "allow_reverse": false,
+        "opening": 1.0,
+        "maximum_pressure_drop_fraction": 0.05,
+        "source_selection": "bulk",
+        "target_selection": "bulk",
+        "source_component": null,
+        "target_component": null,
+        "minimum_mole_fraction": 0.5
+      }
+    ],
+    "maximum_dt_s": 0.01,
+    "minimum_dt_s": 1e-07,
+    "relative_tolerance": 0.0001,
+    "temperature_tolerance_k": 0.001,
+    "temporal_error_control": true,
+    "maximum_branch_attempts": 24
+  },
+  "initial": {
+    "a": {
+      "pressure_pa": 1000000.0,
+      "temperature_k": 320,
+      "mole_fractions": [
+        0.5,
+        0.5
+      ],
+      "wall_temperature_k": 325
+    },
+    "b": {
+      "pressure_pa": 990000.0,
+      "temperature_k": 315,
+      "mole_fractions": [
+        0.4,
+        0.6
+      ]
+    },
+    "c": {
+      "pressure_pa": 980000.0,
+      "temperature_k": 318,
+      "mole_fractions": [
+        0.6,
+        0.4
+      ]
+    }
+  },
+  "periods": [
+    {
+      "duration_s": 0.01,
+      "feeds": {
+        "a": [
+          {
+            "from_pt": {
+              "component_molar_rates_mol_s": [
+                0.001,
+                0.001
+              ],
+              "pressure_pa": 1200000.0,
+              "temperature_k": 330
+            }
+          }
+        ]
+      }
+    },
+    {
+      "duration_s": 0.01,
+      "connection_openings": {
+        "ab": 0
+      },
+      "heat_w": {
+        "b": 50
+      },
+      "utility_temperature_k": {
+        "b": 400
+      }
+    },
+    {
+      "duration_s": 0.01,
+      "feeds": {
+        "c": [
+          {
+            "from_pt": {
+              "component_molar_rates_mol_s": [
+                0.5,
+                0.5
+              ],
+              "pressure_pa": 1200000.0,
+              "temperature_k": 330
+            }
+          }
+        ]
+      },
+      "outlet_openings": {
+        "c": {
+          "export": 0
+        }
+      }
+    },
+    {
+      "duration_s": 0.01
+    },
+    {
+      "duration_s": 0.01,
+      "connection_openings": {
+        "ab": 0,
+        "bc": 0,
+        "ac_check": 0
+      },
+      "outlet_openings": {
+        "c": {
+          "export": 0
+        }
+      }
+    }
+  ]
+}

@@ -1,0 +1,87 @@
+{
+  "system": {
+    "fluid": {
+      "components": [
+        {
+          "name": "Methane",
+          "critical_temperature_k": 190.564,
+          "critical_pressure_pa": 4599200.0,
+          "acentric_factor": 0.01142,
+          "molar_mass_kg_mol": 0.0160428,
+          "ideal_cp_j_mol_k": 35.7,
+          "min_temperature_k": 160.0,
+          "max_temperature_k": 500.0,
+          "reference_temperature_k": 298.15,
+          "reference_pressure_pa": 100000.0
+        },
+        {
+          "name": "Ethane",
+          "critical_temperature_k": 305.322,
+          "critical_pressure_pa": 4872200.0,
+          "acentric_factor": 0.099,
+          "molar_mass_kg_mol": 0.03006904,
+          "ideal_cp_j_mol_k": 52.5,
+          "min_temperature_k": 160.0,
+          "max_temperature_k": 500.0,
+          "reference_temperature_k": 298.15,
+          "reference_pressure_pa": 100000.0
+        }
+      ],
+      "binary_interactions": [
+        [
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0
+        ]
+      ],
+      "min_pressure_pa": 100.0,
+      "max_pressure_pa": 1000000000.0,
+      "max_phases": 3
+    },
+    "geometry": {
+      "diameter_m": 0.1,
+      "length_m": 2,
+      "orientation": "vertical"
+    },
+    "gravity_m_s2": 9.80665,
+    "elevation_m": 12.0,
+    "quadrature_order": 4,
+    "maximum_quadrature_order": 16,
+    "relative_tolerance": 1e-06,
+    "temperature_tolerance_k": 1e-05
+  },
+  "initial": {
+    "pressure_pa": 1000000.0,
+    "temperature_k": 196.2,
+    "mole_fractions": [
+      0.19,
+      0.81
+    ]
+  },
+  "samples": [
+    {
+      "height_m": 0,
+      "molar_rate_mol_s": 0.01
+    },
+    {
+      "height_m": 1.0
+    },
+    {
+      "height_m": 2,
+      "molar_rate_mol_s": 0.01
+    },
+    {
+      "interface_index": 0,
+      "side": "below",
+      "molar_rate_mol_s": 0.01
+    },
+    {
+      "interface_index": 0,
+      "side": "above",
+      "molar_rate_mol_s": 0.01
+    }
+  ]
+}

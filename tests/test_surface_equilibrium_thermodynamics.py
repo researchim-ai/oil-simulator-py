@@ -42,6 +42,40 @@ def symmetric(device="cpu", max_phases=3):
 
 
 @pytest.mark.parametrize("device", DEVICES)
+@pytest.mark.parametrize("pressure", [0.01, 100.0, 1e6])
+def test_forward_ad_cubic_root_is_finite_in_dilute_limit(device, pressure):
+    f = EquilibriumFluid(
+        [PengRobinsonFluid(**c) for c in DATA["components"]],
+        [[0, 0], [0, 0]],
+        device=device,
+        min_pressure_pa=1e-9,
+    )
+
+    def values(y):
+        p = y[0].exp()
+        t = y[1] * 300
+        x = torch.softmax(torch.stack((y[2], y[2] * 0)), 0)
+        q = f.tensor_homogeneous(p, t, x)
+        return torch.cat(
+            (
+                q["log_fugacity_coefficients"],
+                q["compressibility_factor"].reshape(1),
+                q["molar_enthalpy_j_mol"].reshape(1) / 1e4,
+            )
+        )
+
+    y = f.tensor([np.log(pressure), 400 / 300, 0.0])
+    ad = torch.func.jacfwd(values)(y)
+    assert torch.isfinite(ad).all()
+    fd = []
+    for j in range(3):
+        d = torch.zeros_like(y)
+        d[j] = 1e-5
+        fd.append(((values(y + d) - values(y - d)) / 2e-5).cpu().numpy())
+    np.testing.assert_allclose(ad.cpu().numpy(), np.array(fd).T, rtol=2e-5, atol=2e-7)
+
+
+@pytest.mark.parametrize("device", DEVICES)
 @pytest.mark.parametrize("case", DATA["cases"])
 def test_independent_coolprop_multiphase(case, device):
     f = fluid(device, case["kij"])

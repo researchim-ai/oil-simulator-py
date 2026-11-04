@@ -427,3 +427,11 @@ API `solve()` принимает переопределения источник
 [Руководство](SURFACE_MODELING.md) описывает модели и границы применимости.
 [Справочник наземных конфигураций](SURFACE_CONFIG_REFERENCE.md) содержит поля
 насосов, клапанов, сепарации, газового экспорта, расписаний и `coupled_facility`.
+Для отдельного компонентного PR-сосуда: [динамический сепаратор](COMPOSITIONAL_SEPARATOR.md),
+пример `configs/surface_compositional_separator.json`.
+Для связанной динамики конечных сосудов:
+[PR-сеть](COMPOSITIONAL_NETWORK.md), пример `configs/surface_compositional_network.json`.
+Геометрические фазовые отборы и уровневое регулирование:
+[PR-геометрия](PR_PHASE_GEOMETRY.md), примеры `configs/surface_pr_geometry*.json`.
+Пространственное равновесие с гравитацией:
+[PR-колонна](STRATIFIED_PR_COLUMN.md), примеры `configs/surface_stratified_pr*.json`.
