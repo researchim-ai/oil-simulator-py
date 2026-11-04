@@ -384,15 +384,29 @@ class StratifiedPRColumn:
             raise PropertyModelError("Column requires a different locally stable phase topology")
 
     def _solve(self, n, energy, seed, order):
-        initial, lower, upper, evaluate, active, roots = self._problem(n, energy, seed, order)
+        initial, lower, upper, evaluate, _active, _roots = self._problem(n, energy, seed, order)
         solver = TorchNewton(self.fluid.device, maximum_iterations=40, dense_limit=768)
         solver.host_convergence = True
         with torch.no_grad():
-            y, r, ok, evaluations = solver.solve(
+            y, _r, ok, evaluations = solver.solve(
                 lambda z: evaluate(z)[0], initial, lower, upper, tolerance=3e-12
             )
+        return self._accept(n, energy, seed, order, y, evaluations=evaluations, solver_success=ok)
+
+    def _accept(self, n, energy, seed, order, y, *, evaluations=0, solver_success=True):
+        """Validate a joint collocation iterate without moving it in another Newton."""
+        initial, lower, upper, evaluate, active, roots = self._problem(n, energy, seed, order)
+        if y.shape != initial.shape:
+            raise ConservationError("Accepted column collocation dimensions differ")
+        with torch.no_grad():
             r, data = evaluate(y)
-        valid = ok & torch.isfinite(r).all() & (r.abs().max() < 1e-9)
+        valid = (
+            solver_success
+            & torch.isfinite(r).all()
+            & (r.abs().max() < 1e-9)
+            & (y >= lower).all()
+            & (y <= upper).all()
+        )
         for q in data["properties"]:
             valid = valid & q["valid"].all()
         if not bool(valid.cpu()):

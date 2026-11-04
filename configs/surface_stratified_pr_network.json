@@ -1,0 +1,191 @@
+{
+  "vessels": {
+    "a": {
+      "model": {
+        "model": "stratified_pr_flow_v1",
+        "column": {
+          "fluid": {
+            "components": [
+              {
+                "name": "Methane",
+                "critical_temperature_k": 190.564,
+                "critical_pressure_pa": 4599200.0,
+                "acentric_factor": 0.01142,
+                "molar_mass_kg_mol": 0.0160428,
+                "ideal_cp_j_mol_k": 35.7,
+                "min_temperature_k": 160.0,
+                "max_temperature_k": 500.0,
+                "reference_temperature_k": 298.15,
+                "reference_pressure_pa": 100000.0
+              },
+              {
+                "name": "Ethane",
+                "critical_temperature_k": 305.322,
+                "critical_pressure_pa": 4872200.0,
+                "acentric_factor": 0.099,
+                "molar_mass_kg_mol": 0.03006904,
+                "ideal_cp_j_mol_k": 52.5,
+                "min_temperature_k": 160.0,
+                "max_temperature_k": 500.0,
+                "reference_temperature_k": 298.15,
+                "reference_pressure_pa": 100000.0
+              }
+            ],
+            "binary_interactions": [
+              [
+                0.0,
+                0.0
+              ],
+              [
+                0.0,
+                0.0
+              ]
+            ],
+            "min_pressure_pa": 100.0,
+            "max_pressure_pa": 1000000000.0,
+            "max_phases": 3
+          },
+          "geometry": {
+            "diameter_m": 0.1,
+            "length_m": 2,
+            "orientation": "vertical"
+          },
+          "gravity_m_s2": 9.80665,
+          "elevation_m": 1000.0,
+          "quadrature_order": 4,
+          "maximum_quadrature_order": 16,
+          "relative_tolerance": 1e-06,
+          "temperature_tolerance_k": 1e-05
+        },
+        "wall": {
+          "heat_capacity_j_k": 1000,
+          "fluid_ua_w_k": 0,
+          "ambient_ua_w_k": 0,
+          "ambient_temperature_k": 350
+        },
+        "outlets": [],
+        "feeds": [],
+        "initial_step_s": 0.1,
+        "maximum_step_s": 2
+      },
+      "initial": {
+        "pressure_pa": 1000000.0,
+        "temperature_k": 320,
+        "mole_fractions": [
+          0.5,
+          0.5
+        ]
+      },
+      "wall_temperature_k": 320.0
+    },
+    "b": {
+      "model": {
+        "model": "stratified_pr_flow_v1",
+        "column": {
+          "fluid": {
+            "components": [
+              {
+                "name": "Methane",
+                "critical_temperature_k": 190.564,
+                "critical_pressure_pa": 4599200.0,
+                "acentric_factor": 0.01142,
+                "molar_mass_kg_mol": 0.0160428,
+                "ideal_cp_j_mol_k": 35.7,
+                "min_temperature_k": 160.0,
+                "max_temperature_k": 500.0,
+                "reference_temperature_k": 298.15,
+                "reference_pressure_pa": 100000.0
+              },
+              {
+                "name": "Ethane",
+                "critical_temperature_k": 305.322,
+                "critical_pressure_pa": 4872200.0,
+                "acentric_factor": 0.099,
+                "molar_mass_kg_mol": 0.03006904,
+                "ideal_cp_j_mol_k": 52.5,
+                "min_temperature_k": 160.0,
+                "max_temperature_k": 500.0,
+                "reference_temperature_k": 298.15,
+                "reference_pressure_pa": 100000.0
+              }
+            ],
+            "binary_interactions": [
+              [
+                0.0,
+                0.0
+              ],
+              [
+                0.0,
+                0.0
+              ]
+            ],
+            "min_pressure_pa": 100.0,
+            "max_pressure_pa": 1000000000.0,
+            "max_phases": 3
+          },
+          "geometry": {
+            "diameter_m": 0.1,
+            "length_m": 2,
+            "orientation": "vertical"
+          },
+          "gravity_m_s2": 9.80665,
+          "elevation_m": 1000.0,
+          "quadrature_order": 4,
+          "maximum_quadrature_order": 16,
+          "relative_tolerance": 1e-06,
+          "temperature_tolerance_k": 1e-05
+        },
+        "wall": {
+          "heat_capacity_j_k": 1000,
+          "fluid_ua_w_k": 0,
+          "ambient_ua_w_k": 0,
+          "ambient_temperature_k": 350
+        },
+        "outlets": [],
+        "feeds": [],
+        "initial_step_s": 0.1,
+        "maximum_step_s": 2
+      },
+      "initial": {
+        "pressure_pa": 990000.0,
+        "temperature_k": 320,
+        "mole_fractions": [
+          0.5,
+          0.5
+        ]
+      },
+      "wall_temperature_k": 320.0
+    }
+  },
+  "connections": [
+    {
+      "name": "link",
+      "source": "a",
+      "target": "b",
+      "source_height_m": 1.0,
+      "target_height_m": 1.0,
+      "diameter_m": 0.05,
+      "volume_conductance_m3_s_pa": 1e-10
+    }
+  ],
+  "integration": {
+    "initial_step_s": 0.02
+  },
+  "schedule": [
+    {
+      "duration_s": 0.02
+    },
+    {
+      "duration_s": 0.02,
+      "openings": {
+        "link": 0.0
+      }
+    },
+    {
+      "duration_s": 0.02,
+      "openings": {
+        "link": 1.0
+      }
+    }
+  ]
+}

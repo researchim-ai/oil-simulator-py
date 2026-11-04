@@ -1,0 +1,74 @@
+{
+  "model": {
+    "model": "single_phase_pr_momentum_v1",
+    "fluid": {
+      "components": [
+        {
+          "name": "Methane",
+          "critical_temperature_k": 190.564,
+          "critical_pressure_pa": 4599200.0,
+          "acentric_factor": 0.01142,
+          "molar_mass_kg_mol": 0.0160428,
+          "ideal_cp_j_mol_k": 35.7,
+          "min_temperature_k": 160.0,
+          "max_temperature_k": 500.0,
+          "reference_temperature_k": 298.15,
+          "reference_pressure_pa": 100000.0
+        },
+        {
+          "name": "Ethane",
+          "critical_temperature_k": 305.322,
+          "critical_pressure_pa": 4872200.0,
+          "acentric_factor": 0.099,
+          "molar_mass_kg_mol": 0.03006904,
+          "ideal_cp_j_mol_k": 52.5,
+          "min_temperature_k": 160.0,
+          "max_temperature_k": 500.0,
+          "reference_temperature_k": 298.15,
+          "reference_pressure_pa": 100000.0
+        }
+      ],
+      "binary_interactions": [
+        [
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0
+        ]
+      ],
+      "min_pressure_pa": 100.0,
+      "max_pressure_pa": 1000000000.0,
+      "max_phases": 3
+    },
+    "length_m": 1.0,
+    "diameter_m": 0.005,
+    "cells": 4,
+    "wave_speed_bound_m_s": 500.0,
+    "maximum_velocity_m_s": 50.0,
+    "dynamic_viscosity_pa_s": 1.2e-05,
+    "roughness_m": 1e-06,
+    "boundary_mode": "periodic",
+    "initial_step_s": 0.001,
+    "maximum_step_s": 0.005,
+    "velocity_tolerance_m_s": 0.0001
+  },
+  "initial": {
+    "pressure_pa": 1000000.0,
+    "temperature_k": 320.0,
+    "mole_fractions": [
+      0.5,
+      0.5
+    ],
+    "velocity_m_s": 2.0
+  },
+  "schedule": [
+    {
+      "duration_s": 0.005
+    },
+    {
+      "duration_s": 0.005
+    }
+  ]
+}

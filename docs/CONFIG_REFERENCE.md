@@ -435,3 +435,7 @@ API `solve()` принимает переопределения источник
 [PR-геометрия](PR_PHASE_GEOMETRY.md), примеры `configs/surface_pr_geometry*.json`.
 Пространственное равновесие с гравитацией:
 [PR-колонна](STRATIFIED_PR_COLUMN.md), примеры `configs/surface_stratified_pr*.json`.
+Временные гравитационные сосуды и общая система их конечных соединителей:
+[STRATIFIED_PR_NETWORK.md](STRATIFIED_PR_NETWORK.md).
+Горизонтальные трубы с собственными N/U+PE, стенками и Darcy-скоростями:
+[PR_LINEPACK.md](PR_LINEPACK.md), пример `configs/surface_pr_linepack.json`.
