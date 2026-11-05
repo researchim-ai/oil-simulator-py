@@ -239,6 +239,8 @@ _LAZY_MODELS = {
 _LAZY_MODELS.update(
     {
         "ZuberFindlayClosure": "drift_flux_closure",
+        "RELAP7VerticalDriftClosure": "drift_flux_closure",
+        "DispersedOilWaterClosure": "dispersed_liquid_drift",
         "PRControlValve": "pr_surface_control",
         "PRSurfacePI": "pr_surface_control",
         "PRControlledSurfaceState": "pr_surface_control",
@@ -252,6 +254,13 @@ _LAZY_MODELS.update(
         "PREquilibriumTransportState": "pr_equilibrium_transport",
         "PREquilibriumTransportNetwork": "pr_equilibrium_transport",
         "PREquilibriumPipe": "pr_transport_builder",
+        "PREquilibriumNozzle": "pr_transport_builder",
+        "PRHeatLink": "pr_heat_link",
+        "PRPumpUnit": "pr_pump_unit",
+        "PRCompressorUnit": "pr_compressor_unit",
+        "PRResolvedSeparator": "pr_resolved_separator",
+        "PRLateralNozzle": "pr_resolved_separator",
+        "join_pr_transport_graphs": "pr_resolved_separator",
         "build_equilibrium_transport": "pr_transport_builder",
         "initialize_grouped": "pr_transport_builder",
     }

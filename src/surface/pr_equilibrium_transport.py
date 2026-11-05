@@ -16,14 +16,25 @@ import torch
 
 from .compositional_separator import CompositionalSeparator, CompositionalSeparatorState
 from .darcy_hydraulics import darcy_pressure_loss
-from .drift_flux_closure import ZuberFindlayClosure
+from .dispersed_liquid_drift import DispersedOilWaterClosure
+from .drift_flux_closure import (
+    RELAP7VerticalDriftClosure,
+    ZuberFindlayClosure,
+    drift_closure_from_dict,
+)
 from .equilibrium_inventory import EquilibriumInventory
 from .equilibrium_properties import EquilibriumFluid
+from .hllc_local import hllc_local
 from .liquid import ConservationError, HydraulicConvergenceError, PropertyModelError, _name, _number
 from .operation import _digest
 from .phase_geometry import phase_layout, pickup_fractions, validate_pickup
+from .pr_compressor_unit import CompressorBundle, PRCompressorUnit, inventory_guesses
+from .pr_heat_link import PRHeatLink, thermal_exchange, thermal_records
 from .pr_momentum_vessels import hllc_port
+from .pr_pump_unit import PRPumpUnit, TorchPumpCell, serialize_pumps
+from .pr_stagnation_ports import SinglePhaseReservoirTraces
 from .separator_geometry import SeparatorGeometry
+from .time_interval import interval_step_s
 from .torch_linear import TorchNewton, checked_device
 from .vessel_wall import VesselWall
 
@@ -42,9 +53,11 @@ class PREquilibriumNode:
     distribution_strength: float = 0.0
     buoyancy_relaxation_s: float = 0.0
     local_loss_coefficient: float = 0.0
-    drift_flux: ZuberFindlayClosure | None = None
+    drift_flux: ZuberFindlayClosure | RELAP7VerticalDriftClosure | DispersedOilWaterClosure | None = None
     wall: VesselWall | None = None
     geometry: SeparatorGeometry | None = None
+    left_diameter_m: float | None = None
+    right_diameter_m: float | None = None
 
     def __post_init__(self):
         _name(self.name)
@@ -60,8 +73,8 @@ class PREquilibriumNode:
         ):
             _number(getattr(self, key), key, nonnegative=True)
         if self.drift_flux is not None:
-            if not isinstance(self.drift_flux, ZuberFindlayClosure):
-                raise TypeError("Expected ZuberFindlayClosure")
+            if not isinstance(self.drift_flux, (ZuberFindlayClosure, RELAP7VerticalDriftClosure, DispersedOilWaterClosure)):
+                raise TypeError("Expected a supported drift-flux closure")
             if self.distribution_strength or self.buoyancy_relaxation_s:
                 raise ValueError("Select one slip closure, without double-counting drift")
         if self.kind not in ("vessel", "pipe_cell"):
@@ -73,11 +86,16 @@ class PREquilibriumNode:
         if self.kind == "pipe_cell":
             _number(self.length_m, "cell length", positive=True)
             _number(self.diameter_m, "cell diameter", positive=True)
-            if (
-                abs(self.volume_m3 - math.pi * self.diameter_m**2 / 4 * self.length_m)
-                > 1e-12 + 1e-10 * self.volume_m3
-            ):
-                raise ValueError("Pipe cell volume differs from A*length")
+            if (self.left_diameter_m is None) != (self.right_diameter_m is None):
+                raise ValueError("Both face diameters must be specified")
+            dl, dr = self.face_diameter("left"), self.face_diameter("right")
+            _number(dl, "left face diameter", positive=True)
+            _number(dr, "right face diameter", positive=True)
+            if abs(self.diameter_m - (dl + dr) / 2) > 1e-12:
+                raise ValueError("Cell diameter must be the arithmetic face mean")
+            volume = math.pi * self.length_m * (dl * dl + dl * dr + dr * dr) / 12
+            if abs(self.volume_m3 - volume) > 1e-12 + 1e-10 * volume:
+                raise ValueError("Pipe cell volume differs from its conical frustum")
             if (
                 self.geometry is not None
                 or abs(self.elevation_change_m) > self.length_m
@@ -85,7 +103,15 @@ class PREquilibriumNode:
             ):
                 raise ValueError("Invalid pipe cell geometry")
         elif (
-            any(x is not None for x in (self.length_m, self.diameter_m))
+            any(
+                x is not None
+                for x in (
+                    self.length_m,
+                    self.diameter_m,
+                    self.left_diameter_m,
+                    self.right_diameter_m,
+                )
+            )
             or self.elevation_change_m
             or self.dynamic_viscosity_pa_s
             or self.roughness_m
@@ -100,6 +126,24 @@ class PREquilibriumNode:
             and abs(self.geometry.volume_m3 - self.volume_m3) > 1e-12 + 1e-10 * self.volume_m3
         ):
             raise ValueError("Vessel geometry volume differs")
+
+    def face_diameter(self, side):
+        if side not in ("left", "right") or self.kind != "pipe_cell":
+            raise ValueError("A pipe left/right face is required")
+        value = self.left_diameter_m if side == "left" else self.right_diameter_m
+        return self.diameter_m if value is None else value
+
+    def face_area(self, side):
+        return math.pi * self.face_diameter(side) ** 2 / 4
+
+    def lateral_geometry(self):
+        if self.kind != "pipe_cell" or self.left_diameter_m is not None:
+            raise ValueError("Lateral layer pickups require a cylindrical finite volume")
+        if abs(self.elevation_change_m) < 1e-12:
+            return SeparatorGeometry(self.diameter_m, self.length_m, "horizontal")
+        if abs(self.elevation_change_m - self.length_m) < 1e-12:
+            return SeparatorGeometry(self.diameter_m, self.length_m, "vertical")
+        raise ValueError("Layer-resolved lateral pickups require horizontal or upward vertical cells")
 
 
 @dataclass(frozen=True)
@@ -119,8 +163,13 @@ class PREquilibriumLink:
         _number(self.diameter_m, "link diameter", positive=True)
         if self.source == self.target:
             raise ValueError("Self link requires an explicit pipe/control volume")
-        if self.source_port not in ("left", "right") or self.target_port not in ("left", "right"):
-            raise ValueError("Pipe ports must be left/right")
+        for port in (self.source_port, self.target_port):
+            if port not in ("left", "right") and not (
+                isinstance(port, str) and port.startswith("side:") and len(port) > 5
+            ):
+                raise ValueError("Pipe ports must be left/right or named side:<id>")
+        if self.source_port.startswith("side:") and self.target_port.startswith("side:"):
+            raise ValueError("Two lateral axes require an explicit junction control volume")
         for h in (self.source_height_m, self.target_height_m):
             if h is not None:
                 _number(h, "pickup height", nonnegative=True)
@@ -217,6 +266,11 @@ class PREquilibriumTransportNetwork:
         pipe_paths=None,
         dense_limit=128,
         maximum_unknowns=100000,
+        wave_fan="fixed_bound",
+        reservoir_ports="riemann",
+        heat_links=(),
+        pumps=(),
+        compressors=(),
     ):
         if not isinstance(fluid, EquilibriumFluid):
             raise TypeError("Expected EquilibriumFluid")
@@ -224,6 +278,19 @@ class PREquilibriumTransportNetwork:
         self.fluid = fluid
         self.nodes = tuple(sorted(nodes, key=lambda n: n.name))
         self.links = tuple(sorted(links, key=lambda n: n.name))
+        self.heat_links = tuple(sorted(heat_links, key=lambda n: n.name))
+        self.pumps = tuple(sorted(pumps, key=lambda n: n.name))
+        self.compressors = tuple(sorted(compressors, key=lambda n: n.name))
+        if any(not isinstance(unit, PRCompressorUnit) for unit in self.compressors):
+            raise TypeError("Expected PRCompressorUnit")
+        if any(not isinstance(pump, PRPumpUnit) for pump in self.pumps):
+            raise TypeError("Expected PRPumpUnit")
+        if any(not isinstance(link, PRHeatLink) for link in self.heat_links):
+            raise TypeError("Expected PRHeatLink")
+        self.switches = (*self.links, *self.heat_links, *self.pumps, *self.compressors)
+        self.default_openings = {
+            c.name: c.card.open if isinstance(c, PRPumpUnit) else c.open if isinstance(c, PRCompressorUnit) else True for c in self.switches
+        }
         if (
             not self.nodes
             or len({n.name for n in self.nodes}) != len(self.nodes)
@@ -231,6 +298,27 @@ class PREquilibriumTransportNetwork:
         ):
             raise ValueError("Unique nonempty topology required")
         self.names = tuple(n.name for n in self.nodes)
+        for unit in self.compressors:
+            if unit.source not in self.names or unit.target not in self.names:
+                raise ValueError("Unknown compressor plenum")
+            a, b = [self.nodes[self.names.index(name)] for name in (unit.source, unit.target)]
+            if a.kind != "vessel" or b.kind != "vessel" or abs(a.elevation_m-b.elevation_m) > 1e-8:
+                raise ValueError("Mapped compressor needs two finite plenums at the same elevation")
+            if len(unit.reference_mole_fractions) != len(fluid.components):
+                raise ValueError("Compressor reference gas differs from the EOS component list")
+        for node in self.nodes:
+            closure = node.drift_flux
+            if isinstance(closure, DispersedOilWaterClosure) and max(
+                closure.gas_component_index, closure.oil_component_index, closure.water_component_index
+            ) >= len(fluid.components):
+                raise ValueError("Drift marker index outside fluid component list")
+        if len({c.name for c in self.switches}) != len(self.switches):
+            raise ValueError("Material and thermal connections need unique names")
+        if any(c.source not in self.names or c.target not in self.names for c in self.heat_links):
+            raise ValueError("Unknown thermal endpoint")
+        self.heat_ends = tuple(
+            (self.names.index(c.source), self.names.index(c.target)) for c in self.heat_links
+        )
         self.pipe_paths = {name: tuple(path) for name, path in sorted((pipe_paths or {}).items())}
         claimed = set()
         for name, path in self.pipe_paths.items():
@@ -269,6 +357,12 @@ class PREquilibriumTransportNetwork:
             setattr(self, k, v)
         if isinstance(dense_limit, bool) or not isinstance(dense_limit, int) or dense_limit < 0:
             raise ValueError("Nonnegative dense limit required")
+        if wave_fan not in ("fixed_bound", "local_single_phase", "pressure_single_phase"):
+            raise ValueError("Unknown transport wave fan")
+        if reservoir_ports not in ("riemann", "stagnation_single_phase"):
+            raise ValueError("Unknown reservoir port model")
+        self.reservoir_ports = reservoir_ports
+        self.wave_fan = wave_fan
         self.dense_limit = dense_limit
         self._patterns = {}
         if (
@@ -293,15 +387,23 @@ class PREquilibriumTransportNetwork:
                 h = getattr(link, side + "_height_m")
                 port = getattr(link, side + "_port")
                 if n.kind == "pipe_cell":
+                    lateral = port.startswith("side:")
+                    if lateral and h is not None:
+                        validate_pickup(n.lateral_geometry(), h, link.diameter_m)
                     if (
-                        h is not None
-                        or abs(link.diameter_m - n.diameter_m) > 1e-12
+                        (h is not None and not lateral)
+                        or (not lateral and abs(link.diameter_m - n.face_diameter(port)) > 1e-12)
+                        or (lateral and math.pi * link.diameter_m**2 / 4 > math.pi * n.diameter_m * n.length_m)
                         or (i, port) in used
                     ):
                         raise ValueError("Pipe ends require unique matching-area connections")
                     used.add((i, port))
                     heights.append(
-                        n.elevation_m + n.elevation_change_m * (0.5 if port == "right" else -0.5)
+                        n.elevation_m + (
+                            h - n.lateral_geometry().height_m / 2 if lateral and h is not None
+                            else 0.0 if lateral
+                            else n.elevation_change_m * (0.5 if port == "right" else -0.5)
+                        )
                     )
                 else:
                     validate_pickup(n.geometry, h, link.diameter_m if h is not None else None)
@@ -309,6 +411,15 @@ class PREquilibriumTransportNetwork:
             if self.gravity_m_s2 and abs(heights[0] - heights[1]) > 1e-8:
                 raise ValueError("Connected endpoints must share a physical elevation")
         self._used = used
+        if len({pump.node for pump in self.pumps}) != len(self.pumps):
+            raise ValueError("One pump card per finite body required")
+        self._pump_cells = tuple(TorchPumpCell(self, pump) for pump in self.pumps)
+        for node in self.nodes:
+            if isinstance(node.drift_flux, RELAP7VerticalDriftClosure) and (
+                self.gravity_m_s2 <= 0
+                or abs(abs(node.elevation_change_m) - node.length_m) > 1e-12
+            ):
+                raise ValueError("RELAP-7 pipe drift requires a vertical pipe and nonzero gravity")
         self._pickup_nodes = {
             index
             for link, pair in zip(self.links, self.ends)
@@ -331,7 +442,12 @@ class PREquilibriumTransportNetwork:
             "fluid": self.fluid.to_dict(),
             "nodes": [asdict(n) for n in self.nodes],
             "links": [asdict(c) for c in self.links],
+            "heat_links": [asdict(c) for c in self.heat_links],
+            **({"pumps": [asdict(pump) for pump in self.pumps]} if self.pumps else {}),
+            **({"compressors": [asdict(unit) for unit in self.compressors]} if self.compressors else {}),
             "pipe_paths": self.pipe_paths,
+            "reservoir_ports": self.reservoir_ports,
+            "wave_fan": self.wave_fan,
             "dense_limit": self.dense_limit,
             "maximum_unknowns": self.maximum_unknowns,
             **{
@@ -363,7 +479,7 @@ class PREquilibriumTransportNetwork:
         for n in data["nodes"]:
             n = dict(n)
             if n.get("drift_flux") is not None:
-                n["drift_flux"] = ZuberFindlayClosure(**n["drift_flux"])
+                n["drift_flux"] = drift_closure_from_dict(n["drift_flux"])
             if n.get("wall") is not None:
                 n["wall"] = VesselWall(**n["wall"])
             if n.get("geometry") is not None:
@@ -371,6 +487,9 @@ class PREquilibriumTransportNetwork:
             nodes.append(PREquilibriumNode(**n))
         data["nodes"] = nodes
         data["links"] = [PREquilibriumLink(**c) for c in data["links"]]
+        data["heat_links"] = [PRHeatLink(**c) for c in data.get("heat_links", [])]
+        data["pumps"] = [PRPumpUnit.from_dict(c) for c in data.get("pumps", [])]
+        data["compressors"] = [PRCompressorUnit.from_dict(c) for c in data.get("compressors", [])]
         return cls(**data)
 
     def _kinematics(self, index, phase_n, x, q, u):
@@ -390,7 +509,11 @@ class PREquilibriumTransportNetwork:
         velocities = u + drift
         if node.drift_flux is not None:
             velocities, _valid = node.drift_flux.velocities(
-                phase_n * q["molar_volume_m3_mol"], q["density_kg_m3"], u
+                phase_n * q["molar_volume_m3_mol"], q["density_kg_m3"], u,
+                diameter_m=node.diameter_m,
+                axial_gravity_m_s2=self.gravity_m_s2 * node.elevation_change_m / node.length_m,
+                phase_mole_fractions=x,
+                gravity_m_s2=self.gravity_m_s2,
             )
             drift = velocities - u
         return (
@@ -499,12 +622,27 @@ class PREquilibriumTransportNetwork:
                 data["phase_n"] * data["q"]["molar_volume_m3_mol"],
                 data["q"]["density_kg_m3"],
                 data["u"],
+                diameter_m=n.diameter_m,
+                axial_gravity_m_s2=self.gravity_m_s2 * n.elevation_change_m / n.length_m,
+                phase_mole_fractions=data["x"],
+                gravity_m_s2=self.gravity_m_s2,
             )
+            if isinstance(n.drift_flux, DispersedOilWaterClosure):
+                valid = valid & n.drift_flux.pressure_valid(data["x"], data["p"])
             if not bool(valid.cpu()):
-                raise PropertyModelError("Zuber-Findlay closure outside declared regime envelope")
+                raise PropertyModelError("Drift-flux closure outside declared regime envelope")
         if float(data["phase_velocity"].abs().max().cpu()) > self.maximum_velocity_m_s:
             raise PropertyModelError("Phase velocity exceeds transport domain")
         if index in self._pickup_nodes:
+            if n.kind == "pipe_cell":
+                layout = phase_layout(data["phase_n"], data["q"], n.lateral_geometry())
+                if not bool(layout["density_order_resolved"].cpu()):
+                    raise PropertyModelError("Lateral pickup phase density order is unresolved")
+                # Cell-centred gravity and a sharp subcell reconstruction are
+                # a low-head approximation, not a hydrostatic PR column.
+                if float((data["q"]["density_kg_m3"].max() * self.gravity_m_s2
+                          * n.lateral_geometry().height_m / data["p"]).cpu()) > 1e-3:
+                    raise PropertyModelError("Lateral layer pickup needs rho*g*height/P <= 1e-3")
             for x, tag in zip(data["x"], data["tags"]):
                 pt = f.tensor([float(data["p"].cpu()), float(data["t"].cpu())])
 
@@ -739,19 +877,32 @@ class PREquilibriumTransportNetwork:
         h = getattr(link, side + "_height_m")
         if h is not None:
             weights = pickup_fractions(
-                phase_layout(data["phase_n"], data["q"], node.geometry), h, link.diameter_m
+                phase_layout(data["phase_n"], data["q"],
+                             node.lateral_geometry() if node.kind == "pipe_cell" else node.geometry),
+                h, link.diameter_m
             )
-        normal = 1.0 if getattr(link, side + "_port") == "right" else -1.0
+        port = getattr(link, side + "_port")
+        normal = 0.0 if port.startswith("side:") else (1.0 if port == "right" else -1.0)
         projection = normal if side == "source" else -normal
         velocity = data["u"] * projection if node.kind == "pipe_cell" else data["u"] * 0
+        if "port_velocity" in data:
+            velocity = data["port_velocity"]
         q = data["q"]
         concentration = (weights[:, None] * data["x"] / q["molar_volume_m3_mol"][:, None]).sum(0)
         rho = (weights * q["density_kg_m3"]).sum()
         internal = (weights * q["molar_internal_energy_j_mol"] / q["molar_volume_m3_mol"]).sum()
+        # A lateral opening retains axial kinetic energy as a tangential
+        # passive quantity. Incoming perpendicular-jet energy thermalizes;
+        # outgoing flow also removes the donor's axial momentum below.
+        if normal == 0.0 and node.kind == "pipe_cell":
+            internal = internal + 0.5 * (
+                weights * q["density_kg_m3"] * data["phase_velocity"].square()
+            ).sum()
         entropy = (weights * q["molar_entropy_j_mol_k"] / q["molar_volume_m3_mol"]).sum()
         # Both sides of a link use its physical endpoint potential.
         z = node.elevation_m + (
-            node.elevation_change_m * normal / 2 if node.kind == "pipe_cell" else 0.0
+            h - node.lateral_geometry().height_m / 2 if node.kind == "pipe_cell" and normal == 0.0 and h is not None
+            else node.elevation_change_m * normal / 2 if node.kind == "pipe_cell" else 0.0
         )
         e = (
             internal
@@ -811,6 +962,7 @@ class PREquilibriumTransportNetwork:
             -1,
         )
         extra = {
+            "tangential_velocity": (weights * q["density_kg_m3"] * data["phase_velocity"]).sum() / rho,
             "actual_velocity": actual_velocity,
             "bulk_velocity": velocity,
             "actual": actual,
@@ -820,7 +972,7 @@ class PREquilibriumTransportNetwork:
         }
         return (u, flux, data["p"], velocity, rho, entropy), weights, normal, extra
 
-    def _fluxes(self, data, openings, external_ports=()):
+    def _fluxes(self, data, openings, external_ports=(), traces=None):
         f = self.fluid
         nc = len(f.names)
         net = [data[0]["p"].new_zeros(nc + 2) for _ in self.nodes]
@@ -829,10 +981,29 @@ class PREquilibriumTransportNetwork:
         occupied = set(external_ports)
         for link, (a, b) in zip(self.links, self.ends):
             area = math.pi * link.diameter_m**2 / 4
-            la, wa, na, da = self._endpoint(a, data[a], "source", link)
-            rb, wb, nb, db = self._endpoint(b, data[b], "target", link)
+            left_data = data[a] if traces is None else traces.get((link.name, "source"), data[a])
+            right_data = data[b] if traces is None else traces.get((link.name, "target"), data[b])
+            la, wa, na, da = self._endpoint(a, left_data, "source", link)
+            rb, wb, nb, db = self._endpoint(b, right_data, "target", link)
+            _fallback = data[a]["p"].new_zeros((), dtype=torch.bool)
             if openings[link.name]:
-                flux, entropy, contact, pressure, ok = hllc_port(la, rb, self.wave_speed_bound_m_s)
+                if (
+                    self.wave_fan in ("local_single_phase", "pressure_single_phase")
+                    and len(data[a]["phase_n"]) == 1
+                    and len(data[b]["phase_n"]) == 1
+                ):
+                    flux, entropy, contact, pressure, ok, _fallback = hllc_local(
+                        la,
+                        rb,
+                        left_data["q"]["frozen_sound_speed_m_s"][0],
+                        right_data["q"]["frozen_sound_speed_m_s"][0],
+                        self.wave_speed_bound_m_s,
+                        estimate="pvrs" if self.wave_fan == "pressure_single_phase" else "davis",
+                    )
+                else:
+                    flux, entropy, contact, pressure, ok = hllc_port(
+                        la, rb, self.wave_speed_bound_m_s
+                    )
                 valid = valid & ok
                 # Correct bulk HLLC by actual-phase FVS minus bulk FVS.
                 # Donors follow the absolute phase velocity, not the relative drift.
@@ -893,6 +1064,14 @@ class PREquilibriumTransportNetwork:
                     )
                 )
                 if node.kind == "pipe_cell":
+                    if normal == 0.0:
+                        mass_flux = (flux[:-2] * f.molar_masses).sum()
+                        outward_mass = -sign * mass_flux
+                        tangent = da["tangential_velocity"] if side == "source" else db["tangential_velocity"]
+                        axial = -area * outward_mass.clamp_min(0) * tangent
+                        update = update + torch.cat(
+                            (update.new_zeros(nc), axial.reshape(1), update.new_zeros(1))
+                        )
                     occupied.add((index, getattr(link, side + "_port")))
                     if not openings[link.name]:
                         # A closed end reflects the pipe's own velocity and pressure.
@@ -923,6 +1102,7 @@ class PREquilibriumTransportNetwork:
                     "pressure": pressure,
                     "source_weights": wa,
                     "target_weights": wb,
+                    "local_fan_fixed_fallback": _fallback,
                 }
             )
         for i, node in enumerate(self.nodes):
@@ -934,7 +1114,7 @@ class PREquilibriumTransportNetwork:
             p = data[i]["p"]
             for port, normal in [("left", -1.0), ("right", 1.0)]:
                 if (i, port) not in occupied:
-                    force = area * (
+                    force = node.face_area(port) * (
                         p
                         + data[i]["drift_stress"]
                         + rho * v.square()
@@ -966,6 +1146,10 @@ class PREquilibriumTransportNetwork:
                     union = masks[a] | masks[b]
                     masks[a] = union
                     masks[b] = union
+            for unit in self.compressors:
+                if openings[unit.name]:
+                    a, b = self.names.index(unit.source), self.names.index(unit.target)
+                    masks[b] = masks[b] | masks[a]
         return [torch.nonzero(mask).flatten() for mask in masks]
 
     def _problem(
@@ -991,6 +1175,8 @@ class PREquilibriumTransportNetwork:
         hi = []
         initial = []
         olddata = [self._state_data(i, s) for i, s in enumerate(old)]
+        if self.compressors:
+            guesses_override = inventory_guesses(self, state, dt, openings, guesses_override)
         for i, (node, cell, s, seed) in enumerate(zip(self.nodes, self.cells, old, seeds)):
             inv = EquilibriumInventory(
                 s.component_moles,
@@ -1028,7 +1214,17 @@ class PREquilibriumTransportNetwork:
             lo.append(torch.cat((problem["lower"], f.tensor([-1.0]))))
             hi.append(torch.cat((problem["upper"], f.tensor([1.0]))))
             offsets.append(offsets[-1] + len(initial[-1]))
-        if offsets[-1] > self.maximum_unknowns:
+        trace_bundle = SinglePhaseReservoirTraces(
+            self, state, seeds, olddata, openings, offsets[-1]
+        )
+        initial.extend(trace_bundle.initial)
+        lo.extend(trace_bundle.lower)
+        hi.extend(trace_bundle.upper)
+        compressor_bundle = CompressorBundle(self, state, openings, offsets[-1] + 3 * len(trace_bundle.entries))
+        initial.extend(compressor_bundle.initial)
+        lo.extend(compressor_bundle.lower)
+        hi.extend(compressor_bundle.upper)
+        if offsets[-1] + 3 * (len(trace_bundle.entries) + len(compressor_bundle.entries)) > self.maximum_unknowns:
             raise ValueError("Transport graph exceeds configured unknown budget")
 
         phase_tags = [self.cells[i]._tags(seed) for i, seed in enumerate(seeds)]
@@ -1093,7 +1289,33 @@ class PREquilibriumTransportNetwork:
                 walls.append(tw)
                 heat.append(qh)
                 ambient.append(qa)
-            net, records, valid = self._fluxes(data, openings, external_ports)
+            trace_points, trace_residual, trace_details = trace_bundle.evaluate(y, data)
+            net, records, valid = self._fluxes(data, openings, external_ports, trace_points)
+            thermal_rates, heat_records = thermal_exchange(
+                self.heat_links, {n: d["t"] for n, d in zip(self.names, data)}, openings
+            )
+            for name, rate in thermal_rates.items():
+                i = self.names.index(name)
+                net[i] = net[i] + torch.cat(
+                    (net[i].new_zeros(len(f.names) + 1), rate.reshape(1))
+                )
+            pump_records, pump_forces = {}, {}
+            for pump in self._pump_cells:
+                force, power, row, admissible = pump.evaluate(data, openings[pump.unit.name])
+                i = pump.index
+                pump_forces[i] = force
+                net[i] = net[i] + torch.cat((net[i].new_zeros(len(f.names) + 1), power.reshape(1)))
+                pump_records[pump.unit.name] = row
+                valid = valid & admissible
+            compressor_rows, compressor_records, compressor_traces = [], {}, []
+            if self.compressors:
+                compressor_net, compressor_rows, compressor_records, compressor_traces, compressor_valid = compressor_bundle.evaluate(y, data)
+                for i, rate in compressor_net.items():
+                    net[i] = net[i] + rate
+                valid = valid & compressor_valid
+            trace_residual, trace_details = trace_bundle.complete(trace_details, records)
+            for _entry, point, _source, _v, _h, _row in trace_details:
+                valid = valid & point["q"]["valid"].all()
             exchange = None
             if external_fluxes is not None:
                 exchange = external_fluxes(data)
@@ -1105,7 +1327,11 @@ class PREquilibriumTransportNetwork:
                 erow = p["energy_row"]
                 force = d["p"] * 0
                 if node.kind == "pipe_cell":
-                    force = -d["mass"] * self.gravity_m_s2 * node.elevation_change_m / node.length_m
+                    force = -d[
+                        "mass"
+                    ] * self.gravity_m_s2 * node.elevation_change_m / node.length_m + d["p"] * (
+                        node.face_area("right") - node.face_area("left")
+                    )
                     if node.dynamic_viscosity_pa_s:
                         force = (
                             force
@@ -1131,6 +1357,8 @@ class PREquilibriumTransportNetwork:
                         * d["u"]
                         * d["u"].abs()
                     )
+                    if i in pump_forces:
+                        force = force + pump_forces[i]
                     mr = (d["momentum"] - old[i].momentum_kg_m_s - dt * (net[i][-2] + force)) / (
                         mass_scales[i]
                     )
@@ -1154,7 +1382,12 @@ class PREquilibriumTransportNetwork:
                     )
                 )
                 sources.append(force)
-            return torch.cat(residual), {
+            return torch.cat((*residual, *trace_residual, *compressor_rows)), {
+                "reservoir_trace_data": trace_details,
+                "heat_links": heat_records,
+                "pumps": pump_records,
+                "compressors": compressor_records,
+                "compressor_traces": compressor_traces,
                 "data": data,
                 "net": net,
                 "links": records,
@@ -1166,6 +1399,8 @@ class PREquilibriumTransportNetwork:
                 "exchange": exchange,
             }
 
+        evaluate.reservoir_traces = trace_bundle
+        evaluate.compressors = compressor_bundle
         return (
             torch.cat(initial),
             torch.cat(lo),
@@ -1176,13 +1411,27 @@ class PREquilibriumTransportNetwork:
             olddata,
         )
 
-    def _sparsity(self, offsets, openings):
+    def _sparsity(self, offsets, openings, trace_entries=(), compressor_entries=()):
         """Exact block graph support, rebuilt on phase/support/isolation changes."""
-        key = (tuple(offsets), tuple(openings[c.name] for c in self.links))
+        key = (
+            tuple(offsets),
+            tuple(openings[c.name] for c in self.switches),
+            tuple((e.vessel, e.pipe, e.offset) for e in trace_entries),
+            tuple((e[1], e[2], e[3]) for e in compressor_entries),
+        )
         if key not in self._patterns:
             neighbours = [{i} for i in range(len(self.nodes))]
             for link, (a, b) in zip(self.links, self.ends):
                 if openings[link.name]:
+                    neighbours[a].add(b)
+                    neighbours[b].add(a)
+            for link, (a, b) in zip(self.heat_links, self.heat_ends):
+                if openings[link.name]:
+                    neighbours[a].add(b)
+                    neighbours[b].add(a)
+            for unit in self.compressors:
+                if openings[unit.name]:
+                    a, b = self.names.index(unit.source), self.names.index(unit.target)
                     neighbours[a].add(b)
                     neighbours[b].add(a)
             rows, cols = [], []
@@ -1192,7 +1441,31 @@ class PREquilibriumTransportNetwork:
                         for col in range(offsets[j], offsets[j + 1]):
                             rows.append(row)
                             cols.append(col)
+            for e in trace_entries:
+                bodies = [
+                    *range(offsets[e.vessel], offsets[e.vessel + 1]),
+                    *range(offsets[e.pipe], offsets[e.pipe + 1]),
+                ]
+                for row in bodies:
+                    for col in (e.offset, e.offset + 1, e.offset + 2):
+                        rows.append(row)
+                        cols.append(col)
+                for row in (e.offset, e.offset + 1, e.offset + 2):
+                    for col in [*bodies, e.offset, e.offset + 1, e.offset + 2]:
+                        rows.append(row)
+                        cols.append(col)
             # Bound topology-cache growth in long schedules with many switches.
+            for _unit, a, b, offset, *_ in compressor_entries:
+                bodies = [*range(offsets[a], offsets[a+1]), *range(offsets[b], offsets[b+1])]
+                aux = list(range(offset, offset+3))
+                for row in bodies:
+                    for col in aux:
+                        rows.append(row)
+                        cols.append(col)
+                for row in aux:
+                    for col in [*bodies, *aux]:
+                        rows.append(row)
+                        cols.append(col)
             if len(self._patterns) >= 16:
                 self._patterns.clear()
             self._patterns[key] = (rows, cols)
@@ -1235,7 +1508,13 @@ class PREquilibriumTransportNetwork:
                 active_override=None if _coupling is None else _coupling.active,
                 guesses_override=None if _coupling is None else _coupling.ordinary_guesses,
             )
-            pattern = self._sparsity(_offsets, openings) if len(y) > self.dense_limit else None
+            trace_bundle = evaluate.reservoir_traces
+            compressor_bundle = evaluate.compressors
+            pattern = (
+                self._sparsity(_offsets, openings, trace_bundle.entries, compressor_bundle.entries)
+                if len(y) > self.dense_limit
+                else None
+            )
             if _coupling is not None:
                 y, lo, hi, evaluate, pattern = _coupling.prepare(
                     y, lo, hi, evaluate, _offsets, dt, pattern
@@ -1265,6 +1544,8 @@ class PREquilibriumTransportNetwork:
                     if post is not None:
                         replacements.append((i, post))
                 if not replacements and accepted:
+                    trace_bundle.validate(result["reservoir_trace_data"])
+                    compressor_bundle.validate(result["compressor_traces"])
                     coupled_state = None if _coupling is None else _coupling.accept(y, result)
                     states = []
                     entropy = 0.0
@@ -1344,6 +1625,8 @@ class PREquilibriumTransportNetwork:
                     self.inspect(new)
                     ambient = dt * sum(float(v.cpu()) for v in result["ambient"])
                     external = dt * sum(heat_w)
+                    powers = [row["shaft_power_w"] for row in [*result["pumps"].values(), *result["compressors"].values()]]
+                    work = dt * float(torch.stack(powers).sum().cpu()) if powers else 0.0
                     exchange_n = None
                     exchange_e = 0.0
                     if result["exchange"] is not None:
@@ -1360,7 +1643,7 @@ class PREquilibriumTransportNetwork:
                         )
                         exchange_e = dt * float(sum(v[-1] for v in result["exchange"]["net"]).cpu())
                     ledger = self._ledger(
-                        state, new, ambient + external + exchange_e, incoming_n=exchange_n
+                        state, new, ambient + external + work + exchange_e, incoming_n=exchange_n
                     )
                     return new, {
                         "dt_s": dt,
@@ -1374,9 +1657,16 @@ class PREquilibriumTransportNetwork:
                             if _coupling is not None
                             else {}
                         ),
+                        "reservoir_traces": trace_bundle.serialize(result["reservoir_trace_data"]),
+                        "heat_links": thermal_records(result["heat_links"]),
+                        "pumps": serialize_pumps(result["pumps"], openings),
+                        "compressors": compressor_bundle.serialize(result["compressors"]),
                         "links": {
                             rec["name"]: {
                                 "flux": rec["flux"].cpu().tolist(),
+                                "local_fan_fixed_fallback": bool(
+                                    rec["local_fan_fixed_fallback"].cpu()
+                                ),
                                 "entropy_flux_w_k": float(rec["entropy_flux"].cpu()),
                                 "contact_velocity_m_s": float(rec["contact_velocity"].cpu()),
                                 "source_fluid_reaction_impulse_kg_m_s": dt
@@ -1414,6 +1704,7 @@ class PREquilibriumTransportNetwork:
                         "conservation_residuals": ledger,
                         "ambient_heat_j": ambient,
                         "external_heat_j": external,
+                        "external_work_j": work,
                         "entropy_production_j_k": entropy,
                         "phase_branch_attempts": len(seen),
                         "nonlinear_evaluations": evaluations,
@@ -1550,7 +1841,7 @@ class PREquilibriumTransportNetwork:
                     for name, value in loss_coefficients.items()
                 }
             )
-        commands = {c.name: True for c in self.links}
+        commands = dict(self.default_openings)
         if openings is not None:
             if set(openings) - set(commands) or any(type(v) is not bool for v in openings.values()):
                 raise ValueError("Known binary link openings required")
@@ -1578,7 +1869,7 @@ class PREquilibriumTransportNetwork:
             attempts += 1
             if attempts > self.maximum_attempts:
                 raise HydraulicConvergenceError("HEM interval budget exhausted")
-            dt = min(dt, end - current.time_s)
+            dt = interval_step_s(current.time_s, end, dt)
             if current.time_s + dt / 2 <= current.time_s:
                 raise ValueError("HEM substep below time resolution")
             try:
@@ -1604,7 +1895,8 @@ class PREquilibriumTransportNetwork:
             steps.extend((one, two))
             dt = nextdt
         heat = math.fsum(s["ambient_heat_j"] + s["external_heat_j"] for s in steps)
-        residual = self._ledger(state, current, heat)
+        work = math.fsum(s["external_work_j"] for s in steps)
+        residual = self._ledger(state, current, heat + work)
         return {
             "state": current.to_dict(),
             "steps": steps,
@@ -1614,4 +1906,5 @@ class PREquilibriumTransportNetwork:
             "openings": commands,
             "loss_coefficients": losses,
             "total_heat_j": heat,
+            "total_work_j": work,
         }

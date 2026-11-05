@@ -265,7 +265,11 @@ class EquilibriumFluid:
         s = (
             ideal_cp * torch.log(t / self.tref)
             - R * torch.log(p / self.pref)
-            - R * (torch.xlogy(x, x)).sum(-1)
+            # Inactive components stay exactly zero on a fixed support.
+            # xlogy(0, 0) has the right value but its forward derivative
+            # produces 0/0 even for a zero composition tangent. Keep the
+            # inactive branch constant, with a finite log in both branches.
+            - R * torch.where(x > 0, x * x.clamp_min(1e-300).log(), 0.0).sum(-1)
             + R * torch.log(z - B)
             + at / (2 * math.sqrt(2) * b) * ratio
         )
@@ -282,6 +286,11 @@ class EquilibriumFluid:
             "density_kg_m3": mw / vol,
             "homogeneous_molar_cp_j_mol_k": select(cp),
             "homogeneous_molar_cv_j_mol_k": select(cv),
+            "frozen_sound_speed_m_s": torch.sqrt(
+                (
+                    -vol.square() / mw * (select(dpdv) - t * select(dpdt).square() / select(cv))
+                ).clamp_min(1e-30)
+            ),
             "valid": valid.any(-1),
             "coexistence_degenerate": degenerate,
         }

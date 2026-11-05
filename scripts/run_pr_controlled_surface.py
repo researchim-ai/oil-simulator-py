@@ -57,13 +57,15 @@ def run(config, *, device="cpu"):
         state = PRControlledSurfaceState.from_dict(report["state"])
         intervals.append(report)
     heat = sum(r["total_heat_j"] for r in intervals)
+    work = sum(r["total_work_j"] for r in intervals)
     return {
         "config": config,
         "model": model.to_dict(),
         "initial": first.to_dict(),
         "intervals": intervals,
-        "conservation_residuals": model.plant._ledger(first.plant, state.plant, heat),
+        "conservation_residuals": model.plant._ledger(first.plant, state.plant, heat + work),
         "total_heat_j": heat,
+        "total_work_j": work,
         "runtime": runtime_fingerprint(),
     }
 

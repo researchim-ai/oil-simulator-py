@@ -17,8 +17,96 @@ from check_pr_momentum_vessels import port_flux
 from check_stratified_pr import Reference
 from check_stratified_pr_flow import close
 from check_stratified_pr_network import reference_darcy
+from reference_hllc_local import wave_flux
+from reference_oil_water_drift import velocities as oil_water_velocities
+from reference_pr_compressors import audit_compressors
+from reference_pr_pumps import audit_pumps
 
 from surface.pr_equilibrium_transport import PREquilibriumTransportNetwork
+
+
+def face_area(node, side):
+    diameter = node.get(side + "_diameter_m")
+    return math.pi * (node["diameter_m"] if diameter is None else diameter) ** 2 / 4
+
+
+def audit_heat_links(links, temperatures, openings, saved):
+    if set(saved) != {link["name"] for link in links}:
+        raise ValueError("Thermal connection registry differs")
+    rates = {}
+    for link in links:
+        a, b = link["source"], link["target"]
+        ta, tb = temperatures[a], temperatures[b]
+        ua = link["conductance_w_k"] if openings[link["name"]] else 0.0
+        q = ua * (ta - tb)
+        production = ua * (ta - tb) ** 2 / (ta * tb)
+        close(saved[link["name"]]["heat_rate_w"], q, atol=1e-9, rtol=2e-8)
+        close(saved[link["name"]]["entropy_production_w_k"], production, atol=1e-10, rtol=2e-8)
+        rates[a] = rates.get(a, 0.0) - q
+        rates[b] = rates.get(b, 0.0) + q
+    return rates
+
+
+def reference_sound(fluid, p, t, x, tag="stable"):
+    ref = Reference(fluid, np.flatnonzero(np.asarray(x) > 0))
+    if ref.pure is not None:
+        return ref.pure.state(p, t, tag)["sound_speed_m_s"]
+    dp = max(1e-4, p * 1e-5)
+    dt = t * 1e-5
+
+    def values(p, t):
+        q = ref.state(p, t, x, tag)
+        return np.array([q["rho"], q["s"]])
+
+    jp = (values(p + dp, t) - values(p - dp, t)) / (2 * dp)
+    jt = (values(p, t + dt) - values(p, t - dt)) / (2 * dt)
+    derivative = jp[0] - jt[0] * jp[1] / jt[1]
+    if derivative <= 0:
+        raise ValueError("Reference acoustic derivative rejected")
+    return 1 / math.sqrt(derivative)
+
+
+def reservoir_trace(data, saved, side, model, fluid):
+    p, t = saved["pressure_pa"], saved["temperature_k"]
+    x = np.asarray(saved["mole_fractions"])
+    close(x, data["x"][0], atol=1e-10, rtol=2e-8)
+    q = Reference(fluid, np.flatnonzero(x > 0)).state(p, t, x, "stable")
+    contact = saved["contact_outward_velocity_m_s"]
+    outward = max(contact, 0.0)
+    close(saved["outward_velocity_m_s"], outward, atol=1e-8, rtol=2e-7)
+    mode = "reversible_outflow" if contact >= 0 else "mixed_inflow"
+    if saved["mode"] != mode:
+        raise ValueError("Reservoir trace direction differs")
+    h = (
+        q["h"]
+        + 0.5 * float(np.dot(x, [c.molar_mass_kg_mol for c in fluid.components])) * outward**2
+    )
+    if contact >= 0:
+        close(q["s"], data["s_phase"][0], atol=1e-6, rtol=1e-8)
+        close(h, data["h"][0], atol=1e-5, rtol=1e-8)
+    else:
+        close(p, data["p"], atol=1e-4, rtol=1e-8)
+        close(t, data["t"], atol=1e-7, rtol=1e-9)
+    close(saved["reservoir_entropy_j_mol_k"], data["s_phase"][0], atol=1e-6, rtol=1e-8)
+    close(saved["trace_entropy_j_mol_k"], q["s"], atol=1e-6, rtol=1e-8)
+    close(saved["reservoir_total_enthalpy_j_mol"], data["h"][0], atol=1e-5, rtol=1e-8)
+    close(saved["trace_total_enthalpy_j_mol"], h, atol=1e-5, rtol=1e-8)
+    return {
+        **data,
+        "p": p,
+        "t": t,
+        "x": x[None, :],
+        "vm": np.array([q["vm"]]),
+        "h": np.array([q["h"]]),
+        "s_phase": np.array([q["s"]]),
+        "rho_phase": np.array([q["rho"]]),
+        "alpha": np.ones(1),
+        "drift": np.zeros(1),
+        "port_velocity": outward if side == "source" else -outward,
+        "sound": reference_sound(fluid, p, t, x)
+        if model.get("wave_fan") in ("local_single_phase", "pressure_single_phase")
+        else None,
+    }
 
 
 def decode(state, node, model, fluid):
@@ -71,15 +159,40 @@ def decode(state, node, model, fluid):
         drift = scale * (mean / rho - 1.0)
     velocities = u + drift
     closure = node.get("drift_flux")
-    if closure is not None and len(pn) > 1:
+    if closure is not None and len(pn) > 1 and closure.get("model") == "dispersed_oil_water":
+        alpha = pn * vm / (pn @ vm)
+        velocities = oil_water_velocities(
+            closure, alpha, rho, x, u, node["diameter_m"],
+            model["gravity_m_s2"] * node["elevation_change_m"] / node["length_m"],
+            model["gravity_m_s2"],
+            p,
+        )
+        drift = velocities - u
+    elif closure is not None and len(pn) > 1:
         alpha = pn * vm / (pn @ vm)
         gas = int(np.argmin(rho))
         ag = alpha[gas]
         rg = rho[gas]
         liquid = np.arange(len(pn)) != gas
         rl = np.dot(alpha[liquid], rho[liquid]) / alpha[liquid].sum()
-        c0 = closure["distribution_parameter"]
-        vd = closure["drift_velocity_m_s"]
+        if closure.get("model") == "relap7_vertical_pipe":
+            if len(pn) != 2:
+                raise ValueError("RELAP-7 requires gas/liquid two-phase flow")
+            axial = model["gravity_m_s2"] * node["elevation_change_m"] / node["length_m"]
+            sigma, mu = closure["surface_tension_n_m"], closure["liquid_viscosity_pa_s"]
+            length = math.sqrt(sigma / (abs(axial) * (rl - rg)))
+            base = (sigma * abs(axial) * (rl - rg) / rl**2) ** 0.25
+            c0 = 1.2 - 0.2 * math.sqrt(rg / rl)
+            if closure["regime"] == "dispersed_bubbly":
+                vd = math.sqrt(2) * base
+            else:
+                diameter = min(30.0, node["diameter_m"] / length)
+                viscosity = mu / math.sqrt(rl * sigma * length)
+                vd = 0.0019 * diameter**0.809 * (rg / rl)**(-0.157) * viscosity**(-0.562) * base
+            vd = math.copysign(vd, axial)
+        else:
+            c0 = closure["distribution_parameter"]
+            vd = closure["drift_velocity_m_s"]
         denominator = rl + ag * c0 * (rg - rl)
         if (
             denominator <= 0
@@ -115,7 +228,15 @@ def decode(state, node, model, fluid):
             raise ValueError("Wall outside domain")
     elif state["wall_temperature_k"] is not None:
         raise ValueError("Unexpected wall state")
+    sound = (
+        reference_sound(fluid, p, t, x[0], state["phase_roots"][0])
+        if (model.get("wave_fan", "fixed_bound") in ("local_single_phase", "pressure_single_phase")
+            or any(pump["node"] == node["name"] for pump in model.get("pumps", [])))
+        and len(pn) == 1
+        else None
+    )
     return {
+        "sound": sound,
         "n": n,
         "pn": pn,
         "x": x,
@@ -171,6 +292,12 @@ def endpoint(node, data, link, side, model):
     height = link.get(side + "_height_m")
     if height is not None:
         geometry = node["geometry"]
+        if node["kind"] == "pipe_cell":
+            geometry = {"diameter_m": node["diameter_m"], "length_m": node["length_m"],
+                        "orientation": "horizontal" if abs(node["elevation_change_m"]) < 1e-12 else "vertical"}
+            extent = geometry["diameter_m"] if geometry["orientation"] == "horizontal" else geometry["length_m"]
+            if max(data["rho_phase"]) * model["gravity_m_s2"] * extent / data["p"] > 1e-3:
+                raise ValueError("Lateral pickup outside low-head envelope")
         order = np.argsort(-data["rho_phase"], kind="stable")
         volumes = data["pn"] * data["vm"]
         volumes = volumes / volumes.sum() * node["volume_m3"]
@@ -184,17 +311,24 @@ def endpoint(node, data, link, side, model):
             weights[i] = (
                 disk_area(levels[k] - base, diameter) - disk_area(bottom[k] - base, diameter)
             ) / (math.pi * diameter**2 / 4)
-    normal = 1.0 if link[side + "_port"] == "right" else -1.0
+    port = link[side + "_port"]
+    normal = 0.0 if port.startswith("side:") else (1.0 if port == "right" else -1.0)
     projection = normal if side == "source" else -normal
     v = data["u"] * projection if node["kind"] == "pipe_cell" else 0.0
+    if "port_velocity" in data:
+        v = data["port_velocity"]
     w = data["drift"] * projection if node["kind"] == "pipe_cell" else np.zeros(len(weights))
     concentration = (weights[:, None] * data["x"] / data["vm"][:, None]).sum(0)
     rho = weights @ data["rho_phase"]
     phase_mass_mol = data["rho_phase"] * data["vm"]
     internal = np.sum(weights * (data["h"] - data["p"] * data["vm"]) / data["vm"])
+    if normal == 0.0 and node["kind"] == "pipe_cell":
+        internal += 0.5 * np.sum(weights * data["rho_phase"] * (data["u"] + data["drift"])**2)
     entropy = np.sum(weights * data["s_phase"] / data["vm"])
     z = node["elevation_m"] + (
-        node["elevation_change_m"] * normal / 2 if node["kind"] == "pipe_cell" else 0.0
+        height - (node["diameter_m"] if abs(node["elevation_change_m"]) < 1e-12 else node["length_m"]) / 2
+        if node["kind"] == "pipe_cell" and normal == 0.0 and height is not None
+        else node["elevation_change_m"] * normal / 2 if node["kind"] == "pipe_cell" else 0.0
     )
     phi = model["gravity_m_s2"] * (z - model["reference_elevation_m"])
     stress = np.sum(weights * data["rho_phase"] * w * w)
@@ -221,6 +355,7 @@ def endpoint(node, data, link, side, model):
         )
     )
     extra = {
+        "tangential_velocity": float(np.sum(weights * data["rho_phase"] * (data["u"] + data["drift"])) / rho),
         "velocity": velocity,
         "u": v,
         "actual": actual,
@@ -247,10 +382,13 @@ def audit(config, report):
     checked = 0
     maximum = np.zeros(nc + 2)
     all_heat = 0.0
+    all_work = 0.0
     olddata = {n: decode(old["nodes"][n], nodes[n], model, fluid) for n in names}
     for command, interval in zip(config["schedule"], report["intervals"], strict=True):
         end = old["time_s"] + command["duration_s"]
-        opens = {c["name"]: True for c in model["links"]}
+        opens = {c["name"]: True for c in model["links"] + model.get("heat_links", [])}
+        opens.update({p["card"]["name"]: p["card"]["open"] for p in model.get("pumps", [])})
+        opens.update({unit["name"]: unit["open"] for unit in model.get("compressors", [])})
         opens.update(command.get("openings", {}))
         if opens != interval["openings"] or not interval["steps"]:
             raise ValueError("Command or accepted interval differs")
@@ -263,7 +401,7 @@ def audit(config, report):
         }
         if expected_loss != interval["loss_coefficients"]:
             raise ValueError("Resistance command differs")
-        interval_heat = interval_entropy = 0.0
+        interval_heat = interval_entropy = interval_work = 0.0
         interval_start = old
         for step in interval["steps"]:
             dt = step["dt_s"]
@@ -276,11 +414,52 @@ def audit(config, report):
             occupied = set()
             for link in model["links"]:
                 a, b = link["source"], link["target"]
-                left, wa, na, da = endpoint(nodes[a], data[a], link, "source", model)
-                right, wb, nb, db = endpoint(nodes[b], data[b], link, "target", model)
+                left_data, right_data = data[a], data[b]
+                traces = step.get("reservoir_traces", {}).get(link["name"], {})
+                for side, name, other in [("source", a, b), ("target", b, a)]:
+                    eligible = (
+                        model.get("reservoir_ports", "riemann") == "stagnation_single_phase"
+                        and opens[link["name"]]
+                        and nodes[name]["kind"] == "vessel"
+                        and nodes[name]["geometry"] is None
+                        and nodes[other]["kind"] == "pipe_cell"
+                        and not link[("target" if side == "source" else "source") + "_port"].startswith("side:")
+                        and len(data[name]["pn"]) == 1
+                        and len(data[other]["pn"]) == 1
+                    )
+                    if eligible:
+                        if side not in traces:
+                            raise ValueError("Reservoir stagnation trace missing")
+                        point = reservoir_trace(data[name], traces[side], side, model, fluid)
+                        if side == "source":
+                            left_data = point
+                        else:
+                            right_data = point
+                    elif side in traces:
+                        raise ValueError("Unexpected reservoir trace")
+                left, wa, na, da = endpoint(nodes[a], left_data, link, "source", model)
+                right, wb, nb, db = endpoint(nodes[b], right_data, link, "target", model)
                 area = math.pi * link["diameter_m"] ** 2 / 4
                 if opens[link["name"]]:
-                    flux, sf, contact, _ = port_flux(left, right, model["wave_speed_bound_m_s"])
+                    if (
+                        model.get("wave_fan", "fixed_bound")
+                        in ("local_single_phase", "pressure_single_phase")
+                        and len(data[a]["pn"]) == 1
+                        and len(data[b]["pn"]) == 1
+                    ):
+                        flux, sf, contact, _, fallback = wave_flux(
+                            left,
+                            right,
+                            left_data["sound"],
+                            right_data["sound"],
+                            model["wave_speed_bound_m_s"],
+                            estimate="pvrs"
+                            if model.get("wave_fan") == "pressure_single_phase"
+                            else "davis",
+                        )
+                    else:
+                        flux, sf, contact, _ = port_flux(left, right, model["wave_speed_bound_m_s"])
+                        fallback = False
                     for packet, forward in ((da, True), (db, False)):
                         mask = packet["velocity"] > 0 if forward else packet["velocity"] < 0
                         bulk = packet["u"] > 0 if forward else packet["u"] < 0
@@ -293,7 +472,17 @@ def audit(config, report):
                 else:
                     flux = np.zeros(nc + 2)
                     sf = contact = 0.0
+                    fallback = False
+                for side, trace in traces.items():
+                    close(
+                        trace["contact_outward_velocity_m_s"],
+                        contact * (1.0 if side == "source" else -1.0),
+                        atol=1e-8,
+                        rtol=2e-7,
+                    )
                 saved = step["links"][link["name"]]
+                if saved.get("local_fan_fixed_fallback", False) != fallback:
+                    raise ValueError("Acoustic fan fallback differs")
                 close(saved["flux"], area * flux, atol=1e-6, rtol=2e-7)
                 close(
                     saved["source_fluid_reaction_impulse_kg_m_s"],
@@ -318,6 +507,13 @@ def audit(config, report):
                         sign * area * flux[-1],
                     ]
                     if nodes[n]["kind"] == "pipe_cell":
+                        if normal == 0.0:
+                            outward_mass = -sign * sum(
+                                rate * component.molar_mass_kg_mol
+                                for rate, component in zip(flux[:-2], fluid.components)
+                            )
+                            tangent = da["tangential_velocity"] if side == "source" else db["tangential_velocity"]
+                            update[-2] -= area * max(0.0, outward_mass) * tangent
                         occupied.add((n, link[side + "_port"]))
                         if not opens[link["name"]]:
                             update[-2] -= (
@@ -334,6 +530,19 @@ def audit(config, report):
                                 )
                             )
                     net[n] += update
+            heat_rates = audit_heat_links(
+                model.get("heat_links", []), {n: d["t"] for n, d in data.items()}, opens,
+                step.get("heat_links", {}),
+            )
+            for name, rate in heat_rates.items():
+                net[name][-1] += rate
+            pump_forces, pump_powers = audit_pumps(model, data, opens, step.get("pumps", {}))
+            for name, power in pump_powers.items():
+                net[name][-1] += power
+            compressor_net, compressor_power = audit_compressors(model, data, opens, step.get("compressors", {}), fluid)
+            for name, rate in compressor_net.items():
+                net[name] += rate
+            work = dt * (sum(pump_powers.values()) + compressor_power)
             production = 0.0
             external = ambient = 0.0
             for n in names:
@@ -348,7 +557,7 @@ def audit(config, report):
                         if (n, port) not in occupied:
                             net[n][-2] -= (
                                 normal
-                                * area
+                                * face_area(node, port)
                                 * (
                                     d["p"]
                                     + d["rho"] * d["u"] ** 2
@@ -362,6 +571,7 @@ def audit(config, report):
                         * node["elevation_change_m"]
                         / node["length_m"]
                     )
+                    force += d["p"] * (face_area(node, "right") - face_area(node, "left"))
                     if node["dynamic_viscosity_pa_s"]:
                         force -= (
                             node["volume_m3"]
@@ -378,6 +588,7 @@ def audit(config, report):
                         n, node.get("local_loss_coefficient", 0.0)
                     )
                     force -= 0.5 * area * coefficient * d["rho"] * d["u"] * abs(d["u"])
+                    force += pump_forces.get(n, 0.0)
                     close(
                         b["momentum_kg_m_s"] - a["momentum_kg_m_s"],
                         dt * (net[n][-2] + force),
@@ -426,7 +637,10 @@ def audit(config, report):
             close(step["entropy_production_j_k"], production, atol=2e-6, rtol=2e-6)
             close(step["ambient_heat_j"], ambient, atol=1e-7, rtol=2e-7)
             close(step["external_heat_j"], external, atol=1e-7, rtol=2e-7)
+            close(step.get("external_work_j", 0.0), work, atol=1e-10, rtol=2e-7)
+            close(step["conservation_residuals"], ledger(old, new, nodes, ambient + external + work), atol=1e-6, rtol=2e-7)
             interval_heat += ambient + external
+            interval_work += work
             interval_entropy += production
             old = new
             olddata = data
@@ -439,19 +653,22 @@ def audit(config, report):
             raise ValueError("Published physical checkpoint differs")
         close(final["time_s"], end, atol=1e-12, rtol=0.0)
         close(interval["total_heat_j"], interval_heat, atol=1e-6, rtol=2e-7)
+        close(interval.get("total_work_j", 0.0), interval_work, atol=1e-10, rtol=2e-7)
         close(interval["entropy_production_j_k"], interval_entropy, atol=2e-6, rtol=2e-6)
         close(
             interval["conservation_residuals"],
-            ledger(interval_start, final, nodes, interval_heat),
+            ledger(interval_start, final, nodes, interval_heat + interval_work),
             atol=1e-6,
             rtol=2e-7,
         )
         old = final
         all_heat += interval_heat
+        all_work += interval_work
     close(report["total_heat_j"], all_heat, atol=1e-6, rtol=2e-7)
+    close(report.get("total_work_j", 0.0), all_work, atol=1e-10, rtol=2e-7)
     close(
         report["conservation_residuals"],
-        ledger(old_start, old, nodes, all_heat),
+        ledger(old_start, old, nodes, all_heat + all_work),
         atol=1e-6,
         rtol=2e-7,
     )

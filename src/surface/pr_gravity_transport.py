@@ -21,9 +21,11 @@ from .pr_equilibrium_transport import (
     PREquilibriumTransportNetwork,
     PREquilibriumTransportState,
 )
+from .pr_heat_link import PRHeatLink, thermal_exchange, thermal_records
 from .pr_momentum_vessels import hllc_port
 from .stratified_pr import StratifiedPRColumn, StratifiedPRState
 from .stratified_pr_flow import StratifiedPRFlow
+from .time_interval import interval_step_s
 from .vessel_wall import VesselWall
 
 
@@ -78,15 +80,19 @@ class PRGravityTransportState:
 
 class PRGravityTransportNetwork:
     def __init__(
-        self, transport, columns, ports, *, walls=None, maximum_transverse_head_fraction=1e-3
+        self, transport, columns, ports, *, walls=None, maximum_transverse_head_fraction=1e-3,
+        heat_links=(),
     ):
         if not isinstance(transport, PREquilibriumTransportNetwork):
             raise TypeError("Expected equilibrium transport graph")
-        if not isinstance(columns, dict) or not columns:
-            raise ValueError("Named gravitational columns required")
+        if not isinstance(columns, dict):
+            raise TypeError("Named gravitational columns dictionary required")
         self.transport = transport
         self.columns = dict(sorted(columns.items()))
         self.ports = tuple(sorted(ports, key=lambda p: p.name))
+        self.heat_links = tuple(sorted(heat_links, key=lambda p: p.name))
+        if any(not isinstance(link, PRHeatLink) for link in self.heat_links):
+            raise TypeError("Expected PRHeatLink")
         self.walls = dict(sorted((walls or {}).items()))
         self.maximum_transverse_head_fraction = _number(
             maximum_transverse_head_fraction, "transverse head fraction", positive=True
@@ -98,7 +104,7 @@ class PRGravityTransportNetwork:
         ):
             raise ValueError("Unknown column wall")
         occupied = set(transport._used)
-        names = {c.name for c in transport.links}
+        names = {c.name for c in transport.switches}
         for name, col in self.columns.items():
             _name(name)
             if name in transport.names or not isinstance(col, StratifiedPRColumn):
@@ -120,7 +126,7 @@ class PRGravityTransportNetwork:
             col = self.columns[port.column]
             if (
                 node.kind != "pipe_cell"
-                or abs(node.diameter_m - port.diameter_m) > 1e-12
+                or abs(node.face_diameter(port.pipe_port) - port.diameter_m) > 1e-12
                 or (i, port.pipe_port) in occupied
             ):
                 raise ValueError("Column port must occupy a free matching pipe end")
@@ -135,8 +141,13 @@ class PRGravityTransportNetwork:
                 or port.height_m + port.diameter_m / 2 > col.geometry.height_m
             ):
                 raise ValueError("Aperture lies outside column")
-        self.start_order = max(c.quadrature_order for c in self.columns.values())
-        self.maximum_order = min(c.maximum_quadrature_order for c in self.columns.values())
+        body_names = set(self.columns) | set(transport.names)
+        for link in self.heat_links:
+            if link.name in names or {link.source, link.target} - body_names:
+                raise ValueError("Unique thermal connection and known endpoints required")
+            names.add(link.name)
+        self.start_order = max((c.quadrature_order for c in self.columns.values()), default=2)
+        self.maximum_order = min((c.maximum_quadrature_order for c in self.columns.values()), default=4)
         if self.start_order >= self.maximum_order:
             raise ValueError("Common quadrature refinement range required")
         self.model_id = _digest(self.to_dict())
@@ -147,6 +158,7 @@ class PRGravityTransportNetwork:
             "transport": self.transport.to_dict(),
             "columns": {n: c.to_dict() for n, c in self.columns.items()},
             "ports": [asdict(p) for p in self.ports],
+            "heat_links": [asdict(p) for p in self.heat_links],
             "walls": {n: asdict(w) for n, w in self.walls.items()},
             "maximum_transverse_head_fraction": self.maximum_transverse_head_fraction,
         }
@@ -163,6 +175,7 @@ class PRGravityTransportNetwork:
             n: StratifiedPRColumn.from_dict(c, device=device) for n, c in data["columns"].items()
         }
         data["ports"] = [PRColumnPort(**p) for p in data["ports"]]
+        data["heat_links"] = [PRHeatLink(**p) for p in data.get("heat_links", [])]
         data["walls"] = {n: VesselWall(**w) for n, w in data["walls"].items()}
         return cls(**data)
 
@@ -236,11 +249,34 @@ class PRGravityTransportNetwork:
         return r
 
     def _step(self, state, dt, openings, heat_w, utility, losses):
+        if not self.columns and not self.heat_links:
+            # A resolved vessel already belongs to the transport graph. Do
+            # not manufacture a column or repeat an empty aperture quadrature.
+            t = self.transport
+            result, report = t._step(
+                state.transport, dt, {c.name: openings[c.name] for c in t.switches},
+                [heat_w.get(n, 0.0) for n in t.names],
+                [utility.get(n, s.temperature_k) for n, (_, s) in zip(t.names, state.transport.nodes)],
+                losses,
+            )
+            new = PRGravityTransportState(result, (), (), self.model_id)
+            self.inspect(new)
+            heat = report["ambient_heat_j"] + report["external_heat_j"]
+            work = report["external_work_j"]
+            return new, {
+                "dt_s": dt, "state": new.to_dict(), "transport": report,
+                "columns": {"columns": {}, "walls": {}, "reports": {}, "heat_j": 0.,
+                            "entropy_production_j_k": 0., "heat_links": {}, "ports": {}},
+                "quadrature_order": 0, "quadrature_error": 0.,
+                "total_heat_j": heat, "total_work_j": work,
+                "conservation_residuals": self._ledger(state, new, heat + work),
+                "entropy_production_j_k": report["entropy_production_j_k"],
+            }
         previous = None
         order = self.start_order
         while order <= self.maximum_order:
             overrides = {}
-            base_open = {c.name: openings[c.name] for c in self.transport.links}
+            base_open = {c.name: openings[c.name] for c in self.transport.switches}
             initial = state.transport
             for _ in range(8):
                 coupling = _ColumnCoupling(
@@ -283,7 +319,8 @@ class PRGravityTransportNetwork:
             )
             self.inspect(new)
             heat = report["ambient_heat_j"] + report["external_heat_j"] + cr["heat_j"]
-            residual = self._ledger(state, new, heat)
+            work = report["external_work_j"]
+            residual = self._ledger(state, new, heat + work)
             entropy = report["entropy_production_j_k"] + cr["entropy_production_j_k"]
             if entropy < -1e-6:
                 raise ConservationError("Coupled graph entropy rejected")
@@ -294,6 +331,7 @@ class PRGravityTransportNetwork:
                 "columns": cr,
                 "quadrature_order": order,
                 "total_heat_j": heat,
+                "total_work_j": work,
                 "conservation_residuals": residual,
                 "entropy_production_j_k": entropy,
             }
@@ -354,7 +392,10 @@ class PRGravityTransportNetwork:
         end = state.time_s + _number(duration_s, "duration", positive=True)
         if not math.isfinite(end) or end <= state.time_s:
             raise ValueError("Unrepresentable coupled interval")
-        commands = {p.name: True for p in (*self.transport.links, *self.ports)}
+        commands = {
+            p.name: True for p in (*self.transport.switches, *self.ports, *self.heat_links)
+        }
+        commands.update(self.transport.default_openings)
         changes = dict(openings or {})
         if set(changes) - set(commands) or any(type(v) is not bool for v in changes.values()):
             raise ValueError("Known binary isolation commands required")
@@ -384,7 +425,7 @@ class PRGravityTransportNetwork:
             attempts += 1
             if attempts > self.transport.maximum_attempts:
                 raise HydraulicConvergenceError("Coupled interval attempt budget exhausted")
-            dt = min(dt, end - current.time_s)
+            dt = interval_step_s(current.time_s, end, dt)
             if current.time_s + dt / 2 <= current.time_s:
                 raise ValueError("Coupled substep below time resolution")
             try:
@@ -414,12 +455,14 @@ class PRGravityTransportNetwork:
             steps.extend((one, two))
             dt = nextdt
         heat = math.fsum(s["total_heat_j"] for s in steps)
+        work = math.fsum(s["total_work_j"] for s in steps)
         return {
             "state": current.to_dict(),
             "steps": steps,
             "attempts": attempts,
             "total_heat_j": heat,
-            "conservation_residuals": self._ledger(state, current, heat),
+            "total_work_j": work,
+            "conservation_residuals": self._ledger(state, current, heat + work),
             "openings": commands,
             "loss_coefficients": losses,
         }
@@ -457,6 +500,48 @@ class _ColumnCoupling:
             (model.transport.names.index(p.node), p.pipe_port) for p in model.ports
         )
         self._component_guesses()
+        self._thermal_guesses()
+
+    def _thermal_guesses(self):
+        """Bounded implicit-diagonal predictor for branch discovery only.
+
+        A raw dt*UA*deltaT predictor can exceed the entire EOS domain for a
+        stiff contact. Frozen sensible capacities give a convex temperature
+        estimate. Neither old conserved stocks nor the accepted energy target
+        are changed; the full PR latent heat remains in the joint residual.
+        """
+        m, state = self.model, self.state
+        self.thermal_guesses = {}
+        if not m.heat_links:
+            return
+        bodies = {**dict(state.transport.nodes), **dict(state.columns)}
+        cv = [c.ideal_cp_j_mol_k - R for c in m.transport.fluid.components]
+        capacities = {
+            name: max(1e-12, sum(v * c for v, c in zip(body.component_moles, cv)))
+            for name, body in bodies.items()
+        }
+        numerator = {name: capacities[name] * body.temperature_k for name, body in bodies.items()}
+        denominator = dict(capacities)
+        connected = set()
+        for link in m.heat_links:
+            if self.openings[link.name]:
+                for a, b in [(link.source, link.target), (link.target, link.source)]:
+                    numerator[a] += self.dt * link.conductance_w_k * bodies[b].temperature_k
+                    denominator[a] += self.dt * link.conductance_w_k
+                    connected.add(a)
+        for name in set(m.columns) & connected:
+            predicted_t = numerator[name] / denominator[name]
+            geometry = m.columns[name].geometry
+            boundaries = [0.0, *bodies[name].interface_heights_m, geometry.height_m]
+            volumes = [geometry.liquid_volume_m3(height) for height in boundaries]
+            thin = len(boundaries) > 2 and min(
+                b - a for a, b in zip(volumes[:-1], volumes[1:])
+            ) < 1e-4 * geometry.volume_m3
+            # Ordinary small thermal steps retain the previous seed, avoiding
+            # repeated extra flashes. Near layer extinction, probe even a small
+            # temperature change to prevent endless subdivision at the boundary.
+            if abs(predicted_t - bodies[name].temperature_k) >= 0.25 or thin:
+                self.thermal_guesses[name] = predicted_t
 
     def _component_guesses(self):
         """Reachable supports and explicit predictor; physical old stocks stay exact."""
@@ -471,6 +556,7 @@ class _ColumnCoupling:
         }
         edges = [(c.source, c.target) for c in t.links if self.openings[c.name]]
         edges += [(p.column, p.node) for p in m.ports if self.openings[p.name]]
+        directed = [(unit.source, unit.target) for unit in t.compressors if self.openings[unit.name]]
         changed = True
         while changed:
             changed = False
@@ -479,6 +565,10 @@ class _ColumnCoupling:
                 if supports[a] != union or supports[b] != union:
                     supports[a] = set(union)
                     supports[b] = set(union)
+                    changed = True
+            for a, b in directed:
+                if not supports[a] <= supports[b]:
+                    supports[b] |= supports[a]
                     changed = True
         index = lambda n: torch.tensor(sorted(supports[n]), dtype=torch.long, device=f.device)
         self.active = [index(n) for n in t.names]
@@ -605,7 +695,7 @@ class _ColumnCoupling:
                     if len(guess) == offsets[i + 1] - offsets[i]
                     else y[offsets[i] : offsets[i + 1]]
                 )
-            y = torch.cat(pieces)
+            y = torch.cat((*pieces, y[offsets[-1] :]))
         self.size = len(y)
         self.blocks = {}
         self.portblocks = []
@@ -643,6 +733,33 @@ class _ColumnCoupling:
                 )
             if name in self.seed_overrides:
                 seed = self.seed_overrides[name]
+            elif self.warm_state is None and name in self.thermal_guesses:
+                predicted_t = self.thermal_guesses[name]
+                guess_n = self.column_guesses[name]
+                pt = f.flash_pt(seed[3], predicted_t, guess_n / guess_n.sum())
+                # Choose the phase topology at a bounded temperature rather
+                # than extrapolating sensible Cv through a latent-heat plateau.
+                # Normalize guessed layer volumes only; _problem below still
+                # receives the exact old N/E and solves the actual common P/T.
+                seed = c._seed_from_flash(pt, c.geometry.volume_m3 / pt["molar_volume_m3_mol"])
+                # PT at the old pressure may select a dense liquid even when
+                # the fixed inventory/volume requires coexistence on cooling.
+                # Retain a UV-discovered NEW phase count in that case. Both
+                # alternatives are guesses, never accepted replacement stocks.
+                cv = sum(
+                    value * (component.ideal_cp_j_mol_k - R)
+                    for value, component in zip(s.component_moles, f.components)
+                )
+                guessed_energy = (
+                    self.column_energy_guesses[name] + cv * (predicted_t - s.temperature_k)
+                    + dt * self.heat.get(name, 0.0)
+                )
+                try:
+                    uvseed = c._seed(guess_n, guessed_energy, seed[3], predicted_t)
+                    if len(uvseed[1]) != len(s.phase_roots):
+                        seed = uvseed
+                except (PropertyModelError, HydraulicConvergenceError):
+                    pass
             elif self.warm_state is None and self.heat.get(name, 0.0):
                 seed = c._seed(n, s.total_energy_j + dt * self.heat[name], seed[3], seed[4])
             q = c._problem(
@@ -697,7 +814,7 @@ class _ColumnCoupling:
         # Row blocks have the same offsets as unknown blocks. A column/pipe
         # flux couples only its two bodies and that aperture's trace variables.
         block_dependencies = {}
-        base_open = {link.name: self.openings[link.name] for link in t.links}
+        base_open = {link.name: self.openings[link.name] for link in t.switches}
         neighbours = [{i} for i in range(len(t.nodes))]
         for link, (a, b) in zip(t.links, t.ends):
             if base_open[link.name]:
@@ -716,6 +833,15 @@ class _ColumnCoupling:
             block_dependencies[(a, b)] = {(a, b), col_block}
             block_dependencies[pipe_block].update({col_block, (a, b)})
             block_dependencies[col_block].update({pipe_block, (a, b)})
+        body_blocks = {
+            **{name: (offsets[i], offsets[i + 1]) for i, name in enumerate(t.names)},
+            **self.blocks,
+        }
+        for link in m.heat_links:
+            if self.openings[link.name]:
+                a, b = body_blocks[link.source], body_blocks[link.target]
+                block_dependencies[a].add(b)
+                block_dependencies[b].add(a)
         rows, cols = [], []
         for (a, b), dependencies in sorted(block_dependencies.items()):
             for row in range(a, b):
@@ -723,7 +849,16 @@ class _ColumnCoupling:
                     for col in range(c, d):
                         rows.append(row)
                         cols.append(col)
-        pattern = (rows, cols) if offset > t.dense_limit else None
+        traces = getattr(base, "reservoir_traces", None)
+        compressors = getattr(base, "compressors", None)
+        base_rows, base_cols = t._sparsity(
+            offsets, base_open, () if traces is None else traces.entries,
+            () if compressors is None else compressors.entries,
+        )
+        support = sorted(set(zip(rows, cols)) | set(zip(base_rows, base_cols)))
+        pattern = (
+            ([p[0] for p in support], [p[1] for p in support]) if offset > t.dense_limit else None
+        )
         self.old_entropy = {}
         for name, s in self.state.columns:
             c = m.columns[name]
@@ -942,10 +1077,29 @@ class _ColumnCoupling:
                     )
                     details[port.name]["area_fractions"].append(weights.sum())
                     pieces.append((port, root, heights, weights, pp, xx, q))
+                incoming_entropy = -sum(cs.values())
+                temperatures = {
+                    **{name: d["t"] for name, d in zip(t.names, data)},
+                    **{name: body["temperature"] for name, body in bodies.items()},
+                }
+                thermal_rates, heat_records = thermal_exchange(
+                    m.heat_links, temperatures, self.openings
+                )
+                for name, rate in thermal_rates.items():
+                    if name in ce:
+                        ce[name] = ce[name] + rate
+                        cs[name] = cs[name] + rate / temperatures[name]
+                    else:
+                        i = t.names.index(name)
+                        net[i] = net[i] + torch.cat(
+                            (z.new_zeros(len(f.names) + 1), rate.reshape(1))
+                        )
+                        incoming_entropy = incoming_entropy + rate / temperatures[name]
                 return {
                     "net": net,
                     "valid": valid,
-                    "incoming_entropy": -sum(cs.values()),
+                    "incoming_entropy": incoming_entropy,
+                    "heat_links": heat_records,
                     "cn": cn,
                     "ce": ce,
                     "cs": cs,
@@ -1073,7 +1227,10 @@ class _ColumnCoupling:
             "walls": walls,
             "reports": reports,
             "heat_j": heat,
-            "entropy_production_j_k": entropy,
+            "entropy_production_j_k": entropy + dt * sum(
+                float(row["entropy_production_w_k"].cpu()) for row in ex["heat_links"].values()
+            ),
+            "heat_links": thermal_records(ex["heat_links"]),
             "ports": {
                 n: {
                     "flux": p["flux"].cpu().tolist(),

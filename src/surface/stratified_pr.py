@@ -584,8 +584,11 @@ class StratifiedPRColumn:
         q = self.fluid.flash_uv(
             n, u, self.geometry.volume_m3, pressure_guess_pa=p, temperature_guess_k=t
         )
+        return self._seed_from_flash(q, n.sum())
+
+    def _seed_from_flash(self, q, total):
+        """Build a profile guess from a resolved flash, without changing stocks."""
         phases = sorted(q["phases"], key=lambda v: -float(v["density_kg_m3"].cpu()))
-        total = n.sum()
         vol = torch.stack([total * v["molar_fraction"] * v["molar_volume_m3_mol"] for v in phases])
         heights = (
             torch.stack([level_tensor(v, self.geometry) for v in torch.cumsum(vol, 0)[:-1]])

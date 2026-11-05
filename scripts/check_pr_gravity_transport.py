@@ -13,10 +13,20 @@ from pathlib import Path
 import numpy as np
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
-from check_pr_equilibrium_transport import decode, disk_area, endpoint
+from check_pr_equilibrium_transport import (
+    audit_heat_links,
+    decode,
+    disk_area,
+    endpoint,
+    face_area,
+    reservoir_trace,
+)
 from check_pr_momentum_vessels import port_flux
 from check_stratified_pr_flow import close, profile
 from check_stratified_pr_network import reference_darcy
+from reference_hllc_local import wave_flux
+from reference_pr_compressors import audit_compressors
+from reference_pr_pumps import audit_pumps
 
 from surface.pr_gravity_transport import PRGravityTransportNetwork
 
@@ -60,6 +70,7 @@ def audit(config, report):
     first = old
     checked = 0
     heat_total = 0.0
+    work_total = 0.0
     maximum = 0.0
 
     def identity(state):
@@ -108,11 +119,37 @@ def audit(config, report):
         return r
 
     identity(old)
+    def entropy_stock(state, decoded, profiles):
+        value = sum(d["entropy"] for d in decoded.values()) + sum(p[-1] for p in profiles.values())
+        value += sum(
+            node["wall"]["heat_capacity_j_k"]
+            * math.log(state["transport"]["nodes"][name]["wall_temperature_k"])
+            for name, node in nodes.items() if node["wall"]
+        )
+        value += sum(
+            wall["heat_capacity_j_k"] * math.log(state["walls"][name])
+            for name, wall in model["walls"].items()
+        )
+        return value
+
+    previous_entropy = entropy_stock(
+        old,
+        {name: decode(old["transport"]["nodes"][name], node, tm, fluid) for name, node in nodes.items()},
+        {name: profile(old["columns"][name], c) for name, c in model["columns"].items()},
+    )
     for command, interval in zip(config["schedule"], report["intervals"], strict=True):
         start = old
         end = old["transport"]["time_s"] + command["duration_s"]
         interval_heat = 0.0
-        commands = {p["name"]: True for p in tm["links"] + model["ports"]}
+        interval_work = 0.0
+        commands = {
+            p["name"]: True for p in (
+                tm["links"] + tm.get("heat_links", []) + model["ports"]
+                + model.get("heat_links", [])
+            )
+        }
+        commands.update({p["card"]["name"]: p["card"]["open"] for p in tm.get("pumps", [])})
+        commands.update({unit["name"]: unit["open"] for unit in tm.get("compressors", [])})
         commands.update(command.get("openings", {}))
         if interval["openings"] != commands or not interval["steps"]:
             raise ValueError("Isolation command differs")
@@ -141,12 +178,55 @@ def audit(config, report):
             profiles = {
                 name: profile(new["columns"][name], c) for name, c in model["columns"].items()
             }
+            current_entropy = entropy_stock(new, data, profiles)
+            production = current_entropy - previous_entropy
             for link in tm["links"]:
                 a, b = link["source"], link["target"]
-                left, _wa, na, da = endpoint(nodes[a], data[a], link, "source", tm)
-                right, _wb, nb, db = endpoint(nodes[b], data[b], link, "target", tm)
+                left_data, right_data = data[a], data[b]
+                traces = step["transport"].get("reservoir_traces", {}).get(link["name"], {})
+                for side, name, other in [("source", a, b), ("target", b, a)]:
+                    eligible = (
+                        tm.get("reservoir_ports", "riemann") == "stagnation_single_phase"
+                        and commands[link["name"]]
+                        and nodes[name]["kind"] == "vessel"
+                        and nodes[name]["geometry"] is None
+                        and nodes[other]["kind"] == "pipe_cell"
+                        and not link[("target" if side == "source" else "source") + "_port"].startswith("side:")
+                        and len(data[name]["pn"]) == 1
+                        and len(data[other]["pn"]) == 1
+                    )
+                    if eligible:
+                        if side not in traces:
+                            raise ValueError("Reservoir stagnation trace missing")
+                        point = reservoir_trace(data[name], traces[side], side, tm, fluid)
+                        if side == "source":
+                            left_data = point
+                        else:
+                            right_data = point
+                    elif side in traces:
+                        raise ValueError("Unexpected reservoir trace")
+                left, _wa, na, da = endpoint(nodes[a], left_data, link, "source", tm)
+                right, _wb, nb, db = endpoint(nodes[b], right_data, link, "target", tm)
                 if commands[link["name"]]:
-                    flux, sflux, _, _ = port_flux(left, right, tm["wave_speed_bound_m_s"])
+                    if (
+                        tm.get("wave_fan", "fixed_bound")
+                        in ("local_single_phase", "pressure_single_phase")
+                        and len(data[a]["pn"]) == 1
+                        and len(data[b]["pn"]) == 1
+                    ):
+                        flux, sflux, contact, _, fallback = wave_flux(
+                            left,
+                            right,
+                            left_data["sound"],
+                            right_data["sound"],
+                            tm["wave_speed_bound_m_s"],
+                            estimate="pvrs"
+                            if tm.get("wave_fan") == "pressure_single_phase"
+                            else "davis",
+                        )
+                    else:
+                        flux, sflux, contact, _ = port_flux(left, right, tm["wave_speed_bound_m_s"])
+                        fallback = False
                     ca, sa = correction(da, True)
                     cb, sb = correction(db, False)
                     flux += ca + cb
@@ -154,6 +234,19 @@ def audit(config, report):
                 else:
                     flux = np.zeros(nc + 2)
                     sflux = 0.0
+                    contact = 0.0
+                    fallback = False
+                for side, trace in traces.items():
+                    close(
+                        trace["contact_outward_velocity_m_s"],
+                        contact * (1.0 if side == "source" else -1.0),
+                        atol=1e-8,
+                        rtol=2e-7,
+                    )
+                if step["transport"]["links"][link["name"]].get(
+                    "local_fan_fixed_fallback", False
+                ) != fallback:
+                    raise ValueError("Acoustic fan fallback differs")
                 area = math.pi * link["diameter_m"] ** 2 / 4
                 close(
                     step["transport"]["links"][link["name"]]["flux"],
@@ -168,6 +261,13 @@ def audit(config, report):
                         sign * area * flux[-1],
                     ]
                     if nodes[name]["kind"] == "pipe_cell":
+                        if normal == 0.0:
+                            outward_mass = -sign * sum(
+                                rate * component.molar_mass_kg_mol
+                                for rate, component in zip(flux[:-2], fluid.components)
+                            )
+                            tangent = da["tangential_velocity"] if side == "source" else db["tangential_velocity"]
+                            update[-2] -= area * max(0.0, outward_mass) * tangent
                         occupied.add((name, link[side + "_port"]))
                         if not commands[link["name"]]:
                             d = data[name]
@@ -183,7 +283,12 @@ def audit(config, report):
                             )
                     net[name] += update
             order = step["quadrature_order"]
-            gn, gw = np.polynomial.legendre.leggauss(order)
+            if order == 0:
+                if model["columns"] or model["ports"] or model.get("heat_links"):
+                    raise ValueError("Missing quadrature for a gravitational or thermal coupling")
+                gn, gw = np.empty(0), np.empty(0)
+            else:
+                gn, gw = np.polynomial.legendre.leggauss(order)
             for port in model["ports"]:
                 name = port["column"]
                 node = port["node"]
@@ -261,6 +366,27 @@ def audit(config, report):
                 if commands[port["name"]]:
                     coln[name] -= total[:-2]
                     cole[name] -= total[-1] + np.dot(total[:-2], mw) * gravity * datum
+            temperatures = {
+                **{name: d["t"] for name, d in data.items()},
+                **{name: state["temperature_k"] for name, state in new["columns"].items()},
+            }
+            for links, saved in [
+                (tm.get("heat_links", []), step["transport"].get("heat_links", {})),
+                (model.get("heat_links", []), step["columns"].get("heat_links", {})),
+            ]:
+                for name, rate in audit_heat_links(links, temperatures, commands, saved).items():
+                    if name in net:
+                        net[name][-1] += rate
+                    else:
+                        cole[name] += rate
+            pump_forces, pump_powers = audit_pumps(tm, data, commands, step["transport"].get("pumps", {}))
+            for name, power in pump_powers.items():
+                net[name][-1] += power
+            compressor_net, compressor_power = audit_compressors(tm, data, commands, step["transport"].get("compressors", {}), fluid)
+            for name, rate in compressor_net.items():
+                net[name] += rate
+            work = dt * (sum(pump_powers.values()) + compressor_power)
+            close(step["transport"].get("external_work_j", 0.0), work, atol=1e-10, rtol=2e-7)
             heat = 0.0
             for name, node in nodes.items():
                 d = data[name]
@@ -273,7 +399,7 @@ def audit(config, report):
                         if (name, end_port) not in occupied:
                             net[name][-2] -= (
                                 normal
-                                * area
+                                * face_area(node, end_port)
                                 * (
                                     d["p"]
                                     + d["stress"]
@@ -282,6 +408,7 @@ def audit(config, report):
                                 )
                             )
                     force = -d["mass"] * gravity * node["elevation_change_m"] / node["length_m"]
+                    force += d["p"] * (face_area(node, "right") - face_area(node, "left"))
                     if node["dynamic_viscosity_pa_s"]:
                         force -= node["volume_m3"] * reference_darcy(
                             d["u"],
@@ -292,6 +419,7 @@ def audit(config, report):
                             node["roughness_m"],
                         )
                     force -= 0.5 * area * losses[name] * d["rho"] * d["u"] * abs(d["u"])
+                    force += pump_forces.get(name, 0.0)
                 qh = qa = 0.0
                 if node["wall"]:
                     w = node["wall"]
@@ -305,6 +433,11 @@ def audit(config, report):
                         rtol=2e-7,
                     )
                 external = command.get("heat_w", {}).get(name, 0.0)
+                if node["wall"]:
+                    production -= dt * qa / node["wall"]["ambient_temperature_k"]
+                production -= dt * external / command.get("utility_temperature_k", {}).get(
+                    name, a["temperature_k"]
+                )
                 heat += dt * (qa + external)
                 re = (
                     b["total_energy_j"] - a["total_energy_j"] - dt * (net[name][-1] + qh + external)
@@ -335,35 +468,56 @@ def audit(config, report):
                         rtol=2e-7,
                     )
                 external = command.get("heat_w", {}).get(name, 0.0)
+                if name in model["walls"]:
+                    production -= dt * qa / model["walls"][name]["ambient_temperature_k"]
+                production -= dt * external / command.get("utility_temperature_k", {}).get(
+                    name, a["temperature_k"]
+                )
                 heat += dt * (qa + external)
                 component_balance(a["component_moles"], b["component_moles"], dt * coln[name])
                 re = b["total_energy_j"] - a["total_energy_j"] - dt * (cole[name] + qh + external)
                 close(re, 0.0, atol=1e-5, rtol=0.0)
                 maximum = max(maximum, abs(re))
             close(step["total_heat_j"], heat, atol=1e-6, rtol=2e-7)
-            close(step["conservation_residuals"], ledger(old, new, heat), atol=1e-6, rtol=2e-7)
+            close(step.get("total_work_j", 0.0), work, atol=1e-10, rtol=2e-7)
+            if production < -1e-6 - 1e-9 * max(1.0, abs(previous_entropy)):
+                raise ValueError("Independent coupled entropy rejected")
+            close(step["entropy_production_j_k"], production, atol=2e-6, rtol=2e-6)
+            close(step["conservation_residuals"], ledger(old, new, heat + work), atol=1e-6, rtol=2e-7)
             interval_heat += heat
+            interval_work += work
             checked += 1
             old = new
+            previous_entropy = current_entropy
         close(old["transport"]["time_s"], end, atol=1e-13, rtol=0.0)
         if interval["state"] != old:
             # Adaptive driver updates the next step only, without changing stocks.
             x = json.loads(json.dumps(interval["state"]))
             y = json.loads(json.dumps(old))
             x["transport"]["next_step_s"] = y["transport"]["next_step_s"]
+            # A parent controller canonicalizes the final reporting clock.
+            # Permit only floating-point rounding of time; stocks, pressures,
+            # temperatures and every other physical field still compare exactly.
+            clock_scale = max(abs(end), abs(dt), 1e-300)
+            close(x["transport"]["time_s"], y["transport"]["time_s"],
+                  atol=16 * np.finfo(float).eps * clock_scale, rtol=0.0)
+            x["transport"]["time_s"] = y["transport"]["time_s"]
             if x != y:
                 raise ValueError("Final interval checkpoint differs")
             old = interval["state"]
         close(interval["total_heat_j"], interval_heat, atol=1e-6, rtol=2e-7)
+        close(interval.get("total_work_j", 0.0), interval_work, atol=1e-10, rtol=2e-7)
         close(
             interval["conservation_residuals"],
-            ledger(start, old, interval_heat),
+            ledger(start, old, interval_heat + interval_work),
             atol=1e-6,
             rtol=2e-7,
         )
         heat_total += interval_heat
-    close(report["conservation_residuals"], ledger(first, old, heat_total), atol=1e-6, rtol=2e-7)
+        work_total += interval_work
+    close(report["conservation_residuals"], ledger(first, old, heat_total + work_total), atol=1e-6, rtol=2e-7)
     close(report["total_heat_j"], heat_total, atol=1e-6, rtol=2e-7)
+    close(report.get("total_work_j", 0.0), work_total, atol=1e-10, rtol=2e-7)
     return {
         "accepted": True,
         "checked_substeps": checked,

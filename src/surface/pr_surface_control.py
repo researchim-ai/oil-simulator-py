@@ -9,11 +9,13 @@ from __future__ import annotations
 
 import math
 from dataclasses import asdict, dataclass
+from types import SimpleNamespace
 
 from .actuator import ConnectionActuator
 from .liquid import ConservationError, HydraulicConvergenceError, PropertyModelError, _name, _number
 from .operation import _digest
 from .pr_gravity_transport import PRGravityTransportNetwork, PRGravityTransportState
+from .time_interval import interval_step_s
 
 
 @dataclass(frozen=True)
@@ -26,10 +28,13 @@ class PRControlValve:
     rangeability: float = 50.0
     maximum_pressure_drop_fraction: float = 0.05
     maximum_mach_number: float = 0.3
+    resistance_node: str | None = None
 
     def __post_init__(self):
         _name(self.name)
         _name(self.port)
+        if self.resistance_node is not None:
+            _name(self.resistance_node)
         _number(self.full_open_loss_coefficient, "valve full-open K", positive=True)
         if not isinstance(self.actuator, ConnectionActuator):
             raise TypeError("Expected ConnectionActuator")
@@ -71,6 +76,7 @@ class PRSurfacePI:
     action: int = 1
     tracking_time_s: float = 1.0
     maximum_integral_abs: float = 10.0
+    sensor: str | None = None
 
     def __post_init__(self):
         _name(self.valve)
@@ -81,15 +87,17 @@ class PRSurfacePI:
         _number(self.maximum_integral_abs, "PI integral limit", positive=True)
         ConnectionActuator.position(self.opening_bias)
         if (
-            self.measurement not in ("pressure", "level")
+            self.measurement not in ("pressure", "level", "inventory_level")
             or type(self.action) is not int
             or self.action not in (-1, 1)
         ):
             raise ValueError("Explicit pressure/level measurement and action +/-1 required")
-        if (self.measurement == "level") != (self.component is not None):
+        if (self.measurement != "pressure") != (self.component is not None):
             raise ValueError("Level measurement requires exactly one component")
         if self.component is not None:
             _name(self.component)
+        if self.sensor is not None:
+            _name(self.sensor)
         if not 0 < self.minimum_mole_fraction <= 1:
             raise ValueError("Invalid layer identification threshold")
 
@@ -180,10 +188,36 @@ class PRControlledSurface:
         ):
             raise ValueError("Unique named control valves required")
         ports = {p.name: p for p in plant.ports}
+        by_name = {n.name: n for n in plant.transport.nodes}
+        links = {c.name: c for c in plant.transport.links}
+        for valve in self.valves:
+            if valve.port in ports:
+                if valve.resistance_node not in (None, ports[valve.port].node):
+                    raise ValueError("Column valve resistance must occupy its physical port body")
+                continue
+            if valve.port not in links:
+                raise ValueError("Unknown controlled material connection")
+            link = links[valve.port]
+            candidates = [
+                name for side, name in (("source", link.source), ("target", link.target))
+                if by_name[name].kind == "pipe_cell"
+                and getattr(link, side + "_port") in ("left", "right")
+                and by_name[name].drift_flux is None
+                and not by_name[name].distribution_strength
+                and not by_name[name].buoyancy_relaxation_s
+            ]
+            body = valve.resistance_node
+            if body is None and len(candidates) == 1:
+                body = candidates[0]
+            if body not in candidates:
+                raise ValueError("Material valve needs an unambiguous HEM resistance_node on its link")
+            sensor_node = link.target if body == link.source else link.source
+            ports[valve.port] = SimpleNamespace(name=valve.port, node=body, column=None,
+                                                sensor_node=sensor_node)
         if len({v.port for v in self.valves}) != len(self.valves) or any(
             v.port not in ports for v in self.valves
         ):
-            raise ValueError("Each valve requires its own gravitational port")
+            raise ValueError("Each valve requires its own material port")
         self._ports = ports
         self._valves = {v.name: v for v in self.valves}
         if any(not isinstance(c, PRSurfacePI) for c in self.controllers) or len(
@@ -203,7 +237,21 @@ class PRControlledSurface:
         for c in self.controllers:
             if c.valve not in self._valves:
                 raise ValueError("Unknown controlled valve")
-            column = plant.columns[ports[self._valves[c.valve].port].column]
+            port = ports[self._valves[c.valve].port]
+            if port.column is None:
+                if c.component is not None and c.component not in plant.transport.fluid.names:
+                    raise ValueError("Unknown inventory-level component")
+                if c.measurement == "level":
+                    raise ValueError("Resolved vessels use inventory_level, not an equilibrium-column interface")
+                if c.measurement == "pressure":
+                    if (c.sensor or port.sensor_node) not in by_name:
+                        raise ValueError("Unknown pressure sensor node")
+                else:
+                    self._inventory_path(c)
+                continue
+            if c.sensor is not None or c.measurement == "inventory_level":
+                raise ValueError("Column controllers use their own pressure or interface-level sensor")
+            column = plant.columns[port.column]
             if c.component is not None and c.component not in column.fluid.names:
                 raise ValueError("Unknown controlled level component")
             if c.measurement == "level" and c.setpoint > column.geometry.height_m:
@@ -227,8 +275,8 @@ class PRControlledSurface:
         return {
             "model": "pr_controlled_surface_v1",
             "plant": self.plant.to_dict(),
-            "valves": [asdict(v) for v in self.valves],
-            "controllers": [asdict(c) for c in self.controllers],
+            "valves": [{k: x for k, x in asdict(v).items() if k != "resistance_node" or x is not None} for v in self.valves],
+            "controllers": [{k: x for k, x in asdict(c).items() if k != "sensor" or x is not None} for c in self.controllers],
             **{
                 k: getattr(self, k)
                 for k in (
@@ -288,8 +336,36 @@ class PRControlledSurface:
         if not self.minimum_step_s <= state.next_step_s <= self.maximum_step_s:
             raise ValueError("Controller restart step outside domain")
 
+    def _inventory_path(self, controller):
+        t = self.plant.transport
+        if controller.sensor not in t.pipe_paths:
+            raise ValueError("inventory_level needs an explicit vertical grouped sensor path")
+        path = [t.nodes[t.names.index(name)] for name in t.pipe_paths[controller.sensor]]
+        if any(abs(n.elevation_change_m - n.length_m) > 1e-12
+               or abs(n.diameter_m - path[0].diameter_m) > 1e-12 for n in path):
+            raise ValueError("Inventory-level sensor requires a constant-area vertical vessel")
+        if any(abs(a.elevation_m + a.length_m/2 - b.elevation_m + b.length_m/2) > 1e-8
+               for a, b in zip(path, path[1:])):
+            raise ValueError("Inventory-level sensor cells must be contiguous bottom-to-top")
+        if controller.setpoint > sum(n.length_m for n in path):
+            raise ValueError("Inventory-level setpoint above resolved vessel")
+        return path
+
     def measure(self, state, controller):
         port = self._ports[self._valves[controller.valve].port]
+        if port.column is None:
+            t = self.plant.transport
+            cells = dict(state.plant.transport.nodes)
+            if controller.measurement == "pressure":
+                return cells[controller.sensor or port.sensor_node].pressure_pa
+            index = t.fluid.names.index(controller.component)
+            volume = 0.0
+            path = self._inventory_path(controller)
+            for node in path:
+                d = t._state_data(t.names.index(node.name), cells[node.name])
+                selected = d["x"][:, index] >= controller.minimum_mole_fraction
+                volume = volume + (d["phase_n"] * d["q"]["molar_volume_m3_mol"] * selected).sum()
+            return float((volume / (math.pi * path[0].diameter_m**2 / 4)).cpu())
         column = self.plant.columns[port.column]
         s = dict(state.plant.columns)[port.column]
         if controller.measurement == "pressure":
@@ -336,7 +412,11 @@ class PRControlledSurface:
             raise ValueError("Every valve requires feedback or an explicit manual target")
         openings = dict(commands.get("openings") or {})
         losses = dict(commands.get("loss_coefficients") or {})
-        known_links = {p.name for p in (*self.plant.transport.links, *self.plant.ports)}
+        known_links = {
+            p.name for p in (
+                *self.plant.transport.switches, *self.plant.ports, *self.plant.heat_links
+            )
+        }
         if set(openings) - known_links:
             raise ValueError("Unknown hydraulic isolation command")
         physical = {
@@ -383,10 +463,13 @@ class PRControlledSurface:
                 cell = dict(snapshot.transport.nodes)[port.node]
                 d = self.plant.transport._state_data(i, cell)
                 drop = 0.5 * float((d["rho"] * d["u"].square()).cpu()) * k
-                cs = dict(snapshot.columns)[port.column]
-                p = self.plant.columns[port.column].sample(cs, port.height_m, side="below")[
-                    "pressure_pa"
-                ]
+                if port.column is None:
+                    p = dict(snapshot.transport.nodes)[port.sensor_node].pressure_pa
+                else:
+                    cs = dict(snapshot.columns)[port.column]
+                    p = self.plant.columns[port.column].sample(cs, port.height_m, side="below")[
+                        "pressure_pa"
+                    ]
                 fraction = drop / min(p, cell.pressure_pa)
                 envelope[v.name]["maximum_pressure_drop_fraction"] = max(
                     envelope[v.name]["maximum_pressure_drop_fraction"], fraction
@@ -419,6 +502,7 @@ class PRControlledSurface:
             "effective_valve_K": coefficients,
             "valve_envelope": envelope,
             "total_heat_j": plant_report["total_heat_j"],
+            "total_work_j": plant_report["total_work_j"],
         }
 
     def _error(self, a, b):
@@ -459,7 +543,7 @@ class PRControlledSurface:
             attempts += 1
             if attempts > self.maximum_attempts:
                 raise HydraulicConvergenceError("Controlled interval budget exhausted")
-            dt = min(dt, end - current.time_s)
+            dt = interval_step_s(current.time_s, end, dt)
             if current.time_s + dt / 2 <= current.time_s:
                 raise ValueError("Controlled substep below time resolution")
             try:
@@ -491,10 +575,12 @@ class PRControlledSurface:
             steps.extend((one, two))
             dt = nextdt
         heat = math.fsum(s["total_heat_j"] for s in steps)
+        work = math.fsum(s["total_work_j"] for s in steps)
         return {
             "state": current.to_dict(),
             "steps": steps,
             "attempts": attempts,
             "total_heat_j": heat,
-            "conservation_residuals": self.plant._ledger(state.plant, current.plant, heat),
+            "total_work_j": work,
+            "conservation_residuals": self.plant._ledger(state.plant, current.plant, heat + work),
         }

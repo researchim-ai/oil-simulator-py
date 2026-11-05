@@ -1,0 +1,232 @@
+{
+  "model": {
+    "model": "pr_equilibrium_transport_graph_v1",
+    "fluid": {
+      "components": [
+        {
+          "name": "Methane",
+          "critical_temperature_k": 190.564,
+          "critical_pressure_pa": 4599200.0,
+          "acentric_factor": 0.01142,
+          "molar_mass_kg_mol": 0.0160428,
+          "ideal_cp_j_mol_k": 35.7,
+          "min_temperature_k": 160.0,
+          "max_temperature_k": 500.0,
+          "reference_temperature_k": 298.15,
+          "reference_pressure_pa": 100000.0
+        },
+        {
+          "name": "Ethane",
+          "critical_temperature_k": 305.322,
+          "critical_pressure_pa": 4872200.0,
+          "acentric_factor": 0.099,
+          "molar_mass_kg_mol": 0.03006904,
+          "ideal_cp_j_mol_k": 52.5,
+          "min_temperature_k": 160.0,
+          "max_temperature_k": 500.0,
+          "reference_temperature_k": 298.15,
+          "reference_pressure_pa": 100000.0
+        }
+      ],
+      "binary_interactions": [
+        [
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0
+        ]
+      ],
+      "min_pressure_pa": 100.0,
+      "max_pressure_pa": 1000000000.0,
+      "max_phases": 3
+    },
+    "nodes": [
+      {
+        "name": "product",
+        "volume_m3": 1e-05,
+        "kind": "vessel",
+        "elevation_m": 0.03,
+        "length_m": null,
+        "diameter_m": null,
+        "elevation_change_m": 0.0,
+        "dynamic_viscosity_pa_s": 0.0,
+        "roughness_m": 0.0,
+        "distribution_strength": 0.0,
+        "buoyancy_relaxation_s": 0.0,
+        "local_loss_coefficient": 0.0,
+        "drift_flux": null,
+        "wall": null,
+        "geometry": null,
+        "left_diameter_m": null,
+        "right_diameter_m": null
+      },
+      {
+        "name": "separator__0000",
+        "volume_m3": 1.5707963267948967e-06,
+        "kind": "pipe_cell",
+        "elevation_m": 0.01,
+        "length_m": 0.02,
+        "diameter_m": 0.01,
+        "elevation_change_m": 0.02,
+        "dynamic_viscosity_pa_s": 0.0,
+        "roughness_m": 0.0,
+        "distribution_strength": 0.0,
+        "buoyancy_relaxation_s": 1e-06,
+        "local_loss_coefficient": 0.0,
+        "drift_flux": null,
+        "wall": null,
+        "geometry": null,
+        "left_diameter_m": null,
+        "right_diameter_m": null
+      },
+      {
+        "name": "separator__0001",
+        "volume_m3": 1.5707963267948967e-06,
+        "kind": "pipe_cell",
+        "elevation_m": 0.03,
+        "length_m": 0.02,
+        "diameter_m": 0.01,
+        "elevation_change_m": 0.02,
+        "dynamic_viscosity_pa_s": 0.0,
+        "roughness_m": 0.0,
+        "distribution_strength": 0.0,
+        "buoyancy_relaxation_s": 1e-06,
+        "local_loss_coefficient": 0.0,
+        "drift_flux": null,
+        "wall": null,
+        "geometry": null,
+        "left_diameter_m": null,
+        "right_diameter_m": null
+      },
+      {
+        "name": "valve_body",
+        "volume_m3": 7.853981633974483e-09,
+        "kind": "pipe_cell",
+        "elevation_m": 0.03,
+        "length_m": 0.01,
+        "diameter_m": 0.001,
+        "elevation_change_m": 0.0,
+        "dynamic_viscosity_pa_s": 0.0,
+        "roughness_m": 0.0,
+        "distribution_strength": 0.0,
+        "buoyancy_relaxation_s": 0.0,
+        "local_loss_coefficient": 0.0,
+        "drift_flux": null,
+        "wall": null,
+        "geometry": null,
+        "left_diameter_m": null,
+        "right_diameter_m": null
+      }
+    ],
+    "links": [
+      {
+        "name": "draw",
+        "source": "separator__0001",
+        "target": "valve_body",
+        "diameter_m": 0.001,
+        "source_port": "side:draw",
+        "target_port": "left",
+        "source_height_m": null,
+        "target_height_m": null
+      },
+      {
+        "name": "outlet",
+        "source": "valve_body",
+        "target": "product",
+        "diameter_m": 0.001,
+        "source_port": "right",
+        "target_port": "left",
+        "source_height_m": null,
+        "target_height_m": null
+      },
+      {
+        "name": "separator__face_0001",
+        "source": "separator__0000",
+        "target": "separator__0001",
+        "diameter_m": 0.01,
+        "source_port": "right",
+        "target_port": "left",
+        "source_height_m": null,
+        "target_height_m": null
+      }
+    ],
+    "heat_links": [],
+    "pipe_paths": {
+      "separator": [
+        "separator__0000",
+        "separator__0001"
+      ]
+    },
+    "reservoir_ports": "riemann",
+    "wave_fan": "fixed_bound",
+    "dense_limit": 1,
+    "maximum_unknowns": 100000,
+    "gravity_m_s2": 9.80665,
+    "reference_elevation_m": 0.0,
+    "wave_speed_bound_m_s": 2000.0,
+    "maximum_velocity_m_s": 100.0,
+    "initial_step_s": 1e-06,
+    "minimum_step_s": 1e-10,
+    "maximum_step_s": 0.0001,
+    "relative_tolerance": 0.0001,
+    "temperature_tolerance_k": 0.002,
+    "velocity_tolerance_m_s": 0.001,
+    "maximum_attempts": 1000,
+    "maximum_branch_attempts": 32
+  },
+  "initial": {
+    "nodes": {
+      "product": {
+        "pressure_pa": 999000.0,
+        "temperature_k": 196.2,
+        "mole_fractions": [
+          0.5,
+          0.5
+        ]
+      },
+      "separator__0000": {
+        "pressure_pa": 1000000.0,
+        "temperature_k": 196.2,
+        "mole_fractions": [
+          0.5,
+          0.5
+        ]
+      },
+      "separator__0001": {
+        "pressure_pa": 1000000.0,
+        "temperature_k": 196.2,
+        "mole_fractions": [
+          0.5,
+          0.5
+        ]
+      },
+      "valve_body": {
+        "pressure_pa": 999000.0,
+        "temperature_k": 196.2,
+        "mole_fractions": [
+          0.5,
+          0.5
+        ]
+      }
+    }
+  },
+  "schedule": [
+    {
+      "duration_s": 1e-07
+    },
+    {
+      "duration_s": 1e-07,
+      "openings": {
+        "draw": false
+      }
+    },
+    {
+      "duration_s": 1e-07,
+      "openings": {
+        "draw": true
+      }
+    }
+  ]
+}
