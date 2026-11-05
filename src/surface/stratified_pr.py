@@ -203,10 +203,10 @@ class StratifiedPRColumn:
         q = torch.vmap(lambda pp, xx: self.fluid.tensor_homogeneous(pp, temperature, xx, tag))(p, x)
         return p, x, q
 
-    def _problem(self, n, energy, seed, order):
+    def _problem(self, n, energy, seed, order, *, _network_active=None, _network_guess=None):
         f = self.fluid
         g = self.geometry
-        active = torch.nonzero(n > 0).flatten()
+        active = torch.nonzero(n > 0).flatten() if _network_active is None else _network_active
         c = len(active)
         phase_x, roots, interfaces, pguess, tguess, constants = seed
         m = len(roots)
@@ -266,7 +266,8 @@ class StratifiedPRColumn:
             energy - float((n * f.molar_masses).sum().cpu()) * self.gravity_m_s2 * self.elevation_m
         )
         escale = max(1.0, abs(e_relative), float(n.sum().cpu()) * R * tguess)
-        nscale = n[active].clamp_min(n.sum() * 1e-12)
+        scale_n = n if _network_guess is None else _network_guess
+        nscale = scale_n[active].clamp_min(scale_n.sum() * 1e-12)
 
         def evaluate(y):
             local = y[: count * c].reshape(count, c)

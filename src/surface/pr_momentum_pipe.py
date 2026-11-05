@@ -174,6 +174,10 @@ class PRMomentumPipe:
     @classmethod
     def from_dict(cls, data, *, device="cpu"):
         data = dict(data)
+        if data.get("model") == "inclined_single_phase_pr_momentum_v1":
+            from .pr_inclined_pipe import PRInclinedMomentumPipe
+
+            return PRInclinedMomentumPipe.from_dict(data, device=device)
         if data.pop("model", None) != "single_phase_pr_momentum_v1":
             raise ValueError("Unknown momentum pipe model")
         data["fluid"] = EquilibriumFluid.from_dict(data["fluid"], device=device)
@@ -487,7 +491,7 @@ class PRMomentumPipe:
             gl + gr
         ) / 2 - self.wave_speed_bound_m_s * (sr - sl) / 2
 
-    def _problem(self, state, dt, prepared):
+    def _problem(self, state, dt, prepared, *, face_operator=None):
         f = self.fluid
         old = self._conserved(state)
         active = self._support(state.component_moles)
@@ -495,9 +499,13 @@ class PRMomentumPipe:
         initial = f.tensor(state.solution_variables)
         lo, hi = self._bounds(len(active))
 
-        def evaluate(y):
+        def evaluate(y, context=None):
             data = self._decode(y, active)
-            flux, sflux = self._faces(data, prepared)
+            details = None
+            if face_operator is None:
+                flux, sflux = self._faces(data, prepared)
+            else:
+                flux, sflux, details = face_operator(data, prepared, context)
             drag = torch.zeros_like(data["v"])
             if self.dynamic_viscosity_pa_s:
                 drag = darcy_pressure_loss(
@@ -527,9 +535,16 @@ class PRMomentumPipe:
                 "flux": flux,
                 "entropy_flux": sflux,
                 "drag": drag,
+                "face_details": details,
             }
 
         return initial, lo, hi, evaluate
+
+    def _external_impulse(self, result, dt):
+        return result["target"].new_zeros(())
+
+    def _port_data(self, data, side):
+        return data, 0 if side == 0 else -1
 
     def _check_ledger(self, residual, stock):
         absolute = residual.new_tensor([1e-9] * len(self.fluid.names) + [1e-9, 1e-6])
@@ -584,9 +599,10 @@ class PRMomentumPipe:
             raise ConservationError("Pipe numerical entropy balance rejected")
         boundary = dt * self.area * (result["flux"][0] - result["flux"][-1])
         friction = -dt * self.volume * result["drag"].sum()
+        external = self._external_impulse(result, dt)
         delta = (target - self._conserved(state)).sum(0) - boundary
         delta = delta - torch.cat(
-            (torch.zeros_like(delta[:-2]), friction.reshape(1), delta.new_zeros(1))
+            (torch.zeros_like(delta[:-2]), (friction + external).reshape(1), delta.new_zeros(1))
         )
         self._check_ledger(delta, self._conserved(state))
         self._remember(new)
@@ -596,6 +612,7 @@ class PRMomentumPipe:
             "left_flux": (self.area * result["flux"][0]).cpu().tolist(),
             "right_flux": (self.area * result["flux"][-1]).cpu().tolist(),
             "friction_impulse_kg_m_s": float(friction.cpu()),
+            "body_force_impulse_kg_m_s": float(external.cpu()),
             "conservation_residuals": delta.cpu().tolist(),
             "entropy_production_j_k": production,
             "max_scaled_residual": float(r.abs().max().cpu()),
@@ -679,7 +696,10 @@ class PRMomentumPipe:
             )
             dt = nextdt
         delta = (self._conserved(current) - self._conserved(state)).sum(0)
-        boundary = math.fsum(step["friction_impulse_kg_m_s"] for step in steps)
+        source_impulse = math.fsum(
+            step["friction_impulse_kg_m_s"] + step.get("body_force_impulse_kg_m_s", 0.0)
+            for step in steps
+        )
         totals = self.fluid.tensor(
             [
                 math.fsum(s["dt_s"] * (s["left_flux"][i] - s["right_flux"][i]) for s in steps)
@@ -689,7 +709,7 @@ class PRMomentumPipe:
         residual = (
             delta
             - totals
-            - torch.cat((torch.zeros_like(delta[:-2]), delta.new_tensor([boundary, 0.0])))
+            - torch.cat((torch.zeros_like(delta[:-2]), delta.new_tensor([source_impulse, 0.0])))
         )
         self._check_ledger(residual, self._conserved(state))
         self._remember(current)

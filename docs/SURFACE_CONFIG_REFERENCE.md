@@ -1005,3 +1005,64 @@ Schedule задаёт `duration_s`; для `boundary_mode="ends"` дополни
 В периодическом режиме концевые команды запрещены. Подробности,
 механические энергетические отсчёты и ограничения:
 [PR_MOMENTUM_PIPE.md](PR_MOMENTUM_PIPE.md).
+
+## Конечные сосуды и тепловая PR-труба с импульсом
+
+Конфиг `configs/surface_pr_momentum_vessels.json`, runner
+`scripts/run_pr_momentum_vessels.py`, независимый аудитор
+`scripts/check_pr_momentum_vessels.py`. Формат, уравнения и ограничения:
+[PR_MOMENTUM_VESSELS.md](PR_MOMENTUM_VESSELS.md).
+Это однофазная горизонтальная система при g=0; она не подменяет
+гравитационный `StratifiedPRNetwork`.
+
+## Гравитационные PR-профили и инерционная труба
+
+Конфиги `configs/surface_stratified_pr_momentum.json` и
+`configs/surface_stratified_pr_momentum_reversal.json`, runner
+`scripts/run_stratified_pr_momentum.py`, независимый аудитор
+`scripts/check_stratified_pr_momentum.py`. API и формат:
+[STRATIFIED_PR_MOMENTUM.md](STRATIFIED_PR_MOMENTUM.md).
+Одна устойчивая фаза, горизонтальная труба и центр-высотная
+аппроксимация патрубков; свободная межфазная граница не поддерживается.
+
+## Однофазная наклонная PR-труба
+
+Модель `inclined_single_phase_pr_momentum_v1`: обычные параметры трубы плюс
+`elevation_change_m`, `reference_elevation_m`, `gravity_m_s2`. Состояние
+содержит гидростатические реконструкции и U+K+PE. Примеры, якорная
+инициализация `hydrostatic`/`equilibrium`/`anchor_height_m`, команды запуска
+и ограничения описаны в [PR_INCLINED_PIPE.md](PR_INCLINED_PIPE.md).
+
+### Общий равновесный многофазный транспорт
+
+Модель `pr_equilibrium_transport_graph_v1` и её ограничения описаны в
+[PR_EQUILIBRIUM_TRANSPORT.md](PR_EQUILIBRIUM_TRANSPORT.md). Примеры
+`surface_pr_equilibrium_transport.json` и `surface_pr_transport_*.json`
+задают произвольный граф конечных сосудов и трубных ячеек, фазовое равновесие,
+импульс, полную энергию, стенки и бинарную изоляцию. Проскальзывание опциональное
+и экспериментальное; геометрические фазовые отборы в этой сети пока требуют
+нулевой тяжести. Гравитационную стратифицированную модель нельзя автоматически
+подменять таким сосудом.
+
+### Гравитационные колонны и инерционный транспорт в общем графе
+
+`pr_gravity_transport_graph_v1` содержит `transport`, именованные `columns`,
+список `ports` (`PRColumnPort`) и необязательные `walls` колонн.
+`maximum_transverse_head_fraction` ограничивает применимость одномерного входа.
+Пример: `configs/surface_pr_gravity_transport.json`.
+Команды расписания: `duration_s`, бинарные `openings`, `heat_w`,
+`utility_temperature_k`, `loss_coefficients`. Имена тепловых команд относятся
+как к колоннам, так и к узлам транспортного графа.
+Подробности и ограничения: [PR_GRAVITY_TRANSPORT.md](PR_GRAVITY_TRANSPORT.md).
+
+### Управление отбором в связанном PR-графе
+
+`pr_controlled_surface_v1` содержит `plant: pr_gravity_transport_graph_v1`,
+`valves: PRControlValve`, `controllers: PRSurfacePI` и параметры адаптивного
+управляющего шага. Положения приводов и интеграторы сохраняются в checkpoint.
+Команды расписания дополняются `targets` (ручные положения) и `actuator_modes`
+(`normal`, `fail_safe`, `stuck`). Гидравлические изоляция, тепло и сопротивления
+передаются в plant. Пример: `configs/surface_pr_controlled_surface.json`.
+Модель ограничена малыми перепадами и докритическим HEM-течением; это не
+универсальная модель choking/cavitation клапана.
+Подробности: [PR_SURFACE_CONTROL.md](PR_SURFACE_CONTROL.md).

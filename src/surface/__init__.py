@@ -94,6 +94,15 @@ _LAZY_MODELS = {
     "HorizontalPRPipe": "pr_linepack",
     "PRLinepackNetwork": "pr_linepack",
     "PRMomentumPipe": "pr_momentum_pipe",
+    "PRInclinedMomentumPipe": "pr_inclined_pipe",
+    "initialize_column_at_height": "pr_hydrostatic_initialization",
+    "PRThermalMomentumPipe": "pr_momentum_thermal",
+    "PRThermalMomentumState": "pr_momentum_thermal",
+    "PRMomentumVesselNetwork": "pr_momentum_vessels",
+    "PRMomentumVesselNetworkState": "pr_momentum_vessels",
+    "PRMomentumVesselState": "pr_momentum_vessels",
+    "StratifiedPRMomentumNetwork": "stratified_pr_momentum",
+    "StratifiedMomentumState": "stratified_pr_momentum",
     "PRMomentumState": "pr_momentum_pipe",
     "PRDirichletBoundary": "pr_momentum_pipe",
     "StratifiedNetworkState": "stratified_pr_network",
@@ -227,6 +236,26 @@ _LAZY_MODELS = {
     "HomogeneousFluid": "multiphase",
     "HomogeneousPipe": "multiphase",
 }
+_LAZY_MODELS.update(
+    {
+        "ZuberFindlayClosure": "drift_flux_closure",
+        "PRControlValve": "pr_surface_control",
+        "PRSurfacePI": "pr_surface_control",
+        "PRControlledSurfaceState": "pr_surface_control",
+        "PRControlledSurface": "pr_surface_control",
+        "PRColumnPort": "pr_gravity_transport",
+        "PRGravityTransportState": "pr_gravity_transport",
+        "PRGravityTransportNetwork": "pr_gravity_transport",
+        "PREquilibriumNode": "pr_equilibrium_transport",
+        "PREquilibriumLink": "pr_equilibrium_transport",
+        "PREquilibriumCellState": "pr_equilibrium_transport",
+        "PREquilibriumTransportState": "pr_equilibrium_transport",
+        "PREquilibriumTransportNetwork": "pr_equilibrium_transport",
+        "PREquilibriumPipe": "pr_transport_builder",
+        "build_equilibrium_transport": "pr_transport_builder",
+        "initialize_grouped": "pr_transport_builder",
+    }
+)
 __all__ += list(_LAZY_MODELS)
 
 

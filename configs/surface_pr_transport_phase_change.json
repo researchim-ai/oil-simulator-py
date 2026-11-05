@@ -1,0 +1,109 @@
+{
+  "model": {
+    "model": "pr_equilibrium_transport_graph_v1",
+    "fluid": {
+      "components": [
+        {
+          "name": "Methane",
+          "critical_temperature_k": 190.564,
+          "critical_pressure_pa": 4599200.0,
+          "acentric_factor": 0.01142,
+          "molar_mass_kg_mol": 0.0160428,
+          "ideal_cp_j_mol_k": 35.7,
+          "min_temperature_k": 160.0,
+          "max_temperature_k": 500.0,
+          "reference_temperature_k": 298.15,
+          "reference_pressure_pa": 100000.0
+        },
+        {
+          "name": "Ethane",
+          "critical_temperature_k": 305.322,
+          "critical_pressure_pa": 4872200.0,
+          "acentric_factor": 0.099,
+          "molar_mass_kg_mol": 0.03006904,
+          "ideal_cp_j_mol_k": 52.5,
+          "min_temperature_k": 160.0,
+          "max_temperature_k": 500.0,
+          "reference_temperature_k": 298.15,
+          "reference_pressure_pa": 100000.0
+        }
+      ],
+      "binary_interactions": [
+        [
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0
+        ]
+      ],
+      "min_pressure_pa": 100.0,
+      "max_pressure_pa": 1000000000.0,
+      "max_phases": 3
+    },
+    "nodes": [
+      {
+        "name": "cell",
+        "volume_m3": 0.04351009868334459,
+        "kind": "pipe_cell",
+        "elevation_m": 0.0,
+        "length_m": 22.159511295585467,
+        "diameter_m": 0.05,
+        "elevation_change_m": 0.0,
+        "dynamic_viscosity_pa_s": 0.0,
+        "roughness_m": 0.0,
+        "distribution_strength": 0.0,
+        "buoyancy_relaxation_s": 0.0,
+        "wall": null,
+        "geometry": null
+      }
+    ],
+    "links": [],
+    "pipe_paths": {},
+    "gravity_m_s2": 0.0,
+    "reference_elevation_m": 0.0,
+    "wave_speed_bound_m_s": 2000.0,
+    "maximum_velocity_m_s": 100.0,
+    "initial_step_s": 1.0,
+    "minimum_step_s": 1e-10,
+    "maximum_step_s": 1.0,
+    "relative_tolerance": 0.0001,
+    "temperature_tolerance_k": 0.002,
+    "velocity_tolerance_m_s": 0.001,
+    "maximum_attempts": 1000,
+    "maximum_branch_attempts": 32
+  },
+  "initial": {
+    "nodes": {
+      "cell": {
+        "pressure_pa": 387820.87843829166,
+        "temperature_k": 220.0,
+        "mole_fractions": [
+          0.0,
+          1.0
+        ]
+      }
+    }
+  },
+  "schedule": [
+    {
+      "duration_s": 1.0,
+      "heat_w": {
+        "cell": -58004.8500366477
+      },
+      "utility_temperature_k": {
+        "cell": 170.0
+      }
+    },
+    {
+      "duration_s": 1.0,
+      "heat_w": {
+        "cell": 58004.8500366477
+      },
+      "utility_temperature_k": {
+        "cell": 300.0
+      }
+    }
+  ]
+}

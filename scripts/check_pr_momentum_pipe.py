@@ -167,6 +167,8 @@ def summary(saved, data):
         "kinetic_energy_j": data["kinetic"] * data["volume"],
     }.items():
         close(saved[key], value, atol=1e-7, rtol=2e-8)
+    if "potential" in data:
+        close(saved["potential_energy_j"], data["potential"] * data["volume"], atol=1e-7, rtol=2e-8)
     close(saved["entropy_j_k"], data["s"].sum() * data["volume"], atol=1e-7)
 
 
@@ -177,6 +179,10 @@ def audit(config, report):
     parsed = PRMomentumPipe.from_dict(config["model"])
     model = parsed.to_dict()
     fluid = parsed.fluid
+    decode_fn, faces_fn = decode, faces
+    if model["model"] == "inclined_single_phase_pr_momentum_v1":
+        from check_pr_inclined_pipe import decode as decode_fn
+        from check_pr_inclined_pipe import faces as faces_fn
     nc = len(fluid.names)
     if model != report["model"]:
         raise ValueError("Momentum normalized model differs")
@@ -184,7 +190,7 @@ def audit(config, report):
     time = old["time_s"]
     maximum_error = np.zeros(nc + 2)
     checked = 0
-    data_old = decode(old, model, fluid)
+    data_old = decode_fn(old, model, fluid)
     if old["model_id"] != parsed.model_id:
         raise ValueError("Initial model identity differs")
     area = math.pi * model["diameter_m"] ** 2 / 4
@@ -214,8 +220,8 @@ def audit(config, report):
             dt = step["dt_s"]
             if not math.isfinite(dt) or dt <= 0 or state["model_id"] != parsed.model_id:
                 raise ValueError("Substep/model identity differs")
-            data = decode(state, model, fluid)
-            flux, sflux = faces(data, model, bounds, fluid)
+            data = decode_fn(state, model, fluid)
+            flux, sflux = faces_fn(data, model, bounds, fluid)
             drag = np.zeros(model["cells"])
             if model["dynamic_viscosity_pa_s"]:
                 drag = np.array(
@@ -232,7 +238,8 @@ def audit(config, report):
                     ]
                 )
             source = np.zeros_like(data["u"])
-            source[:, -2] = -drag
+            gravity = data.get("gravity_force_n", np.zeros(model["cells"]))
+            source[:, -2] = -drag + gravity / volume
             expected = dt * area * (flux[:-1] - flux[1:]) + dt * volume * source
             residual = stock(state, nc) - stock(old, nc) - expected
             allowed = np.r_[[1e-9] * nc, 1e-9, 1e-6] + 2e-6 * np.abs(expected)
@@ -255,7 +262,9 @@ def audit(config, report):
             time += dt
             close(state["time_s"], time, atol=1e-12, rtol=1e-12)
             boundary_total += dt * area * (flux[0] - flux[-1])
-            friction_total += impulse
+            gravitational_impulse = dt * gravity.sum()
+            close(step.get("body_force_impulse_kg_m_s", 0.0), gravitational_impulse, atol=1e-10)
+            friction_total += impulse + gravitational_impulse
             entropy_total += production
             old = state
             data_old = data

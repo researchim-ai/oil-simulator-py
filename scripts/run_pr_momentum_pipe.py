@@ -31,7 +31,14 @@ def main():
     ):
         raise ValueError("Momentum config requires model, initial and nonempty schedule")
     model = PRMomentumPipe.from_dict(config["model"], device=args.device)
-    state = model.initialize(**config["initial"])
+    initial_values = dict(config["initial"])
+    hydrostatic = initial_values.pop("hydrostatic", False)
+    if type(hydrostatic) is not bool:
+        raise ValueError("hydrostatic must be boolean")
+    if hydrostatic and not hasattr(model, "initialize_equilibrium"):
+        raise ValueError("Hydrostatic initialization requires an inclined pipe model")
+    initializer = model.initialize_equilibrium if hydrostatic else model.initialize
+    state = initializer(**initial_values)
     initial = state.to_dict()
     intervals = []
 

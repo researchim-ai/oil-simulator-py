@@ -1,0 +1,91 @@
+"""Source-bound gravitational columns / multiphase inertial transport graph."""
+
+import argparse
+import hashlib
+import json
+import os
+import sys
+import tempfile
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
+
+
+def run(config, *, device="cpu"):
+    from surface.pr_gravity_transport import PRGravityTransportNetwork, PRGravityTransportState
+    from surface.stratified_pr import StratifiedPRState
+    from surface.torch_backend import runtime_fingerprint
+
+    if (
+        set(config) != {"model", "initial", "schedule"}
+        or not isinstance(config["schedule"], list)
+        or not config["schedule"]
+    ):
+        raise ValueError("Expected model, initial and nonempty schedule")
+    model = PRGravityTransportNetwork.from_dict(config["model"], device=device)
+    initial = config["initial"]
+    if set(initial) != {"transport", "columns", "wall_temperatures"}:
+        raise ValueError("Expected transport, columns and wall_temperatures")
+    ts = model.transport.initialize(initial["transport"])
+    columns = {
+        n: StratifiedPRState.from_dict(model.columns[n].initialize(**v)["state"])
+        for n, v in initial["columns"].items()
+    }
+    state = model.initialize(ts, columns, initial["wall_temperatures"])
+    first = state
+    intervals = []
+    for command in config["schedule"]:
+        if (
+            set(command)
+            - {"duration_s", "openings", "heat_w", "utility_temperature_k", "loss_coefficients"}
+            or "duration_s" not in command
+        ):
+            raise ValueError("Unknown/missing equilibrium transport command")
+        report = model.advance(state, **command)
+        state = PRGravityTransportState.from_dict(report["state"])
+        intervals.append(report)
+    heat = sum(r["total_heat_j"] for r in intervals)
+    return {
+        "config": config,
+        "model": model.to_dict(),
+        "initial": first.to_dict(),
+        "intervals": intervals,
+        "conservation_residuals": model._ledger(first, state, heat),
+        "total_heat_j": heat,
+        "runtime": runtime_fingerprint(),
+    }
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("config", type=Path)
+    parser.add_argument("--device", choices=["cpu", "cuda"], default="cpu")
+    parser.add_argument("--output", type=Path, required=True)
+    args = parser.parse_args()
+    root = Path(__file__).resolve().parents[1]
+    paths = [Path(__file__), *sorted((root / "src/surface").glob("*.py"))]
+    hashes = {str(p.relative_to(root)): hashlib.sha256(p.read_bytes()).hexdigest() for p in paths}
+    result = run(json.loads(args.config.read_text()), device=args.device)
+    if any(
+        hashlib.sha256(p.read_bytes()).hexdigest() != hashes[str(p.relative_to(root))]
+        for p in paths
+    ):
+        raise RuntimeError("Transport sources changed during run")
+    result["source_sha256"] = hashes
+    args.output.parent.mkdir(parents=True, exist_ok=True)
+    temp = None
+    try:
+        with tempfile.NamedTemporaryFile(mode="w", dir=args.output.parent, delete=False) as handle:
+            temp = handle.name
+            json.dump(result, handle, indent=2, allow_nan=False)
+            handle.write("\n")
+        os.replace(temp, args.output)
+        temp = None
+    finally:
+        if temp:
+            os.unlink(temp)
+    print(args.output)
+
+
+if __name__ == "__main__":
+    main()
