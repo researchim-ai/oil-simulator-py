@@ -19,6 +19,7 @@ from check_pr_equilibrium_transport import (
     disk_area,
     endpoint,
     face_area,
+    reference_sound,
     reservoir_trace,
 )
 from check_pr_momentum_vessels import port_flux
@@ -26,6 +27,8 @@ from check_stratified_pr_flow import close, profile
 from check_stratified_pr_network import reference_darcy
 from reference_hllc_local import wave_flux
 from reference_pr_compressors import audit_compressors
+from reference_pr_hydrostatic import attach_faces, gravity_force
+from reference_pr_population import audit_population_balances, number_flux
 from reference_pr_pumps import audit_pumps
 
 from surface.pr_gravity_transport import PRGravityTransportNetwork
@@ -119,12 +122,14 @@ def audit(config, report):
         return r
 
     identity(old)
+
     def entropy_stock(state, decoded, profiles):
         value = sum(d["entropy"] for d in decoded.values()) + sum(p[-1] for p in profiles.values())
         value += sum(
             node["wall"]["heat_capacity_j_k"]
             * math.log(state["transport"]["nodes"][name]["wall_temperature_k"])
-            for name, node in nodes.items() if node["wall"]
+            for name, node in nodes.items()
+            if node["wall"]
         )
         value += sum(
             wall["heat_capacity_j_k"] * math.log(state["walls"][name])
@@ -134,7 +139,10 @@ def audit(config, report):
 
     previous_entropy = entropy_stock(
         old,
-        {name: decode(old["transport"]["nodes"][name], node, tm, fluid) for name, node in nodes.items()},
+        {
+            name: decode(old["transport"]["nodes"][name], node, tm, fluid)
+            for name, node in nodes.items()
+        },
         {name: profile(old["columns"][name], c) for name, c in model["columns"].items()},
     )
     for command, interval in zip(config["schedule"], report["intervals"], strict=True):
@@ -143,8 +151,11 @@ def audit(config, report):
         interval_heat = 0.0
         interval_work = 0.0
         commands = {
-            p["name"]: True for p in (
-                tm["links"] + tm.get("heat_links", []) + model["ports"]
+            p["name"]: True
+            for p in (
+                tm["links"]
+                + tm.get("heat_links", [])
+                + model["ports"]
                 + model.get("heat_links", [])
             )
         }
@@ -170,7 +181,20 @@ def audit(config, report):
                 name: decode(new["transport"]["nodes"][name], node, tm, fluid)
                 for name, node in nodes.items()
             }
+            attach_faces(
+                tm,
+                nodes,
+                data,
+                step["transport"].get("hydrostatic_faces", {}),
+                fluid,
+                reference_sound,
+            )
             net = {name: np.zeros(nc + 2) for name in nodes}
+            particle_rates = {
+                name: 0.0
+                for name, node in nodes.items()
+                if node.get("droplet_population") is not None
+            }
             occupied = set()
             coln = {name: np.zeros(nc) for name in model["columns"]}
             cole = {name: 0.0 for name in coln}
@@ -191,7 +215,9 @@ def audit(config, report):
                         and nodes[name]["kind"] == "vessel"
                         and nodes[name]["geometry"] is None
                         and nodes[other]["kind"] == "pipe_cell"
-                        and not link[("target" if side == "source" else "source") + "_port"].startswith("side:")
+                        and not link[
+                            ("target" if side == "source" else "source") + "_port"
+                        ].startswith("side:")
                         and len(data[name]["pn"]) == 1
                         and len(data[other]["pn"]) == 1
                     )
@@ -217,8 +243,8 @@ def audit(config, report):
                         flux, sflux, contact, _, fallback = wave_flux(
                             left,
                             right,
-                            left_data["sound"],
-                            right_data["sound"],
+                            da["sound"],
+                            db["sound"],
                             tm["wave_speed_bound_m_s"],
                             estimate="pvrs"
                             if tm.get("wave_fan") == "pressure_single_phase"
@@ -227,12 +253,14 @@ def audit(config, report):
                     else:
                         flux, sflux, contact, _ = port_flux(left, right, tm["wave_speed_bound_m_s"])
                         fallback = False
+                    base_flux = flux.copy()
                     ca, sa = correction(da, True)
                     cb, sb = correction(db, False)
                     flux += ca + cb
                     sflux += sa + sb
                 else:
                     flux = np.zeros(nc + 2)
+                    base_flux = flux.copy()
                     sflux = 0.0
                     contact = 0.0
                     fallback = False
@@ -243,11 +271,39 @@ def audit(config, report):
                         atol=1e-8,
                         rtol=2e-7,
                     )
-                if step["transport"]["links"][link["name"]].get(
-                    "local_fan_fixed_fallback", False
-                ) != fallback:
+                if (
+                    step["transport"]["links"][link["name"]].get("local_fan_fixed_fallback", False)
+                    != fallback
+                ):
                     raise ValueError("Acoustic fan fallback differs")
                 area = math.pi * link["diameter_m"] ** 2 / 4
+                family_nodes = [
+                    nodes[n] for n in (a, b) if nodes[n].get("droplet_population") is not None
+                ]
+                saved_particles = step["transport"]["links"][link["name"]].get(
+                    "droplet_number_fluxes", {}
+                )
+                if family_nodes:
+                    family = family_nodes[0]["droplet_population"]["family"]
+                    rate = area * number_flux(
+                        base_flux,
+                        contact,
+                        da,
+                        db,
+                        family_nodes[0]["drift_flux"],
+                        data[a]["population"],
+                        data[b]["population"],
+                        family_nodes[0]["droplet_population"],
+                    )
+                    if set(saved_particles) != {family}:
+                        raise ValueError("Particle flux registry differs")
+                    close(saved_particles[family], rate, atol=1e-5, rtol=2e-7)
+                    if a in particle_rates:
+                        particle_rates[a] -= rate
+                    if b in particle_rates:
+                        particle_rates[b] += rate
+                elif saved_particles:
+                    raise ValueError("Unexpected particle flux")
                 close(
                     step["transport"]["links"][link["name"]]["flux"],
                     area * flux,
@@ -266,22 +322,36 @@ def audit(config, report):
                                 rate * component.molar_mass_kg_mol
                                 for rate, component in zip(flux[:-2], fluid.components)
                             )
-                            tangent = da["tangential_velocity"] if side == "source" else db["tangential_velocity"]
+                            tangent = (
+                                da["tangential_velocity"]
+                                if side == "source"
+                                else db["tangential_velocity"]
+                            )
                             update[-2] -= area * max(0.0, outward_mass) * tangent
                         occupied.add((name, link[side + "_port"]))
                         if not commands[link["name"]]:
                             d = data[name]
+                            wall = d.get("hydrostatic_faces", {}).get(link[side + "_port"], d)
                             update[-2] -= (
                                 normal
                                 * area
                                 * (
-                                    d["p"]
+                                    wall["p"]
                                     + d["stress"]
-                                    + d["rho"] * d["u"] ** 2
-                                    + normal * tm["wave_speed_bound_m_s"] * d["rho"] * d["u"]
+                                    + wall["rho"] * d["u"] ** 2
+                                    + normal * tm["wave_speed_bound_m_s"] * wall["rho"] * d["u"]
                                 )
                             )
                     net[name] += update
+            audit_population_balances(
+                nodes,
+                old["transport"]["nodes"],
+                new["transport"]["nodes"],
+                data,
+                particle_rates,
+                step["transport"].get("droplet_populations", {}),
+                dt,
+            )
             order = step["quadrature_order"]
             if order == 0:
                 if model["columns"] or model["ports"] or model.get("heat_links"):
@@ -379,10 +449,14 @@ def audit(config, report):
                         net[name][-1] += rate
                     else:
                         cole[name] += rate
-            pump_forces, pump_powers = audit_pumps(tm, data, commands, step["transport"].get("pumps", {}))
+            pump_forces, pump_powers = audit_pumps(
+                tm, data, commands, step["transport"].get("pumps", {})
+            )
             for name, power in pump_powers.items():
                 net[name][-1] += power
-            compressor_net, compressor_power = audit_compressors(tm, data, commands, step["transport"].get("compressors", {}), fluid)
+            compressor_net, compressor_power = audit_compressors(
+                tm, data, commands, step["transport"].get("compressors", {}), fluid
+            )
             for name, rate in compressor_net.items():
                 net[name] += rate
             work = dt * (sum(pump_powers.values()) + compressor_power)
@@ -397,18 +471,18 @@ def audit(config, report):
                     area = math.pi * node["diameter_m"] ** 2 / 4
                     for end_port, normal in [("left", -1), ("right", 1)]:
                         if (name, end_port) not in occupied:
+                            wall = d.get("hydrostatic_faces", {}).get(end_port, d)
                             net[name][-2] -= (
                                 normal
                                 * face_area(node, end_port)
                                 * (
-                                    d["p"]
+                                    wall["p"]
                                     + d["stress"]
-                                    + d["rho"] * d["u"] ** 2
-                                    + normal * tm["wave_speed_bound_m_s"] * d["rho"] * d["u"]
+                                    + wall["rho"] * d["u"] ** 2
+                                    + normal * tm["wave_speed_bound_m_s"] * wall["rho"] * d["u"]
                                 )
                             )
-                    force = -d["mass"] * gravity * node["elevation_change_m"] / node["length_m"]
-                    force += d["p"] * (face_area(node, "right") - face_area(node, "left"))
+                    force = gravity_force(node, d, tm, face_area)
                     if node["dynamic_viscosity_pa_s"]:
                         force -= node["volume_m3"] * reference_darcy(
                             d["u"],
@@ -435,8 +509,10 @@ def audit(config, report):
                 external = command.get("heat_w", {}).get(name, 0.0)
                 if node["wall"]:
                     production -= dt * qa / node["wall"]["ambient_temperature_k"]
-                production -= dt * external / command.get("utility_temperature_k", {}).get(
-                    name, a["temperature_k"]
+                production -= (
+                    dt
+                    * external
+                    / command.get("utility_temperature_k", {}).get(name, a["temperature_k"])
                 )
                 heat += dt * (qa + external)
                 re = (
@@ -470,8 +546,10 @@ def audit(config, report):
                 external = command.get("heat_w", {}).get(name, 0.0)
                 if name in model["walls"]:
                     production -= dt * qa / model["walls"][name]["ambient_temperature_k"]
-                production -= dt * external / command.get("utility_temperature_k", {}).get(
-                    name, a["temperature_k"]
+                production -= (
+                    dt
+                    * external
+                    / command.get("utility_temperature_k", {}).get(name, a["temperature_k"])
                 )
                 heat += dt * (qa + external)
                 component_balance(a["component_moles"], b["component_moles"], dt * coln[name])
@@ -483,7 +561,9 @@ def audit(config, report):
             if production < -1e-6 - 1e-9 * max(1.0, abs(previous_entropy)):
                 raise ValueError("Independent coupled entropy rejected")
             close(step["entropy_production_j_k"], production, atol=2e-6, rtol=2e-6)
-            close(step["conservation_residuals"], ledger(old, new, heat + work), atol=1e-6, rtol=2e-7)
+            close(
+                step["conservation_residuals"], ledger(old, new, heat + work), atol=1e-6, rtol=2e-7
+            )
             interval_heat += heat
             interval_work += work
             checked += 1
@@ -499,8 +579,12 @@ def audit(config, report):
             # Permit only floating-point rounding of time; stocks, pressures,
             # temperatures and every other physical field still compare exactly.
             clock_scale = max(abs(end), abs(dt), 1e-300)
-            close(x["transport"]["time_s"], y["transport"]["time_s"],
-                  atol=16 * np.finfo(float).eps * clock_scale, rtol=0.0)
+            close(
+                x["transport"]["time_s"],
+                y["transport"]["time_s"],
+                atol=16 * np.finfo(float).eps * clock_scale,
+                rtol=0.0,
+            )
             x["transport"]["time_s"] = y["transport"]["time_s"]
             if x != y:
                 raise ValueError("Final interval checkpoint differs")
@@ -515,7 +599,12 @@ def audit(config, report):
         )
         heat_total += interval_heat
         work_total += interval_work
-    close(report["conservation_residuals"], ledger(first, old, heat_total + work_total), atol=1e-6, rtol=2e-7)
+    close(
+        report["conservation_residuals"],
+        ledger(first, old, heat_total + work_total),
+        atol=1e-6,
+        rtol=2e-7,
+    )
     close(report["total_heat_j"], heat_total, atol=1e-6, rtol=2e-7)
     close(report.get("total_work_j", 0.0), work_total, atol=1e-10, rtol=2e-7)
     return {

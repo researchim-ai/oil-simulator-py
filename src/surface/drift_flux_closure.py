@@ -107,7 +107,15 @@ class RELAP7VerticalDriftClosure:
         if self.regime == "dispersed_bubbly" and self.maximum_gas_volume_fraction > 0.2:
             raise ValueError("Dispersed bubbly closure requires gas fraction <= 0.2")
 
-    def parameters(self, phase_densities, *, diameter_m, axial_gravity_m_s2, phase_mole_fractions=None, gravity_m_s2=None):
+    def parameters(
+        self,
+        phase_densities,
+        *,
+        diameter_m,
+        axial_gravity_m_s2,
+        phase_mole_fractions=None,
+        gravity_m_s2=None,
+    ):
         rg, rl = phase_densities.min(), phase_densities.max()
         gravity = abs(axial_gravity_m_s2)
         if gravity <= 0 or diameter_m <= 0:
@@ -145,6 +153,8 @@ class RELAP7VerticalDriftClosure:
 
 
 def drift_closure_from_dict(data):
+    if data.get("model") == "relap7_vertical_transition":
+        return RELAP7EquilibriumTransition(**data)
     if data.get("model") == "dispersed_oil_water":
         from .dispersed_liquid_drift import DispersedOilWaterClosure
 
@@ -152,3 +162,64 @@ def drift_closure_from_dict(data):
     if data.get("model") == "relap7_vertical_pipe":
         return RELAP7VerticalDriftClosure(**data)
     return ZuberFindlayClosure(**data)
+
+
+@dataclass(frozen=True)
+class RELAP7EquilibriumTransition:
+    """RELAP-7 closures (2017), eqs 67--76, for the local-equilibrium limit.
+
+    Interface and liquid temperatures coincide, so alpha_DB=0 and
+    alpha_CS=0.1. No guessed 0.2--0.3 band or extrapolation to annular flow.
+    """
+
+    surface_tension_n_m: float
+    liquid_viscosity_pa_s: float
+    minimum_gas_volume_fraction: float = 1e-8
+    maximum_gas_volume_fraction: float = 0.7
+    maximum_gas_liquid_density_ratio: float = 0.5
+    model: str = "relap7_vertical_transition"
+
+    def __post_init__(self):
+        if self.model != "relap7_vertical_transition" or self.maximum_gas_volume_fraction > 0.7:
+            raise ValueError("Vertical bubbly/slug transition excludes annular/mist flow")
+        ZuberFindlayClosure(
+            1.0,
+            0.0,
+            self.minimum_gas_volume_fraction,
+            self.maximum_gas_volume_fraction,
+            self.maximum_gas_liquid_density_ratio,
+        )
+        object.__setattr__(
+            self,
+            "_bubbly",
+            RELAP7VerticalDriftClosure(
+                "dispersed_bubbly", self.surface_tension_n_m, self.liquid_viscosity_pa_s
+            ),
+        )
+        object.__setattr__(
+            self,
+            "_slug",
+            RELAP7VerticalDriftClosure(
+                "cap_slug", self.surface_tension_n_m, self.liquid_viscosity_pa_s
+            ),
+        )
+
+    def parameters(self, phase_volumes, phase_densities, **context):
+        c0, db = self._bubbly.parameters(phase_densities, **context)
+        _, cs = self._slug.parameters(phase_densities, **context)
+        alpha = phase_volumes / phase_volumes.sum()
+        gas = torch.nn.functional.one_hot(phase_densities.argmin(), len(alpha)).to(alpha.dtype)
+        ag = (alpha * gas).sum()
+        weight = (1 - ag / 0.1).clamp(0.0, 1.0)
+        return c0, weight * db + (1 - weight) * cs, weight
+
+    def velocities(self, phase_volumes, phase_densities, bulk_velocity, **context):
+        if len(phase_volumes) == 1:
+            return bulk_velocity.expand_as(phase_volumes), bulk_velocity.new_ones(
+                (), dtype=torch.bool
+            )
+        c0, vd, _ = self.parameters(phase_volumes, phase_densities, **context)
+        values, valid = _mass_average_velocities(
+            phase_volumes, phase_densities, bulk_velocity, c0, vd, self
+        )
+        return values, valid & (len(phase_volumes) == 2)

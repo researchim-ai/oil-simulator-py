@@ -11,7 +11,9 @@ from __future__ import annotations
 import math
 from dataclasses import dataclass, replace
 
+from .dispersed_liquid_drift import DispersedOilWaterClosure
 from .liquid import _name, _number
+from .pr_droplet_population import PRDropletPopulation
 from .pr_equilibrium_transport import (
     PREquilibriumLink,
     PREquilibriumNode,
@@ -30,11 +32,25 @@ class PRResolvedSeparator:
     bottom_elevation_m: float = 0.0
     dynamic_viscosity_pa_s: float = 0.0
     wall: VesselWall | None = None
+    droplet_population: PRDropletPopulation | None = None
+    drift_flux: DispersedOilWaterClosure | None = None
 
     def __post_init__(self):
         _name(self.name)
-        for key in ("diameter_m", "height_m", "terminal_response_s"):
+        for key in ("diameter_m", "height_m"):
             _number(getattr(self, key), key, positive=True)
+        _number(self.terminal_response_s, "terminal response", nonnegative=True)
+        if self.droplet_population is None:
+            if not self.terminal_response_s or self.drift_flux is not None:
+                raise ValueError("Linear resolved separator requires positive terminal response")
+        elif (
+            not isinstance(self.droplet_population, PRDropletPopulation)
+            or not isinstance(self.drift_flux, DispersedOilWaterClosure)
+            or self.terminal_response_s
+        ):
+            raise ValueError(
+                "Population separator needs one explicit dispersed law and zero linear terminal response"
+            )
         _number(self.bottom_elevation_m, "bottom elevation")
         _number(self.dynamic_viscosity_pa_s, "mixture viscosity", nonnegative=True)
         if type(self.cells) is not int or not 2 <= self.cells <= 128:
@@ -77,6 +93,8 @@ class PRResolvedSeparator:
                 elevation_change_m=length,
                 dynamic_viscosity_pa_s=self.dynamic_viscosity_pa_s,
                 buoyancy_relaxation_s=self.terminal_response_s,
+                droplet_population=self.droplet_population,
+                drift_flux=self.drift_flux,
                 wall=wall,
             )
             for i in range(self.cells)
@@ -113,14 +131,15 @@ class PRLateralNozzle:
     cell: str
     receiver: str
     diameter_m: float
-    height_m: float
+    height_m: float | None
     receiver_port: str = "left"
 
     def __post_init__(self):
         for key in ("name", "cell", "receiver"):
             _name(getattr(self, key))
         _number(self.diameter_m, "nozzle diameter", positive=True)
-        _number(self.height_m, "cell-local nozzle height", nonnegative=True)
+        if self.height_m is not None:
+            _number(self.height_m, "cell-local nozzle height", nonnegative=True)
         if self.receiver_port not in ("left", "right"):
             raise ValueError("A lateral nozzle needs an axial or mixed-volume receiver")
 

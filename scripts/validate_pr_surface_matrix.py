@@ -15,6 +15,9 @@ from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 CASES = {
+    "coalescing_separator": ("surface_pr_coalescing_separator", "equilibrium"),
+    "terrain_trap": ("surface_pr_terrain_trap", "equilibrium"),
+    "vertical_transition": ("surface_pr_vertical_transition", "equilibrium"),
     "counterflow": ("surface_pr_counterflow_heat_exchanger", "equilibrium"),
     "bubbly": ("surface_pr_vertical_dispersed_bubbly", "equilibrium"),
     "cap_slug": ("surface_pr_vertical_cap_slug", "equilibrium"),

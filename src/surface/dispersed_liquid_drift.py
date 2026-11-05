@@ -84,15 +84,24 @@ class DispersedOilWaterClosure:
         ).all()
         return masks.unbind(-1), valid
 
-    def pressure_valid(self, composition, pressure):
+    def pressure_valid(self, composition, pressure, droplet_diameter_m=None, phase_roles=None):
         if len(composition) == 1:
             return pressure.new_ones((), dtype=torch.bool)
-        (_gas, oil, water), _ = self.roles(composition)
+        (_gas, oil, water), _ = self.roles(composition) if phase_roles is None else phase_roles
         both = (oil.sum() > 0) & (water.sum() > 0)
-        laplace_pressure = 4 * self.surface_tension_n_m / self.droplet_diameter_m
+        diameter = self.droplet_diameter_m if droplet_diameter_m is None else droplet_diameter_m
+        laplace_pressure = 4 * self.surface_tension_n_m / diameter
         return (~both) | (laplace_pressure <= self.maximum_capillary_pressure_fraction * pressure)
 
-    def liquid_slip(self, oil_density, water_density, axial_gravity_m_s2, gravity_m_s2=None):
+    def liquid_slip(
+        self,
+        oil_density,
+        water_density,
+        axial_gravity_m_s2,
+        gravity_m_s2=None,
+        droplet_diameter_m=None,
+    ):
+        diameter = self.droplet_diameter_m if droplet_diameter_m is None else droplet_diameter_m
         contrast = water_density - oil_density
         gravity = abs(axial_gravity_m_s2) if gravity_m_s2 is None else gravity_m_s2
         if self.dispersed_liquid == "oil":
@@ -107,13 +116,13 @@ class DispersedOilWaterClosure:
                 self.water_viscosity_pa_s,
                 oil_density,
             )
-        mobility = self.droplet_diameter_m**2 / (18 * carrier_mu)
+        mobility = diameter**2 / (18 * carrier_mu)
         if self.interface == "clean":
             mobility = mobility * (3 * (carrier_mu + drop_mu) / (2 * carrier_mu + 3 * drop_mu))
         velocity = contrast * axial_gravity_m_s2 * mobility
         terminal_speed = contrast.abs() * gravity * mobility
-        reynolds = carrier_density * terminal_speed * self.droplet_diameter_m / carrier_mu
-        eotvos = contrast.abs() * gravity * self.droplet_diameter_m**2 / self.surface_tension_n_m
+        reynolds = carrier_density * terminal_speed * diameter / carrier_mu
+        eotvos = contrast.abs() * gravity * diameter**2 / self.surface_tension_n_m
         return velocity, reynolds, eotvos
 
     def velocities(
@@ -126,17 +135,22 @@ class DispersedOilWaterClosure:
         diameter_m,
         axial_gravity_m_s2,
         gravity_m_s2=None,
+        droplet_diameter_m=None,
+        phase_roles=None,
     ):
         if len(phase_volumes) == 1:
             return bulk_velocity.expand_as(phase_volumes), bulk_velocity.new_ones(
                 (), dtype=torch.bool
             )
-        (gas, oil, water), valid = self.roles(phase_mole_fractions)
+        (gas, oil, water), valid = (
+            self.roles(phase_mole_fractions) if phase_roles is None else phase_roles
+        )
         alpha = phase_volumes / phase_volumes.sum()
         ag, ao, aw = [(alpha * role).sum() for role in (gas, oil, water)]
         rg, ro, rw = [(phase_densities * role).sum() for role in (gas, oil, water)]
         both_liquids = (oil.sum() > 0) & (water.sum() > 0)
-        slip, re, eo = self.liquid_slip(ro, rw, axial_gravity_m_s2, gravity_m_s2)
+        diameter = self.droplet_diameter_m if droplet_diameter_m is None else droplet_diameter_m
+        slip, re, eo = self.liquid_slip(ro, rw, axial_gravity_m_s2, gravity_m_s2, diameter)
         slip = torch.where(both_liquids, slip, slip * 0)
         al = (1 - ag).clamp_min(1e-30)
         # Zero-volume-average liquid bias retains j = alpha_g*v_g+alpha_l*v_l.
@@ -175,7 +189,7 @@ class DispersedOilWaterClosure:
             )
             & (re <= self.maximum_reynolds_number)
             & (eo <= self.maximum_eotvos_number)
-            & (self.droplet_diameter_m / diameter_m <= self.maximum_confinement_ratio)
+            & (diameter / diameter_m <= self.maximum_confinement_ratio)
         )
         valid = (
             valid

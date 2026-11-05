@@ -10,13 +10,18 @@ import math
 from dataclasses import asdict, dataclass
 
 from .dispersed_liquid_drift import DispersedOilWaterClosure
-from .drift_flux_closure import RELAP7VerticalDriftClosure, ZuberFindlayClosure
+from .drift_flux_closure import (
+    RELAP7EquilibriumTransition,
+    RELAP7VerticalDriftClosure,
+    ZuberFindlayClosure,
+)
 from .liquid import _name, _number
 from .pr_equilibrium_transport import (
     PREquilibriumLink,
     PREquilibriumNode,
     PREquilibriumTransportNetwork,
 )
+from .pr_terrain_pipe import PRTerrainPipe
 from .vessel_wall import VesselWall
 
 
@@ -35,7 +40,13 @@ class PREquilibriumPipe:
     source_height_m: float | None = None
     target_height_m: float | None = None
     wall: VesselWall | None = None
-    drift_flux: ZuberFindlayClosure | RELAP7VerticalDriftClosure | DispersedOilWaterClosure | None = None
+    drift_flux: (
+        ZuberFindlayClosure
+        | RELAP7VerticalDriftClosure
+        | RELAP7EquilibriumTransition
+        | DispersedOilWaterClosure
+        | None
+    ) = None
 
     def __post_init__(self):
         for n in (self.name, self.source, self.target):
@@ -58,7 +69,15 @@ class PREquilibriumPipe:
         if self.wall is not None and not isinstance(self.wall, VesselWall):
             raise TypeError("Expected whole-pipe VesselWall")
         if self.drift_flux is not None:
-            if not isinstance(self.drift_flux, (ZuberFindlayClosure, RELAP7VerticalDriftClosure, DispersedOilWaterClosure)):
+            if not isinstance(
+                self.drift_flux,
+                (
+                    ZuberFindlayClosure,
+                    RELAP7VerticalDriftClosure,
+                    RELAP7EquilibriumTransition,
+                    DispersedOilWaterClosure,
+                ),
+            ):
                 raise TypeError("Expected a supported drift-flux closure")
             if self.distribution_strength or self.buoyancy_relaxation_s:
                 raise ValueError("Select one pipe slip closure")
@@ -119,17 +138,30 @@ def build_equilibrium_transport(fluid, vessels, pipes, *, links=(), **solver):
     connections = list(links)
     paths = {}
     for pipe in pipes:
-        if not isinstance(pipe, (PREquilibriumPipe, PREquilibriumNozzle)):
+        if not isinstance(pipe, (PREquilibriumPipe, PREquilibriumNozzle, PRTerrainPipe)):
             raise TypeError("Expected finite pipe or resolved nozzle")
         if pipe.source not in by_name or pipe.target not in by_name:
             raise ValueError("Unknown pipe terminal vessel")
         a, b = by_name[pipe.source], by_name[pipe.target]
+        terrain = isinstance(pipe, PRTerrainPipe)
+        if terrain and (
+            abs(pipe.elevations_m[0] - a.elevation_m) > 1e-8
+            or abs(pipe.elevations_m[-1] - b.elevation_m) > 1e-8
+        ):
+            raise ValueError("Survey terminal elevations differ from physical vessels")
         if abs(b.elevation_m - a.elevation_m) > pipe.length_m:
             raise ValueError("Pipe elevation difference exceeds length")
         names = []
         tapered = isinstance(pipe, PREquilibriumNozzle)
         faces = pipe.face_diameters_m if tapered else (pipe.diameter_m,) * (pipe.cells + 1)
-        lengths = pipe.cell_lengths_m if tapered else (pipe.length_m / pipe.cells,) * pipe.cells
+        routes = pipe.cell_routes() if terrain else None
+        lengths = (
+            tuple(row[0] for row in routes)
+            if terrain
+            else pipe.cell_lengths_m
+            if tapered
+            else (pipe.length_m / pipe.cells,) * pipe.cells
+        )
         wall_areas = [
             math.pi
             * (faces[i] + faces[i + 1])
@@ -155,13 +187,19 @@ def build_equilibrium_transport(fluid, vessels, pipes, *, links=(), **solver):
                     name,
                     math.pi * length * (dl * dl + dl * dr + dr * dr) / 12,
                     "pipe_cell",
-                    elevation_m=a.elevation_m
+                    elevation_m=routes[i][1]
+                    if terrain
+                    else a.elevation_m
                     + (b.elevation_m - a.elevation_m) * (position + length / 2) / pipe.length_m,
                     length_m=length,
                     diameter_m=(dl + dr) / 2,
                     left_diameter_m=dl if tapered else None,
                     right_diameter_m=dr if tapered else None,
-                    elevation_change_m=(b.elevation_m - a.elevation_m) * length / pipe.length_m,
+                    elevation_change_m=routes[i][2]
+                    if terrain
+                    else (b.elevation_m - a.elevation_m) * length / pipe.length_m,
+                    hydrostatic_reconstruction=terrain,
+                    local_loss_coefficient=routes[i][3] if terrain else 0.0,
                     dynamic_viscosity_pa_s=pipe.dynamic_viscosity_pa_s,
                     roughness_m=pipe.roughness_m,
                     distribution_strength=0.0 if tapered else pipe.distribution_strength,

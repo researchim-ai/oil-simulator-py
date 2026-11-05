@@ -79,6 +79,98 @@ def test_relap_geometry_and_regime_limits_are_not_silently_extrapolated():
     assert not bool(valid)
 
 
+@pytest.mark.parametrize("void_fraction", [0.025, 0.05, 0.075, 0.1, 0.2, 0.6])
+@pytest.mark.parametrize("direction", [-1, 1])
+def test_local_equilibrium_regime_transition_uses_inl_2017_temperature_limit(
+    void_fraction, direction
+):
+    from dataclasses import asdict
+
+    from surface.drift_flux_closure import RELAP7EquilibriumTransition
+
+    law = RELAP7EquilibriumTransition(0.072, 0.001)
+    rho = torch.tensor([1.2, 1000.0], dtype=torch.float64)
+    volumes = rho.new_tensor([void_fraction, 1 - void_fraction])
+    context = {"diameter_m": 0.05, "axial_gravity_m_s2": direction * 9.80665}
+    c0, vd, weight = law.parameters(volumes, rho, **context)
+    assert float(c0)==pytest.approx(1.2-.2*math.sqrt(1.2/1000))
+    scale = (0.072 * 9.80665 * 998.8 / 1000**2) ** 0.25
+    capillary = math.sqrt(0.072 / (9.80665 * 998.8))
+    visc = 0.001 / math.sqrt(1000 * 0.072 * capillary)
+    cs = (
+        0.0019
+        * min(30, 0.05 / capillary) ** 0.809
+        * (1.2 / 1000) ** (-0.157)
+        * visc ** (-0.562)
+        * scale
+    )
+    expected_weight = max(0, 1 - void_fraction / 0.1)
+    assert float(weight) == pytest.approx(expected_weight)
+    assert float(vd) == pytest.approx(
+        direction * (expected_weight * math.sqrt(2) * scale + (1 - expected_weight) * cs)
+    )
+    assert drift_closure_from_dict(asdict(law)) == law
+    for u in [-1.0, 0.0, 1.0]:
+        velocities, valid = law.velocities(volumes, rho, rho.new_tensor(u), **context)
+        assert bool(valid)
+        assert float((volumes * rho * velocities).sum() / (volumes * rho).sum()) == pytest.approx(
+            u, abs=1e-13
+        )
+    if void_fraction != 0.1:
+        jac = torch.func.jacfwd(
+            lambda a: law.velocities(a, rho, rho.new_tensor(0.2), **context)[0]
+        )(volumes)
+        delta = rho.new_tensor([0.1, -0.1])
+        eps = 1e-5
+        finite = (
+            law.velocities(volumes + eps * delta, rho, rho.new_tensor(0.2), **context)[0]
+            - law.velocities(volumes - eps * delta, rho, rho.new_tensor(0.2), **context)[0]
+        ) / (2 * eps)
+        torch.testing.assert_close(jac @ delta, finite, rtol=1e-7, atol=1e-9)
+
+
+def test_transition_is_live_in_pr_graph_and_independent_audit(monkeypatch):
+    import json
+    from pathlib import Path
+
+    from surface.pr_equilibrium_transport import PREquilibriumTransportNetwork
+
+    base, _, initial = vertical_pipe()
+    config = base.to_dict()
+    for node in config["nodes"]:
+        node["drift_flux"] = {
+            "model": "relap7_vertical_transition",
+            "surface_tension_n_m": 0.015,
+            "liquid_viscosity_pa_s": 0.0002,
+        }
+    model = PREquilibriumTransportNetwork.from_dict(config)
+    tie = sorted(
+        model.fluid.flash_pt(1e6, 196.2, [0.5, 0.5])["phases"],
+        key=lambda p: float(p["molar_volume_m3_mol"]),
+    )
+    for i, alpha in enumerate([0.05, 0.15]):
+        vl, vg = [float(p["molar_volume_m3_mol"]) for p in tie]
+        beta = alpha * vl / ((1 - alpha) * vg + alpha * vl)
+        initial[str(i)]["mole_fractions"] = (
+            (1 - beta) * tie[0]["mole_fractions"] + beta * tie[1]["mole_fractions"]
+        ).tolist()
+    request = json.loads(
+        json.dumps(
+            {
+                "model": model.to_dict(),
+                "initial": {"nodes": initial},
+                "schedule": [{"duration_s": 1e-6}],
+            }
+        )
+    )
+    monkeypatch.syspath_prepend(str(Path(__file__).resolve().parents[1] / "scripts"))
+    from check_pr_equilibrium_transport import audit
+    from run_pr_equilibrium_transport import run
+
+    result = json.loads(json.dumps(run(request)))
+    assert audit(request, result)["accepted"]
+
+
 def vertical_pipe(regime="dispersed_bubbly"):
     from test_surface_compositional_separator import binary
 

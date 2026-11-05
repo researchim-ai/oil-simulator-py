@@ -445,7 +445,12 @@ class CompositionalSeparator:
             # Extend only the guess/scaling, never the physical old inventory.
             predicted = predicted if _network_guess is None else _network_guess
             predicted = predicted.clone().index_copy(
-                0, active, predicted[active].clamp_min(n0.sum() * 1e-8)
+                # Preserve existing trace components: raising them to a floor
+                # destroys chemical equilibrium in separated liquid layers.
+                # Only newly activated/invalid guesses need a positive seed.
+                0,
+                active,
+                torch.where(predicted[active] > 0, predicted[active], n0.sum() * 1e-8),
             )
         tags0 = self._tags(seed)
         tags = tuple(tags0[i] for i in keep) if len(keep) > 1 else ("stable",)

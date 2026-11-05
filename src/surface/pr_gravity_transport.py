@@ -80,7 +80,13 @@ class PRGravityTransportState:
 
 class PRGravityTransportNetwork:
     def __init__(
-        self, transport, columns, ports, *, walls=None, maximum_transverse_head_fraction=1e-3,
+        self,
+        transport,
+        columns,
+        ports,
+        *,
+        walls=None,
+        maximum_transverse_head_fraction=1e-3,
         heat_links=(),
     ):
         if not isinstance(transport, PREquilibriumTransportNetwork):
@@ -123,6 +129,10 @@ class PRGravityTransportNetwork:
                 raise ValueError("Unknown column port endpoint")
             i = transport.names.index(port.node)
             node = transport.nodes[i]
+            if node.droplet_population is not None:
+                raise ValueError(
+                    "Route droplets through an explicit capture volume before a gravitational column"
+                )
             col = self.columns[port.column]
             if (
                 node.kind != "pipe_cell"
@@ -147,7 +157,9 @@ class PRGravityTransportNetwork:
                 raise ValueError("Unique thermal connection and known endpoints required")
             names.add(link.name)
         self.start_order = max((c.quadrature_order for c in self.columns.values()), default=2)
-        self.maximum_order = min((c.maximum_quadrature_order for c in self.columns.values()), default=4)
+        self.maximum_order = min(
+            (c.maximum_quadrature_order for c in self.columns.values()), default=4
+        )
         if self.start_order >= self.maximum_order:
             raise ValueError("Common quadrature refinement range required")
         self.model_id = _digest(self.to_dict())
@@ -254,9 +266,14 @@ class PRGravityTransportNetwork:
             # not manufacture a column or repeat an empty aperture quadrature.
             t = self.transport
             result, report = t._step(
-                state.transport, dt, {c.name: openings[c.name] for c in t.switches},
+                state.transport,
+                dt,
+                {c.name: openings[c.name] for c in t.switches},
                 [heat_w.get(n, 0.0) for n in t.names],
-                [utility.get(n, s.temperature_k) for n, (_, s) in zip(t.names, state.transport.nodes)],
+                [
+                    utility.get(n, s.temperature_k)
+                    for n, (_, s) in zip(t.names, state.transport.nodes)
+                ],
                 losses,
             )
             new = PRGravityTransportState(result, (), (), self.model_id)
@@ -264,11 +281,22 @@ class PRGravityTransportNetwork:
             heat = report["ambient_heat_j"] + report["external_heat_j"]
             work = report["external_work_j"]
             return new, {
-                "dt_s": dt, "state": new.to_dict(), "transport": report,
-                "columns": {"columns": {}, "walls": {}, "reports": {}, "heat_j": 0.,
-                            "entropy_production_j_k": 0., "heat_links": {}, "ports": {}},
-                "quadrature_order": 0, "quadrature_error": 0.,
-                "total_heat_j": heat, "total_work_j": work,
+                "dt_s": dt,
+                "state": new.to_dict(),
+                "transport": report,
+                "columns": {
+                    "columns": {},
+                    "walls": {},
+                    "reports": {},
+                    "heat_j": 0.0,
+                    "entropy_production_j_k": 0.0,
+                    "heat_links": {},
+                    "ports": {},
+                },
+                "quadrature_order": 0,
+                "quadrature_error": 0.0,
+                "total_heat_j": heat,
+                "total_work_j": work,
                 "conservation_residuals": self._ledger(state, new, heat + work),
                 "entropy_production_j_k": report["entropy_production_j_k"],
             }
@@ -392,9 +420,7 @@ class PRGravityTransportNetwork:
         end = state.time_s + _number(duration_s, "duration", positive=True)
         if not math.isfinite(end) or end <= state.time_s:
             raise ValueError("Unrepresentable coupled interval")
-        commands = {
-            p.name: True for p in (*self.transport.switches, *self.ports, *self.heat_links)
-        }
+        commands = {p.name: True for p in (*self.transport.switches, *self.ports, *self.heat_links)}
         commands.update(self.transport.default_openings)
         changes = dict(openings or {})
         if set(changes) - set(commands) or any(type(v) is not bool for v in changes.values()):
@@ -534,9 +560,11 @@ class _ColumnCoupling:
             geometry = m.columns[name].geometry
             boundaries = [0.0, *bodies[name].interface_heights_m, geometry.height_m]
             volumes = [geometry.liquid_volume_m3(height) for height in boundaries]
-            thin = len(boundaries) > 2 and min(
-                b - a for a, b in zip(volumes[:-1], volumes[1:])
-            ) < 1e-4 * geometry.volume_m3
+            thin = (
+                len(boundaries) > 2
+                and min(b - a for a, b in zip(volumes[:-1], volumes[1:]))
+                < 1e-4 * geometry.volume_m3
+            )
             # Ordinary small thermal steps retain the previous seed, avoiding
             # repeated extra flashes. Near layer extinction, probe even a small
             # temperature change to prevent endless subdivision at the boundary.
@@ -556,7 +584,9 @@ class _ColumnCoupling:
         }
         edges = [(c.source, c.target) for c in t.links if self.openings[c.name]]
         edges += [(p.column, p.node) for p in m.ports if self.openings[p.name]]
-        directed = [(unit.source, unit.target) for unit in t.compressors if self.openings[unit.name]]
+        directed = [
+            (unit.source, unit.target) for unit in t.compressors if self.openings[unit.name]
+        ]
         changed = True
         while changed:
             changed = False
@@ -751,7 +781,8 @@ class _ColumnCoupling:
                     for value, component in zip(s.component_moles, f.components)
                 )
                 guessed_energy = (
-                    self.column_energy_guesses[name] + cv * (predicted_t - s.temperature_k)
+                    self.column_energy_guesses[name]
+                    + cv * (predicted_t - s.temperature_k)
                     + dt * self.heat.get(name, 0.0)
                 )
                 try:
@@ -833,6 +864,10 @@ class _ColumnCoupling:
             block_dependencies[(a, b)] = {(a, b), col_block}
             block_dependencies[pipe_block].update({col_block, (a, b)})
             block_dependencies[col_block].update({pipe_block, (a, b)})
+            hydrostatic = getattr(base, "hydrostatic_faces", None)
+            for entry in () if hydrostatic is None else hydrostatic.entries:
+                if entry.cell == i:
+                    block_dependencies[col_block].add((entry.offset, entry.offset + entry.count))
         body_blocks = {
             **{name: (offsets[i], offsets[i + 1]) for i, name in enumerate(t.names)},
             **self.blocks,
@@ -851,9 +886,15 @@ class _ColumnCoupling:
                         cols.append(col)
         traces = getattr(base, "reservoir_traces", None)
         compressors = getattr(base, "compressors", None)
+        hydrostatic = getattr(base, "hydrostatic_faces", None)
+        populations = getattr(base, "droplet_populations", None)
         base_rows, base_cols = t._sparsity(
-            offsets, base_open, () if traces is None else traces.entries,
+            offsets,
+            base_open,
+            () if traces is None else traces.entries,
             () if compressors is None else compressors.entries,
+            () if hydrostatic is None else hydrostatic.entries,
+            () if populations is None else populations.entries,
         )
         support = sorted(set(zip(rows, cols)) | set(zip(base_rows, base_cols)))
         pattern = (
@@ -1227,9 +1268,9 @@ class _ColumnCoupling:
             "walls": walls,
             "reports": reports,
             "heat_j": heat,
-            "entropy_production_j_k": entropy + dt * sum(
-                float(row["entropy_production_w_k"].cpu()) for row in ex["heat_links"].values()
-            ),
+            "entropy_production_j_k": entropy
+            + dt
+            * sum(float(row["entropy_production_w_k"].cpu()) for row in ex["heat_links"].values()),
             "heat_links": thermal_records(ex["heat_links"]),
             "ports": {
                 n: {

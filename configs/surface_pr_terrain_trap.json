@@ -1,0 +1,219 @@
+{
+  "model": {
+    "model": "pr_equilibrium_transport_graph_v1",
+    "fluid": {
+      "components": [
+        {
+          "name": "Methane",
+          "critical_temperature_k": 190.564,
+          "critical_pressure_pa": 4599200.0,
+          "acentric_factor": 0.01142,
+          "molar_mass_kg_mol": 0.0160428,
+          "ideal_cp_j_mol_k": 35.7,
+          "min_temperature_k": 160.0,
+          "max_temperature_k": 500.0,
+          "reference_temperature_k": 298.15,
+          "reference_pressure_pa": 100000.0
+        },
+        {
+          "name": "Ethane",
+          "critical_temperature_k": 305.322,
+          "critical_pressure_pa": 4872200.0,
+          "acentric_factor": 0.099,
+          "molar_mass_kg_mol": 0.03006904,
+          "ideal_cp_j_mol_k": 52.5,
+          "min_temperature_k": 160.0,
+          "max_temperature_k": 500.0,
+          "reference_temperature_k": 298.15,
+          "reference_pressure_pa": 100000.0
+        }
+      ],
+      "binary_interactions": [
+        [
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0
+        ]
+      ],
+      "min_pressure_pa": 100.0,
+      "max_pressure_pa": 1000000000.0,
+      "max_phases": 3
+    },
+    "nodes": [
+      {
+        "name": "0",
+        "volume_m3": 3.926990816987242e-06,
+        "kind": "pipe_cell",
+        "elevation_m": 0.075,
+        "length_m": 0.05,
+        "diameter_m": 0.01,
+        "elevation_change_m": -0.05,
+        "dynamic_viscosity_pa_s": 0.0,
+        "roughness_m": 0.0,
+        "distribution_strength": 0.0,
+        "buoyancy_relaxation_s": 0.0,
+        "local_loss_coefficient": 0.0,
+        "drift_flux": null,
+        "wall": null,
+        "geometry": null,
+        "left_diameter_m": null,
+        "right_diameter_m": null,
+        "hydrostatic_reconstruction": true
+      },
+      {
+        "name": "1",
+        "volume_m3": 3.926990816987242e-06,
+        "kind": "pipe_cell",
+        "elevation_m": 0.025,
+        "length_m": 0.05,
+        "diameter_m": 0.01,
+        "elevation_change_m": -0.05,
+        "dynamic_viscosity_pa_s": 0.0,
+        "roughness_m": 0.0,
+        "distribution_strength": 0.0,
+        "buoyancy_relaxation_s": 0.0,
+        "local_loss_coefficient": 0.0,
+        "drift_flux": null,
+        "wall": null,
+        "geometry": null,
+        "left_diameter_m": null,
+        "right_diameter_m": null,
+        "hydrostatic_reconstruction": true
+      },
+      {
+        "name": "2",
+        "volume_m3": 3.926990816987242e-06,
+        "kind": "pipe_cell",
+        "elevation_m": 0.025,
+        "length_m": 0.05,
+        "diameter_m": 0.01,
+        "elevation_change_m": 0.05,
+        "dynamic_viscosity_pa_s": 0.0,
+        "roughness_m": 0.0,
+        "distribution_strength": 0.0,
+        "buoyancy_relaxation_s": 0.0,
+        "local_loss_coefficient": 0.0,
+        "drift_flux": null,
+        "wall": null,
+        "geometry": null,
+        "left_diameter_m": null,
+        "right_diameter_m": null,
+        "hydrostatic_reconstruction": true
+      },
+      {
+        "name": "3",
+        "volume_m3": 3.926990816987242e-06,
+        "kind": "pipe_cell",
+        "elevation_m": 0.075,
+        "length_m": 0.05,
+        "diameter_m": 0.01,
+        "elevation_change_m": 0.05,
+        "dynamic_viscosity_pa_s": 0.0,
+        "roughness_m": 0.0,
+        "distribution_strength": 0.0,
+        "buoyancy_relaxation_s": 0.0,
+        "local_loss_coefficient": 0.0,
+        "drift_flux": null,
+        "wall": null,
+        "geometry": null,
+        "left_diameter_m": null,
+        "right_diameter_m": null,
+        "hydrostatic_reconstruction": true
+      }
+    ],
+    "links": [
+      {
+        "name": "face0",
+        "source": "0",
+        "target": "1",
+        "diameter_m": 0.01,
+        "source_port": "right",
+        "target_port": "left",
+        "source_height_m": null,
+        "target_height_m": null
+      },
+      {
+        "name": "face1",
+        "source": "1",
+        "target": "2",
+        "diameter_m": 0.01,
+        "source_port": "right",
+        "target_port": "left",
+        "source_height_m": null,
+        "target_height_m": null
+      },
+      {
+        "name": "face2",
+        "source": "2",
+        "target": "3",
+        "diameter_m": 0.01,
+        "source_port": "right",
+        "target_port": "left",
+        "source_height_m": null,
+        "target_height_m": null
+      }
+    ],
+    "heat_links": [],
+    "pipe_paths": {},
+    "reservoir_ports": "riemann",
+    "wave_fan": "fixed_bound",
+    "dense_limit": 128,
+    "maximum_unknowns": 100000,
+    "gravity_m_s2": 9.80665,
+    "reference_elevation_m": 0.0,
+    "wave_speed_bound_m_s": 2000.0,
+    "maximum_velocity_m_s": 100.0,
+    "initial_step_s": 1e-05,
+    "minimum_step_s": 1e-10,
+    "maximum_step_s": 0.01,
+    "relative_tolerance": 0.0001,
+    "temperature_tolerance_k": 0.002,
+    "velocity_tolerance_m_s": 0.001,
+    "maximum_attempts": 1000,
+    "maximum_branch_attempts": 32
+  },
+  "initial": {
+    "nodes": {
+      "0": {
+        "pressure_pa": 217834.80013866318,
+        "temperature_k": 200.0,
+        "mole_fractions": [
+          0.0,
+          1.0
+        ]
+      },
+      "1": {
+        "pressure_pa": 217975.24860912625,
+        "temperature_k": 200.0,
+        "mole_fractions": [
+          0.0,
+          1.0
+        ]
+      },
+      "2": {
+        "pressure_pa": 217975.24860912625,
+        "temperature_k": 200.0,
+        "mole_fractions": [
+          0.0,
+          1.0
+        ]
+      },
+      "3": {
+        "pressure_pa": 217834.80013866318,
+        "temperature_k": 200.0,
+        "mole_fractions": [
+          0.0,
+          1.0
+        ]
+      }
+    }
+  },
+  "schedule": [
+    {
+      "duration_s": 0.01
+    }
+  ]
+}

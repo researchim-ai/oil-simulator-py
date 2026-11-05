@@ -1120,3 +1120,24 @@ Schedule задаёт `duration_s`; для `boundary_mode="ends"` дополни
 Модель ограничена малыми перепадами и докритическим HEM-течением; это не
 универсальная модель choking/cavitation клапана.
 Подробности: [PR_SURFACE_CONTROL.md](PR_SURFACE_CONTROL.md).
+
+### Профиль трассы и коалесценция в общем PR-графе
+
+`PRTerrainPipe` принимает `segment_lengths_m`, `elevations_m`,
+`cells_per_segment`, `bend_loss_coefficients` и обычные свойства стенки/трения.
+Builder выставляет `hydrostatic_reconstruction=true` трубным ячейкам.
+`split_at_levels` и `initialize_from_gravity_profile` обеспечивают согласованную
+начальную сетку: [область применимости](PR_TERRAIN_HOLDUP.md).
+
+`PREquilibriumNode.droplet_population` содержит `family`,
+`coalescence_kernel_m3_s`, `maximum_number_density_m3` и
+`gas_compressibility_threshold`. Требуется `drift_flux.model="dispersed_oil_water"`.
+`droplet_capture=true` задаёт явный конечный сборник без собственного числа
+капель. В initial число можно задать через `droplet_number`; checkpoint
+сохраняет его обязательно. В отчёте — `droplet_populations` по узлам и
+`droplet_number_fluxes` по соединениям.
+Подробности и ограничения: [капельная модель](PR_DROPLET_POPULATIONS.md).
+
+`drift_flux.model="relap7_vertical_transition"` задаёт равновесный
+пузырьково-снарядный переход с явными `surface_tension_n_m` и
+`liquid_viscosity_pa_s`: [режимное замыкание](PR_VERTICAL_DRIFT.md).

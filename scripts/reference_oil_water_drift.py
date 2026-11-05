@@ -3,7 +3,9 @@
 import numpy as np
 
 
-def velocities(closure, alpha, rho, composition, bulk, diameter, axial_g, gravity, pressure):
+def velocities(
+    closure, alpha, rho, composition, bulk, diameter, axial_g, gravity, pressure, phase_roles=None
+):
     if len(alpha) == 1:
         return np.array([bulk])
     markers = [
@@ -11,8 +13,13 @@ def velocities(closure, alpha, rho, composition, bulk, diameter, axial_g, gravit
         for key in ("gas_component_index", "oil_component_index", "water_component_index")
     ]
     scores = np.asarray(composition)[:, markers]
-    roles = scores.argmax(1)
-    if len(set(roles)) != len(roles) or np.any(scores.max(1) < closure["minimum_marker_fraction"]):
+    roles = scores.argmax(1) if phase_roles is None else np.asarray(phase_roles)
+    marker_valid = (
+        (scores.max(1) >= closure["minimum_marker_fraction"])
+        if phase_roles is None
+        else ((np.max(scores[:, 1:], axis=1) >= closure["minimum_marker_fraction"]) | (roles == 0))
+    )
+    if len(set(roles)) != len(roles) or not np.all(marker_valid):
         raise ValueError("Ambiguous oil/water/gas phase markers")
     indices = {int(role): i for i, role in enumerate(roles)}
     if len(alpha) not in (2, 3):
