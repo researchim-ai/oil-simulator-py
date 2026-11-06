@@ -15,6 +15,7 @@ from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 CASES = {
+    "controlled_profile_graph": ("surface_pr_controlled_profile_graph", "controlled"),
     "profile_graph": ("surface_pr_profile_graph", "profile_graph"),
     "controlled_signed_pump": ("surface_pr_controlled_signed_pump", "controlled"),
     "layered_transport": ("surface_pr_layered_transport", "layered"),

@@ -31,14 +31,27 @@ def run(config, *, device="cpu"):
         if set(initial) != {"plant", "positions", "integrals"}:
             raise ValueError("Expected plant, positions and integrals")
         spec = initial["plant"]
-        if set(spec) != {"transport", "columns", "wall_temperatures"}:
-            raise ValueError("Expected transport, columns and wall_temperatures")
-        ts = model.plant.transport.initialize(spec["transport"])
-        columns = {
-            n: StratifiedPRState.from_dict(model.plant.columns[n].initialize(**v)["state"])
-            for n, v in spec["columns"].items()
-        }
-        physical = model.plant.initialize(ts, columns, spec["wall_temperatures"])
+        if hasattr(model.plant, "bridges"):
+            if set(spec) != {"transport", "profiles"} or set(spec["profiles"]) != set(
+                model.plant.names
+            ):
+                raise ValueError("Expected transport and exact profile registry")
+            physical = model.plant.initialize(
+                model.plant.transport.initialize(spec["transport"]),
+                {
+                    n: b.layered.initialize_equilibrium(**spec["profiles"][n])
+                    for n, b in model.plant.bridges.items()
+                },
+            )
+        else:
+            if set(spec) != {"transport", "columns", "wall_temperatures"}:
+                raise ValueError("Expected transport, columns and wall_temperatures")
+            ts = model.plant.transport.initialize(spec["transport"])
+            columns = {
+                n: StratifiedPRState.from_dict(model.plant.columns[n].initialize(**v)["state"])
+                for n, v in spec["columns"].items()
+            }
+            physical = model.plant.initialize(ts, columns, spec["wall_temperatures"])
         state = model.initialize(physical, initial["positions"], initial["integrals"])
     first = state
     intervals = []
@@ -56,6 +69,9 @@ def run(config, *, device="cpu"):
                 "targets",
                 "actuator_modes",
                 "reset_trips",
+                "profile_heat_w",
+                "profile_utility_temperature_k",
+                "profile_openings",
             }
             or "duration_s" not in command
         ):

@@ -2,6 +2,7 @@
 
 import math
 from dataclasses import dataclass, replace
+from types import SimpleNamespace
 
 import torch
 
@@ -17,21 +18,36 @@ class ProfileGraphState:
     transport: PREquilibriumTransportState
     profiles: tuple[tuple[str, LayeredTransportState], ...]
     model_id: str
+    profile_openings: tuple = ()
 
     @property
     def time_s(self):
         return self.transport.time_s
+
+    @property
+    def columns(self):
+        """Read-only gravity-profile views; stocks remain stored only once."""
+        return tuple(
+            (f"profile:{n}:{i}", cell.profile)
+            for n, s in self.profiles
+            for i, cell in enumerate(s.cells)
+        )
 
     def to_dict(self):
         return {
             "transport": self.transport.to_dict(),
             "profiles": {n: s.to_dict() for n, s in self.profiles},
             "model_id": self.model_id,
+            **({"profile_openings": dict(self.profile_openings)} if self.profile_openings else {}),
         }
 
     @classmethod
     def from_dict(cls, data):
-        if set(data) != {"transport", "profiles", "model_id"}:
+        if set(data) - {"transport", "profiles", "model_id", "profile_openings"} or not {
+            "transport",
+            "profiles",
+            "model_id",
+        } <= set(data):
             raise ValueError("Unknown profile graph state fields")
         return cls(
             PREquilibriumTransportState.from_dict(data["transport"]),
@@ -39,6 +55,7 @@ class ProfileGraphState:
                 (n, LayeredTransportState.from_dict(s)) for n, s in sorted(data["profiles"].items())
             ),
             data["model_id"],
+            tuple((n, tuple(v)) for n, v in sorted(data.get("profile_openings", {}).items())),
         )
 
 
@@ -50,10 +67,16 @@ class PRProfileGraphNetwork(PRLayeredPlantNetwork):
     graph evaluation and one evaluation per native branch in each residual.
     """
 
-    def __init__(self, transport, profiles, *, maximum_head_fraction=1e-3):
+    def __init__(
+        self, transport, profiles, *, maximum_head_fraction=1e-3, persistent_openings=True
+    ):
         if not isinstance(transport, PREquilibriumTransportNetwork) or not profiles:
             raise ValueError("Finite ordinary graph and nonempty profile registry required")
+        if type(persistent_openings) is not bool:
+            raise TypeError("Boolean endpoint persistence policy required")
+        self.persistent_openings = persistent_openings
         self.transport = transport
+        self.ports, self.heat_links, self.columns = (), (), {}
         self.maximum_head_fraction = _number(maximum_head_fraction, "head bound", positive=True)
         self.bridges = {}
         for name, (pipe, ends) in sorted(profiles.items()):
@@ -62,11 +85,25 @@ class PRProfileGraphNetwork(PRLayeredPlantNetwork):
                 transport, pipe, ends, maximum_head_fraction=self.maximum_head_fraction
             )
         self.names = tuple(self.bridges)
+        self.columns = {
+            f"profile:{n}:{i}": col
+            for n, b in self.bridges.items()
+            for i, col in enumerate(b.layered.columns)
+        }
+        self.endpoint_switches = {
+            f"profile:{n}:{side}": (n, i)
+            for n, b in self.bridges.items()
+            for i, side in enumerate(("left", "right"))
+            if self.persistent_openings and b.boundary_nodes[i] is not None
+        }
+        if set(self.endpoint_switches) & set(transport.default_openings):
+            raise ValueError("Profile endpoint switch collides with an ordinary connection")
+        self.isolation_switches = tuple(SimpleNamespace(name=n) for n in self.endpoint_switches)
         self.model_id = _digest(self.to_dict())
 
     def to_dict(self):
         return {
-            "model": "pr_profile_graph_v1",
+            "model": "pr_profile_graph_v2" if self.persistent_openings else "pr_profile_graph_v1",
             "transport": self.transport.to_dict(),
             "profiles": {
                 n: {"pipe": b.layered.to_dict(), "boundary_nodes": b.boundary_nodes}
@@ -79,7 +116,7 @@ class PRProfileGraphNetwork(PRLayeredPlantNetwork):
     def from_dict(cls, data, *, device="cpu"):
         if set(data) != {"model", "transport", "profiles", "maximum_head_fraction"}:
             raise ValueError("Unknown profile graph model fields")
-        if data["model"] != "pr_profile_graph_v1":
+        if data["model"] not in ("pr_profile_graph_v1", "pr_profile_graph_v2"):
             raise ValueError("Unknown profile graph model")
         profiles = {}
         for name, spec in data["profiles"].items():
@@ -93,13 +130,33 @@ class PRProfileGraphNetwork(PRLayeredPlantNetwork):
             PREquilibriumTransportNetwork.from_dict(data["transport"], device=device),
             profiles,
             maximum_head_fraction=data["maximum_head_fraction"],
+            persistent_openings=data["model"] == "pr_profile_graph_v2",
         )
 
-    def initialize(self, transport_state, profile_states):
+    def initialize(self, transport_state, profile_states, profile_openings=None):
+        if set(profile_openings or {}) - set(self.names):
+            raise ValueError("Unknown persistent endpoint branch")
+        if not self.persistent_openings and profile_openings:
+            raise ValueError("Legacy model cannot initialize persistent endpoints")
         if set(profile_states) != set(self.names):
             raise ValueError("Profile initialization registry differs")
         state = ProfileGraphState(
-            transport_state, tuple((n, profile_states[n]) for n in self.names), self.model_id
+            transport_state,
+            tuple((n, profile_states[n]) for n in self.names),
+            self.model_id,
+            tuple(
+                (
+                    n,
+                    tuple(
+                        (profile_openings or {}).get(
+                            n, tuple(e is not None for e in self.bridges[n].boundary_nodes)
+                        )
+                    ),
+                )
+                for n in self.names
+            )
+            if self.persistent_openings
+            else (),
         )
         self.inspect(state)
         return state
@@ -112,6 +169,16 @@ class PRProfileGraphNetwork(PRLayeredPlantNetwork):
             or tuple(n for n, _ in state.profiles) != self.names
         ):
             raise PropertyModelError("Profile graph state/model registry differs")
+        if self.persistent_openings:
+            if tuple(n for n, _ in state.profile_openings) != self.names:
+                raise PropertyModelError("Persistent endpoint registry differs")
+            for n, flags in state.profile_openings:
+                if len(flags) != 2 or any(type(v) is not bool for v in flags):
+                    raise PropertyModelError("Invalid persistent endpoint flags")
+                if any(v and e is None for v, e in zip(flags, self.bridges[n].boundary_nodes)):
+                    raise PropertyModelError("Closed geometric end cannot be opened")
+        elif state.profile_openings:
+            raise PropertyModelError("Legacy graph cannot carry persistent endpoint flags")
         self.transport.inspect(state.transport)
         for n, s in state.profiles:
             if s.time_s != state.time_s:
@@ -178,10 +245,14 @@ class PRProfileGraphNetwork(PRLayeredPlantNetwork):
             raise ValueError("Step below clock resolution")
         t = self.transport
         opened = dict(t.default_openings)
+        endpoints = {}
         if openings is not None:
-            if set(openings) - set(opened) or any(type(v) is not bool for v in openings.values()):
+            if set(openings) - (set(opened) | set(self.endpoint_switches)) or any(
+                type(v) is not bool for v in openings.values()
+            ):
                 raise ValueError("Unknown/nonboolean graph opening")
-            opened.update(openings)
+            endpoints = {k: v for k, v in openings.items() if k in self.endpoint_switches}
+            opened.update({k: v for k, v in openings.items() if k not in endpoints})
         heat, utility, losses = (
             dict(heat_w or {}),
             dict(utility_temperature_k or {}),
@@ -201,7 +272,7 @@ class PRProfileGraphNetwork(PRLayeredPlantNetwork):
         if any(q and n not in utility for n, q in zip(t.names, hh)):
             raise ValueError("Nonzero heat requires explicit utility temperature")
         losses = {n: _number(v, "loss coefficient", nonnegative=True) for n, v in losses.items()}
-        ph, pu, ends = {}, {}, {}
+        ph, pu, ends, saved_flags = {}, {}, {}, {}
         profile_heat_w = dict(profile_heat_w or {})
         profile_utility_temperature_k = dict(profile_utility_temperature_k or {})
         profile_openings = dict(profile_openings or {})
@@ -209,6 +280,11 @@ class PRProfileGraphNetwork(PRLayeredPlantNetwork):
             self.names
         ):
             raise ValueError("Unknown commanded profile branch")
+        stored_flags = dict(state.profile_openings)
+        endpoint_updates = {}
+        for switch, value in endpoints.items():
+            branch, side = self.endpoint_switches[switch]
+            endpoint_updates.setdefault(branch, {})[side] = value
         for n, bridge in self.bridges.items():
             ph[n] = bridge.layered._heat(profile_heat_w.get(n))
             pu[n] = (
@@ -221,9 +297,21 @@ class PRProfileGraphNetwork(PRLayeredPlantNetwork):
             )
             if (any(ph[n]) and pu[n] is None) or (pu[n] is not None and len(pu[n]) != len(ph[n])):
                 raise ValueError("Profile heat requires utility temperatures per cell")
-            flags = profile_openings.get(n, (True, True))
-            if len(flags) != 2 or any(type(v) is not bool for v in flags):
+            flags = profile_openings.get(n, stored_flags.get(n, (True, True)))
+            if (
+                not isinstance(flags, (list, tuple))
+                or len(flags) != 2
+                or any(type(v) is not bool for v in flags)
+            ):
                 raise ValueError("Two boolean profile endpoint openings required")
+            flags = list(flags)
+            for i, value in endpoint_updates.get(n, {}).items():
+                if n in profile_openings and flags[i] != value:
+                    raise ValueError("Conflicting endpoint isolation commands")
+                flags[i] = value
+            saved_flags[n] = tuple(
+                on and e is not None for e, on in zip(bridge.boundary_nodes, flags)
+            )
             ends[n] = tuple(e if on else None for e, on in zip(bridge.boundary_nodes, flags))
         seeds = {}
         for attempt in range(3):
@@ -257,6 +345,7 @@ class PRProfileGraphNetwork(PRLayeredPlantNetwork):
                 n: LayeredTransportState.from_dict(linked["profiles"][n]["state"])
                 for n in self.names
             },
+            profile_openings=saved_flags if self.persistent_openings else None,
         )
         heat_j = (
             report["ambient_heat_j"]
@@ -282,6 +371,31 @@ class PRProfileGraphNetwork(PRLayeredPlantNetwork):
             "entropy_production_j_k": entropy,
             "topology_retries": attempt,
         }
+
+    def _error(self, a, b):
+        if a.profile_openings != b.profile_openings:
+            return math.inf
+        return self._temporal_error(a, b, 1e-4, 1e-5)
+
+    def advance(self, state, duration_s, **commands):
+        report = super().advance(state, duration_s, **commands)
+        opened = dict(self.transport.default_openings)
+        opened.update(commands.get("openings") or {})
+        final = ProfileGraphState.from_dict(report["state"])
+        flags = dict(final.profile_openings)
+        for switch, (name, i) in self.endpoint_switches.items():
+            opened[switch] = (
+                flags[name][i]
+                if self.persistent_openings
+                else report["steps"][-1]["boundary_nodes"][name][i] is not None
+            )
+        report["openings"] = opened
+        report["loss_coefficients"] = {
+            n.name: (commands.get("loss_coefficients") or {}).get(n.name, n.local_loss_coefficient)
+            for n in self.transport.nodes
+            if n.kind == "pipe_cell"
+        }
+        return report
 
 
 class _ProfileGraphCoupling:

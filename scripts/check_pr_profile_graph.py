@@ -30,7 +30,20 @@ def audit(config, report):
     nc = len(mw)
     g, datum = t["gravity_m_s2"], t["reference_elevation_m"]
 
+    persistent = model["model"] == "pr_profile_graph_v2"
+    endpoint_switches = {
+        f"profile:{n}:{side}": (n, i)
+        for n, spec in model["profiles"].items()
+        for i, side in enumerate(("left", "right"))
+        if persistent and spec["boundary_nodes"][i] is not None
+    }
+
     def metadata(state):
+        required = {"transport", "profiles", "model_id"}
+        if persistent:
+            required.add("profile_openings")
+        if set(state) != required:
+            raise ValueError("Unknown/missing graph checkpoint fields")
         for s in [state["transport"], *state["profiles"].values()]:
             if not math.isfinite(s["time_s"]) or s["time_s"] < 0:
                 raise ValueError("Invalid graph clock")
@@ -40,6 +53,14 @@ def audit(config, report):
             raise ValueError("Profile checkpoint registry/model differs")
         if state["transport"]["model_id"] != parsed.transport.model_id:
             raise ValueError("Ordinary checkpoint model differs")
+        flags = state.get("profile_openings", {})
+        if (persistent and set(flags) != set(parsed.names)) or (not persistent and flags):
+            raise ValueError("Persistent endpoint registry differs")
+        for n, ff in flags.items():
+            if len(ff) != 2 or any(type(v) is not bool for v in ff):
+                raise ValueError("Invalid persistent endpoint flags")
+            if any(on and e is None for on, e in zip(ff, model["profiles"][n]["boundary_nodes"])):
+                raise ValueError("Geometrically closed endpoint was opened")
         for n, s in state["profiles"].items():
             if (
                 s["model_id"] != parsed.bridges[n].layered.model_id
@@ -82,6 +103,13 @@ def audit(config, report):
     elif set(initial) == {"transport", "profiles"} and set(initial["profiles"]) == set(
         parsed.names
     ):
+        if persistent:
+            expected = {
+                n: [e is not None for e in spec["boundary_nodes"]]
+                for n, spec in model["profiles"].items()
+            }
+            if old["profile_openings"] != expected:
+                raise ValueError("Cold initialization fabricated endpoint commands")
         for n, b in parsed.bridges.items():
             audit_initial(
                 b.to_dict(),
@@ -150,9 +178,26 @@ def audit(config, report):
             incoming = production = qheat = 0.0
             expected_ends = {}
             for n, spec in model["profiles"].items():
-                flags = command.get("profile_openings", {}).get(n, (True, True))
+                flags = command.get("profile_openings", {}).get(
+                    n, old.get("profile_openings", {}).get(n, (True, True))
+                )
                 if len(flags) != 2 or any(type(v) is not bool for v in flags):
                     raise ValueError("Invalid requested endpoint flags")
+                flags = list(flags)
+                for switch, (branch, i) in endpoint_switches.items():
+                    if branch == n and switch in command.get("openings", {}):
+                        value = command["openings"][switch]
+                        if type(value) is not bool:
+                            raise ValueError("Invalid endpoint switch flag")
+                        if n in command.get("profile_openings", {}) and value != flags[i]:
+                            raise ValueError("Conflicting requested endpoint commands")
+                        flags[i] = value
+                if persistent:
+                    close_flags = [
+                        on and e is not None for on, e in zip(flags, spec["boundary_nodes"])
+                    ]
+                    if new["profile_openings"][n] != close_flags:
+                        raise ValueError("Persistent endpoint state differs from accepted command")
                 ends = [e if on else None for e, on in zip(spec["boundary_nodes"], flags)]
                 expected_ends[n] = ends
                 view_model = {"transport": t, "layered": spec["pipe"], "boundary_nodes": ends}
@@ -226,6 +271,8 @@ def audit(config, report):
         )
         published = interval["state"]
         metadata(published)
+        if published.get("profile_openings", {}) != old.get("profile_openings", {}):
+            raise ValueError("Adaptive checkpoint changed endpoint flags")
         for a, b in [
             (old["transport"], published["transport"]),
             *((old["profiles"][n], published["profiles"][n]) for n in parsed.names),
@@ -249,9 +296,16 @@ def audit(config, report):
             "drive_torque_nm",
             "restriction_openings",
         }
-        ordinary_commands.append({k: v for k, v in command.items() if k in allowed})
+        ordinary_command = {k: v for k, v in command.items() if k in allowed}
+        if "openings" in ordinary_command:
+            ordinary_command["openings"] = {
+                k: v for k, v in ordinary_command["openings"].items() if k not in endpoint_switches
+            }
+        ordinary_commands.append(ordinary_command)
         opened = dict(parsed.transport.default_openings)
-        opened.update(command.get("openings", {}))
+        opened.update(
+            {k: v for k, v in command.get("openings", {}).items() if k not in endpoint_switches}
+        )
         ordinary_intervals.append(
             {
                 "state": old["transport"],

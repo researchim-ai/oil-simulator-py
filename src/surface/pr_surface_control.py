@@ -16,6 +16,12 @@ from .liquid import ConservationError, HydraulicConvergenceError, PropertyModelE
 from .operation import _digest
 from .pr_control_channels import PRMotorControl, PRSurfaceTrip, compressor_margin
 from .pr_gravity_transport import PRGravityTransportNetwork, PRGravityTransportState
+from .pr_plant_registry import (
+    align_physical_clock,
+    physical_plant_from_dict,
+    physical_state_from_dict,
+)
+from .pr_profile_graph import ProfileGraphState, PRProfileGraphNetwork
 from .time_interval import interval_step_s, split_step_s
 
 
@@ -171,7 +177,7 @@ class PRSurfacePI:
 
 @dataclass(frozen=True)
 class PRControlledSurfaceState:
-    plant: PRGravityTransportState
+    plant: PRGravityTransportState | ProfileGraphState
     positions: tuple
     integrals: tuple
     next_step_s: float
@@ -254,7 +260,7 @@ class PRControlledSurfaceState:
         ):
             raise ValueError("Invalid protection checkpoint fields")
         return cls(
-            PRGravityTransportState.from_dict(data["plant"]),
+            physical_state_from_dict(data["plant"]),
             tuple(sorted(data["positions"].items())),
             tuple(sorted(data["integrals"].items())),
             data["next_step_s"],
@@ -283,8 +289,8 @@ class PRControlledSurface:
         trips=(),
         motors=(),
     ):
-        if not isinstance(plant, PRGravityTransportNetwork):
-            raise TypeError("Expected gravitational transport plant")
+        if not isinstance(plant, (PRGravityTransportNetwork, PRProfileGraphNetwork)):
+            raise TypeError("Expected gravitational or profile-graph transport plant")
         self.plant = plant
         self.valves = tuple(sorted(valves, key=lambda v: v.name))
         if any(not isinstance(v, (PRControlValve, PRThroatControlValve)) for v in self.valves):
@@ -492,7 +498,15 @@ class PRControlledSurface:
                 raise ValueError("Unknown controlled level component")
             if c.measurement == "level" and c.setpoint > column.geometry.height_m:
                 raise ValueError("Level setpoint above column")
-        switches = {s.name for s in (*plant.transport.switches, *plant.ports, *plant.heat_links)}
+        switches = {
+            s.name
+            for s in (
+                *plant.transport.switches,
+                *plant.ports,
+                *plant.heat_links,
+                *getattr(plant, "isolation_switches", ()),
+            )
+        }
         for trip in self.trips:
             if trip.target not in self._valves or set(trip.isolate_switches) - switches:
                 raise ValueError("Protection target/isolation registry differs from plant")
@@ -554,7 +568,7 @@ class PRControlledSurface:
         data = dict(data)
         if data.pop("model", None) != "pr_controlled_surface_v1":
             raise ValueError("Unknown controlled surface model")
-        data["plant"] = PRGravityTransportNetwork.from_dict(data["plant"], device=device)
+        data["plant"] = physical_plant_from_dict(data["plant"], device=device)
         data["valves"] = [
             (
                 {"hem_throat_area": PRThroatControlValve, "motor_torque": PRMotorControl}.get(
@@ -789,7 +803,12 @@ class PRControlledSurface:
         losses = dict(commands.get("loss_coefficients") or {})
         known_links = {
             p.name
-            for p in (*self.plant.transport.switches, *self.plant.ports, *self.plant.heat_links)
+            for p in (
+                *self.plant.transport.switches,
+                *self.plant.ports,
+                *self.plant.heat_links,
+                *getattr(self.plant, "isolation_switches", ()),
+            )
         }
         if set(openings) - known_links:
             raise ValueError("Unknown hydraulic isolation command")
@@ -854,6 +873,19 @@ class PRControlledSurface:
                         -c.maximum_integral_abs, positions[c.valve] - c.opening_bias - proportional
                     ),
                 )
+        # Safety isolation takes precedence over a simultaneous manual branch
+        # opening. The physical graph still rejects ordinary conflicting commands.
+        if isolation and hasattr(self.plant, "endpoint_switches"):
+            profile_commands = {
+                n: list(v) for n, v in (commands.get("profile_openings") or {}).items()
+            }
+            for switch in isolation:
+                if switch in self.plant.endpoint_switches:
+                    branch, side = self.plant.endpoint_switches[switch]
+                    if branch in profile_commands:
+                        profile_commands[branch][side] = False
+            if profile_commands:
+                commands = {**commands, "profile_openings": profile_commands}
         plant_report = self.plant.advance(
             state.plant,
             dt,
@@ -865,7 +897,7 @@ class PRControlledSurface:
                 **({"drive_torque_nm": torques} if torques else {}),
             },
         )
-        plant_state = PRGravityTransportState.from_dict(plant_report["state"])
+        plant_state = physical_state_from_dict(plant_report["state"])
         envelope = {
             v.name: (
                 {
@@ -885,7 +917,7 @@ class PRControlledSurface:
         }
         # Check each accepted hydraulic substep, not only the report endpoint.
         for step in plant_report["steps"]:
-            snapshot = PRGravityTransportState.from_dict(step["state"])
+            snapshot = physical_state_from_dict(step["state"])
             for v in self.channels:
                 if isinstance(v, PRMotorControl):
                     envelope[v.name]["maximum_speed_rad_s"] = max(
@@ -1025,6 +1057,11 @@ class PRControlledSurface:
             "loss_coefficients",
             "drive_torque_nm",
             "restriction_openings",
+            *(
+                {"profile_heat_w", "profile_utility_temperature_k", "profile_openings"}
+                if hasattr(self.plant, "profiles") or hasattr(self.plant, "bridges")
+                else set()
+            ),
         }:
             raise ValueError("Unknown controlled hydraulic command")
         if (
@@ -1093,9 +1130,7 @@ class PRControlledSurface:
             if reached_end:
                 current = replace(
                     current,
-                    plant=replace(
-                        current.plant, transport=replace(current.plant.transport, time_s=end)
-                    ),
+                    plant=align_physical_clock(current.plant, end),
                 )
             steps.extend((one, two))
             dt = nextdt

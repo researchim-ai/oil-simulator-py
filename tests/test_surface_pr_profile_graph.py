@@ -74,7 +74,7 @@ def test_isolation_and_reopening_keep_finite_stocks(parallel):
     )
     assert final.cells[0].total_energy_j == pytest.approx(initial.cells[0].total_energy_j, abs=1e-7)
     assert r["boundary_nodes"]["line_1"] == (None, None)
-    reopened, _ = m.step(isolated, 1e-6)
+    reopened, _ = m.step(isolated, 1e-6, profile_openings={"line_1": [True, True]})
     assert dict(reopened.profiles)["line_1"].cells[0].momentum_kg_m_s > 0
 
 

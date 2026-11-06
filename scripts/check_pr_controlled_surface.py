@@ -39,9 +39,28 @@ def actuator(position, target, dt, spec, mode):
     return min(1.0, max(0.0, position + math.copysign(movement, target - position)))
 
 
+def column_specs(plant):
+    return {
+        **plant.get("columns", {}),
+        **{
+            f"profile:{n}:{i}": col
+            for n, spec in plant.get("profiles", {}).items()
+            for i, col in enumerate(spec["pipe"]["columns"])
+        },
+    }
+
+
 def column_measurement(old, port, plant, controller):
-    state = old["plant"]["columns"][port["column"]]
-    system = plant["columns"][port["column"]]
+    name = port["column"]
+    system = column_specs(plant)[name]
+    if name in plant.get("columns", {}):
+        state = old["plant"]["columns"][name]
+    else:
+        state = {
+            f"profile:{n}:{i}": cell["profile"]
+            for n, s in old["plant"]["profiles"].items()
+            for i, cell in enumerate(s["cells"])
+        }[name]
     fluid, geo, sample, amounts, _, _ = profile(state, system)
     if controller["measurement"] == "pressure":
         phase = sum(port["height_m"] > h for h in state["interface_heights_m"])
@@ -73,7 +92,14 @@ def audit(config, report):
     trips = {t["name"]: t for t in model.get("trips", [])}
     controllers = {c["valve"]: c for c in model["controllers"]}
     plant = model["plant"]
-    ports = {p["name"]: p for p in plant["ports"]}
+    is_profile = plant["model"] in ("pr_profile_graph_v1", "pr_profile_graph_v2")
+    endpoint_switches = {
+        f"profile:{n}:{side}": (n, i)
+        for n, spec in plant.get("profiles", {}).items()
+        for i, side in enumerate(("left", "right"))
+        if plant["model"] == "pr_profile_graph_v2" and spec["boundary_nodes"][i] is not None
+    }
+    ports = {p["name"]: p for p in plant.get("ports", [])}
     nodes = {n["name"]: n for n in plant["transport"]["nodes"]}
     links = {c["name"]: c for c in plant["transport"]["links"]}
     restrictions = {u["name"]: u for u in plant["transport"].get("restrictions", [])}
@@ -300,7 +326,7 @@ def audit(config, report):
                     value = old["plant"]["transport"]["nodes"][
                         c.get("sensor") or port["sensor_node"]
                     ]["temperature_k"]
-                elif c["measurement"] == "level" and c.get("sensor") in plant["columns"]:
+                elif c["measurement"] == "level" and c.get("sensor") in column_specs(plant):
                     value = column_measurement(old, {"column": c["sensor"]}, plant, c)
                 elif port["column"] is None:
                     cells = old["plant"]["transport"]["nodes"]
@@ -361,7 +387,7 @@ def audit(config, report):
                 for p in (
                     plant["transport"]["links"]
                     + plant["transport"].get("heat_links", [])
-                    + plant["ports"]
+                    + plant.get("ports", [])
                     + plant.get("heat_links", [])
                 )
             }
@@ -378,6 +404,19 @@ def audit(config, report):
                 {unit["name"]: unit["open"] for unit in plant["transport"].get("compressors", [])}
             )
             actual.update({u["name"]: u["open"] for u in restrictions.values()})
+            for switch, (branch, i) in endpoint_switches.items():
+                actual[switch] = (
+                    old["plant"].get("profile_openings", {}).get(branch, (True, True))[i]
+                )
+            branch_commands = {n: list(v) for n, v in command.get("profile_openings", {}).items()}
+            for switch, (branch, i) in endpoint_switches.items():
+                if branch in branch_commands:
+                    actual[switch] = branch_commands[branch][i]
+            for switch in isolation:
+                if switch in endpoint_switches:
+                    branch, i = endpoint_switches[switch]
+                    if branch in branch_commands:
+                        branch_commands[branch][i] = False
             actual.update(command.get("openings", {}))
             actual.update({name: False for name in isolation})
             torques = dict(command.get("drive_torque_nm", {}))
@@ -493,8 +532,18 @@ def audit(config, report):
                 k: v
                 for k, v in command.items()
                 if k
-                in ("heat_w", "utility_temperature_k", "drive_torque_nm", "restriction_openings")
+                in (
+                    "heat_w",
+                    "utility_temperature_k",
+                    "drive_torque_nm",
+                    "restriction_openings",
+                    "profile_heat_w",
+                    "profile_utility_temperature_k",
+                    "profile_openings",
+                )
             }
+            if branch_commands:
+                physical_command["profile_openings"] = branch_commands
             physical_command.update(duration_s=dt, openings=actual, loss_coefficients=losses)
             if areas:
                 physical_command["restriction_openings"] = areas
@@ -550,7 +599,13 @@ def audit(config, report):
         "total_work_j": work_total,
         "conservation_residuals": report["conservation_residuals"],
     }
-    result = audit_plant(request, physical_report)
+    if is_profile:
+        from check_pr_profile_graph import audit as audit_profile_graph
+
+        physical_report["state"] = old["plant"]
+        result = audit_profile_graph(request, physical_report)
+    else:
+        result = audit_plant(request, physical_report)
     close(report["total_heat_j"], heat_total, atol=1e-6, rtol=2e-7)
     close(report.get("total_work_j", 0.0), work_total, atol=1e-10, rtol=2e-7)
     return {**result, "checked_control_substeps": checked}

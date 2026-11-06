@@ -1222,3 +1222,4 @@ JSON/restart API. [Формулы, проверка однозначности �
 - `surface_pr_layered_transport.json`: [наклонные профильные Euler-ячейки](PR_LAYERED_TRANSPORT.md).
 - `surface_pr_layered_plant.json`: [единый Ньютон профильной трубы и PR-графа](PR_LAYERED_PLANT.md).
 - `surface_pr_profile_graph.json`: [несколько профильных ветвей, общие узлы и изоляция](PR_PROFILE_GRAPH.md).
+- `surface_pr_controlled_profile_graph.json`: [PI, защиты и сохраняемая изоляция профильного графа](PR_PROFILE_CONTROLS.md).
