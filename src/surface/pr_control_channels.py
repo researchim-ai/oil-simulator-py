@@ -56,7 +56,9 @@ class PRSurfaceTrip:
         ):
             raise ValueError("Explicit protection sensor and direction required")
         for key in ("trip_threshold", "reset_threshold", "delay_s"):
-            _number(getattr(self, key), key, nonnegative=True)
+            _number(
+                getattr(self, key), key, nonnegative=key == "delay_s" or self.measurement != "speed"
+            )
         if not (
             self.reset_threshold < self.trip_threshold
             if self.direction == "high"

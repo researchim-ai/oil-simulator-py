@@ -16,7 +16,13 @@ def rotor_energy(state, model):
     if len(raw) != len(speeds) or set(speeds) != set(configured):
         raise ValueError("Independent rotor inventory registry differs")
     signed_names = {
-        u["card"]["name"] for u in model.get("pumps", []) if u.get("signed_map") is not None
+        u.get("name", (u.get("card") or {}).get("name"))
+        for u in [
+            *model.get("pumps", []),
+            *model.get("pump_connections", []),
+            *model.get("compressors", []),
+        ]
+        if u.get("signed_map") is not None
     }
     for name, speed in speeds.items():
         if (
@@ -69,6 +75,18 @@ def initial_rotors(model, state):
                     u["speed_rad_s"] for u in model["compressors"] if u["name"] == d["machine"]
                 )
             )
+        if d["initial_speed_rad_s"] is None:
+            unit = next(
+                u
+                for u in [
+                    *model.get("pumps", []),
+                    *model.get("pump_connections", []),
+                    *model.get("compressors", []),
+                ]
+                if u.get("name", (u.get("card") or {}).get("name")) == d["machine"]
+            )
+            if unit.get("signed_map") is not None and unit.get("mapped_speed_rad_s") is not None:
+                speed = unit["mapped_speed_rad_s"]
         close(actual[d["machine"]], speed, atol=1e-12, rtol=1e-12)
 
 
@@ -86,7 +104,13 @@ def audit_drives(
     work_correction = heat_loss = entropy = 0.0
     heat_sources = {}
     signed_units = {
-        u["card"]["name"]: u for u in model.get("pumps", []) if u.get("signed_map") is not None
+        u.get("name", (u.get("card") or {}).get("name")): u
+        for u in [
+            *model.get("pumps", []),
+            *model.get("pump_connections", []),
+            *model.get("compressors", []),
+        ]
+        if u.get("signed_map") is not None
     }
     for name, d in configured.items():
         signed = name in signed_units
@@ -102,6 +126,13 @@ def audit_drives(
         if not -p["max_braking_torque_nm"] <= tau <= p["max_motor_torque_nm"]:
             raise ValueError("Independent motor torque limit exceeded")
         mid = (omega0 + omega) / 2
+        if (
+            signed
+            and openings[name]
+            and max(abs(omega0), abs(omega))
+            > signed_units[name]["signed_map"]["maximum_speed_rad_s"]
+        ):
+            raise ValueError("Opened signed machine endpoint outside supplied speed map")
         power = (
             pump_powers[pump_names[name]]
             if name in pump_names
@@ -110,7 +141,7 @@ def audit_drives(
         inertia, drag = p["inertia_kg_m2"], p["viscous_drag_nm_s"]
         closed_connection = name in connection_names and compressor_records[name]["valve_closed"]
         if openings[name] and not closed_connection:
-            if name not in pump_names and name not in connection_names:
+            if name not in pump_names and name not in connection_names and not signed:
                 unit = next(u for u in model["compressors"] if u["name"] == name)
                 axis = unit["card"]["corrected_speed_rad_s"]
                 for state, w in ((before, omega0), (after, omega)):
@@ -131,7 +162,10 @@ def audit_drives(
                     raise ValueError("Compressor inlet was not dry gas before opening")
             if mid <= 0 and not signed:
                 raise ValueError("Running machine has no positive shaft speed")
-            if signed:
+            if signed and name not in pump_names:
+                load = compressor_records[name]["load_torque_nm"]
+                close(power, load * mid, atol=1e-9, rtol=2e-7)
+            elif signed:
                 unit = signed_units[name]
                 node = next(n for n in model["nodes"] if n["name"] == unit["node"])
                 stock = after["nodes"][unit["node"]]

@@ -13,6 +13,7 @@ from dataclasses import dataclass, replace
 import torch
 
 from .liquid import PropertyModelError, Pump, _number
+from .pr_pump_four_quadrant import SignedPumpMap
 from .pr_pump_unit import G, PRPumpUnit, pump_curve, pump_head_efficiency
 
 
@@ -25,6 +26,9 @@ class PRPumpConnection:
     vapor_pressure_pa: float | None = None
     vapor_pressure_temperature_k: float | None = None
     maximum_vapor_pressure_temperature_departure_k: float = 0.5
+
+    signed_map: SignedPumpMap | None = None
+    mapped_speed_rad_s: float | None = None
 
     @property
     def name(self):
@@ -42,6 +46,17 @@ class PRPumpConnection:
         if not isinstance(self.card, Pump) or self.card.start == self.card.end:
             raise ValueError("Pump connection needs a card and two distinct finite plenums")
         _number(self.outlet_loss_pa_s2_m6, "pump outlet valve resistance", nonnegative=True)
+        if self.signed_map is not None:
+            if not isinstance(self.signed_map, SignedPumpMap):
+                raise TypeError("Expected SignedPumpMap")
+            if self.card.check_valve:
+                raise ValueError("Signed pump connection requires check_valve=False")
+            if self.card.npsh_required_m is not None or self.card.npsh_curve is not None:
+                raise ValueError("Forward NPSH curves cannot certify signed operation")
+        if self.mapped_speed_rad_s is not None:
+            _number(self.mapped_speed_rad_s, "mapped shaft speed")
+            if self.signed_map is None:
+                raise ValueError("Mapped shaft speed requires a signed map")
         PRPumpUnit(
             "validation",
             replace(self.card, check_valve=False),
@@ -54,6 +69,9 @@ class PRPumpConnection:
 
     @classmethod
     def from_dict(cls, data):
+        data = dict(data)
+        if data.get("signed_map") is not None:
+            data["signed_map"] = SignedPumpMap(**data["signed_map"])
         return cls(**{**data, "card": Pump(**data["card"])})
 
 
@@ -92,6 +110,38 @@ class PumpConnectionBundle:
                 if state.nodes[b][1].pressure_pa >= pressure
                 else 0.25 * unit.card.max_flow_m3_s * ratio / qscale
             )
+            if unit.signed_map is not None:
+                qscale = unit.signed_map.maximum_flow_m3_s
+                omega = (
+                    speeds[unit.name]
+                    if drive
+                    else (
+                        unit.mapped_speed_rad_s
+                        if unit.mapped_speed_rad_s is not None
+                        else unit.card.speed_ratio * unit.signed_map.reference_speed_rad_s
+                    )
+                )
+                coupling = (
+                    unit.signed_map.euler_head_coefficient_m_s2 * abs(omega)
+                    + unit.signed_map.linear_head_coefficient_m_s
+                )
+                delta = old.pressure_pa - state.nodes[b][1].pressure_pa + rho * G * coupling * omega
+                resistance = (
+                    unit.outlet_loss_pa_s2_m6
+                    + rho * G * unit.signed_map.flow_loss_coefficient_s2_m5
+                )
+                estimate = math.copysign(math.sqrt(abs(delta) / max(resistance, 1e-30)), delta)
+                guess = max(-0.9, min(0.9, estimate / qscale))
+                donor = old if guess >= 0 else state.nodes[b][1]
+                receiver = state.nodes[b][1] if guess >= 0 else old
+                pressure = min(
+                    f.max_pressure_pa,
+                    max(
+                        f.min_pressure_pa,
+                        receiver.pressure_pa + unit.outlet_loss_pa_s2_m6 * (guess * qscale) ** 2,
+                    ),
+                )
+                old = donor
             self.initial.append(
                 f.tensor(
                     [
@@ -106,7 +156,7 @@ class PumpConnectionBundle:
             self.lower.append(
                 f.tensor(
                     [
-                        0.0,
+                        -1.0 if unit.signed_map is not None else 0.0,
                         math.log(f.min_pressure_pa),
                         f.min_temperature_k / f.tref,
                         f.min_temperature_k / f.tref,
@@ -154,6 +204,17 @@ class PumpConnectionBundle:
         rows, traces = [], []
         valid = y.new_ones((), dtype=torch.bool)
         for unit, a, b, offset, enabled, qscale, curves, efficiency in self.entries:
+            if unit.signed_map is not None and enabled:
+                local_net, local_rows, row, trace, admissible = self._signed(
+                    unit, a, b, offset, qscale, y, data, speeds
+                )
+                for index, flux in local_net.items():
+                    net[index] = net.get(index, 0) + flux
+                rows.append(local_rows)
+                records[unit.name] = row
+                traces.append(trace)
+                valid = valid & admissible
+                continue
             source, target = data[a], data[b]
             q = y[offset] * qscale
             pressure = y[offset + 1].exp()
@@ -188,6 +249,10 @@ class PumpConnectionBundle:
                     "valve_closed": q.new_ones((), dtype=torch.bool),
                     "npsh_available_m": z,
                 }
+                if unit.signed_map is not None:
+                    records[unit.name].update(
+                        load_torque_nm=z, dissipation_w=z, mapped_speed_rad_s=z
+                    )
                 continue
             speed = (
                 speeds[unit.name] / self.model._drives[unit.name].nominal_speed_rad_s
@@ -315,13 +380,139 @@ class PumpConnectionBundle:
             traces.append((unit, pressure, tis, tpump, target["p"], tdel, x, closed))
         return net, rows, records, traces, valid
 
+    def _signed(self, unit, a, b, offset, qscale, y, data, speeds):
+        """Direction-dependent PS/PH traces, with viscous loss heated at donor.
+
+        Map head is oriented a->b. Trace head follows actual flow. Both physical
+        port energies include their own potential; their sum is map shaft work.
+        """
+        f = self.model.fluid
+        q = y[offset] * qscale
+        forward = q >= 0
+        sign = torch.where(forward, 1.0, -1.0)
+        left, right = data[a], data[b]
+
+        def select(key):
+            return torch.where(forward, left[key], right[key])
+
+        x = torch.where(forward, left["x"][0], right["x"][0])
+        rho, pin, tin = select("rho"), select("p"), select("t")
+        pout = torch.where(forward, right["p"], left["p"])
+        hin = torch.where(
+            forward, left["q"]["molar_enthalpy_j_mol"][0], right["q"]["molar_enthalpy_j_mol"][0]
+        )
+        sin = torch.where(
+            forward, left["q"]["molar_entropy_j_mol_k"][0], right["q"]["molar_entropy_j_mol_k"][0]
+        )
+        sound = torch.where(
+            forward, left["q"]["frozen_sound_speed_m_s"][0], right["q"]["frozen_sound_speed_m_s"][0]
+        )
+        mapping = unit.signed_map
+        omega = speeds.get(
+            unit.name,
+            q.new_tensor(
+                unit.mapped_speed_rad_s
+                if unit.mapped_speed_rad_s is not None
+                else unit.card.speed_ratio * mapping.reference_speed_rad_s
+            ),
+        )
+        head, torque, shaft, hydraulic, loss, valid = mapping.evaluate(q, omega, rho)
+        pressure = y[offset + 1].exp()
+        tis, tpump, tdel = [y[offset + j] * f.tref for j in (2, 3, 4)]
+        qi = f.tensor_homogeneous(pressure, tis, x, "liquid")
+        qp = f.tensor_homogeneous(pressure, tpump, x, "liquid")
+        qd = f.tensor_homogeneous(pout, tdel, x, "liquid")
+        mw = (x * f.molar_masses).sum()
+        phi_a, phi_b = [
+            self.model.gravity_m_s2
+            * (self.model.nodes[i].elevation_m - self.model.reference_elevation_m)
+            for i in (a, b)
+        ]
+        dphi = sign * (phi_b - phi_a)
+        coupling = (
+            mapping.euler_head_coefficient_m_s2 * omega.abs() + mapping.linear_head_coefficient_m_s
+        )
+        work = mw * G * sign * coupling * omega
+        heat = rho * G * mapping.viscous_torque_coefficient_m4_s * omega.square()
+        escale = (mw * G * unit.card.shutoff_head_m).clamp_min(1.0)
+        his, hp, hd = [state["molar_enthalpy_j_mol"] for state in (qi, qp, qd)]
+        rows = torch.stack(
+            (
+                (his - hin - mw * (G * sign * head - dphi)) / escale,
+                (qi["molar_entropy_j_mol_k"] - sin) / 8.31446261815324,
+                (hp - hin - work + mw * dphi) / escale,
+                (hd - hp) / escale,
+                (sign * (pout - pressure) + unit.outlet_loss_pa_s2_m6 * q * q.abs()) / pin,
+            )
+        )
+        mass = q * rho
+        molar = mass / mw
+        components = molar * x
+        ha = torch.where(forward, hin, hd)
+        hb = torch.where(forward, hd, hin)
+        first = torch.cat((components, y.new_zeros(1), (molar * (ha + mw * phi_a)).reshape(1)))
+        last = torch.cat((components, y.new_zeros(1), (molar * (hb + mw * phi_b)).reshape(1)))
+        heating = torch.cat((y.new_zeros(len(x) + 1), heat.reshape(1)))
+        net = {
+            a: -first + torch.where(forward, heating, heating * 0),
+            b: last + torch.where(forward, heating * 0, heating),
+        }
+        entropy = molar.abs() * (qd["molar_entropy_j_mol_k"] - sin) + heat / tin
+        # Live donor selection and absolute head are essential in reverse operation.
+        dense = torch.where(
+            forward,
+            q.new_tensor(len(left["phase_n"]) == 1, dtype=torch.bool),
+            q.new_tensor(len(right["phase_n"]) == 1, dtype=torch.bool),
+        )
+        valid = valid & dense & (rho >= unit.minimum_density_kg_m3)
+        for state in (qi, qp, qd):
+            valid = valid & state["valid"] & (state["density_kg_m3"] >= unit.minimum_density_kg_m3)
+        valid = valid & (G * head.abs() / sound.square() <= unit.maximum_compressibility_fraction)
+        valid = valid & (entropy >= -1e-8)
+        if unit.card.max_shaft_power_w is not None:
+            valid = valid & (shaft.abs() <= unit.card.max_shaft_power_w)
+        npsh = q * 0
+        if unit.vapor_pressure_pa is not None:
+            npsh = (pin - unit.vapor_pressure_pa) / (rho * G)
+            valid = (
+                valid
+                & (npsh >= 0)
+                & (
+                    (tin - unit.vapor_pressure_temperature_k).abs()
+                    <= unit.maximum_vapor_pressure_temperature_departure_k
+                )
+            )
+        closed = q.new_zeros((), dtype=torch.bool)
+        row = {
+            "flow_m3_s": q,
+            "mass_rate_kg_s": mass,
+            "head_m": head,
+            "efficiency": q.new_ones(()),
+            "shaft_power_w": shaft,
+            "hydraulic_power_w": hydraulic,
+            "pump_pressure_pa": pressure,
+            "isentropic_temperature_k": tis,
+            "pump_temperature_k": tpump,
+            "delivery_temperature_k": tdel,
+            "entropy_production_w_k": entropy,
+            "valve_pressure_drop_pa": sign * (pressure - pout),
+            "valve_closed": closed,
+            "npsh_available_m": npsh,
+            "load_torque_nm": torque,
+            "dissipation_w": loss,
+            "mapped_speed_rad_s": omega,
+        }
+        return net, rows, row, (unit, pressure, tis, tpump, pout, tdel, x, closed, pin, tin), valid
+
     def validate(self, traces):
-        for unit, pressure, tis, tpump, target, tdel, x, closed in traces:
+        for unit, pressure, tis, tpump, target, tdel, x, closed, *donor in traces:
             pairs = (
                 [(pressure, tis)]
                 if bool(closed.cpu())
                 else [(pressure, tis), (pressure, tpump), (target, tdel)]
             )
+            if donor:
+                pairs.append(tuple(donor))
             for p, t in pairs:
                 phase = self.model.fluid.flash_pt(p, t, x)
                 if (

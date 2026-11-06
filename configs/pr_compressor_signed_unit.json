@@ -1,0 +1,16 @@
+{
+  "name": "explicit_dry_gas",
+  "source": "left",
+  "target": "right",
+  "card": null,
+  "speed_rad_s": -100.0,
+  "reference_mole_fractions": [0.99, 0.01],
+  "signed_map": {
+    "reference_speed_rad_s": 100.0,
+    "maximum_speed_rad_s": 200.0,
+    "maximum_flow_m3_s": 0.1,
+    "euler_coefficient": 0.1,
+    "linear_coupling": 1.0,
+    "flow_loss_coefficient": 100000.0
+  }
+}

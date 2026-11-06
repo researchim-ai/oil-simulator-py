@@ -15,6 +15,7 @@ import torch
 from .compressor_map import CompressorMap
 from .liquid import PropertyModelError, _name, _number
 from .peng_robinson import R
+from .pr_compressor_gasmap import SignedGasMap, evaluate_signed, prepare_signed
 
 
 @dataclass(frozen=True)
@@ -22,7 +23,7 @@ class PRCompressorUnit:
     name: str
     source: str
     target: str
-    card: CompressorMap
+    card: CompressorMap | None
     speed_rad_s: float
     reference_mole_fractions: tuple
     maximum_composition_departure: float = 0.01
@@ -30,12 +31,23 @@ class PRCompressorUnit:
     maximum_shaft_power_w: float | None = None
     open: bool = True
 
+    signed_map: SignedGasMap | None = None
+
     def __post_init__(self):
         for name in (self.name, self.source, self.target):
             _name(name)
-        if self.source == self.target or not isinstance(self.card, CompressorMap):
+        if self.source == self.target or (
+            self.signed_map is None and not isinstance(self.card, CompressorMap)
+        ):
             raise ValueError("Compressor requires a card and distinct finite plenums")
-        _number(self.speed_rad_s, "compressor speed", positive=True)
+        if self.signed_map is None:
+            _number(self.speed_rad_s, "compressor speed", positive=True)
+        else:
+            if not isinstance(self.signed_map, SignedGasMap) or self.card is not None:
+                raise ValueError("Explicit signed gas map requires card=None")
+            _number(self.speed_rad_s, "compressor speed")
+            if abs(self.speed_rad_s) > self.signed_map.maximum_speed_rad_s:
+                raise ValueError("Signed compressor speed exceeds envelope")
         x = tuple(
             float(_number(v, "reference composition", nonnegative=True))
             for v in self.reference_mole_fractions
@@ -54,18 +66,29 @@ class PRCompressorUnit:
 
     @classmethod
     def from_dict(cls, data):
-        return cls(**{**data, "card": CompressorMap(**data["card"])})
+        values = dict(data)
+        values["card"] = CompressorMap(**values["card"]) if values.get("card") is not None else None
+        if values.get("signed_map") is not None:
+            values["signed_map"] = SignedGasMap(**values["signed_map"])
+        return cls(**values)
 
 
 class CompressorBundle:
-    def __init__(self, model, state, openings, offset):
+    def __init__(self, model, state, openings, offset, donor_signs=None):
         self.model = model
+        self.donor_signs = dict(donor_signs or {})
+        if any(value not in (-1, 1) for value in self.donor_signs.values()):
+            raise ValueError("Frozen compressor donor signs must be -1 or +1")
         self.entries = []
         self.initial, self.lower, self.upper = [], [], []
         f = model.fluid
         for unit in model.compressors:
             a, b = model.names.index(unit.source), model.names.index(unit.target)
             enabled = openings[unit.name]
+            if unit.signed_map is not None:
+                self.entries.append(prepare_signed(self, unit, a, b, offset, enabled, state))
+                offset += 3
+                continue
             old = state.nodes[a][1]
             old_speed = dict(state.rotors).get(unit.name, unit.speed_rad_s)
             op = unit.card.operating_point(
@@ -125,6 +148,18 @@ class CompressorBundle:
         residual, records, traces = [], {}, []
         valid = y.new_ones((), dtype=torch.bool)
         for unit, a, b, offset, enabled, speeds, betas, tables, reference, scale in self.entries:
+            if unit.signed_map is not None:
+                entry = (unit, a, b, offset, enabled, speeds, betas, tables, reference, scale)
+                flows, row, record, trace, admissible = evaluate_signed(
+                    self, entry, y, data, shaft_speeds
+                )
+                for index, flux in flows.items():
+                    net[index] = net.get(index, 0) + flux
+                residual.append(row)
+                records[unit.name] = record
+                traces.extend(trace)
+                valid = valid & admissible
+                continue
             source, target = data[a], data[b]
             beta, tis, tout = y[offset], y[offset + 1] * f.tref, y[offset + 2] * f.tref
             x = source["x"][0]
@@ -276,6 +311,10 @@ def inventory_guesses(model, state, dt, openings, previous):
         if not openings[unit.name]:
             continue
         a, b = model.names.index(unit.source), model.names.index(unit.target)
+        if unit.signed_map is not None:
+            # Parent may seed the separately attempted donor branch. Never infer
+            # signed flow from a forward-only legacy card.
+            continue
         source = state.nodes[a][1]
         x = [v / sum(source.component_moles) for v in source.component_moles]
         mw = sum(v * c.molar_mass_kg_mol for v, c in zip(x, f.components))

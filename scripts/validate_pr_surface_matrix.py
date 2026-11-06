@@ -15,6 +15,12 @@ from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 CASES = {
+    "profile_graph": ("surface_pr_profile_graph", "profile_graph"),
+    "controlled_signed_pump": ("surface_pr_controlled_signed_pump", "controlled"),
+    "layered_transport": ("surface_pr_layered_transport", "layered"),
+    "layered_plant": ("surface_pr_layered_plant", "layered_plant"),
+    "signed_pump_connection": ("surface_pr_signed_pump_connection", "equilibrium"),
+    "signed_compressor": ("surface_pr_signed_compressor", "equilibrium"),
     "signed_pump_reversal": ("surface_pr_signed_pump_reversal", "equilibrium"),
     "inclined_inventory": ("surface_pr_inclined_inventory", "gravity"),
     "stratified_drift": ("surface_pr_stratified_drift", "equilibrium"),
@@ -106,6 +112,9 @@ def main():
             "equilibrium": "pr_equilibrium_transport",
             "gravity": "pr_gravity_transport",
             "controlled": "pr_controlled_surface",
+            "layered": "pr_layered_transport",
+            "layered_plant": "pr_layered_plant",
+            "profile_graph": "pr_profile_graph",
         }[family]
         start = time.monotonic()
         print(f"Running {name} on {args.device}", flush=True)

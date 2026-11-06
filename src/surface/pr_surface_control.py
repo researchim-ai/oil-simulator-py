@@ -114,7 +114,9 @@ class PRSurfacePI:
 
     def __post_init__(self):
         _name(self.valve)
-        _number(self.setpoint, "PI setpoint", nonnegative=True)
+        _number(
+            self.setpoint, "PI setpoint", nonnegative=self.measurement not in ("speed", "pump_flow")
+        )
         _number(self.proportional_gain, "PI proportional gain", nonnegative=True)
         _number(self.integral_gain_per_s, "PI integral gain", nonnegative=True)
         _number(self.tracking_time_s, "PI tracking time", positive=True)
@@ -310,6 +312,15 @@ class PRControlledSurface:
         by_name = {n.name: n for n in plant.transport.nodes}
         links = {c.name: c for c in plant.transport.links}
         restrictions = {u.name: u for u in plant.transport.restrictions}
+        self._signed_machines = {
+            u.name
+            for u in (
+                *plant.transport.pumps,
+                *plant.transport.pump_connections,
+                *plant.transport.compressors,
+            )
+            if getattr(u, "signed_map", None) is not None
+        }
         for valve in self.channels:
             if isinstance(valve, PRMotorControl):
                 if valve.port not in plant.transport._drives:
@@ -320,9 +331,13 @@ class PRControlledSurface:
                     or valve.maximum_torque_nm > physics.max_motor_torque_nm
                 ):
                     raise ValueError("Controller torque limits exceed the physical drive")
+                peak_positive = valve.maximum_torque_nm
+                peak_negative = -valve.minimum_torque_nm
+                if valve.machine in self._signed_machines:
+                    peak_positive = peak_negative = max(peak_positive, peak_negative)
                 if (
                     physics.max_electrical_draw_w is not None
-                    and valve.maximum_torque_nm * physics.max_speed_rad_s / physics.motor_efficiency
+                    and peak_positive * physics.max_speed_rad_s / physics.motor_efficiency
                     > physics.max_electrical_draw_w
                 ):
                     raise ValueError(
@@ -330,9 +345,7 @@ class PRControlledSurface:
                     )
                 if (
                     physics.max_electrical_export_w is not None
-                    and -valve.minimum_torque_nm
-                    * physics.max_speed_rad_s
-                    * physics.regeneration_efficiency
+                    and peak_negative * physics.max_speed_rad_s * physics.regeneration_efficiency
                     > physics.max_electrical_export_w
                 ):
                     raise ValueError("Controller braking torque exceeds the declared export power")
@@ -423,17 +436,22 @@ class PRControlledSurface:
                     raise ValueError(
                         "Pump-flow feedback requires an actual-flow PR pump connection"
                     )
+                if c.setpoint < 0 and c.sensor not in self._signed_machines:
+                    raise ValueError("Negative flow setpoint requires an explicit signed pump map")
                 self._feedback_units.add(c.sensor)
                 continue
             if c.measurement == "compressor_margin":
-                if c.sensor not in self._compressors:
-                    raise ValueError("Anti-surge control requires an explicit PR compressor sensor")
+                if c.sensor not in self._compressors or c.sensor in self._signed_machines:
+                    raise ValueError(
+                        "Anti-surge control requires an explicit forward compressor surge map"
+                    )
                 continue
             if c.measurement == "speed":
                 sensor = c.sensor or self._valves[c.valve].port
                 if (
                     sensor not in plant.transport._drives
-                    or c.setpoint > plant.transport._drives[sensor].drive.max_speed_rad_s
+                    or abs(c.setpoint) > plant.transport._drives[sensor].drive.max_speed_rad_s
+                    or (c.setpoint < 0 and sensor not in self._signed_machines)
                 ):
                     raise ValueError(
                         "Speed feedback needs a represented rotor and admissible setpoint"
@@ -481,6 +499,14 @@ class PRControlledSurface:
             sensors = plant.transport._drives if trip.measurement == "speed" else by_name
             if trip.sensor not in sensors:
                 raise ValueError("Unknown physical protection sensor")
+            if (
+                trip.measurement == "speed"
+                and min(trip.trip_threshold, trip.reset_threshold) < 0
+                and trip.sensor not in self._signed_machines
+            ):
+                raise ValueError(
+                    "Negative speed protection requires an explicit signed machine map"
+                )
         for key, value in [
             ("initial_step_s", initial_step_s),
             ("minimum_step_s", minimum_step_s),
@@ -848,7 +874,10 @@ class PRControlledSurface:
                     "choked_substeps": 0,
                 }
                 if isinstance(v, PRThroatControlValve)
-                else {"maximum_speed_rad_s": 0.0, "motor_torque_nm": effective_torques[v.name]}
+                else {
+                    "maximum_speed_rad_s": abs(dict(state.plant.transport.rotors)[v.machine]),
+                    "motor_torque_nm": effective_torques[v.name],
+                }
                 if isinstance(v, PRMotorControl)
                 else {"maximum_pressure_drop_fraction": 0.0, "maximum_mach_number": 0.0}
             )
@@ -861,7 +890,7 @@ class PRControlledSurface:
                 if isinstance(v, PRMotorControl):
                     envelope[v.name]["maximum_speed_rad_s"] = max(
                         envelope[v.name]["maximum_speed_rad_s"],
-                        step["transport"]["drives"][v.machine]["speed_rad_s"],
+                        abs(step["transport"]["drives"][v.machine]["speed_rad_s"]),
                     )
                     continue
                 if isinstance(v, PRThroatControlValve):

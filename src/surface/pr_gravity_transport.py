@@ -635,7 +635,12 @@ class _ColumnCoupling:
         directed = [
             (unit.source, unit.target)
             for unit in (*t.compressors, *t.pump_connections)
-            if self.openings[unit.name]
+            if self.openings[unit.name] and getattr(unit, "signed_map", None) is None
+        ]
+        edges += [
+            (unit.source, unit.target)
+            for unit in (*t.compressors, *t.pump_connections)
+            if self.openings[unit.name] and getattr(unit, "signed_map", None) is not None
         ]
         changed = True
         while changed:

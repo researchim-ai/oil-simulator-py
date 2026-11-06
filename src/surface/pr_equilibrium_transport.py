@@ -713,7 +713,16 @@ class PREquilibriumTransportNetwork:
                 else {}
             ),
             **(
-                {"pump_connections": [asdict(u) for u in self.pump_connections]}
+                {
+                    "pump_connections": [
+                        {
+                            k: v
+                            for k, v in asdict(u).items()
+                            if k not in ("signed_map", "mapped_speed_rad_s") or v is not None
+                        }
+                        for u in self.pump_connections
+                    ]
+                }
                 if self.pump_connections
                 else {}
             ),
@@ -724,7 +733,17 @@ class PREquilibriumTransportNetwork:
                 else {}
             ),
             **(
-                {"compressors": [asdict(unit) for unit in self.compressors]}
+                {
+                    "compressors": [
+                        {
+                            k: v
+                            for k, v in asdict(unit).items()
+                            if k not in ("signed_map", "outlet_loss_pa_s2_m6")
+                            or (v is not None and (k != "outlet_loss_pa_s2_m6" or v != 0))
+                        }
+                        for unit in self.compressors
+                    ]
+                }
                 if self.compressors
                 else {}
             ),
@@ -1234,7 +1253,11 @@ class PREquilibriumTransportNetwork:
             raise PropertyModelError("Transport graph state/model differs")
         if set(dict(state.rotors)) != set(self._drives):
             raise ValueError("Rotor inventory registry differs from machine drives")
-        signed_rotors = {u.name for u in self.pumps if getattr(u, "signed_map", None) is not None}
+        signed_rotors = {
+            u.name
+            for u in (*self.pumps, *self.pump_connections, *self.compressors)
+            if getattr(u, "signed_map", None) is not None
+        }
         for name, speed in state.rotors:
             if abs(speed) > self._drives[name].drive.max_speed_rad_s or (
                 speed < 0 and name not in signed_rotors
@@ -1398,6 +1421,11 @@ class PREquilibriumTransportNetwork:
                 if isinstance(unit, (PRPumpUnit, PRPumpConnection))
                 else unit.speed_rad_s
             )
+            if (
+                getattr(unit, "signed_map", None) is not None
+                and getattr(unit, "mapped_speed_rad_s", None) is not None
+            ):
+                default = unit.mapped_speed_rad_s
             speeds.setdefault(
                 drive.machine,
                 drive.initial_speed_rad_s if drive.initial_speed_rad_s is not None else default,
@@ -1787,6 +1815,8 @@ class PREquilibriumTransportNetwork:
                 if openings[unit.name]:
                     a, b = self.names.index(unit.source), self.names.index(unit.target)
                     masks[b] = masks[b] | masks[a]
+                    if getattr(unit, "signed_map", None) is not None:
+                        masks[a] = masks[b]
             for unit in self.restrictions:
                 if openings[unit.name]:
                     a, b = self.names.index(unit.source), self.names.index(unit.target)

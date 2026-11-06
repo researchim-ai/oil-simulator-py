@@ -487,7 +487,7 @@ def endpoint(node, data, link, side, model):
     return (uc, ff, data["p"], v, rho, entropy), weights, normal, extra
 
 
-def audit(config, report):
+def audit(config, report, *, external_exchange=None):
     if config != report["config"]:
         raise ValueError("Transport request differs")
     parsed = PREquilibriumTransportNetwork.from_dict(config["model"])
@@ -509,6 +509,8 @@ def audit(config, report):
     maximum = np.zeros(nc + 2)
     all_heat = 0.0
     all_work = 0.0
+    all_exchange_n = np.zeros(nc)
+    all_exchange_e = 0.0
     olddata = {n: decode(old["nodes"][n], nodes[n], model, fluid) for n in names}
     for command, interval in zip(config["schedule"], report["intervals"], strict=True):
         end = old["time_s"] + command["duration_s"]
@@ -534,6 +536,8 @@ def audit(config, report):
         if expected_loss != interval["loss_coefficients"]:
             raise ValueError("Resistance command differs")
         interval_heat = interval_entropy = interval_work = 0.0
+        interval_exchange_n = np.zeros(nc)
+        interval_exchange_e = 0.0
         interval_start = old
         for step in interval["steps"]:
             dt = step["dt_s"]
@@ -551,6 +555,20 @@ def audit(config, report):
                 model, nodes, data, step.get("hydrostatic_faces", {}), fluid, reference_sound
             )
             net = {n: np.zeros(nc + 2) for n in names}
+            exchange_n = np.zeros(nc)
+            exchange_e = exchange_entropy = 0.0
+            if external_exchange is not None:
+                exchanged = external_exchange(old, new, data, dt)
+                if set(exchanged["net"]) != set(names):
+                    raise ValueError("External exchange registry differs")
+                for name, rate in exchanged["net"].items():
+                    value = np.asarray(rate, dtype=float)
+                    if value.shape != (nc + 2,) or not np.isfinite(value).all():
+                        raise ValueError("Invalid independent external exchange")
+                    net[name] += value
+                exchange_n = dt * sum((v[:-2] for v in net.values()), np.zeros(nc))
+                exchange_e = dt * sum(v[-1] for v in net.values())
+                exchange_entropy = float(exchanged["incoming_entropy"])
             particle_rates = {
                 n: 0.0 for n in names if nodes[n].get("droplet_population") is not None
             }
@@ -800,7 +818,7 @@ def audit(config, report):
             work += correction
             for name, rate in drive_heat_sources.items():
                 net[name][-1] += rate
-            production = 0.0
+            production = -dt * exchange_entropy
             external = ambient = 0.0
             for n in names:
                 node = nodes[n]
@@ -898,11 +916,20 @@ def audit(config, report):
             close(step.get("external_work_j", 0.0), work, atol=1e-10, rtol=2e-7)
             close(
                 step["conservation_residuals"],
-                ledger(old, new, nodes, ambient + external + work, model),
+                ledger(
+                    old,
+                    new,
+                    nodes,
+                    ambient + external + work + exchange_e,
+                    model,
+                    incoming_n=exchange_n,
+                ),
                 atol=1e-6,
                 rtol=2e-7,
             )
             interval_heat += ambient + external
+            interval_exchange_n += exchange_n
+            interval_exchange_e += exchange_e
             interval_work += work
             interval_entropy += production
             old = new
@@ -920,18 +947,34 @@ def audit(config, report):
         close(interval["entropy_production_j_k"], interval_entropy, atol=2e-6, rtol=2e-6)
         close(
             interval["conservation_residuals"],
-            ledger(interval_start, final, nodes, interval_heat + interval_work, model),
+            ledger(
+                interval_start,
+                final,
+                nodes,
+                interval_heat + interval_work + interval_exchange_e,
+                model,
+                incoming_n=interval_exchange_n,
+            ),
             atol=1e-6,
             rtol=2e-7,
         )
         old = final
         all_heat += interval_heat
         all_work += interval_work
+        all_exchange_n += interval_exchange_n
+        all_exchange_e += interval_exchange_e
     close(report["total_heat_j"], all_heat, atol=1e-6, rtol=2e-7)
     close(report.get("total_work_j", 0.0), all_work, atol=1e-10, rtol=2e-7)
     close(
         report["conservation_residuals"],
-        ledger(old_start, old, nodes, all_heat + all_work, model),
+        ledger(
+            old_start,
+            old,
+            nodes,
+            all_heat + all_work + all_exchange_e,
+            model,
+            incoming_n=all_exchange_n,
+        ),
         atol=1e-6,
         rtol=2e-7,
     )
@@ -943,13 +986,15 @@ def audit(config, report):
     }
 
 
-def ledger(before, after, nodes, heat, model=None):
+def ledger(before, after, nodes, heat, model=None, *, incoming_n=None):
     nc = len(next(iter(before["nodes"].values()))["component_moles"])
     dn = [
         math.fsum(s["component_moles"][i] for s in after["nodes"].values())
         - math.fsum(s["component_moles"][i] for s in before["nodes"].values())
         for i in range(nc)
     ]
+    if incoming_n is not None:
+        dn = (np.asarray(dn) - np.asarray(incoming_n)).tolist()
     energy = rotor_energy(after, model) - rotor_energy(before, model) if model is not None else 0.0
     for n, node in nodes.items():
         a, b = before["nodes"][n], after["nodes"][n]

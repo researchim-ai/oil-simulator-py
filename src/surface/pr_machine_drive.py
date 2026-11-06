@@ -126,7 +126,9 @@ class RotorBundle:
         self.initial, self.lower, self.upper = [], [], []
         self.isolated = {}
         self.signed_names = {
-            u.name for u in model.pumps if getattr(u, "signed_map", None) is not None
+            u.name
+            for u in (*model.pumps, *model.pump_connections, *model.compressors)
+            if getattr(u, "signed_map", None) is not None
         }
         old = dict(state.rotors)
         commands = commands or {}
@@ -155,7 +157,17 @@ class RotorBundle:
             signed = drive.machine in self.signed_names
             mapping = getattr(unit, "signed_map", None)
             if mapping is not None and mapping.reference_speed_rad_s != drive.nominal_speed_rad_s:
-                raise ValueError("Signed pump map reference speed must match drive nominal speed")
+                raise ValueError(
+                    "Signed machine map reference speed must match drive nominal speed"
+                )
+            if (
+                mapping is not None
+                and openings[drive.machine]
+                and abs(speed) > mapping.maximum_speed_rad_s
+            ):
+                raise EquipmentOperatingError(
+                    "Opened signed machine speed outside its supplied map"
+                )
             if (
                 not openings[drive.machine]
                 and hasattr(unit, "node")
@@ -168,7 +180,7 @@ class RotorBundle:
                 raise EquipmentOperatingError(
                     "A coasting driven pump must be hydraulically isolated; represent bypass flow in an explicit branch"
                 )
-            if openings[drive.machine] and drive.machine in self.compressor_names:
+            if openings[drive.machine] and drive.machine in self.compressor_names and not signed:
                 source = state.nodes[model.names.index(unit.source)][1]
                 corrected = speed / math.sqrt(
                     source.temperature_k / unit.card.reference_temperature_k
@@ -289,7 +301,8 @@ class RotorBundle:
                     row = torch.where(closed, (end - target) / d.nominal_speed_rad_s, row)
                     motor = torch.where(closed, free_motor, motor)
                     drag = torch.where(closed, free_drag, drag)
-                    valid = valid & (closed | (mid > 0))
+                    if not signed:
+                        valid = valid & (closed | (mid > 0))
                 elif not signed:
                     valid = valid & (mid > 0)
             else:
@@ -331,7 +344,9 @@ class RotorBundle:
                 & (end >= (-physics.max_speed_rad_s if signed else 0))
                 & (end <= physics.max_speed_rad_s)
             )
-            if enabled and d.machine in self.compressor_names:
+            if enabled and signed:
+                valid = valid & (end.abs() <= unit.signed_map.maximum_speed_rad_s)
+            if enabled and d.machine in self.compressor_names and not signed:
                 theta = (
                     data[self.source_indices[d.machine]]["t"] / unit.card.reference_temperature_k
                 )

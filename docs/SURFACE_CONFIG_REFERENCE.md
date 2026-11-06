@@ -1216,3 +1216,9 @@ JSON/restart API. [Формулы, проверка однозначности �
 - `surface_pr_stratified_drift.json`: [баланс сил слоистого течения](PR_STRATIFIED_DRIFT.md).
 - `surface_pr_sectional_beta_mixer.json`: [статистическое дробление](PR_SECTIONAL_POPULATIONS.md).
 - `surface_pr_signed_pump_reversal.json`: [знаковая карта и реверс вала](PR_PUMP_FOUR_QUADRANT.md).
+- `surface_pr_signed_pump_connection.json`: [PS/PH-соединение с реверсом](PR_SIGNED_PUMP_CONNECTION.md).
+- `surface_pr_signed_compressor.json`: [знаковая газовая карта](PR_SIGNED_COMPRESSOR.md).
+- `surface_pr_controlled_signed_pump.json`: отрицательная уставка скорости, защита и изоляция.
+- `surface_pr_layered_transport.json`: [наклонные профильные Euler-ячейки](PR_LAYERED_TRANSPORT.md).
+- `surface_pr_layered_plant.json`: [единый Ньютон профильной трубы и PR-графа](PR_LAYERED_PLANT.md).
+- `surface_pr_profile_graph.json`: [несколько профильных ветвей, общие узлы и изоляция](PR_PROFILE_GRAPH.md).

@@ -406,6 +406,25 @@ def audit(config, report):
                     )
                     close(step["effective_motor_torque_nm"][name], torque, atol=1e-12, rtol=1e-10)
                     torques[v["machine"]] = torque
+                    peak = max(
+                        [abs(dict(old["plant"]["transport"]["rotors"])[v["machine"]])]
+                        + [
+                            abs(dict(s["state"]["transport"]["rotors"])[v["machine"]])
+                            for s in step["plant"]["steps"]
+                        ]
+                    )
+                    close(
+                        step["motor_envelope"][name]["maximum_speed_rad_s"],
+                        peak,
+                        atol=1e-12,
+                        rtol=1e-10,
+                    )
+                    close(
+                        step["motor_envelope"][name]["motor_torque_nm"],
+                        torque,
+                        atol=1e-12,
+                        rtol=1e-10,
+                    )
                     continue
                 opened = actual[v["port"]] and x > 0
                 actual[v["port"]] = opened

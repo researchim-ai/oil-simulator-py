@@ -101,13 +101,11 @@ and electrical energy by numerical quadrature split at zero speed. Its adjusted
 `machine_model` sets explicit `mapped_speed_rad_s`, preserving the legacy card's
 positive `speed_ratio`. Audits reject altered torque/dissipation reports.
 
-`PRPumpConnection` remains a forward-only PS/PH/check-valve model. Reverse
-flow there needs direction-dependent donor composition/enthalpy, both sets
-of liquid trace equations, signed valve loss and unknown bounds, and a
-consistent head/torque energy closure. Simply relaxing its q>=0 bound is not
-physical. Use the finite body representation for the signed pump feature.
+`PRPumpConnection` additionally supports explicit signed donor PS/PH traces,
+physical-end component/energy fluxes, and finite zero-speed torque:
+[the signed connection model](PR_SIGNED_PUMP_CONNECTION.md). Legacy connections
+remain forward-only; signed behavior requires its own supplied map.
 
 Legacy forward pump configurations omit unused signed-map fields during
-serialization, preserving their checkpoint model identity. Speed PI setpoints
-remain nonnegative; signed reversals in this example use explicit drive-torque
-commands. Reverse compressor maps are not inferred from forward data.
+serialization, preserving their checkpoint model identity. Signed speed PI setpoints are supported for explicitly mapped reversible
+machines; this example uses explicit drive-torque commands. Reverse compressor maps are not inferred from forward data.
