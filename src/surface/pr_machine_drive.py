@@ -42,8 +42,8 @@ class PRMachineDrive:
         ):
             raise ValueError("Motor torque outside drive limits")
         if self.initial_speed_rad_s is not None:
-            _number(self.initial_speed_rad_s, "initial shaft speed", nonnegative=True)
-            if self.initial_speed_rad_s > self.drive.max_speed_rad_s:
+            _number(self.initial_speed_rad_s, "initial shaft speed")
+            if abs(self.initial_speed_rad_s) > self.drive.max_speed_rad_s:
                 raise ValueError("Initial shaft speed exceeds drive limit")
         if not 0 < self.relative_speed_tolerance <= 0.01:
             raise ValueError("Explicit narrow rotor temporal tolerance required")
@@ -53,17 +53,20 @@ class PRMachineDrive:
         return cls(**{**data, "drive": RotatingDrive(**data["drive"])})
 
 
-def isolated_motion(old, torque, dt, drive):
-    """Exact affine angular dynamics, with no host read of device values."""
+def isolated_motion(old, torque, dt, drive, *, signed=False):
+    """Exact affine dynamics; signed shafts cross rest, legacy shafts stop there."""
     inertia, drag = drive.inertia_kg_m2, drive.viscous_drag_nm_s
-    stopping = (
-        inertia * old / (-torque).clamp_min(1e-30)
-        if drag == 0
-        else inertia / drag * torch.log1p(drag * old / (-torque).clamp_min(1e-30))
-    )
-    moving = torch.minimum(
-        old.new_tensor(dt), torch.where(torque < 0, stopping, old.new_tensor(math.inf))
-    )
+    if signed:
+        moving = torch.as_tensor(dt, dtype=old.dtype, device=old.device)
+    else:
+        stopping = (
+            inertia * old / (-torque).clamp_min(1e-30)
+            if drag == 0
+            else inertia / drag * torch.log1p(drag * old / (-torque).clamp_min(1e-30))
+        )
+        moving = torch.minimum(
+            old.new_tensor(dt), torch.where(torque < 0, stopping, old.new_tensor(math.inf))
+        )
     x = drag / inertia * moving
     small = x.clamp(max=0.5)
     phi1 = sum((-small) ** n / math.factorial(n + 1) for n in range(18))
@@ -75,7 +78,9 @@ def isolated_motion(old, torque, dt, drive):
     phi2 = torch.where(x < 0.5, phi2, (x - em) / safe.square())
     phi3 = torch.where(x < 0.5, phi3, (x - 2 * em - torch.expm1(-2 * x) / 2) / safe.pow(3))
     acceleration = (torque - drag * old) / inertia
-    end = torch.where((torque < 0) & (stopping <= dt), old * 0, old + acceleration * moving * phi1)
+    end = old + acceleration * moving * phi1
+    if not signed:
+        end = torch.where((torque < 0) & (stopping <= dt), old * 0, end)
     angle = old * moving + acceleration * moving.square() * phi2
     square = (
         old.square() * moving
@@ -85,12 +90,44 @@ def isolated_motion(old, torque, dt, drive):
     return end, torque * angle, drag * square
 
 
+def signed_motor_work(old, end, torque, dt, drive, *, isolated=False):
+    """Separate positive/negative shaft work across zero for electrical losses.
+
+    Open-machine speed is the linear midpoint trajectory. Isolated motion uses
+    the exact affine trajectory and its zero event. No tensor host reads.
+    """
+    if isolated:
+        end, total, _ = isolated_motion(old, torque, dt, drive, signed=True)
+        safe_torque = torch.where(torque != 0, torque, torch.ones_like(torque))
+        if drive.viscous_drag_nm_s == 0:
+            crossing_time = -drive.inertia_kg_m2 * old / safe_torque
+        else:
+            ratio = -drive.viscous_drag_nm_s * old / safe_torque
+            crossing_time = (
+                drive.inertia_kg_m2
+                / drive.viscous_drag_nm_s
+                * torch.log1p(ratio.clamp_min(-1 + torch.finfo(old.dtype).eps))
+            )
+        crossing_time = crossing_time.clamp(0, dt)
+        _, first, _ = isolated_motion(old, torque, crossing_time, drive, signed=True)
+    else:
+        total = dt * torque * (old + end) / 2
+        crossing_time = dt * old.abs() / (old.abs() + end.abs()).clamp_min(1e-30)
+        first = torque * old * crossing_time / 2
+    first = torch.where(old * end < 0, first, total)
+    second = total - first
+    return first.clamp_min(0) + second.clamp_min(0), (-first).clamp_min(0) + (-second).clamp_min(0)
+
+
 class RotorBundle:
     def __init__(self, model, state, dt, openings, commands, offset, previous_data=None):
         self.model, self.dt = model, dt
         self.entries = []
         self.initial, self.lower, self.upper = [], [], []
         self.isolated = {}
+        self.signed_names = {
+            u.name for u in model.pumps if getattr(u, "signed_map", None) is not None
+        }
         old = dict(state.rotors)
         commands = commands or {}
         if set(commands) - set(model._drives):
@@ -115,6 +152,10 @@ class RotorBundle:
                 raise ValueError("Motor torque command outside limits")
             speed = old[drive.machine]
             unit = units[drive.machine]
+            signed = drive.machine in self.signed_names
+            mapping = getattr(unit, "signed_map", None)
+            if mapping is not None and mapping.reference_speed_rad_s != drive.nominal_speed_rad_s:
+                raise ValueError("Signed pump map reference speed must match drive nominal speed")
             if (
                 not openings[drive.machine]
                 and hasattr(unit, "node")
@@ -157,8 +198,12 @@ class RotorBundle:
                             "Liquid pump requires single-phase liquid before opening"
                         )
                     previous_checks.append(point["rho"] >= unit.minimum_density_kg_m3)
-            peak_draw = max(0.0, torque) * speed / physics.motor_efficiency
-            peak_export = max(0.0, -torque) * speed * physics.regeneration_efficiency
+            if signed:
+                peak_draw = max(0.0, torque * speed) / physics.motor_efficiency
+                peak_export = max(0.0, -torque * speed) * physics.regeneration_efficiency
+            else:
+                peak_draw = max(0.0, torque) * speed / physics.motor_efficiency
+                peak_export = max(0.0, -torque) * speed * physics.regeneration_efficiency
             if (
                 physics.max_electrical_draw_w is not None
                 and peak_draw > physics.max_electrical_draw_w
@@ -172,7 +217,7 @@ class RotorBundle:
             guess = min(
                 physics.max_speed_rad_s,
                 max(
-                    0.0,
+                    -physics.max_speed_rad_s if signed else 0.0,
                     speed
                     + dt * (torque - physics.viscous_drag_nm_s * speed) / physics.inertia_kg_m2,
                 ),
@@ -189,10 +234,18 @@ class RotorBundle:
             )
             if not openings[drive.machine] or drive.machine in self.connection_names:
                 self.isolated[drive.machine] = isolated_motion(
-                    model.fluid.tensor(speed), model.fluid.tensor(torque), dt, physics
+                    model.fluid.tensor(speed),
+                    model.fluid.tensor(torque),
+                    dt,
+                    physics,
+                    signed=signed,
                 )
             self.initial.append(model.fluid.tensor([guess / drive.nominal_speed_rad_s]))
-            self.lower.append(model.fluid.tensor([0.0]))
+            self.lower.append(
+                model.fluid.tensor(
+                    [-physics.max_speed_rad_s / drive.nominal_speed_rad_s if signed else 0.0]
+                )
+            )
             self.upper.append(
                 model.fluid.tensor([physics.max_speed_rad_s / drive.nominal_speed_rad_s])
             )
@@ -213,11 +266,17 @@ class RotorBundle:
         valid = y.new_ones((), dtype=torch.bool)
         for d, offset, old, torque, enabled, unit in self.entries:
             physics = d.drive
+            signed = d.machine in self.signed_names
             end = y[offset] * d.nominal_speed_rad_s
             mid = (end + old) / 2
             power = (pumps if d.machine in pumps else compressors)[d.machine]["shaft_power_w"]
             if enabled:
-                load = power / mid.clamp_min(1e-30)
+                machine_record = (pumps if d.machine in pumps else compressors)[d.machine]
+                load = (
+                    machine_record["load_torque_nm"]
+                    if "load_torque_nm" in machine_record
+                    else power / mid.clamp_min(1e-30)
+                )
                 row = (
                     physics.inertia_kg_m2 * (end - old)
                     - self.dt * (torque - load - physics.viscous_drag_nm_s * mid)
@@ -231,7 +290,7 @@ class RotorBundle:
                     motor = torch.where(closed, free_motor, motor)
                     drag = torch.where(closed, free_drag, drag)
                     valid = valid & (closed | (mid > 0))
-                else:
+                elif not signed:
                     valid = valid & (mid > 0)
             else:
                 target, motor, drag = self.isolated[d.machine]
@@ -243,6 +302,14 @@ class RotorBundle:
                 motor / physics.motor_efficiency,
                 motor * physics.regeneration_efficiency,
             )
+            if signed:
+                positive_work, negative_work = signed_motor_work(
+                    old, end, torque, self.dt, physics, isolated=not enabled
+                )
+                electrical = (
+                    positive_work / physics.motor_efficiency
+                    - negative_work * physics.regeneration_efficiency
+                )
             losses = electrical - motor + drag
             if d.heat_sink_node is not None:
                 i = self.heat_indices[d.machine]
@@ -250,11 +317,20 @@ class RotorBundle:
             peak = torch.maximum(old, end)
             draw = torque.clamp_min(0) * peak / physics.motor_efficiency
             export = (-torque).clamp_min(0) * peak * physics.regeneration_efficiency
+            if signed:
+                endpoint_power = torch.stack((torque * old, torque * end))
+                draw = endpoint_power.max().clamp_min(0) / physics.motor_efficiency
+                export = (-endpoint_power.min()).clamp_min(0) * physics.regeneration_efficiency
             if physics.max_electrical_draw_w is not None:
                 valid = valid & (draw <= physics.max_electrical_draw_w)
             if physics.max_electrical_export_w is not None:
                 valid = valid & (export <= physics.max_electrical_export_w)
-            valid = valid & torch.isfinite(row) & (end >= 0) & (end <= physics.max_speed_rad_s)
+            valid = (
+                valid
+                & torch.isfinite(row)
+                & (end >= (-physics.max_speed_rad_s if signed else 0))
+                & (end <= physics.max_speed_rad_s)
+            )
             if enabled and d.machine in self.compressor_names:
                 theta = (
                     data[self.source_indices[d.machine]]["t"] / unit.card.reference_temperature_k

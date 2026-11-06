@@ -239,6 +239,9 @@ _LAZY_MODELS = {
 _LAZY_MODELS.update(
     {
         "HolmesGasLiquidClosure": "holmes_drift",
+        "StratifiedGasLiquidClosure": "stratified_drift",
+        "InclinedCylinderGeometry": "inclined_cylinder",
+        "SignedPumpMap": "pr_pump_four_quadrant",
         "ZuberFindlayClosure": "drift_flux_closure",
         "RELAP7VerticalDriftClosure": "drift_flux_closure",
         "RELAP7EquilibriumTransition": "drift_flux_closure",

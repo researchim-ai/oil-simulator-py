@@ -153,6 +153,10 @@ class RELAP7VerticalDriftClosure:
 
 
 def drift_closure_from_dict(data):
+    if data.get("model") == "stratified_gas_liquid":
+        from .stratified_drift import StratifiedGasLiquidClosure
+
+        return StratifiedGasLiquidClosure(**data)
     if data.get("model") == "holmes_gas_liquid":
         from .holmes_drift import HolmesGasLiquidClosure
 

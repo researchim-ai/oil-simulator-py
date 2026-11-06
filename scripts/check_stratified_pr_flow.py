@@ -14,8 +14,8 @@ from check_stratified_pr import Reference, grid, softmax
 from scipy.optimize import root
 
 from surface.equilibrium_properties import EquilibriumFluid
+from surface.inclined_cylinder import geometry_from_dict
 from surface.peng_robinson import R
-from surface.separator_geometry import SeparatorGeometry
 
 
 def close(actual, expected, atol=1e-7, rtol=2e-6):
@@ -51,7 +51,7 @@ def profile(state, system):
     close(variables[offset + count] * f.tref, state["temperature_k"], atol=1e-8, rtol=0.0)
     interfaces = (
         np.cumsum(softmax(np.r_[variables[offset + count + 1 :], 0.0]))[:-1]
-        * SeparatorGeometry(**system["geometry"]).height_m
+        * geometry_from_dict(system["geometry"]).height_m
     )
     if len(interfaces):
         close(interfaces, state["interface_heights_m"], atol=1e-8, rtol=0.0)
@@ -59,7 +59,7 @@ def profile(state, system):
     lam = np.array(state["chemical_constants"])[active]
     g = system["gravity_m_s2"]
     base = system["elevation_m"]
-    geometry = SeparatorGeometry(**system["geometry"])
+    geometry = geometry_from_dict(system["geometry"])
     heights, weights = grid(geometry, state["interface_heights_m"], order)
     total = np.zeros_like(n)
     energy = entropy = 0.0

@@ -200,12 +200,42 @@ def sources(spec, coords, volume, population=None, temperature_k=None, law=None)
                 coal[-1] -= event * rep[j]
             deposit(coal, rep[i] + rep[j], event)
         event = spec["section_breakup_rates_s"][i] * n[i]
+        statistical = spec.get("daughter_distribution", "deterministic") == "symmetric_beta"
+        fractions = spec.get("daughter_volume_fractions", (0.5, 0.5))
+        if statistical:
+            if rep[i] < 2 * pivots[0]:
+                event = 0.0
+        elif rep[i] * min(fractions) < pivots[0] * (1 - 1e-12):
+            event = 0.0
         if event:
             split[i] -= event
             if i == len(n) - 1:
                 split[-1] -= event * rep[i]
-            for fraction in spec.get("daughter_volume_fractions", (0.5, 0.5)):
-                deposit(split, rep[i] * fraction, event)
+            if not statistical or rep[i] == 2 * pivots[0]:
+                for fraction in (0.5, 0.5) if statistical else fractions:
+                    deposit(split, rep[i] * fraction, event)
+            else:
+                from scipy.integrate import quad, quad_vec
+
+                lower = pivots[0] / rep[i]
+                shape = spec.get("daughter_beta_shape", 1)
+
+                def density(x, shape=shape):
+                    return (x * (1 - x)) ** (shape - 1)
+
+                normalizer = quad(density, lower, 1 - lower, epsabs=1e-25)[0]
+
+                def integrand(
+                    x, parent=rep[i], event=event, density=density, normalizer=normalizer
+                ):
+                    birth = np.zeros_like(coords)
+                    deposit(birth, parent * x, 2 * event * density(x) / normalizer)
+                    return birth
+
+                points = [v / rep[i] for v in pivots if lower < v / rep[i] < 1 - lower]
+                split += quad_vec(
+                    integrand, lower, 1 - lower, points=points, epsabs=1e-20, epsrel=1e-12
+                )[0]
     return coal, split
 
 

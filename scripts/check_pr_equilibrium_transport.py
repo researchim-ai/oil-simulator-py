@@ -196,6 +196,21 @@ def decode(state, node, model, fluid):
             None if population is None else population["phase_roles"],
         )
         drift = velocities - u
+    elif closure is not None and len(pn) > 1 and closure.get("model") == "stratified_gas_liquid":
+        from reference_stratified_drift import velocities as stratified_velocities
+
+        if len(pn) != 2 or min(v["z"] for v in q) >= 0.5 or max(v["z"] for v in q) <= 0.5:
+            raise ValueError("Stratified closure requires one dense liquid and one gas")
+        velocities = stratified_velocities(
+            closure,
+            pn * vm / (pn @ vm),
+            rho,
+            u,
+            node["diameter_m"],
+            model["gravity_m_s2"] * node["elevation_change_m"] / node["length_m"],
+            model["gravity_m_s2"],
+        )
+        drift = velocities - u
     elif closure is not None and len(pn) > 1:
         alpha = pn * vm / (pn @ vm)
         gas = int(np.argmin(rho))
@@ -809,6 +824,9 @@ def audit(config, report):
                                 )
                             )
                     force = gravity_force(node, d, model, face_area)
+                    from reference_stratified_drift import wall_force as stratified_wall_force
+
+                    force += stratified_wall_force(node, d, model)
                     viscosity = wall_viscosity(node, d)
                     if viscosity:
                         force -= (

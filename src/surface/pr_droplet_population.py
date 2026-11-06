@@ -422,8 +422,7 @@ class DropletPopulations:
                 )
         return support
 
-    @staticmethod
-    def serialize(details):
+    def serialize(self, details):
         result = {}
         for name, row in details.items():
             keys = (
@@ -445,6 +444,9 @@ class DropletPopulations:
             values = torch.stack([row[k] for k in keys]).detach().cpu().tolist()
             result[name] = dict(zip(keys, values))
             if "coordinates" in row:
+                spec = self.model.nodes[self.model.names.index(name)].droplet_population
+                result[name]["daughter_distribution"] = spec.daughter_distribution
+                result[name]["daughter_beta_shape"] = spec.daughter_beta_shape
                 for key in (
                     "coordinates",
                     "section_numbers",

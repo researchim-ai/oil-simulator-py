@@ -142,8 +142,19 @@ def initialize_from_gravity_profile(model, column, state):
     specs = {}
     shared_pressures = {}
     for node in model.nodes:
-        low = node.elevation_m - abs(node.elevation_change_m) / 2
-        high = node.elevation_m + abs(node.elevation_change_m) / 2
+        axial_span = abs(node.elevation_change_m)
+        vertical_roundoff = node.kind == "pipe_cell" and abs(
+            axial_span - node.length_m
+        ) <= 32 * math.ulp(node.length_m)
+        transverse_span = (
+            node.diameter_m
+            * math.sqrt(max(0.0, 1 - (node.elevation_change_m / node.length_m) ** 2))
+            if node.kind == "pipe_cell" and not vertical_roundoff
+            else 0.0
+        )
+        half_height = (axial_span + transverse_span) / 2
+        low = node.elevation_m - half_height
+        high = node.elevation_m + half_height
         if any(low + 1e-10 < h < high - 1e-10 for h in interfaces):
             raise ValueError("Split pipe cells at initial phase interfaces")
         point = column.sample(state, node.elevation_m - column.elevation_m)

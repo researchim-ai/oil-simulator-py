@@ -16,10 +16,10 @@ from scipy.optimize import root
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 from surface.component_energy import ComponentEnergyStream
 from surface.equilibrium_properties import EquilibriumFluid
+from surface.inclined_cylinder import geometry_from_dict
 from surface.operation import _digest
 from surface.peng_robinson import R
 from surface.peng_robinson_mixture import PengRobinsonMixture
-from surface.separator_geometry import SeparatorGeometry
 
 
 def softmax(y):
@@ -72,6 +72,10 @@ class Reference:
 
 
 def grid(geometry, interfaces, order):
+    if geometry.orientation == "inclined":
+        from reference_inclined_cylinder import grid as inclined_grid
+
+        return inclined_grid(geometry, interfaces, order)
     bounds = np.r_[0, interfaces, geometry.height_m]
     nodes, weights = np.polynomial.legendre.leggauss(order)
     heights = []
@@ -94,6 +98,10 @@ def grid(geometry, interfaces, order):
 
 
 def moment(geometry, h):
+    if geometry.orientation == "inclined":
+        from reference_inclined_cylinder import cut
+
+        return cut(geometry.diameter_m, geometry.length_m, geometry.inclination_rad, float(h))[1]
     if geometry.orientation == "vertical":
         return geometry.volume_m3 * h * h / (2 * geometry.height_m)
     return (
@@ -110,7 +118,7 @@ def check(config, path):
         raise ValueError("Column checksum/format mismatch")
     system = data["system"]
     f = EquilibriumFluid.from_dict(system["fluid"])
-    geo = SeparatorGeometry(**system["geometry"])
+    geo = geometry_from_dict(system["geometry"])
     # Defaults are made explicit in the saved model; verify supplied fields.
     for key, value in config["system"].items():
         if system[key] != value:
@@ -398,7 +406,7 @@ def main():
     )
     if (
         dt > 1e-6
-        or dh > 1e-7 * max(1, SeparatorGeometry(**cfg["system"]["geometry"]).height_m)
+        or dh > 1e-7 * max(1, geometry_from_dict(cfg["system"]["geometry"]).height_m)
         or dp > 1e-2
     ):
         raise ValueError("CPU/CUDA column solutions disagree")

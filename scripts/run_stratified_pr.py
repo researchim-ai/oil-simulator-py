@@ -19,6 +19,8 @@ SOURCES = (
     "peng_robinson_mixture.py",
     "component_energy.py",
     "separator_geometry.py",
+    "inclined_cylinder.py",
+    "gauss_rules.py",
     "three_phase_properties.py",
     "torch_linear.py",
     "torch_backend.py",

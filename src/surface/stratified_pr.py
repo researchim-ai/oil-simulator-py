@@ -17,6 +17,7 @@ import torch
 
 from .component_energy import ComponentEnergyStream
 from .equilibrium_properties import EquilibriumFluid
+from .inclined_cylinder import InclinedCylinderGeometry, geometry_from_dict
 from .liquid import ConservationError, HydraulicConvergenceError, PropertyModelError, _number
 from .operation import _digest
 from .peng_robinson import R
@@ -153,7 +154,7 @@ class StratifiedPRColumn:
     def from_dict(cls, data, *, device="cpu"):
         data = dict(data)
         data["fluid"] = EquilibriumFluid.from_dict(data["fluid"], device=device)
-        data["geometry"] = SeparatorGeometry(**data["geometry"])
+        data["geometry"] = geometry_from_dict(data["geometry"])
         return cls(**data)
 
     def _identity(self):
@@ -161,11 +162,15 @@ class StratifiedPRColumn:
             raise PropertyModelError("Column configuration changed")
 
     def _volume(self, height):
+        if isinstance(self.geometry, InclinedCylinderGeometry):
+            return self.geometry.volume_tensor(height)
         if self.geometry.orientation == "vertical":
             return height * self.geometry.volume_m3 / self.geometry.height_m
         return disk_area_moment(height, self.geometry.diameter_m)[0] * self.geometry.length_m
 
     def _moment(self, height):
+        if isinstance(self.geometry, InclinedCylinderGeometry):
+            return self.geometry.moment_tensor(height)
         if self.geometry.orientation == "vertical":
             return height**2 * self.geometry.volume_m3 / (2 * self.geometry.height_m)
         return disk_area_moment(height, self.geometry.diameter_m)[1] * self.geometry.length_m
@@ -179,7 +184,17 @@ class StratifiedPRColumn:
         for i in range(len(bounds) - 1):
             a, b = bounds[i], bounds[i + 1]
             volume = self._volume(b) - self._volume(a)
-            if g.orientation == "vertical":
+            if isinstance(g, InclinedCylinderGeometry):
+                va, vb = self._volume(a), self._volume(b)
+                h = g.level_tensor(va + (points + 1) / 2 * (vb - va))
+                w = weights / 2 * volume
+                mean = (w * h).sum() / volume.clamp_min(1e-300)
+                variance = (w * (h - mean).square()).sum()
+                exact_moment = self._moment(b) - self._moment(a)
+                w = w * (
+                    1 + (exact_moment - volume * mean) * (h - mean) / variance.clamp_min(1e-300)
+                )
+            elif g.orientation == "vertical":
                 h = (a + b) / 2 + (b - a) / 2 * points
                 w = weights / 2 * volume
             else:
@@ -410,6 +425,8 @@ class StratifiedPRColumn:
         )
         for q in data["properties"]:
             valid = valid & q["valid"].all()
+        for weights in data["weights"]:
+            valid = valid & torch.isfinite(weights).all() & (weights > 0).all()
         if not bool(valid.cpu()):
             raise HydraulicConvergenceError("Stratified PR UV Newton rejected")
         m = len(roots)
@@ -552,6 +569,8 @@ class StratifiedPRColumn:
         )
         for q in data["properties"]:
             valid = valid & q["valid"].all()
+        for weights in data["weights"]:
+            valid = valid & torch.isfinite(weights).all() & (weights > 0).all()
         if not bool(valid.cpu()):
             raise ConservationError("Serialized column violates equilibrium/inventory")
         if (

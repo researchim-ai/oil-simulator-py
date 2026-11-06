@@ -120,3 +120,57 @@ checkpoint не меняют своего формата и физических
 для всего разрешённого спектра и хвоста: контрольный режим переносит в хвост
 больше половины объёмного момента без его потери. Численная верификация не является
 калибровкой коэффициентов или подтверждением эффективности промышленного сепаратора.
+
+## Statistical binary daughters
+
+Set `daughter_distribution="symmetric_beta"` and `daughter_beta_shape=a`
+(an integer from 1 through 8). The default `deterministic` mode retains the
+existing 2…16 prescribed daughter fractions. Statistical mode requires the
+unused deterministic fractions to remain at their default `(0.5, 0.5)` so
+conflicting prescriptions fail explicitly.
+
+For a parent reference volume V, draw X with conditional density proportional
+to `[X*(1-X)]^(a-1)` on `[v_min/V, 1-v_min/V]`, then form the paired daughters
+`V*X` and `V*(1-X)`. Every realization conserves volume. Shape 1 is uniform;
+larger shapes favor equal splits. These are ensemble expected birth sources,
+not Monte Carlo sampling. Both daughters are integrated using the symmetric
+marginal, whose total number is two and volume moment is V.
+
+The configured sectional frequency is the successful event frequency for
+admissible parents, not an unconditioned attempt frequency multiplied by a
+survival probability. Parents below `2*v_min` have zero statistical events;
+at equality both daughters have volume `v_min`. Conditioning renormalizes the
+whole admissible distribution: no sub-grid volume is discarded or individually
+clamped. Deterministic runtime events are likewise suppressed if a parent is
+too small for its prescribed daughters (the existing initial-grid validation
+still applies). No unresolved lower reservoir is implied by this closure.
+
+Runtime integration uses Torch only: eight-point Gauss–Legendre quadrature
+on intervals split at every reference pivot. For supported integer shapes,
+the density times each linear deposition weight has degree at most 15, so
+integration is exact to floating point roundoff. The entire upper interval is
+included, even beyond the last pivot: deposited tail number and tail volume
+remain separate. Tail parents still use their mean volume; unresolved variance
+within the parent tail is not reconstructed. Derivatives exist piecewise;
+the admissibility threshold changes the event law discontinuously if its
+prescribed rate is nonzero. Use float64 as in the transport solver.
+
+Verification includes an analytical uniform split, independent SciPy adaptive
+integration in `reference_pr_sections.py` (never called by runtime), expected
+particle gain, finite minimum size, large tails, and Torch source tangents.
+The reference's SciPy dependency is confined to statistical audit execution.
+These checks establish discrete consistency, not calibration of breakup rates,
+shape, collision efficiency, or experimental separator performance.
+
+Scope of the three surface blocks: collision kinetics and powered breakup,
+size-dependent transport, and statistical daughter closure are represented in
+this implementation. This does not establish complete physical coverage or
+industrial validation of those blocks. Turbulence-derived breakup frequencies,
+measured daughter spectra, calibration data and experimental validation remain
+external work. Reports expose `daughter_distribution` and `daughter_beta_shape`.
+Default deterministic fields are omitted from normalized model serialization,
+preserving pre-existing deterministic checkpoint identities.
+
+`configs/surface_pr_sectional_beta_mixer.json` is a dedicated configuration
+example using shape 3 with the existing mixer geometry and prescribed rates.
+Those parameter values are verification inputs, not calibrated predictions.

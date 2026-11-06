@@ -15,6 +15,10 @@ from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 CASES = {
+    "signed_pump_reversal": ("surface_pr_signed_pump_reversal", "equilibrium"),
+    "inclined_inventory": ("surface_pr_inclined_inventory", "gravity"),
+    "stratified_drift": ("surface_pr_stratified_drift", "equilibrium"),
+    "sectional_beta": ("surface_pr_sectional_beta_mixer", "equilibrium"),
     "controlled_motor": ("surface_pr_controlled_motor", "controlled"),
     "controlled_minimum_flow": ("surface_pr_controlled_minimum_flow", "controlled"),
     "controlled_antisurge": ("surface_pr_controlled_antisurge", "controlled"),

@@ -114,7 +114,7 @@ def disk_area_moment(height, diameter):
     are geometrically clipped, not clipped fluid inventories.
     """
     h = height.clamp(0, diameter)
-    low = torch.minimum(h, diameter - h)
+    low = torch.where(h <= diameter / 2, h, diameter - h)
     x = low / diameter
     regular = low.clamp_min(diameter * 1e-4)
     r = diameter / 2
@@ -123,7 +123,7 @@ def disk_area_moment(height, diameter):
     area_small = (
         2
         * math.sqrt(diameter)
-        * low.pow(1.5)
+        * torch.where(low > 0, low.clamp_min(diameter * 1e-20).pow(1.5), torch.zeros_like(low))
         * (2 / 3 - x / 5 - x * x / 28 - x**3 / 72 - 5 * x**4 / 704)
     )
     area = torch.where(x < 1e-4, area_small, area_regular)
@@ -146,6 +146,8 @@ def disk_area_moment(height, diameter):
 
 def level_tensor(volume, geometry):
     """Geometric inverse with implicit first derivative, including in jacfwd."""
+    if geometry.orientation == "inclined":
+        return geometry.level_tensor(volume)
     if geometry.orientation == "vertical":
         return volume / geometry.volume_m3 * geometry.height_m
     fraction = (volume.detach() / geometry.volume_m3).clamp(0, 1)

@@ -23,6 +23,7 @@ from .pr_equilibrium_transport import (
     PREquilibriumTransportNetwork,
 )
 from .pr_terrain_pipe import PRTerrainPipe
+from .stratified_drift import StratifiedGasLiquidClosure
 from .vessel_wall import VesselWall
 
 
@@ -46,6 +47,7 @@ class PREquilibriumPipe:
         | RELAP7VerticalDriftClosure
         | RELAP7EquilibriumTransition
         | HolmesGasLiquidClosure
+        | StratifiedGasLiquidClosure
         | DispersedOilWaterClosure
         | None
     ) = None
@@ -78,6 +80,7 @@ class PREquilibriumPipe:
                     RELAP7VerticalDriftClosure,
                     RELAP7EquilibriumTransition,
                     HolmesGasLiquidClosure,
+                    StratifiedGasLiquidClosure,
                     DispersedOilWaterClosure,
                 ),
             ):

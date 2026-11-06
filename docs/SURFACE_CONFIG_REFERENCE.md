@@ -1209,3 +1209,10 @@ JSON/restart API. [Формулы, проверка однозначности �
 `compressor_margin`, а также команда `reset_trips` описаны в
 [управлении приводами](PR_CONTROL_CHANNELS.md). Примеры: `surface_pr_controlled_motor.json`,
 `surface_pr_controlled_minimum_flow.json`, `surface_pr_controlled_antisurge.json`.
+
+## Дополнительные физические области общего графа
+
+- `surface_pr_inclined_inventory.json`: [наклонные гравитационные запасы](PR_INCLINED_INVENTORY.md).
+- `surface_pr_stratified_drift.json`: [баланс сил слоистого течения](PR_STRATIFIED_DRIFT.md).
+- `surface_pr_sectional_beta_mixer.json`: [статистическое дробление](PR_SECTIONAL_POPULATIONS.md).
+- `surface_pr_signed_pump_reversal.json`: [знаковая карта и реверс вала](PR_PUMP_FOUR_QUADRANT.md).

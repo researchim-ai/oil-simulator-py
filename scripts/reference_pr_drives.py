@@ -4,7 +4,9 @@ import copy
 import math
 
 from check_stratified_pr_flow import close
-from scipy.integrate import solve_ivp
+from reference_pr_pumps import signed_pump_values
+from scipy.integrate import quad, solve_ivp
+from scipy.optimize import brentq
 
 
 def rotor_energy(state, model):
@@ -13,10 +15,14 @@ def rotor_energy(state, model):
     speeds = dict(raw)
     if len(raw) != len(speeds) or set(speeds) != set(configured):
         raise ValueError("Independent rotor inventory registry differs")
+    signed_names = {
+        u["card"]["name"] for u in model.get("pumps", []) if u.get("signed_map") is not None
+    }
     for name, speed in speeds.items():
         if (
             not math.isfinite(speed)
-            or not 0 <= speed <= configured[name]["drive"]["max_speed_rad_s"]
+            or abs(speed) > configured[name]["drive"]["max_speed_rad_s"]
+            or (speed < 0 and name not in signed_names)
         ):
             raise ValueError("Independent rotor speed outside bounds")
     return sum(
@@ -35,7 +41,10 @@ def machine_model(model, before, after):
         speed = (old[name] + new[name]) / 2
         for unit in [*adjusted.get("pumps", []), *adjusted.get("pump_connections", [])]:
             if unit["card"]["name"] == name:
-                unit["card"]["speed_ratio"] = speed / d["nominal_speed_rad_s"]
+                if unit.get("signed_map") is not None:
+                    unit["mapped_speed_rad_s"] = speed
+                else:
+                    unit["card"]["speed_ratio"] = speed / d["nominal_speed_rad_s"]
         for unit in adjusted.get("compressors", []):
             if unit["name"] == name:
                 unit["speed_rad_s"] = speed
@@ -76,7 +85,17 @@ def audit_drives(
     connection_names = {u["card"]["name"] for u in model.get("pump_connections", [])}
     work_correction = heat_loss = entropy = 0.0
     heat_sources = {}
+    signed_units = {
+        u["card"]["name"]: u for u in model.get("pumps", []) if u.get("signed_map") is not None
+    }
     for name, d in configured.items():
+        signed = name in signed_units
+        if (
+            signed
+            and signed_units[name]["signed_map"]["reference_speed_rad_s"]
+            != d["nominal_speed_rad_s"]
+        ):
+            raise ValueError("Signed pump reference and drive speed differ")
         p = d["drive"]
         omega0, omega = old[name], new[name]
         tau = commands.get(name, d["motor_torque_nm"])
@@ -110,10 +129,24 @@ def audit_drives(
                 )
                 if len(source["phase_roots"]) != 1 or z < unit["minimum_compressibility_factor"]:
                     raise ValueError("Compressor inlet was not dry gas before opening")
-            if mid <= 0:
+            if mid <= 0 and not signed:
                 raise ValueError("Running machine has no positive shaft speed")
+            if signed:
+                unit = signed_units[name]
+                node = next(n for n in model["nodes"] if n["name"] == unit["node"])
+                stock = after["nodes"][unit["node"]]
+                mass = sum(
+                    n * c["molar_mass_kg_mol"]
+                    for n, c in zip(stock["component_moles"], model["fluid"]["components"])
+                )
+                rho = mass / node["volume_m3"]
+                q = math.pi * node["diameter_m"] ** 2 / 4 * stock["momentum_kg_m_s"] / mass
+                _, load, checked_power, _, _ = signed_pump_values(unit["signed_map"], q, mid, rho)
+                close(power, checked_power, atol=1e-9, rtol=2e-7)
+            else:
+                load = power / mid
             close(
-                (inertia * (omega - omega0) - dt * (tau - power / mid - drag * mid))
+                (inertia * (omega - omega0) - dt * (tau - load - drag * mid))
                 / (inertia * d["nominal_speed_rad_s"]),
                 0.0,
                 atol=1e-9,
@@ -121,6 +154,7 @@ def audit_drives(
             )
             motor = dt * tau * mid
             friction = dt * drag * mid**2
+            speed_at = lambda t, omega0=omega0, omega=omega: omega0 + (omega - omega0) * t / dt
         else:
             if name in pump_names:
                 node = pump_names[name]
@@ -139,7 +173,7 @@ def audit_drives(
 
             stop.terminal = True
             stop.direction = -1
-            if omega0 == 0 and tau < 0:
+            if omega0 == 0 and tau < 0 and not signed:
                 endpoint, angle, square = 0.0, 0.0, 0.0
             else:
                 ode = solve_ivp(
@@ -149,13 +183,16 @@ def audit_drives(
                     method="DOP853",
                     rtol=1e-12,
                     atol=1e-12,
-                    events=stop if tau < 0 else None,
+                    events=stop if tau < 0 and not signed else None,
+                    dense_output=signed,
                 )
                 if not ode.success:
                     raise ValueError("Independent isolated rotor ODE failed")
                 endpoint, angle, square = ode.y[:, -1]
-                if tau < 0 and len(ode.t_events[0]):
+                if tau < 0 and not signed and len(ode.t_events[0]):
                     endpoint = 0.0
+            if signed:
+                speed_at = lambda t, ode=ode: float(ode.sol(t)[0])
             close(omega, endpoint, atol=1e-8, rtol=2e-9)
             motor, friction = tau * angle, drag * square
             close(power, 0.0, atol=1e-12, rtol=0.0)
@@ -164,11 +201,34 @@ def audit_drives(
         electrical = (
             motor / p["motor_efficiency"] if motor >= 0 else motor * p["regeneration_efficiency"]
         )
+        if signed:
+            points = [brentq(speed_at, 0.0, dt, xtol=1e-15)] if omega0 * omega < 0 else []
+            positive = quad(
+                lambda t, tau=tau, speed_at=speed_at: max(0.0, tau * speed_at(t)),
+                0.0,
+                dt,
+                points=points,
+                epsabs=1e-12,
+                epsrel=1e-11,
+            )[0]
+            negative = quad(
+                lambda t, tau=tau, speed_at=speed_at: max(0.0, -tau * speed_at(t)),
+                0.0,
+                dt,
+                points=points,
+                epsabs=1e-12,
+                epsrel=1e-11,
+            )[0]
+            close(positive - negative, motor, atol=1e-10, rtol=2e-9)
+            electrical = positive / p["motor_efficiency"] - negative * p["regeneration_efficiency"]
         motor_heat = electrical - motor
         losses = friction + motor_heat
         production = losses / d["ambient_temperature_k"] if d["heat_sink_node"] is None else 0.0
         draw = max(0.0, tau) * max(omega0, omega) / p["motor_efficiency"]
         export = max(0.0, -tau) * max(omega0, omega) * p["regeneration_efficiency"]
+        if signed:
+            draw = max(0.0, tau * omega0, tau * omega) / p["motor_efficiency"]
+            export = max(0.0, -tau * omega0, -tau * omega) * p["regeneration_efficiency"]
         for key, value in [("max_electrical_draw_w", draw), ("max_electrical_export_w", export)]:
             if p[key] is not None and value > p[key] * (1 + 1e-12):
                 raise ValueError("Independent electrical rating exceeded")

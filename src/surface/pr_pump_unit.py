@@ -3,7 +3,7 @@
 The existing Pump/EquipmentCurve card is reused. Force and shaft power enter
 the same momentum/energy Newton. Disabled units retain an explicit passive
 loss; motor switching does not erase the fluid inventory or reverse flow.
-Rotor inertia, powered reverse quadrants and cavitation kinetics are excluded.
+Signed operation requires an explicit SignedPumpMap. Cavitation kinetics are excluded.
 """
 
 from __future__ import annotations
@@ -13,6 +13,7 @@ from dataclasses import dataclass
 import torch
 
 from .liquid import Pump, _name, _number
+from .pr_pump_four_quadrant import SignedPumpMap
 
 G = 9.80665
 
@@ -62,6 +63,9 @@ class PRPumpUnit:
     vapor_pressure_temperature_k: float | None = None
     maximum_vapor_pressure_temperature_departure_k: float = 0.5
 
+    signed_map: SignedPumpMap | None = None
+    mapped_speed_rad_s: float | None = None
+
     @property
     def name(self):
         return self.card.name
@@ -70,6 +74,15 @@ class PRPumpUnit:
         _name(self.node)
         if not isinstance(self.card, Pump) or self.card.check_valve:
             raise ValueError("PR pump needs a Pump card without an implicit check valve")
+        if self.signed_map is not None:
+            if not isinstance(self.signed_map, SignedPumpMap):
+                raise TypeError("Expected SignedPumpMap")
+            if self.card.npsh_required_m is not None or self.card.npsh_curve is not None:
+                raise ValueError("Forward NPSH curves cannot certify signed pump operation")
+        if self.mapped_speed_rad_s is not None:
+            _number(self.mapped_speed_rad_s, "mapped shaft speed")
+            if self.signed_map is None:
+                raise ValueError("Mapped shaft speed requires a signed map")
         _number(self.minimum_density_kg_m3, "minimum liquid density", positive=True)
         if not 0 < self.maximum_compressibility_fraction <= 0.05:
             raise ValueError("Liquid pump card requires a small g*H/a^2 envelope")
@@ -91,12 +104,18 @@ class PRPumpUnit:
 
     @classmethod
     def from_dict(cls, data):
+        data = dict(data)
+        if data.get("signed_map") is not None:
+            data["signed_map"] = SignedPumpMap(**data["signed_map"])
         return cls(**{**data, "card": Pump(**data["card"])})
 
 
 class TorchPumpCell:
     def __init__(self, model, unit):
         self.unit = unit
+        self.liquid_indices = tuple(
+            model.names.index(name) for name in (unit.card.start, unit.card.end, unit.node)
+        )
         self.index = model.names.index(unit.node)
         node = model.nodes[self.index]
         card = unit.card
@@ -164,6 +183,8 @@ class TorchPumpCell:
                 },
                 q.new_ones((), dtype=torch.bool),
             )
+        if unit.signed_map is not None:
+            return self.evaluate_signed(data, speed_ratio)
         speed = card.speed_ratio if speed_ratio is None else speed_ratio
         reduced = q.abs() / (speed.clamp_min(1e-12) if isinstance(speed, torch.Tensor) else speed)
         head, eta = pump_head_efficiency(card, self.curves, self.efficiency, q, speed)
@@ -213,6 +234,55 @@ class TorchPumpCell:
                 "hydraulic_power_w": hydraulic,
                 "force_n": force,
                 "npsh_available_m": npsh,
+                "compressibility_fraction": compressibility,
+            },
+            valid,
+        )
+
+    def evaluate_signed(self, data, speed_ratio):
+        unit, card = self.unit, self.unit.card
+        body = data[self.index]
+        q, rho = self.area * body["u"], body["rho"]
+        mapping = unit.signed_map
+        speed = (
+            mapping.reference_speed_rad_s * speed_ratio
+            if speed_ratio is not None
+            else unit.mapped_speed_rad_s
+            if unit.mapped_speed_rad_s is not None
+            else mapping.reference_speed_rad_s * card.speed_ratio
+        )
+        head, torque, power, hydraulic, loss, valid = mapping.evaluate(q, speed, rho)
+        force = self.area * rho * G * head
+        compressibility = G * head.abs() / body["q"]["frozen_sound_speed_m_s"][0].square()
+        # Both ports must be dense liquid: flow can change direction in Newton.
+        for index in self.liquid_indices:
+            point = data[index]
+            valid = (
+                valid & (len(point["phase_n"]) == 1) & (point["rho"] >= unit.minimum_density_kg_m3)
+            )
+            if unit.vapor_pressure_pa is not None:
+                valid = (
+                    valid
+                    & (point["p"] >= unit.vapor_pressure_pa)
+                    & (
+                        (point["t"] - unit.vapor_pressure_temperature_k).abs()
+                        <= unit.maximum_vapor_pressure_temperature_departure_k
+                    )
+                )
+        valid = valid & (compressibility <= unit.maximum_compressibility_fraction)
+        if card.max_shaft_power_w is not None:
+            valid = valid & (power.abs() <= card.max_shaft_power_w)
+        return (
+            force,
+            power,
+            {
+                "flow_m3_s": q,
+                "head_m": head,
+                "shaft_power_w": power,
+                "hydraulic_power_w": hydraulic,
+                "force_n": force,
+                "load_torque_nm": torque,
+                "dissipation_w": loss,
                 "compressibility_fraction": compressibility,
             },
             valid,

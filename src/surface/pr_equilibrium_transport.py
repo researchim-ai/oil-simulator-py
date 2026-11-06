@@ -50,6 +50,7 @@ from .pr_sectional_population import PRSectionalDropletPopulation
 from .pr_sectional_population import endpoint_data as sectional_endpoint_data
 from .pr_stagnation_ports import SinglePhaseReservoirTraces
 from .separator_geometry import SeparatorGeometry
+from .stratified_drift import StratifiedGasLiquidClosure
 from .time_interval import interval_step_s, split_step_s
 from .torch_linear import TorchNewton, checked_device
 from .vessel_wall import VesselWall
@@ -74,6 +75,7 @@ class PREquilibriumNode:
         | RELAP7VerticalDriftClosure
         | RELAP7EquilibriumTransition
         | HolmesGasLiquidClosure
+        | StratifiedGasLiquidClosure
         | DispersedOilWaterClosure
         | None
     ) = None
@@ -93,6 +95,8 @@ class PREquilibriumNode:
             raise ValueError("Hydrostatic reconstruction requires a finite pipe cell")
         if type(self.droplet_capture) is not bool:
             raise ValueError("Droplet capture must be explicitly boolean")
+        if isinstance(self.drift_flux, StratifiedGasLiquidClosure) and self.dynamic_viscosity_pa_s:
+            raise ValueError("Stratified wall shear already uses explicit phase viscosities")
         if isinstance(self.drift_flux, ConcentratedOilWaterClosure) and (
             self.droplet_population is not None or self.dynamic_viscosity_pa_s
         ):
@@ -127,6 +131,7 @@ class PREquilibriumNode:
                     RELAP7VerticalDriftClosure,
                     RELAP7EquilibriumTransition,
                     HolmesGasLiquidClosure,
+                    StratifiedGasLiquidClosure,
                     DispersedOilWaterClosure,
                 ),
             ):
@@ -323,7 +328,7 @@ class PREquilibriumTransportState:
             raise ValueError("Duplicate rotor inventories")
         for name, speed in self.rotors:
             _name(name)
-            _number(speed, "rotor speed", nonnegative=True)
+            _number(speed, "rotor speed")
 
     def to_dict(self):
         return {
@@ -637,6 +642,14 @@ class PREquilibriumTransportNetwork:
         ):
             raise ValueError("Drive heat sink must be a represented finite fluid volume")
         for node in self.nodes:
+            if isinstance(node.drift_flux, StratifiedGasLiquidClosure) and (
+                self.gravity_m_s2 <= 0
+                or abs(node.elevation_change_m / node.length_m)
+                > math.sin(math.radians(node.drift_flux.maximum_inclination_deg))
+            ):
+                raise ValueError(
+                    "Stratified drift requires declared near-horizontal inclination and gravity"
+                )
             if isinstance(node.drift_flux, HolmesGasLiquidClosure):
                 node.drift_flux.geometry(
                     node.diameter_m,
@@ -666,22 +679,39 @@ class PREquilibriumTransportNetwork:
         self._verified = {}
 
     def to_dict(self):
+        def node_dict(node):
+            values = asdict(node)
+            population = values.get("droplet_population")
+            if population and population.get("daughter_distribution") == "deterministic":
+                population.pop("daughter_distribution", None)
+                population.pop("daughter_beta_shape", None)
+            return {
+                k: v
+                for k, v in values.items()
+                if k not in ("hydrostatic_reconstruction", "droplet_capture", "droplet_population")
+                or v
+            }
+
         return {
             "model": "pr_equilibrium_transport_graph_v1",
             "fluid": self.fluid.to_dict(),
-            "nodes": [
-                {
-                    k: v
-                    for k, v in asdict(n).items()
-                    if k
-                    not in ("hydrostatic_reconstruction", "droplet_capture", "droplet_population")
-                    or v
-                }
-                for n in self.nodes
-            ],
+            "nodes": [node_dict(n) for n in self.nodes],
             "links": [asdict(c) for c in self.links],
             "heat_links": [asdict(c) for c in self.heat_links],
-            **({"pumps": [asdict(pump) for pump in self.pumps]} if self.pumps else {}),
+            **(
+                {
+                    "pumps": [
+                        {
+                            k: v
+                            for k, v in asdict(pump).items()
+                            if k not in ("signed_map", "mapped_speed_rad_s") or v is not None
+                        }
+                        for pump in self.pumps
+                    ]
+                }
+                if self.pumps
+                else {}
+            ),
             **(
                 {"pump_connections": [asdict(u) for u in self.pump_connections]}
                 if self.pump_connections
@@ -1029,6 +1059,12 @@ class PREquilibriumTransportNetwork:
                 )
             if not bool(valid.cpu()):
                 raise PropertyModelError("Drift-flux closure outside declared regime envelope")
+        if isinstance(n.drift_flux, StratifiedGasLiquidClosure) and len(data["phase_n"]) > 1:
+            z = data["q"]["compressibility_factor"]
+            if len(z) != 2 or not bool(((z.min() < 0.5) & (z.max() > 0.5)).cpu()):
+                raise PropertyModelError(
+                    "Stratified closure requires one dense liquid and one gas phase"
+                )
         if float(data["phase_velocity"].abs().max().cpu()) > self.maximum_velocity_m_s:
             raise PropertyModelError("Phase velocity exceeds transport domain")
         if index in self._pickup_nodes:
@@ -1198,8 +1234,11 @@ class PREquilibriumTransportNetwork:
             raise PropertyModelError("Transport graph state/model differs")
         if set(dict(state.rotors)) != set(self._drives):
             raise ValueError("Rotor inventory registry differs from machine drives")
+        signed_rotors = {u.name for u in self.pumps if getattr(u, "signed_map", None) is not None}
         for name, speed in state.rotors:
-            if speed > self._drives[name].drive.max_speed_rad_s:
+            if abs(speed) > self._drives[name].drive.max_speed_rad_s or (
+                speed < 0 and name not in signed_rotors
+            ):
                 raise PropertyModelError("Rotor speed exceeds declared drive limit")
         if (
             not isinstance(state, PREquilibriumTransportState)
@@ -2040,7 +2079,43 @@ class PREquilibriumTransportNetwork:
                         pr = d["hydrostatic_faces"]["right"]["p"]
                         al, ar = node.face_area("left"), node.face_area("right")
                         force = (al + ar) / 2 * (pr - pl) + (pl + pr) / 2 * (ar - al)
-                    if node.dynamic_viscosity_pa_s or isinstance(
+                    if isinstance(node.drift_flux, StratifiedGasLiquidClosure):
+                        if len(d["phase_n"]) == 2:
+                            diagnostics = node.drift_flux.parameters(
+                                d["phase_n"] * d["q"]["molar_volume_m3_mol"],
+                                d["q"]["density_kg_m3"],
+                                d["u"],
+                                diameter_m=node.diameter_m,
+                                axial_gravity_m_s2=-self.gravity_m_s2
+                                * node.elevation_change_m
+                                / node.length_m,
+                                gravity_m_s2=self.gravity_m_s2,
+                            )
+                            force = force - node.length_m * (
+                                diagnostics["gas_wall_shear_pa"]
+                                * diagnostics["gas_wall_perimeter_m"]
+                                + diagnostics["liquid_wall_shear_pa"]
+                                * diagnostics["liquid_wall_perimeter_m"]
+                            )
+                        else:
+                            viscosity = torch.where(
+                                d["q"]["compressibility_factor"][0] > 0.5,
+                                d["p"].new_tensor(node.drift_flux.gas_dynamic_viscosity_pa_s),
+                                d["p"].new_tensor(node.drift_flux.liquid_dynamic_viscosity_pa_s),
+                            )
+                            force = (
+                                force
+                                - node.volume_m3
+                                * darcy_pressure_loss(
+                                    d["u"],
+                                    d["rho"],
+                                    1.0,
+                                    node.diameter_m,
+                                    viscosity,
+                                    node.drift_flux.wall_roughness_m,
+                                )[0]
+                            )
+                    elif node.dynamic_viscosity_pa_s or isinstance(
                         node.drift_flux, ConcentratedOilWaterClosure
                     ):
                         viscosity = (

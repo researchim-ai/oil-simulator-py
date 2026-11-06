@@ -561,6 +561,9 @@ def audit(config, report):
                                 )
                             )
                     force = gravity_force(node, d, tm, face_area)
+                    from reference_stratified_drift import wall_force as stratified_wall_force
+
+                    force += stratified_wall_force(node, d, tm)
                     viscosity = wall_viscosity(node, d)
                     if viscosity:
                         force -= (

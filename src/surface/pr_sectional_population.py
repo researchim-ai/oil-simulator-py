@@ -2,8 +2,9 @@
 
 Reference droplet volumes dilate uniformly with the live dispersed EOS volume.
 Aggregation preserves reference M1 and removes one particle per collision;
-breakup conserves M1 and adds the declared daughter count minus one per event. The tail is a two-moment
-closure, not a resolved distribution beyond the last pivot.
+breakup conserves M1 and adds the daughter count minus one per admissible
+event. Statistical binary daughters use a finite-size conditional beta law.
+The tail is a two-moment closure, not a resolved distribution beyond the last pivot.
 """
 
 import math
@@ -21,6 +22,8 @@ class PRSectionalDropletPopulation(PRPoweredDropletPopulation):
     initial_volume_fractions: tuple
     section_breakup_rates_s: tuple
     daughter_volume_fractions: tuple = (0.5, 0.5)
+    daughter_distribution: str = "deterministic"
+    daughter_beta_shape: int = 1
     coalescence_model: str = "constant"
     collision_efficiency: float = 1.0
     tail_initial_volume_ratio: float = 2.0
@@ -54,6 +57,15 @@ class PRSectionalDropletPopulation(PRPoweredDropletPopulation):
             _number(value, "initial volume fraction", positive=True)
         if not math.isclose(math.fsum(weights), 1.0, abs_tol=1e-12, rel_tol=0):
             raise ValueError("Initial spectrum volume fractions must sum to one")
+        if self.daughter_distribution not in ("deterministic", "symmetric_beta"):
+            raise ValueError("Unknown daughter distribution")
+        if type(self.daughter_beta_shape) is not int or not 1 <= self.daughter_beta_shape <= 8:
+            raise ValueError("daughter_beta_shape must be an integer in 1..8")
+        if self.daughter_distribution == "symmetric_beta" and self.daughter_volume_fractions != (
+            0.5,
+            0.5,
+        ):
+            raise ValueError("Statistical daughters cannot also specify deterministic fractions")
         daughters = self.daughter_volume_fractions
         if not 2 <= len(daughters) <= 16 or not math.isclose(
             math.fsum(daughters), 1.0, abs_tol=1e-12, rel_tol=0
@@ -72,7 +84,11 @@ class PRSectionalDropletPopulation(PRPoweredDropletPopulation):
             raise ValueError("Select a prescribed kernel or a physical kernel, not both")
         for volume, rate in zip(v, rates):
             _number(rate, "section breakup rate", nonnegative=True)
-            if rate and volume * min(daughters) < v[0] * (1 - 1e-12):
+            if (
+                self.daughter_distribution == "deterministic"
+                and rate
+                and volume * min(daughters) < v[0] * (1 - 1e-12)
+            ):
                 raise ValueError("Daughters must remain above the smallest pivot")
         if self.breakup_rate_s != 0:
             raise ValueError("Use section_breakup_rates_s, not a second scalar breakup law")
@@ -211,13 +227,82 @@ class PRSectionalDropletPopulation(PRPoweredDropletPopulation):
         coal_n = (events[..., None] * weights).sum((0, 1)) - counts * loss
         coal_v = (events * tail_gain).sum() - tail * loss[-1]
         rates = counts.new_tensor(self.section_breakup_rates_s) * counts
-        child = (
-            representatives[:, None] * counts.new_tensor(self.daughter_volume_fractions)[None, :]
-        ).clamp_min(self.reference_volumes_m3[0])
-        weights, tail_gain = self.weights(child)
-        break_n = (rates[:, None, None] * weights).sum((0, 1)) - rates
-        break_v = (rates[:, None] * tail_gain).sum() - self.section_breakup_rates_s[-1] * tail
+        weights, tail_gain, eligible = self.daughter_births(representatives)
+        rates = rates * eligible
+        break_n = (rates[:, None] * weights).sum(0) - rates
+        break_v = (rates * tail_gain).sum() - rates[-1] * representatives[-1]
         return torch.cat((coal_n, coal_v.reshape(1))), torch.cat((break_n, break_v.reshape(1)))
+
+    def daughter_births(self, parents):
+        """Expected deposited numbers and tail volume per admissible event.
+
+        Symmetric beta binary splits are conditioned on both daughters >= v_min.
+        Eight-point Gauss integration on each pivot interval is exact for the
+        supported polynomial densities times the linear deposition weights.
+        """
+        minimum = self.reference_volumes_m3[0]
+        if self.daughter_distribution == "deterministic":
+            child = parents[:, None] * parents.new_tensor(self.daughter_volume_fractions)
+            eligible = child.min(-1).values >= minimum * (1 - 1e-12)
+            # Ineligible parents have zero events; never clamp individual daughters.
+            weights, tail = self.weights(child)
+            return weights.sum(1), tail.sum(1), eligible
+        eligible = parents >= 2 * minimum
+        # Safe degenerate interval for undersized parents (whose event rate is zero).
+        upper = (parents - minimum).clamp_min(minimum)
+        pivots = parents.new_tensor(self.reference_volumes_m3)
+        edges = torch.cat(
+            (
+                parents.new_full((len(parents), 1), minimum),
+                torch.minimum(pivots.expand(len(parents), -1), upper[:, None]),
+                upper[:, None],
+            ),
+            -1,
+        )
+        midpoint = (edges[:, 1:] + edges[:, :-1]) / 2
+        halfwidth = (edges[:, 1:] - edges[:, :-1]) / 2
+        nodes = parents.new_tensor(
+            [
+                -0.9602898564975363,
+                -0.7966664774136267,
+                -0.5255324099163290,
+                -0.1834346424956498,
+                0.1834346424956498,
+                0.5255324099163290,
+                0.7966664774136267,
+                0.9602898564975363,
+            ]
+        )
+        quadrature = parents.new_tensor(
+            [
+                0.1012285362903763,
+                0.2223810344533745,
+                0.3137066458778873,
+                0.3626837833783620,
+                0.3626837833783620,
+                0.3137066458778873,
+                0.2223810344533745,
+                0.1012285362903763,
+            ]
+        )
+        child = midpoint[..., None] + halfwidth[..., None] * nodes
+        fraction = child / parents[:, None, None]
+        density = (fraction * (1 - fraction)).clamp_min(0).pow(self.daughter_beta_shape - 1)
+        # Scale by interval length before normalization; beta normalization cancels.
+        mass = halfwidth[..., None] / parents[:, None, None] * quadrature * density
+        norm = mass.sum((1, 2), keepdim=True)
+        probability = mass / norm.clamp_min(torch.finfo(parents.dtype).tiny)
+        weights, tail = self.weights(child)
+        births = 2 * (probability[..., None] * weights).sum((1, 2))
+        tail_birth = 2 * (probability * tail).sum((1, 2))
+        # At the threshold the conditional distribution is a point at v_min.
+        point_weights, point_tail = self.weights(parents / 2)
+        degenerate = parents <= 2 * minimum
+        return (
+            torch.where(degenerate[:, None], 2 * point_weights, births) * eligible[:, None],
+            torch.where(degenerate, 2 * point_tail, tail_birth) * eligible,
+            eligible,
+        )
 
     def surface_at(self, coordinates, live_volume, sigma):
         counts, tail = coordinates[:-1], coordinates[-1]

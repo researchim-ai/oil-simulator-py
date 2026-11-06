@@ -311,3 +311,132 @@ def test_live_brownian_and_gravitational_collision_kernel_matches_independent_pa
     assert torch.equal(split, torch.zeros_like(split))
     with pytest.raises(ValueError, match="live"):
         s.sources(p["coordinates"], m.nodes[0].volume_m3)
+
+
+@pytest.mark.parametrize("shape", [1, 2, 4, 8])
+@pytest.mark.parametrize("ratio", [1.0, 2.0, 100.0])
+def test_statistical_beta_conserves_and_matches_independent_integrals(shape, ratio):
+    from dataclasses import asdict
+
+    from reference_pr_sections import sources as reference_sources
+
+    s = replace(
+        spec(kernel=0.0),
+        daughter_distribution="symmetric_beta",
+        daughter_beta_shape=shape,
+        section_breakup_rates_s=(0.3,) * 4,
+    )
+    c = torch.tensor([1e9, 2e9, 3e9, 4e8, 4e8 * 8e-15 * ratio], dtype=torch.float64)
+    _, split = s.sources(c, 1e-4)
+    _, expected = reference_sources(asdict(s), c.numpy(), 1e-4)
+    torch.testing.assert_close(split, c.new_tensor(expected), rtol=2e-12, atol=1e-7)
+    assert abs(float(reference_moment(s, split))) < 1e-18
+    assert float(split[:-1].sum()) == pytest.approx(float(c[1:-1].sum()) * 0.3)
+    births, tail, eligible = s.daughter_births(c.new_tensor([1e-15, 2e-15, 5e-15, 8e-13]))
+    assert eligible.tolist() == [False, True, True, True]
+    torch.testing.assert_close(births.sum(-1), c.new_tensor([0.0, 2.0, 2.0, 2.0]))
+    moment = births[:, :-1] @ c.new_tensor(s.reference_volumes_m3[:-1]) + tail
+    torch.testing.assert_close(
+        moment[1:], c.new_tensor([2e-15, 5e-15, 8e-13]), atol=1e-27, rtol=1e-12
+    )
+    assert bool((births >= 0).all()) and bool((tail >= -1e-28).all())
+
+
+def test_uniform_binary_births_have_analytical_pivot_integrals_and_torch_tangent():
+    s = replace(spec(), daughter_distribution="symmetric_beta")
+    parents = torch.tensor([4e-15], dtype=torch.float64, requires_grad=True)
+    births, tail, _ = s.daughter_births(parents)
+    # Uniform daughter volume on [1,3] in units of 1e-15, two daughters/event.
+    torch.testing.assert_close(births[0], parents.new_tensor([0.5, 1.25, 0.25, 0.0]))
+    assert float(tail) == pytest.approx(0.0, abs=1e-28)
+    moment = births[:, :-1] @ parents.new_tensor(s.reference_volumes_m3[:-1]) + tail
+    torch.testing.assert_close(
+        torch.autograd.grad(moment.sum(), parents)[0],
+        torch.ones_like(parents),
+        rtol=1e-12,
+        atol=1e-12,
+    )
+    torch.testing.assert_close(
+        torch.func.jacfwd(lambda x: s.daughter_births(x * 1e-15)[0])(parents / 1e-15),
+        torch.autograd.functional.jacobian(
+            lambda x: s.daughter_births(x * 1e-15)[0], parents / 1e-15
+        ),
+    )
+
+
+@pytest.mark.parametrize(
+    "kwargs",
+    [
+        {"daughter_distribution": "unknown"},
+        {"daughter_beta_shape": 0},
+        {"daughter_beta_shape": 9},
+        {"daughter_beta_shape": True},
+        {"daughter_distribution": "symmetric_beta", "daughter_volume_fractions": (0.2, 0.8)},
+    ],
+)
+def test_statistical_configuration_rejects_ambiguous_or_unsupported_laws(kwargs):
+    with pytest.raises(ValueError):
+        replace(spec(), **kwargs)
+
+
+def test_statistical_mixer_energy_restart_and_independent_audit():
+    from dataclasses import asdict
+
+    from reference_pr_sections import sources as reference_sources
+
+    from surface.pr_equilibrium_transport import PREquilibriumTransportNetwork
+
+    base, _, initial = setup()
+    s = replace(
+        base.nodes[0].droplet_population,
+        daughter_distribution="symmetric_beta",
+        daughter_beta_shape=3,
+    )
+    m = PREquilibriumTransportNetwork(
+        base.fluid,
+        [replace(base.nodes[0], droplet_population=s)],
+        initial_step_s=0.001,
+        gravity_m_s2=base.gravity_m_s2,
+    )
+    start = m.initialize({"emulsion": initial})
+    end, _ = m._step(start, 0.001, m.default_openings, [0.0], [350.0])
+    a = torch.tensor(start.nodes[0][1].droplet_sections, dtype=torch.float64)
+    b = torch.tensor(end.nodes[0][1].droplet_sections, dtype=torch.float64)
+    coal, split = reference_sources(asdict(s), b.numpy(), m.nodes[0].volume_m3)
+    torch.testing.assert_close(b, a + 0.001 * b.new_tensor(coal + split), rtol=1e-8, atol=1e-14)
+    assert float(reference_moment(s, b)) == pytest.approx(float(reference_moment(s, a)), rel=1e-10)
+    assert end.nodes[0][1].total_energy_j - start.nodes[0][1].total_energy_j == pytest.approx(
+        0.001, abs=1e-8
+    )
+    restored = type(m).from_dict(json.loads(json.dumps(m.to_dict())))
+    assert restored.nodes[0].droplet_population.daughter_beta_shape == 3
+    restored.inspect(type(end).from_dict(json.loads(json.dumps(end.to_dict()))))
+
+
+def test_statistical_extreme_tail_and_lower_boundary_have_no_lost_volume():
+    for shape in range(1, 9):
+        s = replace(
+            spec(kernel=0.0), daughter_distribution="symmetric_beta", daughter_beta_shape=shape
+        )
+        v = torch.tensor([2e-15 * (1 + 1e-10), 8e-9], dtype=torch.float64)
+        births, tail, eligible = s.daughter_births(v)
+        assert bool(eligible.all())
+        torch.testing.assert_close(births.sum(-1), torch.full_like(v, 2.0), rtol=1e-12, atol=0)
+        moment = births[:, :-1] @ v.new_tensor(s.reference_volumes_m3[:-1]) + tail
+        torch.testing.assert_close(moment, v, rtol=1e-12, atol=0)
+        assert bool((tail >= -1e-28).all())
+
+
+def test_deterministic_legacy_config_keeps_checkpoint_model_identity():
+    from pathlib import Path
+
+    from surface.operation import _digest
+    from surface.pr_equilibrium_transport import PREquilibriumTransportNetwork
+
+    old = json.loads(
+        (
+            Path(__file__).resolve().parents[1] / "configs/surface_pr_sectional_mixer.json"
+        ).read_text()
+    )["model"]
+    model = PREquilibriumTransportNetwork.from_dict(old)
+    assert model.model_id == _digest(old)
