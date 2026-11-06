@@ -1,0 +1,180 @@
+{
+  "model": {
+    "model": "pr_equilibrium_transport_graph_v1",
+    "fluid": {
+      "components": [
+        {
+          "name": "methane",
+          "critical_temperature_k": 190.564,
+          "critical_pressure_pa": 4599200,
+          "acentric_factor": 0.01142,
+          "molar_mass_kg_mol": 0.0160428,
+          "ideal_cp_j_mol_k": 35.7,
+          "min_temperature_k": 150,
+          "max_temperature_k": 700,
+          "reference_temperature_k": 350,
+          "reference_pressure_pa": 100000.0
+        },
+        {
+          "name": "hexane",
+          "critical_temperature_k": 507.6,
+          "critical_pressure_pa": 3025000,
+          "acentric_factor": 0.301,
+          "molar_mass_kg_mol": 0.086178,
+          "ideal_cp_j_mol_k": 150,
+          "min_temperature_k": 260,
+          "max_temperature_k": 700,
+          "reference_temperature_k": 350,
+          "reference_pressure_pa": 100000.0
+        },
+        {
+          "name": "water",
+          "critical_temperature_k": 647.096,
+          "critical_pressure_pa": 22064000,
+          "acentric_factor": 0.344,
+          "molar_mass_kg_mol": 0.01801528,
+          "ideal_cp_j_mol_k": 33.6,
+          "min_temperature_k": 275.0,
+          "max_temperature_k": 700,
+          "reference_temperature_k": 350,
+          "reference_pressure_pa": 100000.0
+        }
+      ],
+      "binary_interactions": [
+        [
+          0.0,
+          0.03,
+          0.48
+        ],
+        [
+          0.03,
+          0.0,
+          0.5
+        ],
+        [
+          0.48,
+          0.5,
+          0.0
+        ]
+      ],
+      "min_pressure_pa": 100.0,
+      "max_pressure_pa": 1000000000.0,
+      "max_phases": 3
+    },
+    "nodes": [
+      {
+        "name": "emulsion",
+        "volume_m3": 0.0001963495408493621,
+        "kind": "pipe_cell",
+        "elevation_m": 0.0,
+        "length_m": 0.1,
+        "diameter_m": 0.05,
+        "elevation_change_m": 0.1,
+        "dynamic_viscosity_pa_s": 0.0,
+        "roughness_m": 0.0,
+        "distribution_strength": 0.0,
+        "buoyancy_relaxation_s": 0.0,
+        "local_loss_coefficient": 0.0,
+        "drift_flux": {
+          "gas_component_index": 0,
+          "oil_component_index": 1,
+          "water_component_index": 2,
+          "droplet_diameter_m": 1e-05,
+          "oil_viscosity_pa_s": 0.005,
+          "water_viscosity_pa_s": 0.001,
+          "surface_tension_n_m": 0.03,
+          "dispersed_liquid": "oil",
+          "interface": "immobile",
+          "distribution_parameter": 1.0,
+          "drift_velocity_m_s": 0.0,
+          "minimum_marker_fraction": 0.5,
+          "maximum_dispersed_liquid_fraction": 0.1,
+          "maximum_reynolds_number": 0.5,
+          "maximum_eotvos_number": 0.1,
+          "maximum_confinement_ratio": 0.05,
+          "maximum_capillary_pressure_fraction": 0.02,
+          "minimum_gas_volume_fraction": 1e-08,
+          "maximum_gas_volume_fraction": 0.7,
+          "maximum_gas_liquid_density_ratio": 0.5,
+          "model": "dispersed_oil_water"
+        },
+        "wall": null,
+        "geometry": null,
+        "left_diameter_m": null,
+        "right_diameter_m": null,
+        "droplet_population": {
+          "family": "oil_drops",
+          "coalescence_kernel_m3_s": 0.0,
+          "maximum_number_density_m3": 1e+24,
+          "gas_compressibility_threshold": 0.5,
+          "breakup_rate_s": 0.0,
+          "agitation_power_w": 1.0,
+          "model": "sectional_droplet_population",
+          "reference_volumes_m3": [
+            1e-15,
+            2e-15,
+            4e-15,
+            8e-15
+          ],
+          "initial_volume_fractions": [
+            0.4,
+            0.4,
+            0.1999,
+            0.0001
+          ],
+          "section_breakup_rates_s": [
+            0.0,
+            0.1,
+            0.2,
+            0.3
+          ],
+          "daughter_volume_fractions": [
+            0.5,
+            0.5
+          ],
+          "coalescence_model": "brownian_gravity",
+          "collision_efficiency": 0.4,
+          "tail_initial_volume_ratio": 2.0,
+          "maximum_tail_volume_ratio": 1000000.0
+        }
+      }
+    ],
+    "links": [],
+    "heat_links": [],
+    "pipe_paths": {},
+    "reservoir_ports": "riemann",
+    "wave_fan": "fixed_bound",
+    "dense_limit": 128,
+    "maximum_unknowns": 100000,
+    "gravity_m_s2": 9.80665,
+    "reference_elevation_m": 0.0,
+    "wave_speed_bound_m_s": 2000.0,
+    "maximum_velocity_m_s": 100.0,
+    "initial_step_s": 0.001,
+    "minimum_step_s": 1e-10,
+    "maximum_step_s": 0.01,
+    "relative_tolerance": 0.0001,
+    "temperature_tolerance_k": 0.002,
+    "velocity_tolerance_m_s": 0.001,
+    "maximum_attempts": 1000,
+    "maximum_branch_attempts": 32
+  },
+  "initial": {
+    "nodes": {
+      "emulsion": {
+        "pressure_pa": 1000000.0,
+        "temperature_k": 350.0,
+        "mole_fractions": [
+          0.0019477758409620002,
+          0.008328764584554036,
+          0.9897234595744839
+        ]
+      }
+    }
+  },
+  "schedule": [
+    {
+      "duration_s": 0.001
+    }
+  ]
+}

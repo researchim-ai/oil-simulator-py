@@ -15,6 +15,7 @@ from .drift_flux_closure import (
     RELAP7VerticalDriftClosure,
     ZuberFindlayClosure,
 )
+from .holmes_drift import HolmesGasLiquidClosure
 from .liquid import _name, _number
 from .pr_equilibrium_transport import (
     PREquilibriumLink,
@@ -44,6 +45,7 @@ class PREquilibriumPipe:
         ZuberFindlayClosure
         | RELAP7VerticalDriftClosure
         | RELAP7EquilibriumTransition
+        | HolmesGasLiquidClosure
         | DispersedOilWaterClosure
         | None
     ) = None
@@ -75,6 +77,7 @@ class PREquilibriumPipe:
                     ZuberFindlayClosure,
                     RELAP7VerticalDriftClosure,
                     RELAP7EquilibriumTransition,
+                    HolmesGasLiquidClosure,
                     DispersedOilWaterClosure,
                 ),
             ):

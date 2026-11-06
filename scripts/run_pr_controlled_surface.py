@@ -55,6 +55,7 @@ def run(config, *, device="cpu"):
                 "restriction_openings",
                 "targets",
                 "actuator_modes",
+                "reset_trips",
             }
             or "duration_s" not in command
         ):

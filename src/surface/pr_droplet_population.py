@@ -30,14 +30,18 @@ class PRDropletPopulation:
             raise ValueError("Explicit gas compressibility classification threshold required")
 
     def roles(self, law, x, z, densities):
-        light = torch.nn.functional.one_hot(densities.argmin(), len(densities)).to(x.dtype)
+        light = (torch.arange(len(densities), device=densities.device) == densities.argmin()).to(
+            x.dtype
+        )
         gas = light * ((z * light).sum() >= self.gas_compressibility_threshold).to(x.dtype)
         if len(densities) > 1:
             gas = gas * (
                 densities.min() / densities.max() <= law.maximum_gas_liquid_density_ratio
             ).to(x.dtype)
         scores = x[:, [law.oil_component_index, law.water_component_index]]
-        liquids = torch.nn.functional.one_hot(scores.argmax(-1), 2).to(x.dtype) * (1 - gas)[:, None]
+        liquids = (scores.argmax(-1)[:, None] == torch.arange(2, device=x.device)).to(x.dtype) * (
+            1 - gas
+        )[:, None]
         oil, water = liquids.unbind(-1)
         valid = (
             ((scores.max(-1).values >= law.minimum_marker_fraction) | (gas > 0)).all()
@@ -114,6 +118,10 @@ class PRPoweredDropletPopulation(PRDropletPopulation):
 
 
 def population_from_dict(data):
+    if data.get("model") == "sectional_droplet_population":
+        from .pr_sectional_population import PRSectionalDropletPopulation
+
+        return PRSectionalDropletPopulation(**data)
     return (
         PRPoweredDropletPopulation(**data)
         if data.get("model") == "powered_monomoment_breakup"
@@ -142,6 +150,10 @@ def packet_density(packet, law, native, spec):
 
 
 def number_flux(base_flux, contact, left, right, law, left_native, right_native, spec):
+    if getattr(spec, "model", None) == "sectional_droplet_population":
+        from .pr_sectional_population import spectral_flux
+
+        return spectral_flux(base_flux, contact, left, right, law, left_native, right_native, spec)
     a, va = packet_density(left, law, left_native, spec)
     b, vb = packet_density(right, law, right_native, spec)
     concentration_left = left["phase_concentration"].sum()
@@ -173,6 +185,60 @@ class DropletPopulations:
             if node.droplet_population is None:
                 continue
             number = old.droplet_number
+            if getattr(node.droplet_population, "model", None) == "sectional_droplet_population":
+                number = f.tensor(old.droplet_sections)
+                guess = number.clone()
+                if not old.droplet_number and seed["phase_count"] > 1:
+                    volumes = torch.stack(
+                        [p["molar_fraction"] * p["molar_volume_m3_mol"] for p in seed["phases"]]
+                    )
+                    x = torch.stack([p["mole_fractions"] for p in seed["phases"]])
+                    q = {
+                        k: torch.stack([p[k] for p in seed["phases"]])
+                        for k in ("density_kg_m3", "compressibility_factor")
+                    }
+                    guess = node.droplet_population.properties(
+                        node.drift_flux, volumes / volumes.sum() * node.volume_m3, x, None, q
+                    )["coordinates"]
+                scale = torch.maximum(number.abs(), guess.abs()).clamp_min(1e-20)
+                self.entries.append((i, offset, scale, number))
+                self.by_cell[i] = self.entries[-1]
+                self.initial.append(guess / scale)
+                self.lower.append(torch.zeros_like(scale))
+                spec = node.droplet_population
+                if any(spec.section_breakup_rates_s) and previous_data is not None:
+                    oldpop = previous_data[i]["population"]
+                    if bool(oldpop["present"].cpu()):
+                        from .pr_sectional_population import source_context
+
+                        _, breakup = spec.sources(
+                            number,
+                            node.volume_m3,
+                            **source_context(node.drift_flux, oldpop, previous_data[i]["t"]),
+                        )
+                        _, demand = torch.func.jvp(
+                            lambda coords, spec=spec, oldpop=oldpop, node=node: spec.surface_at(
+                                coords,
+                                oldpop["drop_volume_m3"],
+                                node.drift_flux.surface_tension_n_m,
+                            ),
+                            (number,),
+                            (breakup,),
+                        )
+                        if float(demand.cpu()) > spec.agitation_power_w * (1 + 1e-9) + 1e-14:
+                            raise EquipmentOperatingError(
+                                "Sectional breakup exceeds available mechanical surface-creation power"
+                            )
+                cap = spec.maximum_number_density_m3 * node.volume_m3
+                self.upper.append(
+                    f.tensor(
+                        [cap] * (spec.width - 1)
+                        + [cap * spec.reference_volumes_m3[-1] * spec.maximum_tail_volume_ratio]
+                    )
+                    / scale
+                )
+                offset += spec.width
+                continue
             if number is None:
                 raise ValueError("Droplet checkpoint has no particle inventory")
             law = node.drift_flux
@@ -211,7 +277,14 @@ class DropletPopulations:
             offset += 1
 
     def numbers(self, y):
-        return {i: y[offset] * scale for i, offset, scale, _ in self.entries}
+        return {
+            i: (
+                y[offset : offset + len(scale)] * scale
+                if isinstance(scale, torch.Tensor)
+                else y[offset] * scale
+            )
+            for i, offset, scale, _ in self.entries
+        }
 
     def balances(self, data, records, dt):
         net = {i: data[i]["p"] * 0 for i in self.by_cell}
@@ -226,6 +299,60 @@ class DropletPopulations:
             node = self.model.nodes[i]
             pop = data[i]["population"]
             number = pop["number"]
+            if getattr(node.droplet_population, "model", None) == "sectional_droplet_population":
+                spec = node.droplet_population
+                coords = pop["coordinates"]
+                from .pr_sectional_population import source_context
+
+                coag, breakup = spec.sources(
+                    coords, node.volume_m3, **source_context(node.drift_flux, pop, data[i]["t"])
+                )
+                residual = (coords - old - dt * (net[i] + coag + breakup)) / scale
+                default = spec.properties(
+                    node.drift_flux,
+                    data[i]["phase_n"] * data[i]["q"]["molar_volume_m3_mol"],
+                    data[i]["x"],
+                    None,
+                    data[i]["q"],
+                )["coordinates"]
+                active = (old[:-1].sum() > 0) | ((net[i] + torch.zeros_like(coords))[:-1].sum() > 0)
+                row = torch.where(
+                    pop["present"],
+                    torch.where(active, residual, (coords - default) / scale),
+                    coords / scale,
+                )
+                rows.append(row)
+                if any(spec.section_breakup_rates_s):
+                    before_breakup = coords - dt * breakup
+                    prior_surface = spec.surface_at(
+                        before_breakup, pop["drop_volume_m3"], node.drift_flux.surface_tension_n_m
+                    )
+                    difference = pop["surface_energy_j"] - prior_surface
+                    required = difference / dt
+                    budget = (before_breakup >= 0).all() & (
+                        difference
+                        <= dt * spec.agitation_power_w
+                        + 1e-12
+                        * (pop["surface_energy_j"].abs() + prior_surface.abs()).clamp_min(1e-20)
+                    )
+                else:
+                    required = coords.sum() * 0
+                    budget = coords.new_ones((), dtype=torch.bool)
+                details[node.name] = {
+                    **pop,
+                    "net_section_rates": net[i] + torch.zeros_like(coords),
+                    "coalescence_section_rates": coag,
+                    "breakup_section_rates": breakup,
+                    "section_balance_residuals": row,
+                    "balance_residual": row.abs().max(),
+                    "net_number_rate_s": (net[i] + torch.zeros_like(coords))[:-1].sum(),
+                    "coalescence_loss_rate_s": -coag[:-1].sum(),
+                    "breakup_gain_rate_s": breakup[:-1].sum(),
+                    "agitation_power_w": coords.new_tensor(spec.agitation_power_w),
+                    "breakup_surface_power_w": required.clamp_min(0),
+                    "power_budget_valid": torch.where(pop["present"], budget, True),
+                }
+                continue
             loss = (
                 0.5
                 * node.droplet_population.coalescence_kernel_m3_s
@@ -274,20 +401,25 @@ class DropletPopulations:
     @staticmethod
     def pattern(model, offsets, entries, openings):
         support = set()
-        aux = {i: offset for i, offset, *_ in entries}
+        widths = {
+            i: (len(scale) if isinstance(scale, torch.Tensor) else 1) for i, _, scale, _ in entries
+        }
+        aux = {i: list(range(offset, offset + widths[i])) for i, offset, *_ in entries}
         for i, offset, *_ in entries:
             neighbours = {i}
             for link, (a, b) in zip(model.links, model.ends):
                 if openings[link.name] and i in (a, b):
                     neighbours.update((a, b))
-            columns = [offset]
+            columns = list(aux[i])
             for j in neighbours:
                 columns.extend(range(offsets[j], offsets[j + 1]))
                 if j in aux:
-                    columns.append(aux[j])
-            support.update((offset, col) for col in columns)
+                    columns.extend(aux[j])
+            support.update((row, col) for row in aux[i] for col in columns)
             for j in neighbours:
-                support.update((row, offset) for row in range(offsets[j], offsets[j + 1]))
+                support.update(
+                    (row, col) for row in range(offsets[j], offsets[j + 1]) for col in aux[i]
+                )
         return support
 
     @staticmethod
@@ -312,4 +444,24 @@ class DropletPopulations:
                 )
             values = torch.stack([row[k] for k in keys]).detach().cpu().tolist()
             result[name] = dict(zip(keys, values))
+            if "coordinates" in row:
+                for key in (
+                    "coordinates",
+                    "section_numbers",
+                    "section_volume_fractions",
+                    "section_diameters_m",
+                    "section_surface_energy_j",
+                    "section_velocities_m_s",
+                    "net_section_rates",
+                    "coalescence_section_rates",
+                    "breakup_section_rates",
+                    "section_balance_residuals",
+                ):
+                    result[name][key] = row[key].detach().cpu().tolist()
+                result[name]["reference_volume_m3"] = float(
+                    row["reference_volume_m3"].detach().cpu()
+                )
+                result[name]["tail_reference_volume_m3"] = float(
+                    row["tail_reference_volume_m3"].detach().cpu()
+                )
         return result

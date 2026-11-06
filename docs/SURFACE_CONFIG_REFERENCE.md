@@ -1185,3 +1185,27 @@ Builder выставляет `hydrostatic_reconstruction=true` трубным я
 а не тепловой поток: [дробление капель](PR_POWERED_BREAKUP.md).
 Примеры этих моделей включены в `scripts/validate_pr_surface_matrix.py`;
 прохождение функциональной матрицы не заменяет промысловую калибровку.
+
+## Непрерывное газожидкостное замыкание
+
+`drift_flux.model="holmes_gas_liquid"` принимает явные параметры
+профиля A/B/Fv и перехода a1/a2, поверхностное натяжение и границы
+газосодержания, плотностей, наклона и безразмерного диаметра.
+Оно поддержано в `PREquilibriumNode`, `PREquilibriumPipe` и общем
+JSON/restart API. [Формулы, проверка однозначности и ограничения](PR_HOLMES_DRIFT.md).
+Пример: `configs/surface_pr_holmes_inclined.json`.
+
+## Спектр капель
+
+Популяция `sectional_droplet_population` задаёт опорные объёмы, начальные
+объёмные доли, частоты бинарного дробления, ядро коалесценции и мощность
+мешалки. По секциям решаются перенос и реакции; крупный хвост имеет
+собственные число и объёмный момент. Параметры, энергия, скорости,
+пограничные условия и restart: [секционная модель](PR_SECTIONAL_POPULATIONS.md).
+
+## Управление приводами и защиты общего PR-графа
+
+Схемы `motors`, `trips`, измерения `speed`, `temperature`, `pump_flow` и
+`compressor_margin`, а также команда `reset_trips` описаны в
+[управлении приводами](PR_CONTROL_CHANNELS.md). Примеры: `surface_pr_controlled_motor.json`,
+`surface_pr_controlled_minimum_flow.json`, `surface_pr_controlled_antisurge.json`.

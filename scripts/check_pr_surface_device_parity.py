@@ -43,7 +43,7 @@ def audit(cpu_directory, cuda_directory, *, root, atol=1e-9, rtol=1e-8):
         worst = [0.0, ""]
         count = 0
 
-        def compare(x, y, path, worst=worst):
+        def compare(x, y, path, worst=worst, absolute=atol):
             nonlocal count
             if isinstance(x, dict):
                 if not isinstance(y, dict) or x.keys() != y.keys():
@@ -57,13 +57,20 @@ def audit(cpu_directory, cuda_directory, *, root, atol=1e-9, rtol=1e-8):
                 if not isinstance(y, list) or len(x) != len(y):
                     raise ValueError(f"Checkpoint shape differs: {path}")
                 for i, (a, b) in enumerate(zip(x, y)):
-                    compare(a, b, f"{path}/{i}")
+                    compare(
+                        a,
+                        b,
+                        f"{path}/{i}",
+                        absolute=1e-20
+                        if path.endswith("/droplet_sections") and i == len(x) - 1
+                        else atol,
+                    )
             elif isinstance(x, (float, int)) and not isinstance(x, bool):
                 if isinstance(y, bool) or not isinstance(y, (float, int)):
                     raise TypeError(f"Checkpoint type differs: {path}")
                 if not math.isfinite(x) or not math.isfinite(y):
                     raise ValueError(f"Nonfinite checkpoint: {path}")
-                scaled = abs(x - y) / (atol + rtol * max(abs(x), abs(y)))
+                scaled = abs(x - y) / (absolute + rtol * max(abs(x), abs(y)))
                 count += 1
                 if scaled > worst[0]:
                     worst[:] = [scaled, path]

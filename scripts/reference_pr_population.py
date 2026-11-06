@@ -28,6 +28,10 @@ def population_properties(node, state, x, pn, vm, z, rho):
         if state.get("droplet_number") is not None:
             raise ValueError("Unconfigured droplet stock")
         return None, None, 0.0
+    if spec.get("model") == "sectional_droplet_population":
+        from reference_pr_sections import properties
+
+        return properties(node, state, x, pn, vm, z, rho)
     law = dict(node["drift_flux"])
     if "droplet_number" not in state:
         raise ValueError("Missing droplet inventory")
@@ -71,6 +75,10 @@ def population_properties(node, state, x, pn, vm, z, rho):
 
 
 def number_flux(base, contact, left, right, law, left_native, right_native, spec):
+    if spec.get("model") == "sectional_droplet_population":
+        from reference_pr_sections import number_flux as sectional_flux
+
+        return sectional_flux(base, contact, left, right, law, left_native, right_native, spec)
     index = (
         law["oil_component_index"]
         if law["dispersed_liquid"] == "oil"
@@ -111,6 +119,13 @@ def audit_population_balances(nodes, old, new, data, rates, saved, dt):
         d = data[name]
         p = d["population"]
         record = saved[name]
+        if node["droplet_population"].get("model") == "sectional_droplet_population":
+            from reference_pr_sections import audit_balance
+
+            audit_balance(
+                node, old[name], p, net=rates[name], record=record, dt=dt, temperature_k=d["t"]
+            )
+            continue
         number = p["number"]
         prior = old[name]["droplet_number"]
         net = rates[name]
@@ -160,5 +175,6 @@ def agitation_powers(nodes):
     return {
         name: node["droplet_population"]["agitation_power_w"]
         for name, node in nodes.items()
-        if (node.get("droplet_population") or {}).get("model") == "powered_monomoment_breakup"
+        if (node.get("droplet_population") or {}).get("model")
+        in ("powered_monomoment_breakup", "sectional_droplet_population")
     }

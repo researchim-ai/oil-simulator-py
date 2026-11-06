@@ -27,6 +27,7 @@ from .drift_flux_closure import (
 from .equilibrium_inventory import EquilibriumInventory
 from .equilibrium_properties import EquilibriumFluid
 from .hllc_local import hllc_local
+from .holmes_drift import HolmesGasLiquidClosure
 from .liquid import ConservationError, HydraulicConvergenceError, PropertyModelError, _name, _number
 from .operation import _digest
 from .phase_geometry import phase_layout, pickup_fractions, validate_pickup
@@ -45,9 +46,11 @@ from .pr_machine_drive import PRMachineDrive, RotorBundle
 from .pr_momentum_vessels import hllc_port
 from .pr_pump_connection import PRPumpConnection, PumpConnectionBundle
 from .pr_pump_unit import PRPumpUnit, TorchPumpCell, serialize_pumps
+from .pr_sectional_population import PRSectionalDropletPopulation
+from .pr_sectional_population import endpoint_data as sectional_endpoint_data
 from .pr_stagnation_ports import SinglePhaseReservoirTraces
 from .separator_geometry import SeparatorGeometry
-from .time_interval import interval_step_s
+from .time_interval import interval_step_s, split_step_s
 from .torch_linear import TorchNewton, checked_device
 from .vessel_wall import VesselWall
 
@@ -70,6 +73,7 @@ class PREquilibriumNode:
         ZuberFindlayClosure
         | RELAP7VerticalDriftClosure
         | RELAP7EquilibriumTransition
+        | HolmesGasLiquidClosure
         | DispersedOilWaterClosure
         | None
     ) = None
@@ -122,6 +126,7 @@ class PREquilibriumNode:
                     ZuberFindlayClosure,
                     RELAP7VerticalDriftClosure,
                     RELAP7EquilibriumTransition,
+                    HolmesGasLiquidClosure,
                     DispersedOilWaterClosure,
                 ),
             ):
@@ -243,6 +248,7 @@ class PREquilibriumCellState:
     wall_temperature_k: float | None
     droplet_number: float | None = None
     hydrostatic_face_guesses: tuple | None = None
+    droplet_sections: tuple | None = None
 
     def __post_init__(self):
         object.__setattr__(self, "component_moles", tuple(self.component_moles))
@@ -270,6 +276,17 @@ class PREquilibriumCellState:
             _number(self.wall_temperature_k, "wall temperature", positive=True)
         if self.droplet_number is not None:
             _number(self.droplet_number, "droplet number", nonnegative=True)
+        if self.droplet_sections is not None:
+            object.__setattr__(self, "droplet_sections", tuple(self.droplet_sections))
+            for value in self.droplet_sections:
+                _number(value, "sectional droplet stock", nonnegative=True)
+            if self.droplet_number is None or not math.isclose(
+                math.fsum(self.droplet_sections[:-1]),
+                self.droplet_number,
+                rel_tol=1e-10,
+                abs_tol=1e-10,
+            ):
+                raise ValueError("Sectional total number differs from particle inventory")
         if self.hydrostatic_face_guesses is not None:
             faces = tuple(
                 (port, pressure, tuple(x)) for port, pressure, x in self.hydrostatic_face_guesses
@@ -314,7 +331,8 @@ class PREquilibriumTransportState:
                 name: {
                     k: v
                     for k, v in asdict(s).items()
-                    if k not in ("droplet_number", "hydrostatic_face_guesses") or v is not None
+                    if k not in ("droplet_number", "hydrostatic_face_guesses", "droplet_sections")
+                    or v is not None
                 }
                 for name, s in self.nodes
             },
@@ -570,6 +588,22 @@ class PREquilibriumTransportNetwork:
                 raise ValueError("Connected endpoints must share a physical elevation")
             na, nb = (self.nodes[j] for j in pair)
             pa, pb = na.droplet_population, nb.droplet_population
+            if (
+                pa is not None
+                and pb is not None
+                and (
+                    isinstance(pa, PRSectionalDropletPopulation)
+                    or isinstance(pb, PRSectionalDropletPopulation)
+                )
+                and (
+                    not (
+                        isinstance(pa, PRSectionalDropletPopulation)
+                        and isinstance(pb, PRSectionalDropletPopulation)
+                    )
+                    or pa.reference_volumes_m3 != pb.reference_volumes_m3
+                )
+            ):
+                raise ValueError("Direct sectional transfer requires matching grids and models")
             if pa is not None and pb is not None:
                 if (
                     pa.family != pb.family
@@ -603,6 +637,12 @@ class PREquilibriumTransportNetwork:
         ):
             raise ValueError("Drive heat sink must be a represented finite fluid volume")
         for node in self.nodes:
+            if isinstance(node.drift_flux, HolmesGasLiquidClosure):
+                node.drift_flux.geometry(
+                    node.diameter_m,
+                    self.gravity_m_s2 * node.elevation_change_m / node.length_m,
+                    self.gravity_m_s2,
+                )
             if isinstance(
                 node.drift_flux, (RELAP7VerticalDriftClosure, RELAP7EquilibriumTransition)
             ) and (
@@ -760,11 +800,46 @@ class PREquilibriumTransportNetwork:
             if population is not None:
                 velocities = torch.where(population["present"], velocities, u.expand_as(velocities))
             drift = velocities - u
+        variance = u * 0
+        if population is not None and "section_numbers" in population:
+            law = node.drift_flux
+            _gas, oil, water = population["roles"][0]
+            ro, rw = (q["density_kg_m3"] * oil).sum(), (q["density_kg_m3"] * water).sum()
+            slip, reynolds, eotvos = law.liquid_slip(
+                ro,
+                rw,
+                self.gravity_m_s2 * node.elevation_change_m / node.length_m,
+                self.gravity_m_s2,
+                population["section_diameters_m"],
+            )
+            slip = slip * (1 if law.dispersed_liquid == "oil" else -1)
+            weights = population["section_volume_fractions"]
+            deviation = slip - (weights * slip).sum()
+            drop_velocity = (velocities * population["drop_mask"]).sum()
+            section_velocities = torch.where(
+                population["present"], drop_velocity + deviation, u.expand_as(deviation)
+            )
+            variance = (masses * population["drop_mask"]).sum() * (
+                weights * deviation.square()
+            ).sum()
+            population.update(section_velocities_m_s=section_velocities)
+            section_valid = (
+                (reynolds <= law.maximum_reynolds_number).all()
+                & (eotvos <= law.maximum_eotvos_number).all()
+                & (
+                    population["section_diameters_m"] / node.diameter_m
+                    <= law.maximum_confinement_ratio
+                ).all()
+                & (section_velocities.abs() <= self.maximum_velocity_m_s).all()
+            )
+            population["valid"] = population["valid"] & torch.where(
+                population["present"], section_valid, True
+            )
         return (
             drift,
             velocities,
-            0.5 * (masses * velocities.square()).sum(),
-            (masses * drift.square()).sum() / node.volume_m3,
+            0.5 * ((masses * velocities.square()).sum() + variance),
+            ((masses * drift.square()).sum() + variance) / node.volume_m3,
         )
 
     def _decode(self, index, amounts, p, t, u, active, tags, droplet_number=None):
@@ -825,7 +900,9 @@ class PREquilibriumTransportNetwork:
             u,
             active,
             s.phase_roots,
-            None if s.droplet_number is None else f.tensor(s.droplet_number),
+            f.tensor(s.droplet_sections)
+            if s.droplet_sections is not None
+            else (None if s.droplet_number is None else f.tensor(s.droplet_number)),
         )
 
     def _continuation_flash(self, data):
@@ -929,11 +1006,20 @@ class PREquilibriumTransportNetwork:
                 ),
             )
             if isinstance(n.drift_flux, DispersedOilWaterClosure):
-                valid = valid & n.drift_flux.pressure_valid(
-                    data["x"],
-                    data["p"],
-                    None if population is None else population["diameter_m"],
-                    None if population is None else population["roles"],
+                valid = (
+                    valid
+                    & n.drift_flux.pressure_valid(
+                        data["x"],
+                        data["p"],
+                        None
+                        if population is None
+                        else (
+                            population["section_diameters_m"]
+                            if "section_diameters_m" in population
+                            else population["diameter_m"]
+                        ),
+                        None if population is None else population["roles"],
+                    ).all()
                 )
             if population is not None:
                 valid = torch.where(
@@ -991,6 +1077,10 @@ class PREquilibriumTransportNetwork:
         """
         f = self.fluid
         node = self.nodes[index]
+        if isinstance(node.droplet_population, PRSectionalDropletPopulation):
+            from .pr_sectional_population import characteristics
+
+            return characteristics(self, index, data, active)
         m, c = data["amounts"].shape
         y0 = torch.cat(
             (
@@ -1128,6 +1218,14 @@ class PREquilibriumTransportNetwork:
         for i, (node, (_, s)) in enumerate(zip(self.nodes, state.nodes)):
             if s.hydrostatic_face_guesses is not None and not node.hydrostatic_reconstruction:
                 raise ValueError("Hydrostatic guesses supplied for a cell without reconstruction")
+            if isinstance(node.droplet_population, PRSectionalDropletPopulation):
+                if (
+                    s.droplet_sections is None
+                    or len(s.droplet_sections) != node.droplet_population.width
+                ):
+                    raise ValueError("Sectional checkpoint grid differs")
+            elif s.droplet_sections is not None:
+                raise ValueError("Sectional stocks without a sectional model")
             if (node.droplet_population is None) != (s.droplet_number is None):
                 raise ValueError("Droplet checkpoint registry differs from physical model")
             f = self.fluid
@@ -1195,6 +1293,14 @@ class PREquilibriumTransportNetwork:
             velocity = _number(spec.pop("velocity_m_s", 0.0), "initial velocity")
             tw = spec.pop("wall_temperature_k", None)
             particle_number = spec.pop("droplet_number", None)
+            sections = spec.pop("droplet_sections", None)
+            if sections is not None:
+                if (
+                    not isinstance(node.droplet_population, PRSectionalDropletPopulation)
+                    or particle_number is not None
+                ):
+                    raise ValueError("Specify one matching sectional initial stock")
+                particle_number = sections
             face_guesses = spec.pop("hydrostatic_face_guesses", None)
             if particle_number is not None and node.droplet_population is None:
                 raise ValueError("Initial particle stock without a droplet model")
@@ -1236,6 +1342,9 @@ class PREquilibriumTransportNetwork:
                         tw,
                         None if d["population"] is None else float(d["population"]["number"].cpu()),
                         face_guesses,
+                        None
+                        if d["population"] is None or "coordinates" not in d["population"]
+                        else tuple(d["population"]["coordinates"].cpu().tolist()),
                     ),
                 )
             )
@@ -1263,6 +1372,7 @@ class PREquilibriumTransportNetwork:
 
     def _endpoint(self, index, data, side, link):
         node = self.nodes[index]
+        data = sectional_endpoint_data(data)
         data = data.get("hydrostatic_faces", {}).get(getattr(link, side + "_port"), data)
         weights = data["alpha"]
         h = getattr(link, side + "_height_m")
@@ -1295,6 +1405,8 @@ class PREquilibriumTransportNetwork:
                 * population["surface_energy_j"]
                 / population["drop_volume_m3"].clamp_min(1e-30)
             )
+            if "surface_density_phase" in population:
+                surface_phase = population["surface_density_phase"]
             internal = internal + surface_phase.sum()
         # A lateral opening retains axial kinetic energy as a tangential
         # passive quantity. Incoming perpendicular-jet energy thermalizes;
@@ -1545,6 +1657,8 @@ class PREquilibriumTransportNetwork:
                     data[b].get("population"),
                     config,
                 )
+                if not openings[link.name]:
+                    particle_fluxes[config.family] = particle_fluxes[config.family] * 0
                 rate = particle_fluxes[config.family]
                 left_pop, right_pop = data[a].get("population"), data[b].get("population")
                 dl = (
@@ -1557,11 +1671,17 @@ class PREquilibriumTransportNetwork:
                     if right_pop is not None
                     else rate.new_tensor(law.droplet_diameter_m)
                 )
-                valid = valid & torch.where(
-                    rate > 0, dl / link.diameter_m <= law.maximum_confinement_ratio, True
+                valid = (
+                    valid
+                    & torch.where(
+                        rate > 0, dl / link.diameter_m <= law.maximum_confinement_ratio, True
+                    ).all()
                 )
-                valid = valid & torch.where(
-                    rate < 0, dr / link.diameter_m <= law.maximum_confinement_ratio, True
+                valid = (
+                    valid
+                    & torch.where(
+                        rate < 0, dr / link.diameter_m <= law.maximum_confinement_ratio, True
+                    ).all()
                 )
             records.append(
                 {
@@ -2036,8 +2156,10 @@ class PREquilibriumTransportNetwork:
             blocks[entry.vessel].extend(range(entry.offset, entry.offset + 3))
         for entry in face_bundle.entries:
             blocks[entry.cell].extend(range(entry.offset, entry.offset + entry.count))
-        for cell, offset, *_ in population_bundle.entries:
-            blocks[cell].append(offset)
+        for cell, offset, scale, _ in population_bundle.entries:
+            blocks[cell].extend(
+                range(offset, offset + (len(scale) if isinstance(scale, torch.Tensor) else 1))
+            )
         for entry in compressor_bundle.entries:
             blocks.append(list(range(entry[3], entry[3] + 3)))
         for entry in pump_connection_bundle.entries:
@@ -2331,6 +2453,10 @@ class PREquilibriumTransportNetwork:
                                     if d["population"] is None
                                     else float(d["population"]["number"].cpu()),
                                     tuple(face_guesses[i]) if i in face_guesses else None,
+                                    None
+                                    if d["population"] is None
+                                    or "coordinates" not in d["population"]
+                                    else tuple(d["population"]["coordinates"].cpu().tolist()),
                                 ),
                             )
                         )
@@ -2452,9 +2578,23 @@ class PREquilibriumTransportNetwork:
                                 **(
                                     {
                                         "droplet_number_fluxes": {
-                                            k: float(v.cpu())
+                                            k: float((v[:-1].sum() if v.ndim else v).cpu())
                                             for k, v in rec["droplet_number_fluxes"].items()
-                                        }
+                                        },
+                                        **(
+                                            {
+                                                "droplet_section_fluxes": {
+                                                    k: v.cpu().tolist()
+                                                    for k, v in rec["droplet_number_fluxes"].items()
+                                                    if v.ndim
+                                                }
+                                            }
+                                            if any(
+                                                v.ndim
+                                                for v in rec["droplet_number_fluxes"].values()
+                                            )
+                                            else {}
+                                        ),
                                     }
                                     if rec["droplet_number_fluxes"]
                                     else {}
@@ -2623,6 +2763,14 @@ class PREquilibriumTransportNetwork:
                 error, abs(x - y) / (1e-8 + d.relative_speed_tolerance * d.nominal_speed_rad_s)
             )
         for i, ((_, x), (_, y)) in enumerate(zip(a.nodes, b.nodes)):
+            if x.droplet_sections is not None:
+                error = max(
+                    error,
+                    max(
+                        abs(u - v) / (1e-20 + self.relative_tolerance * max(abs(u), abs(v)))
+                        for u, v in zip(x.droplet_sections, y.droplet_sections)
+                    ),
+                )
             if x.droplet_number is not None:
                 error = max(
                     error,
@@ -2711,6 +2859,7 @@ class PREquilibriumTransportNetwork:
             dt = interval_step_s(current.time_s, end, dt)
             if current.time_s + dt / 2 <= current.time_s:
                 raise ValueError("HEM substep below time resolution")
+            first_dt, second_dt = split_step_s(current.time_s, dt)
             try:
                 coarse, _ = self._step(
                     current,
@@ -2724,7 +2873,7 @@ class PREquilibriumTransportNetwork:
                 )
                 half, one = self._step(
                     current,
-                    dt / 2,
+                    first_dt,
                     commands,
                     heat,
                     utility,
@@ -2734,7 +2883,7 @@ class PREquilibriumTransportNetwork:
                 )
                 fine, two = self._step(
                     half,
-                    dt / 2,
+                    second_dt,
                     commands,
                     heat,
                     utility,

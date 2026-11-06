@@ -25,7 +25,7 @@ from .pr_heat_link import PRHeatLink, thermal_exchange, thermal_records
 from .pr_momentum_vessels import hllc_port
 from .stratified_pr import StratifiedPRColumn, StratifiedPRState
 from .stratified_pr_flow import StratifiedPRFlow
-from .time_interval import interval_step_s
+from .time_interval import interval_step_s, split_step_s
 from .vessel_wall import VesselWall
 
 
@@ -473,6 +473,7 @@ class PRGravityTransportNetwork:
             dt = interval_step_s(current.time_s, end, dt)
             if current.time_s + dt / 2 <= current.time_s:
                 raise ValueError("Coupled substep below time resolution")
+            first_dt, second_dt = split_step_s(current.time_s, dt)
             try:
                 coarse, _ = self._step(
                     current,
@@ -486,7 +487,7 @@ class PRGravityTransportNetwork:
                 )
                 half, one = self._step(
                     current,
-                    dt / 2,
+                    first_dt,
                     commands,
                     heat,
                     utility,
@@ -496,7 +497,7 @@ class PRGravityTransportNetwork:
                 )
                 fine, two = self._step(
                     half,
-                    dt / 2,
+                    second_dt,
                     commands,
                     heat,
                     utility,

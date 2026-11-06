@@ -15,6 +15,13 @@ from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 CASES = {
+    "controlled_motor": ("surface_pr_controlled_motor", "controlled"),
+    "controlled_minimum_flow": ("surface_pr_controlled_minimum_flow", "controlled"),
+    "controlled_antisurge": ("surface_pr_controlled_antisurge", "controlled"),
+    "sectional_physical": ("surface_pr_sectional_physical", "equilibrium"),
+    "sectional_mixer": ("surface_pr_sectional_mixer", "equilibrium"),
+    "sectional_transport": ("surface_pr_sectional_transport", "equilibrium"),
+    "holmes_inclined": ("surface_pr_holmes_inclined", "equilibrium"),
     "hem_gas": ("surface_pr_hem_gas", "equilibrium"),
     "hem_two_phase": ("surface_pr_hem_two_phase", "equilibrium"),
     "hem_flashing": ("surface_pr_hem_flashing", "equilibrium"),

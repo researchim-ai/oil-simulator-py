@@ -14,8 +14,9 @@ from types import SimpleNamespace
 from .actuator import ConnectionActuator
 from .liquid import ConservationError, HydraulicConvergenceError, PropertyModelError, _name, _number
 from .operation import _digest
+from .pr_control_channels import PRMotorControl, PRSurfaceTrip, compressor_margin
 from .pr_gravity_transport import PRGravityTransportNetwork, PRGravityTransportState
-from .time_interval import interval_step_s
+from .time_interval import interval_step_s, split_step_s
 
 
 @dataclass(frozen=True)
@@ -120,12 +121,21 @@ class PRSurfacePI:
         _number(self.maximum_integral_abs, "PI integral limit", positive=True)
         ConnectionActuator.position(self.opening_bias)
         if (
-            self.measurement not in ("pressure", "level", "inventory_level")
+            self.measurement
+            not in (
+                "pressure",
+                "temperature",
+                "speed",
+                "level",
+                "inventory_level",
+                "compressor_margin",
+                "pump_flow",
+            )
             or type(self.action) is not int
             or self.action not in (-1, 1)
         ):
             raise ValueError("Explicit pressure/level measurement and action +/-1 required")
-        if (self.measurement != "pressure") != (self.component is not None):
+        if (self.measurement in ("level", "inventory_level")) != (self.component is not None):
             raise ValueError("Level measurement requires exactly one component")
         if self.component is not None:
             _name(self.component)
@@ -164,10 +174,34 @@ class PRControlledSurfaceState:
     integrals: tuple
     next_step_s: float
     model_id: str
+    trips: tuple = ()
+    inactive_feedback: tuple = ()
+    machine_feedback: tuple = ()
 
     def __post_init__(self):
         object.__setattr__(self, "positions", tuple((n, float(v)) for n, v in self.positions))
         object.__setattr__(self, "integrals", tuple((n, float(v)) for n, v in self.integrals))
+        object.__setattr__(
+            self, "trips", tuple((n, latched, float(elapsed)) for n, latched, elapsed in self.trips)
+        )
+        object.__setattr__(
+            self, "machine_feedback", tuple((n, float(v)) for n, v in self.machine_feedback)
+        )
+        if len(dict(self.machine_feedback)) != len(self.machine_feedback):
+            raise ValueError("Duplicate machine feedback sample")
+        for name, value in self.machine_feedback:
+            _name(name)
+            _number(value, "machine feedback")
+        object.__setattr__(self, "inactive_feedback", tuple(self.inactive_feedback))
+        if len(set(self.inactive_feedback)) != len(self.inactive_feedback):
+            raise ValueError("Duplicate inactive controller")
+        for name in self.inactive_feedback:
+            _name(name)
+        for name, latched, elapsed in self.trips:
+            _name(name)
+            if type(latched) is not bool:
+                raise TypeError("Protection latch must be boolean")
+            _number(elapsed, "protection elapsed time", nonnegative=True)
 
     @property
     def time_s(self):
@@ -180,18 +214,54 @@ class PRControlledSurfaceState:
             "integrals": dict(self.integrals),
             "next_step_s": self.next_step_s,
             "model_id": self.model_id,
+            **({"machine_feedback": dict(self.machine_feedback)} if self.machine_feedback else {}),
+            **(
+                {"inactive_feedback": list(self.inactive_feedback)}
+                if self.inactive_feedback
+                else {}
+            ),
+            **(
+                {
+                    "trips": {
+                        n: {"latched": latched, "elapsed_s": elapsed}
+                        for n, latched, elapsed in self.trips
+                    }
+                }
+                if self.trips
+                else {}
+            ),
         }
 
     @classmethod
     def from_dict(cls, data):
-        if set(data) != {"plant", "positions", "integrals", "next_step_s", "model_id"}:
+        if set(data) - {
+            "plant",
+            "positions",
+            "integrals",
+            "next_step_s",
+            "model_id",
+            "trips",
+            "inactive_feedback",
+            "machine_feedback",
+        } or not {"plant", "positions", "integrals", "next_step_s", "model_id"} <= set(data):
             raise ValueError("Unknown controlled checkpoint fields")
+        if not isinstance(data.get("machine_feedback", {}), dict):
+            raise TypeError("Invalid machine feedback checkpoint")
+        if not isinstance(data.get("trips", {}), dict) or any(
+            set(v) != {"latched", "elapsed_s"} for v in data.get("trips", {}).values()
+        ):
+            raise ValueError("Invalid protection checkpoint fields")
         return cls(
             PRGravityTransportState.from_dict(data["plant"]),
             tuple(sorted(data["positions"].items())),
             tuple(sorted(data["integrals"].items())),
             data["next_step_s"],
             data["model_id"],
+            tuple(
+                (n, v["latched"], v["elapsed_s"]) for n, v in sorted(data.get("trips", {}).items())
+            ),
+            tuple(data.get("inactive_feedback", ())),
+            tuple(sorted(data.get("machine_feedback", {}).items())),
         )
 
 
@@ -208,23 +278,78 @@ class PRControlledSurface:
         position_tolerance=1e-4,
         integral_tolerance=1e-4,
         maximum_attempts=1000,
+        trips=(),
+        motors=(),
     ):
         if not isinstance(plant, PRGravityTransportNetwork):
             raise TypeError("Expected gravitational transport plant")
         self.plant = plant
         self.valves = tuple(sorted(valves, key=lambda v: v.name))
+        if any(not isinstance(v, (PRControlValve, PRThroatControlValve)) for v in self.valves):
+            raise TypeError("Put motor channels in motors, not valves")
+        self.motors = tuple(sorted(motors, key=lambda v: v.name))
+        if any(not isinstance(v, PRMotorControl) for v in self.motors):
+            raise TypeError("Expected motor control channels")
+        self.channels = tuple(sorted((*self.valves, *self.motors), key=lambda v: v.name))
         self.controllers = tuple(sorted(controllers, key=lambda c: c.valve))
+        self.trips = tuple(sorted(trips, key=lambda t: t.name))
+        if any(not isinstance(t, PRSurfaceTrip) for t in self.trips) or len(
+            {t.name for t in self.trips}
+        ) != len(self.trips):
+            raise ValueError("Unique named physical protections required")
         if (
-            not self.valves
-            or any(not isinstance(v, (PRControlValve, PRThroatControlValve)) for v in self.valves)
-            or len({v.name for v in self.valves}) != len(self.valves)
+            not self.channels
+            or any(
+                not isinstance(v, (PRControlValve, PRThroatControlValve, PRMotorControl))
+                for v in self.channels
+            )
+            or len({v.name for v in self.channels}) != len(self.channels)
         ):
             raise ValueError("Unique named control valves required")
         ports = {p.name: p for p in plant.ports}
         by_name = {n.name: n for n in plant.transport.nodes}
         links = {c.name: c for c in plant.transport.links}
         restrictions = {u.name: u for u in plant.transport.restrictions}
-        for valve in self.valves:
+        for valve in self.channels:
+            if isinstance(valve, PRMotorControl):
+                if valve.port not in plant.transport._drives:
+                    raise ValueError("Motor controller requires a coupled PR rotor")
+                physics = plant.transport._drives[valve.port].drive
+                if (
+                    valve.minimum_torque_nm < -physics.max_braking_torque_nm
+                    or valve.maximum_torque_nm > physics.max_motor_torque_nm
+                ):
+                    raise ValueError("Controller torque limits exceed the physical drive")
+                if (
+                    physics.max_electrical_draw_w is not None
+                    and valve.maximum_torque_nm * physics.max_speed_rad_s / physics.motor_efficiency
+                    > physics.max_electrical_draw_w
+                ):
+                    raise ValueError(
+                        "Controller torque must respect electrical power over the declared speed range"
+                    )
+                if (
+                    physics.max_electrical_export_w is not None
+                    and -valve.minimum_torque_nm
+                    * physics.max_speed_rad_s
+                    * physics.regeneration_efficiency
+                    > physics.max_electrical_export_w
+                ):
+                    raise ValueError("Controller braking torque exceeds the declared export power")
+                drive = next(
+                    u
+                    for u in (
+                        *plant.transport.pumps,
+                        *plant.transport.compressors,
+                        *plant.transport.pump_connections,
+                    )
+                    if u.name == valve.port
+                )
+                node = drive.node if hasattr(drive, "node") else drive.target
+                ports[valve.port] = SimpleNamespace(
+                    name=valve.port, node=node, sensor_node=node, column=None, motor=True
+                )
+                continue
             if isinstance(valve, PRThroatControlValve):
                 if valve.port not in restrictions:
                     raise ValueError("Unknown controlled HEM restriction")
@@ -264,17 +389,19 @@ class PRControlledSurface:
             ports[valve.port] = SimpleNamespace(
                 name=valve.port, node=body, column=None, sensor_node=sensor_node
             )
-        if len({v.port for v in self.valves}) != len(self.valves) or any(
-            v.port not in ports for v in self.valves
+        if len({v.port for v in self.channels}) != len(self.channels) or any(
+            v.port not in ports for v in self.channels
         ):
             raise ValueError("Each valve requires its own material port")
         self._ports = ports
-        self._valves = {v.name: v for v in self.valves}
+        self._valves = {v.name: v for v in self.channels}
         if any(not isinstance(c, PRSurfacePI) for c in self.controllers) or len(
             {c.valve for c in self.controllers}
         ) != len(self.controllers):
             raise ValueError("At most one PI controller per valve")
-        for v in self.valves:
+        for v in self.channels:
+            if isinstance(v, PRMotorControl):
+                continue
             node = plant.transport.nodes[plant.transport.names.index(ports[v.port].node)]
             if (
                 node.drift_flux is not None
@@ -284,10 +411,38 @@ class PRControlledSurface:
                 raise ValueError(
                     "Valve control volume requires HEM; slip remains allowed elsewhere"
                 )
+        self._compressors = {u.name: u for u in plant.transport.compressors}
+        self._pump_connections = {u.name: u for u in plant.transport.pump_connections}
+        self._feedback_units = set()
         for c in self.controllers:
             if c.valve not in self._valves:
                 raise ValueError("Unknown controlled valve")
             port = ports[self._valves[c.valve].port]
+            if c.measurement == "pump_flow":
+                if c.sensor not in self._pump_connections:
+                    raise ValueError(
+                        "Pump-flow feedback requires an actual-flow PR pump connection"
+                    )
+                self._feedback_units.add(c.sensor)
+                continue
+            if c.measurement == "compressor_margin":
+                if c.sensor not in self._compressors:
+                    raise ValueError("Anti-surge control requires an explicit PR compressor sensor")
+                continue
+            if c.measurement == "speed":
+                sensor = c.sensor or self._valves[c.valve].port
+                if (
+                    sensor not in plant.transport._drives
+                    or c.setpoint > plant.transport._drives[sensor].drive.max_speed_rad_s
+                ):
+                    raise ValueError(
+                        "Speed feedback needs a represented rotor and admissible setpoint"
+                    )
+                continue
+            if c.measurement == "temperature":
+                if (c.sensor or port.sensor_node) not in by_name:
+                    raise ValueError("Temperature feedback requires a finite transport node")
+                continue
             if c.measurement == "level" and c.sensor is not None:
                 if c.sensor not in plant.columns:
                     raise ValueError(
@@ -319,6 +474,13 @@ class PRControlledSurface:
                 raise ValueError("Unknown controlled level component")
             if c.measurement == "level" and c.setpoint > column.geometry.height_m:
                 raise ValueError("Level setpoint above column")
+        switches = {s.name for s in (*plant.transport.switches, *plant.ports, *plant.heat_links)}
+        for trip in self.trips:
+            if trip.target not in self._valves or set(trip.isolate_switches) - switches:
+                raise ValueError("Protection target/isolation registry differs from plant")
+            sensors = plant.transport._drives if trip.measurement == "speed" else by_name
+            if trip.sensor not in sensors:
+                raise ValueError("Unknown physical protection sensor")
         for key, value in [
             ("initial_step_s", initial_step_s),
             ("minimum_step_s", minimum_step_s),
@@ -342,6 +504,8 @@ class PRControlledSurface:
                 {k: x for k, x in asdict(v).items() if k != "resistance_node" or x is not None}
                 for v in self.valves
             ],
+            **({"motors": [asdict(m) for m in self.motors]} if self.motors else {}),
+            **({"trips": [asdict(t) for t in self.trips]} if self.trips else {}),
             "controllers": [
                 {k: x for k, x in asdict(c).items() if k != "sensor" or x is not None}
                 for c in self.controllers
@@ -366,12 +530,19 @@ class PRControlledSurface:
             raise ValueError("Unknown controlled surface model")
         data["plant"] = PRGravityTransportNetwork.from_dict(data["plant"], device=device)
         data["valves"] = [
-            (PRThroatControlValve if v.get("model") == "hem_throat_area" else PRControlValve)(
-                **{**v, "actuator": ConnectionActuator(**v["actuator"])}
-            )
+            (
+                {"hem_throat_area": PRThroatControlValve, "motor_torque": PRMotorControl}.get(
+                    v.get("model"), PRControlValve
+                )
+            )(**{**v, "actuator": ConnectionActuator(**v["actuator"])})
             for v in data["valves"]
         ]
+        data["motors"] = [
+            PRMotorControl(**{**v, "actuator": ConnectionActuator(**v["actuator"])})
+            for v in data.get("motors", ())
+        ]
         data["controllers"] = [PRSurfacePI(**c) for c in data["controllers"]]
+        data["trips"] = [PRSurfaceTrip(**t) for t in data.get("trips", ())]
         return cls(**data)
 
     def initialize(self, plant_state, positions, integrals=None):
@@ -383,6 +554,8 @@ class PRControlledSurface:
             tuple(sorted(values.items())),
             self.initial_step_s,
             self.model_id,
+            tuple((t.name, False, 0.0) for t in self.trips),
+            tuple(c.valve for c in self.controllers if c.measurement == "pump_flow"),
         )
         self.inspect(s)
         return s
@@ -395,10 +568,37 @@ class PRControlledSurface:
         ):
             raise PropertyModelError("Controlled model/checkpoint identity differs")
         self.plant.inspect(state.plant)
-        if tuple(n for n, _ in state.positions) != tuple(v.name for v in self.valves) or tuple(
+        if tuple(n for n, _ in state.positions) != tuple(v.name for v in self.channels) or tuple(
             n for n, _ in state.integrals
         ) != tuple(c.valve for c in self.controllers):
             raise ValueError("Controller state registry differs")
+        if tuple(n for n, _, _ in state.trips) != tuple(t.name for t in self.trips):
+            raise ValueError("Protection checkpoint registry differs")
+        for trip, (_, latched, elapsed) in zip(self.trips, state.trips):
+            if elapsed > trip.delay_s or (
+                trip.delay_s > 0 and elapsed == trip.delay_s and not latched
+            ):
+                raise ValueError("Protection timer exceeds configured delay")
+        samples = dict(state.machine_feedback)
+        if set(samples) - self._feedback_units or tuple(
+            n for n, _ in state.machine_feedback
+        ) != tuple(sorted(samples)):
+            raise ValueError("Machine feedback checkpoint registry differs")
+        for c in self.controllers:
+            if (
+                c.measurement == "pump_flow"
+                and c.sensor not in samples
+                and c.valve not in state.inactive_feedback
+            ):
+                raise ValueError("Active pump-flow controller lost its feedback sample")
+        allowed = {
+            c.valve for c in self.controllers if c.measurement in ("compressor_margin", "pump_flow")
+        }
+        if (
+            set(state.inactive_feedback) - allowed
+            or tuple(sorted(state.inactive_feedback)) != state.inactive_feedback
+        ):
+            raise ValueError("Inactive feedback registry differs from controllers")
         for _, value in state.positions:
             ConnectionActuator.position(value)
         for c, (_, value) in zip(self.controllers, state.integrals):
@@ -428,6 +628,19 @@ class PRControlledSurface:
         return path
 
     def measure(self, state, controller):
+        if controller.measurement == "pump_flow":
+            return dict(state.machine_feedback).get(controller.sensor)
+        if controller.measurement == "compressor_margin":
+            return compressor_margin(self._compressors[controller.sensor], state.plant.transport)
+        if controller.measurement == "speed":
+            return dict(state.plant.transport.rotors)[
+                controller.sensor or self._valves[controller.valve].port
+            ]
+        if controller.measurement == "temperature":
+            port = self._ports[self._valves[controller.valve].port]
+            return dict(state.plant.transport.nodes)[
+                controller.sensor or port.sensor_node
+            ].temperature_k
         port = self._ports[self._valves[controller.valve].port]
         column_name = (
             controller.sensor
@@ -479,19 +692,74 @@ class PRControlledSurface:
         positions = dict(state.positions)
         integrals = dict(state.integrals)
         targets = dict(manual)
+        modes = dict(modes)
+        old_trips = {n: (latched, elapsed) for n, latched, elapsed in state.trips}
+        trip_states, trip_records, isolation = [], {}, set()
+        for trip in self.trips:
+            latched, elapsed = old_trips[trip.name]
+            value = trip.read(state.plant)
+            final_latch, timer, active = trip.step(latched, elapsed, value, dt)
+            trip_states.append((trip.name, final_latch, timer))
+            if active:
+                modes[trip.target] = "stuck" if modes.get(trip.target) == "stuck" else "fail_safe"
+                isolation.update(trip.isolate_switches)
+            trip_records[trip.name] = {
+                "measurement": value,
+                "latched_before": latched,
+                "elapsed_before_s": elapsed,
+                "latched": final_latch,
+                "elapsed_s": timer,
+                "active": active,
+                "actuator_blocked": active and modes.get(trip.target) == "stuck",
+            }
         measurements = {}
+        inactive = []
         for c in self.controllers:
+            if c.measurement == "pump_flow" and (
+                c.sensor not in dict(state.machine_feedback)
+                or c.sensor in isolation
+                or not (commands.get("openings") or {}).get(
+                    c.sensor, self._pump_connections[c.sensor].card.open
+                )
+            ):
+                measurements[c.valve] = None
+                inactive.append(c.valve)
+                targets[c.valve] = manual.get(c.valve, positions[c.valve])
+                continue
+            if c.measurement == "compressor_margin" and (
+                c.sensor in isolation
+                or not (commands.get("openings") or {}).get(
+                    c.sensor, self._compressors[c.sensor].open
+                )
+            ):
+                measurements[c.valve] = None
+                inactive.append(c.valve)
+                targets[c.valve] = manual.get(c.valve, positions[c.valve])
+                continue
             value = self.measure(state, c)
             measurements[c.valve] = value
+            if c.valve in state.inactive_feedback:
+                integrals[c.valve] = min(
+                    c.maximum_integral_abs,
+                    max(
+                        -c.maximum_integral_abs,
+                        positions[c.valve]
+                        - c.opening_bias
+                        - c.proportional_gain * c.action * (value - c.setpoint),
+                    ),
+                )
             targets[c.valve], integrals[c.valve], _ = c.update(
                 value, integrals[c.valve], positions[c.valve], dt, manual.get(c.valve)
             )
-        for v in self.valves:
-            if v.name not in targets and modes.get(v.name) in ("fail_safe", "stuck"):
+        for v in self.channels:
+            if v.name not in targets and (
+                isinstance(v, PRMotorControl) or modes.get(v.name) in ("fail_safe", "stuck")
+            ):
                 targets[v.name] = positions[v.name]
-        if set(targets) != {v.name for v in self.valves}:
+        if set(targets) != {v.name for v in self.channels}:
             raise ValueError("Every valve requires feedback or an explicit manual target")
         openings = dict(commands.get("openings") or {})
+        openings.update({name: False for name in isolation})
         losses = dict(commands.get("loss_coefficients") or {})
         known_links = {
             p.name
@@ -509,7 +777,7 @@ class PRControlledSurface:
         for n, k in losses.items():
             physical[n] = _number(k, "external resistance", nonnegative=True)
         areas = dict(commands.get("restriction_openings") or {})
-        controlled_areas = {v.port for v in self.valves if isinstance(v, PRThroatControlValve)}
+        controlled_areas = {v.port for v in self.channels if isinstance(v, PRThroatControlValve)}
         if controlled_areas & areas.keys():
             raise ValueError(
                 "Controlled throat area requires an actuator target, not a second area command"
@@ -518,13 +786,25 @@ class PRControlledSurface:
         records = {}
         coefficients = {}
         throat_areas = {}
-        for v in self.valves:
+        torques = dict(commands.get("drive_torque_nm") or {})
+        if set(torques) & {m.machine for m in self.motors}:
+            raise ValueError(
+                "Controlled motor torque requires an actuator target, not a second torque command"
+            )
+        effective_torques = {}
+        for v in self.channels:
             record = v.actuator.step(
                 positions[v.name], targets[v.name], dt, modes.get(v.name, "normal")
             )
             x = record["final_position"]
             positions[v.name] = x
             records[v.name] = record
+            if isinstance(v, PRMotorControl):
+                torque = v.torque(x)
+                torques[v.machine] = torque
+                effective_torques[v.name] = torque
+                coefficients[v.name] = None
+                continue
             default = restrictions[v.port].open if isinstance(v, PRThroatControlValve) else True
             actual = openings.get(v.port, default) and x > 0
             openings[v.port] = actual
@@ -538,6 +818,16 @@ class PRControlledSurface:
             coefficients[v.name] = k
             if k is not None:
                 physical[self._ports[v.port].node] += k
+        forced = {t.target for t in self.trips if trip_records[t.name]["active"]}
+        for c in self.controllers:
+            if c.valve in forced and measurements[c.valve] is not None:
+                proportional = c.proportional_gain * c.action * (measurements[c.valve] - c.setpoint)
+                integrals[c.valve] = min(
+                    c.maximum_integral_abs,
+                    max(
+                        -c.maximum_integral_abs, positions[c.valve] - c.opening_bias - proportional
+                    ),
+                )
         plant_report = self.plant.advance(
             state.plant,
             dt,
@@ -546,6 +836,7 @@ class PRControlledSurface:
                 "openings": openings,
                 "loss_coefficients": physical,
                 **({"restriction_openings": areas} if areas else {}),
+                **({"drive_torque_nm": torques} if torques else {}),
             },
         )
         plant_state = PRGravityTransportState.from_dict(plant_report["state"])
@@ -557,14 +848,22 @@ class PRControlledSurface:
                     "choked_substeps": 0,
                 }
                 if isinstance(v, PRThroatControlValve)
+                else {"maximum_speed_rad_s": 0.0, "motor_torque_nm": effective_torques[v.name]}
+                if isinstance(v, PRMotorControl)
                 else {"maximum_pressure_drop_fraction": 0.0, "maximum_mach_number": 0.0}
             )
-            for v in self.valves
+            for v in self.channels
         }
         # Check each accepted hydraulic substep, not only the report endpoint.
         for step in plant_report["steps"]:
             snapshot = PRGravityTransportState.from_dict(step["state"])
-            for v in self.valves:
+            for v in self.channels:
+                if isinstance(v, PRMotorControl):
+                    envelope[v.name]["maximum_speed_rad_s"] = max(
+                        envelope[v.name]["maximum_speed_rad_s"],
+                        step["transport"]["drives"][v.machine]["speed_rad_s"],
+                    )
+                    continue
                 if isinstance(v, PRThroatControlValve):
                     point = step["transport"]["restrictions"][v.port]
                     envelope[v.name]["maximum_throat_velocity_m_s"] = max(
@@ -609,6 +908,15 @@ class PRControlledSurface:
             tuple(sorted(integrals.items())),
             state.next_step_s,
             self.model_id,
+            tuple(trip_states),
+            tuple(sorted(inactive)),
+            tuple(
+                (
+                    name,
+                    plant_report["steps"][-1]["transport"]["pump_connections"][name]["flow_m3_s"],
+                )
+                for name in sorted(self._feedback_units)
+            ),
         )
         self.inspect(result)
         return result, {
@@ -617,22 +925,56 @@ class PRControlledSurface:
             "plant": plant_report,
             "actuators": records,
             "measurements": measurements,
-            "effective_valve_K": coefficients,
+            "effective_valve_K": {v.name: coefficients[v.name] for v in self.valves},
+            **(
+                {
+                    "effective_motor_torque_nm": effective_torques,
+                    "motor_envelope": {v.name: envelope[v.name] for v in self.motors},
+                }
+                if self.motors
+                else {}
+            ),
+            **({"protections": trip_records} if self.trips else {}),
             **({"effective_throat_openings": throat_areas} if throat_areas else {}),
-            "valve_envelope": envelope,
+            "valve_envelope": {v.name: envelope[v.name] for v in self.valves},
             "total_heat_j": plant_report["total_heat_j"],
             "total_work_j": plant_report["total_work_j"],
         }
 
     def _error(self, a, b):
         e = self.plant._error(a.plant, b.plant)
+        # Flow samples belong to the last accepted hydraulic substep. Coarse
+        # and fine samples have different averaging windows, so comparing them
+        # as simultaneous conserved coordinates would force artificial cuts.
+        # Their physical residuals are checked by the pump solver; temporal
+        # error is controlled in the plant, actuator and active PI states.
+        for trip, (_, al, at), (_, bl, bt) in zip(self.trips, a.trips, b.trips):
+            e = max(
+                e,
+                2.0 if al != bl else 0.0,
+                abs(at - bt) / max(self.minimum_step_s, 1e-6 * max(trip.delay_s, 1e-6)),
+            )
         for (_, x), (_, y) in zip(a.positions, b.positions):
             e = max(e, abs(x - y) / self.position_tolerance)
-        for (_, x), (_, y) in zip(a.integrals, b.integrals):
-            e = max(e, abs(x - y) / self.integral_tolerance)
+        unavailable = set(a.inactive_feedback) | set(b.inactive_feedback)
+        for (name, x), (_, y) in zip(a.integrals, b.integrals):
+            # Before a first valid sample the PI integral is unobservable. Its
+            # bumpless initialization is checked through the physical actuator
+            # error, rather than rejecting an O(1) change of internal bias.
+            if name not in unavailable:
+                e = max(e, abs(x - y) / self.integral_tolerance)
         return e
 
-    def advance(self, state, duration_s, *, targets=None, actuator_modes=None, **plant_commands):
+    def advance(
+        self,
+        state,
+        duration_s,
+        *,
+        targets=None,
+        actuator_modes=None,
+        reset_trips=(),
+        **plant_commands,
+    ):
         from dataclasses import replace
 
         self.inspect(state)
@@ -656,7 +998,21 @@ class PRControlledSurface:
             "restriction_openings",
         }:
             raise ValueError("Unknown controlled hydraulic command")
-        current = state
+        if (
+            not isinstance(reset_trips, (list, tuple))
+            or len(set(reset_trips)) != len(reset_trips)
+            or set(reset_trips) - {t.name for t in self.trips}
+        ):
+            raise ValueError("Unknown or duplicate protection reset")
+        trips = {n: (latched, elapsed) for n, latched, elapsed in state.trips}
+        for trip in self.trips:
+            if trip.name in reset_trips:
+                if not trip.can_reset(trip.read(state.plant)):
+                    raise ValueError(
+                        "Protection reset requires the sensor inside its hysteresis boundary"
+                    )
+                trips[trip.name] = (False, 0.0)
+        current = replace(state, trips=tuple((n, *trips[n]) for n in sorted(trips)))
         dt = min(state.next_step_s, duration_s)
         steps = []
         attempts = 0
@@ -665,12 +1021,31 @@ class PRControlledSurface:
             if attempts > self.maximum_attempts:
                 raise HydraulicConvergenceError("Controlled interval budget exhausted")
             dt = interval_step_s(current.time_s, end, dt)
+            pending = {n: (latched, elapsed) for n, latched, elapsed in current.trips}
+            for trip in self.trips:
+                latched, elapsed = pending[trip.name]
+                if not latched and trip.delay_s > elapsed and trip.unsafe(trip.read(current.plant)):
+                    remaining = trip.delay_s - elapsed
+                    event = current.time_s + remaining
+                    # Never fire before the held unsafe measurement has lasted
+                    # the requested delay. A rounded-down event leaves an
+                    # unsolvable sub-ULP timer remainder on a long-running clock.
+                    if event - current.time_s < remaining:
+                        event = math.nextafter(event, math.inf)
+                    until_event = event - current.time_s
+                    rounding = 8 * max(math.ulp(current.time_s), math.ulp(event))
+                    if 0 <= until_event - dt <= rounding:
+                        dt = min(until_event, end - current.time_s)
+                    else:
+                        dt = min(dt, until_event)
+            dt = interval_step_s(current.time_s, end, dt)
             if current.time_s + dt / 2 <= current.time_s:
                 raise ValueError("Controlled substep below time resolution")
+            first_dt, second_dt = split_step_s(current.time_s, dt)
             try:
                 coarse, _ = self._step(current, dt, manual, modes, plant_commands)
-                half, one = self._step(current, dt / 2, manual, modes, plant_commands)
-                fine, two = self._step(half, dt / 2, manual, modes, plant_commands)
+                half, one = self._step(current, first_dt, manual, modes, plant_commands)
+                fine, two = self._step(half, second_dt, manual, modes, plant_commands)
                 error = self._error(coarse, fine)
                 if error > 1:
                     raise HydraulicConvergenceError(

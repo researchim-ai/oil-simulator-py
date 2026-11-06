@@ -192,7 +192,11 @@ def audit(config, report):
             if dt <= 0:
                 raise ValueError("Invalid substep")
             close(
-                new["transport"]["time_s"] - old["transport"]["time_s"], dt, atol=1e-13, rtol=1e-10
+                new["transport"]["time_s"] - old["transport"]["time_s"],
+                dt,
+                atol=8
+                * max(math.ulp(new["transport"]["time_s"]), math.ulp(old["transport"]["time_s"])),
+                rtol=0.0,
             )
             data = {
                 name: decode(new["transport"]["nodes"][name], node, tm, fluid)
@@ -312,9 +316,24 @@ def audit(config, report):
                         data[b]["population"],
                         family_nodes[0]["droplet_population"],
                     )
+                    if not commands[link["name"]]:
+                        rate = rate * 0
                     if set(saved_particles) != {family}:
                         raise ValueError("Particle flux registry differs")
-                    close(saved_particles[family], rate, atol=1e-5, rtol=2e-7)
+                    if (
+                        family_nodes[0]["droplet_population"].get("model")
+                        == "sectional_droplet_population"
+                    ):
+                        sections = step["transport"]["links"][link["name"]].get(
+                            "droplet_section_fluxes", {}
+                        )
+                        if set(sections) != {family}:
+                            raise ValueError("Sectional flux registry differs")
+                        close(sections[family][:-1], rate[:-1], atol=1e-5, rtol=2e-7)
+                        close(sections[family][-1], rate[-1], atol=1e-20, rtol=2e-7)
+                        close(saved_particles[family], rate[:-1].sum(), atol=1e-5, rtol=2e-7)
+                    else:
+                        close(saved_particles[family], rate, atol=1e-5, rtol=2e-7)
                     if a in particle_rates:
                         particle_rates[a] -= rate
                     if b in particle_rates:
@@ -634,7 +653,7 @@ def audit(config, report):
             checked += 1
             old = new
             previous_entropy = current_entropy
-        close(old["transport"]["time_s"], end, atol=1e-13, rtol=0.0)
+        close(old["transport"]["time_s"], end, atol=8 * math.ulp(end), rtol=0.0)
         if interval["state"] != old:
             # Adaptive driver updates the next step only, without changing stocks.
             x = json.loads(json.dumps(interval["state"]))

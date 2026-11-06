@@ -203,7 +203,22 @@ def decode(state, node, model, fluid):
         rg = rho[gas]
         liquid = np.arange(len(pn)) != gas
         rl = np.dot(alpha[liquid], rho[liquid]) / alpha[liquid].sum()
-        if closure.get("model") in ("relap7_vertical_pipe", "relap7_vertical_transition"):
+        if closure.get("model") == "holmes_gas_liquid":
+            from reference_holmes_drift import parameters as holmes_parameters
+
+            if len(pn) != 2:
+                raise ValueError("Holmes closure requires two gas/liquid phases")
+            c0, vd = holmes_parameters(
+                closure,
+                ag,
+                rg,
+                rl,
+                u,
+                node["diameter_m"],
+                model["gravity_m_s2"] * node["elevation_change_m"] / node["length_m"],
+                model["gravity_m_s2"],
+            )
+        elif closure.get("model") in ("relap7_vertical_pipe", "relap7_vertical_transition"):
             if len(pn) != 2:
                 raise ValueError("RELAP-7 requires gas/liquid two-phase flow")
             axial = model["gravity_m_s2"] * node["elevation_change_m"] / node["length_m"]
@@ -242,13 +257,28 @@ def decode(state, node, model, fluid):
     if np.max(np.abs(velocities)) > model["maximum_velocity_m_s"]:
         raise ValueError("Phase velocity outside domain")
     close(phase_mass @ drift, 0.0, atol=1e-10, rtol=0.0)
-    kinetic = 0.5 * phase_mass @ velocities**2
+    variance = 0.0
+    if population is not None and "coordinates" in population:
+        from reference_pr_sections import velocities as section_velocities
+
+        dispersion = section_velocities(
+            node,
+            population,
+            rho,
+            velocities,
+            model["gravity_m_s2"] * node["elevation_change_m"] / node["length_m"],
+            model["gravity_m_s2"],
+            model["maximum_velocity_m_s"],
+            p,
+        )
+        variance = float(phase_mass @ population["drop_mask"]) * dispersion
+    kinetic = 0.5 * (phase_mass @ velocities**2 + variance)
     potential = (
         mass * model["gravity_m_s2"] * (node["elevation_m"] - model["reference_elevation_m"])
     )
     internal = pn @ uu
     entropy = pn @ ss
-    stress = phase_mass @ drift**2 / node["volume_m3"]
+    stress = (phase_mass @ drift**2 + variance) / node["volume_m3"]
     close(internal + kinetic + potential + surface, state["total_energy_j"], atol=1e-6, rtol=2e-8)
     if node["kind"] == "vessel":
         close(state["momentum_kg_m_s"], 0.0, atol=1e-12, rtol=0.0)
@@ -325,6 +355,9 @@ def disk_area(h, d):
 
 
 def endpoint(node, data, link, side, model):
+    from reference_pr_sections import endpoint_data
+
+    data = endpoint_data(data)
     data = data.get("hydrostatic_faces", {}).get(link[side + "_port"], data)
     weights = data["alpha"]
     height = link.get(side + "_height_m")
@@ -378,6 +411,8 @@ def endpoint(node, data, link, side, model):
             * population["surface_energy_j"]
             / max(population["drop_volume_m3"], 1e-30)
         )
+        if "surface_density_phase" in population:
+            surface_phase = population["surface_density_phase"]
         internal += surface_phase.sum()
     if normal == 0.0 and node["kind"] == "pipe_cell":
         internal += 0.5 * np.sum(weights * data["rho_phase"] * (data["u"] + data["drift"]) ** 2)
@@ -490,7 +525,12 @@ def audit(config, report):
             new = step["state"]
             if dt <= 0 or new["model_id"] != parsed.model_id or tuple(new["nodes"]) != names:
                 raise ValueError("Invalid transport checkpoint")
-            close(new["time_s"] - old["time_s"], dt, atol=1e-13, rtol=1e-10)
+            close(
+                new["time_s"] - old["time_s"],
+                dt,
+                atol=8 * max(math.ulp(new["time_s"]), math.ulp(old["time_s"])),
+                rtol=0.0,
+            )
             data = {n: decode(new["nodes"][n], nodes[n], model, fluid) for n in names}
             attach_faces(
                 model, nodes, data, step.get("hydrostatic_faces", {}), fluid, reference_sound
@@ -588,9 +628,36 @@ def audit(config, report):
                         data[b]["population"],
                         family_nodes[0]["droplet_population"],
                     )
+                    if not opens[link["name"]]:
+                        rate = rate * 0
                     if set(saved.get("droplet_number_fluxes", {})) != {family}:
                         raise ValueError("Particle flux registry differs")
-                    close(saved["droplet_number_fluxes"][family], rate, atol=1e-5, rtol=2e-7)
+                    if (
+                        family_nodes[0]["droplet_population"].get("model")
+                        == "sectional_droplet_population"
+                    ):
+                        if set(saved.get("droplet_section_fluxes", {})) != {family}:
+                            raise ValueError("Sectional flux registry differs")
+                        close(
+                            saved["droplet_section_fluxes"][family][:-1],
+                            rate[:-1],
+                            atol=1e-5,
+                            rtol=2e-7,
+                        )
+                        close(
+                            saved["droplet_section_fluxes"][family][-1],
+                            rate[-1],
+                            atol=1e-20,
+                            rtol=2e-7,
+                        )
+                        close(
+                            saved["droplet_number_fluxes"][family],
+                            rate[:-1].sum(),
+                            atol=1e-5,
+                            rtol=2e-7,
+                        )
+                    else:
+                        close(saved["droplet_number_fluxes"][family], rate, atol=1e-5, rtol=2e-7)
                     if a in particle_rates:
                         particle_rates[a] -= rate
                     if b in particle_rates:
@@ -829,7 +896,7 @@ def audit(config, report):
         last["next_step_s"] = final["next_step_s"]
         if last != final:
             raise ValueError("Published physical checkpoint differs")
-        close(final["time_s"], end, atol=1e-12, rtol=0.0)
+        close(final["time_s"], end, atol=8 * math.ulp(end), rtol=0.0)
         close(interval["total_heat_j"], interval_heat, atol=1e-6, rtol=2e-7)
         close(interval.get("total_work_j", 0.0), interval_work, atol=1e-10, rtol=2e-7)
         close(interval["entropy_production_j_k"], interval_entropy, atol=2e-6, rtol=2e-6)

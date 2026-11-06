@@ -10,6 +10,8 @@ import math
 import sys
 from pathlib import Path
 
+import numpy as np
+
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 from check_pr_equilibrium_transport import decode
 from check_pr_gravity_transport import audit as audit_plant
@@ -67,13 +69,28 @@ def audit(config, report):
     if set(config["initial"]) == {"state"} and config["initial"]["state"] != old:
         raise ValueError("Requested controlled restart checkpoint differs")
     valves = {v["name"]: v for v in model["valves"]}
+    valves.update({m["name"]: {**m, "port": m["machine"]} for m in model.get("motors", [])})
+    trips = {t["name"]: t for t in model.get("trips", [])}
     controllers = {c["valve"]: c for c in model["controllers"]}
     plant = model["plant"]
     ports = {p["name"]: p for p in plant["ports"]}
     nodes = {n["name"]: n for n in plant["transport"]["nodes"]}
     links = {c["name"]: c for c in plant["transport"]["links"]}
     restrictions = {u["name"]: u for u in plant["transport"].get("restrictions", [])}
+    machines = {
+        p["card"]["name"]: p
+        for p in [
+            *plant["transport"].get("pumps", []),
+            *plant["transport"].get("pump_connections", []),
+        ]
+    }
+    machines.update({p["name"]: p for p in plant["transport"].get("compressors", [])})
     for valve in valves.values():
+        if valve.get("model") == "motor_torque":
+            unit = machines[valve["machine"]]
+            node = unit.get("node") or unit.get("target") or unit["card"]["end"]
+            ports[valve["port"]] = {"column": None, "node": node, "sensor_node": node}
+            continue
         if valve.get("model") == "hem_throat_area":
             unit = restrictions[valve["port"]]
             ports[valve["port"]] = {
@@ -105,13 +122,77 @@ def audit(config, report):
         }
     if old["model_id"] != parsed.model_id:
         raise ValueError("Controlled checkpoint identity differs")
+    if set(config["initial"]) != {"state"}:
+        expected_integrals = {name: 0.0 for name in controllers}
+        expected_integrals.update(config["initial"]["integrals"])
+        if (
+            old["positions"] != config["initial"]["positions"]
+            or old["integrals"] != expected_integrals
+        ):
+            raise ValueError("Requested initial controller state differs")
+        if old.get("machine_feedback", {}) or old.get("inactive_feedback", []) != sorted(
+            name for name, c in controllers.items() if c["measurement"] == "pump_flow"
+        ):
+            raise ValueError("Cold controller initialization fabricated feedback")
+        if old.get("trips", {}) != {name: {"latched": False, "elapsed_s": 0.0} for name in trips}:
+            raise ValueError("Cold protection state differs")
     initial_plant = old["plant"]
     flat = []
     schedule = []
     checked = 0
     heat_total = 0.0
     work_total = 0.0
+
+    def compressor_measurement(state, name):
+        unit = machines[name]
+        card = unit["card"]
+        transport = state["plant"]["transport"]
+        source, target = transport["nodes"][unit["source"]], transport["nodes"][unit["target"]]
+        speed = dict(transport.get("rotors", [])).get(name, unit["speed_rad_s"]) / math.sqrt(
+            source["temperature_k"] / card["reference_temperature_k"]
+        )
+        axis = np.array(card["corrected_speed_rad_s"])
+        if not axis[0] - 1e-12 <= speed <= axis[-1] + 1e-12:
+            raise ValueError("Compressor feedback speed outside map")
+        flow = np.array(
+            [
+                np.interp(speed, axis, column)
+                for column in np.array(card["corrected_mass_flow_kg_s"]).T
+            ]
+        )
+        ratios = np.array(
+            [np.interp(speed, axis, column) for column in np.array(card["pressure_ratio"]).T]
+        )
+        requested = target["pressure_pa"] / source["pressure_pa"]
+        if requested > ratios[0] + 1e-12:
+            raise ValueError("Compressor feedback pressure outside stable map")
+        return float(np.interp(requested, ratios[::-1], flow[::-1]) / flow[0] - 1)
+
+    def trip_value(state, trip):
+        transport = state["plant"]["transport"]
+        if trip["measurement"] == "speed":
+            return dict(transport["rotors"])[trip["sensor"]]
+        return transport["nodes"][trip["sensor"]][
+            "pressure_pa" if trip["measurement"] == "pressure" else "temperature_k"
+        ]
+
     for command, interval in zip(config["schedule"], report["intervals"], strict=True):
+        resets = command.get("reset_trips", [])
+        if len(set(resets)) != len(resets) or set(resets) - set(trips):
+            raise ValueError("Invalid protection reset registry")
+        if resets:
+            old = json.loads(json.dumps(old))
+            for name in resets:
+                t = trips[name]
+                value = trip_value(old, t)
+                allowed = (
+                    value <= t["reset_threshold"]
+                    if t["direction"] == "high"
+                    else value >= t["reset_threshold"]
+                )
+                if not allowed:
+                    raise ValueError("Unsafe protection reset")
+                old["trips"][name] = {"latched": False, "elapsed_s": 0.0}
         end = old["plant"]["transport"]["time_s"] + command["duration_s"]
         interval_heat = 0.0
         interval_work = 0.0
@@ -123,16 +204,103 @@ def audit(config, report):
             close(
                 new["plant"]["transport"]["time_s"] - old["plant"]["transport"]["time_s"],
                 dt,
-                atol=1e-13,
-                rtol=1e-10,
+                atol=8
+                * max(
+                    math.ulp(new["plant"]["transport"]["time_s"]),
+                    math.ulp(old["plant"]["transport"]["time_s"]),
+                ),
+                rtol=0.0,
             )
             manual = command.get("targets", {})
-            modes = command.get("actuator_modes", {})
+            modes = dict(command.get("actuator_modes", {}))
+            isolation, forced = set(), set()
+            if (
+                set(old.get("trips", {})) != set(trips)
+                or set(new.get("trips", {})) != set(trips)
+                or set(step.get("protections", {})) != set(trips)
+            ):
+                raise ValueError("Protection state/report registry differs")
+            for name, t in trips.items():
+                prior = old["trips"][name]
+                value = trip_value(old, t)
+                unsafe = (
+                    value >= t["trip_threshold"]
+                    if t["direction"] == "high"
+                    else value <= t["trip_threshold"]
+                )
+                active = prior["latched"] or (unsafe and t["delay_s"] == 0)
+                if prior["latched"]:
+                    latched, timer = True, prior["elapsed_s"]
+                elif not unsafe:
+                    latched, timer = False, 0.0
+                else:
+                    timer = min(t["delay_s"], math.fsum((prior["elapsed_s"], dt)))
+                    latched = timer >= t["delay_s"] or math.isclose(
+                        timer, t["delay_s"], rel_tol=1e-13, abs_tol=1e-15
+                    )
+                    if latched:
+                        timer = t["delay_s"]
+                if new["trips"][name]["latched"] is not latched:
+                    raise ValueError("Protection latch differs")
+                close(new["trips"][name]["elapsed_s"], timer, atol=1e-14, rtol=1e-10)
+                record = step["protections"][name]
+                close(record["measurement"], value, atol=1e-8, rtol=2e-7)
+                close(record["elapsed_before_s"], prior["elapsed_s"], atol=1e-14, rtol=1e-10)
+                close(record["elapsed_s"], timer, atol=1e-14, rtol=1e-10)
+                if (
+                    record["active"] is not active
+                    or record["latched"] is not latched
+                    or record["latched_before"] is not prior["latched"]
+                ):
+                    raise ValueError("Protection transition differs")
+                blocked = active and modes.get(t["target"]) == "stuck"
+                if record["actuator_blocked"] is not blocked:
+                    raise ValueError("Stuck protection actuator differs")
+                if active:
+                    modes[t["target"]] = "stuck" if blocked else "fail_safe"
+                    isolation.update(t["isolate_switches"])
+                    forced.add(t["target"])
             targets = dict(manual)
             updated = dict(old["integrals"])
+            inactive = []
             for name, c in controllers.items():
                 port = ports[valves[name]["port"]]
-                if c["measurement"] == "level" and c.get("sensor") in plant["columns"]:
+                if c["measurement"] == "pump_flow":
+                    unit = machines[c["sensor"]]
+                    enabled = (
+                        command.get("openings", {}).get(c["sensor"], unit["card"]["open"])
+                        and c["sensor"] not in isolation
+                    )
+                    if not enabled or c["sensor"] not in old.get("machine_feedback", {}):
+                        if step["measurements"][name] is not None:
+                            raise ValueError("Unavailable pump has a fabricated flow measurement")
+                        targets[name] = manual.get(name, old["positions"][name])
+                        inactive.append(name)
+                        continue
+                    value = old["machine_feedback"][c["sensor"]]
+                elif c["measurement"] == "compressor_margin":
+                    enabled = (
+                        command.get("openings", {}).get(c["sensor"], machines[c["sensor"]]["open"])
+                        and c["sensor"] not in isolation
+                    )
+                    if not enabled:
+                        if step["measurements"][name] is not None:
+                            raise ValueError(
+                                "Disabled compressor has a fabricated feedback reading"
+                            )
+                        targets[name] = manual.get(name, old["positions"][name])
+                        inactive.append(name)
+                        continue
+                    value = compressor_measurement(old, c["sensor"])
+                elif c["measurement"] == "speed":
+                    value = dict(old["plant"]["transport"]["rotors"])[
+                        c.get("sensor") or valves[name]["port"]
+                    ]
+                elif c["measurement"] == "temperature":
+                    value = old["plant"]["transport"]["nodes"][
+                        c.get("sensor") or port["sensor_node"]
+                    ]["temperature_k"]
+                elif c["measurement"] == "level" and c.get("sensor") in plant["columns"]:
                     value = column_measurement(old, {"column": c["sensor"]}, plant, c)
                 elif port["column"] is None:
                     cells = old["plant"]["transport"]["nodes"]
@@ -155,6 +323,14 @@ def audit(config, report):
                 close(step["measurements"][name], value, atol=1e-7, rtol=2e-7)
                 error = c["action"] * (value - c["setpoint"])
                 proportional = c["proportional_gain"] * error
+                if name in old.get("inactive_feedback", []):
+                    updated[name] = min(
+                        c["maximum_integral_abs"],
+                        max(
+                            -c["maximum_integral_abs"],
+                            old["positions"][name] - c["opening_bias"] - proportional,
+                        ),
+                    )
                 if name in manual:
                     targets[name] = manual[name]
                     iv = manual[name] - c["opening_bias"] - proportional
@@ -165,18 +341,21 @@ def audit(config, report):
                         - c["opening_bias"]
                         - proportional
                     )
-                    iv = equilibrium + (old["integrals"][name] - equilibrium) * math.exp(
+                    iv = equilibrium + (updated[name] - equilibrium) * math.exp(
                         -dt / c["tracking_time_s"]
                     )
                 iv = min(c["maximum_integral_abs"], max(-c["maximum_integral_abs"], iv))
                 updated[name] = iv
                 if name not in manual:
                     targets[name] = min(1.0, max(0.0, c["opening_bias"] + proportional + iv))
-            for name in valves:
-                if name not in targets and modes.get(name) in ("fail_safe", "stuck"):
+            if new.get("inactive_feedback", []) != sorted(inactive):
+                raise ValueError("Inactive controller state differs")
+            for name, channel in valves.items():
+                if name not in targets and (
+                    channel.get("model") == "motor_torque"
+                    or modes.get(name) in ("fail_safe", "stuck")
+                ):
                     targets[name] = old["positions"][name]
-            for name, iv in updated.items():
-                close(new["integrals"][name], iv, atol=1e-10, rtol=1e-8)
             actual = {
                 p["name"]: True
                 for p in (
@@ -200,6 +379,10 @@ def audit(config, report):
             )
             actual.update({u["name"]: u["open"] for u in restrictions.values()})
             actual.update(command.get("openings", {}))
+            actual.update({name: False for name in isolation})
+            torques = dict(command.get("drive_torque_nm", {}))
+            if set(torques) & {m["machine"] for m in model.get("motors", [])}:
+                raise ValueError("Conflicting controlled torque command")
             areas = dict(command.get("restriction_openings", {}))
             losses = {
                 n["name"]: n["local_loss_coefficient"]
@@ -217,6 +400,13 @@ def audit(config, report):
                     raise ValueError("Actuator mode differs")
                 close(saved["initial_position"], old["positions"][name], atol=1e-12, rtol=1e-10)
                 close(saved["final_position"], x, atol=1e-12, rtol=1e-10)
+                if v.get("model") == "motor_torque":
+                    torque = v["minimum_torque_nm"] + x * (
+                        v["maximum_torque_nm"] - v["minimum_torque_nm"]
+                    )
+                    close(step["effective_motor_torque_nm"][name], torque, atol=1e-12, rtol=1e-10)
+                    torques[v["machine"]] = torque
+                    continue
                 opened = actual[v["port"]] and x > 0
                 actual[v["port"]] = opened
                 if v.get("model") == "hem_throat_area":
@@ -244,6 +434,22 @@ def audit(config, report):
                     losses[ports[v["port"]]["node"]] += k
                 elif step["effective_valve_K"][name] is not None:
                     raise ValueError("Isolated valve cannot apply a body resistance")
+            for name, c in controllers.items():
+                if name in forced and step["measurements"][name] is not None:
+                    proportional = (
+                        c["proportional_gain"]
+                        * c["action"]
+                        * (step["measurements"][name] - c["setpoint"])
+                    )
+                    updated[name] = min(
+                        c["maximum_integral_abs"],
+                        max(
+                            -c["maximum_integral_abs"],
+                            new["positions"][name] - c["opening_bias"] - proportional,
+                        ),
+                    )
+            for name, iv in updated.items():
+                close(new["integrals"][name], iv, atol=1e-10, rtol=1e-8)
             physical = step["plant"]
             if physical["openings"] != actual:
                 raise ValueError("Valve isolation not applied to plant")
@@ -254,6 +460,14 @@ def audit(config, report):
                 # targets differ by roundoff. Do not demand bitwise equality
                 # of K(x) evaluated from those independently computed states.
                 close(physical["loss_coefficients"][node], expected, atol=1e-10, rtol=1e-10)
+            sensors = {c["sensor"] for c in controllers.values() if c["measurement"] == "pump_flow"}
+            if set(new.get("machine_feedback", {})) != sensors:
+                raise ValueError("Pump feedback registry differs")
+            for sensor in sensors:
+                measured = physical["steps"][-1]["transport"]["pump_connections"][sensor][
+                    "flow_m3_s"
+                ]
+                close(new["machine_feedback"][sensor], measured, atol=1e-12, rtol=1e-10)
             if physical["state"] != new["plant"]:
                 raise ValueError("Controlled/physical checkpoint differs")
             physical_command = {
@@ -265,6 +479,8 @@ def audit(config, report):
             physical_command.update(duration_s=dt, openings=actual, loss_coefficients=losses)
             if areas:
                 physical_command["restriction_openings"] = areas
+            if torques:
+                physical_command["drive_torque_nm"] = torques
             schedule.append(physical_command)
             flat.append(physical)
             close(step["total_heat_j"], physical["total_heat_j"], atol=1e-6, rtol=2e-7)
@@ -278,10 +494,20 @@ def audit(config, report):
             interval_work += physical.get("total_work_j", 0.0)
             checked += 1
             old = new
-        close(old["plant"]["transport"]["time_s"], end, atol=1e-13, rtol=0.0)
+        close(old["plant"]["transport"]["time_s"], end, atol=8 * math.ulp(end), rtol=0.0)
         x = json.loads(json.dumps(interval["state"]))
         y = json.loads(json.dumps(old))
         x["next_step_s"] = y["next_step_s"]
+        # The report endpoint is canonically snapped to the requested time.
+        # A summed final half-step can differ by one ULP; all other state
+        # coordinates must still match exactly.
+        close(
+            x["plant"]["transport"]["time_s"],
+            y["plant"]["transport"]["time_s"],
+            atol=8 * math.ulp(end),
+            rtol=0.0,
+        )
+        x["plant"]["transport"]["time_s"] = y["plant"]["transport"]["time_s"]
         if x != y:
             raise ValueError("Final controlled checkpoint differs")
         old = interval["state"]
