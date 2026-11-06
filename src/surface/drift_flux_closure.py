@@ -153,6 +153,10 @@ class RELAP7VerticalDriftClosure:
 
 
 def drift_closure_from_dict(data):
+    if data.get("model") == "concentrated_oil_water":
+        from .concentrated_liquid_drift import ConcentratedOilWaterClosure
+
+        return ConcentratedOilWaterClosure(**data)
     if data.get("model") == "relap7_vertical_transition":
         return RELAP7EquilibriumTransition(**data)
     if data.get("model") == "dispersed_oil_water":

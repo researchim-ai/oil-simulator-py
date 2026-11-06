@@ -15,6 +15,7 @@ from dataclasses import asdict, dataclass, replace
 import torch
 
 from .compositional_separator import CompositionalSeparator, CompositionalSeparatorState
+from .concentrated_liquid_drift import ConcentratedOilWaterClosure
 from .darcy_hydraulics import darcy_pressure_loss
 from .dispersed_liquid_drift import DispersedOilWaterClosure
 from .drift_flux_closure import (
@@ -30,10 +31,19 @@ from .liquid import ConservationError, HydraulicConvergenceError, PropertyModelE
 from .operation import _digest
 from .phase_geometry import phase_layout, pickup_fractions, validate_pickup
 from .pr_compressor_unit import CompressorBundle, PRCompressorUnit, inventory_guesses
-from .pr_droplet_population import DropletPopulations, PRDropletPopulation, number_flux
+from .pr_droplet_population import (
+    DropletPopulations,
+    PRDropletPopulation,
+    PRPoweredDropletPopulation,
+    number_flux,
+    population_from_dict,
+)
 from .pr_heat_link import PRHeatLink, thermal_exchange, thermal_records
-from .pr_hydrostatic_faces import HydrostaticFaces
+from .pr_hem_restriction import HEMRestrictionBundle, PRHEMRestriction
+from .pr_hydrostatic_faces import HydrostaticFaces, equilibrium_face_guesses
+from .pr_machine_drive import PRMachineDrive, RotorBundle
 from .pr_momentum_vessels import hllc_port
+from .pr_pump_connection import PRPumpConnection, PumpConnectionBundle
 from .pr_pump_unit import PRPumpUnit, TorchPumpCell, serialize_pumps
 from .pr_stagnation_ports import SinglePhaseReservoirTraces
 from .separator_geometry import SeparatorGeometry
@@ -79,6 +89,12 @@ class PREquilibriumNode:
             raise ValueError("Hydrostatic reconstruction requires a finite pipe cell")
         if type(self.droplet_capture) is not bool:
             raise ValueError("Droplet capture must be explicitly boolean")
+        if isinstance(self.drift_flux, ConcentratedOilWaterClosure) and (
+            self.droplet_population is not None or self.dynamic_viscosity_pa_s
+        ):
+            raise ValueError(
+                "Dense morphology uses its own rheology; dilute droplet population and a second wall viscosity are incompatible"
+            )
         if self.droplet_population is not None and (
             not isinstance(self.droplet_population, PRDropletPopulation)
             or self.kind != "pipe_cell"
@@ -226,6 +242,7 @@ class PREquilibriumCellState:
     temperature_k: float
     wall_temperature_k: float | None
     droplet_number: float | None = None
+    hydrostatic_face_guesses: tuple | None = None
 
     def __post_init__(self):
         object.__setattr__(self, "component_moles", tuple(self.component_moles))
@@ -253,6 +270,21 @@ class PREquilibriumCellState:
             _number(self.wall_temperature_k, "wall temperature", positive=True)
         if self.droplet_number is not None:
             _number(self.droplet_number, "droplet number", nonnegative=True)
+        if self.hydrostatic_face_guesses is not None:
+            faces = tuple(
+                (port, pressure, tuple(x)) for port, pressure, x in self.hydrostatic_face_guesses
+            )
+            if len(faces) != 2 or {v[0] for v in faces} != {"left", "right"}:
+                raise ValueError("Hydrostatic guesses require both pipe faces")
+            for _port, pressure, x in faces:
+                _number(pressure, "face guess pressure", positive=True)
+                if len(x) != len(self.component_moles) or not math.isclose(
+                    math.fsum(x), 1.0, abs_tol=1e-12, rel_tol=0.0
+                ):
+                    raise ValueError("Invalid face guess composition")
+                for value in x:
+                    _number(value, "face guess fraction", nonnegative=True)
+            object.__setattr__(self, "hydrostatic_face_guesses", faces)
 
 
 @dataclass(frozen=True)
@@ -261,32 +293,52 @@ class PREquilibriumTransportState:
     time_s: float
     next_step_s: float
     model_id: str
+    rotors: tuple = ()
 
     def __post_init__(self):
         object.__setattr__(self, "nodes", tuple((name, s) for name, s in self.nodes))
         _number(self.time_s, "time", nonnegative=True)
         _number(self.next_step_s, "step", positive=True)
+        object.__setattr__(
+            self, "rotors", tuple((name, float(speed)) for name, speed in self.rotors)
+        )
+        if len(dict(self.rotors)) != len(self.rotors):
+            raise ValueError("Duplicate rotor inventories")
+        for name, speed in self.rotors:
+            _name(name)
+            _number(speed, "rotor speed", nonnegative=True)
 
     def to_dict(self):
         return {
             "nodes": {
-                name: {k: v for k, v in asdict(s).items() if k != "droplet_number" or v is not None}
+                name: {
+                    k: v
+                    for k, v in asdict(s).items()
+                    if k not in ("droplet_number", "hydrostatic_face_guesses") or v is not None
+                }
                 for name, s in self.nodes
             },
             "time_s": self.time_s,
             "next_step_s": self.next_step_s,
             "model_id": self.model_id,
+            **({"rotors": self.rotors} if self.rotors else {}),
         }
 
     @classmethod
     def from_dict(cls, data):
-        if set(data) != {"nodes", "time_s", "next_step_s", "model_id"}:
+        if set(data) - {"nodes", "time_s", "next_step_s", "model_id", "rotors"} or not {
+            "nodes",
+            "time_s",
+            "next_step_s",
+            "model_id",
+        } <= set(data):
             raise ValueError("Unknown transport state fields")
         return cls(
             tuple((n, PREquilibriumCellState(**s)) for n, s in sorted(data["nodes"].items())),
             data["time_s"],
             data["next_step_s"],
             data["model_id"],
+            tuple(data.get("rotors", ())),
         )
 
 
@@ -317,6 +369,9 @@ class PREquilibriumTransportNetwork:
         heat_links=(),
         pumps=(),
         compressors=(),
+        pump_connections=(),
+        restrictions=(),
+        drives=(),
     ):
         if not isinstance(fluid, EquilibriumFluid):
             raise TypeError("Expected EquilibriumFluid")
@@ -327,18 +382,39 @@ class PREquilibriumTransportNetwork:
         self.heat_links = tuple(sorted(heat_links, key=lambda n: n.name))
         self.pumps = tuple(sorted(pumps, key=lambda n: n.name))
         self.compressors = tuple(sorted(compressors, key=lambda n: n.name))
+        self.pump_connections = tuple(sorted(pump_connections, key=lambda u: u.name))
+        if any(not isinstance(u, PRPumpConnection) for u in self.pump_connections):
+            raise TypeError("Expected PRPumpConnection")
+        self.restrictions = tuple(sorted(restrictions, key=lambda u: u.name))
+        if any(not isinstance(u, PRHEMRestriction) for u in self.restrictions):
+            raise TypeError("Expected PRHEMRestriction")
+        self.drives = tuple(sorted(drives, key=lambda d: d.machine))
+        if any(not isinstance(d, PRMachineDrive) for d in self.drives):
+            raise TypeError("Expected PRMachineDrive")
+        self._drives = {d.machine: d for d in self.drives}
+        if len(self._drives) != len(self.drives) or set(self._drives) - {
+            u.name for u in (*self.pumps, *self.compressors, *self.pump_connections)
+        }:
+            raise ValueError("Each drive must reference one known unique machine")
         if any(not isinstance(unit, PRCompressorUnit) for unit in self.compressors):
             raise TypeError("Expected PRCompressorUnit")
         if any(not isinstance(pump, PRPumpUnit) for pump in self.pumps):
             raise TypeError("Expected PRPumpUnit")
         if any(not isinstance(link, PRHeatLink) for link in self.heat_links):
             raise TypeError("Expected PRHeatLink")
-        self.switches = (*self.links, *self.heat_links, *self.pumps, *self.compressors)
+        self.switches = (
+            *self.links,
+            *self.heat_links,
+            *self.pumps,
+            *self.compressors,
+            *self.pump_connections,
+            *self.restrictions,
+        )
         self.default_openings = {
             c.name: c.card.open
-            if isinstance(c, PRPumpUnit)
+            if isinstance(c, (PRPumpUnit, PRPumpConnection))
             else c.open
-            if isinstance(c, PRCompressorUnit)
+            if isinstance(c, (PRCompressorUnit, PRHEMRestriction))
             else True
             for c in self.switches
         }
@@ -361,6 +437,22 @@ class PREquilibriumTransportNetwork:
                 raise ValueError("Mapped compressor needs two finite plenums at the same elevation")
             if len(unit.reference_mole_fractions) != len(fluid.components):
                 raise ValueError("Compressor reference gas differs from the EOS component list")
+        for unit in (*self.pump_connections, *self.restrictions):
+            if unit.source not in self.names or unit.target not in self.names:
+                raise ValueError("Unknown pump connection plenum")
+            a, b = [self.nodes[self.names.index(n)] for n in (unit.source, unit.target)]
+            if (
+                a.kind != "vessel"
+                or b.kind != "vessel"
+                or abs(a.elevation_m - b.elevation_m) > 1e-8
+            ):
+                raise ValueError("Pump connection requires finite plenums at equal elevation")
+        for unit in self.restrictions:
+            if (
+                unit.minimum_pressure_pa < fluid.min_pressure_pa
+                or unit.minimum_pressure_pa >= fluid.max_pressure_pa
+            ):
+                raise ValueError("Restriction throat pressure domain outside EOS coverage")
         for node in self.nodes:
             closure = node.drift_flux
             if isinstance(closure, DispersedOilWaterClosure) and max(
@@ -506,6 +598,10 @@ class PREquilibriumTransportNetwork:
         if len({pump.node for pump in self.pumps}) != len(self.pumps):
             raise ValueError("One pump card per finite body required")
         self._pump_cells = tuple(TorchPumpCell(self, pump) for pump in self.pumps)
+        if any(
+            d.heat_sink_node is not None and d.heat_sink_node not in self.names for d in self.drives
+        ):
+            raise ValueError("Drive heat sink must be a represented finite fluid volume")
         for node in self.nodes:
             if isinstance(
                 node.drift_flux, (RELAP7VerticalDriftClosure, RELAP7EquilibriumTransition)
@@ -547,6 +643,17 @@ class PREquilibriumTransportNetwork:
             "heat_links": [asdict(c) for c in self.heat_links],
             **({"pumps": [asdict(pump) for pump in self.pumps]} if self.pumps else {}),
             **(
+                {"pump_connections": [asdict(u) for u in self.pump_connections]}
+                if self.pump_connections
+                else {}
+            ),
+            **({"drives": [asdict(d) for d in self.drives]} if self.drives else {}),
+            **(
+                {"restrictions": [asdict(u) for u in self.restrictions]}
+                if self.restrictions
+                else {}
+            ),
+            **(
                 {"compressors": [asdict(unit) for unit in self.compressors]}
                 if self.compressors
                 else {}
@@ -587,7 +694,7 @@ class PREquilibriumTransportNetwork:
             if n.get("drift_flux") is not None:
                 n["drift_flux"] = drift_closure_from_dict(n["drift_flux"])
             if n.get("droplet_population") is not None:
-                n["droplet_population"] = PRDropletPopulation(**n["droplet_population"])
+                n["droplet_population"] = population_from_dict(n["droplet_population"])
             if n.get("wall") is not None:
                 n["wall"] = VesselWall(**n["wall"])
             if n.get("geometry") is not None:
@@ -597,7 +704,12 @@ class PREquilibriumTransportNetwork:
         data["links"] = [PREquilibriumLink(**c) for c in data["links"]]
         data["heat_links"] = [PRHeatLink(**c) for c in data.get("heat_links", [])]
         data["pumps"] = [PRPumpUnit.from_dict(c) for c in data.get("pumps", [])]
+        data["pump_connections"] = [
+            PRPumpConnection.from_dict(c) for c in data.get("pump_connections", [])
+        ]
         data["compressors"] = [PRCompressorUnit.from_dict(c) for c in data.get("compressors", [])]
+        data["drives"] = [PRMachineDrive.from_dict(c) for c in data.get("drives", [])]
+        data["restrictions"] = [PRHEMRestriction(**c) for c in data.get("restrictions", [])]
         return cls(**data)
 
     def _population(self, index, phase_n, x, q, number):
@@ -992,6 +1104,13 @@ class PREquilibriumTransportNetwork:
         return speeds.real.detach()
 
     def inspect(self, state):
+        if not isinstance(state, PREquilibriumTransportState):
+            raise PropertyModelError("Transport graph state/model differs")
+        if set(dict(state.rotors)) != set(self._drives):
+            raise ValueError("Rotor inventory registry differs from machine drives")
+        for name, speed in state.rotors:
+            if speed > self._drives[name].drive.max_speed_rad_s:
+                raise PropertyModelError("Rotor speed exceeds declared drive limit")
         if (
             not isinstance(state, PREquilibriumTransportState)
             or state.model_id != self.model_id
@@ -1007,6 +1126,8 @@ class PREquilibriumTransportNetwork:
         if key in self._verified:
             return
         for i, (node, (_, s)) in enumerate(zip(self.nodes, state.nodes)):
+            if s.hydrostatic_face_guesses is not None and not node.hydrostatic_reconstruction:
+                raise ValueError("Hydrostatic guesses supplied for a cell without reconstruction")
             if (node.droplet_population is None) != (s.droplet_number is None):
                 raise ValueError("Droplet checkpoint registry differs from physical model")
             f = self.fluid
@@ -1064,7 +1185,7 @@ class PREquilibriumTransportNetwork:
         while len(self._verified) > 16:
             self._verified.pop(next(iter(self._verified)))
 
-    def initialize(self, initial):
+    def initialize(self, initial, *, rotor_speeds=None):
         if set(initial) != set(self.names):
             raise ValueError("Initial node registry differs")
         states = []
@@ -1074,6 +1195,7 @@ class PREquilibriumTransportNetwork:
             velocity = _number(spec.pop("velocity_m_s", 0.0), "initial velocity")
             tw = spec.pop("wall_temperature_k", None)
             particle_number = spec.pop("droplet_number", None)
+            face_guesses = spec.pop("hydrostatic_face_guesses", None)
             if particle_number is not None and node.droplet_population is None:
                 raise ValueError("Initial particle stock without a droplet model")
             if node.kind == "vessel" and velocity:
@@ -1113,10 +1235,29 @@ class PREquilibriumTransportNetwork:
                         float(d["t"].cpu()),
                         tw,
                         None if d["population"] is None else float(d["population"]["number"].cpu()),
+                        face_guesses,
                     ),
                 )
             )
-        state = PREquilibriumTransportState(tuple(states), 0.0, self.initial_step_s, self.model_id)
+        speeds = dict(rotor_speeds or {})
+        if set(speeds) - set(self._drives):
+            raise ValueError("Unknown initial rotor speed")
+        units = {u.name: u for u in (*self.pumps, *self.compressors, *self.pump_connections)}
+        for drive in self.drives:
+            unit = units[drive.machine]
+            default = (
+                drive.nominal_speed_rad_s * unit.card.speed_ratio
+                if isinstance(unit, (PRPumpUnit, PRPumpConnection))
+                else unit.speed_rad_s
+            )
+            speeds.setdefault(
+                drive.machine,
+                drive.initial_speed_rad_s if drive.initial_speed_rad_s is not None else default,
+            )
+        state = PREquilibriumTransportState(
+            tuple(states), 0.0, self.initial_step_s, self.model_id, tuple(sorted(speeds.items()))
+        )
+        state = equilibrium_face_guesses(self, state)
         self.inspect(state)
         return state
 
@@ -1483,10 +1624,14 @@ class PREquilibriumTransportNetwork:
                     union = masks[a] | masks[b]
                     masks[a] = union
                     masks[b] = union
-            for unit in self.compressors:
+            for unit in (*self.compressors, *self.pump_connections):
                 if openings[unit.name]:
                     a, b = self.names.index(unit.source), self.names.index(unit.target)
                     masks[b] = masks[b] | masks[a]
+            for unit in self.restrictions:
+                if openings[unit.name]:
+                    a, b = self.names.index(unit.source), self.names.index(unit.target)
+                    masks[a] = masks[b] = masks[a] | masks[b]
         return [torch.nonzero(mask).flatten() for mask in masks]
 
     def _problem(
@@ -1501,6 +1646,9 @@ class PREquilibriumTransportNetwork:
         external_ports=(),
         active_override=None,
         guesses_override=None,
+        drive_torque_nm=None,
+        restriction_openings=None,
+        restriction_seeds=None,
     ):
         f = self.fluid
         old = [s for _, s in state.nodes]
@@ -1563,21 +1711,44 @@ class PREquilibriumTransportNetwork:
         initial.extend(compressor_bundle.initial)
         lo.extend(compressor_bundle.lower)
         hi.extend(compressor_bundle.upper)
+        pump_connection_bundle = PumpConnectionBundle(self, state, openings, sum(map(len, initial)))
+        initial.extend(pump_connection_bundle.initial)
+        lo.extend(pump_connection_bundle.lower)
+        hi.extend(pump_connection_bundle.upper)
+        restriction_bundle = HEMRestrictionBundle(
+            self,
+            state,
+            olddata,
+            openings,
+            sum(map(len, initial)),
+            restriction_openings,
+            restriction_seeds,
+            active,
+        )
+        initial.extend(restriction_bundle.initial)
+        lo.extend(restriction_bundle.lower)
+        hi.extend(restriction_bundle.upper)
         face_bundle = HydrostaticFaces(
             self,
             state,
             seeds,
             olddata,
             active,
-            offsets[-1] + 3 * (len(trace_bundle.entries) + len(compressor_bundle.entries)),
+            sum(map(len, initial)),
         )
         initial.extend(face_bundle.initial)
         lo.extend(face_bundle.lower)
         hi.extend(face_bundle.upper)
-        population_bundle = DropletPopulations(self, state, seeds, sum(map(len, initial)))
+        population_bundle = DropletPopulations(self, state, seeds, sum(map(len, initial)), olddata)
         initial.extend(population_bundle.initial)
         lo.extend(population_bundle.lower)
         hi.extend(population_bundle.upper)
+        rotor_bundle = RotorBundle(
+            self, state, dt, openings, drive_torque_nm, sum(map(len, initial)), olddata
+        )
+        initial.extend(rotor_bundle.initial)
+        lo.extend(rotor_bundle.lower)
+        hi.extend(rotor_bundle.upper)
         if sum(map(len, initial)) > self.maximum_unknowns:
             raise ValueError("Transport graph exceeds configured unknown budget")
 
@@ -1658,6 +1829,15 @@ class PREquilibriumTransportNetwork:
                 if d["population"] is not None:
                     valid = valid & d["population"]["valid"]
             population_rows, population_records = population_bundle.balances(data, records, dt)
+            for i, node in enumerate(self.nodes):
+                if isinstance(node.droplet_population, PRPoweredDropletPopulation):
+                    net[i] = net[i] + torch.cat(
+                        (
+                            net[i].new_zeros(len(f.names) + 1),
+                            net[i].new_tensor([node.droplet_population.agitation_power_w]),
+                        )
+                    )
+                    valid = valid & population_records[node.name]["power_budget_valid"]
             thermal_rates, heat_records = thermal_exchange(
                 self.heat_links, {n: d["t"] for n, d in zip(self.names, data)}, openings
             )
@@ -1665,8 +1845,14 @@ class PREquilibriumTransportNetwork:
                 i = self.names.index(name)
                 net[i] = net[i] + torch.cat((net[i].new_zeros(len(f.names) + 1), rate.reshape(1)))
             pump_records, pump_forces = {}, {}
+            speeds = rotor_bundle.speeds(y)
             for pump in self._pump_cells:
-                force, power, row, admissible = pump.evaluate(data, openings[pump.unit.name])
+                ratio = (
+                    speeds[pump.unit.name] / self._drives[pump.unit.name].nominal_speed_rad_s
+                    if pump.unit.name in speeds
+                    else None
+                )
+                force, power, row, admissible = pump.evaluate(data, openings[pump.unit.name], ratio)
                 i = pump.index
                 pump_forces[i] = force
                 net[i] = net[i] + torch.cat((net[i].new_zeros(len(f.names) + 1), power.reshape(1)))
@@ -1680,10 +1866,36 @@ class PREquilibriumTransportNetwork:
                     compressor_records,
                     compressor_traces,
                     compressor_valid,
-                ) = compressor_bundle.evaluate(y, data)
+                ) = compressor_bundle.evaluate(y, data, speeds)
                 for i, rate in compressor_net.items():
                     net[i] = net[i] + rate
                 valid = valid & compressor_valid
+            (
+                connection_net,
+                connection_rows,
+                connection_records,
+                connection_traces,
+                connection_valid,
+            ) = pump_connection_bundle.evaluate(y, data, speeds)
+            for i, rate in connection_net.items():
+                net[i] = net[i] + rate
+            valid = valid & connection_valid
+            (
+                restriction_net,
+                restriction_rows,
+                restriction_records,
+                restriction_traces,
+                restriction_valid,
+            ) = restriction_bundle.evaluate(y, data)
+            for i, rate in restriction_net.items():
+                net[i] = net[i] + rate
+            valid = valid & restriction_valid
+            rotor_rows, rotor_records, rotor_valid, rotor_heat = rotor_bundle.evaluate(
+                y, {**pump_records, **connection_records}, compressor_records, data
+            )
+            valid = valid & rotor_valid
+            for i, rate in rotor_heat.items():
+                net[i] = net[i] + torch.cat((net[i].new_zeros(len(f.names) + 1), rate.reshape(1)))
             trace_residual, trace_details = trace_bundle.complete(trace_details, records)
             for _entry, point, _source, _v, _h, _row in trace_details:
                 valid = valid & point["q"]["valid"].all()
@@ -1708,7 +1920,16 @@ class PREquilibriumTransportNetwork:
                         pr = d["hydrostatic_faces"]["right"]["p"]
                         al, ar = node.face_area("left"), node.face_area("right")
                         force = (al + ar) / 2 * (pr - pl) + (pl + pr) / 2 * (ar - al)
-                    if node.dynamic_viscosity_pa_s:
+                    if node.dynamic_viscosity_pa_s or isinstance(
+                        node.drift_flux, ConcentratedOilWaterClosure
+                    ):
+                        viscosity = (
+                            node.drift_flux.rheology(
+                                d["phase_n"] * d["q"]["molar_volume_m3_mol"], d["x"]
+                            )["viscosity_pa_s"]
+                            if isinstance(node.drift_flux, ConcentratedOilWaterClosure)
+                            else node.dynamic_viscosity_pa_s
+                        )
                         force = (
                             force
                             - node.volume_m3
@@ -1717,7 +1938,7 @@ class PREquilibriumTransportNetwork:
                                 d["rho"],
                                 1.0,
                                 node.diameter_m,
-                                node.dynamic_viscosity_pa_s,
+                                viscosity,
                                 node.roughness_m,
                             )[0]
                         )
@@ -1764,15 +1985,29 @@ class PREquilibriumTransportNetwork:
                 )
                 sources.append(force)
             return torch.cat(
-                (*residual, *trace_residual, *compressor_rows, *face_rows, *population_rows)
+                (
+                    *residual,
+                    *trace_residual,
+                    *compressor_rows,
+                    *connection_rows,
+                    *restriction_rows,
+                    *face_rows,
+                    *population_rows,
+                    *rotor_rows,
+                )
             ), {
                 "droplet_populations": population_records,
+                "drives": rotor_records,
                 "hydrostatic_faces": face_records,
                 "reservoir_trace_data": trace_details,
                 "heat_links": heat_records,
                 "pumps": pump_records,
                 "compressors": compressor_records,
                 "compressor_traces": compressor_traces,
+                "pump_connections": connection_records,
+                "pump_connection_traces": connection_traces,
+                "restrictions": restriction_records,
+                "restriction_traces": restriction_traces,
                 "data": data,
                 "net": net,
                 "links": records,
@@ -1786,8 +2021,36 @@ class PREquilibriumTransportNetwork:
 
         evaluate.reservoir_traces = trace_bundle
         evaluate.compressors = compressor_bundle
+        evaluate.pump_connections = pump_connection_bundle
+        evaluate.restrictions = restriction_bundle
         evaluate.hydrostatic_faces = face_bundle
         evaluate.droplet_populations = population_bundle
+        evaluate.rotors = rotor_bundle
+        evaluate.additional_sparsity = (
+            rotor_bundle.pattern(offsets, compressor_bundle.entries, pump_connection_bundle.entries)
+            | pump_connection_bundle.pattern(offsets)
+            | restriction_bundle.pattern(offsets)
+        )
+        blocks = [list(range(a, b)) for a, b in zip(offsets, offsets[1:])]
+        for entry in trace_bundle.entries:
+            blocks[entry.vessel].extend(range(entry.offset, entry.offset + 3))
+        for entry in face_bundle.entries:
+            blocks[entry.cell].extend(range(entry.offset, entry.offset + entry.count))
+        for cell, offset, *_ in population_bundle.entries:
+            blocks[cell].append(offset)
+        for entry in compressor_bundle.entries:
+            blocks.append(list(range(entry[3], entry[3] + 3)))
+        for entry in pump_connection_bundle.entries:
+            blocks.append(list(range(entry[3], entry[3] + pump_connection_bundle.count)))
+        for entry in restriction_bundle.entries:
+            blocks.append(list(range(entry[3], entry[3] + len(entry[7]))))
+        for _drive, offset, *_ in rotor_bundle.entries:
+            blocks.append([offset])
+        evaluate.linear_blocks = [b[j : j + 256] for b in blocks for j in range(0, len(b), 256)]
+        limits = f.tensor([math.inf] * sum(len(v) for v in initial))
+        for i, problem in enumerate(problems):
+            limits[offsets[i] : offsets[i] + problem["energy_row"] - 1] = 4.0
+        evaluate.maximum_update = limits
         return (
             torch.cat(initial),
             torch.cat(lo),
@@ -1826,7 +2089,7 @@ class PREquilibriumTransportNetwork:
                 if openings[link.name]:
                     neighbours[a].add(b)
                     neighbours[b].add(a)
-            for unit in self.compressors:
+            for unit in (*self.compressors, *self.pump_connections, *self.restrictions):
                 if openings[unit.name]:
                     a, b = self.names.index(unit.source), self.names.index(unit.target)
                     neighbours[a].add(b)
@@ -1872,8 +2135,21 @@ class PREquilibriumTransportNetwork:
         return self._patterns[key]
 
     def _step(
-        self, state, dt, openings, heat_w, utility, loss_coefficients=None, *, _coupling=None
+        self,
+        state,
+        dt,
+        openings,
+        heat_w,
+        utility,
+        loss_coefficients=None,
+        *,
+        _coupling=None,
+        drive_torque_nm=None,
+        restriction_openings=None,
+        _restriction_seeds=None,
+        _restriction_attempt=0,
     ):
+        state = equilibrium_face_guesses(self, state)
         f = self.fluid
         seeds = [self._seed(i, s) for i, (_, s) in enumerate(state.nodes)]
         queue = [seeds]
@@ -1905,13 +2181,19 @@ class PREquilibriumTransportNetwork:
                 heat_w,
                 loss_coefficients,
                 external_ports=() if _coupling is None else _coupling.external_ports,
+                drive_torque_nm=drive_torque_nm,
+                restriction_openings=restriction_openings,
+                restriction_seeds=_restriction_seeds,
                 active_override=None if _coupling is None else _coupling.active,
                 guesses_override=None if _coupling is None else _coupling.ordinary_guesses,
             )
             trace_bundle = evaluate.reservoir_traces
             compressor_bundle = evaluate.compressors
+            pump_connection_bundle = evaluate.pump_connections
+            restriction_bundle = evaluate.restrictions
             face_bundle = evaluate.hydrostatic_faces
             population_bundle = evaluate.droplet_populations
+            rotor_bundle = evaluate.rotors
             pattern = (
                 self._sparsity(
                     _offsets,
@@ -1924,6 +2206,9 @@ class PREquilibriumTransportNetwork:
                 if len(y) > self.dense_limit
                 else None
             )
+            if pattern is not None and evaluate.additional_sparsity:
+                support = sorted(set(zip(*pattern)) | evaluate.additional_sparsity)
+                pattern = ([p[0] for p in support], [p[1] for p in support])
             if _coupling is not None:
                 y, lo, hi, evaluate, pattern = _coupling.prepare(
                     y, lo, hi, evaluate, _offsets, dt, pattern
@@ -1938,6 +2223,8 @@ class PREquilibriumTransportNetwork:
                     hi,
                     pattern=pattern,
                     tolerance=3e-12,
+                    blocks=evaluate.linear_blocks,
+                    maximum_update=evaluate.maximum_update,
                 )
                 r, result = evaluate(y)
             accepted = bool(
@@ -1955,9 +2242,46 @@ class PREquilibriumTransportNetwork:
                 if not replacements and accepted:
                     trace_bundle.validate(result["reservoir_trace_data"])
                     compressor_bundle.validate(result["compressor_traces"])
+                    pump_connection_bundle.validate(result["pump_connection_traces"])
+                    restriction_changes = restriction_bundle.replacements(
+                        result["restriction_traces"]
+                    )
+                    if restriction_changes:
+                        if _restriction_attempt >= self.maximum_branch_attempts:
+                            raise HydraulicConvergenceError(
+                                "Restriction equilibrium branch budget exhausted"
+                            )
+                        return self._step(
+                            state,
+                            dt,
+                            openings,
+                            heat_w,
+                            utility,
+                            loss_coefficients,
+                            _coupling=_coupling,
+                            drive_torque_nm=drive_torque_nm,
+                            restriction_openings=restriction_openings,
+                            _restriction_seeds={
+                                **(_restriction_seeds or {}),
+                                **restriction_changes,
+                            },
+                            _restriction_attempt=_restriction_attempt + 1,
+                        )
                     face_bundle.validate(result["hydrostatic_faces"])
                     coupled_state = None if _coupling is None else _coupling.accept(y, result)
                     states = []
+                    face_report = face_bundle.serialize(result["hydrostatic_faces"])
+                    face_guesses = {}
+                    for i, node in enumerate(self.nodes):
+                        if node.name in face_report:
+                            face_guesses[i] = tuple(
+                                (
+                                    port,
+                                    face_report[node.name][port]["pressure_pa"],
+                                    tuple(face_report[node.name][port]["mole_fractions"]),
+                                )
+                                for port in ("left", "right")
+                            )
                     entropy = 0.0
                     local_ledgers = []
                     for i, (node, (_, old), d) in enumerate(
@@ -2006,6 +2330,7 @@ class PREquilibriumTransportNetwork:
                                     None
                                     if d["population"] is None
                                     else float(d["population"]["number"].cpu()),
+                                    tuple(face_guesses[i]) if i in face_guesses else None,
                                 ),
                             )
                         )
@@ -2036,17 +2361,38 @@ class PREquilibriumTransportNetwork:
                         1.0, sum(abs(float(q["entropy"].cpu())) for q in olddata)
                     ):
                         raise ConservationError("HEM graph total entropy rejected")
+                    drive_report = rotor_bundle.serialize(result["drives"])
                     new = PREquilibriumTransportState(
-                        tuple(states), state.time_s + dt, state.next_step_s, self.model_id
+                        tuple(states),
+                        state.time_s + dt,
+                        state.next_step_s,
+                        self.model_id,
+                        tuple((name, row["speed_rad_s"]) for name, row in drive_report.items()),
                     )
                     self.inspect(new)
                     ambient = dt * sum(float(v.cpu()) for v in result["ambient"])
                     external = dt * sum(heat_w)
                     powers = [
                         row["shaft_power_w"]
-                        for row in [*result["pumps"].values(), *result["compressors"].values()]
+                        for row in [
+                            *result["pumps"].values(),
+                            *result["compressors"].values(),
+                            *result["pump_connections"].values(),
+                        ]
                     ]
                     work = dt * float(torch.stack(powers).sum().cpu()) if powers else 0.0
+                    agitation = {
+                        node.name: dt * node.droplet_population.agitation_power_w
+                        for node in self.nodes
+                        if isinstance(node.droplet_population, PRPoweredDropletPopulation)
+                    }
+                    work += math.fsum(agitation.values())
+                    work += sum(
+                        row["electrical_energy_j"] - row["shaft_work_j"]
+                        for row in drive_report.values()
+                    )
+                    ambient -= sum(row["heat_to_environment_j"] for row in drive_report.values())
+                    entropy += sum(row["environment_entropy_j_k"] for row in drive_report.values())
                     exchange_n = None
                     exchange_e = 0.0
                     if result["exchange"] is not None:
@@ -2067,6 +2413,7 @@ class PREquilibriumTransportNetwork:
                     )
                     return new, {
                         "dt_s": dt,
+                        **({"drives": drive_report} if self.drives else {}),
                         "state": new.to_dict(),
                         **(
                             {
@@ -2081,7 +2428,21 @@ class PREquilibriumTransportNetwork:
                         "heat_links": thermal_records(result["heat_links"]),
                         "pumps": serialize_pumps(result["pumps"], openings),
                         "compressors": compressor_bundle.serialize(result["compressors"]),
-                        "hydrostatic_faces": face_bundle.serialize(result["hydrostatic_faces"]),
+                        **(
+                            {"restrictions": restriction_bundle.serialize(result["restrictions"])}
+                            if self.restrictions
+                            else {}
+                        ),
+                        **(
+                            {
+                                "pump_connections": pump_connection_bundle.serialize(
+                                    result["pump_connections"]
+                                )
+                            }
+                            if self.pump_connections
+                            else {}
+                        ),
+                        "hydrostatic_faces": face_report,
                         "droplet_populations": population_bundle.serialize(
                             result["droplet_populations"]
                         ),
@@ -2139,6 +2500,7 @@ class PREquilibriumTransportNetwork:
                         "ambient_heat_j": ambient,
                         "external_heat_j": external,
                         "external_work_j": work,
+                        **({"agitation_work_j": agitation} if agitation else {}),
                         "entropy_production_j_k": entropy,
                         "phase_branch_attempts": len(seen),
                         "nonlinear_evaluations": evaluations,
@@ -2190,6 +2552,28 @@ class PREquilibriumTransportNetwork:
                             "phases": [seeds[i]["phases"][j] for j in keep],
                         }
                         queue.append(changed)
+            if not accepted and _restriction_attempt < self.maximum_branch_attempts:
+                boundary_seeds = restriction_bundle.regular_seeds(
+                    result["restrictions"], result["restriction_traces"]
+                )
+                if not boundary_seeds:
+                    boundary_seeds = restriction_bundle.replacements(result["restriction_traces"])
+                if not boundary_seeds:
+                    boundary_seeds = restriction_bundle.boundary_seeds()
+                if boundary_seeds:
+                    return self._step(
+                        state,
+                        dt,
+                        openings,
+                        heat_w,
+                        utility,
+                        loss_coefficients,
+                        _coupling=_coupling,
+                        drive_torque_nm=drive_torque_nm,
+                        restriction_openings=restriction_openings,
+                        _restriction_seeds={**(_restriction_seeds or {}), **boundary_seeds},
+                        _restriction_attempt=_restriction_attempt + 1,
+                    )
             failures.append("joint Newton, stable phase branch, or HLLC domain rejected")
         raise HydraulicConvergenceError(
             "HEM phase branch budget exhausted: "
@@ -2215,6 +2599,8 @@ class PREquilibriumTransportNetwork:
                 )
                 for node, (_, a), (_, b) in zip(self.nodes, before.nodes, after.nodes)
             )
+            + self.rotor_energy(after)
+            - self.rotor_energy(before)
             - heat
         )
         if any(
@@ -2224,8 +2610,18 @@ class PREquilibriumTransportNetwork:
             raise ConservationError("HEM graph global N/E balance rejected")
         return n + [energy]
 
+    def rotor_energy(self, state):
+        return math.fsum(
+            0.5 * self._drives[name].drive.inertia_kg_m2 * speed**2 for name, speed in state.rotors
+        )
+
     def _error(self, a, b):
         error = 0.0
+        for (name, x), (_, y) in zip(a.rotors, b.rotors):
+            d = self._drives[name]
+            error = max(
+                error, abs(x - y) / (1e-8 + d.relative_speed_tolerance * d.nominal_speed_rad_s)
+            )
         for i, ((_, x), (_, y)) in enumerate(zip(a.nodes, b.nodes)):
             if x.droplet_number is not None:
                 error = max(
@@ -2267,6 +2663,8 @@ class PREquilibriumTransportNetwork:
         heat_w=None,
         utility_temperature_k=None,
         loss_coefficients=None,
+        drive_torque_nm=None,
+        restriction_openings=None,
     ):
         self.inspect(state)
         end = state.time_s + _number(duration_s, "duration", positive=True)
@@ -2314,9 +2712,36 @@ class PREquilibriumTransportNetwork:
             if current.time_s + dt / 2 <= current.time_s:
                 raise ValueError("HEM substep below time resolution")
             try:
-                coarse, _ = self._step(current, dt, commands, heat, utility, losses)
-                half, one = self._step(current, dt / 2, commands, heat, utility, losses)
-                fine, two = self._step(half, dt / 2, commands, heat, utility, losses)
+                coarse, _ = self._step(
+                    current,
+                    dt,
+                    commands,
+                    heat,
+                    utility,
+                    losses,
+                    drive_torque_nm=drive_torque_nm,
+                    restriction_openings=restriction_openings,
+                )
+                half, one = self._step(
+                    current,
+                    dt / 2,
+                    commands,
+                    heat,
+                    utility,
+                    losses,
+                    drive_torque_nm=drive_torque_nm,
+                    restriction_openings=restriction_openings,
+                )
+                fine, two = self._step(
+                    half,
+                    dt / 2,
+                    commands,
+                    heat,
+                    utility,
+                    losses,
+                    drive_torque_nm=drive_torque_nm,
+                    restriction_openings=restriction_openings,
+                )
                 error = self._error(coarse, fine)
                 if error > 1:
                     raise HydraulicConvergenceError("HEM temporal error exceeded")

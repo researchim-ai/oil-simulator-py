@@ -36,7 +36,9 @@ def test_supersonic_uniform_direction_uses_physical_upwind_flux(velocity, estima
 def test_exact_contact_discontinuity_is_preserved(velocity, estimate):
     left, a = ideal(1.0, 1.0, velocity)
     right, b = ideal(0.1, 1.0, velocity)
-    flux, _, contact, pressure, ok, fallback = hllc_local(left, right, a, b, 10.0, estimate=estimate)
+    flux, _, contact, pressure, ok, fallback = hllc_local(
+        left, right, a, b, 10.0, estimate=estimate
+    )
     assert bool(ok) and not bool(fallback)
     torch.testing.assert_close(flux, left[1] if velocity >= 0 else right[1], rtol=1e-13, atol=1e-13)
     assert float(contact) == pytest.approx(velocity, abs=1e-14)
@@ -61,6 +63,21 @@ def test_analytic_pr_sound_matches_pressure_entropy_finite_differences():
     denominator = dp[0] - dt[0] * dp[1] / dt[1]
     expected = torch.rsqrt(denominator)
     torch.testing.assert_close(q["frozen_sound_speed_m_s"], expected, rtol=1e-7, atol=1e-7)
+
+
+@pytest.mark.parametrize("fixed", [False, True])
+def test_nearly_stationary_contact_retains_species_flux_below_state_subtraction_precision(fixed):
+    from surface.pr_momentum_vessels import hllc_port
+
+    left, a = ideal(2.0, 1e6, 0.0)
+    right, b = ideal(200.0, 1e6 + 1e-7, 0.0)
+    flux, _, contact, _, valid, *_ = (
+        hllc_port(left, right, 5000.0) if fixed else hllc_local(left, right, a, b, 5000.0)
+    )
+    assert bool(valid) and float(contact) < 0
+    speed = 5000.0 if fixed else max(float(a), float(b))
+    expected = right[0][0] * speed / (speed - contact) * contact
+    assert float(flux[0]) == pytest.approx(float(expected), rel=1e-14, abs=0.0)
 
 
 def test_pure_component_entropy_tangent_is_finite_on_fixed_support():
@@ -124,7 +141,11 @@ def test_sod_shock_tube_converges_to_exact_solution_and_conserves(estimate):
             extended = torch.cat((state[:1], state, state[-1:]))
             q, a = face_state(extended)
             flux, _, _, _, ok, _ = hllc_local(
-                tuple(v[:-1] for v in q), tuple(v[1:] for v in q), a[:-1], a[1:], 8.0,
+                tuple(v[:-1] for v in q),
+                tuple(v[1:] for v in q),
+                a[:-1],
+                a[1:],
+                8.0,
                 estimate=estimate,
             )
             assert bool(ok.all())

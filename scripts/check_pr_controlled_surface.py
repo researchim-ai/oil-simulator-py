@@ -48,8 +48,12 @@ def column_measurement(old, port, plant, controller):
     fractions = amounts[:, index] / amounts.sum(-1)
     phase = int(fractions.argmax())
     if fractions[phase] < controller["minimum_mole_fraction"]:
-        return 0.
-    return state["interface_heights_m"][phase] if phase < len(state["interface_heights_m"]) else geo.height_m
+        return 0.0
+    return (
+        state["interface_heights_m"][phase]
+        if phase < len(state["interface_heights_m"])
+        else geo.height_m
+    )
 
 
 def audit(config, report):
@@ -60,27 +64,45 @@ def audit(config, report):
     if model != report["model"]:
         raise ValueError("Controlled model normalization differs")
     old = report["initial"]
+    if set(config["initial"]) == {"state"} and config["initial"]["state"] != old:
+        raise ValueError("Requested controlled restart checkpoint differs")
     valves = {v["name"]: v for v in model["valves"]}
     controllers = {c["valve"]: c for c in model["controllers"]}
     plant = model["plant"]
     ports = {p["name"]: p for p in plant["ports"]}
     nodes = {n["name"]: n for n in plant["transport"]["nodes"]}
     links = {c["name"]: c for c in plant["transport"]["links"]}
+    restrictions = {u["name"]: u for u in plant["transport"].get("restrictions", [])}
     for valve in valves.values():
+        if valve.get("model") == "hem_throat_area":
+            unit = restrictions[valve["port"]]
+            ports[valve["port"]] = {
+                "column": None,
+                "node": unit["target"],
+                "sensor_node": unit["target"],
+                "restriction": True,
+            }
+            continue
         if valve["port"] in ports:
             continue
         link = links[valve["port"]]
-        candidates = [name for side, name in (("source", link["source"]), ("target", link["target"]))
-                      if nodes[name]["kind"] == "pipe_cell"
-                      and link[side + "_port"] in ("left", "right")
-                      and not nodes[name].get("drift_flux")
-                      and not nodes[name]["distribution_strength"]
-                      and not nodes[name]["buoyancy_relaxation_s"]]
+        candidates = [
+            name
+            for side, name in (("source", link["source"]), ("target", link["target"]))
+            if nodes[name]["kind"] == "pipe_cell"
+            and link[side + "_port"] in ("left", "right")
+            and not nodes[name].get("drift_flux")
+            and not nodes[name]["distribution_strength"]
+            and not nodes[name]["buoyancy_relaxation_s"]
+        ]
         body = valve.get("resistance_node") or (candidates[0] if len(candidates) == 1 else None)
         if body not in candidates:
             raise ValueError("Ambiguous material valve body")
-        ports[valve["port"]] = {"column": None, "node": body,
-                               "sensor_node": link["target"] if body == link["source"] else link["source"]}
+        ports[valve["port"]] = {
+            "column": None,
+            "node": body,
+            "sensor_node": link["target"] if body == link["source"] else link["source"],
+        }
     if old["model_id"] != parsed.model_id:
         raise ValueError("Controlled checkpoint identity differs")
     initial_plant = old["plant"]
@@ -110,20 +132,24 @@ def audit(config, report):
             updated = dict(old["integrals"])
             for name, c in controllers.items():
                 port = ports[valves[name]["port"]]
-                if port["column"] is None:
+                if c["measurement"] == "level" and c.get("sensor") in plant["columns"]:
+                    value = column_measurement(old, {"column": c["sensor"]}, plant, c)
+                elif port["column"] is None:
                     cells = old["plant"]["transport"]["nodes"]
                     if c["measurement"] == "pressure":
                         value = cells[c.get("sensor") or port["sensor_node"]]["pressure_pa"]
                     else:
                         fluid = parsed.plant.transport.fluid
                         index = fluid.names.index(c["component"])
-                        volume = 0.
+                        volume = 0.0
                         path = plant["transport"]["pipe_paths"][c["sensor"]]
                         for node_name in path:
-                            d = decode(cells[node_name], nodes[node_name], plant["transport"], fluid)
+                            d = decode(
+                                cells[node_name], nodes[node_name], plant["transport"], fluid
+                            )
                             selected = d["x"][:, index] >= c["minimum_mole_fraction"]
                             volume += sum(d["pn"] * d["vm"] * selected)
-                        value = volume / (math.pi * nodes[path[0]]["diameter_m"]**2 / 4)
+                        value = volume / (math.pi * nodes[path[0]]["diameter_m"] ** 2 / 4)
                 else:
                     value = column_measurement(old, port, plant, c)
                 close(step["measurements"][name], value, atol=1e-7, rtol=2e-7)
@@ -152,14 +178,29 @@ def audit(config, report):
             for name, iv in updated.items():
                 close(new["integrals"][name], iv, atol=1e-10, rtol=1e-8)
             actual = {
-                p["name"]: True for p in (
-                    plant["transport"]["links"] + plant["transport"].get("heat_links", [])
-                    + plant["ports"] + plant.get("heat_links", [])
+                p["name"]: True
+                for p in (
+                    plant["transport"]["links"]
+                    + plant["transport"].get("heat_links", [])
+                    + plant["ports"]
+                    + plant.get("heat_links", [])
                 )
             }
-            actual.update({p["card"]["name"]: p["card"]["open"] for p in plant["transport"].get("pumps", [])})
-            actual.update({unit["name"]: unit["open"] for unit in plant["transport"].get("compressors", [])})
+            actual.update(
+                {
+                    p["card"]["name"]: p["card"]["open"]
+                    for p in [
+                        *plant["transport"].get("pumps", []),
+                        *plant["transport"].get("pump_connections", []),
+                    ]
+                }
+            )
+            actual.update(
+                {unit["name"]: unit["open"] for unit in plant["transport"].get("compressors", [])}
+            )
+            actual.update({u["name"]: u["open"] for u in restrictions.values()})
             actual.update(command.get("openings", {}))
+            areas = dict(command.get("restriction_openings", {}))
             losses = {
                 n["name"]: n["local_loss_coefficient"]
                 for n in plant["transport"]["nodes"]
@@ -178,6 +219,20 @@ def audit(config, report):
                 close(saved["final_position"], x, atol=1e-12, rtol=1e-10)
                 opened = actual[v["port"]] and x > 0
                 actual[v["port"]] = opened
+                if v.get("model") == "hem_throat_area":
+                    if v["port"] in command.get("restriction_openings", {}):
+                        raise ValueError("Conflicting controlled throat command")
+                    fraction = (
+                        x
+                        if v["characteristic"] == "linear"
+                        else (v["rangeability"] ** x - 1) / (v["rangeability"] - 1)
+                    )
+                    area = restrictions[v["port"]]["opening"] * fraction if opened else 0.0
+                    close(step["effective_throat_openings"][name], area, atol=1e-12, rtol=1e-10)
+                    areas[v["port"]] = area
+                    if step["effective_valve_K"][name] is not None:
+                        raise ValueError("Critical throat cannot also apply a K resistance")
+                    continue
                 if opened:
                     area = (
                         x
@@ -202,13 +257,23 @@ def audit(config, report):
             if physical["state"] != new["plant"]:
                 raise ValueError("Controlled/physical checkpoint differs")
             physical_command = {
-                k: v for k, v in command.items() if k in ("heat_w", "utility_temperature_k")
+                k: v
+                for k, v in command.items()
+                if k
+                in ("heat_w", "utility_temperature_k", "drive_torque_nm", "restriction_openings")
             }
             physical_command.update(duration_s=dt, openings=actual, loss_coefficients=losses)
+            if areas:
+                physical_command["restriction_openings"] = areas
             schedule.append(physical_command)
             flat.append(physical)
             close(step["total_heat_j"], physical["total_heat_j"], atol=1e-6, rtol=2e-7)
-            close(step.get("total_work_j", 0.0), physical.get("total_work_j", 0.0), atol=1e-10, rtol=2e-7)
+            close(
+                step.get("total_work_j", 0.0),
+                physical.get("total_work_j", 0.0),
+                atol=1e-10,
+                rtol=2e-7,
+            )
             interval_heat += physical["total_heat_j"]
             interval_work += physical.get("total_work_j", 0.0)
             checked += 1
@@ -224,7 +289,13 @@ def audit(config, report):
         work_total += interval_work
         close(interval["total_heat_j"], interval_heat, atol=1e-6, rtol=2e-7)
         close(interval.get("total_work_j", 0.0), interval_work, atol=1e-10, rtol=2e-7)
-    request = {"model": plant, "initial": config["initial"]["plant"], "schedule": schedule}
+    request = {
+        "model": plant,
+        "initial": {"state": config["initial"]["state"]["plant"]}
+        if set(config["initial"]) == {"state"}
+        else config["initial"]["plant"],
+        "schedule": schedule,
+    }
     physical_report = {
         "config": request,
         "model": plant,

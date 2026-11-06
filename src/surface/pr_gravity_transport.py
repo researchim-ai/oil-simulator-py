@@ -235,7 +235,9 @@ class PRGravityTransportNetwork:
                 + math.fsum(v.component_moles[i] for _, v in s.columns)
                 for i in range(nc)
             ]
-            e = math.fsum(v.total_energy_j for _, v in s.transport.nodes)
+            e = math.fsum(
+                v.total_energy_j for _, v in s.transport.nodes
+            ) + self.transport.rotor_energy(s.transport)
             e += math.fsum(
                 v.total_energy_j
                 - self.transport.gravity_m_s2
@@ -260,7 +262,18 @@ class PRGravityTransportNetwork:
             raise ConservationError("Coupled gravitational graph N/E balance rejected")
         return r
 
-    def _step(self, state, dt, openings, heat_w, utility, losses):
+    def _step(
+        self,
+        state,
+        dt,
+        openings,
+        heat_w,
+        utility,
+        losses,
+        *,
+        drive_torque_nm=None,
+        restriction_openings=None,
+    ):
         if not self.columns and not self.heat_links:
             # A resolved vessel already belongs to the transport graph. Do
             # not manufacture a column or repeat an empty aperture quadrature.
@@ -275,6 +288,8 @@ class PRGravityTransportNetwork:
                     for n, (_, s) in zip(t.names, state.transport.nodes)
                 ],
                 losses,
+                drive_torque_nm=drive_torque_nm,
+                restriction_openings=restriction_openings,
             )
             new = PRGravityTransportState(result, (), (), self.model_id)
             self.inspect(new)
@@ -330,6 +345,8 @@ class PRGravityTransportNetwork:
                         ],
                         losses,
                         _coupling=coupling,
+                        drive_torque_nm=drive_torque_nm,
+                        restriction_openings=restriction_openings,
                     )
                     break
                 except _TopologyRetry:
@@ -415,6 +432,8 @@ class PRGravityTransportNetwork:
         heat_w=None,
         utility_temperature_k=None,
         loss_coefficients=None,
+        drive_torque_nm=None,
+        restriction_openings=None,
     ):
         self.inspect(state)
         end = state.time_s + _number(duration_s, "duration", positive=True)
@@ -455,9 +474,36 @@ class PRGravityTransportNetwork:
             if current.time_s + dt / 2 <= current.time_s:
                 raise ValueError("Coupled substep below time resolution")
             try:
-                coarse, _ = self._step(current, dt, commands, heat, utility, losses)
-                half, one = self._step(current, dt / 2, commands, heat, utility, losses)
-                fine, two = self._step(half, dt / 2, commands, heat, utility, losses)
+                coarse, _ = self._step(
+                    current,
+                    dt,
+                    commands,
+                    heat,
+                    utility,
+                    losses,
+                    drive_torque_nm=drive_torque_nm,
+                    restriction_openings=restriction_openings,
+                )
+                half, one = self._step(
+                    current,
+                    dt / 2,
+                    commands,
+                    heat,
+                    utility,
+                    losses,
+                    drive_torque_nm=drive_torque_nm,
+                    restriction_openings=restriction_openings,
+                )
+                fine, two = self._step(
+                    half,
+                    dt / 2,
+                    commands,
+                    heat,
+                    utility,
+                    losses,
+                    drive_torque_nm=drive_torque_nm,
+                    restriction_openings=restriction_openings,
+                )
                 error = self._error(coarse, fine)
                 if error > 1:
                     raise HydraulicConvergenceError("Coupled temporal error exceeded")
@@ -584,8 +630,11 @@ class _ColumnCoupling:
         }
         edges = [(c.source, c.target) for c in t.links if self.openings[c.name]]
         edges += [(p.column, p.node) for p in m.ports if self.openings[p.name]]
+        edges += [(u.source, u.target) for u in t.restrictions if self.openings[u.name]]
         directed = [
-            (unit.source, unit.target) for unit in t.compressors if self.openings[unit.name]
+            (unit.source, unit.target)
+            for unit in (*t.compressors, *t.pump_connections)
+            if self.openings[unit.name]
         ]
         changed = True
         while changed:
@@ -896,7 +945,9 @@ class _ColumnCoupling:
             () if hydrostatic is None else hydrostatic.entries,
             () if populations is None else populations.entries,
         )
-        support = sorted(set(zip(rows, cols)) | set(zip(base_rows, base_cols)))
+        support = sorted(
+            set(zip(rows, cols)) | set(zip(base_rows, base_cols)) | base.additional_sparsity
+        )
         pattern = (
             ([p[0] for p in support], [p[1] for p in support]) if offset > t.dense_limit else None
         )
@@ -1171,6 +1222,20 @@ class _ColumnCoupling:
             result["column_ambient"] = ambient
             return torch.cat((br, *res, *ex["chemical"])), result
 
+        blocks = [list(block) for block in base.linear_blocks]
+        for name, (a, b) in self.blocks.items():
+            block = list(range(a, b))
+            for port, _phase, _root, left, right in self.portblocks:
+                if port.column == name:
+                    block.extend(range(left, right))
+            blocks.extend(block[j : j + 256] for j in range(0, len(block), 256))
+        evaluate.linear_blocks = blocks
+        evaluate.maximum_update = torch.cat(
+            (
+                base.maximum_update,
+                f.tensor([math.inf] * (offset - len(base.maximum_update))),
+            )
+        )
         self.evaluate = evaluate
         return torch.cat(initial), torch.cat(lower), torch.cat(upper), evaluate, pattern
 

@@ -15,6 +15,19 @@ from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 CASES = {
+    "hem_gas": ("surface_pr_hem_gas", "equilibrium"),
+    "hem_two_phase": ("surface_pr_hem_two_phase", "equilibrium"),
+    "hem_flashing": ("surface_pr_hem_flashing", "equilibrium"),
+    "hem_phase_boundary": ("surface_pr_hem_phase_boundary", "equilibrium"),
+    "hem_three_phase": ("surface_pr_hem_three_phase", "equilibrium"),
+    "controlled_hem_throat": ("surface_pr_controlled_hem_throat", "controlled"),
+    "dense_emulsion": ("surface_pr_dense_emulsion", "equilibrium"),
+    "powered_breakup": ("surface_pr_powered_breakup", "equilibrium"),
+    "driven_pump": ("surface_pr_driven_pump", "equilibrium"),
+    "pump_shutoff": ("surface_pr_pump_shutoff", "equilibrium"),
+    "driven_compressor": ("surface_pr_driven_compressor", "equilibrium"),
+    "driven_pump_column": ("surface_pr_driven_pump_column", "gravity"),
+    "terrain_three_phase": ("surface_pr_terrain_three_phase", "equilibrium"),
     "coalescing_separator": ("surface_pr_coalescing_separator", "equilibrium"),
     "terrain_trap": ("surface_pr_terrain_trap", "equilibrium"),
     "vertical_transition": ("surface_pr_vertical_transition", "equilibrium"),
@@ -73,6 +86,7 @@ def main():
         env["CUDA_VISIBLE_DEVICES"] = ""
     env.setdefault("OMP_NUM_THREADS", "1")
     env.setdefault("MKL_NUM_THREADS", "1")
+
     def run_case(name):
         config_name, family = CASES[name]
         config = root / "configs" / (config_name + ".json")

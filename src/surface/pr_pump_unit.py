@@ -26,6 +26,31 @@ def serialize_pumps(records, openings):
     return result
 
 
+def pump_curve(curves, name, query):
+    x, y = curves[name]
+    i = (torch.searchsorted(x, query.reshape(1), right=True) - 1).clamp(0, len(x) - 2)
+    a, b = x.index_select(0, i).squeeze(0), x.index_select(0, i + 1).squeeze(0)
+    ya, yb = y.index_select(0, i).squeeze(0), y.index_select(0, i + 1).squeeze(0)
+    # Edge continuation is for Newton only. Accepted flow must stay in the card.
+    return ya + (yb - ya) * (query - a) / (b - a)
+
+
+def pump_head_efficiency(card, curves, efficiency, q, speed):
+    reduced = q.abs() / (speed.clamp_min(1e-12) if isinstance(speed, torch.Tensor) else speed)
+    if curves["head_curve"] is None:
+        head = speed**2 * card.shutoff_head_m - card.curve_coefficient_s2_m5 * q * q.abs()
+    else:
+        nominal = pump_curve(curves, "head_curve", reduced)
+        sign = torch.where(q >= 0, 1.0, -1.0)
+        head = speed**2 * (card.shutoff_head_m - sign * (card.shutoff_head_m - nominal))
+    eta = (
+        efficiency
+        if curves["efficiency_curve"] is None
+        else pump_curve(curves, "efficiency_curve", reduced)
+    )
+    return head, eta
+
+
 @dataclass(frozen=True)
 class PRPumpUnit:
     node: str
@@ -113,14 +138,9 @@ class TorchPumpCell:
         }
 
     def curve(self, name, query):
-        x, y = self.curves[name]
-        i = (torch.searchsorted(x, query.reshape(1), right=True) - 1).clamp(0, len(x) - 2)
-        a, b = x.index_select(0, i).squeeze(0), x.index_select(0, i + 1).squeeze(0)
-        ya, yb = y.index_select(0, i).squeeze(0), y.index_select(0, i + 1).squeeze(0)
-        # Edge continuation is for Newton only. Accepted flow must stay in the card.
-        return ya + (yb - ya) * (query - a) / (b - a)
+        return pump_curve(self.curves, name, query)
 
-    def evaluate(self, data, enabled):
+    def evaluate(self, data, enabled, speed_ratio=None):
         unit, card = self.unit, self.unit.card
         body, inlet = data[self.index], data[self.inlet]
         q = self.area * body["u"]
@@ -140,29 +160,20 @@ class TorchPumpCell:
                     "hydraulic_power_w": q * 0,
                     "force_n": force,
                     "npsh_available_m": q * 0,
-                "compressibility_fraction": q * 0,
+                    "compressibility_fraction": q * 0,
                 },
                 q.new_ones((), dtype=torch.bool),
             )
-        speed = card.speed_ratio
-        reduced = q.abs() / speed
-        if self.curves["head_curve"] is None:
-            head = speed**2 * card.shutoff_head_m - card.curve_coefficient_s2_m5 * q * q.abs()
-        else:
-            nominal = self.curve("head_curve", reduced)
-            sign = torch.where(q >= 0, 1.0, -1.0)
-            head = speed**2 * (card.shutoff_head_m - sign * (card.shutoff_head_m - nominal))
-        eta = (
-            self.efficiency
-            if self.curves["efficiency_curve"] is None
-            else self.curve("efficiency_curve", reduced)
-        )
+        speed = card.speed_ratio if speed_ratio is None else speed_ratio
+        reduced = q.abs() / (speed.clamp_min(1e-12) if isinstance(speed, torch.Tensor) else speed)
+        head, eta = pump_head_efficiency(card, self.curves, self.efficiency, q, speed)
         hydraulic = rho * G * head * q
         power = hydraulic / eta.clamp_min(1e-8)
         force = self.area * rho * G * head
         compressibility = G * head / body["q"]["frozen_sound_speed_m_s"][0].square()
         valid = (
-            (len(body["phase_n"]) == 1)
+            (speed > 0)
+            & (len(body["phase_n"]) == 1)
             & (len(inlet["phase_n"]) == 1)
             & (rho >= unit.minimum_density_kg_m3)
             & (inlet["rho"] >= unit.minimum_density_kg_m3)

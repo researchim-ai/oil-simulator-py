@@ -26,18 +26,29 @@ def run(config, *, device="cpu"):
     ):
         raise ValueError("Expected model, initial and nonempty schedule")
     model = PREquilibriumTransportNetwork.from_dict(config["model"], device=device)
-    if set(config["initial"]) == {"nodes"}:
+    if set(config["initial"]) == {"state"}:
+        state = PREquilibriumTransportState.from_dict(config["initial"]["state"])
+        model.inspect(state)
+    elif set(config["initial"]) == {"nodes"}:
         state = model.initialize(config["initial"]["nodes"])
     elif set(config["initial"]) == {"groups"}:
         state = initialize_grouped(model, config["initial"]["groups"])
     else:
-        raise ValueError("Initial input requires exactly nodes or groups")
+        raise ValueError("Initial input requires exactly nodes, groups or state")
     first = state
     intervals = []
     for command in config["schedule"]:
         if (
             set(command)
-            - {"duration_s", "openings", "heat_w", "utility_temperature_k", "loss_coefficients"}
+            - {
+                "duration_s",
+                "openings",
+                "heat_w",
+                "utility_temperature_k",
+                "loss_coefficients",
+                "drive_torque_nm",
+                "restriction_openings",
+            }
             or "duration_s" not in command
         ):
             raise ValueError("Unknown/missing equilibrium transport command")

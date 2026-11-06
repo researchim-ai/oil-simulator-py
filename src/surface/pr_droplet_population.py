@@ -12,7 +12,7 @@ from dataclasses import dataclass
 
 import torch
 
-from .liquid import _name, _number
+from .liquid import EquipmentOperatingError, _name, _number
 
 
 @dataclass(frozen=True)
@@ -92,6 +92,35 @@ class PRDropletPopulation:
         }
 
 
+@dataclass(frozen=True, kw_only=True)
+class PRPoweredDropletPopulation(PRDropletPopulation):
+    """Monomoment fragmentation with an explicit mechanical-power budget.
+
+    dN/dt=rate*N represents count increase; M1 stays the live liquid inventory.
+    It is not a resolved daughter-size distribution. All new interface energy
+    is taken from the declared mixer work in the same total-energy equation.
+    """
+
+    breakup_rate_s: float
+    agitation_power_w: float
+    model: str = "powered_monomoment_breakup"
+
+    def __post_init__(self):
+        super().__post_init__()
+        _number(self.breakup_rate_s, "breakup rate", nonnegative=True)
+        _number(self.agitation_power_w, "mechanical agitation power", positive=True)
+        if self.model != "powered_monomoment_breakup":
+            raise ValueError("Unknown powered population model")
+
+
+def population_from_dict(data):
+    return (
+        PRPoweredDropletPopulation(**data)
+        if data.get("model") == "powered_monomoment_breakup"
+        else PRDropletPopulation(**data)
+    )
+
+
 def marker_index(law):
     return law.oil_component_index if law.dispersed_liquid == "oil" else law.water_component_index
 
@@ -132,7 +161,7 @@ def number_flux(base_flux, contact, left, right, law, left_native, right_native,
 
 
 class DropletPopulations:
-    def __init__(self, model, state, seeds, offset):
+    def __init__(self, model, state, seeds, offset, previous_data=None):
         self.model = model
         self.entries = []
         self.initial = []
@@ -147,6 +176,17 @@ class DropletPopulations:
             if number is None:
                 raise ValueError("Droplet checkpoint has no particle inventory")
             law = node.drift_flux
+            spec = node.droplet_population
+            if isinstance(spec, PRPoweredDropletPopulation) and previous_data is not None:
+                required = (
+                    spec.breakup_rate_s
+                    * float(previous_data[i]["population"]["surface_energy_j"].cpu())
+                    / 3
+                )
+                if spec.agitation_power_w < required * (1 - 1e-12):
+                    raise EquipmentOperatingError(
+                        "Prescribed breakup rate exceeds the available mechanical surface-creation power"
+                    )
             guess = number
             if seed["phase_count"] > 1 and not number:
                 volumes = f.tensor(
@@ -192,7 +232,13 @@ class DropletPopulations:
                 * number.square()
                 / node.volume_m3
             )
-            standard = (number - old - dt * (net[i] - loss)) / scale
+            spec = node.droplet_population
+            breakup = (
+                spec.breakup_rate_s * number
+                if isinstance(spec, PRPoweredDropletPopulation)
+                else number * 0
+            )
+            standard = (number - old - dt * (net[i] - loss + breakup)) / scale
             initial_volume = math.pi * node.drift_flux.droplet_diameter_m**3 / 6
             nucleation = (number - pop["drop_volume_m3"] / initial_volume) / scale
             active = torch.where((net[i] > 0) | (old > 0), standard, nucleation)
@@ -204,6 +250,25 @@ class DropletPopulations:
                 "coalescence_loss_rate_s": loss,
                 "balance_residual": row,
             }
+            if isinstance(spec, PRPoweredDropletPopulation):
+                fraction = spec.breakup_rate_s * dt
+                # Counterfactual area before this implicit fragmentation source,
+                # at the same live dispersed volume. log1p/expm1 avoids loss at
+                # short steps; fraction>=1 has no positive backward-Euler stock.
+                area_factor = -math.expm1(math.log1p(-fraction) / 3) if fraction < 1 else math.inf
+                required = torch.where(
+                    pop["present"],
+                    pop["surface_energy_j"] * area_factor / dt,
+                    pop["surface_energy_j"] * 0,
+                )
+                budget = required <= spec.agitation_power_w * (1 + 1e-10)
+                active = pop["present"] & ((net[i] > 0) | (old > 0))
+                details[node.name].update(
+                    breakup_gain_rate_s=breakup,
+                    agitation_power_w=number.new_tensor(spec.agitation_power_w),
+                    breakup_surface_power_w=required,
+                    power_budget_valid=torch.where(active, budget, True),
+                )
         return rows, details
 
     @staticmethod
@@ -238,6 +303,13 @@ class DropletPopulations:
                 "coalescence_loss_rate_s",
                 "balance_residual",
             )
+            if "breakup_gain_rate_s" in row:
+                keys = (
+                    *keys,
+                    "breakup_gain_rate_s",
+                    "agitation_power_w",
+                    "breakup_surface_power_w",
+                )
             values = torch.stack([row[k] for k in keys]).detach().cpu().tolist()
             result[name] = dict(zip(keys, values))
         return result

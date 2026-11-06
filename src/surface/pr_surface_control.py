@@ -64,6 +64,39 @@ class PRControlValve:
 
 
 @dataclass(frozen=True)
+class PRThroatControlValve:
+    """Actuator-to-effective-area law of a PR homogeneous equilibrium throat."""
+
+    name: str
+    port: str
+    actuator: ConnectionActuator
+    characteristic: str = "linear"
+    rangeability: float = 50.0
+    model: str = "hem_throat_area"
+
+    def __post_init__(self):
+        _name(self.name)
+        _name(self.port)
+        if not isinstance(self.actuator, ConnectionActuator):
+            raise TypeError("Expected ConnectionActuator")
+        if self.model != "hem_throat_area" or self.characteristic not in (
+            "linear",
+            "modified_equal_percentage",
+        ):
+            raise ValueError("Unknown critical valve area law")
+        if _number(self.rangeability, "rangeability", positive=True) <= 1:
+            raise ValueError("Rangeability must exceed one")
+
+    def fraction(self, position):
+        x = ConnectionActuator.position(position)
+        return (
+            x
+            if self.characteristic == "linear"
+            else math.expm1(x * math.log(self.rangeability)) / (self.rangeability - 1)
+        )
+
+
+@dataclass(frozen=True)
 class PRSurfacePI:
     valve: str
     setpoint: float
@@ -183,14 +216,27 @@ class PRControlledSurface:
         self.controllers = tuple(sorted(controllers, key=lambda c: c.valve))
         if (
             not self.valves
-            or any(not isinstance(v, PRControlValve) for v in self.valves)
+            or any(not isinstance(v, (PRControlValve, PRThroatControlValve)) for v in self.valves)
             or len({v.name for v in self.valves}) != len(self.valves)
         ):
             raise ValueError("Unique named control valves required")
         ports = {p.name: p for p in plant.ports}
         by_name = {n.name: n for n in plant.transport.nodes}
         links = {c.name: c for c in plant.transport.links}
+        restrictions = {u.name: u for u in plant.transport.restrictions}
         for valve in self.valves:
+            if isinstance(valve, PRThroatControlValve):
+                if valve.port not in restrictions:
+                    raise ValueError("Unknown controlled HEM restriction")
+                unit = restrictions[valve.port]
+                ports[valve.port] = SimpleNamespace(
+                    name=valve.port,
+                    node=unit.target,
+                    column=None,
+                    sensor_node=unit.target,
+                    restriction=True,
+                )
+                continue
             if valve.port in ports:
                 if valve.resistance_node not in (None, ports[valve.port].node):
                     raise ValueError("Column valve resistance must occupy its physical port body")
@@ -199,7 +245,8 @@ class PRControlledSurface:
                 raise ValueError("Unknown controlled material connection")
             link = links[valve.port]
             candidates = [
-                name for side, name in (("source", link.source), ("target", link.target))
+                name
+                for side, name in (("source", link.source), ("target", link.target))
                 if by_name[name].kind == "pipe_cell"
                 and getattr(link, side + "_port") in ("left", "right")
                 and by_name[name].drift_flux is None
@@ -210,10 +257,13 @@ class PRControlledSurface:
             if body is None and len(candidates) == 1:
                 body = candidates[0]
             if body not in candidates:
-                raise ValueError("Material valve needs an unambiguous HEM resistance_node on its link")
+                raise ValueError(
+                    "Material valve needs an unambiguous HEM resistance_node on its link"
+                )
             sensor_node = link.target if body == link.source else link.source
-            ports[valve.port] = SimpleNamespace(name=valve.port, node=body, column=None,
-                                                sensor_node=sensor_node)
+            ports[valve.port] = SimpleNamespace(
+                name=valve.port, node=body, column=None, sensor_node=sensor_node
+            )
         if len({v.port for v in self.valves}) != len(self.valves) or any(
             v.port not in ports for v in self.valves
         ):
@@ -238,11 +288,22 @@ class PRControlledSurface:
             if c.valve not in self._valves:
                 raise ValueError("Unknown controlled valve")
             port = ports[self._valves[c.valve].port]
+            if c.measurement == "level" and c.sensor is not None:
+                if c.sensor not in plant.columns:
+                    raise ValueError(
+                        "Level sensor must reference a represented gravitational column"
+                    )
+                column = plant.columns[c.sensor]
+                if c.component not in column.fluid.names or c.setpoint > column.geometry.height_m:
+                    raise ValueError("Remote column level sensor outside component/geometry domain")
+                continue
             if port.column is None:
                 if c.component is not None and c.component not in plant.transport.fluid.names:
                     raise ValueError("Unknown inventory-level component")
                 if c.measurement == "level":
-                    raise ValueError("Resolved vessels use inventory_level, not an equilibrium-column interface")
+                    raise ValueError(
+                        "Resolved vessels use inventory_level, not an equilibrium-column interface"
+                    )
                 if c.measurement == "pressure":
                     if (c.sensor or port.sensor_node) not in by_name:
                         raise ValueError("Unknown pressure sensor node")
@@ -250,7 +311,9 @@ class PRControlledSurface:
                     self._inventory_path(c)
                 continue
             if c.sensor is not None or c.measurement == "inventory_level":
-                raise ValueError("Column controllers use their own pressure or interface-level sensor")
+                raise ValueError(
+                    "Column controllers use their own pressure or interface-level sensor"
+                )
             column = plant.columns[port.column]
             if c.component is not None and c.component not in column.fluid.names:
                 raise ValueError("Unknown controlled level component")
@@ -275,8 +338,14 @@ class PRControlledSurface:
         return {
             "model": "pr_controlled_surface_v1",
             "plant": self.plant.to_dict(),
-            "valves": [{k: x for k, x in asdict(v).items() if k != "resistance_node" or x is not None} for v in self.valves],
-            "controllers": [{k: x for k, x in asdict(c).items() if k != "sensor" or x is not None} for c in self.controllers],
+            "valves": [
+                {k: x for k, x in asdict(v).items() if k != "resistance_node" or x is not None}
+                for v in self.valves
+            ],
+            "controllers": [
+                {k: x for k, x in asdict(c).items() if k != "sensor" or x is not None}
+                for c in self.controllers
+            ],
             **{
                 k: getattr(self, k)
                 for k in (
@@ -297,7 +366,9 @@ class PRControlledSurface:
             raise ValueError("Unknown controlled surface model")
         data["plant"] = PRGravityTransportNetwork.from_dict(data["plant"], device=device)
         data["valves"] = [
-            PRControlValve(**{**v, "actuator": ConnectionActuator(**v["actuator"])})
+            (PRThroatControlValve if v.get("model") == "hem_throat_area" else PRControlValve)(
+                **{**v, "actuator": ConnectionActuator(**v["actuator"])}
+            )
             for v in data["valves"]
         ]
         data["controllers"] = [PRSurfacePI(**c) for c in data["controllers"]]
@@ -341,11 +412,16 @@ class PRControlledSurface:
         if controller.sensor not in t.pipe_paths:
             raise ValueError("inventory_level needs an explicit vertical grouped sensor path")
         path = [t.nodes[t.names.index(name)] for name in t.pipe_paths[controller.sensor]]
-        if any(abs(n.elevation_change_m - n.length_m) > 1e-12
-               or abs(n.diameter_m - path[0].diameter_m) > 1e-12 for n in path):
+        if any(
+            abs(n.elevation_change_m - n.length_m) > 1e-12
+            or abs(n.diameter_m - path[0].diameter_m) > 1e-12
+            for n in path
+        ):
             raise ValueError("Inventory-level sensor requires a constant-area vertical vessel")
-        if any(abs(a.elevation_m + a.length_m/2 - b.elevation_m + b.length_m/2) > 1e-8
-               for a, b in zip(path, path[1:])):
+        if any(
+            abs(a.elevation_m + a.length_m / 2 - b.elevation_m + b.length_m / 2) > 1e-8
+            for a, b in zip(path, path[1:])
+        ):
             raise ValueError("Inventory-level sensor cells must be contiguous bottom-to-top")
         if controller.setpoint > sum(n.length_m for n in path):
             raise ValueError("Inventory-level setpoint above resolved vessel")
@@ -353,7 +429,12 @@ class PRControlledSurface:
 
     def measure(self, state, controller):
         port = self._ports[self._valves[controller.valve].port]
-        if port.column is None:
+        column_name = (
+            controller.sensor
+            if controller.measurement == "level" and controller.sensor is not None
+            else port.column
+        )
+        if column_name is None:
             t = self.plant.transport
             cells = dict(state.plant.transport.nodes)
             if controller.measurement == "pressure":
@@ -365,9 +446,9 @@ class PRControlledSurface:
                 d = t._state_data(t.names.index(node.name), cells[node.name])
                 selected = d["x"][:, index] >= controller.minimum_mole_fraction
                 volume = volume + (d["phase_n"] * d["q"]["molar_volume_m3_mol"] * selected).sum()
-            return float((volume / (math.pi * path[0].diameter_m**2 / 4)).cpu())
-        column = self.plant.columns[port.column]
-        s = dict(state.plant.columns)[port.column]
+            return float((volume / (math.pi * path[0].diameter_m ** 2 / 4)).cpu())
+        column = self.plant.columns[column_name]
+        s = dict(state.plant.columns)[column_name]
         if controller.measurement == "pressure":
             return column.sample(s, port.height_m, side="below")["pressure_pa"]
         index = column.fluid.names.index(controller.component)
@@ -413,9 +494,8 @@ class PRControlledSurface:
         openings = dict(commands.get("openings") or {})
         losses = dict(commands.get("loss_coefficients") or {})
         known_links = {
-            p.name for p in (
-                *self.plant.transport.switches, *self.plant.ports, *self.plant.heat_links
-            )
+            p.name
+            for p in (*self.plant.transport.switches, *self.plant.ports, *self.plant.heat_links)
         }
         if set(openings) - known_links:
             raise ValueError("Unknown hydraulic isolation command")
@@ -428,8 +508,16 @@ class PRControlledSurface:
             raise ValueError("Unknown external resistance command")
         for n, k in losses.items():
             physical[n] = _number(k, "external resistance", nonnegative=True)
+        areas = dict(commands.get("restriction_openings") or {})
+        controlled_areas = {v.port for v in self.valves if isinstance(v, PRThroatControlValve)}
+        if controlled_areas & areas.keys():
+            raise ValueError(
+                "Controlled throat area requires an actuator target, not a second area command"
+            )
+        restrictions = {u.name: u for u in self.plant.transport.restrictions}
         records = {}
         coefficients = {}
+        throat_areas = {}
         for v in self.valves:
             record = v.actuator.step(
                 positions[v.name], targets[v.name], dt, modes.get(v.name, "normal")
@@ -437,24 +525,54 @@ class PRControlledSurface:
             x = record["final_position"]
             positions[v.name] = x
             records[v.name] = record
-            actual = openings.get(v.port, True) and x > 0
+            default = restrictions[v.port].open if isinstance(v, PRThroatControlValve) else True
+            actual = openings.get(v.port, default) and x > 0
             openings[v.port] = actual
+            if isinstance(v, PRThroatControlValve):
+                area = restrictions[v.port].opening * v.fraction(x) if actual else 0.0
+                areas[v.port] = area
+                throat_areas[v.name] = area
+                coefficients[v.name] = None
+                continue
             k = v.coefficient(x) if actual else None
             coefficients[v.name] = k
             if k is not None:
                 physical[self._ports[v.port].node] += k
         plant_report = self.plant.advance(
-            state.plant, dt, **{**commands, "openings": openings, "loss_coefficients": physical}
+            state.plant,
+            dt,
+            **{
+                **commands,
+                "openings": openings,
+                "loss_coefficients": physical,
+                **({"restriction_openings": areas} if areas else {}),
+            },
         )
         plant_state = PRGravityTransportState.from_dict(plant_report["state"])
         envelope = {
-            v.name: {"maximum_pressure_drop_fraction": 0.0, "maximum_mach_number": 0.0}
+            v.name: (
+                {
+                    "flow_model": "homogeneous_equilibrium_throat",
+                    "maximum_throat_velocity_m_s": 0.0,
+                    "choked_substeps": 0,
+                }
+                if isinstance(v, PRThroatControlValve)
+                else {"maximum_pressure_drop_fraction": 0.0, "maximum_mach_number": 0.0}
+            )
             for v in self.valves
         }
         # Check each accepted hydraulic substep, not only the report endpoint.
         for step in plant_report["steps"]:
             snapshot = PRGravityTransportState.from_dict(step["state"])
             for v in self.valves:
+                if isinstance(v, PRThroatControlValve):
+                    point = step["transport"]["restrictions"][v.port]
+                    envelope[v.name]["maximum_throat_velocity_m_s"] = max(
+                        envelope[v.name]["maximum_throat_velocity_m_s"],
+                        point["throat_velocity_m_s"],
+                    )
+                    envelope[v.name]["choked_substeps"] += int(point["choked"])
+                    continue
                 k = coefficients[v.name]
                 if k is None:
                     continue
@@ -500,6 +618,7 @@ class PRControlledSurface:
             "actuators": records,
             "measurements": measurements,
             "effective_valve_K": coefficients,
+            **({"effective_throat_openings": throat_areas} if throat_areas else {}),
             "valve_envelope": envelope,
             "total_heat_j": plant_report["total_heat_j"],
             "total_work_j": plant_report["total_work_j"],
@@ -533,6 +652,8 @@ class PRControlledSurface:
             "heat_w",
             "utility_temperature_k",
             "loss_coefficients",
+            "drive_torque_nm",
+            "restriction_openings",
         }:
             raise ValueError("Unknown controlled hydraulic command")
         current = state

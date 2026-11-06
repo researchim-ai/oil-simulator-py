@@ -236,3 +236,85 @@ def test_interface_aligned_survey_preserves_geometry_and_original_bend_losses():
             center - abs(change) / 2 + 1e-12 < h < center + abs(change) / 2 - 1e-12
             for h in (0.25, 0.75)
         )
+
+
+def test_three_phase_terrain_rest_and_restart_use_consistent_algebraic_warm_starts():
+    from test_surface_compositional_separator import ternary
+
+    from surface.pr_terrain_pipe import PRTerrainPipe, initialize_from_gravity_profile
+    from surface.pr_transport_builder import build_equilibrium_transport
+    from surface.separator_geometry import SeparatorGeometry
+    from surface.stratified_pr import StratifiedPRColumn, StratifiedPRState
+
+    fluid = ternary()
+    column = StratifiedPRColumn(
+        fluid,
+        SeparatorGeometry(0.05, 0.1, "vertical"),
+        quadrature_order=2,
+        maximum_quadrature_order=8,
+    )
+    profile = StratifiedPRState.from_dict(column.initialize(1e6, 350.0, [0.4, 0.3, 0.3])["state"])
+    route = PRTerrainPipe(
+        "trap", "a", "b", 0.005, (0.1, 0.1), (0.1, 0.0, 0.1), (2, 2)
+    ).split_at_levels(profile.interface_heights_m)
+    model = build_equilibrium_transport(
+        fluid,
+        [
+            PREquilibriumNode("a", 1e-6, elevation_m=0.1),
+            PREquilibriumNode("b", 1e-6, elevation_m=0.1),
+        ],
+        [route],
+        gravity_m_s2=column.gravity_m_s2,
+        dense_limit=1,
+        wave_speed_bound_m_s=5000.0,
+    )
+    state = initialize_from_gravity_profile(model, column, profile)
+    assert any(s.hydrostatic_face_guesses for _, s in state.nodes)
+    # Direct centre-only input must discover the same stationary profile;
+    # callers do not need private column traces to initialise the graph.
+    state = model.initialize(
+        {
+            name: {
+                "pressure_pa": s.pressure_pa,
+                "temperature_k": s.temperature_k,
+                "mole_fractions": [n / sum(s.component_moles) for n in s.component_moles],
+            }
+            for name, s in state.nodes
+        }
+    )
+    assert any(s.hydrostatic_face_guesses for _, s in state.nodes)
+    legacy = json.loads(json.dumps(state.to_dict()))
+    for node in legacy["nodes"].values():
+        node.pop("hydrostatic_face_guesses", None)
+    restored = PREquilibriumTransportState.from_dict(legacy)
+    for _ in range(2):
+        end, record = model._step(
+            restored,
+            0.001,
+            model.default_openings,
+            [0.0] * len(model.nodes),
+            [350.0] * len(model.nodes),
+        )
+        assert max(map(abs, record["conservation_residuals"])) < 1e-8
+        for i, ((_, before), (_, after)) in enumerate(zip(state.nodes, end.nodes)):
+            assert after.component_moles == pytest.approx(
+                before.component_moles, rel=1e-11, abs=1e-25
+            )
+            assert abs(float(model._state_data(i, after)["u"])) < 1e-12
+        restored = PREquilibriumTransportState.from_dict(json.loads(json.dumps(end.to_dict())))
+
+
+def test_hydrostatic_warm_start_is_not_a_fixed_pressure_boundary():
+    model, state = pipe()
+    warm, _ = model._step(state, 0.001, model.default_openings, [0.0] * 4, [350.0] * 4)
+    assert all(s.hydrostatic_face_guesses for _, s in warm.nodes)
+    end, report = model._step(
+        warm, 0.001, model.default_openings, [1.0, 0.0, 0.0, 0.0], [500.0] * 4
+    )
+    assert any(abs(v["flux"][0]) > 1e-10 for v in report["links"].values())
+    assert any(
+        abs(p - dict(warm.nodes)[name].hydrostatic_face_guesses[j][1]) > 1e-3
+        for name, s in end.nodes
+        for j, (_, p, _) in enumerate(s.hydrostatic_face_guesses)
+    )
+    assert max(map(abs, report["conservation_residuals"])) < 1e-7

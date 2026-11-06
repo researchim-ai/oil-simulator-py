@@ -46,7 +46,43 @@ def velocities(
         terminal = abs(contrast) * gravity * mobility
         reynolds = carrier_density * terminal * d / mu
         eotvos = abs(contrast) * gravity * d * d / closure["surface_tension_n_m"]
-        if (
+        if closure.get("model") == "concentrated_oil_water":
+            _, weight, fraction = dense_rheology(closure, alpha, composition)
+            oil_rate = (
+                contrast
+                * axial_g
+                * d
+                * d
+                / (18 * closure["water_viscosity_pa_s"])
+                * (1 - fraction) ** (closure["hindered_settling_exponent"] - 1)
+            )
+            water_rate = (
+                contrast
+                * axial_g
+                * d
+                * d
+                / (18 * closure["oil_viscosity_pa_s"])
+                * fraction ** (closure["hindered_settling_exponent"] - 1)
+            )
+            slip = (1 - weight) * oil_rate + weight * water_rate
+            re_o = (
+                rho[iw]
+                * abs(contrast)
+                * gravity
+                * d**3
+                / (18 * closure["water_viscosity_pa_s"] ** 2)
+            )
+            re_w = (
+                rho[io] * abs(contrast) * gravity * d**3 / (18 * closure["oil_viscosity_pa_s"] ** 2)
+            )
+            if (
+                (weight < 1 and re_o > closure["maximum_reynolds_number"])
+                or (weight > 0 and re_w > closure["maximum_reynolds_number"])
+                or eotvos > closure["maximum_eotvos_number"]
+                or d / diameter > closure["maximum_confinement_ratio"]
+            ):
+                raise ValueError("Dense creeping-drop envelope exceeded")
+        elif (
             min(rho[io], rho[iw]) <= 0
             or alpha[io if oil_drop else iw] / (alpha[io] + alpha[iw])
             > closure["maximum_dispersed_liquid_fraction"]
@@ -80,3 +116,45 @@ def velocities(
     if not np.all(np.isfinite(result)):
         raise ValueError("Nonfinite phase velocity")
     return result
+
+
+def dense_rheology(closure, alpha, composition):
+    scores = np.asarray(composition)[
+        :,
+        [
+            closure[k]
+            for k in ("gas_component_index", "oil_component_index", "water_component_index")
+        ],
+    ]
+    roles = scores.argmax(-1)
+    if len(set(roles)) != len(roles) or np.any(scores.max(-1) < closure["minimum_marker_fraction"]):
+        raise ValueError("Ambiguous dense emulsion markers")
+    ag, ao, aw = [sum(alpha[roles == i]) for i in range(3)]
+    fraction = ao / max(ao + aw, 1e-30)
+    coordinate = np.clip(
+        (fraction - closure["phase_inversion_oil_fraction"] + closure["transition_half_width"])
+        / (2 * closure["transition_half_width"]),
+        0.0,
+        1.0,
+    )
+    weight = 3 * coordinate**2 - 2 * coordinate**3
+    if 1 in roles and 2 in roles:
+        limit = closure["maximum_dispersed_liquid_fraction"]
+        if (weight < 1 and fraction > limit) or (weight > 0 and 1 - fraction > limit):
+            raise ValueError("Morphology outside dense emulsion envelope")
+        pack, eta = closure["packing_fraction"], closure["intrinsic_viscosity"]
+        ow = closure["water_viscosity_pa_s"] * max(1 - fraction / pack, 1e-12) ** (-eta * pack)
+        wo = closure["oil_viscosity_pa_s"] * max(1 - (1 - fraction) / pack, 1e-12) ** (-eta * pack)
+        liquid = np.exp((1 - weight) * np.log(ow) + weight * np.log(wo))
+    else:
+        liquid = (ao * closure["oil_viscosity_pa_s"] + aw * closure["water_viscosity_pa_s"]) / max(
+            ao + aw, 1e-30
+        )
+    return (ao + aw) * liquid + ag * closure["gas_viscosity_pa_s"], weight, fraction
+
+
+def wall_viscosity(node, data):
+    closure = node.get("drift_flux") or {}
+    if closure.get("model") != "concentrated_oil_water":
+        return node["dynamic_viscosity_pa_s"]
+    return dense_rheology(closure, data["alpha"], data["x"])[0]

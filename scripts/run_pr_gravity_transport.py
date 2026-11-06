@@ -24,20 +24,32 @@ def run(config, *, device="cpu"):
         raise ValueError("Expected model, initial and nonempty schedule")
     model = PRGravityTransportNetwork.from_dict(config["model"], device=device)
     initial = config["initial"]
-    if set(initial) != {"transport", "columns", "wall_temperatures"}:
-        raise ValueError("Expected transport, columns and wall_temperatures")
-    ts = model.transport.initialize(initial["transport"])
-    columns = {
-        n: StratifiedPRState.from_dict(model.columns[n].initialize(**v)["state"])
-        for n, v in initial["columns"].items()
-    }
-    state = model.initialize(ts, columns, initial["wall_temperatures"])
+    if set(initial) == {"state"}:
+        state = PRGravityTransportState.from_dict(initial["state"])
+        model.inspect(state)
+    else:
+        if set(initial) != {"transport", "columns", "wall_temperatures"}:
+            raise ValueError("Expected transport, columns and wall_temperatures")
+        ts = model.transport.initialize(initial["transport"])
+        columns = {
+            n: StratifiedPRState.from_dict(model.columns[n].initialize(**v)["state"])
+            for n, v in initial["columns"].items()
+        }
+        state = model.initialize(ts, columns, initial["wall_temperatures"])
     first = state
     intervals = []
     for command in config["schedule"]:
         if (
             set(command)
-            - {"duration_s", "openings", "heat_w", "utility_temperature_k", "loss_coefficients"}
+            - {
+                "duration_s",
+                "openings",
+                "heat_w",
+                "utility_temperature_k",
+                "loss_coefficients",
+                "drive_torque_nm",
+                "restriction_openings",
+            }
             or "duration_s" not in command
         ):
             raise ValueError("Unknown/missing equilibrium transport command")

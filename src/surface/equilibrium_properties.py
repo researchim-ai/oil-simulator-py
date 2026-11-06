@@ -141,7 +141,7 @@ class EquilibriumFluid:
                 "Equilibrium pressure, temperature or composition outside domain"
             )
 
-    def _roots(self, A, B):
+    def _roots(self, A, B, derivative_order=1):
         """Both mechanically stable cubic roots, no host/numpy root solve."""
         with torch.no_grad():
             # no_grad disables reverse AD only. Forward AD (jacfwd/JVP)
@@ -166,19 +166,26 @@ class EquilibriumFluid:
                 .sort(-1)
                 .values
             )
-        # Implicit cubic correction provides the local first derivative of Z.
-        f = (
-            roots**3
-            + (B[..., None] - 1) * roots**2
-            + (A - 3 * B * B - 2 * B)[..., None] * roots
-            + (-A * B + B * B + B**3)[..., None]
-        )
-        fz = 3 * roots**2 + 2 * (B[..., None] - 1) * roots + (A - 3 * B * B - 2 * B)[..., None]
-        safe = torch.where(fz.abs() > 1e-14, fz, torch.ones_like(fz))
-        return roots - f / safe, fz
+        # Each differentiable Newton correction doubles the accurate derivative
+        # order around the detached exact root. Two corrections are needed when
+        # differentiating a sonic thermodynamic tangent (second derivatives).
+        for _ in range(derivative_order):
+            f = (
+                roots**3
+                + (B[..., None] - 1) * roots**2
+                + (A - 3 * B * B - 2 * B)[..., None] * roots
+                + (-A * B + B * B + B**3)[..., None]
+            )
+            fz = 3 * roots**2 + 2 * (B[..., None] - 1) * roots + (A - 3 * B * B - 2 * B)[..., None]
+            safe = torch.where(fz.abs() > 1e-14, fz, torch.ones_like(fz))
+            roots = roots - f / safe
 
-    def tensor_homogeneous(self, p, t, x, phase="stable"):
+        return roots, fz
+
+    def tensor_homogeneous(self, p, t, x, phase="stable", *, derivative_order=1):
         """Local differentiable EOS; callers validate domain before solving."""
+        if derivative_order not in (1, 2):
+            raise ValueError("EOS derivative order must be one or two")
         if phase not in ("stable", "liquid", "vapor"):
             raise ValueError("Unknown cubic-root selection")
         rt = torch.sqrt(t / self.tc)
@@ -203,7 +210,7 @@ class EquilibriumFluid:
         att = ((x @ aijtt) * x).sum(-1)
         b = (x * self.b).sum(-1)
         A, B = a * p / (R * t) ** 2, b * p / (R * t)
-        roots, fz = self._roots(A, B)
+        roots, fz = self._roots(A, B, derivative_order)
         z = roots
         ratio = torch.log1p(
             2 * math.sqrt(2) * B[..., None] / (z + (1 - math.sqrt(2)) * B[..., None])

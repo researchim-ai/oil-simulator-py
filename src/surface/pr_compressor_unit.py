@@ -67,8 +67,9 @@ class CompressorBundle:
             a, b = model.names.index(unit.source), model.names.index(unit.target)
             enabled = openings[unit.name]
             old = state.nodes[a][1]
+            old_speed = dict(state.rotors).get(unit.name, unit.speed_rad_s)
             op = unit.card.operating_point(
-                unit.speed_rad_s,
+                old_speed if old_speed > 0 else unit.speed_rad_s,
                 old.pressure_pa,
                 old.temperature_k,
                 state.nodes[b][1].pressure_pa,
@@ -118,7 +119,7 @@ class CompressorBundle:
         va, vb = values.index_select(0, i).squeeze(0), values.index_select(0, i + 1).squeeze(0)
         return va + (vb - va) * ((query - a) / (b - a))
 
-    def evaluate(self, y, data):
+    def evaluate(self, y, data, shaft_speeds=None):
         f = self.model.fluid
         net = {}
         residual, records, traces = [], {}, []
@@ -148,7 +149,7 @@ class CompressorBundle:
                 }
                 continue
             theta = source["t"] / unit.card.reference_temperature_k
-            speed = unit.speed_rad_s / theta.sqrt()
+            speed = (shaft_speeds or {}).get(unit.name, unit.speed_rad_s) / theta.sqrt()
             # Interpolate beta first, then corrected speed: all tables remain
             # device tensors and all state/temperature derivatives remain live.
             lines = [
@@ -232,8 +233,21 @@ class CompressorBundle:
                 if q["phase_count"] != 1:
                     raise PropertyModelError("Dry gas compressor trace crosses a phase boundary")
                 homogeneous = self.model.fluid.tensor_homogeneous(p, t, x, "vapor")
-                if float((homogeneous["log_fugacity_coefficients"] - q["phases"][0]["log_fugacity_coefficients"]).abs().max().cpu()) > 1e-7:
-                    raise PropertyModelError("Dry gas compressor trace uses a metastable vapor root")
+                if (
+                    float(
+                        (
+                            homogeneous["log_fugacity_coefficients"]
+                            - q["phases"][0]["log_fugacity_coefficients"]
+                        )
+                        .abs()
+                        .max()
+                        .cpu()
+                    )
+                    > 1e-7
+                ):
+                    raise PropertyModelError(
+                        "Dry gas compressor trace uses a metastable vapor root"
+                    )
 
     def serialize(self, records):
         result = {}
@@ -241,8 +255,11 @@ class CompressorBundle:
             row = records[unit.name]
             values = torch.stack(list(row.values())).detach().cpu().tolist()
             result[unit.name] = {
-                **{key: bool(value) if row[key].dtype == torch.bool else value
-                   for key, value in zip(row, values)}, "enabled": enabled,
+                **{
+                    key: bool(value) if row[key].dtype == torch.bool else value
+                    for key, value in zip(row, values)
+                },
+                "enabled": enabled,
             }
         return result
 
@@ -263,7 +280,7 @@ def inventory_guesses(model, state, dt, openings, previous):
         x = [v / sum(source.component_moles) for v in source.component_moles]
         mw = sum(v * c.molar_mass_kg_mol for v, c in zip(x, f.components))
         op = unit.card.operating_point(
-            unit.speed_rad_s,
+            dict(state.rotors).get(unit.name, unit.speed_rad_s) or unit.speed_rad_s,
             source.pressure_pa,
             source.temperature_k,
             state.nodes[b][1].pressure_pa,

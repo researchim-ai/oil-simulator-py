@@ -31,9 +31,15 @@ def hllc_port(left, right, alpha):
 
     def star(u, flux, p, v, rho, entropy, speed):
         ratio = (speed - v) / (speed - contact)
-        energy = ((speed - v) * u[-1] - p * v + pressure * contact) / (speed - contact)
-        us = torch.cat((u[:-2] * ratio, (rho * ratio * contact).reshape(1), energy.reshape(1)))
-        return flux + speed * (us - u), entropy * ratio * contact, ratio
+        change = (contact - v) / (speed - contact)
+        increment = torch.cat(
+            (
+                u[:-2] * change,
+                (rho * speed * change).reshape(1),
+                ((u[-1] + p + rho * (speed - v) * contact) * change).reshape(1),
+            )
+        )
+        return flux + speed * increment, entropy * ratio * contact, ratio
 
     lf, ls, lr = star(ul, fl, pl, vl, rl, sl, -alpha)
     rf, rs, rrstar = star(ur, fr, pr, vr, rr, sr, alpha)

@@ -156,7 +156,16 @@ class PRLateralNozzle:
 
 
 def join_pr_transport_graphs(
-    graphs, *, links=(), nozzles=(), heat_links=(), pumps=(), compressors=()
+    graphs,
+    *,
+    links=(),
+    nozzles=(),
+    heat_links=(),
+    pumps=(),
+    compressors=(),
+    pump_connections=(),
+    restrictions=(),
+    drives=(),
 ):
     """Flatten compatible physical blocks into one Newton and one checkpoint.
 
@@ -174,6 +183,9 @@ def join_pr_transport_graphs(
         "heat_links",
         "pumps",
         "compressors",
+        "pump_connections",
+        "restrictions",
+        "drives",
         "pipe_paths",
     }
     first = graphs[0]
@@ -197,6 +209,9 @@ def join_pr_transport_graphs(
         heat_links=[*(c for g in graphs for c in g.heat_links), *heat_links],
         pumps=[*(p for g in graphs for p in g.pumps), *pumps],
         compressors=[*(p for g in graphs for p in g.compressors), *compressors],
+        pump_connections=[*(p for g in graphs for p in g.pump_connections), *pump_connections],
+        drives=[*(p for g in graphs for p in g.drives), *drives],
+        restrictions=[*(p for g in graphs for p in g.restrictions), *restrictions],
         pipe_paths=paths,
         **options,
     )

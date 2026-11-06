@@ -140,6 +140,7 @@ def initialize_from_gravity_profile(model, column, state):
     column.inspect(state)
     interfaces = [column.elevation_m + h for h in state.interface_heights_m]
     specs = {}
+    shared_pressures = {}
     for node in model.nodes:
         low = node.elevation_m - abs(node.elevation_change_m) / 2
         high = node.elevation_m + abs(node.elevation_change_m) / 2
@@ -147,6 +148,18 @@ def initialize_from_gravity_profile(model, column, state):
             raise ValueError("Split pipe cells at initial phase interfaces")
         point = column.sample(state, node.elevation_m - column.elevation_m)
         specs[node.name] = {k: point[k] for k in ("pressure_pa", "temperature_k", "mole_fractions")}
+        if node.hydrostatic_reconstruction and node.elevation_change_m:
+            faces = []
+            for port, normal in (("left", -1), ("right", 1)):
+                height = round(node.elevation_m + normal * node.elevation_change_m / 2, 12)
+                sample = column.sample(
+                    state,
+                    height - column.elevation_m,
+                    side="below" if node.elevation_m < height else "above",
+                )
+                pressure = shared_pressures.setdefault(height, sample["pressure_pa"])
+                faces.append((port, pressure, sample["mole_fractions"]))
+            specs[node.name]["hydrostatic_face_guesses"] = faces
     return model.initialize(specs)
 
 

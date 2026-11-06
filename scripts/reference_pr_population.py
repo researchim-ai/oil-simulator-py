@@ -120,10 +120,13 @@ def audit_population_balances(nodes, old, new, data, rates, saved, dt):
             * number**2
             / node["volume_m3"]
         )
+        spec = node["droplet_population"]
+        powered = spec.get("model") == "powered_monomoment_breakup"
+        breakup = spec["breakup_rate_s"] * number if powered else 0.0
         if not p["present"]:
             close(number, 0.0, atol=1e-12, rtol=0.0)
         elif prior > 0 or net > 0:
-            close(number, prior + dt * (net - coag), atol=1e-6, rtol=1e-9)
+            close(number, prior + dt * (net - coag + breakup), atol=1e-6, rtol=1e-9)
         else:
             expected_number = p["drop_volume_m3"] / (
                 math.pi * node["drift_flux"]["droplet_diameter_m"] ** 3 / 6
@@ -133,5 +136,29 @@ def audit_population_balances(nodes, old, new, data, rates, saved, dt):
             close(record[key], p[key], atol=1e-15, rtol=2e-8)
         close(record["net_number_rate_s"], net, atol=1e-5, rtol=2e-7)
         close(record["coalescence_loss_rate_s"], coag, atol=1e-5, rtol=2e-8)
+        if powered:
+            close(record["breakup_gain_rate_s"], breakup, atol=1e-5, rtol=2e-8)
+            close(record["agitation_power_w"], spec["agitation_power_w"], atol=1e-12, rtol=0.0)
+            fraction = spec["breakup_rate_s"] * dt
+            required = (
+                p["surface_energy_j"] * (-math.expm1(math.log1p(-fraction) / 3)) / dt
+                if p["present"] and fraction < 1
+                else 0.0
+            )
+            if (
+                p["present"]
+                and (prior > 0 or net > 0)
+                and (fraction >= 1 or required > spec["agitation_power_w"] * (1 + 1e-9))
+            ):
+                raise ValueError("Breakup consumed more surface work than the mixer supplied")
+            close(record["breakup_surface_power_w"], required, atol=1e-10, rtol=2e-8)
         if abs(record["balance_residual"]) > 1e-8:
             raise ValueError("Population residual rejected")
+
+
+def agitation_powers(nodes):
+    return {
+        name: node["droplet_population"]["agitation_power_w"]
+        for name, node in nodes.items()
+        if (node.get("droplet_population") or {}).get("model") == "powered_monomoment_breakup"
+    }

@@ -81,14 +81,77 @@ class TorchCOO:
         return self.reduce(torch.where(self.diagonal_mask, self.values, 0.0))
 
 
-def gmres_device(operator, b, diagonal, restart=24, cycles=2):
+class BlockJacobi:
+    """Local physical-block inverses; topology on host, factors on device.
+
+    This is a preconditioner, never a replacement for the global sparse solve.
+    Singular local factors revert to diagonal scaling, and the owning Newton
+    still checks the full unpreconditioned residual.
+    """
+
+    def __init__(self, rows, cols, blocks, size, device):
+        owners, local, groups = {}, {}, {}
+        for block in blocks:
+            indices = list(block)
+            if not indices or len(indices) > 256:
+                raise ValueError("Physical preconditioner blocks require 1..256 unknowns")
+            group = groups.setdefault(len(indices), {"blocks": [], "entries": []})
+            slot = len(group["blocks"])
+            group["blocks"].append(indices)
+            for j, index in enumerate(indices):
+                if index in owners or not 0 <= index < size:
+                    raise ValueError("Preconditioner blocks must partition the unknowns")
+                owners[index] = (len(indices), slot)
+                local[index] = j
+        if len(owners) != size:
+            raise ValueError("Preconditioner blocks must cover all unknowns")
+        for entry, (r, c) in enumerate(zip(rows, cols)):
+            if owners[r] == owners[c]:
+                degree, slot = owners[r]
+                groups[degree]["entries"].append((slot, local[r], local[c], entry))
+        self.size, self.groups = size, []
+        for degree, group in sorted(groups.items()):
+            idx = torch.tensor(group["blocks"], dtype=torch.long, device=device)
+            entries = group["entries"]
+            coordinates = tuple(
+                torch.tensor([e[j] for e in entries], dtype=torch.long, device=device)
+                for j in range(4)
+            )
+            self.groups.append((degree, idx, coordinates))
+        self.factors = []
+
+    def update(self, values):
+        self.factors = []
+        for degree, idx, (slot, r, c, entry) in self.groups:
+            matrix = values.new_zeros((len(idx), degree, degree)).index_put(
+                (slot, r, c), values[entry]
+            )
+            scale = matrix.abs().amax(-1).clamp_min(1e-30)
+            inverse, info = torch.linalg.inv_ex(matrix / scale[..., None], check_errors=False)
+            inverse = inverse / scale[:, None, :]
+            diagonal = matrix.diagonal(dim1=-2, dim2=-1)
+            safe = torch.where(diagonal.abs() > 1e-12, diagonal, scale)
+            fallback = torch.diag_embed(safe.reciprocal())
+            valid = (info == 0) & torch.isfinite(inverse).all(dim=(-2, -1))
+            self.factors.append(torch.where(valid[:, None, None], inverse, fallback))
+
+    def __call__(self, rhs):
+        result = torch.zeros_like(rhs)
+        for (_degree, idx, _coordinates), inverse in zip(self.groups, self.factors):
+            solved = (inverse @ rhs[idx][..., None]).squeeze(-1)
+            result = result.index_copy(0, idx.flatten(), solved.flatten())
+        return result
+
+
+def gmres_device(operator, b, diagonal, restart=24, cycles=2, *, preconditioner=None):
     """Fixed-work left-preconditioned GMRES; no host scalar convergence reads."""
     n = b.numel()
     k = min(restart, n)
     safe = torch.where(diagonal.abs() > 1e-12, diagonal, torch.where(diagonal < 0, -1e-12, 1e-12))
+    precondition = (lambda v: v / safe) if preconditioner is None else preconditioner
     x = torch.zeros_like(b)
     for _ in range(cycles):
-        r = (b - operator(x)) / safe
+        r = precondition(b - operator(x))
         beta = torch.linalg.vector_norm(r)
         basis = [r / beta.clamp_min(1e-30)]
         H = torch.zeros((k + 1, k), dtype=b.dtype, device=b.device)
@@ -97,7 +160,7 @@ def gmres_device(operator, b, diagonal, restart=24, cycles=2):
         cs = []
         sn = []
         for j in range(k):
-            w = operator(basis[j]) / safe
+            w = precondition(operator(basis[j]))
             for _ in range(2):
                 for i in range(j + 1):
                     h = torch.dot(basis[i], w)
@@ -165,6 +228,7 @@ class TorchNewton:
         self.dense_limit = dense_limit
         self.coloring = None
         self.matrix = None
+        self.block_preconditioner = None
         self.host_convergence = False
         self.status_reads = 0
         self.line_scales = torch.tensor(
@@ -173,7 +237,18 @@ class TorchNewton:
             device=self.device,
         )
 
-    def solve(self, function, x, lower, upper, pattern=None, tolerance=2e-11):
+    def solve(
+        self,
+        function,
+        x,
+        lower,
+        upper,
+        pattern=None,
+        tolerance=2e-11,
+        *,
+        blocks=None,
+        maximum_update=None,
+    ):
         x = torch.maximum(lower, torch.minimum(upper, x)).clone()
         evaluations = 0
         for _ in range(self.maximum_iterations):
@@ -211,7 +286,20 @@ class TorchNewton:
                 preconditioner = torch.where(
                     diagonal.abs() > 1e-12, diagonal, self.matrix.row_scale()
                 )
-                step = gmres_device(self.matrix.mv, -r, preconditioner)
+                if blocks is not None:
+                    if self.block_preconditioner is None:
+                        self.block_preconditioner = BlockJacobi(
+                            *pattern, blocks, x.numel(), self.device
+                        )
+                    self.block_preconditioner.update(values)
+                step = gmres_device(
+                    self.matrix.mv,
+                    -r,
+                    preconditioner,
+                    preconditioner=self.block_preconditioner if blocks is not None else None,
+                )
+            if maximum_update is not None:
+                step = torch.maximum(-maximum_update, torch.minimum(maximum_update, step))
             best = x
             best_norm = torch.dot(r, r)
             scales = (1.0, 0.5, 0.25, 0.125, 0.0625, 0.03125)
@@ -230,6 +318,9 @@ class TorchNewton:
                 take = norms.index_select(0, index.reshape(1)).squeeze(0) < best_norm
                 candidate = candidates.index_select(0, index.reshape(1)).squeeze(0)
                 best = torch.where(take, candidate, best)
+                best_norm = torch.where(
+                    take, norms.index_select(0, index.reshape(1)).squeeze(0), best_norm
+                )
                 evaluations += len(scales)
             else:
                 for scale in scales:
@@ -240,6 +331,27 @@ class TorchNewton:
                     take = torch.isfinite(norm) & (norm < best_norm)
                     best = torch.where(take, candidate, best)
                     best_norm = torch.where(take, norm, best_norm)
+            if self.device.type == "cpu" or self.host_convergence:
+                # Six trial lengths can all overshoot a positive log-stock
+                # root. Refine only on stagnation, rather than spending the
+                # remaining Newton budget at an unchanged iterate.
+                if self.device.type == "cuda":
+                    self.status_reads += 1
+                if bool((best_norm >= torch.dot(r, r)).detach().cpu()):
+                    for power in range(6, 25):
+                        candidate = torch.maximum(
+                            lower, torch.minimum(upper, x + 2.0 ** (-power) * step)
+                        )
+                        value = function(candidate)
+                        evaluations += 1
+                        norm = torch.dot(value, value)
+                        take = torch.isfinite(norm) & (norm < best_norm)
+                        best = torch.where(take, candidate, best)
+                        best_norm = torch.where(take, norm, best_norm)
+                    if self.device.type == "cuda":
+                        self.status_reads += 1
+                    if bool((best_norm >= torch.dot(r, r)).detach().cpu()):
+                        break
             x = torch.where((r.abs().max() <= tolerance), x, best)
         residual = function(x)
         evaluations += 1

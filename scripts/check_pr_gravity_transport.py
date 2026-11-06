@@ -26,10 +26,14 @@ from check_pr_momentum_vessels import port_flux
 from check_stratified_pr_flow import close, profile
 from check_stratified_pr_network import reference_darcy
 from reference_hllc_local import wave_flux
+from reference_oil_water_drift import wall_viscosity
 from reference_pr_compressors import audit_compressors
+from reference_pr_drives import audit_drives, initial_rotors, machine_model, rotor_energy
 from reference_pr_hydrostatic import attach_faces, gravity_force
-from reference_pr_population import audit_population_balances, number_flux
+from reference_pr_population import agitation_powers, audit_population_balances, number_flux
+from reference_pr_pump_connections import audit_pump_connections
 from reference_pr_pumps import audit_pumps
+from reference_pr_restrictions import audit_restrictions
 
 from surface.pr_gravity_transport import PRGravityTransportNetwork
 
@@ -70,6 +74,11 @@ def audit(config, report):
     gravity = tm["gravity_m_s2"]
     datum = tm["reference_elevation_m"]
     old = report["initial"]
+    if set(config["initial"]) == {"state"}:
+        if config["initial"]["state"] != old:
+            raise ValueError("Requested restart checkpoint differs")
+    else:
+        initial_rotors(tm, old["transport"])
     first = old
     checked = 0
     heat_total = 0.0
@@ -99,7 +108,9 @@ def audit(config, report):
                 np.zeros(nc),
             )
             n += sum((np.array(v["component_moles"]) for v in s["columns"].values()), np.zeros(nc))
-            e = sum(v["total_energy_j"] for v in s["transport"]["nodes"].values())
+            e = sum(v["total_energy_j"] for v in s["transport"]["nodes"].values()) + rotor_energy(
+                s["transport"], tm
+            )
             e += sum(
                 v["total_energy_j"] - np.dot(v["component_moles"], mw) * gravity * datum
                 for v in s["columns"].values()
@@ -159,8 +170,14 @@ def audit(config, report):
                 + model.get("heat_links", [])
             )
         }
-        commands.update({p["card"]["name"]: p["card"]["open"] for p in tm.get("pumps", [])})
+        commands.update(
+            {
+                p["card"]["name"]: p["card"]["open"]
+                for p in [*tm.get("pumps", []), *tm.get("pump_connections", [])]
+            }
+        )
         commands.update({unit["name"]: unit["open"] for unit in tm.get("compressors", [])})
+        commands.update({u["name"]: u["open"] for u in tm.get("restrictions", [])})
         commands.update(command.get("openings", {}))
         if interval["openings"] != commands or not interval["steps"]:
             raise ValueError("Isolation command differs")
@@ -449,17 +466,59 @@ def audit(config, report):
                         net[name][-1] += rate
                     else:
                         cole[name] += rate
+            for name, rate in audit_restrictions(
+                tm,
+                data,
+                commands,
+                command.get("restriction_openings", {}),
+                step["transport"].get("restrictions", {}),
+                fluid,
+            ).items():
+                net[name] += rate
+            live_model = machine_model(tm, old["transport"], new["transport"])
             pump_forces, pump_powers = audit_pumps(
-                tm, data, commands, step["transport"].get("pumps", {})
+                live_model, data, commands, step["transport"].get("pumps", {})
             )
             for name, power in pump_powers.items():
                 net[name][-1] += power
             compressor_net, compressor_power = audit_compressors(
-                tm, data, commands, step["transport"].get("compressors", {}), fluid
+                live_model, data, commands, step["transport"].get("compressors", {}), fluid
             )
             for name, rate in compressor_net.items():
                 net[name] += rate
-            work = dt * (sum(pump_powers.values()) + compressor_power)
+            connection_net, connection_powers = audit_pump_connections(
+                live_model, data, commands, step["transport"].get("pump_connections", {}), fluid
+            )
+            for name, rate in connection_net.items():
+                net[name] += rate
+            work = dt * (
+                sum(pump_powers.values()) + compressor_power + sum(connection_powers.values())
+            )
+            drive_work_correction, drive_heat, drive_entropy, drive_heat_sources = audit_drives(
+                tm,
+                old["transport"],
+                new["transport"],
+                commands,
+                command.get("drive_torque_nm", {}),
+                dt,
+                step["transport"].get("drives", {}),
+                pump_powers,
+                {
+                    **step["transport"].get("compressors", {}),
+                    **step["transport"].get("pump_connections", {}),
+                },
+            )
+            mixing = agitation_powers(nodes)
+            for name, power in mixing.items():
+                net[name][-1] += power
+            work += dt * sum(mixing.values())
+            if step["transport"].get("agitation_work_j", {}) != {
+                name: dt * p for name, p in mixing.items()
+            }:
+                raise ValueError("Mechanical agitation work differs")
+            work += drive_work_correction
+            for name, rate in drive_heat_sources.items():
+                net[name][-1] += rate
             close(step["transport"].get("external_work_j", 0.0), work, atol=1e-10, rtol=2e-7)
             heat = 0.0
             for name, node in nodes.items():
@@ -483,14 +542,18 @@ def audit(config, report):
                                 )
                             )
                     force = gravity_force(node, d, tm, face_area)
-                    if node["dynamic_viscosity_pa_s"]:
-                        force -= node["volume_m3"] * reference_darcy(
-                            d["u"],
-                            d["rho"],
-                            1.0,
-                            node["diameter_m"],
-                            node["dynamic_viscosity_pa_s"],
-                            node["roughness_m"],
+                    viscosity = wall_viscosity(node, d)
+                    if viscosity:
+                        force -= (
+                            node["volume_m3"]
+                            * reference_darcy(
+                                d["u"],
+                                d["rho"],
+                                1.0,
+                                node["diameter_m"],
+                                viscosity,
+                                node["roughness_m"],
+                            )[0]
                         )
                     force -= 0.5 * area * losses[name] * d["rho"] * d["u"] * abs(d["u"])
                     force += pump_forces.get(name, 0.0)
@@ -556,6 +619,8 @@ def audit(config, report):
                 re = b["total_energy_j"] - a["total_energy_j"] - dt * (cole[name] + qh + external)
                 close(re, 0.0, atol=1e-5, rtol=0.0)
                 maximum = max(maximum, abs(re))
+            heat -= drive_heat
+            production += drive_entropy
             close(step["total_heat_j"], heat, atol=1e-6, rtol=2e-7)
             close(step.get("total_work_j", 0.0), work, atol=1e-10, rtol=2e-7)
             if production < -1e-6 - 1e-9 * max(1.0, abs(previous_entropy)):

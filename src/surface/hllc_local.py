@@ -42,12 +42,18 @@ def hllc_local(left, right, sound_left, sound_right, global_bound, *, estimate="
     def star(u, flux, p, v, rho, entropy, speed):
         denominator = safe(speed - contact)
         ratio = (speed - v) / denominator
-        energy = ((speed - v) * u[..., -1] - p * v + pressure * contact) / denominator
-        us = torch.cat(
-            (u[..., :-2] * ratio[..., None], (rho * ratio * contact)[..., None], energy[..., None]),
+        # Rankine--Hugoniot increment in factored form. Subtracting U* - U
+        # loses tiny species fluxes when the contact is almost stationary.
+        change = (contact - v) / denominator
+        increment = torch.cat(
+            (
+                u[..., :-2] * change[..., None],
+                (rho * speed * change)[..., None],
+                ((u[..., -1] + p + rho * (speed - v) * contact) * change)[..., None],
+            ),
             -1,
         )
-        return flux + speed[..., None] * (us - u), entropy * ratio * contact, ratio
+        return flux + speed[..., None] * increment, entropy * ratio * contact, ratio
 
     lf, ls, lr = star(ul, fl, pl, vl, rl, sl, speed_l)
     rf, rs, rrstar = star(ur, fr, pr, vr, rr, sr, speed_r)

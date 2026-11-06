@@ -24,18 +24,22 @@ def run(config, *, device="cpu"):
         raise ValueError("Expected model, initial and nonempty schedule")
     model = PRControlledSurface.from_dict(config["model"], device=device)
     initial = config["initial"]
-    if set(initial) != {"plant", "positions", "integrals"}:
-        raise ValueError("Expected plant, positions and integrals")
-    spec = initial["plant"]
-    if set(spec) != {"transport", "columns", "wall_temperatures"}:
-        raise ValueError("Expected transport, columns and wall_temperatures")
-    ts = model.plant.transport.initialize(spec["transport"])
-    columns = {
-        n: StratifiedPRState.from_dict(model.plant.columns[n].initialize(**v)["state"])
-        for n, v in spec["columns"].items()
-    }
-    physical = model.plant.initialize(ts, columns, spec["wall_temperatures"])
-    state = model.initialize(physical, initial["positions"], initial["integrals"])
+    if set(initial) == {"state"}:
+        state = PRControlledSurfaceState.from_dict(initial["state"])
+        model.inspect(state)
+    else:
+        if set(initial) != {"plant", "positions", "integrals"}:
+            raise ValueError("Expected plant, positions and integrals")
+        spec = initial["plant"]
+        if set(spec) != {"transport", "columns", "wall_temperatures"}:
+            raise ValueError("Expected transport, columns and wall_temperatures")
+        ts = model.plant.transport.initialize(spec["transport"])
+        columns = {
+            n: StratifiedPRState.from_dict(model.plant.columns[n].initialize(**v)["state"])
+            for n, v in spec["columns"].items()
+        }
+        physical = model.plant.initialize(ts, columns, spec["wall_temperatures"])
+        state = model.initialize(physical, initial["positions"], initial["integrals"])
     first = state
     intervals = []
     for command in config["schedule"]:
@@ -47,6 +51,8 @@ def run(config, *, device="cpu"):
                 "heat_w",
                 "utility_temperature_k",
                 "loss_coefficients",
+                "drive_torque_nm",
+                "restriction_openings",
                 "targets",
                 "actuator_modes",
             }

@@ -282,8 +282,10 @@ def test_particle_capture_and_gravitational_column_share_one_conservative_step()
         {"emulsion": {**initial, "pressure_pa": 1010000.0}, "collector": initial}
     )
     state = model.initialize(ts, {"separator": cs})
-    end, record = model._step(state, 1e-7, model.default_openings, {}, {}, {})
-    assert record["links"]["capture"]["droplet_number_fluxes"]["oil_drops"] > 0
+    end, record = model._step(
+        state, 1e-7, {**transport.default_openings, "outlet": True}, {}, {}, {}
+    )
+    assert record["transport"]["links"]["capture"]["droplet_number_fluxes"]["oil_drops"] > 0
     assert (
         dict(end.transport.nodes)["emulsion"].droplet_number
         < dict(ts.nodes)["emulsion"].droplet_number
