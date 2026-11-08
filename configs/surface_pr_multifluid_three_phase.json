@@ -1,0 +1,346 @@
+{
+  "model": {
+    "model": "pr_multifluid_pipe_v1",
+    "sources": [
+      {
+        "model": "pr_interphase_relaxation_v1",
+        "fluid": {
+          "components": [
+            {
+              "name": "methane",
+              "critical_temperature_k": 190.564,
+              "critical_pressure_pa": 4599200,
+              "acentric_factor": 0.01142,
+              "molar_mass_kg_mol": 0.0160428,
+              "ideal_cp_j_mol_k": 35.7,
+              "min_temperature_k": 150,
+              "max_temperature_k": 700,
+              "reference_temperature_k": 350,
+              "reference_pressure_pa": 100000.0
+            },
+            {
+              "name": "hexane",
+              "critical_temperature_k": 507.6,
+              "critical_pressure_pa": 3025000,
+              "acentric_factor": 0.301,
+              "molar_mass_kg_mol": 0.086178,
+              "ideal_cp_j_mol_k": 150,
+              "min_temperature_k": 260,
+              "max_temperature_k": 700,
+              "reference_temperature_k": 350,
+              "reference_pressure_pa": 100000.0
+            },
+            {
+              "name": "water",
+              "critical_temperature_k": 647.096,
+              "critical_pressure_pa": 22064000,
+              "acentric_factor": 0.344,
+              "molar_mass_kg_mol": 0.01801528,
+              "ideal_cp_j_mol_k": 33.6,
+              "min_temperature_k": 275.0,
+              "max_temperature_k": 700,
+              "reference_temperature_k": 350,
+              "reference_pressure_pa": 100000.0
+            }
+          ],
+          "binary_interactions": [
+            [
+              0.0,
+              0.03,
+              0.48
+            ],
+            [
+              0.03,
+              0.0,
+              0.5
+            ],
+            [
+              0.48,
+              0.5,
+              0.0
+            ]
+          ],
+          "min_pressure_pa": 100.0,
+          "max_pressure_pa": 1000000000.0,
+          "max_phases": 3
+        },
+        "phase_roots": [
+          "vapor",
+          "liquid",
+          "liquid"
+        ],
+        "pair_drag_kg_s": [
+          [
+            0.0,
+            0.05,
+            0.05
+          ],
+          [
+            0.05,
+            0.0,
+            0.05
+          ],
+          [
+            0.05,
+            0.05,
+            0.0
+          ]
+        ],
+        "wall_drag_kg_s": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "pressure_conductance_m3_pa_s": [
+          [
+            0.0,
+            1e-10,
+            1e-10
+          ],
+          [
+            1e-10,
+            0.0,
+            1e-10
+          ],
+          [
+            1e-10,
+            1e-10,
+            0.0
+          ]
+        ],
+        "heat_conductance_w_k": [
+          [
+            0.0,
+            0.1,
+            0.1
+          ],
+          [
+            0.1,
+            0.0,
+            0.1
+          ],
+          [
+            0.1,
+            0.1,
+            0.0
+          ]
+        ]
+      },
+      {
+        "model": "pr_interphase_relaxation_v1",
+        "fluid": {
+          "components": [
+            {
+              "name": "methane",
+              "critical_temperature_k": 190.564,
+              "critical_pressure_pa": 4599200,
+              "acentric_factor": 0.01142,
+              "molar_mass_kg_mol": 0.0160428,
+              "ideal_cp_j_mol_k": 35.7,
+              "min_temperature_k": 150,
+              "max_temperature_k": 700,
+              "reference_temperature_k": 350,
+              "reference_pressure_pa": 100000.0
+            },
+            {
+              "name": "hexane",
+              "critical_temperature_k": 507.6,
+              "critical_pressure_pa": 3025000,
+              "acentric_factor": 0.301,
+              "molar_mass_kg_mol": 0.086178,
+              "ideal_cp_j_mol_k": 150,
+              "min_temperature_k": 260,
+              "max_temperature_k": 700,
+              "reference_temperature_k": 350,
+              "reference_pressure_pa": 100000.0
+            },
+            {
+              "name": "water",
+              "critical_temperature_k": 647.096,
+              "critical_pressure_pa": 22064000,
+              "acentric_factor": 0.344,
+              "molar_mass_kg_mol": 0.01801528,
+              "ideal_cp_j_mol_k": 33.6,
+              "min_temperature_k": 275.0,
+              "max_temperature_k": 700,
+              "reference_temperature_k": 350,
+              "reference_pressure_pa": 100000.0
+            }
+          ],
+          "binary_interactions": [
+            [
+              0.0,
+              0.03,
+              0.48
+            ],
+            [
+              0.03,
+              0.0,
+              0.5
+            ],
+            [
+              0.48,
+              0.5,
+              0.0
+            ]
+          ],
+          "min_pressure_pa": 100.0,
+          "max_pressure_pa": 1000000000.0,
+          "max_phases": 3
+        },
+        "phase_roots": [
+          "vapor",
+          "liquid",
+          "liquid"
+        ],
+        "pair_drag_kg_s": [
+          [
+            0.0,
+            0.05,
+            0.05
+          ],
+          [
+            0.05,
+            0.0,
+            0.05
+          ],
+          [
+            0.05,
+            0.05,
+            0.0
+          ]
+        ],
+        "wall_drag_kg_s": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "pressure_conductance_m3_pa_s": [
+          [
+            0.0,
+            1e-10,
+            1e-10
+          ],
+          [
+            1e-10,
+            0.0,
+            1e-10
+          ],
+          [
+            1e-10,
+            1e-10,
+            0.0
+          ]
+        ],
+        "heat_conductance_w_k": [
+          [
+            0.0,
+            0.1,
+            0.1
+          ],
+          [
+            0.1,
+            0.0,
+            0.1
+          ],
+          [
+            0.1,
+            0.1,
+            0.0
+          ]
+        ]
+      }
+    ],
+    "lengths_m": [
+      0.2,
+      0.2
+    ],
+    "diameter_m": 0.1,
+    "boundary_mode": "periodic",
+    "wave_speed_bound_m_s": 4000.0,
+    "minimum_phase_fraction": 1e-06,
+    "dense_limit": 128,
+    "maximum_unknowns": 100000
+  },
+  "initial": {
+    "cells": [
+      [
+        {
+          "pressure_pa": 1005000.0,
+          "temperature_k": 350.0,
+          "mole_fractions": [
+            1.0,
+            0.0,
+            0.0
+          ],
+          "volume_m3": 0.0005497787143782138,
+          "velocity_m_s": 0.02
+        },
+        {
+          "pressure_pa": 1007000.0,
+          "temperature_k": 351.0,
+          "mole_fractions": [
+            0.0,
+            1.0,
+            0.0
+          ],
+          "volume_m3": 0.000471238898038469,
+          "velocity_m_s": -0.02
+        },
+        {
+          "pressure_pa": 1009000.0,
+          "temperature_k": 352.0,
+          "mole_fractions": [
+            0.0,
+            0.0,
+            1.0
+          ],
+          "volume_m3": 0.0005497787143782138,
+          "velocity_m_s": 0.02
+        }
+      ],
+      [
+        {
+          "pressure_pa": 995000.0,
+          "temperature_k": 350.0,
+          "mole_fractions": [
+            1.0,
+            0.0,
+            0.0
+          ],
+          "volume_m3": 0.0007853981633974484,
+          "velocity_m_s": -0.01
+        },
+        {
+          "pressure_pa": 997000.0,
+          "temperature_k": 351.0,
+          "mole_fractions": [
+            0.0,
+            1.0,
+            0.0
+          ],
+          "volume_m3": 0.000471238898038469,
+          "velocity_m_s": 0.01
+        },
+        {
+          "pressure_pa": 999000.0,
+          "temperature_k": 352.0,
+          "mole_fractions": [
+            0.0,
+            0.0,
+            1.0
+          ],
+          "volume_m3": 0.0003141592653589793,
+          "velocity_m_s": -0.01
+        }
+      ]
+    ]
+  },
+  "schedule": [
+    {
+      "duration_s": 1e-07,
+      "relative_tolerance": 0.01,
+      "maximum_step_s": 1e-06
+    }
+  ]
+}

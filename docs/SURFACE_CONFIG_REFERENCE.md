@@ -1223,3 +1223,93 @@ JSON/restart API. [Формулы, проверка однозначности �
 - `surface_pr_layered_plant.json`: [единый Ньютон профильной трубы и PR-графа](PR_LAYERED_PLANT.md).
 - `surface_pr_profile_graph.json`: [несколько профильных ветвей, общие узлы и изоляция](PR_PROFILE_GRAPH.md).
 - `surface_pr_controlled_profile_graph.json`: [PI, защиты и сохраняемая изоляция профильного графа](PR_PROFILE_CONTROLS.md).
+- `surface_pr_interphase_relaxation.json`: [локальная фазовая инерция, работа давления и тепло](PR_INTERPHASE_RELAXATION.md).
+- `surface_pr_interphase_three_phase.json`: трёхфазный локальный обмен с неподвижной стенкой.
+- `surface_pr_interphase_stiff.json`: жёсткий предел межфазного сопротивления.
+- `surface_pr_multifluid_counterflow.json`: [пространственные фазовые потоки и локальный обмен](PR_MULTIFLUID_PIPE.md).
+- `surface_pr_multifluid_three_phase.json`: три фазовых запаса с раздельными P/T/скоростями.
+- `surface_pr_multifluid_walls.json`: отражающие торцы и импульс опор.
+- `surface_pr_multifluid_network.json`: [конечные опорные узлы и разветвлённая неравновесная сеть](PR_MULTIFLUID_PIPE.md#конечные-узлы-и-разветвления); векторные реакции опор, общий транспортный Ньютон и restart.
+
+- `surface_pr_multifluid_gravity.json`: наклонная двухфазная сеть v2, отметки портов, вес фаз и потенциальная энергия.
+- `surface_pr_multifluid_gravity_three_phase.json`: тот же баланс для трёх фаз; сохраняются все фазы, фазовых переходов нет.
+
+- `surface_pr_multifluid_hydrostatic.json`: v3, проверенный двухфазный изотермический гидростатический профиль без численного дрейфа.
+- `surface_pr_multifluid_hydrostatic_three_phase.json`: тот же режим для трёх фаз; требует стационарных локальных источников.
+- `surface_pr_multifluid_pump.json`: v4, фазовый жидкостный насос с явной знаковой картой, рабочей плотностью и внешней работой в балансе энергии.
+
+### Пространственная HEM-труба и IMEX-сопряжение оборудования
+
+`pr_equilibrium_euler_pipe_v1`: `lengths_m`, `diameter_m`, `fluid`,
+`boundary_mode` (`periodic`/`walls`), акустическая граница и CFL задаются
+нормализованным `PREquilibriumEulerPipe.to_dict()`. Начальные данные —
+`initial.cells` с компонентами, полной энергией, импульсом и начальными
+приближениями P/T либо `initial.state` с полным checkpoint. Необходимые
+единицы и точные ключи приведены в четырёх `surface_pr_equilibrium_euler_*.json`.
+
+`pr_equilibrium_euler_plant_v1`: `transport` — полное описание существующей
+PR-сети оборудования; `pipes` — именованный реестр с полями `pipe`,
+`boundary_nodes` (левый и правый конечные сосуды либо `null` для закрытого
+конца), `direction` (горизонтальный единичный вектор). Начало задаётся
+`initial.state`, содержащим состояния оборудования и всех труб.
+
+Команды интервала: `duration_s`, `maximum_step_s`, `minimum_step_s`,
+`maximum_attempts`; физические команды — `openings`, `pipe_heat_w`,
+`pipe_heat_temperatures_k`, `graph_heat_w`, `graph_utility_temperature_k`,
+`drive_torque_nm`, `restriction_openings`. Тепло трубы задаётся по ячейкам,
+температуры резервуаров обязательны для ненулевой мощности. Примеры связки
+сосудов, насоса с ротором и компрессора —
+`surface_pr_equilibrium_euler_plant_{cycle,pump,compressor}.json`.
+
+Запуск и независимая проверка используют общие
+`scripts/run_pr_multifluid_pipe.py` и `scripts/check_pr_multifluid_pipe.py`.
+Модель выполняется на Torch CPU/CUDA, но текущий последовательный UV-контроль
+не обеспечивает полностью асинхронную работу GPU.
+
+### Сборка общей неявной PR-сети
+
+Python API: `build_pr_surface_network(fluid, vessels, pipes, ...)`.
+`pipes` принимает `PREquilibriumPipe`, `PREquilibriumNozzle` и `PRTerrainPipe`.
+Последний поддерживает `drift_flux` как объект замыкания либо его словарь.
+
+`columns` — именованные `StratifiedPRColumn`; `column_terminals` —
+`PRColumnTerminal(name, column, height_m)`. Имена терминалов допустимы в
+`source`/`target` труб вместо конечного vessel-узла. Терминалы не входят
+в запасы сети. `column_walls`, `column_heat_links` задают физические стенки
+и тепловые связи. `resolved_separators` и `resolved_nozzles` включают
+осевые сепараторы и боковые патрубки. Обычные `links`, `heat_links` и
+оборудование транспортной сети сохраняют свои существующие параметры.
+
+`initialize_pr_surface_network(model, transport_initial, column_initial, ...)`
+инициализирует общую сеть: трубы можно задавать сгруппированными полями,
+колонны — аргументами PTz либо готовыми `StratifiedPRState`.
+Нормализованная модель и checkpoint используют `pr_gravity_transport_v1`;
+нового несовместимого формата расчётных результатов не добавлено.
+
+Межблочные `links`, `heat_links` и оборудование добавляются после сборки
+всех физических узлов, чтобы ссылки на ячейки осевого сепаратора не
+отклонялись раньше времени. Допустима сеть из одного `PRResolvedSeparator`
+без вспомогательного vessel-узла. Ограничения оборудования на реальные
+пленумы, свободные торцы и однородные насосные ячейки при этом сохраняются.
+
+### Термохимический источник и труба с активными фазами
+
+`pr_thermochemical_relaxation_v1`: `fluid`, `relaxation_time_s` (>=0),
+`maximum_active_phases` (1..6). Полный checkpoint использует
+`PRPhaseEquilibriumState` с идентификатором этого источника; он допускает
+разные P/T/u присутствующих фаз. CLI принимает `initial.state` либо
+`initial.phases` и `initial.phase_roots` с каноническими фазовыми запасами.
+
+`pr_active_multifluid_pipe_v1`: `fluid`, `phase_slots`, `lengths_m`,
+`diameter_m`, `boundary_mode`, `wave_speed_bound_m_s`, `maximum_courant`
+(<=0.25), `thermochemical_relaxation_time_s` (`null` отключает источник).
+Слот задаёт `name`, `root` (`liquid`/`vapor`), необязательные
+`component_marker` и `minimum_marker_fraction`. В `initial.cells` либо
+полном `initial.state` перечисляются только присутствующие фазовые запасы.
+Пустые фазы не заполняются нулевыми объектами или искусственным остатком.
+
+Обе модели принимают команды `duration_s`, `maximum_step_s`,
+`minimum_step_s`, `maximum_attempts`. Данные запаса содержат компоненты,
+объём, P/T, полный импульс и полную энергию фазы. Компоненты — моль,
+объём — м³, давление — Па, температура — K, импульс — кг·м/с, энергия — Дж.
+Постоянная времени — параметр замыкания, а не результат калибровки.

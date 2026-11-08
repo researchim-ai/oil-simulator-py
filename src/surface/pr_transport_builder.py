@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import math
 from dataclasses import asdict, dataclass
+from types import SimpleNamespace
 
 from .dispersed_liquid_drift import DispersedOilWaterClosure
 from .drift_flux_closure import (
@@ -132,12 +133,22 @@ class PREquilibriumNozzle:
         return math.fsum(self.cell_lengths_m)
 
 
-def build_equilibrium_transport(fluid, vessels, pipes, *, links=(), **solver):
+def build_equilibrium_transport(
+    fluid, vessels, pipes, *, links=(), boundary_elevations_m=None, **solver
+):
     vessels = tuple(vessels)
     pipes = tuple(pipes)
     by_name = {n.name: n for n in vessels}
     if len(by_name) != len(vessels) or any(n.kind != "vessel" for n in vessels):
         raise ValueError("Unique finite vessels required")
+    boundaries = dict(boundary_elevations_m or {})
+    if set(boundaries) & set(by_name):
+        raise ValueError("Geometric boundary names collide with finite vessels")
+    for name, elevation in boundaries.items():
+        _name(name)
+        by_name[name] = SimpleNamespace(
+            name=name, elevation_m=_number(elevation, "boundary elevation")
+        )
     if len({p.name for p in pipes}) != len(pipes):
         raise ValueError("Unique pipe names required")
     nodes = list(vessels)
@@ -217,6 +228,11 @@ def build_equilibrium_transport(fluid, vessels, pipes, *, links=(), **solver):
             position += length
         chain = [pipe.source, *names, pipe.target]
         for i, (source, target) in enumerate(zip(chain[:-1], chain[1:])):
+            # A geometric terminal supplies only an elevation to the compiler.
+            # Its real finite column is coupled to this free pipe face later;
+            # no proxy volume, inventory or pressure boundary is introduced.
+            if source in boundaries or target in boundaries:
+                continue
             connections.append(
                 PREquilibriumLink(
                     f"{pipe.name}__face_{i:04d}",
@@ -228,6 +244,8 @@ def build_equilibrium_transport(fluid, vessels, pipes, *, links=(), **solver):
                 )
             )
         paths[pipe.name] = tuple(names)
+    if set(boundaries) & {n.name for n in nodes}:
+        raise ValueError("Geometric terminal collides with a generated finite pipe cell")
     return PREquilibriumTransportNetwork(fluid, nodes, connections, pipe_paths=paths, **solver)
 
 

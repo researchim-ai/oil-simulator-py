@@ -1,0 +1,164 @@
+{
+  "model": {
+    "model": "pr_equilibrium_euler_pipe_v1",
+    "fluid": {
+      "components": [
+        {
+          "name": "Methane",
+          "critical_temperature_k": 190.564,
+          "critical_pressure_pa": 4599200.0,
+          "acentric_factor": 0.01142,
+          "molar_mass_kg_mol": 0.0160428,
+          "ideal_cp_j_mol_k": 35.7,
+          "min_temperature_k": 160.0,
+          "max_temperature_k": 500.0,
+          "reference_temperature_k": 298.15,
+          "reference_pressure_pa": 100000.0
+        },
+        {
+          "name": "Ethane",
+          "critical_temperature_k": 305.322,
+          "critical_pressure_pa": 4872200.0,
+          "acentric_factor": 0.099,
+          "molar_mass_kg_mol": 0.03006904,
+          "ideal_cp_j_mol_k": 52.5,
+          "min_temperature_k": 160.0,
+          "max_temperature_k": 500.0,
+          "reference_temperature_k": 298.15,
+          "reference_pressure_pa": 100000.0
+        }
+      ],
+      "binary_interactions": [
+        [
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0
+        ]
+      ],
+      "min_pressure_pa": 100.0,
+      "max_pressure_pa": 1000000000.0,
+      "max_phases": 3
+    },
+    "lengths_m": [
+      0.008090211283520214,
+      0.008090211283520214,
+      0.008090211283520214
+    ],
+    "diameter_m": 0.1,
+    "boundary_mode": "periodic",
+    "wave_speed_bound_m_s": 4000.0,
+    "maximum_courant": 0.4
+  },
+  "initial": {
+    "state": {
+      "cells": [
+        {
+          "phases": [
+            {
+              "component_moles": [
+                0.0,
+                1.0
+              ],
+              "volume_m3": 6.354037083574089e-05,
+              "pressure_pa": 2000000.0,
+              "temperature_k": 250.0,
+              "momentum_kg_m_s": 0.0,
+              "total_energy_j": -15069.351797526248
+            }
+          ],
+          "phase_roots": [
+            "liquid"
+          ],
+          "model_id": "b5d38565dc04a5d7c33ecf555a504cb3f7c8f6c10c0b6a6f9644c76f0fb8a4a1",
+          "time_s": 0.0
+        },
+        {
+          "phases": [
+            {
+              "component_moles": [
+                0.0,
+                1.0
+              ],
+              "volume_m3": 6.354037083574089e-05,
+              "pressure_pa": 2000000.0,
+              "temperature_k": 250.0,
+              "momentum_kg_m_s": 0.0,
+              "total_energy_j": -15069.351797526248
+            }
+          ],
+          "phase_roots": [
+            "liquid"
+          ],
+          "model_id": "b5d38565dc04a5d7c33ecf555a504cb3f7c8f6c10c0b6a6f9644c76f0fb8a4a1",
+          "time_s": 0.0
+        },
+        {
+          "phases": [
+            {
+              "component_moles": [
+                0.0,
+                1.0
+              ],
+              "volume_m3": 6.354037083574089e-05,
+              "pressure_pa": 2000000.0,
+              "temperature_k": 250.0,
+              "momentum_kg_m_s": 0.0,
+              "total_energy_j": -15069.351797526248
+            }
+          ],
+          "phase_roots": [
+            "liquid"
+          ],
+          "model_id": "b5d38565dc04a5d7c33ecf555a504cb3f7c8f6c10c0b6a6f9644c76f0fb8a4a1",
+          "time_s": 0.0
+        }
+      ],
+      "bulk_stocks": [
+        [
+          0.0,
+          1.0,
+          0.0,
+          -15069.351797526248
+        ],
+        [
+          0.0,
+          1.0,
+          0.0,
+          -15069.351797526248
+        ],
+        [
+          0.0,
+          1.0,
+          0.0,
+          -15069.351797526248
+        ]
+      ],
+      "time_s": 0.0,
+      "next_step_s": 8.090211283520215e-07,
+      "model_id": "42df7d6b90cb6a8d8b9159dc07f4d43c5951caddd2c6f02cd911ad1556a1086f"
+    }
+  },
+  "schedule": [
+    {
+      "duration_s": 4.0451056417601074e-07,
+      "maximum_step_s": 4.0451056417601074e-07,
+      "heat_rates_w": [
+        -10819613430.606228,
+        0.0,
+        0.0
+      ],
+      "heat_temperatures_k": [
+        100.0,
+        null,
+        null
+      ]
+    },
+    {
+      "duration_s": 8.090211283520215e-07,
+      "maximum_step_s": 4.0451056417601074e-07
+    }
+  ]
+}

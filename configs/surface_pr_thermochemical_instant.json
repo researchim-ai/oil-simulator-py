@@ -1,0 +1,90 @@
+{
+  "model": {
+    "model": "pr_thermochemical_relaxation_v1",
+    "fluid": {
+      "components": [
+        {
+          "name": "Methane",
+          "critical_temperature_k": 190.564,
+          "critical_pressure_pa": 4599200.0,
+          "acentric_factor": 0.01142,
+          "molar_mass_kg_mol": 0.0160428,
+          "ideal_cp_j_mol_k": 35.7,
+          "min_temperature_k": 160.0,
+          "max_temperature_k": 500.0,
+          "reference_temperature_k": 298.15,
+          "reference_pressure_pa": 100000.0
+        },
+        {
+          "name": "Ethane",
+          "critical_temperature_k": 305.322,
+          "critical_pressure_pa": 4872200.0,
+          "acentric_factor": 0.099,
+          "molar_mass_kg_mol": 0.03006904,
+          "ideal_cp_j_mol_k": 52.5,
+          "min_temperature_k": 160.0,
+          "max_temperature_k": 500.0,
+          "reference_temperature_k": 298.15,
+          "reference_pressure_pa": 100000.0
+        }
+      ],
+      "binary_interactions": [
+        [
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0
+        ]
+      ],
+      "min_pressure_pa": 100.0,
+      "max_pressure_pa": 1000000000.0,
+      "max_phases": 3
+    },
+    "relaxation_time_s": 0.0,
+    "maximum_active_phases": 6
+  },
+  "initial": {
+    "state": {
+      "phases": [
+        {
+          "component_moles": [
+            0.0,
+            1.0
+          ],
+          "volume_m3": 5.010270674524073e-05,
+          "pressure_pa": 2000000.0,
+          "temperature_k": 180.0,
+          "momentum_kg_m_s": 0.0,
+          "total_energy_j": -21152.286688368313
+        },
+        {
+          "component_moles": [
+            0.0,
+            1e-07
+          ],
+          "volume_m3": 1.79423477509993e-09,
+          "pressure_pa": 100000.0,
+          "temperature_k": 220.0,
+          "momentum_kg_m_s": 0.0,
+          "total_energy_j": -0.0005987399876991736
+        }
+      ],
+      "phase_roots": [
+        "liquid",
+        "vapor"
+      ],
+      "model_id": "98d04f79a7305e8180c314de4a4f29e17e4fbcd04831bd3b87eb4dd3e5f16bc8",
+      "time_s": 0.0
+    }
+  },
+  "schedule": [
+    {
+      "duration_s": 0.03
+    },
+    {
+      "duration_s": 0.03
+    }
+  ]
+}

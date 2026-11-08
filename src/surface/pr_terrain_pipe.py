@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import math
-from dataclasses import dataclass, replace
+from dataclasses import asdict, dataclass, replace
 
 import torch
 
@@ -24,6 +24,7 @@ class PRTerrainPipe:
     roughness_m: float = 0.0
     wall: VesselWall | None = None
     bend_loss_coefficients: tuple = ()
+    drift_flux: object | None = None
 
     def __post_init__(self):
         for key in ("name", "source", "target"):
@@ -61,6 +62,19 @@ class PRTerrainPipe:
             _number(value, "bend loss coefficient", nonnegative=True)
         if self.wall is not None and not isinstance(self.wall, VesselWall):
             raise TypeError("Expected whole-route VesselWall")
+        if self.drift_flux is not None:
+            # Use the same explicit, bounded constitutive laws as ordinary
+            # PR cells. Geometry is checked for every surveyed segment by
+            # the compiled transport network, never extrapolated here.
+            from .drift_flux_closure import drift_closure_from_dict
+
+            if isinstance(self.drift_flux, dict):
+                object.__setattr__(self, "drift_flux", drift_closure_from_dict(self.drift_flux))
+            if not hasattr(self.drift_flux, "velocities"):
+                raise TypeError("Expected a supported drift-flux closure")
+            reconstructed = drift_closure_from_dict(asdict(self.drift_flux))
+            if type(reconstructed) is not type(self.drift_flux):
+                raise TypeError("Terrain drift closure registry differs")
 
     @property
     def cells(self):
@@ -74,7 +88,6 @@ class PRTerrainPipe:
     target_height_m = None
     distribution_strength = 0.0
     buoyancy_relaxation_s = 0.0
-    drift_flux = None
 
     def cell_routes(self):
         rows = []

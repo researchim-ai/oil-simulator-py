@@ -1,0 +1,222 @@
+{
+  "model": {
+    "model": "pr_active_multifluid_pipe_v1",
+    "fluid": {
+      "components": [
+        {
+          "name": "methane",
+          "critical_temperature_k": 190.564,
+          "critical_pressure_pa": 4599200,
+          "acentric_factor": 0.01142,
+          "molar_mass_kg_mol": 0.0160428,
+          "ideal_cp_j_mol_k": 35.7,
+          "min_temperature_k": 150,
+          "max_temperature_k": 700,
+          "reference_temperature_k": 350,
+          "reference_pressure_pa": 100000.0
+        },
+        {
+          "name": "hexane",
+          "critical_temperature_k": 507.6,
+          "critical_pressure_pa": 3025000,
+          "acentric_factor": 0.301,
+          "molar_mass_kg_mol": 0.086178,
+          "ideal_cp_j_mol_k": 150,
+          "min_temperature_k": 260,
+          "max_temperature_k": 700,
+          "reference_temperature_k": 350,
+          "reference_pressure_pa": 100000.0
+        },
+        {
+          "name": "water",
+          "critical_temperature_k": 647.096,
+          "critical_pressure_pa": 22064000,
+          "acentric_factor": 0.344,
+          "molar_mass_kg_mol": 0.01801528,
+          "ideal_cp_j_mol_k": 33.6,
+          "min_temperature_k": 275.0,
+          "max_temperature_k": 700,
+          "reference_temperature_k": 350,
+          "reference_pressure_pa": 100000.0
+        }
+      ],
+      "binary_interactions": [
+        [
+          0.0,
+          0.03,
+          0.48
+        ],
+        [
+          0.03,
+          0.0,
+          0.5
+        ],
+        [
+          0.48,
+          0.5,
+          0.0
+        ]
+      ],
+      "min_pressure_pa": 100.0,
+      "max_pressure_pa": 1000000000.0,
+      "max_phases": 3
+    },
+    "phase_slots": [
+      {
+        "name": "gas",
+        "root": "vapor",
+        "component_marker": 0
+      },
+      {
+        "name": "oil",
+        "root": "liquid",
+        "component_marker": 1
+      },
+      {
+        "name": "water",
+        "root": "liquid",
+        "component_marker": 2
+      }
+    ],
+    "lengths_m": [
+      0.012732395447351627,
+      0.012732395447351627,
+      0.012732395447351627
+    ],
+    "diameter_m": 0.1,
+    "boundary_mode": "periodic",
+    "wave_speed_bound_m_s": 4000.0,
+    "maximum_courant": 0.2,
+    "thermochemical_relaxation_time_s": null
+  },
+  "initial": {
+    "state": {
+      "cells": [
+        {
+          "gas": {
+            "component_moles": [
+              0.005773022147049018,
+              0.001068915979299658,
+              0.00028335953665058563
+            ],
+            "volume_m3": 2e-05,
+            "pressure_pa": 1000000.0,
+            "temperature_k": 350.0,
+            "momentum_kg_m_s": 3.79674564716389e-05,
+            "total_energy_j": -22.402368389346375
+          },
+          "oil": {
+            "component_moles": [
+              0.0010088040598626202,
+              0.02793985685942961,
+              9.727850641679862e-05
+            ],
+            "volume_m3": 4.000000000000001e-06,
+            "pressure_pa": 1000000.0,
+            "temperature_k": 350.0,
+            "momentum_kg_m_s": 0.0001212868762867285,
+            "total_energy_j": -813.1212790338154
+          },
+          "water": {
+            "component_moles": [
+              2.2035657656641735e-06,
+              1.7098792331231988e-16,
+              3.446788833549724
+            ],
+            "volume_m3": 7.6e-05,
+            "pressure_pa": 1000000.0,
+            "temperature_k": 350.0,
+            "momentum_kg_m_s": -0.0006209490128863656,
+            "total_energy_j": -149063.86011483634
+          }
+        },
+        {
+          "gas": {
+            "component_moles": [
+              0.008659533220573525,
+              0.001603373968949487,
+              0.00042503930497587837
+            ],
+            "volume_m3": 3e-05,
+            "pressure_pa": 1000000.0,
+            "temperature_k": 350.0,
+            "momentum_kg_m_s": 5.6951184707458344e-05,
+            "total_energy_j": -33.60355258401956
+          },
+          "oil": {
+            "component_moles": [
+              0.001261005074828275,
+              0.03492482107428701,
+              0.00012159813302099827
+            ],
+            "volume_m3": 5e-06,
+            "pressure_pa": 1000000.0,
+            "temperature_k": 350.0,
+            "momentum_kg_m_s": 0.00015160859535841062,
+            "total_energy_j": -1016.4015987922692
+          },
+          "water": {
+            "component_moles": [
+              1.884628615370675e-06,
+              1.462396712539578e-16,
+              2.9479115023780538
+            ],
+            "volume_m3": 6.500000000000001e-05,
+            "pressure_pa": 1000000.0,
+            "temperature_k": 350.0,
+            "momentum_kg_m_s": -0.0005310748136528127,
+            "total_energy_j": -127488.82772979424
+          }
+        },
+        {
+          "gas": {
+            "component_moles": [
+              0.0072162776838112725,
+              0.0013361449741245725,
+              0.000354199420813232
+            ],
+            "volume_m3": 2.5e-05,
+            "pressure_pa": 1000000.0,
+            "temperature_k": 350.0,
+            "momentum_kg_m_s": 4.745932058954862e-05,
+            "total_energy_j": -28.00296048668297
+          },
+          "oil": {
+            "component_moles": [
+              0.0007566030448969651,
+              0.020954892644572207,
+              7.295887981259896e-05
+            ],
+            "volume_m3": 3e-06,
+            "pressure_pa": 1000000.0,
+            "temperature_k": 350.0,
+            "momentum_kg_m_s": 9.096515721504637e-05,
+            "total_energy_j": -609.8409592753615
+          },
+          "water": {
+            "component_moles": [
+              2.0875886201029013e-06,
+              1.6198855892746093e-16,
+              3.265378894941844
+            ],
+            "volume_m3": 7.2e-05,
+            "pressure_pa": 1000000.0,
+            "temperature_k": 350.0,
+            "momentum_kg_m_s": -0.0005882674858923463,
+            "total_energy_j": -141218.39379300282
+          }
+        }
+      ],
+      "time_s": 0.0,
+      "model_id": "65f33a21c57f47ced372d7f1387c9cdc75139125be793d9455945ae106207717"
+    }
+  },
+  "schedule": [
+    {
+      "duration_s": 6.366197723675814e-09
+    },
+    {
+      "duration_s": 6.366197723675814e-09
+    }
+  ]
+}

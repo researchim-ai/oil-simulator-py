@@ -1,0 +1,121 @@
+{
+  "model": {
+    "model": "pr_active_multifluid_pipe_v1",
+    "fluid": {
+      "components": [
+        {
+          "name": "Methane",
+          "critical_temperature_k": 190.564,
+          "critical_pressure_pa": 4599200.0,
+          "acentric_factor": 0.01142,
+          "molar_mass_kg_mol": 0.0160428,
+          "ideal_cp_j_mol_k": 35.7,
+          "min_temperature_k": 160.0,
+          "max_temperature_k": 500.0,
+          "reference_temperature_k": 298.15,
+          "reference_pressure_pa": 100000.0
+        },
+        {
+          "name": "Ethane",
+          "critical_temperature_k": 305.322,
+          "critical_pressure_pa": 4872200.0,
+          "acentric_factor": 0.099,
+          "molar_mass_kg_mol": 0.03006904,
+          "ideal_cp_j_mol_k": 52.5,
+          "min_temperature_k": 160.0,
+          "max_temperature_k": 500.0,
+          "reference_temperature_k": 298.15,
+          "reference_pressure_pa": 100000.0
+        }
+      ],
+      "binary_interactions": [
+        [
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0
+        ]
+      ],
+      "min_pressure_pa": 100.0,
+      "max_pressure_pa": 1000000000.0,
+      "max_phases": 3
+    },
+    "phase_slots": [
+      {
+        "name": "liquid",
+        "root": "liquid"
+      },
+      {
+        "name": "gas",
+        "root": "vapor"
+      }
+    ],
+    "lengths_m": [
+      0.012732395447351627,
+      0.012732395447351627,
+      0.012732395447351627
+    ],
+    "diameter_m": 0.1,
+    "boundary_mode": "periodic",
+    "wave_speed_bound_m_s": 4000.0,
+    "maximum_courant": 0.2,
+    "thermochemical_relaxation_time_s": 0.001
+  },
+  "initial": {
+    "state": {
+      "cells": [
+        {
+          "liquid": {
+            "component_moles": [
+              0.0,
+              1.5595816310670643
+            ],
+            "volume_m3": 0.0001,
+            "pressure_pa": 1174165.516371598,
+            "temperature_k": 250.0,
+            "momentum_kg_m_s": 0.0,
+            "total_energy_j": -23386.86626872649
+          }
+        },
+        {
+          "liquid": {
+            "component_moles": [
+              0.0,
+              1.5647533763526893
+            ],
+            "volume_m3": 0.0001,
+            "pressure_pa": 1467706.8954644976,
+            "temperature_k": 250.0,
+            "momentum_kg_m_s": 0.0,
+            "total_energy_j": -23506.4172098984
+          }
+        },
+        {
+          "liquid": {
+            "component_moles": [
+              0.0,
+              1.5647533763526893
+            ],
+            "volume_m3": 0.0001,
+            "pressure_pa": 1467706.8954644976,
+            "temperature_k": 250.0,
+            "momentum_kg_m_s": 0.0,
+            "total_energy_j": -23506.4172098984
+          }
+        }
+      ],
+      "time_s": 0.0,
+      "model_id": "31205a0c3caa9990add55a63c547d031b8e5e04325c5fa52ef08b33152b68449"
+    }
+  },
+  "schedule": [
+    {
+      "duration_s": 3.183098861837907e-07
+    },
+    {
+      "duration_s": 3.183098861837907e-07
+    }
+  ]
+}

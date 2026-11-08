@@ -1,0 +1,105 @@
+{
+  "model": {
+    "model": "pr_equilibrium_euler_pipe_v1",
+    "fluid": {
+      "components": [
+        {
+          "name": "a",
+          "critical_temperature_k": 500,
+          "critical_pressure_pa": 5000000.0,
+          "acentric_factor": 0.2,
+          "molar_mass_kg_mol": 0.1,
+          "ideal_cp_j_mol_k": 100,
+          "min_temperature_k": 250,
+          "max_temperature_k": 700,
+          "reference_temperature_k": 298.15,
+          "reference_pressure_pa": 100000.0
+        },
+        {
+          "name": "b",
+          "critical_temperature_k": 500,
+          "critical_pressure_pa": 5000000.0,
+          "acentric_factor": 0.2,
+          "molar_mass_kg_mol": 0.1,
+          "ideal_cp_j_mol_k": 100,
+          "min_temperature_k": 250,
+          "max_temperature_k": 700,
+          "reference_temperature_k": 298.15,
+          "reference_pressure_pa": 100000.0
+        },
+        {
+          "name": "c",
+          "critical_temperature_k": 500,
+          "critical_pressure_pa": 5000000.0,
+          "acentric_factor": 0.2,
+          "molar_mass_kg_mol": 0.1,
+          "ideal_cp_j_mol_k": 100,
+          "min_temperature_k": 250,
+          "max_temperature_k": 700,
+          "reference_temperature_k": 298.15,
+          "reference_pressure_pa": 100000.0
+        }
+      ],
+      "binary_interactions": [
+        [
+          0.0,
+          0.6,
+          0.6
+        ],
+        [
+          0.6,
+          0.0,
+          0.6
+        ],
+        [
+          0.6,
+          0.6,
+          0.0
+        ]
+      ],
+      "min_pressure_pa": 100.0,
+      "max_pressure_pa": 1000000000.0,
+      "max_phases": 3
+    },
+    "lengths_m": [
+      0.010100804397983876,
+      0.010100804397983876
+    ],
+    "diameter_m": 0.1,
+    "boundary_mode": "periodic",
+    "wave_speed_bound_m_s": 4000.0,
+    "maximum_courant": 0.4
+  },
+  "initial": {
+    "cells": [
+      {
+        "component_moles": [
+          0.3333333333333333,
+          0.3333333333333333,
+          0.3333333333333333
+        ],
+        "momentum_kg_m_s": 0.0,
+        "total_energy_j": -27248.903276410176,
+        "pressure_guess_pa": 1000000.0,
+        "temperature_guess_k": 300.0
+      },
+      {
+        "component_moles": [
+          0.3333333333333333,
+          0.3333333333333333,
+          0.3333333333333333
+        ],
+        "momentum_kg_m_s": 0.0,
+        "total_energy_j": -27248.903276410176,
+        "pressure_guess_pa": 1000000.0,
+        "temperature_guess_k": 300.0
+      }
+    ]
+  },
+  "schedule": [
+    {
+      "duration_s": 2.020160879596775e-06,
+      "maximum_step_s": 1.0100804397983876e-06
+    }
+  ]
+}

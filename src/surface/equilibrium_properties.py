@@ -835,6 +835,121 @@ class EquilibriumFluid:
                 raise HydraulicConvergenceError("UV flash line search failed")
         raise HydraulicConvergenceError("UV flash iteration budget exhausted")
 
+    def _polish_pure_uv_coexistence(self, n, energy, volume, guess):
+        """Joint P/T/beta refinement avoids the accuracy floor of nested PH.
+
+        Called on an already identified two-phase branch near the UV solution.
+        No finite-difference or host EOS solver is used.
+        """
+        from .torch_linear import TorchNewton
+
+        total = n.sum()
+        z = n / total
+        active = torch.nonzero(z > 0).flatten()
+        target_u = energy / float(total.cpu())
+        target_v = volume / float(total.cpu())
+        uscale = max(1.0, abs(target_u), R * float(guess["temperature_k"].cpu()))
+
+        def evaluate(y):
+            p, t, beta = y[0].exp(), y[1] * self.tref, y[2]
+            liquid = self.tensor_homogeneous(p, t, z, "liquid")
+            vapor = self.tensor_homogeneous(p, t, z, "vapor")
+            u = (1 - beta) * liquid["molar_internal_energy_j_mol"] + beta * vapor[
+                "molar_internal_energy_j_mol"
+            ]
+            v = (1 - beta) * liquid["molar_volume_m3_mol"] + beta * vapor["molar_volume_m3_mol"]
+            mu = (
+                liquid["log_fugacity_coefficients"][active]
+                - vapor["log_fugacity_coefficients"][active]
+            ).sum()
+            return torch.stack((mu, (u - target_u) / uscale, torch.log(v / target_v))), (
+                p,
+                t,
+                beta,
+                liquid,
+                vapor,
+                u,
+                v,
+            )
+
+        initial = torch.stack(
+            (
+                guess["pressure_pa"].log(),
+                guess["temperature_k"] / self.tref,
+                guess["phases"][1]["molar_fraction"],
+            )
+        )
+        low = self.tensor([math.log(self.min_pressure_pa), self.min_temperature_k / self.tref, 0.0])
+        high = self.tensor(
+            [math.log(self.max_pressure_pa), self.max_temperature_k / self.tref, 1.0]
+        )
+        solver = TorchNewton(self.device, maximum_iterations=15)
+        solver.host_convergence = True
+        with torch.no_grad():
+            y, _, ok, count = solver.solve(
+                lambda y: evaluate(y)[0], initial, low, high, tolerance=2e-13
+            )
+            residual, data = evaluate(y)
+            pp, tt, beta, liquid, vapor, u, v = data
+            if (
+                not ok
+                or not bool((liquid["valid"] & vapor["valid"]).cpu())
+                or float(residual.abs().max().cpu()) > 1e-11
+                or float((vapor["molar_volume_m3_mol"] - liquid["molar_volume_m3_mol"]).cpu())
+                <= 1e-8 * target_v
+            ):
+                raise HydraulicConvergenceError("Pure-fluid joint UV refinement failed")
+            result = {
+                **guess,
+                "pressure_pa": pp,
+                "temperature_k": tt,
+                "phase_count": 2,
+                "phases": [dict(liquid, molar_fraction=1 - beta), dict(vapor, molar_fraction=beta)],
+                "component_moles": n,
+                "internal_energy_j": total * u,
+                "volume_m3": total * v,
+                "energy_residual_j": total * u - energy,
+                "volume_residual_m3": total * v - volume,
+                "log_fugacity_error": residual[0].abs(),
+                "nonlinear_iterations": count,
+            }
+            for key in (
+                "molar_internal_energy_j_mol",
+                "molar_volume_m3_mol",
+                "molar_entropy_j_mol_k",
+                "molar_enthalpy_j_mol",
+            ):
+                result[key] = (1 - beta) * liquid[key] + beta * vapor[key]
+            edge = 16 * torch.finfo(beta.dtype).eps
+            if float(beta.cpu()) <= edge or float((1 - beta).cpu()) <= edge:
+                remaining = liquid if float(beta.cpu()) <= edge else vapor
+                ru = remaining["molar_internal_energy_j_mol"]
+                rv = remaining["molar_volume_m3_mol"]
+                if (
+                    abs(float(((ru - target_u) / uscale).cpu())) < 2e-12
+                    and abs(float(torch.log(rv / target_v).cpu())) < 2e-12
+                ):
+                    result["phase_count"] = 1
+                    result["phases"] = [dict(remaining, molar_fraction=beta.new_ones(()))]
+                    for key in (
+                        "molar_internal_energy_j_mol",
+                        "molar_volume_m3_mol",
+                        "molar_entropy_j_mol_k",
+                        "molar_enthalpy_j_mol",
+                    ):
+                        result[key] = remaining[key]
+                    result.update(
+                        internal_energy_j=total * ru,
+                        volume_m3=total * rv,
+                        energy_residual_j=total * ru - energy,
+                        volume_residual_m3=total * rv - volume,
+                    )
+                    v = rv
+            result["density_kg_m3"] = (z * self.molar_masses).sum() / v
+            # The input PH property is no longer the scalar refinement equation.
+            result.pop("property_residual", None)
+            return result
+
     def _pure_flash_uv(self, n, energy, volume, p, t):
         """Follow PH with H=U+PV, including pure-fluid latent heat plateaus."""
         total = n.sum()
@@ -849,6 +964,12 @@ class EquilibriumFluid:
         for iteration in range(30):
             v = q["molar_volume_m3_mol"]
             r = float(torch.log(v / target_v).cpu())
+            if q["phase_count"] == 2 and abs(r) < 1e-3:
+                try:
+                    return self._polish_pure_uv_coexistence(n, energy, volume, q)
+                except HydraulicConvergenceError:
+                    # A nearby active-set boundary may require the outer PH path.
+                    pass
             if abs(r) < 2e-10:
                 return {
                     **q,
