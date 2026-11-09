@@ -416,6 +416,26 @@ def audit(model, before, after, report):
     aperture_audit(model, before, report)
     for name, old in before.pipes:
         pipe_audit(model.pipes[name]["pipe"], old, dict(after.pipes)[name], report["pipes"][name])
+    from dataclasses import asdict
+
+    from surface.operation import _digest
+
+    for name, link in model.continuations.items():
+        lr = report["pipes"][link.left_pipe]
+        rr = report["pipes"][link.right_pipe]
+        if not report["port_openings"][name]:
+            if lr["boundary_cells"][1] is not None or rr["boundary_cells"][0] is not None:
+                raise ValueError("Closed continuation has an open boundary trace")
+            continue
+        pipes = dict(before.pipes)
+        for actual, expected in (
+            (lr["boundary_cells"][1], dict(pipes[link.right_pipe].cells[0])),
+            (rr["boundary_cells"][0], dict(pipes[link.left_pipe].cells[-1])),
+        ):
+            if _digest(actual) != _digest({n: asdict(p) for n, p in expected.items()}):
+                raise ValueError("Continuation trace differs from neighbouring real cell")
+        for field in ("face_fluxes", "phase_path", "alpha_path"):
+            close(lr[field][-1], rr[field][0], atol=1e-10, rtol=1e-10)
     for name, old in before.columns:
         c = model.columns[name]
         new = dict(after.columns)[name]
@@ -487,7 +507,48 @@ def audit(model, before, after, report):
         return n, energy
 
     a, b = totals(before), totals(after)
-    close(a[0], b[0], atol=1e-7, rtol=1e-10)
+    external = np.zeros(len(model.fluid.names) + 1)
+    by_reservoir = {n: np.zeros_like(external) for n in model.reservoirs}
+    for name, entry in model.pipes.items():
+        pipe = entry["pipe"]
+        record = report["pipes"][name]
+        for side, node in enumerate(entry["boundary_nodes"]):
+            if node not in model.reservoirs:
+                continue
+            opened = report["port_openings"][node]
+            boundary = record["boundary_cells"][side]
+            if not opened:
+                if boundary is not None:
+                    raise ValueError("Isolated reservoir still supplies a ghost state")
+                continue
+            from dataclasses import asdict
+
+            from surface.operation import _digest
+
+            reservoir = model.reservoirs[node]
+            if boundary is None or sorted(_digest(p) for p in boundary.values()) != sorted(
+                _digest(asdict(p)) for p in reservoir.phases
+            ):
+                raise ValueError("Reservoir trace differs from maintained physical state")
+            index = 0 if side == 0 else -1
+            sign = 1.0 if side == 0 else -1.0
+            flux = np.sum(record["face_fluxes"][index], axis=0)
+            mass = np.dot(flux[:-2], [c.molar_mass_kg_mol for c in model.fluid.components])
+            energy = flux[-1] + model.gravity * pipe.elevations[index] * mass
+            by_reservoir[node] += sign * report["dt_s"] * pipe.area * np.r_[flux[:-2], energy]
+    for name, values in by_reservoir.items():
+        close(report["reservoir_exchange"][name], values, atol=1e-13, rtol=1e-10)
+        external += values
+    close(
+        report.get("external_component_moles", np.zeros(len(model.fluid.names))),
+        external[:-1],
+        atol=1e-13,
+        rtol=1e-10,
+    )
+    close(b[0] - a[0], external[:-1], atol=1e-12 if model.reservoirs else 1e-7, rtol=1e-8)
+    if model.reservoirs and not model.columns and model.equipment is None:
+        supplied_heat = math.fsum(r.get("external_heat_j", 0.0) for r in report["pipes"].values())
+        close(report["external_energy_j"], external[-1] + supplied_heat, atol=1e-10, rtol=1e-10)
     close(b[1] - a[1], report["external_energy_j"], atol=1e-5, rtol=1e-9)
     return {"accepted": True, "column_quadrature_order": 32, "path_quadrature_order": 64}
 
@@ -527,7 +588,7 @@ def main():
             raise ValueError("Persisted operating commands differ from schedule")
         start_time = old.time_s
         for step in interval["steps"]:
-            expected = {n: True for n in model.ports}
+            expected = {n: True for n in (*model.ports, *model.reservoirs, *model.continuations)}
             expected.update(commands.get("port_openings", {}))
             if step["port_openings"] != expected:
                 raise ValueError("Aperture commands differ from requested isolation")

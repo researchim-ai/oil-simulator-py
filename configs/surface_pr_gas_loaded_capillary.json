@@ -1,0 +1,143 @@
+{
+  "model": {
+    "model": "pr_closed_gas_loaded_capillary_v1",
+    "film": {
+      "model": "pr_isothermal_capillary_film_v1",
+      "fluid": {
+        "components": [
+          {
+            "name": "Methane",
+            "critical_temperature_k": 190.564,
+            "critical_pressure_pa": 4599200.0,
+            "acentric_factor": 0.01142,
+            "molar_mass_kg_mol": 0.0160428,
+            "ideal_cp_j_mol_k": 35.7,
+            "min_temperature_k": 160.0,
+            "max_temperature_k": 500.0,
+            "reference_temperature_k": 298.15,
+            "reference_pressure_pa": 100000.0
+          },
+          {
+            "name": "Ethane",
+            "critical_temperature_k": 305.322,
+            "critical_pressure_pa": 4872200.0,
+            "acentric_factor": 0.099,
+            "molar_mass_kg_mol": 0.03006904,
+            "ideal_cp_j_mol_k": 52.5,
+            "min_temperature_k": 160.0,
+            "max_temperature_k": 500.0,
+            "reference_temperature_k": 298.15,
+            "reference_pressure_pa": 100000.0
+          }
+        ],
+        "binary_interactions": [
+          [
+            0.0,
+            0.0
+          ],
+          [
+            0.0,
+            0.0
+          ]
+        ],
+        "min_pressure_pa": 100.0,
+        "max_pressure_pa": 1000000000.0,
+        "max_phases": 3
+      },
+      "mechanics": {
+        "model": "inertial_capillary_film_v1",
+        "surface": {
+          "model": "periodic_long_wave_film_v1",
+          "shape": [
+            16
+          ],
+          "lengths_m": [
+            0.001
+          ],
+          "surface_tension_n_m": 0.02,
+          "viscosity_pa_s": 0.001,
+          "density_kg_m3": 570.0222477127443,
+          "adsorption_thickness_m": 1e-06,
+          "equilibrium_contact_angle_deg": 0.0,
+          "slip_length_m": 1e-08,
+          "transverse_width_m": 0.001,
+          "maximum_slope": 0.2,
+          "normal_gravity_m_s2": 0.0,
+          "maximum_unknowns": 512
+        },
+        "viscous_drag": false,
+        "maximum_unknowns": 256,
+        "maximum_velocity_m_s": 10.0,
+        "time_scheme": "auto"
+      },
+      "reference_pressure_pa": 1000000.0,
+      "temperature_k": 200.0,
+      "mole_fractions": [
+        0.0,
+        1.0
+      ],
+      "maximum_density_response": 0.0001
+    },
+    "ceiling_height_m": [
+      3e-05,
+      3e-05,
+      3e-05,
+      3e-05,
+      3e-05,
+      3e-05,
+      3e-05,
+      3e-05,
+      3e-05,
+      3e-05,
+      3e-05,
+      3e-05,
+      3e-05,
+      3e-05,
+      3e-05,
+      3e-05
+    ],
+    "gas_temperature_k": 300.0
+  },
+  "initial_thickness_m": [
+    3e-06,
+    3e-06,
+    3e-06,
+    3e-06,
+    3e-06,
+    3e-06,
+    3e-06,
+    3e-06,
+    3e-06,
+    3e-06,
+    3e-06,
+    3e-06,
+    3e-06,
+    3e-06,
+    3e-06,
+    3e-06
+  ],
+  "initial_face_velocity_m_s": [
+    0.0019509032201612826,
+    0.005555702330196022,
+    0.008314696123025453,
+    0.009807852804032305,
+    0.009807852804032305,
+    0.008314696123025454,
+    0.005555702330196022,
+    0.001950903220161286,
+    -0.0019509032201612837,
+    -0.00555570233019602,
+    -0.008314696123025453,
+    -0.009807852804032303,
+    -0.009807852804032305,
+    -0.008314696123025454,
+    -0.005555702330196022,
+    -0.0019509032201612873
+  ],
+  "gas_mole_fractions": [
+    1.0,
+    0.0
+  ],
+  "duration_s": 1e-06,
+  "initial_step_s": 1e-07
+}

@@ -61,7 +61,13 @@ def run(config, *, device="cpu"):
         "steps": steps,
         "attempts": sum(r["attempts"] for r in intervals),
         "conservation_residuals": model.ledger(
-            initial, state, math.fsum(r["external_energy_j"] for r in steps)
+            initial,
+            state,
+            math.fsum(r["external_energy_j"] for r in steps),
+            [
+                math.fsum(r["external_component_moles"][j] for r in steps)
+                for j in range(len(model.fluid.names))
+            ],
         ),
     }
     if before != fingerprints():

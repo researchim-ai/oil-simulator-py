@@ -80,6 +80,14 @@ def audit(cpu_directory, cuda_directory, *, root, atol=1e-9, rtol=1e-8):
                 raise ValueError(f"Checkpoint value differs: {path}")
 
         a, b = reports
+        if a.get("format") in (
+            "inertial_capillary_run_v1",
+            "pr_gas_loaded_capillary_run_v1",
+        ) or b.get("format") in ("inertial_capillary_run_v1", "pr_gas_loaded_capillary_run_v1"):
+            from reference_capillary_device_parity import audit as capillary_parity
+
+            rows[name] = capillary_parity(a, b)
+            continue
         if (
             a.get("format") == "pr_active_surface_run_v1"
             or b.get("format") == "pr_active_surface_run_v1"

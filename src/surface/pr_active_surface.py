@@ -38,6 +38,60 @@ class PRActiveColumnPort:
 
 
 @dataclass(frozen=True)
+class PRActiveReservoir:
+    """Maintained physical inlet/outlet state; no finite network inventory.
+
+    Phase volumes define boundary holdup only. Actual transfers are integrated
+    from the same Riemann face flux used by the pipe, including energy work.
+    """
+
+    phases: tuple
+    phase_roots: tuple
+    elevation_m: float = 0.0
+
+    def __post_init__(self):
+        object.__setattr__(self, "phases", tuple(self.phases))
+        object.__setattr__(self, "phase_roots", tuple(self.phase_roots))
+        if (
+            not self.phases
+            or len(self.phases) != len(self.phase_roots)
+            or any(not isinstance(p, PRRelaxationPhase) for p in self.phases)
+            or any(r not in ("liquid", "vapor") for r in self.phase_roots)
+        ):
+            raise ValueError("Explicit PR reservoir phases and roots required")
+        _number(self.elevation_m, "reservoir elevation")
+
+    def to_dict(self):
+        return {
+            "phases": [asdict(p) for p in self.phases],
+            "phase_roots": list(self.phase_roots),
+            "elevation_m": self.elevation_m,
+        }
+
+    @classmethod
+    def from_dict(cls, raw):
+        if set(raw) != {"phases", "phase_roots", "elevation_m"}:
+            raise ValueError("Unknown reservoir fields")
+        return cls(
+            tuple(PRRelaxationPhase.from_dict(p) for p in raw["phases"]),
+            tuple(raw["phase_roots"]),
+            raw["elevation_m"],
+        )
+
+
+@dataclass(frozen=True)
+class PRActivePipeContinuation:
+    """A shared grid face: left pipe outlet to right pipe inlet, no inventory."""
+
+    left_pipe: str
+    right_pipe: str
+
+    def __post_init__(self):
+        if any(not isinstance(n, str) or not n for n in (self.left_pipe, self.right_pipe)):
+            raise ValueError("Named continuation pipes required")
+
+
+@dataclass(frozen=True)
 class PRActiveSurfaceState:
     equipment: object
     columns: tuple
@@ -107,6 +161,8 @@ class PRActiveSurfaceNetwork:
         maximum_transverse_head_fraction=1e-3,
         aperture_relative_tolerance=1e-6,
         column_walls=None,
+        reservoirs=None,
+        continuations=None,
     ):
         if not isinstance(columns, dict) or any(
             not isinstance(n, str) or not n or not isinstance(c, StratifiedPRColumn)
@@ -120,6 +176,18 @@ class PRActiveSurfaceNetwork:
         self.ports = {p.name: p for p in sorted(ports, key=lambda p: p.name)}
         self.pipes = dict(sorted(pipes.items()))
         self.equipment = equipment
+        self.reservoirs = dict(sorted((reservoirs or {}).items()))
+        if any(
+            not isinstance(n, str) or not n or not isinstance(r, PRActiveReservoir)
+            for n, r in self.reservoirs.items()
+        ):
+            raise ValueError("Named physical reservoirs required")
+        self.continuations = dict(sorted((continuations or {}).items()))
+        if any(
+            not isinstance(n, str) or not n or not isinstance(c, PRActivePipeContinuation)
+            for n, c in self.continuations.items()
+        ):
+            raise ValueError("Named direct pipe continuations required")
         self.walls = dict(sorted((column_walls or {}).items()))
         if set(self.walls) - set(self.columns) or any(
             not isinstance(w, VesselWall) for w in self.walls.values()
@@ -137,15 +205,18 @@ class PRActiveSurfaceNetwork:
         )
         if (
             not self.pipes
-            or not self.columns
+            or not (self.columns or self.reservoirs or self.continuations or equipment is not None)
             or len(self.ports) != len(ports)
             or self.head_limit > 0.01
         ):
             raise ValueError(
-                "Nonempty pipes/columns, unique apertures and small transverse head required"
+                "Pipes with physical endpoints, unique apertures and small transverse head required"
             )
-        self.fluid = next(iter(self.columns.values())).fluid
-        self.gravity = next(iter(self.columns.values())).gravity_m_s2
+        first_pipe = next(iter(self.pipes.values()))["pipe"]
+        if not isinstance(first_pipe, PRActiveMultifluidPipe):
+            raise TypeError("Active PR pipes required")
+        self.fluid = first_pipe.fluid
+        self.gravity = first_pipe.gravity
         if equipment is not None and (
             not isinstance(equipment, PREquilibriumTransportNetwork)
             or any(n.kind != "vessel" or n.geometry is not None for n in equipment.nodes)
@@ -160,9 +231,16 @@ class PRActiveSurfaceNetwork:
         ):
             raise ValueError("Shared EOS, device and gravity required")
         names = set(equipment.names if equipment is not None else ())
-        if names & set(self.ports) or set(self.columns) & names:
+        if (
+            names & set(self.ports)
+            or set(self.columns) & names
+            or set(self.reservoirs) & (names | set(self.ports) | set(self.columns))
+            or set(self.continuations)
+            & (names | set(self.ports) | set(self.columns) | set(self.reservoirs))
+        ):
             raise ValueError("Physical endpoint names must be distinct")
         used = []
+        joined = []
         for name, entry in self.pipes.items():
             if not isinstance(name, str) or not name or set(entry) != {"pipe", "boundary_nodes"}:
                 raise ValueError("Named active pipe and two endpoint bindings required")
@@ -192,6 +270,17 @@ class PRActiveSurfaceNetwork:
                     if abs(z - c.elevation_m - port.height_m) > 1e-9:
                         raise ValueError("Pipe face and physical aperture elevations differ")
                     used.append(node)
+                elif node in self.continuations:
+                    link = self.continuations[node]
+                    if name != (link.left_pipe if side == 1 else link.right_pipe):
+                        raise ValueError("Continuation must bind left outlet to right inlet")
+                    joined.append((node, name, side))
+                elif node in self.reservoirs:
+                    reservoir = self.reservoirs[node]
+                    if abs(z - reservoir.elevation_m) > 1e-9:
+                        raise ValueError("Pipe face and reservoir elevations differ")
+                    mapping = self._assign(p, (), reservoir.phases, reservoir.phase_roots)
+                    p._boundary_packet(mapping)
                 elif (
                     node not in names
                     or abs(z - equipment.nodes[equipment.names.index(node)].elevation_m) > 1e-9
@@ -203,6 +292,24 @@ class PRActiveSurfaceNetwork:
                     )
         if len(used) != len(set(used)) or set(used) != set(self.ports):
             raise ValueError("Each finite aperture must bind exactly one pipe face")
+        expected = []
+        for name, link in self.continuations.items():
+            if link.left_pipe not in self.pipes or link.right_pipe not in self.pipes:
+                raise ValueError("Unknown continuation pipe")
+            left = self.pipes[link.left_pipe]["pipe"]
+            right = self.pipes[link.right_pipe]["pipe"]
+            if (
+                left.diameter != right.diameter
+                or left.slots != right.slots
+                or left.wave_speed != right.wave_speed
+                or left.elevations[-1] != right.elevations[0]
+            ):
+                raise ValueError(
+                    "Continuation requires matching diameter, slots, wave bound and elevation"
+                )
+            expected.extend(((name, link.left_pipe, 1), (name, link.right_pipe, 0)))
+        if sorted(expected) != sorted(joined):
+            raise ValueError("Every continuation requires exactly two physical pipe faces")
         self.model_id = _digest(self.to_dict())
 
     def to_dict(self):
@@ -222,12 +329,23 @@ class PRActiveSurfaceNetwork:
         if self.walls:
             result["model"] = "pr_active_surface_v2"
             result["column_walls"] = {n: asdict(w) for n, w in self.walls.items()}
+        if self.reservoirs:
+            result["model"] = "pr_active_surface_v3"
+            result["reservoirs"] = {n: r.to_dict() for n, r in self.reservoirs.items()}
+        if self.continuations:
+            result["model"] = "pr_active_surface_v4"
+            result["continuations"] = {n: asdict(c) for n, c in self.continuations.items()}
         return result
 
     @classmethod
     def from_dict(cls, data, *, device="cpu"):
         d = dict(data)
-        if d.pop("model", None) not in ("pr_active_surface_v1", "pr_active_surface_v2"):
+        if d.pop("model", None) not in (
+            "pr_active_surface_v1",
+            "pr_active_surface_v2",
+            "pr_active_surface_v3",
+            "pr_active_surface_v4",
+        ):
             raise ValueError("Unknown active surface model")
         d["columns"] = {
             n: StratifiedPRColumn.from_dict(c, device=device) for n, c in d["columns"].items()
@@ -243,6 +361,12 @@ class PRActiveSurfaceNetwork:
             else PREquilibriumTransportNetwork.from_dict(d["equipment"], device=device)
         )
         d["column_walls"] = {n: VesselWall(**w) for n, w in d.get("column_walls", {}).items()}
+        d["reservoirs"] = {
+            n: PRActiveReservoir.from_dict(r) for n, r in d.get("reservoirs", {}).items()
+        }
+        d["continuations"] = {
+            n: PRActivePipeContinuation(**c) for n, c in d.get("continuations", {}).items()
+        }
         return cls(**d)
 
     @property
@@ -381,6 +505,17 @@ class PRActiveSurfaceNetwork:
         columns = dict(state.columns)
         for side, node in enumerate(ends):
             if node is None or node in self.ports:
+                continue
+            if node in self.continuations:
+                link = self.continuations[node]
+                neighbour = dict(state.pipes)[link.right_pipe if side == 1 else link.left_pipe]
+                boundary[side] = dict(neighbour.cells[0 if side == 1 else -1])
+                continue
+            if node in self.reservoirs:
+                reservoir = self.reservoirs[node]
+                boundary[side] = self._assign(
+                    pipe, old.cells[0 if side == 0 else -1], reservoir.phases, reservoir.phase_roots
+                )
                 continue
             s = dict(state.equipment.nodes)[node]
             phases = []
@@ -526,6 +661,83 @@ class PRActiveSurfaceNetwork:
         )
         return [math.fsum(v[j] for v in values) for j in range(nc + 1)]
 
+    def capillary_totals(self, state, sources):
+        """Augmented stocks for registered NORMAL sources, not axial transport.
+
+        The geometry is recovered from the actual pipe phase volumes; no
+        independent film inventory, thermostat or projection is introduced.
+        """
+        from .pr_capillary_pressure import PRCapillaryPressure
+
+        self.inspect(state)
+        if not isinstance(sources, dict) or set(sources) - set(self.pipes):
+            raise ValueError("Capillary sources require named graph pipes")
+        for name, source in sources.items():
+            pipe = self.pipes[name]["pipe"]
+            if (
+                not isinstance(source, PRCapillaryPressure)
+                or source.pipe.model_id != pipe.model_id
+                or source.pipe.fluid.device != pipe.fluid.device
+            ):
+                raise ValueError("Capillary source and active graph pipe differ")
+        surface = math.fsum(
+            source.surface_energy(dict(state.pipes)[name]) for name, source in sources.items()
+        )
+        stocks = self.totals(state)
+        stocks[-1] += surface
+        return {"stocks": stocks, "surface_energy_j": surface}
+
+    def relax_capillary(self, state, dt_s, sources):
+        """Atomic fixed-clock normal/thermal/chemical source transaction.
+
+        Does not call axial transport. Passing its output to ordinary step()
+        does NOT yet close the surface-energy flux at pipe faces/junctions.
+        """
+        dt = _number(dt_s, "graph capillary source interval", positive=True)
+        before = self.capillary_totals(state, sources)
+        pipes = dict(state.pipes)
+        records = {}
+        for name, source in sorted(sources.items()):
+            pipes[name], records[name] = source.apply(pipes[name], dt)
+        new = replace(state, pipes=tuple(sorted(pipes.items())))
+        after = self.capillary_totals(new, sources)
+        residual = [b - a for a, b in zip(before["stocks"], after["stocks"], strict=True)]
+        for j, value in enumerate(residual):
+            allowance = 256 * (math.ulp(before["stocks"][j]) + math.ulp(after["stocks"][j]))
+            if abs(value) > allowance + (1e-22 if j < len(residual) - 1 else 1e-20):
+                raise ConservationError("Augmented capillary graph source balance failed")
+        return new, {
+            "state": new.to_dict(),
+            "dt_s": dt,
+            "clock_advanced": False,
+            "sources": records,
+            "surface_energy_before_j": before["surface_energy_j"],
+            "surface_energy_after_j": after["surface_energy_j"],
+            "conservation_residuals": residual,
+            "entropy_production_j_k": math.fsum(
+                r["entropy_production_j_k"] for r in records.values()
+            ),
+            "qualification": "Normal source on live graph stocks; axial surface-energy transport not implemented",
+        }
+
+    def capillary_chain_totals(self, state, pipe_order, parameters):
+        from .pr_capillary_chain import assemble
+
+        _, view, source = assemble(self, state, pipe_order, parameters)
+        surface = source.surface_energy(view)
+        values = self.totals(state)
+        values[-1] += surface
+        return {"stocks": values, "surface_energy_j": surface}
+
+    def relax_capillary_chain(self, state, dt_s, pipe_order, parameters):
+        """Joint normal/chemical solve, including shared continuation edges.
+
+        Source transaction only; the old axial step is not a capillary step.
+        """
+        from .pr_capillary_chain import relax
+
+        return relax(self, state, dt_s, pipe_order, parameters)
+
     def _column_entropy(self, column, state):
         f = self.fluid
         seed = (
@@ -541,10 +753,21 @@ class PRActiveSurfaceNetwork:
         )
         return float(problem[3](f.tensor(state.solution_variables))[1]["entropy_j_k"].cpu())
 
-    def ledger(self, old, new, external_energy=0.0):
+    def ledger(self, old, new, external_energy=0.0, external_components=None):
         a, b = self.totals(old), self.totals(new)
         r = [y - x for x, y in zip(a, b)]
         r[-1] -= external_energy
+        components = (
+            [0.0] * len(self.fluid.names)
+            if external_components is None
+            else list(external_components)
+        )
+        if len(components) != len(self.fluid.names) or not all(
+            math.isfinite(v) for v in components
+        ):
+            raise ValueError("Finite external component ledger required")
+        for j, value in enumerate(components):
+            r[j] -= value
         if any(
             abs(v)
             > max(1e-7 if j < len(r) - 1 else 1e-5, 128 * math.ulp(max(abs(a[j]), abs(b[j]), 1.0)))
@@ -576,7 +799,7 @@ class PRActiveSurfaceNetwork:
         pipe_heat_temperatures_k = pipe_heat_temperatures_k or {}
         if (set(pipe_heat_w) | set(pipe_heat_temperatures_k)) - set(self.pipes):
             raise ValueError("Unknown heated pipe")
-        port_commands = {n: True for n in self.ports}
+        port_commands = {n: True for n in (*self.ports, *self.reservoirs, *self.continuations)}
         changes = dict(port_openings or {})
         if set(changes) - set(port_commands) or any(type(v) is not bool for v in changes.values()):
             raise ValueError("Known boolean aperture isolation commands required")
@@ -603,13 +826,17 @@ class PRActiveSurfaceNetwork:
             else []
         )
         graph_entropy = 0.0
+        reservoir_exchange = {n: [0.0] * (nc + 1) for n in self.reservoirs}
         reports = {}
         new_pipes = []
         for name, old in state.pipes:
             entry = self.pipes[name]
             pipe = entry["pipe"]
             ends = tuple(
-                None if n in positions and positions[n] == 0 else n for n in entry["boundary_nodes"]
+                None
+                if (not port_commands.get(n, True) or (n in positions and positions[n] == 0))
+                else n
+                for n in entry["boundary_nodes"]
             )
             new, r = self._pipe_step(
                 pipe,
@@ -639,6 +866,14 @@ class PRActiveSurfaceNetwork:
                     column = self.ports[node].column
                     cn[column] = [a + b for a, b in zip(cn[column], rate)]
                     cs[column] += entropy
+                elif node in self.continuations:
+                    # Same physical face is audited after both pipes advance;
+                    # it is not a source/sink in the external network ledger.
+                    continue
+                elif node in self.reservoirs:
+                    reservoir_exchange[node] = [
+                        a - dt * b for a, b in zip(reservoir_exchange[node], rate)
+                    ]
                 else:
                     i = self.equipment.names.index(node)
                     graph_net[i] += self.fluid.tensor(
@@ -654,6 +889,38 @@ class PRActiveSurfaceNetwork:
                         ]
                     )
                     graph_entropy += entropy
+        continuation_fluxes = {}
+        for name, link in self.continuations.items():
+            if not port_commands[name]:
+                continuation_fluxes[name] = {"closed": True}
+                continue
+            left_pipe = self.pipes[link.left_pipe]["pipe"]
+            right_pipe = self.pipes[link.right_pipe]["pipe"]
+            lp = left_pipe.inspect(dict(state.pipes)[link.left_pipe])
+            rp = right_pipe.inspect(dict(state.pipes)[link.right_pipe])
+            qscale = torch.maximum(lp["conserved"][-1].abs(), rp["conserved"][0].abs())
+            eps = torch.finfo(qscale.dtype).eps
+            for field in ("face_fluxes", "phase_path", "alpha_path"):
+                a = self.fluid.tensor(reports[link.left_pipe][field][-1])
+                b = self.fluid.tensor(reports[link.right_pipe][field][0])
+                scale = (
+                    left_pipe.wave_speed * qscale
+                    if field != "alpha_path"
+                    else self.fluid.tensor(left_pipe.wave_speed)
+                )
+                allowance = 256 * eps * (a.abs() + b.abs() + scale)
+                if not bool(
+                    (torch.isfinite(a) & torch.isfinite(b) & ((a - b).abs() <= allowance))
+                    .all()
+                    .cpu()
+                ):
+                    raise ConservationError("Continuation face flux/path mismatch")
+            continuation_fluxes[name] = {
+                "closed": False,
+                "left_pipe": link.left_pipe,
+                "right_pipe": link.right_pipe,
+                "face_fluxes": reports[link.left_pipe]["face_fluxes"][-1],
+            }
         new_columns = []
         new_walls = []
         column_external = 0.0
@@ -709,6 +976,10 @@ class PRActiveSurfaceNetwork:
         external = column_external + math.fsum(
             r.get("external_heat_j", 0.0) for r in reports.values()
         )
+        external += math.fsum(v[-1] for v in reservoir_exchange.values())
+        external_components = [
+            math.fsum(v[j] for v in reservoir_exchange.values()) for j in range(nc)
+        ]
         if self.equipment is not None:
             t = self.equipment
             commands = dict(t.default_openings)
@@ -752,8 +1023,11 @@ class PRActiveSurfaceNetwork:
             "columns": column_reports,
             "equipment": gr,
             "external_energy_j": external,
+            "external_component_moles": external_components,
+            "reservoir_exchange": reservoir_exchange,
+            "continuation_fluxes": continuation_fluxes,
             "entropy_production_j_k": entropy,
-            "conservation_residuals": self.ledger(state, new, external),
+            "conservation_residuals": self.ledger(state, new, external, external_components),
         }
 
     def advance(
@@ -794,6 +1068,14 @@ class PRActiveSurfaceNetwork:
                     "state": state.to_dict(),
                     "steps": steps,
                     "attempts": attempt + 1,
-                    "conservation_residuals": self.ledger(first, state, energy),
+                    "conservation_residuals": self.ledger(
+                        first,
+                        state,
+                        energy,
+                        [
+                            math.fsum(r["external_component_moles"][j] for r in steps)
+                            for j in range(len(self.fluid.names))
+                        ],
+                    ),
                 }
         raise HydraulicConvergenceError("Active surface integration budget exhausted")

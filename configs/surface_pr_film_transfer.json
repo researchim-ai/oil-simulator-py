@@ -1,0 +1,519 @@
+{
+  "pipe": {
+    "model": "pr_active_multifluid_pipe_v1",
+    "fluid": {
+      "components": [
+        {
+          "name": "Methane",
+          "critical_temperature_k": 190.564,
+          "critical_pressure_pa": 4599200.0,
+          "acentric_factor": 0.01142,
+          "molar_mass_kg_mol": 0.0160428,
+          "ideal_cp_j_mol_k": 35.7,
+          "min_temperature_k": 160.0,
+          "max_temperature_k": 500.0,
+          "reference_temperature_k": 298.15,
+          "reference_pressure_pa": 100000.0
+        },
+        {
+          "name": "Ethane",
+          "critical_temperature_k": 305.322,
+          "critical_pressure_pa": 4872200.0,
+          "acentric_factor": 0.099,
+          "molar_mass_kg_mol": 0.03006904,
+          "ideal_cp_j_mol_k": 52.5,
+          "min_temperature_k": 160.0,
+          "max_temperature_k": 500.0,
+          "reference_temperature_k": 298.15,
+          "reference_pressure_pa": 100000.0
+        }
+      ],
+      "binary_interactions": [
+        [
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0
+        ]
+      ],
+      "min_pressure_pa": 100.0,
+      "max_pressure_pa": 1000000000.0,
+      "max_phases": 3
+    },
+    "phase_slots": [
+      {
+        "name": "liquid",
+        "root": "liquid"
+      },
+      {
+        "name": "gas",
+        "root": "vapor"
+      }
+    ],
+    "lengths_m": [
+      6.25e-05,
+      6.25e-05,
+      6.25e-05,
+      6.25e-05,
+      6.25e-05,
+      6.25e-05,
+      6.25e-05,
+      6.25e-05,
+      6.25e-05,
+      6.25e-05,
+      6.25e-05,
+      6.25e-05,
+      6.25e-05,
+      6.25e-05,
+      6.25e-05,
+      6.25e-05
+    ],
+    "diameter_m": 0.002,
+    "boundary_mode": "periodic",
+    "wave_speed_bound_m_s": 4000.0,
+    "maximum_courant": 0.2,
+    "thermochemical_relaxation_time_s": null
+  },
+  "film": {
+    "model": "periodic_long_wave_film_v1",
+    "shape": [
+      16
+    ],
+    "lengths_m": [
+      0.001
+    ],
+    "surface_tension_n_m": 0.02,
+    "viscosity_pa_s": 0.001,
+    "density_kg_m3": 600.0,
+    "adsorption_thickness_m": 1e-06,
+    "equilibrium_contact_angle_deg": 5.0,
+    "slip_length_m": 1e-08,
+    "transverse_width_m": 0.006283185307179587,
+    "maximum_slope": 0.2,
+    "normal_gravity_m_s2": 0.0,
+    "maximum_unknowns": 512
+  },
+  "initial": {
+    "cells": [
+      {
+        "liquid": {
+          "component_moles": [
+            0.0,
+            2.6737986930115044e-08
+          ],
+          "volume_m3": 1.413716694115407e-12,
+          "pressure_pa": 217835.82168129366,
+          "temperature_k": 200.0,
+          "momentum_kg_m_s": 0.0,
+          "total_energy_j": -0.000520444949224561
+        },
+        "gas": {
+          "component_moles": [
+            0.0,
+            2.701276163210787e-08
+          ],
+          "volume_m3": 1.9493582415524667e-10,
+          "pressure_pa": 217835.82168129366,
+          "temperature_k": 200.0,
+          "momentum_kg_m_s": 0.0,
+          "total_energy_j": -0.00018788846922757445
+        }
+      },
+      {
+        "liquid": {
+          "component_moles": [
+            0.0,
+            2.6398768919310473e-08
+          ],
+          "volume_m3": 1.39578123150663e-12,
+          "pressure_pa": 217835.82168129366,
+          "temperature_k": 200.0,
+          "momentum_kg_m_s": 0.0,
+          "total_energy_j": -0.0005138421970850422
+        },
+        "gas": {
+          "component_moles": [
+            0.0,
+            2.7015246995577165e-08
+          ],
+          "volume_m3": 1.9495375961785544e-10,
+          "pressure_pa": 217835.82168129366,
+          "temperature_k": 200.0,
+          "momentum_kg_m_s": 0.0,
+          "total_energy_j": -0.00018790575628411754
+        }
+      },
+      {
+        "liquid": {
+          "component_moles": [
+            0.0,
+            2.543275775402281e-08
+          ],
+          "volume_m3": 1.3447053552771112e-12,
+          "pressure_pa": 217835.82168129366,
+          "temperature_k": 200.0,
+          "momentum_kg_m_s": 0.0,
+          "total_energy_j": -0.0004950391498256302
+        },
+        "gas": {
+          "component_moles": [
+            0.0,
+            2.7022324711926728e-08
+          ],
+          "volume_m3": 1.9500483549408496e-10,
+          "pressure_pa": 217835.82168129366,
+          "temperature_k": 200.0,
+          "momentum_kg_m_s": 0.0,
+          "total_energy_j": -0.00018795498565609577
+        }
+      },
+      {
+        "liquid": {
+          "component_moles": [
+            0.0,
+            2.3987019877254095e-08
+          ],
+          "volume_m3": 1.2682649045788244e-12,
+          "pressure_pa": 217835.82168129366,
+          "temperature_k": 200.0,
+          "momentum_kg_m_s": 0.0,
+          "total_energy_j": -0.00046689840094152254
+        },
+        "gas": {
+          "component_moles": [
+            0.0,
+            2.703291726300199e-08
+          ],
+          "volume_m3": 1.9508127594478324e-10,
+          "pressure_pa": 217835.82168129366,
+          "temperature_k": 200.0,
+          "momentum_kg_m_s": 0.0,
+          "total_energy_j": -0.00018802866261789078
+        }
+      },
+      {
+        "liquid": {
+          "component_moles": [
+            0.0,
+            2.228165577509587e-08
+          ],
+          "volume_m3": 1.1780972450961725e-12,
+          "pressure_pa": 217835.82168129366,
+          "temperature_k": 200.0,
+          "momentum_kg_m_s": 0.0,
+          "total_energy_j": -0.0004337041243538009
+        },
+        "gas": {
+          "component_moles": [
+            0.0,
+            2.7045412028923473e-08
+          ],
+          "volume_m3": 1.951714436042659e-10,
+          "pressure_pa": 217835.82168129366,
+          "temperature_k": 200.0,
+          "momentum_kg_m_s": 0.0,
+          "total_energy_j": -0.00018811557051995266
+        }
+      },
+      {
+        "liquid": {
+          "component_moles": [
+            0.0,
+            2.057629167293765e-08
+          ],
+          "volume_m3": 1.0879295856135205e-12,
+          "pressure_pa": 217835.82168129366,
+          "temperature_k": 200.0,
+          "momentum_kg_m_s": 0.0,
+          "total_energy_j": -0.00040050984776607924
+        },
+        "gas": {
+          "component_moles": [
+            0.0,
+            2.7057906794844944e-08
+          ],
+          "volume_m3": 1.9526161126374854e-10,
+          "pressure_pa": 217835.82168129366,
+          "temperature_k": 200.0,
+          "momentum_kg_m_s": 0.0,
+          "total_energy_j": -0.00018820247842201446
+        }
+      },
+      {
+        "liquid": {
+          "component_moles": [
+            0.0,
+            1.9130553796168937e-08
+          ],
+          "volume_m3": 1.011489134915234e-12,
+          "pressure_pa": 217835.82168129366,
+          "temperature_k": 200.0,
+          "momentum_kg_m_s": 0.0,
+          "total_energy_j": -0.0003723690988819717
+        },
+        "gas": {
+          "component_moles": [
+            0.0,
+            2.7068499345920214e-08
+          ],
+          "volume_m3": 1.9533805171444684e-10,
+          "pressure_pa": 217835.82168129366,
+          "temperature_k": 200.0,
+          "momentum_kg_m_s": 0.0,
+          "total_energy_j": -0.0001882761553838095
+        }
+      },
+      {
+        "liquid": {
+          "component_moles": [
+            0.0,
+            1.8164542630881273e-08
+          ],
+          "volume_m3": 9.604132586857151e-13,
+          "pressure_pa": 217835.82168129366,
+          "temperature_k": 200.0,
+          "momentum_kg_m_s": 0.0,
+          "total_energy_j": -0.00035356605162255956
+        },
+        "gas": {
+          "component_moles": [
+            0.0,
+            2.7075577062269777e-08
+          ],
+          "volume_m3": 1.9538912759067637e-10,
+          "pressure_pa": 217835.82168129366,
+          "temperature_k": 200.0,
+          "momentum_kg_m_s": 0.0,
+          "total_energy_j": -0.00018832538475578773
+        }
+      },
+      {
+        "liquid": {
+          "component_moles": [
+            0.0,
+            1.7825324620076703e-08
+          ],
+          "volume_m3": 9.424777960769382e-13,
+          "pressure_pa": 217835.82168129366,
+          "temperature_k": 200.0,
+          "momentum_kg_m_s": 0.0,
+          "total_energy_j": -0.0003469632994830408
+        },
+        "gas": {
+          "component_moles": [
+            0.0,
+            2.707806242573907e-08
+          ],
+          "volume_m3": 1.9540706305328513e-10,
+          "pressure_pa": 217835.82168129366,
+          "temperature_k": 200.0,
+          "momentum_kg_m_s": 0.0,
+          "total_energy_j": -0.00018834267181233084
+        }
+      },
+      {
+        "liquid": {
+          "component_moles": [
+            0.0,
+            1.8164542630881273e-08
+          ],
+          "volume_m3": 9.604132586857151e-13,
+          "pressure_pa": 217835.82168129366,
+          "temperature_k": 200.0,
+          "momentum_kg_m_s": 0.0,
+          "total_energy_j": -0.00035356605162255956
+        },
+        "gas": {
+          "component_moles": [
+            0.0,
+            2.7075577062269777e-08
+          ],
+          "volume_m3": 1.9538912759067637e-10,
+          "pressure_pa": 217835.82168129366,
+          "temperature_k": 200.0,
+          "momentum_kg_m_s": 0.0,
+          "total_energy_j": -0.00018832538475578773
+        }
+      },
+      {
+        "liquid": {
+          "component_moles": [
+            0.0,
+            1.9130553796168934e-08
+          ],
+          "volume_m3": 1.0114891349152337e-12,
+          "pressure_pa": 217835.82168129366,
+          "temperature_k": 200.0,
+          "momentum_kg_m_s": 0.0,
+          "total_energy_j": -0.0003723690988819716
+        },
+        "gas": {
+          "component_moles": [
+            0.0,
+            2.7068499345920214e-08
+          ],
+          "volume_m3": 1.9533805171444684e-10,
+          "pressure_pa": 217835.82168129366,
+          "temperature_k": 200.0,
+          "momentum_kg_m_s": 0.0,
+          "total_energy_j": -0.0001882761553838095
+        }
+      },
+      {
+        "liquid": {
+          "component_moles": [
+            0.0,
+            2.057629167293765e-08
+          ],
+          "volume_m3": 1.0879295856135205e-12,
+          "pressure_pa": 217835.82168129366,
+          "temperature_k": 200.0,
+          "momentum_kg_m_s": 0.0,
+          "total_energy_j": -0.00040050984776607924
+        },
+        "gas": {
+          "component_moles": [
+            0.0,
+            2.7057906794844944e-08
+          ],
+          "volume_m3": 1.9526161126374854e-10,
+          "pressure_pa": 217835.82168129366,
+          "temperature_k": 200.0,
+          "momentum_kg_m_s": 0.0,
+          "total_energy_j": -0.00018820247842201446
+        }
+      },
+      {
+        "liquid": {
+          "component_moles": [
+            0.0,
+            2.228165577509587e-08
+          ],
+          "volume_m3": 1.1780972450961725e-12,
+          "pressure_pa": 217835.82168129366,
+          "temperature_k": 200.0,
+          "momentum_kg_m_s": 0.0,
+          "total_energy_j": -0.0004337041243538009
+        },
+        "gas": {
+          "component_moles": [
+            0.0,
+            2.7045412028923473e-08
+          ],
+          "volume_m3": 1.951714436042659e-10,
+          "pressure_pa": 217835.82168129366,
+          "temperature_k": 200.0,
+          "momentum_kg_m_s": 0.0,
+          "total_energy_j": -0.00018811557051995266
+        }
+      },
+      {
+        "liquid": {
+          "component_moles": [
+            0.0,
+            2.3987019877254095e-08
+          ],
+          "volume_m3": 1.2682649045788244e-12,
+          "pressure_pa": 217835.82168129366,
+          "temperature_k": 200.0,
+          "momentum_kg_m_s": 0.0,
+          "total_energy_j": -0.00046689840094152254
+        },
+        "gas": {
+          "component_moles": [
+            0.0,
+            2.703291726300199e-08
+          ],
+          "volume_m3": 1.9508127594478324e-10,
+          "pressure_pa": 217835.82168129366,
+          "temperature_k": 200.0,
+          "momentum_kg_m_s": 0.0,
+          "total_energy_j": -0.00018802866261789078
+        }
+      },
+      {
+        "liquid": {
+          "component_moles": [
+            0.0,
+            2.543275775402281e-08
+          ],
+          "volume_m3": 1.3447053552771112e-12,
+          "pressure_pa": 217835.82168129366,
+          "temperature_k": 200.0,
+          "momentum_kg_m_s": 0.0,
+          "total_energy_j": -0.0004950391498256302
+        },
+        "gas": {
+          "component_moles": [
+            0.0,
+            2.7022324711926728e-08
+          ],
+          "volume_m3": 1.9500483549408496e-10,
+          "pressure_pa": 217835.82168129366,
+          "temperature_k": 200.0,
+          "momentum_kg_m_s": 0.0,
+          "total_energy_j": -0.00018795498565609577
+        }
+      },
+      {
+        "liquid": {
+          "component_moles": [
+            0.0,
+            2.6398768919310473e-08
+          ],
+          "volume_m3": 1.39578123150663e-12,
+          "pressure_pa": 217835.82168129366,
+          "temperature_k": 200.0,
+          "momentum_kg_m_s": 0.0,
+          "total_energy_j": -0.0005138421970850422
+        },
+        "gas": {
+          "component_moles": [
+            0.0,
+            2.7015246995577165e-08
+          ],
+          "volume_m3": 1.9495375961785544e-10,
+          "pressure_pa": 217835.82168129366,
+          "temperature_k": 200.0,
+          "momentum_kg_m_s": 0.0,
+          "total_energy_j": -0.00018790575628411754
+        }
+      }
+    ],
+    "time_s": 0.0,
+    "model_id": "d8cb2629f790645d49d411783541466c9e8de11f8c2f2f0722f2511853d72a0a"
+  },
+  "initial_film": {
+    "thickness_m": [
+      3.6e-06,
+      3.5543277195067725e-06,
+      3.4242640687119283e-06,
+      3.229610059419054e-06,
+      3e-06,
+      2.770389940580946e-06,
+      2.575735931288072e-06,
+      2.4456722804932277e-06,
+      2.4000000000000003e-06,
+      2.4456722804932277e-06,
+      2.5757359312880714e-06,
+      2.770389940580946e-06,
+      3e-06,
+      3.229610059419054e-06,
+      3.4242640687119283e-06,
+      3.5543277195067725e-06
+    ],
+    "shape": [
+      16
+    ],
+    "time_s": 0.0,
+    "dissipated_energy_j": 0.0,
+    "external_work_j": 0.0,
+    "model_id": "e9070e44223b79ca6913582dfc03354bd980efbe3d97cf875090f2592cbebb7e"
+  },
+  "duration_s": 0.4,
+  "maximum_step_s": 0.01,
+  "liquid_slot": "liquid",
+  "gas_slot": "gas"
+}

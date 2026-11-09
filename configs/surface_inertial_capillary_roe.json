@@ -1,0 +1,48 @@
+{
+  "model": {
+    "model": "inertial_capillary_film_v1",
+    "surface": {
+      "model": "periodic_long_wave_film_v1",
+      "shape": [
+        16
+      ],
+      "lengths_m": [
+        0.001
+      ],
+      "surface_tension_n_m": 0.02,
+      "viscosity_pa_s": 0.001,
+      "density_kg_m3": 600.0,
+      "adsorption_thickness_m": 1e-06,
+      "equilibrium_contact_angle_deg": 0.0,
+      "slip_length_m": 1e-08,
+      "transverse_width_m": 1.0,
+      "maximum_slope": 0.2,
+      "normal_gravity_m_s2": 0.0,
+      "maximum_unknowns": 512
+    },
+    "viscous_drag": false,
+    "maximum_unknowns": 256,
+    "maximum_velocity_m_s": 10.0,
+    "time_scheme": "roe"
+  },
+  "initial_thickness_m": [
+    3.0003e-06,
+    3.0002771638597534e-06,
+    3.0002121320343557e-06,
+    3.00011480502971e-06,
+    3e-06,
+    2.9998851949702904e-06,
+    2.999787867965644e-06,
+    2.9997228361402467e-06,
+    2.9997000000000003e-06,
+    2.9997228361402467e-06,
+    2.999787867965644e-06,
+    2.9998851949702904e-06,
+    3e-06,
+    3.00011480502971e-06,
+    3.0002121320343557e-06,
+    3.0002771638597534e-06
+  ],
+  "duration_s": 0.008,
+  "initial_step_s": 0.0001
+}

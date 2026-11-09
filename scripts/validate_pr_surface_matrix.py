@@ -15,6 +15,14 @@ from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 CASES = {
+    "active_surface_open_gas": ("surface_pr_active_surface_open_gas", "active_surface"),
+    "active_surface_open_evaporation": ("surface_pr_active_surface_open_evaporation", "active_surface"),
+    "active_surface_open_branch": ("surface_pr_active_surface_open_branch", "active_surface"),
+    "pr_gas_loaded_capillary": ("surface_pr_gas_loaded_capillary", "gas_loaded_capillary"),
+    "capillary_backward": ("surface_inertial_capillary_backward", "joint_capillary"),
+    "capillary_roe": ("surface_inertial_capillary_roe", "joint_capillary"),
+    "pr_capillary": ("surface_pr_isothermal_capillary", "joint_capillary"),
+    "pr_capillary_viscous": ("surface_pr_isothermal_capillary_viscous", "joint_capillary"),
     "gas_mist": ("surface_pr_gas_mist", "equilibrium"),
     "gas_mist_sections": ("surface_pr_gas_mist_sections", "equilibrium"),
     "gas_mist_capture": ("surface_pr_gas_mist_capture", "equilibrium"),
@@ -172,6 +180,8 @@ def main():
         config = root / "configs" / (config_name + ".json")
         result = output / (name + ".json")
         stem = {
+            "joint_capillary": "inertial_capillary_film",
+            "gas_loaded_capillary": "pr_gas_loaded_capillary",
             "equilibrium": "pr_equilibrium_transport",
             "gravity": "pr_gravity_transport",
             "controlled": "pr_controlled_surface",

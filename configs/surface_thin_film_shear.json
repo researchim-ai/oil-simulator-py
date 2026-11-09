@@ -1,0 +1,44 @@
+{
+  "model": {
+    "model": "periodic_long_wave_film_v1",
+    "shape": [
+      16
+    ],
+    "lengths_m": [
+      0.001
+    ],
+    "surface_tension_n_m": 0.02,
+    "viscosity_pa_s": 0.001,
+    "density_kg_m3": 600.0,
+    "adsorption_thickness_m": 1e-06,
+    "equilibrium_contact_angle_deg": 5.0,
+    "slip_length_m": 1e-08,
+    "transverse_width_m": 1.0,
+    "maximum_slope": 0.2,
+    "normal_gravity_m_s2": 0.0,
+    "maximum_unknowns": 512
+  },
+  "initial_thickness_m": [
+    3e-06,
+    3e-06,
+    3e-06,
+    3e-06,
+    3e-06,
+    3e-06,
+    3e-06,
+    3e-06,
+    3e-06,
+    3e-06,
+    3e-06,
+    3e-06,
+    3e-06,
+    3e-06,
+    3e-06,
+    3e-06
+  ],
+  "duration_s": 1.0,
+  "initial_step_s": 0.02,
+  "interface_shear_pa": [
+    0.01
+  ]
+}
