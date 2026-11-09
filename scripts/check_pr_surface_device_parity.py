@@ -80,6 +80,24 @@ def audit(cpu_directory, cuda_directory, *, root, atol=1e-9, rtol=1e-8):
                 raise ValueError(f"Checkpoint value differs: {path}")
 
         a, b = reports
+        if (
+            a.get("format") == "pr_active_surface_run_v1"
+            or b.get("format") == "pr_active_surface_run_v1"
+        ):
+            if (
+                a.get("format") != b.get("format")
+                or a["request"] != b["request"]
+                or a["system"] != b["system"]
+            ):
+                raise ValueError(f"Requested/normalized active surface models differ: {name}")
+            compare(a["result"]["state"], b["result"]["state"], "result/state")
+            rows[name] = {
+                "accepted": True,
+                "checked_state_scalars": count,
+                "maximum_tolerance_fraction": worst[0],
+                "worst_path": worst[1],
+            }
+            continue
         if a["config"] != b["config"] or a["model"] != b["model"]:
             raise ValueError(f"Requested/normalized models differ: {name}")
         if len(a["intervals"]) != len(b["intervals"]) or not a["intervals"]:

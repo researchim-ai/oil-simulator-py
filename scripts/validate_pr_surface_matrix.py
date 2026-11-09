@@ -15,6 +15,31 @@ from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 CASES = {
+    "gas_mist": ("surface_pr_gas_mist", "equilibrium"),
+    "gas_mist_sections": ("surface_pr_gas_mist_sections", "equilibrium"),
+    "gas_mist_capture": ("surface_pr_gas_mist_capture", "equilibrium"),
+    "gas_mist_reinjection": ("surface_pr_gas_mist_reinjection", "equilibrium"),
+    "active_surface_pipe_heat": ("surface_pr_active_surface_pipe_heat", "active_surface"),
+    "active_surface_annular": ("surface_pr_active_surface_annular", "active_surface"),
+    "active_surface_phase_birth": ("surface_pr_active_surface_phase_birth", "active_surface"),
+    "active_surface_phase_extinction": (
+        "surface_pr_active_surface_phase_extinction",
+        "active_surface",
+    ),
+    "active_surface_restart_schedule": (
+        "surface_pr_active_surface_restart_schedule",
+        "active_surface",
+    ),
+    "active_surface_friction": ("surface_pr_active_surface_friction", "active_surface"),
+    "active_surface_thermal": ("surface_pr_active_surface_thermal", "active_surface"),
+    "active_surface_controlled_aperture": (
+        "surface_pr_active_surface_controlled_aperture",
+        "active_surface",
+    ),
+    "active_surface_withdrawal": ("surface_pr_active_surface_withdrawal", "active_surface"),
+    "active_surface_reverse": ("surface_pr_active_surface_reverse", "active_surface"),
+    "active_surface_interface": ("surface_pr_active_surface_interface", "active_surface"),
+    "active_surface_isolated": ("surface_pr_active_surface_isolated", "active_surface"),
     "thermochemical_evaporation": ("surface_pr_thermochemical_evaporation", "thermochemical"),
     "thermochemical_condensation": ("surface_pr_thermochemical_condensation", "thermochemical"),
     "thermochemical_instant": ("surface_pr_thermochemical_instant", "thermochemical"),
@@ -156,6 +181,7 @@ def main():
             "relaxation": "pr_interphase_relaxation",
             "thermochemical": "pr_thermochemical_relaxation",
             "active_multifluid": "pr_active_multifluid_pipe",
+            "active_surface": "pr_active_surface",
             "multifluid": "pr_multifluid_pipe",
         }[family]
         start = time.monotonic()

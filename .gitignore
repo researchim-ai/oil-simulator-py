@@ -194,7 +194,30 @@ cython_debug/
 .cursorindexingignore
 
 results/
+# Compact validation summaries referenced by the documentation.
+# Full checkpoints and arbitrary result dumps remain ignored.
+!/benchmarks/results/
+/benchmarks/results/*
+!/benchmarks/results/multiphase_experiments.json
+!/benchmarks/results/annular_film_experiments.json
+!/benchmarks/results/annular_interface_experiments.json
+!/benchmarks/results/pr_active_annular_matrix.json
+!/benchmarks/results/pr_active_annular_matrix_parity.json
+!/benchmarks/results/pr_active_surface_scaling.json
+!/benchmarks/results/pr_active_surface_checkpoint_audits.json
+!/benchmarks/results/pr_active_surface_batched_scaling.json
+!/benchmarks/results/pr_active_surface_batched_checkpoint_audits.json
+!/benchmarks/results/pr_active_surface_batching_comparison.json
+!/benchmarks/results/pr_active_surface_final_scaling.json
+!/benchmarks/results/pr_active_surface_final_checkpoint_audits.json
+!/benchmarks/results/pr_active_surface_final_comparison.json
+!/benchmarks/results/pr_active_pipe_heat_matrix.json
+!/benchmarks/results/pr_active_pipe_heat_matrix_parity.json
+!/benchmarks/results/surface_release_regression.json
+!/benchmarks/results/surface_release_cuda.json
+!/benchmarks/results/pr_active_heated_equipment_interval.json
 .scratch/
 
 # данные OPM для прогона Norne
 opm-tests/
+!/benchmarks/results/pr_gas_mist_validation.json

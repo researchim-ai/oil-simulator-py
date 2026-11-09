@@ -24,7 +24,7 @@ def close(actual, expected, atol=1e-7, rtol=2e-6):
         a.shape != b.shape
         or not np.all(np.isfinite(a))
         or not np.all(np.isfinite(b))
-        or np.max(np.abs(a - b) / (atol + rtol * np.maximum(np.abs(a), np.abs(b)))) > 1
+        or np.any(np.abs(a - b) > atol + rtol * np.maximum(np.abs(a), np.abs(b)))
     ):
         raise ValueError("Independent flow audit mismatch")
 

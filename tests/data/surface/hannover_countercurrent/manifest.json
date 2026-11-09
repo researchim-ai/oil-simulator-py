@@ -1,0 +1,25 @@
+{
+  "source": "https://doi.org/10.25835/vcwbeqix",
+  "download_url": "https://data.uni-hannover.de/dataset/41a36353-6469-4d4b-9642-eaaf71a264b1/resource/2d8b29db-4d4a-4d20-9eb6-f5ca6c0f1251/download/data_hydrodynamic-investigation.zip",
+  "authors": [
+    "Janina Hagedorn",
+    "Markus Wirth",
+    "Bernhard Weigand",
+    "Stephan Kabelac"
+  ],
+  "license": "CC-BY-4.0",
+  "publication": "https://doi.org/10.1016/j.applthermaleng.2026.130975",
+  "geometry": {
+    "diameter_m": 0.085,
+    "pressure_tap_spacing_m": 3.0
+  },
+  "original_archive_sha256": "f7e64adf5c30fcc9ab986bc16ee3cbc88e3664904443b749ae4ce890e0d6a26b",
+  "original_members": {
+    "countercurrent.xlsx": "Forschungsdatenmanagement/measurement air water countercurrent.xlsx",
+    "dry_pipe.xlsx": "Forschungsdatenmanagement/measurement air plain pipe.xlsx"
+  },
+  "sha256": {
+    "dry_pipe.xlsx": "ae94e1b43830a9c027b271265dd32e863b631433eeb43916c883105773245591",
+    "countercurrent.xlsx": "15f8247c5976fbdb289389bea0ef8721fc1e51c88436489ef8be91fac6f2a643"
+  }
+}

@@ -11,6 +11,7 @@ import torch
 
 from .liquid import HydraulicConvergenceError, PropertyModelError
 from .peng_robinson import R
+from .pr_batched_homogeneous import homogeneous_batch
 from .pr_interphase_relaxation import PRRelaxationPhase
 
 
@@ -124,24 +125,9 @@ def recover_homogeneous_phases(
     )
     if not bool(valid.cpu()):
         raise HydraulicConvergenceError("Homogeneous UV caloric or mechanical recovery failed")
-    rows = []
-    for i, root in enumerate(roots):
-        fluid._validate(p[i], temperature[i], x[i])
-        eos = fluid.tensor_homogeneous(p[i], temperature[i], x[i], root)
-        if not bool(
-            (
-                eos["valid"] & ((eos["molar_volume_m3_mol"] - v[i]).abs() <= 1e-12 + 1e-9 * v[i])
-            ).cpu()
-        ):
-            raise PropertyModelError("Homogeneous UV target leaves its declared PR root")
-        rows.append(
-            PRRelaxationPhase(
-                tuple(n[i].cpu().tolist()),
-                float(volume[i].cpu()),
-                float(p[i].cpu()),
-                float(temperature[i].cpu()),
-                float(momentum[i].cpu()),
-                float(energy[i].cpu()),
-            )
-        )
-    return tuple(rows)
+    eos = homogeneous_batch(fluid, p, temperature, x, roots)
+    if not bool(((eos["molar_volume_m3_mol"] - v).abs() <= 1e-12 + 1e-9 * v).all().cpu()):
+        raise PropertyModelError("Homogeneous UV target leaves its declared PR root")
+    nn = n.detach().cpu().tolist()
+    stored = torch.stack((volume, p, temperature, momentum, energy), -1).detach().cpu().tolist()
+    return tuple(PRRelaxationPhase(tuple(amounts), *values) for amounts, values in zip(nn, stored))

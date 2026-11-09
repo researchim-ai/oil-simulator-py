@@ -175,9 +175,31 @@ def decode(state, node, model, fluid):
     )
     if population is not None:
         closure = live_law
-    if population is not None and not population["present"]:
-        closure = None
     if (
+        population is not None
+        and not population["present"]
+        and closure.get("model") != "dispersed_gas_liquid"
+    ):
+        closure = None
+    if closure is not None and closure.get("model") == "dispersed_gas_liquid":
+        from reference_gas_mist import velocities as mist_velocities
+
+        velocities = mist_velocities(
+            closure,
+            pn * vm / (pn @ vm),
+            rho,
+            x,
+            u,
+            node["diameter_m"],
+            model["gravity_m_s2"] * node["elevation_change_m"] / node["length_m"],
+            model["gravity_m_s2"],
+            p,
+            t,
+            mw,
+            None if population is None else population["phase_roles"],
+        )
+        drift = velocities - u
+    elif (
         closure is not None
         and len(pn) > 1
         and closure.get("model") in ("dispersed_oil_water", "concentrated_oil_water")
@@ -285,6 +307,8 @@ def decode(state, node, model, fluid):
             model["gravity_m_s2"],
             model["maximum_velocity_m_s"],
             p,
+            t,
+            float((x @ mw)[population["phase_roles"] == 0].sum()),
         )
         variance = float(phase_mass @ population["drop_mask"]) * dispersion
     kinetic = 0.5 * (phase_mass @ velocities**2 + variance)

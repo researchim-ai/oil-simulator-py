@@ -1,0 +1,38 @@
+{
+  "cpu": {
+    "accepted": true,
+    "scope": "final phase EOS and finer column profiles; source-bound reported global ledger; not trajectory reconstruction",
+    "cases": [
+      {
+        "cells": 64,
+        "independent_phase_eos_checks": 128,
+        "columns_checked_at_quadrature_order": 32,
+        "accepted": true
+      },
+      {
+        "cells": 4096,
+        "independent_phase_eos_checks": 8192,
+        "columns_checked_at_quadrature_order": 32,
+        "accepted": true
+      }
+    ]
+  },
+  "cuda": {
+    "accepted": true,
+    "scope": "final phase EOS and finer column profiles; source-bound reported global ledger; not trajectory reconstruction",
+    "cases": [
+      {
+        "cells": 64,
+        "independent_phase_eos_checks": 128,
+        "columns_checked_at_quadrature_order": 32,
+        "accepted": true
+      },
+      {
+        "cells": 4096,
+        "independent_phase_eos_checks": 8192,
+        "columns_checked_at_quadrature_order": 32,
+        "accepted": true
+      }
+    ]
+  }
+}

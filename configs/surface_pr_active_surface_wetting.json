@@ -1,0 +1,289 @@
+{
+  "system": {
+    "model": "pr_active_surface_v1",
+    "columns": {
+      "separator": {
+        "fluid": {
+          "components": [
+            {
+              "name": "Methane",
+              "critical_temperature_k": 190.564,
+              "critical_pressure_pa": 4599200.0,
+              "acentric_factor": 0.01142,
+              "molar_mass_kg_mol": 0.0160428,
+              "ideal_cp_j_mol_k": 35.7,
+              "min_temperature_k": 160.0,
+              "max_temperature_k": 500.0,
+              "reference_temperature_k": 298.15,
+              "reference_pressure_pa": 100000.0
+            },
+            {
+              "name": "Ethane",
+              "critical_temperature_k": 305.322,
+              "critical_pressure_pa": 4872200.0,
+              "acentric_factor": 0.099,
+              "molar_mass_kg_mol": 0.03006904,
+              "ideal_cp_j_mol_k": 52.5,
+              "min_temperature_k": 160.0,
+              "max_temperature_k": 500.0,
+              "reference_temperature_k": 298.15,
+              "reference_pressure_pa": 100000.0
+            }
+          ],
+          "binary_interactions": [
+            [
+              0.0,
+              0.0
+            ],
+            [
+              0.0,
+              0.0
+            ]
+          ],
+          "min_pressure_pa": 100.0,
+          "max_pressure_pa": 1000000000.0,
+          "max_phases": 3
+        },
+        "geometry": {
+          "diameter_m": 0.2,
+          "length_m": 0.4,
+          "orientation": "vertical"
+        },
+        "gravity_m_s2": 9.80665,
+        "elevation_m": 0.0,
+        "quadrature_order": 2,
+        "maximum_quadrature_order": 8,
+        "relative_tolerance": 1e-06,
+        "temperature_tolerance_k": 1e-05
+      }
+    },
+    "ports": [
+      {
+        "name": "pickup",
+        "column": "separator",
+        "height_m": 0.2
+      }
+    ],
+    "pipes": {
+      "riser": {
+        "pipe": {
+          "model": "pr_active_multifluid_pipe_v3",
+          "fluid": {
+            "components": [
+              {
+                "name": "Methane",
+                "critical_temperature_k": 190.564,
+                "critical_pressure_pa": 4599200.0,
+                "acentric_factor": 0.01142,
+                "molar_mass_kg_mol": 0.0160428,
+                "ideal_cp_j_mol_k": 35.7,
+                "min_temperature_k": 160.0,
+                "max_temperature_k": 500.0,
+                "reference_temperature_k": 298.15,
+                "reference_pressure_pa": 100000.0
+              },
+              {
+                "name": "Ethane",
+                "critical_temperature_k": 305.322,
+                "critical_pressure_pa": 4872200.0,
+                "acentric_factor": 0.099,
+                "molar_mass_kg_mol": 0.03006904,
+                "ideal_cp_j_mol_k": 52.5,
+                "min_temperature_k": 160.0,
+                "max_temperature_k": 500.0,
+                "reference_temperature_k": 298.15,
+                "reference_pressure_pa": 100000.0
+              }
+            ],
+            "binary_interactions": [
+              [
+                0.0,
+                0.0
+              ],
+              [
+                0.0,
+                0.0
+              ]
+            ],
+            "min_pressure_pa": 100.0,
+            "max_pressure_pa": 1000000000.0,
+            "max_phases": 3
+          },
+          "phase_slots": [
+            {
+              "name": "liquid",
+              "root": "liquid"
+            },
+            {
+              "name": "gas",
+              "root": "vapor"
+            }
+          ],
+          "lengths_m": [
+            0.012732395447351627,
+            0.012732395447351627
+          ],
+          "diameter_m": 0.1,
+          "boundary_mode": "walls",
+          "wave_speed_bound_m_s": 4000.0,
+          "maximum_courant": 0.2,
+          "thermochemical_relaxation_time_s": null,
+          "wall_friction": {
+            "model": "laminar_annular_wallis_interface_v1",
+            "gas_slot": "gas",
+            "liquid_slot": "liquid",
+            "viscosity_pa_s": {
+              "gas": 1e-05,
+              "liquid": 0.001
+            },
+            "roughness_m": 0.0,
+            "wetting": {
+              "model": "hartley_murgatroyd_profile_v1",
+              "surface_tension_n_m": 0.02,
+              "receding_contact_angle_deg": 20.0,
+              "advancing_contact_angle_deg": 80.0,
+              "maximum_curvature_ratio": 0.05,
+              "require_full_wetting": false
+            }
+          },
+          "face_elevations_m": [
+            0.2,
+            0.21273239544735165,
+            0.22546479089470325
+          ],
+          "gravity_m_s2": 9.80665,
+          "hydrostatic_reference": null
+        },
+        "boundary_nodes": [
+          "pickup",
+          null
+        ]
+      }
+    },
+    "equipment": null,
+    "maximum_transverse_head_fraction": 0.005,
+    "aperture_relative_tolerance": 1e-06
+  },
+  "initial": {
+    "equipment": null,
+    "columns": {
+      "separator": {
+        "component_moles": [
+          0.0,
+          1.044441078415378
+        ],
+        "total_energy_j": -1659.4859391767943,
+        "temperature_k": 320.00000001044356,
+        "chemical_constants": [
+          0.0,
+          0.763717989134581
+        ],
+        "interface_heights_m": [],
+        "phase_seeds": [
+          [
+            0.0,
+            1.0
+          ]
+        ],
+        "phase_roots": [
+          "stable"
+        ],
+        "quadrature_order": 4,
+        "solution_variables": [
+          12.291516323451667,
+          12.291504596578234,
+          12.291489296286395,
+          12.291477569417792,
+          0.763717989134581,
+          1.0732852591327975
+        ],
+        "model_id": "f391af3c402cc2b17af49fb45aa320b46ea6354e719cce2d718ce4b7cd986c26"
+      }
+    },
+    "pipes": {
+      "riser": {
+        "cells": [
+          {
+            "liquid": {
+              "component_moles": [
+                0.0,
+                0.03782651367337157
+              ],
+              "volume_m3": 2.0000000000000003e-06,
+              "pressure_pa": 217835.82168129366,
+              "temperature_k": 200.0,
+              "momentum_kg_m_s": -1.1374069527051566e-05,
+              "total_energy_j": -736.2789890657908
+            },
+            "gas": {
+              "component_moles": [
+                0.0,
+                0.013580113616460275
+              ],
+              "volume_m3": 9.8e-05,
+              "pressure_pa": 217835.82168129366,
+              "temperature_k": 200.0,
+              "momentum_kg_m_s": 0.00012250229386136658,
+              "total_energy_j": -94.45706802268066
+            }
+          },
+          {
+            "liquid": {
+              "component_moles": [
+                0.0,
+                0.03782651367337157
+              ],
+              "volume_m3": 2.0000000000000003e-06,
+              "pressure_pa": 217835.82168129366,
+              "temperature_k": 200.0,
+              "momentum_kg_m_s": -1.1374069527051566e-05,
+              "total_energy_j": -736.2789890657908
+            },
+            "gas": {
+              "component_moles": [
+                0.0,
+                0.013580113616460275
+              ],
+              "volume_m3": 9.8e-05,
+              "pressure_pa": 217835.82168129366,
+              "temperature_k": 200.0,
+              "momentum_kg_m_s": 0.00012250229386136658,
+              "total_energy_j": -94.45706802268066
+            }
+          }
+        ],
+        "time_s": 0.0,
+        "model_id": "05991bce25beacb722eb3bb2fd79236102c87fbede23e85db575ae69501d5e7d"
+      }
+    },
+    "time_s": 0.0,
+    "next_step_s": 6.366197723675814e-07,
+    "model_id": "92c4cd86e01994ddba1c50637d0ada82f0d660b29e3c33913eaca4c14350e1fe"
+  },
+  "schedule": [
+    {
+      "duration_s": 1e-06,
+      "commands": {
+        "port_positions": {
+          "pickup": 1.0
+        }
+      }
+    },
+    {
+      "duration_s": 1e-06,
+      "commands": {
+        "port_positions": {
+          "pickup": 0.0
+        }
+      }
+    },
+    {
+      "duration_s": 1e-06,
+      "commands": {
+        "port_positions": {
+          "pickup": 0.5
+        }
+      }
+    }
+  ]
+}

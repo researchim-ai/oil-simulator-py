@@ -486,10 +486,7 @@ def characteristics(model, index, data, active):
 
 
 def source_context(law, population, temperature):
-    carrier = law.water_viscosity_pa_s if law.dispersed_liquid == "oil" else law.oil_viscosity_pa_s
-    dispersed = (
-        law.oil_viscosity_pa_s if law.dispersed_liquid == "oil" else law.water_viscosity_pa_s
-    )
+    carrier, dispersed = law.population_viscosities()
     mobility = (
         3 * (carrier + dispersed) / (2 * carrier + 3 * dispersed)
         if law.interface == "clean"

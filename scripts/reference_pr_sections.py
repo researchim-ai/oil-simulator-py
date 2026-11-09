@@ -19,7 +19,7 @@ def properties(node, state, x, pn, vm, z, rho):
     close(state["droplet_number"], counts.sum(), atol=1e-6, rtol=1e-10)
     roles = identify_roles(law, spec, x, z, rho)
     chosen = 1 if law["dispersed_liquid"] == "oil" else 2
-    carrier = 2 if chosen == 1 else 1
+    carrier = 0 if law.get("model") == "dispersed_gas_liquid" else (2 if chosen == 1 else 1)
     mask = roles == chosen
     present = bool(np.any(mask) and np.any(roles == carrier))
     volume = float((pn * vm)[mask].sum()) if present else 0.0
@@ -71,7 +71,18 @@ def properties(node, state, x, pn, vm, z, rho):
     )
 
 
-def velocities(node, p, rho, phase_velocity, axial, gravity, maximum, pressure):
+def velocities(
+    node,
+    p,
+    rho,
+    phase_velocity,
+    axial,
+    gravity,
+    maximum,
+    pressure,
+    temperature=None,
+    gas_molar_mass=None,
+):
     roles, law = p["phase_roles"], node["drift_flux"]
     ro = float(np.sum(rho[roles == 1]))
     rw = float(np.sum(rho[roles == 2]))
@@ -80,24 +91,34 @@ def velocities(node, p, rho, phase_velocity, axial, gravity, maximum, pressure):
         if law["dispersed_liquid"] == "oil"
         else law["oil_viscosity_pa_s"]
     )
+    mist = law.get("model") == "dispersed_gas_liquid"
+    if mist:
+        carrier_mu = law["gas_viscosity_pa_s"]
     drop_mu = (
         law["oil_viscosity_pa_s"]
         if law["dispersed_liquid"] == "oil"
         else law["water_viscosity_pa_s"]
     )
     density = rw if law["dispersed_liquid"] == "oil" else ro
+    if mist:
+        density = float(np.sum(rho[roles == 0]))
     diameter = p["section_diameters_m"]
     mobility = diameter**2 / (18 * carrier_mu)
     if law["interface"] == "clean":
         mobility *= 3 * (carrier_mu + drop_mu) / (2 * carrier_mu + 3 * drop_mu)
     slip = (rw - ro) * axial * mobility * (1 if law["dispersed_liquid"] == "oil" else -1)
+    contrast = abs(rw - ro)
+    if mist:
+        drop_density = ro if law["dispersed_liquid"] == "oil" else rw
+        contrast = drop_density - density
+        slip = -contrast * axial * mobility
     deviation = slip - p["section_volume_fractions"] @ slip
     mean = float(phase_velocity @ p["drop_mask"])
     p["section_velocities_m_s"] = mean + deviation if p["present"] else np.full_like(slip, mean)
     if p["present"] and (
-        np.max(density * abs(rw - ro) * gravity * mobility * diameter / carrier_mu)
+        np.max(density * abs(contrast) * gravity * mobility * diameter / carrier_mu)
         > law["maximum_reynolds_number"]
-        or np.max(abs(rw - ro) * gravity * diameter**2 / law["surface_tension_n_m"])
+        or np.max(abs(contrast) * gravity * diameter**2 / law["surface_tension_n_m"])
         > law["maximum_eotvos_number"]
         or np.max(diameter / node["diameter_m"]) > law["maximum_confinement_ratio"]
         or np.max(4 * law["surface_tension_n_m"] / diameter)
@@ -105,6 +126,16 @@ def velocities(node, p, rho, phase_velocity, axial, gravity, maximum, pressure):
         or np.max(np.abs(p["section_velocities_m_s"])) > maximum
     ):
         raise ValueError("Size-resolved drift envelope rejected")
+    if mist and p["present"]:
+        if temperature is None or gas_molar_mass is None:
+            raise ValueError("Gas mist spectrum needs local continuum properties")
+        path = (
+            carrier_mu
+            / density
+            * math.sqrt(math.pi * gas_molar_mass / (2 * 8.31446261815324 * temperature))
+        )
+        if np.any(path / diameter > law["maximum_knudsen_number"]):
+            raise ValueError("Rarefied droplet section outside continuum regime")
     return float(p["section_volume_fractions"] @ deviation**2)
 
 
@@ -171,6 +202,8 @@ def sources(spec, coords, volume, population=None, temperature_k=None, law=None)
                     if law["dispersed_liquid"] == "oil"
                     else law["oil_viscosity_pa_s"]
                 )
+                if law.get("model") == "dispersed_gas_liquid":
+                    mu = law["gas_viscosity_pa_s"]
                 mud = (
                     law["oil_viscosity_pa_s"]
                     if law["dispersed_liquid"] == "oil"

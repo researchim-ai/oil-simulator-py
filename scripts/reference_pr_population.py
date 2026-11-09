@@ -38,7 +38,7 @@ def population_properties(node, state, x, pn, vm, z, rho):
     number = state["droplet_number"]
     roles = identify_roles(law, spec, x, z, rho)
     chosen = 1 if law["dispersed_liquid"] == "oil" else 2
-    carrier = 2 if chosen == 1 else 1
+    carrier = 0 if law.get("model") == "dispersed_gas_liquid" else (2 if chosen == 1 else 1)
     mask = roles == chosen
     present = bool(np.any(mask) and np.any(roles == carrier))
     volume = float(np.sum(pn * vm * mask)) if present else 0.0

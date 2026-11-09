@@ -14,8 +14,11 @@ import torch
 
 from .liquid import ConservationError, HydraulicConvergenceError, PropertyModelError, _number
 from .operation import _digest
+from .pr_active_multifluid_pipe import PRActiveMultifluidPipe, PRActiveMultifluidState
 from .pr_equilibrium_euler_pipe import PREquilibriumEulerPipe, PREquilibriumEulerPipeState
 from .pr_equilibrium_transport import PREquilibriumTransportNetwork, PREquilibriumTransportState
+from .pr_interphase_relaxation import PRRelaxationPhase
+from .pr_phase_equilibration import PRPhaseEquilibriumState
 
 
 @dataclass(frozen=True)
@@ -48,7 +51,14 @@ class PREquilibriumEulerPlantState:
         return cls(
             PREquilibriumTransportState.from_dict(data["transport"]),
             tuple(
-                (n, PREquilibriumEulerPipeState.from_dict(p))
+                (
+                    n,
+                    (
+                        PRActiveMultifluidState
+                        if "bulk_stocks" not in p
+                        else PREquilibriumEulerPipeState
+                    ).from_dict(p),
+                )
                 for n, p in sorted(data["pipes"].items())
             ),
             data["next_step_s"],
@@ -121,10 +131,14 @@ class PREquilibriumEulerPlant:
             ):
                 raise ValueError("Named pipe, two boundary nodes and direction required")
             pipe = entry["pipe"]
+            if isinstance(pipe, PRActiveMultifluidPipe) and pipe.gravity != 0:
+                raise ValueError(
+                    "Use the gravitational active surface adapter for surveyed gravity"
+                )
             ends = tuple(entry["boundary_nodes"])
             direction = tuple(float(v) for v in entry["direction"])
             if (
-                not isinstance(pipe, PREquilibriumEulerPipe)
+                not isinstance(pipe, (PREquilibriumEulerPipe, PRActiveMultifluidPipe))
                 or pipe.boundary_mode != "walls"
                 or pipe.fluid.model_id != self.fluid.model_id
                 or pipe.fluid.device != self.fluid.device
@@ -156,7 +170,9 @@ class PREquilibriumEulerPlant:
 
     def to_dict(self):
         return {
-            "model": "pr_equilibrium_euler_plant_v1",
+            "model": "pr_active_multifluid_plant_v1"
+            if any(isinstance(e["pipe"], PRActiveMultifluidPipe) for e in self.pipes.values())
+            else "pr_equilibrium_euler_plant_v1",
             "transport": self.transport.to_dict(),
             "pipes": {
                 n: {
@@ -170,15 +186,27 @@ class PREquilibriumEulerPlant:
 
     @classmethod
     def from_dict(cls, data, *, device="cpu"):
-        if (
-            set(data) != {"model", "transport", "pipes"}
-            or data["model"] != "pr_equilibrium_euler_plant_v1"
+        if set(data) != {"model", "transport", "pipes"} or data["model"] not in (
+            "pr_equilibrium_euler_plant_v1",
+            "pr_active_multifluid_plant_v1",
         ):
             raise ValueError("Unknown Euler plant model")
         return cls(
             PREquilibriumTransportNetwork.from_dict(data["transport"], device=device),
             {
-                n: {**e, "pipe": PREquilibriumEulerPipe.from_dict(e["pipe"], device=device)}
+                n: {
+                    **e,
+                    "pipe": (
+                        PRActiveMultifluidPipe
+                        if e["pipe"]["model"]
+                        in (
+                            "pr_active_multifluid_pipe_v1",
+                            "pr_active_multifluid_pipe_v2",
+                            "pr_active_multifluid_pipe_v3",
+                        )
+                        else PREquilibriumEulerPipe
+                    ).from_dict(e["pipe"], device=device),
+                }
                 for n, e in data["pipes"].items()
             },
         )
@@ -248,6 +276,36 @@ class PREquilibriumEulerPlant:
             raise ConservationError("Euler plant component/energy/vector momentum ledger failed")
         return r + [de] + momentum
 
+    def _active_boundary(self, pipe, pipe_cell, node_state):
+        phases = []
+        for amounts, root in zip(node_state.phase_component_moles, node_state.phase_roots):
+            amount = math.fsum(amounts)
+            q = self.fluid.homogeneous(
+                node_state.pressure_pa,
+                node_state.temperature_k,
+                [v / amount for v in amounts],
+                root,
+            )
+            phases.append(
+                PRRelaxationPhase(
+                    tuple(amounts),
+                    amount * float(q["molar_volume_m3_mol"].cpu()),
+                    node_state.pressure_pa,
+                    node_state.temperature_k,
+                    0.0,
+                    amount * float(q["molar_internal_energy_j_mol"].cpu()),
+                )
+            )
+        # Reuse marker/root lineage selection; no equilibrium projection of pipe phases.
+        target = PRPhaseEquilibriumState(
+            tuple(phases), tuple(node_state.phase_roots), "boundary", 0.0
+        )
+        return dict(
+            pipe._assign_source(
+                pipe_cell, target, {"phase_pairs": [(None, j, 1.0) for j in range(len(phases))]}
+            )
+        )
+
     def step(
         self,
         state,
@@ -306,6 +364,52 @@ class PREquilibriumEulerPlant:
         for name, old in state.pipes:
             entry = self.pipes[name]
             pipe = entry["pipe"]
+            if isinstance(pipe, PRActiveMultifluidPipe):
+                boundaries = [
+                    None
+                    if node is None
+                    else self._active_boundary(
+                        pipe, old.cells[0 if side == 0 else -1], dict(state.transport.nodes)[node]
+                    )
+                    for side, node in enumerate(entry["boundary_nodes"])
+                ]
+                new, r = pipe.step(
+                    old,
+                    dt,
+                    boundary_cells=boundaries,
+                    heat_rates_w=pipe_heat_w.get(name),
+                    heat_temperatures_k=pipe_heat_temperatures_k.get(name),
+                )
+                for side, node in enumerate(entry["boundary_nodes"]):
+                    if node is None:
+                        continue
+                    sign = 1.0 if side == 0 else -1.0
+                    fan = self.fluid.tensor(r["face_fluxes"][0 if side == 0 else -1]).sum(0)
+                    index = self.transport.names.index(node)
+                    graph_flow = -sign * pipe.area * fan
+                    graph_net[index] = graph_net[index] + torch.cat(
+                        (graph_flow[:-2], graph_flow.new_zeros(1), graph_flow[-1:])
+                    )
+                    sf = r["boundary_entropy_fluxes"][side]
+                    graph_entropy -= sign * pipe.area * sf
+                    interfaces.append(
+                        {
+                            "pipe": name,
+                            "side": side,
+                            "node": node,
+                            "flux": fan.cpu().tolist(),
+                            "entropy_flux_w_m2_k": sf,
+                            "area_m2": pipe.area,
+                        }
+                    )
+                r = {
+                    **r,
+                    "wall_impulse_kg_m_s": r["wall_impulse_kg_m_s"] + r["external_transfer"][-1],
+                    "external_heat_j": r.get("external_heat_j", 0.0),
+                }
+                new_pipes.append((name, new))
+                reports[name] = r
+                continue
             packet = pipe.inspect(old)
             boundary = [None, None]
             entropy_flux = [0.0, 0.0]

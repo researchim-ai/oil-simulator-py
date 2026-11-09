@@ -84,6 +84,28 @@ class DispersedOilWaterClosure:
         ).all()
         return masks.unbind(-1), valid
 
+    def population_masks(self, roles):
+        _gas, oil, water = roles
+        return (oil, water) if self.dispersed_liquid == "oil" else (water, oil)
+
+    @property
+    def population_carrier(self):
+        return "water" if self.dispersed_liquid == "oil" else "oil"
+
+    def population_viscosities(self):
+        return (
+            (self.water_viscosity_pa_s, self.oil_viscosity_pa_s)
+            if self.dispersed_liquid == "oil"
+            else (self.oil_viscosity_pa_s, self.water_viscosity_pa_s)
+        )
+
+    def population_slip(self, roles, densities, axial_gravity, gravity, diameters):
+        _gas, oil, water = roles
+        slip, re, eo = self.liquid_slip(
+            (densities * oil).sum(), (densities * water).sum(), axial_gravity, gravity, diameters
+        )
+        return slip * (1 if self.dispersed_liquid == "oil" else -1), re, eo
+
     def pressure_valid(self, composition, pressure, droplet_diameter_m=None, phase_roles=None):
         if len(composition) == 1:
             return pressure.new_ones((), dtype=torch.bool)

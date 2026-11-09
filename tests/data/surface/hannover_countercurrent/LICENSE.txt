@@ -1,0 +1,4 @@
+CC BY 4.0
+https://creativecommons.org/licenses/by/4.0/
+
+Unmodified experimental workbooks from Hagedorn, Wirth, Weigand and Kabelac (2025), Hydrodynamic investigations for a two-phase geothermal pipe. DOI: 10.25835/vcwbeqix. Files renamed only; original filenames and SHA256 in manifest.json. No author endorsement implied.

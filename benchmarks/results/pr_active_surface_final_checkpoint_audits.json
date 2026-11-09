@@ -1,0 +1,42 @@
+{
+  "format": "pr_active_final_checkpoint_audits_v1",
+  "checker_sha256": "fa6f0a248ae600fa0dfc0349034ce73dde2014e4a668adbf0475d9ef12c1ae70",
+  "cpu": {
+    "source_report_sha256": "edfeabc131d1a9d53730eeb2ce667cd8d317b6378f9b59128193e79191612d47",
+    "accepted": true,
+    "scope": "final phase EOS and finer column profiles; source-bound reported global ledger; not trajectory reconstruction",
+    "cases": [
+      {
+        "cells": 64,
+        "independent_phase_eos_checks": 128,
+        "columns_checked_at_quadrature_order": 32,
+        "accepted": true
+      },
+      {
+        "cells": 4096,
+        "independent_phase_eos_checks": 8192,
+        "columns_checked_at_quadrature_order": 32,
+        "accepted": true
+      }
+    ]
+  },
+  "cuda": {
+    "source_report_sha256": "ddaef9bfecba7b2b79c024205bed402017ca6556a1bcc1fb3fbcc264bc7388ac",
+    "accepted": true,
+    "scope": "final phase EOS and finer column profiles; source-bound reported global ledger; not trajectory reconstruction",
+    "cases": [
+      {
+        "cells": 64,
+        "independent_phase_eos_checks": 128,
+        "columns_checked_at_quadrature_order": 32,
+        "accepted": true
+      },
+      {
+        "cells": 4096,
+        "independent_phase_eos_checks": 8192,
+        "columns_checked_at_quadrature_order": 32,
+        "accepted": true
+      }
+    ]
+  }
+}

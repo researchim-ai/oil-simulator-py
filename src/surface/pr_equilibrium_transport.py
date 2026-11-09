@@ -612,6 +612,7 @@ class PREquilibriumTransportNetwork:
             if pa is not None and pb is not None:
                 if (
                     pa.family != pb.family
+                    or na.drift_flux.population_carrier != nb.drift_flux.population_carrier
                     or na.drift_flux.dispersed_liquid != nb.drift_flux.dispersed_liquid
                     or (
                         na.drift_flux.gas_component_index,
@@ -853,15 +854,13 @@ class PREquilibriumTransportNetwork:
         if population is not None and "section_numbers" in population:
             law = node.drift_flux
             _gas, oil, water = population["roles"][0]
-            ro, rw = (q["density_kg_m3"] * oil).sum(), (q["density_kg_m3"] * water).sum()
-            slip, reynolds, eotvos = law.liquid_slip(
-                ro,
-                rw,
+            slip, reynolds, eotvos = law.population_slip(
+                (_gas, oil, water),
+                q["density_kg_m3"],
                 self.gravity_m_s2 * node.elevation_change_m / node.length_m,
                 self.gravity_m_s2,
                 population["section_diameters_m"],
             )
-            slip = slip * (1 if law.dispersed_liquid == "oil" else -1)
             weights = population["section_volume_fractions"]
             deviation = slip - (weights * slip).sum()
             drop_velocity = (velocities * population["drop_mask"]).sum()
@@ -1071,10 +1070,30 @@ class PREquilibriumTransportNetwork:
                     ).all()
                 )
             if population is not None:
+                absent_valid = (population["number"] == 0) & population["valid"]
+                if n.drift_flux.population_carrier == "gas":
+                    absent_valid = absent_valid & valid
                 valid = torch.where(
                     population["present"],
                     valid & population["valid"],
-                    (population["number"] == 0) & population["valid"],
+                    absent_valid,
+                )
+            if hasattr(n.drift_flux, "continuum_valid"):
+                diameters = (
+                    n.drift_flux.droplet_diameter_m
+                    if population is None
+                    else population.get("section_diameters_m", population["diameter_m"])
+                )
+                valid = (
+                    valid
+                    & n.drift_flux.continuum_valid(
+                        data["x"],
+                        data["q"]["density_kg_m3"],
+                        data["t"],
+                        self.fluid.molar_masses,
+                        diameters,
+                        None if population is None else population["roles"],
+                    ).all()
                 )
             if not bool(valid.cpu()):
                 raise PropertyModelError("Drift-flux closure outside declared regime envelope")

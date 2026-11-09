@@ -346,7 +346,11 @@ def main():
         source.relative_to(root)
         if hashlib.sha256(source.read_bytes()).hexdigest() != digest:
             raise ValueError("Changed source after calculation: " + path)
-    if config["model"].get("model") == "pr_active_multifluid_pipe_v1":
+    if config["model"].get("model") in (
+        "pr_active_multifluid_pipe_v1",
+        "pr_active_multifluid_pipe_v2",
+        "pr_active_multifluid_pipe_v3",
+    ):
         from check_pr_active_multifluid_pipe import audit as audit_active
 
         result = audit_active(config, report)

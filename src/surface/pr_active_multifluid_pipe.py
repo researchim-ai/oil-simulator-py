@@ -1,6 +1,6 @@
 """Explicit active-phase PR multifluid transport and thermochemical sources.
 
-Horizontal constant-area cells. Each present phase owns N/V/M/E and P/T/u.
+Surveyed constant-area cells. Each present phase owns N/V/M/E and P/T/u.
 Absent slots have exactly zero inventory and no EOS evaluation. Pairwise
 interface closure is explicit in pr_active_multifluid_flux, with CFL, domain
 and entropy rejection. This is not the previous fixed-reference BN scheme.
@@ -8,7 +8,7 @@ and entropy rejection. This is not the previous fixed-reference BN scheme.
 
 import itertools
 import math
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass, replace
 
 import torch
 
@@ -16,6 +16,8 @@ from .liquid import ConservationError, HydraulicConvergenceError, PropertyModelE
 from .operation import _digest
 from .peng_robinson import R
 from .pr_active_multifluid_flux import fluctuations
+from .pr_active_pipe_friction import PRActivePipeFriction
+from .pr_batched_homogeneous import homogeneous_batch
 from .pr_homogeneous_uv import recover_homogeneous_phases
 from .pr_interphase_relaxation import PRRelaxationPhase
 from .pr_phase_equilibration import PRPhaseEquilibration
@@ -34,6 +36,20 @@ class PRActiveMultifluidState:
             self, "cells", tuple(tuple((name, p) for name, p in cell) for cell in self.cells)
         )
         _number(self.time_s, "active pipe clock", nonnegative=True)
+
+    @property
+    def bulk_stocks(self):
+        return tuple(
+            (
+                *(
+                    math.fsum(p.component_moles[j] for _, p in cell)
+                    for j in range(len(cell[0][1].component_moles))
+                ),
+                math.fsum(p.momentum_kg_m_s for _, p in cell),
+                math.fsum(p.total_energy_j for _, p in cell),
+            )
+            for cell in self.cells
+        )
 
     def to_dict(self):
         from dataclasses import asdict
@@ -70,6 +86,10 @@ class PRActiveMultifluidPipe:
         wave_speed_bound_m_s=4000.0,
         maximum_courant=0.2,
         thermochemical_relaxation_time_s=None,
+        face_elevations_m=None,
+        gravity_m_s2=0.0,
+        hydrostatic_reference=None,
+        wall_friction=None,
     ):
         self.fluid = fluid
         self.slots = tuple(dict(row) for row in phase_slots)
@@ -108,6 +128,35 @@ class PRActiveMultifluidPipe:
         self.courant = _number(maximum_courant, "Courant limit", positive=True)
         if self.courant > 0.25:
             raise ValueError("Use a conservative Courant bound <=0.25")
+        self.gravity = _number(gravity_m_s2, "gravity", nonnegative=True)
+        self.elevations = (
+            None
+            if face_elevations_m is None
+            else tuple(_number(z, "face elevation") for z in face_elevations_m)
+        )
+        if self.elevations is not None and (
+            len(self.elevations) != len(self.lengths) + 1
+            or any(
+                abs(b - a) > l * (1 + 1e-12)
+                for a, b, l in zip(self.elevations, self.elevations[1:], self.lengths)
+            )
+        ):
+            raise ValueError("Face survey must match physical segment lengths")
+        if self.gravity and self.elevations is None:
+            raise ValueError("Gravity requires an explicit face survey")
+        if (
+            self.boundary_mode == "periodic"
+            and self.elevations is not None
+            and self.elevations[0] != self.elevations[-1]
+        ):
+            raise ValueError("Periodic survey must close in elevation")
+        self.centers = (
+            tuple((a + b) / 2 for a, b in zip(self.elevations, self.elevations[1:]))
+            if self.elevations is not None
+            else (0.0,) * len(self.lengths)
+        )
+        self.reference_specs = hydrostatic_reference
+        self._reference_operator = None
         self.thermochemical_time = thermochemical_relaxation_time_s
         self.chemical = (
             None
@@ -116,13 +165,29 @@ class PRActiveMultifluidPipe:
                 fluid, self.thermochemical_time, maximum_active_phases=len(self.names)
             )
         )
+        self.friction = (
+            None if wall_friction is None else PRActivePipeFriction.from_dict(wall_friction)
+        )
+        if self.friction is not None and (
+            set(self.friction.viscosity) != set(self.names)
+            or self.friction.roughness / self.diameter > 0.05
+        ):
+            raise ValueError(
+                "Wall friction requires every named slot viscosity and relative roughness <=.05"
+            )
+        if self.friction is not None and hasattr(self.friction, "validate_pipe"):
+            self.friction.validate_pipe(self)
         self.equilibrium = PRPhaseEquilibration(fluid)
         self.model_id = _digest(self.to_dict())
         self._cache = None
+        if hydrostatic_reference is not None:
+            self._prepare_reference()
 
     def to_dict(self):
-        return {
-            "model": "pr_active_multifluid_pipe_v1",
+        result = {
+            "model": "pr_active_multifluid_pipe_v2"
+            if self.elevations is not None
+            else "pr_active_multifluid_pipe_v1",
             "fluid": self.fluid.to_dict(),
             "phase_slots": self.slots,
             "lengths_m": self.lengths,
@@ -132,13 +197,27 @@ class PRActiveMultifluidPipe:
             "maximum_courant": self.courant,
             "thermochemical_relaxation_time_s": self.thermochemical_time,
         }
+        if self.friction is not None:
+            result["model"] = "pr_active_multifluid_pipe_v3"
+            result["wall_friction"] = self.friction.to_dict()
+        if self.elevations is not None:
+            result.update(
+                face_elevations_m=self.elevations,
+                gravity_m_s2=self.gravity,
+                hydrostatic_reference=self.reference_specs,
+            )
+        return result
 
     @classmethod
     def from_dict(cls, data, *, device="cpu"):
         from .equilibrium_properties import EquilibriumFluid
 
         raw = dict(data)
-        if raw.pop("model", None) != "pr_active_multifluid_pipe_v1":
+        if raw.pop("model", None) not in (
+            "pr_active_multifluid_pipe_v1",
+            "pr_active_multifluid_pipe_v2",
+            "pr_active_multifluid_pipe_v3",
+        ):
             raise ValueError("Unknown active multifluid model")
         raw["fluid"] = EquilibriumFluid.from_dict(raw["fluid"], device=device)
         return cls(**raw)
@@ -184,15 +263,8 @@ class PRActiveMultifluidPipe:
             return self._cache[1]
         nc = len(self.fluid.names)
         f = self.fluid
-        rows = []
-        alpha = []
-        pressures = []
-        temperatures = []
-        velocities = []
-        sounds = []
-        entropy_terms = []
-        precisions = []
-        for cell, volume in zip(state.cells, self.volumes):
+        flat = []
+        for i, (cell, volume) in enumerate(zip(state.cells, self.volumes)):
             names = tuple(name for name, _ in cell)
             if (
                 not names
@@ -207,25 +279,8 @@ class PRActiveMultifluidPipe:
                 raise PropertyModelError("Typed phase stocks with the declared components required")
             if abs(math.fsum(p.volume_m3 for _, p in cell) - volume) > 64 * math.ulp(volume):
                 raise ConservationError("Active phase volumes do not fill the cell")
-            stocks = dict(cell)
-            qq = []
-            aa = []
-            pp = []
-            tt = []
-            uu = []
-            cc = []
-            precision = []
-            for j, name in enumerate(self.names):
-                if name not in stocks:
-                    qq.append([0.0] * (nc + 2))
-                    aa.append(0.0)
-                    pp.append(0.0)
-                    tt.append(0.0)
-                    uu.append(0.0)
-                    cc.append(0.0)
-                    precision.append(0.0)
-                    continue
-                phase = stocks[name]
+            for name, phase in cell:
+                j = self.names.index(name)
                 amount = math.fsum(phase.component_moles)
                 mass = math.fsum(
                     n * c.molar_mass_kg_mol for n, c in zip(phase.component_moles, f.components)
@@ -237,57 +292,85 @@ class PRActiveMultifluidPipe:
                     "minimum_marker_fraction", 0.5
                 ):
                     raise PropertyModelError("Phase composition outside its marker domain")
-                eos = f.homogeneous(
-                    phase.pressure_pa, phase.temperature_k, x, self.slots[j]["root"]
-                )
-                expected_volume = amount * float(eos["molar_volume_m3_mol"].cpu())
-                expected_energy = (
-                    amount * float(eos["molar_internal_energy_j_mol"].cpu())
-                    + 0.5 * phase.momentum_kg_m_s * velocity
-                )
-                if abs(expected_volume - phase.volume_m3) > 1e-12 + 1e-9 * phase.volume_m3 or abs(
-                    expected_energy - phase.total_energy_j
-                ) > 1e-6 + 1e-9 * abs(expected_energy):
-                    raise ConservationError(
-                        "Active phase checkpoint disagrees with its homogeneous EOS"
+                flat.append((i, j, phase, amount, mass, velocity, x))
+        eos = homogeneous_batch(
+            f,
+            [r[2].pressure_pa for r in flat],
+            [r[2].temperature_k for r in flat],
+            [r[6] for r in flat],
+            [self.slots[r[1]]["root"] for r in flat],
+        )
+        values = (
+            torch.stack(
+                [
+                    eos[k]
+                    for k in (
+                        "molar_volume_m3_mol",
+                        "molar_internal_energy_j_mol",
+                        "molar_entropy_j_mol_k",
+                        "frozen_sound_speed_m_s",
+                        "homogeneous_molar_cv_j_mol_k",
                     )
-                entropy_terms.append(amount * float(eos["molar_entropy_j_mol_k"].cpu()))
-                acoustic = float(eos["frozen_sound_speed_m_s"].cpu())
-                sound = abs(velocity) + acoustic
-                cv = float(eos["homogeneous_molar_cv_j_mol_k"].cpu())
-                ideal_cp = math.fsum(v * c.ideal_cp_j_mol_k for v, c in zip(x, f.components))
-                molar_v = expected_volume / amount
-                bulk_modulus = mass / phase.volume_m3 * acoustic**2
-                energy_scale = abs(phase.total_energy_j) / amount + (ideal_cp + R) * (
-                    phase.temperature_k + f.tref
+                ],
+                -1,
+            )
+            .detach()
+            .cpu()
+            .tolist()
+        )
+        slots = len(self.names)
+        rows = [[[0.0] * (nc + 2) for _ in self.names] for _ in state.cells]
+        alpha = [[0.0] * slots for _ in state.cells]
+        pressures = [[0.0] * slots for _ in state.cells]
+        temperatures = [[0.0] * slots for _ in state.cells]
+        velocities = [[0.0] * slots for _ in state.cells]
+        sounds = [[0.0] * slots for _ in state.cells]
+        precisions = [[0.0] * slots for _ in state.cells]
+        entropies = [[] for _ in state.cells]
+        entropy_fluxes = [[] for _ in state.cells]
+        entropy_terms = []
+        for (i, j, phase, amount, mass, velocity, x), (vm, internal, entropy, acoustic, cv) in zip(
+            flat, values
+        ):
+            volume = self.volumes[i]
+            expected_volume = amount * vm
+            expected_energy = amount * internal + 0.5 * phase.momentum_kg_m_s * velocity
+            if abs(expected_volume - phase.volume_m3) > 1e-12 + 1e-9 * phase.volume_m3 or abs(
+                expected_energy - phase.total_energy_j
+            ) > 1e-6 + 1e-9 * abs(expected_energy):
+                raise ConservationError(
+                    "Active phase checkpoint disagrees with its homogeneous EOS"
                 )
-                precision.append(
-                    64
-                    * torch.finfo(torch.float64).eps
-                    * (abs(phase.pressure_pa) + bulk_modulus + cv * phase.temperature_k / molar_v)
-                    * (1 + energy_scale / (cv * phase.temperature_k))
-                )
-                if sound > self.wave_speed * (1 + 1e-12):
-                    raise PropertyModelError("Active phase exceeds acoustic envelope")
-                qq.append(
-                    [
-                        *(v / volume for v in phase.component_moles),
-                        phase.momentum_kg_m_s / volume,
-                        phase.total_energy_j / volume,
-                    ]
-                )
-                aa.append(phase.volume_m3 / volume)
-                pp.append(phase.pressure_pa)
-                tt.append(phase.temperature_k)
-                uu.append(velocity)
-                cc.append(sound)
-            rows.append(qq)
-            alpha.append(aa)
-            pressures.append(pp)
-            temperatures.append(tt)
-            velocities.append(uu)
-            sounds.append(cc)
-            precisions.append(precision)
+            phase_entropy = amount * entropy
+            entropy_terms.append(phase_entropy)
+            entropies[i].append(phase_entropy / volume)
+            entropy_fluxes[i].append(phase_entropy * velocity / volume)
+            sound = abs(velocity) + acoustic
+            if sound > self.wave_speed * (1 + 1e-12):
+                raise PropertyModelError("Active phase exceeds acoustic envelope")
+            ideal_cp = math.fsum(v * c.ideal_cp_j_mol_k for v, c in zip(x, f.components))
+            bulk_modulus = mass / phase.volume_m3 * acoustic**2
+            energy_scale = abs(phase.total_energy_j) / amount + (ideal_cp + R) * (
+                phase.temperature_k + f.tref
+            )
+            precisions[i][j] = (
+                64
+                * torch.finfo(torch.float64).eps
+                * (abs(phase.pressure_pa) + bulk_modulus + cv * phase.temperature_k / vm)
+                * (1 + energy_scale / (cv * phase.temperature_k))
+            )
+            rows[i][j] = [
+                *(v / volume for v in phase.component_moles),
+                phase.momentum_kg_m_s / volume,
+                phase.total_energy_j / volume,
+            ]
+            alpha[i][j] = phase.volume_m3 / volume
+            pressures[i][j] = phase.pressure_pa
+            temperatures[i][j] = phase.temperature_k
+            velocities[i][j] = velocity
+            sounds[i][j] = sound
+        entropy_density = [math.fsum(v) for v in entropies]
+        entropy_flux = [math.fsum(v) for v in entropy_fluxes]
         conserved = f.tensor(rows)
         a = f.tensor(alpha)
         p = f.tensor(pressures)
@@ -310,6 +393,8 @@ class PRActiveMultifluidPipe:
             "pressure_precision": f.tensor(precisions),
             "flux": flux,
             "entropy": math.fsum(entropy_terms),
+            "entropy_density": f.tensor(entropy_density),
+            "entropy_flux": f.tensor(entropy_flux),
         }
         self._cache = (state, data)
         return data
@@ -321,12 +406,24 @@ class PRActiveMultifluidPipe:
                 math.fsum(p.component_moles[j] for cell in state.cells for _, p in cell)
                 for j in range(nc)
             ),
-            math.fsum(p.total_energy_j for cell in state.cells for _, p in cell),
+            math.fsum(
+                p.total_energy_j
+                + self.gravity
+                * z
+                * math.fsum(
+                    n * c.molar_mass_kg_mol
+                    for n, c in zip(p.component_moles, self.fluid.components)
+                )
+                for cell, z in zip(state.cells, self.centers)
+                for _, p in cell
+            ),
             math.fsum(p.momentum_kg_m_s for cell in state.cells for _, p in cell),
         ]
 
-    def ledger(self, old, new, wall_impulse=0.0, external_heat_j=0.0):
+    def ledger(self, old, new, wall_impulse=0.0, external_heat_j=0.0, external_transfer=None):
         r = [b - a for a, b in zip(self._totals(old), self._totals(new))]
+        if external_transfer is not None:
+            r = [v - t for v, t in zip(r, external_transfer)]
         r[-2] -= external_heat_j
         r[-1] -= wall_impulse
         limits = balance_limits(
@@ -394,24 +491,39 @@ class PRActiveMultifluidPipe:
         assigned = {self.names[j]: p for j, p in zip(best[1], after.phases)}
         return tuple((name, assigned[name]) for name in self.names if name in assigned)
 
-    def step(self, state, dt_s):
-        old = self.inspect(state)
-        dt = _number(dt_s, "active pipe step", positive=True)
-        end = state.time_s + dt
-        dt = end - state.time_s
-        if not math.isfinite(end) or dt <= 0:
-            raise ValueError("Active pipe step below clock resolution")
-        if dt > self.maximum_step_s * (1 + 1e-12):
-            raise ValueError("Active pipe CFL exceeded")
-        fields = (
-            "conserved",
-            "alpha",
-            "pressure",
-            "temperature",
-            "velocity",
-            "pressure_precision",
-            "flux",
+    def _boundary_packet(self, cell):
+        """Validated physical phase densities; ghost volumes are never ledger stocks."""
+        if not isinstance(cell, dict) or not cell or set(cell) - set(self.names):
+            raise ValueError("Boundary requires a nonempty named phase mapping")
+        phases = {
+            n: p if isinstance(p, PRRelaxationPhase) else PRRelaxationPhase.from_dict(p)
+            for n, p in cell.items()
+        }
+        volume = math.fsum(p.volume_m3 for p in phases.values())
+        if not math.isfinite(volume) or volume <= 0:
+            raise ValueError("Boundary phase volume must be positive")
+        ghost = type(self)(
+            self.fluid,
+            self.slots,
+            [self.lengths[0]],
+            self.diameter,
+            wave_speed_bound_m_s=self.wave_speed,
+            maximum_courant=self.courant,
         )
+        scale = ghost.volumes[0] / volume
+        scaled = {
+            n: replace(
+                p,
+                component_moles=tuple(v * scale for v in p.component_moles),
+                volume_m3=p.volume_m3 * scale,
+                momentum_kg_m_s=p.momentum_kg_m_s * scale,
+                total_energy_j=p.total_energy_j * scale,
+            )
+            for n, p in phases.items()
+        }
+        return ghost.inspect(ghost.initialize([scaled])), phases
+
+    def _operator(self, old, ghosts, fields):
         if self.boundary_mode == "periodic":
             left = {key: old[key] for key in fields}
             right = {key: torch.roll(old[key], -1, 0) for key in fields}
@@ -436,18 +548,278 @@ class PRActiveMultifluidPipe:
                     gr[..., :-2] *= -1
                     gl[..., -1] *= -1
                     gr[..., -1] *= -1
+                if ghosts[0] is not None:
+                    gl = ghosts[0][0][key]
+                if ghosts[1] is not None:
+                    gr = ghosts[1][0][key]
                 left[key] = torch.cat((gl, old[key]), 0)
                 right[key] = torch.cat((old[key], gr), 0)
             minus, plus, aminus, aplus, faces = fluctuations(left, right, self.wave_speed)
             delta = minus[1:] + plus[:-1]
             adelta = aminus[1:] + aplus[:-1]
             wall = float(
-                (
-                    dt
-                    * self.area
-                    * (faces["flux"][0, :, -2].sum() - faces["flux"][-1, :, -2].sum())
-                ).cpu()
+                (self.area * (faces["flux"][0, :, -2].sum() - faces["flux"][-1, :, -2].sum())).cpu()
             )
+        return delta, adelta, faces, wall
+
+    def _gravity_operator(self, old, delta, faces):
+        if not self.gravity:
+            return delta, 0.0
+        nc = len(self.fluid.names)
+        mass = (old["conserved"][..., :nc] * self.fluid.molar_masses).sum(-1)
+        slope = self.fluid.tensor(
+            [(b - a) / l for a, b, l in zip(self.elevations, self.elevations[1:], self.lengths)]
+        )
+        force_density = -self.gravity * mass * slope[:, None]
+        out = delta.clone()
+        out[..., -2] -= force_density * self.fluid.tensor(self.lengths)[:, None]
+        mass_flux = (faces["flux"][..., :nc] * self.fluid.molar_masses).sum(-1)
+        if self.boundary_mode == "periodic":
+            fr = mass_flux
+            fl = torch.roll(fr, 1, 0)
+        else:
+            fl, fr = mass_flux[:-1], mass_flux[1:]
+        zl = self.fluid.tensor([a - z for a, z in zip(self.elevations, self.centers)])
+        zr = self.fluid.tensor([b - z for b, z in zip(self.elevations[1:], self.centers)])
+        out[..., -1] += self.gravity * (zr[:, None] * fr - zl[:, None] * fl)
+        load = float((force_density * self.fluid.tensor(self.volumes)[:, None]).sum().cpu())
+        return out, load
+
+    def _prepare_reference(self):
+        if self.elevations is None or self.boundary_mode != "walls" or self.chemical is not None:
+            raise ValueError("Hydrostatic reference needs surveyed walls without chemical source")
+        ref = self.initialize(self.reference_specs)
+        packet = self.inspect(ref)
+        first = dict(ref.cells[0])
+        for cell, z, volume in zip(ref.cells, self.centers, self.volumes):
+            if tuple(n for n, _ in cell) != tuple(first):
+                raise ValueError("Reference requires the same active branches in each cell")
+            for name, p in cell:
+                a = first[name]
+                amount = math.fsum(p.component_moles)
+                x = [v / amount for v in p.component_moles]
+                ax = [v / math.fsum(a.component_moles) for v in a.component_moles]
+                if (
+                    p.momentum_kg_m_s != 0
+                    or abs(p.temperature_k - a.temperature_k) > 1e-8
+                    or max(abs(v - w) for v, w in zip(x, ax)) > 1e-10
+                    or abs(p.volume_m3 / volume - a.volume_m3 / self.volumes[0]) > 1e-10
+                ):
+                    raise ValueError(
+                        "Reference must be isothermal constant-composition/fraction hydrostatics"
+                    )
+                root = self.slots[self.names.index(name)]["root"]
+
+                def gibbs(phase, x=x, root=root):
+                    q = self.fluid.homogeneous(phase.pressure_pa, phase.temperature_k, x, root)
+                    return float(
+                        (
+                            q["molar_enthalpy_j_mol"]
+                            - phase.temperature_k * q["molar_entropy_j_mol_k"]
+                        ).cpu()
+                    ) / math.fsum(v * c.molar_mass_kg_mol for v, c in zip(x, self.fluid.components))
+
+                if (
+                    abs(gibbs(p) + self.gravity * z - gibbs(a) - self.gravity * self.centers[0])
+                    > 1e-5
+                ):
+                    raise ValueError("Reference violates PR hydrostatic Gibbs balance")
+        fields = (
+            "conserved",
+            "alpha",
+            "pressure",
+            "temperature",
+            "velocity",
+            "pressure_precision",
+            "flux",
+        )
+        d, ad, faces, wall = self._operator(packet, [None, None], fields)
+        d, load = self._gravity_operator(packet, d, faces)
+        self._reference_operator = (d, ad, faces, wall + load)
+
+    def step(
+        self,
+        state,
+        dt_s,
+        *,
+        boundary_cells=None,
+        boundary_samples=None,
+        heat_rates_w=None,
+        heat_temperatures_k=None,
+    ):
+        old = self.inspect(state)
+        dt = _number(dt_s, "active pipe step", positive=True)
+        end = state.time_s + dt
+        dt = end - state.time_s
+        if not math.isfinite(end) or dt <= 0:
+            raise ValueError("Active pipe step below clock resolution")
+        if dt > self.maximum_step_s * (1 + 1e-12):
+            raise ValueError("Active pipe CFL exceeded")
+        fields = (
+            "conserved",
+            "alpha",
+            "pressure",
+            "temperature",
+            "velocity",
+            "pressure_precision",
+            "flux",
+        )
+        boundaries = (None, None) if boundary_cells is None else tuple(boundary_cells)
+        if len(boundaries) != 2 or (
+            self.boundary_mode == "periodic" and any(b is not None for b in boundaries)
+        ):
+            raise ValueError("Two endpoint phase mappings require wall-mode geometry")
+        ghosts = [self._boundary_packet(b) if b is not None else None for b in boundaries]
+        sample_rows = [[], []]
+        if boundary_samples is not None:
+            if self.boundary_mode == "periodic" or len(boundary_samples) != 2:
+                raise ValueError("Two sampled endpoints require nonperiodic geometry")
+            for side, rows in enumerate(boundary_samples):
+                if rows is None:
+                    continue
+                if boundaries[side] is not None or not rows:
+                    raise ValueError(
+                        "Use either a physical cell or aperture samples at an endpoint"
+                    )
+                for row in rows:
+                    if set(row) - {"kind"} != {"cell", "weight", "elevation_m"} or row.get(
+                        "kind", "physical"
+                    ) not in ("physical", "wall"):
+                        raise ValueError("Aperture sample requires cell, weight and elevation")
+                    weight = _number(row["weight"], "area weight", positive=True)
+                    z = _number(row["elevation_m"], "sample elevation")
+                    sample_rows[side].append(
+                        (
+                            *self._boundary_packet(row["cell"]),
+                            weight,
+                            z,
+                            row.get("kind", "physical"),
+                        )
+                    )
+                if abs(math.fsum(r[2] for r in sample_rows[side]) - 1) > 1e-12:
+                    raise ValueError("Aperture weights must cover exactly one pipe face")
+                ghosts[side] = sample_rows[side][0][:2]
+
+        external = [0.0] * (len(self.fluid.names) + 2)
+        entropy_in = 0.0
+        boundary_entropy_fluxes = [0.0, 0.0]
+        delta, adelta, faces, wall_rate = self._operator(old, ghosts, fields)
+        sample_records = [[], []]
+        sample_entropy = [None, None]
+        for side, rows in enumerate(sample_rows):
+            if not rows:
+                continue
+            ci = 0 if side == 0 else -1
+            cell = {k: old[k][ci : ci + 1] if ci == 0 else old[k][-1:] for k in fields}
+            original_l = {k: ghosts[side][0][k] if side == 0 else cell[k] for k in fields}
+            original_r = {k: cell[k] if side == 0 else ghosts[side][0][k] for k in fields}
+            dm, dp, am, ap, _ = fluctuations(original_l, original_r, self.wave_speed)
+            original_delta = dp[0] if side == 0 else dm[0]
+            original_adelta = ap[0] if side == 0 else am[0]
+            aggregate = torch.zeros_like(original_delta)
+            aaggregate = torch.zeros_like(original_adelta)
+            faggregate = torch.zeros_like(faces["flux"][ci])
+            path = torch.zeros_like(faces["phase_path"][ci])
+            apath = torch.zeros_like(faces["alpha_path"][ci])
+            entropy = 0.0
+            contacts = True
+            face_z = self.elevations[ci] if self.elevations is not None else 0.0
+            for packet, phases, weight, z, kind in rows:
+                l, r = (packet, cell) if side == 0 else (cell, packet)
+                dm, dp, am, ap, ff = fluctuations(l, r, self.wave_speed)
+                flux = ff["flux"][0].clone()
+                correction = (
+                    self.gravity
+                    * (z - face_z)
+                    * (flux[..., : len(self.fluid.names)] * self.fluid.molar_masses).sum(-1)
+                )
+                flux[..., -1] += correction
+                update = (dp[0] if side == 0 else dm[0]).clone()
+                update[..., -1] += (-1 if side == 0 else 1) * correction
+                aggregate += weight * update
+                aaggregate += weight * (ap[0] if side == 0 else am[0])
+                faggregate += weight * flux
+                path += weight * ff["phase_path"][0]
+                apath += weight * ff["alpha_path"][0]
+                contacts = contacts and bool(ff["contact"][0].cpu())
+                sg = float(packet["entropy_density"][0].cpu())
+                fg = float(packet["entropy_flux"][0].cpu())
+                sc = float(old["entropy_density"][ci].cpu())
+                fc = float(old["entropy_flux"][ci].cpu())
+                sl, sr = (sg, sc) if side == 0 else (sc, sg)
+                sf = 0.5 * (fg + fc) - 0.5 * self.wave_speed * (sr - sl)
+                entropy += weight * sf
+                sample_records[side].append(
+                    {
+                        "cell": {n: asdict(p) for n, p in phases.items()},
+                        "kind": kind,
+                        "weight": weight,
+                        "elevation_m": z,
+                        "flux": flux.cpu().tolist(),
+                        "entropy_flux_w_m2_k": sf,
+                    }
+                )
+            delta[ci] += aggregate - original_delta
+            adelta[ci] += aaggregate - original_adelta
+            wall_rate += (
+                self.area
+                * (1 if side == 0 else -1)
+                * float((faggregate[..., -2] - faces["flux"][ci, ..., -2]).sum().cpu())
+            )
+            faces["flux"][ci] = faggregate
+            faces["phase_path"][ci] = path
+            faces["alpha_path"][ci] = apath
+            faces["contact"][ci] = contacts
+            sample_entropy[side] = entropy
+
+        delta, gravity_rate = self._gravity_operator(old, delta, faces)
+        gravity_impulse = dt * gravity_rate
+        wall = dt * wall_rate
+        if self._reference_operator is not None:
+            if any(g is not None for g in ghosts):
+                raise ValueError("Hydrostatic reference currently requires reflecting endpoints")
+            rd, ra, rf, ri = self._reference_operator
+            delta, adelta = delta - rd, adelta - ra
+            faces = {**faces, "flux": faces["flux"] - rf["flux"]}
+            wall -= dt * ri
+        if self.boundary_mode != "periodic":
+            for side, ghost in enumerate(ghosts):
+                if ghost is None:
+                    continue
+                sign = 1.0 if side == 0 else -1.0
+                index = 0 if side == 0 else -1
+                flow = (sign * dt * self.area * faces["flux"][index].sum(0)).cpu().tolist()
+                if sample_records[side]:
+                    flow[-2] = (
+                        sign
+                        * dt
+                        * self.area
+                        * math.fsum(
+                            row["weight"] * math.fsum(p[-2] for p in row["flux"])
+                            for row in sample_records[side]
+                            if row["kind"] != "wall"
+                        )
+                    )
+
+                potential = (
+                    self.gravity * self.elevations[index] if self.elevations is not None else 0.0
+                )
+                energy = flow[-1] + potential * math.fsum(
+                    n * c.molar_mass_kg_mol for n, c in zip(flow[:-2], self.fluid.components)
+                )
+                transfer = flow[:-2] + [energy, flow[-2]]
+                external = [a + b for a, b in zip(external, transfer)]
+                wall -= transfer[-1]
+                packet = ghost[0]
+                sg = float(packet["entropy_density"][0].cpu())
+                fg = float(packet["entropy_flux"][0].cpu())
+                sc = float(old["entropy_density"][index].cpu())
+                fc = float(old["entropy_flux"][index].cpu())
+                sl, sr = (sg, sc) if side == 0 else (sc, sg)
+                boundary_entropy_fluxes[side] = 0.5 * (fg + fc) - 0.5 * self.wave_speed * (sr - sl)
+                if sample_entropy[side] is not None:
+                    boundary_entropy_fluxes[side] = sample_entropy[side]
+                entropy_in += sign * dt * self.area * boundary_entropy_fluxes[side]
         factor = self.fluid.tensor([dt / l for l in self.lengths])
         qnew = old["conserved"] - factor[:, None, None] * delta
         anew = old["alpha"] - factor[:, None] * adelta
@@ -491,6 +863,11 @@ class PRActiveMultifluidPipe:
                         for cell in state.cells
                         if self.names[j] in dict(cell)
                     ]
+                    donors.extend(
+                        g[1][self.names[j]]
+                        for g in [*ghosts, *(r for side_rows in sample_rows for r in side_rows)]
+                        if g is not None and self.names[j] in g[1]
+                    )
                     if not donors:
                         raise PropertyModelError("Transport created inventory without a donor")
                     guess = math.fsum(p.temperature_k for p in donors) / len(donors)
@@ -515,14 +892,23 @@ class PRActiveMultifluidPipe:
             cells[i].append((self.names[j], phase))
         transport = PRActiveMultifluidState(tuple(tuple(c) for c in cells), end, self.model_id)
         transported = self.inspect(transport)
-        if transported["entropy"] - old["entropy"] < -entropy_allowance(
+        if transported["entropy"] - old["entropy"] - entropy_in < -entropy_allowance(
             transported["entropy"], old["entropy"]
         ):
             raise ConservationError("Active transport entropy decreased before chemical relaxation")
+        thermal = None
+        heated = transport
+        heat = heat_entropy = 0.0
+        if heat_rates_w is not None or heat_temperatures_k is not None:
+            from .pr_active_pipe_heat import apply_heat
+
+            heated, thermal = apply_heat(self, transport, dt, heat_rates_w, heat_temperatures_k)
+            heat = thermal["external_heat_j"]
+            heat_entropy = thermal["incoming_entropy_j_k"]
         source_reports = []
         if self.chemical is not None:
             output = []
-            for cell in transport.cells:
+            for cell in heated.cells:
                 s = self.chemical.initialize(
                     [p for _, p in cell],
                     [self.slots[self.names.index(n)]["root"] for n, _ in cell],
@@ -533,14 +919,26 @@ class PRActiveMultifluidPipe:
                 source_reports.append(report)
             new = PRActiveMultifluidState(tuple(output), end, self.model_id)
         else:
-            new = transport
+            new = heated
+        chemical_state = new
+        friction_report = None
+        if self.friction is not None:
+            new, friction_report = self.friction.apply(self, new, dt)
+            wall += friction_report["wall_impulse_kg_m_s"]
         current = self.inspect(new)
-        production = current["entropy"] - old["entropy"]
+        production = current["entropy"] - old["entropy"] - entropy_in - heat_entropy
         if production < -entropy_allowance(current["entropy"], old["entropy"]):
             raise ConservationError("Active pipe total entropy decreased")
         return new, {
             "state": new.to_dict(),
             "transport_state": transport.to_dict(),
+            **(
+                {"thermal": thermal, "heated_state": heated.to_dict(), "external_heat_j": heat}
+                if thermal is not None
+                else {}
+            ),
+            "chemical_state": chemical_state.to_dict(),
+            "friction": friction_report,
             "dt_s": dt,
             "path_quadrature_order": 8,
             "face_fluxes": faces["flux"].cpu().tolist(),
@@ -548,10 +946,23 @@ class PRActiveMultifluidPipe:
             "alpha_path": faces["alpha_path"].cpu().tolist(),
             "contact_faces": faces["contact"].cpu().tolist(),
             "wall_impulse_kg_m_s": wall,
+            "gravity_impulse_kg_m_s": gravity_impulse,
+            "external_transfer": external,
+            "incoming_entropy_j_k": entropy_in,
+            "boundary_entropy_fluxes": boundary_entropy_fluxes,
+            "boundary_sample_fluxes": sample_records,
+            "boundary_cells": [
+                None if b is None else {n: asdict(p) for n, p in g[1].items()}
+                for b, g in zip(boundaries, ghosts)
+            ],
             "entropy_production_j_k": production,
-            "transport_entropy_production_j_k": transported["entropy"] - old["entropy"],
+            "transport_entropy_production_j_k": transported["entropy"]
+            - old["entropy"]
+            - entropy_in,
             "sources": source_reports,
-            "conservation_residuals": self.ledger(state, new, wall),
+            "conservation_residuals": self.ledger(
+                state, new, wall + gravity_impulse, external_heat_j=heat, external_transfer=external
+            ),
             "active_phase_counts": [len(c) for c in new.cells],
         }
 
@@ -563,6 +974,10 @@ class PRActiveMultifluidPipe:
         maximum_step_s=None,
         minimum_step_s=1e-12,
         maximum_attempts=10000,
+        boundary_cells=None,
+        boundary_samples=None,
+        heat_rates_w=None,
+        heat_temperatures_k=None,
     ):
         self.inspect(state)
         duration = _number(duration_s, "active pipe interval", positive=True)
@@ -589,7 +1004,14 @@ class PRActiveMultifluidPipe:
             if dt <= 0:
                 raise ValueError("Active CFL below physical clock resolution")
             try:
-                new, report = self.step(state, dt)
+                new, report = self.step(
+                    state,
+                    dt,
+                    boundary_cells=boundary_cells,
+                    boundary_samples=boundary_samples,
+                    heat_rates_w=heat_rates_w,
+                    heat_temperatures_k=heat_temperatures_k,
+                )
             except (PropertyModelError, HydraulicConvergenceError, ConservationError):
                 dt *= 0.5
                 if dt < minimum:
@@ -599,11 +1021,22 @@ class PRActiveMultifluidPipe:
             state = new
             dt = min(maximum, dt * 1.5)
             if state.time_s >= end:
-                impulse = math.fsum(r["wall_impulse_kg_m_s"] for r in steps)
+                impulse = math.fsum(
+                    r["wall_impulse_kg_m_s"] + r["gravity_impulse_kg_m_s"] for r in steps
+                )
                 return {
                     "state": state.to_dict(),
                     "steps": steps,
                     "attempts": attempt + 1,
-                    "conservation_residuals": self.ledger(first, state, impulse),
+                    "conservation_residuals": self.ledger(
+                        first,
+                        state,
+                        impulse,
+                        external_heat_j=math.fsum(r.get("external_heat_j", 0.0) for r in steps),
+                        external_transfer=[
+                            math.fsum(r["external_transfer"][j] for r in steps)
+                            for j in range(len(self.fluid.names) + 2)
+                        ],
+                    ),
                 }
         raise HydraulicConvergenceError("Active multifluid interval budget exhausted")

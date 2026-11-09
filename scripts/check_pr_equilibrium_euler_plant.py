@@ -11,6 +11,81 @@ from check_stratified_pr_flow import close
 from reference_pr_interphase_relaxation import decode as decode_cell
 
 
+def active_interface_exchange(model, before, pipe_name, saved):
+    """Validate actual vessel ghosts, then reconstruct active-phase face loads."""
+    from check_pr_active_surface import FIELDS, sample_packet
+    from reference_pr_active_multifluid import face, packets
+
+    entry = model.pipes[pipe_name]
+    pipe = entry["pipe"]
+    old = dict(before.pipes)[pipe_name]
+    packet = packets(pipe, old.to_dict())
+    graph = dict(before.transport.nodes)
+    net = {name: np.zeros(len(model.fluid.names) + 2) for name in model.transport.names}
+    incoming_entropy = 0.0
+    faces, entropies = [None, None], [0.0, 0.0]
+    for side, node_name in enumerate(entry["boundary_nodes"]):
+        ghost = saved["boundary_cells"][side]
+        if node_name is None:
+            if ghost is not None:
+                raise ValueError("Unexpected active vessel boundary")
+            continue
+        node = model.transport.nodes[model.transport.names.index(node_name)]
+        stock = graph[node_name]
+        ci = 0 if side == 0 else -1
+        expected = [np.array(n) for n in stock.phase_component_moles]
+        if ghost is None or len(ghost) != len(expected):
+            raise ValueError("Active vessel ghost phases differ")
+        close(sum(p["volume_m3"] for p in ghost.values()), node.volume_m3, atol=1e-9, rtol=1e-8)
+        for p in ghost.values():
+            match = min(
+                range(len(expected)),
+                key=lambda j: np.abs(np.array(p["component_moles"]) - expected[j]).sum(),
+            )
+            close(p["component_moles"], expected.pop(match), atol=1e-10, rtol=1e-8)
+            close(p["pressure_pa"], stock.pressure_pa, atol=1e-7, rtol=1e-10)
+            close(p["temperature_k"], stock.temperature_k, atol=1e-9, rtol=1e-10)
+            close(p["momentum_kg_m_s"], 0.0, atol=0.0, rtol=0.0)
+        boundary = sample_packet(pipe, ghost)
+        cell = {k: packet[k][ci] for k in FIELDS}
+        left, right = (boundary, cell) if side == 0 else (cell, boundary)
+        flux = face(left, right, pipe.wave_speed)[-1]["flux"].sum(0)
+        close(
+            saved["face_fluxes"][0 if side == 0 else -1].sum(0)
+            if isinstance(saved["face_fluxes"], np.ndarray)
+            else np.array(saved["face_fluxes"][0 if side == 0 else -1]).sum(0),
+            flux,
+            atol=1e-5,
+            rtol=1e-9,
+        )
+
+        def entropy(cell_phases, volume):
+            s = sf = 0.0
+            for name, p in cell_phases.items():
+                root = pipe.slots[pipe.names.index(name)]["root"]
+                row = decode_cell(model.fluid, {"phases": [p]}, [root])[0]
+                density = row["entropy"] / volume
+                s += density
+                sf += density * row["velocity"]
+            return s, sf
+
+        sc, fc = entropy({n: p.__dict__ for n, p in old.cells[ci]}, pipe.volumes[ci])
+        sg, fg = entropy(ghost, sum(p["volume_m3"] for p in ghost.values()))
+        sl, sr = (sg, sc) if side == 0 else (sc, sg)
+        sf = 0.5 * (fc + fg) - 0.5 * pipe.wave_speed * (sr - sl)
+        close(saved["boundary_entropy_fluxes"][side], sf, atol=1e-7, rtol=1e-8)
+        sign = 1.0 if side == 0 else -1.0
+        net[node_name] += np.r_[-sign * pipe.area * flux[:-2], 0.0, -sign * pipe.area * flux[-1]]
+        incoming_entropy -= sign * pipe.area * sf
+        faces[side], entropies[side] = flux, sf
+    return {
+        "net": net,
+        "incoming_entropy": incoming_entropy,
+        "boundary_fluxes": faces,
+        "boundary_entropy_fluxes": entropies,
+    }
+
+
 def interface_exchange(model, before, pipe_name, packet):
     """Reconstruct faces and opposite vessel loads from the old snapshot."""
     entry = model.pipes[pipe_name]
@@ -72,6 +147,37 @@ def audit_pipe_step(model, before, step, pipe_name, *, heat_rates_w=None, heat_t
     from check_pr_equilibrium_euler_pipe import audit
 
     pipe = model.pipes[pipe_name]["pipe"]
+    if pipe.to_dict()["model"].startswith("pr_active_multifluid_pipe_"):
+        from check_pr_active_surface import pipe_audit
+        from reference_pr_active_heat import check_commands
+
+        from surface.pr_active_multifluid_pipe import PRActiveMultifluidState
+
+        saved = step["pipes"][pipe_name]
+        check_commands(saved, heat_rates_w, heat_temperatures_k)
+        pipe_audit(
+            pipe,
+            dict(before.pipes)[pipe_name],
+            PRActiveMultifluidState.from_dict(saved["state"]),
+            saved,
+        )
+        exchange = active_interface_exchange(model, before, pipe_name, saved)
+        interfaces = [v for v in step["interfaces"] if v["pipe"] == pipe_name]
+        if len(interfaces) != sum(n is not None for n in model.pipes[pipe_name]["boundary_nodes"]):
+            raise ValueError("Active interface registry differs")
+        for row in interfaces:
+            side = row["side"]
+            if row["node"] != model.pipes[pipe_name]["boundary_nodes"][side]:
+                raise ValueError("Active interface node differs")
+            close(row["flux"], exchange["boundary_fluxes"][side], atol=1e-5, rtol=1e-9)
+            close(
+                row["entropy_flux_w_m2_k"],
+                exchange["boundary_entropy_fluxes"][side],
+                atol=1e-7,
+                rtol=1e-8,
+            )
+            close(row["area_m2"], pipe.area, atol=1e-14, rtol=0.0)
+        return {"accepted": True, "model": "active_multifluid", "exchange": exchange}
     old = dict(before.pipes)[pipe_name].to_dict()
     saved = step["pipes"][pipe_name]
     command = {"duration_s": saved["dt_s"]}
@@ -156,16 +262,21 @@ def audit_step(model, before, step, **commands):
     incoming_entropy = 0.0
     checks = []
     for name, entry in model.pipes.items():
-        checks.append(
-            audit_pipe_step(
-                model,
-                before,
-                step,
-                name,
-                heat_rates_w=commands.get("pipe_heat_w", {}).get(name),
-                heat_temperatures_k=commands.get("pipe_heat_temperatures_k", {}).get(name),
-            )
+        checked = audit_pipe_step(
+            model,
+            before,
+            step,
+            name,
+            heat_rates_w=commands.get("pipe_heat_w", {}).get(name),
+            heat_temperatures_k=commands.get("pipe_heat_temperatures_k", {}).get(name),
         )
+        checks.append(checked)
+        if checked.get("model") == "active_multifluid":
+            exchange = checked.pop("exchange")
+            for node, value in exchange["net"].items():
+                net[node] += value
+            incoming_entropy += exchange["incoming_entropy"]
+            continue
         # Capture independently decoded old packets through the same public
         # auditor, whose callback runs after independent scalar PR decoding.
         pipe = entry["pipe"]
@@ -277,7 +388,23 @@ def audit_step(model, before, step, **commands):
                 )
         momentum = np.zeros(3)
         for name, entry in model.pipes.items():
-            bulk = np.asarray(state["pipes"][name]["bulk_stocks"])
+            ps = state["pipes"][name]
+            if "bulk_stocks" in ps:
+                bulk = np.asarray(ps["bulk_stocks"])
+            else:
+                bulk = np.array(
+                    [
+                        [
+                            *[
+                                sum(p["component_moles"][j] for p in cell.values())
+                                for j in range(len(model.fluid.names))
+                            ],
+                            sum(p["momentum_kg_m_s"] for p in cell.values()),
+                            sum(p["total_energy_j"] for p in cell.values()),
+                        ]
+                        for cell in ps["cells"]
+                    ]
+                )
             species += bulk[:, :-2].sum(0)
             energy += bulk[:, -1].sum()
             momentum += bulk[:, -2].sum() * np.asarray(entry["direction"])

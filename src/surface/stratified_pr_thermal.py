@@ -155,7 +155,36 @@ class StratifiedPRThermal:
 
         # UV predictor may change phase count. It is only a seed; no inventory is changed.
         predicted = old.total_energy_j + dt * exchanges(old.temperature_k)[1]
-        seed = c._seed(n, predicted, math.exp(old.solution_variables[0]), old.temperature_k)
+        seed_strategy = "uv"
+        try:
+            seed = c._seed(n, predicted, math.exp(old.solution_variables[0]), old.temperature_k)
+        except (PropertyModelError, HydraulicConvergenceError):
+            seed_strategy = "bounded_temperature_pt"
+            # A stiff explicit heat predictor can leave the EOS domain even
+            # when the coupled implicit temperatures are bounded and admissible.
+            # Use a finite-capacity BE temperature only to discover a branch;
+            # the accepted residual below still contains the exact old N/E.
+            capacity = sum(
+                value * (component.ideal_cp_j_mol_k - R)
+                for value, component in zip(old.component_moles, f.components)
+            )
+            denominator = w.heat_capacity_j_k + dt * (w.fluid_ua_w_k + w.ambient_ua_w_k)
+            coupling = dt * w.fluid_ua_w_k
+            bounded = (
+                capacity * old.temperature_k
+                + coupling
+                * (
+                    w.heat_capacity_j_k * state.wall_temperature_k
+                    + dt * w.ambient_ua_w_k * w.ambient_temperature_k
+                )
+                / denominator
+            ) / (capacity + coupling * (w.heat_capacity_j_k + dt * w.ambient_ua_w_k) / denominator)
+            if not f.min_temperature_k <= bounded <= f.max_temperature_k:
+                raise PropertyModelError(
+                    "Implicit thermal seed exceeds EOS temperature envelope"
+                ) from None
+            pt = f.flash_pt(math.exp(old.solution_variables[0]), bounded, n / n.sum())
+            seed = c._seed_from_flash(pt, c.geometry.volume_m3 / pt["molar_volume_m3_mol"])
         previous = None
         order = c.quadrature_order
         while order <= c.maximum_quadrature_order:
@@ -267,6 +296,7 @@ class StratifiedPRThermal:
                         "entropy_production_j_k": production,
                         "quadrature_error_ratio": max(errors),
                         "phase_count": len(roots),
+                        "seed_strategy": seed_strategy,
                     }
             previous = candidate, report
             seed = solved_seed

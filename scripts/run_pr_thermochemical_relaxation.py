@@ -25,7 +25,11 @@ def run(config, *, device="cpu"):
         or not config["schedule"]
     ):
         raise ValueError("Expected model, initial and nonempty source/pipe schedule")
-    active = config["model"].get("model") == "pr_active_multifluid_pipe_v1"
+    active = config["model"].get("model") in (
+        "pr_active_multifluid_pipe_v1",
+        "pr_active_multifluid_pipe_v2",
+        "pr_active_multifluid_pipe_v3",
+    )
     factory, state_factory = (
         (PRActiveMultifluidPipe, PRActiveMultifluidState)
         if active
@@ -52,8 +56,13 @@ def run(config, *, device="cpu"):
         intervals.append(result)
     residual = [b - a for a, b in zip(model._totals(first), model._totals(state))]
     if active:
+        residual[-2] -= math.fsum(
+            r.get("external_heat_j", 0.0) for interval in intervals for r in interval["steps"]
+        )
         residual[-1] -= math.fsum(
-            r["wall_impulse_kg_m_s"] for interval in intervals for r in interval["steps"]
+            r["wall_impulse_kg_m_s"] + r["gravity_impulse_kg_m_s"]
+            for interval in intervals
+            for r in interval["steps"]
         )
     return {
         "config": config,

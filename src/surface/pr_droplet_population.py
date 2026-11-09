@@ -54,7 +54,7 @@ class PRDropletPopulation:
     def masks(law, x):
         roles, valid = law.roles(x)
         _gas, oil, water = roles
-        drop, carrier = (oil, water) if law.dispersed_liquid == "oil" else (water, oil)
+        drop, carrier = law.population_masks((_gas, oil, water))
         present = (drop.sum() > 0) & (carrier.sum() > 0)
         return drop, present, valid
 
@@ -65,7 +65,7 @@ class PRDropletPopulation:
             else self.roles(law, x, q["compressibility_factor"], q["density_kg_m3"])
         )
         _gas, oil, water = roles[0]
-        drop, carrier = (oil, water) if law.dispersed_liquid == "oil" else (water, oil)
+        drop, carrier = law.population_masks((_gas, oil, water))
         present = (drop.sum() > 0) & (carrier.sum() > 0)
         valid = roles[1]
         volume = torch.where(present, (phase_volumes * drop).sum(), phase_volumes.sum() * 0)

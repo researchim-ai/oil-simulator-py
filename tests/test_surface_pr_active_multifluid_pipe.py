@@ -427,3 +427,79 @@ def test_transport_entropy_loss_cannot_be_hidden_by_chemical_relaxation(monkeypa
     with pytest.raises(ConservationError, match="before chemical"):
         model.step(old, dt)
     assert old.to_dict() == saved
+
+
+@pytest.mark.parametrize("velocity", [1.0, -1.0])
+def test_open_endpoints_uniform_throughflow_preserves_state_and_shared_ledger(velocity):
+    model, v = setup(count=2)
+    f = model.fluid
+    p = f.components[1].saturation_at_temperature(200.0)["pressure_pa"]
+    cell = {"gas": phase(f, p, 200.0, "vapor", v, velocity)}
+    old = model.initialize([cell, cell])
+    new, report = model.step(old, 0.2 * model.maximum_step_s, boundary_cells=[cell, cell])
+    assert new.cells == old.cells
+    assert max(map(abs, report["conservation_residuals"])) < 1e-8
+    assert abs(report["incoming_entropy_j_k"]) < 1e-12
+    assert abs(report["wall_impulse_kg_m_s"]) < 1e-12
+    assert max(map(abs, report["external_transfer"])) < 1e-12
+
+
+@pytest.mark.parametrize("velocity", [1.0, -1.0])
+def test_open_boundary_introduces_previously_absent_phase_without_ghost_stock(velocity):
+    model, v = setup(count=2)
+    f = model.fluid
+    p = f.components[1].saturation_at_temperature(200.0)["pressure_pa"]
+    gas = {"gas": phase(f, p, 200.0, "vapor", v, velocity)}
+    liquid = {"liquid": phase(f, p, 200.0, "liquid", v, velocity)}
+    old = model.initialize([gas, gas])
+    boundaries = [liquid, gas] if velocity > 0 else [gas, liquid]
+    new, report = model.step(old, 0.2 * model.maximum_step_s, boundary_cells=boundaries)
+    endpoint = 0 if velocity > 0 else -1
+    assert "liquid" in dict(new.cells[endpoint])
+    assert len(new.cells[1 if endpoint == 0 else 0]) == 1
+    before = model._totals(old)
+    after = model._totals(new)
+    expected = report["external_transfer"]
+    for index in range(len(before) - 1):
+        assert after[index] - before[index] == pytest.approx(expected[index], abs=1e-7)
+    assert max(map(abs, report["conservation_residuals"])) < 1e-7
+    assert report["transport_entropy_production_j_k"] >= -1e-7
+    assert old.cells == model.initialize([gas, gas]).cells
+
+
+def test_open_boundary_rejects_periodic_and_invalid_phase_inventory_atomically():
+    model, v = setup(mode="periodic", count=2)
+    cell = {"gas": phase(model.fluid, 1e6, 320.0, "vapor", v, x=(0.5, 0.5))}
+    old = model.initialize([cell, cell])
+    with pytest.raises(ValueError, match="endpoint"):
+        model.step(old, model.maximum_step_s, boundary_cells=[cell, None])
+    closed, _ = setup(count=2)
+    old = closed.initialize([cell, cell])
+    with pytest.raises(ValueError, match="nonempty"):
+        closed.step(old, closed.maximum_step_s, boundary_cells=[{}, None])
+
+
+def test_open_boundary_flux_matches_independent_scalar_pr_path_quadrature():
+    import numpy as np
+    from reference_pr_active_multifluid import face, packets
+
+    model, v = setup(count=2)
+    interior = {"gas": phase(model.fluid, 1e6, 320.0, "vapor", v, 0.2, x=(0.5, 0.5))}
+    boundary = {"gas": phase(model.fluid, 1.001e6, 321.0, "vapor", v, -0.1, x=(0.49, 0.51))}
+    old = model.initialize([interior, interior])
+    ghost = model.initialize([boundary, boundary])
+    _, report = model.step(old, 0.01 * model.maximum_step_s, boundary_cells=[boundary, None])
+    a, b = packets(model, ghost.to_dict()), packets(model, old.to_dict())
+    keys = (
+        "conserved",
+        "alpha",
+        "pressure",
+        "temperature",
+        "velocity",
+        "pressure_precision",
+        "flux",
+    )
+    ref = face({k: a[k][0] for k in keys}, {k: b[k][0] for k in keys}, model.wave_speed)[-1]
+    np.testing.assert_allclose(report["face_fluxes"][0], ref["flux"], rtol=1e-11, atol=1e-6)
+    np.testing.assert_allclose(report["phase_path"][0], ref["phase_path"], rtol=1e-11, atol=1e-6)
+    np.testing.assert_allclose(report["alpha_path"][0], ref["alpha_path"], rtol=1e-11, atol=1e-10)

@@ -1,0 +1,74 @@
+{
+  "accepted": true,
+  "qualification": "Checkpoint device parity; independent physical audits are separate",
+  "absolute_tolerance": 1e-09,
+  "relative_tolerance": 1e-08,
+  "cases": {
+    "active_surface_annular": {
+      "accepted": true,
+      "checked_state_scalars": 46,
+      "maximum_tolerance_fraction": 1.3602121723074016e-05,
+      "worst_path": "result/state/pipes/riser/cells/1/liquid/pressure_pa"
+    },
+    "active_surface_phase_birth": {
+      "accepted": true,
+      "checked_state_scalars": 54,
+      "maximum_tolerance_fraction": 6.118030246291369e-06,
+      "worst_path": "result/state/columns/separator/solution_variables/6"
+    },
+    "active_surface_phase_extinction": {
+      "accepted": true,
+      "checked_state_scalars": 52,
+      "maximum_tolerance_fraction": 2.9605385054629317e-08,
+      "worst_path": "result/state/columns/separator/solution_variables/5"
+    },
+    "active_surface_restart_schedule": {
+      "accepted": true,
+      "checked_state_scalars": 67,
+      "maximum_tolerance_fraction": 1.0441253023724948e-05,
+      "worst_path": "result/state/pipes/line/cells/1/liquid/pressure_pa"
+    },
+    "active_surface_friction": {
+      "accepted": true,
+      "checked_state_scalars": 37,
+      "maximum_tolerance_fraction": 9.01782800265511e-08,
+      "worst_path": "result/state/columns/separator/solution_variables/3"
+    },
+    "active_surface_thermal": {
+      "accepted": true,
+      "checked_state_scalars": 68,
+      "maximum_tolerance_fraction": 4.340185436852941e-07,
+      "worst_path": "result/state/columns/separator/solution_variables/0"
+    },
+    "active_surface_controlled_aperture": {
+      "accepted": true,
+      "checked_state_scalars": 67,
+      "maximum_tolerance_fraction": 8.949632221209868e-06,
+      "worst_path": "result/state/pipes/line/cells/0/liquid/pressure_pa"
+    },
+    "active_surface_withdrawal": {
+      "accepted": true,
+      "checked_state_scalars": 37,
+      "maximum_tolerance_fraction": 1.3501271578742257e-08,
+      "worst_path": "result/state/columns/separator/chemical_constants/1"
+    },
+    "active_surface_reverse": {
+      "accepted": true,
+      "checked_state_scalars": 37,
+      "maximum_tolerance_fraction": 3.3970944696726876e-07,
+      "worst_path": "result/state/columns/separator/solution_variables/3"
+    },
+    "active_surface_interface": {
+      "accepted": true,
+      "checked_state_scalars": 67,
+      "maximum_tolerance_fraction": 2.983206337329521e-06,
+      "worst_path": "result/state/pipes/line/cells/0/liquid/pressure_pa"
+    },
+    "active_surface_isolated": {
+      "accepted": true,
+      "checked_state_scalars": 37,
+      "maximum_tolerance_fraction": 0.0,
+      "worst_path": ""
+    }
+  }
+}

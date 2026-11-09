@@ -22,6 +22,104 @@ def totals(state, nc):
     ]
 
 
+def audit_extended(model, config, report):
+    from check_pr_active_surface import pipe_audit
+
+    from surface.pr_active_multifluid_pipe import PRActiveMultifluidState
+
+    mw = np.array([c.molar_mass_kg_mol for c in model.fluid.components])
+
+    def stored(s):
+        value = totals(s, len(mw))
+        value[-2] += math.fsum(
+            model.gravity * z * (np.array(p["component_moles"]) @ mw)
+            for z, cell in zip(model.centers, s["cells"])
+            for p in cell.values()
+        )
+        return value
+
+    initial = old = report["initial"]
+    impulse = 0.0
+    total_heat = 0.0
+    checked = 0
+    maximum_energy = 0.0
+    for command, interval in zip(config["schedule"], report["intervals"], strict=True):
+        if (
+            set(command)
+            - {
+                "duration_s",
+                "maximum_step_s",
+                "minimum_step_s",
+                "maximum_attempts",
+                "heat_rates_w",
+                "heat_temperatures_k",
+            }
+            or not interval["steps"]
+        ):
+            raise ValueError("Invalid extended pipe schedule")
+        start = old
+        interval_impulse = 0.0
+        interval_heat = 0.0
+        for r in interval["steps"]:
+            from reference_pr_active_heat import check_commands
+
+            check_commands(r, command.get("heat_rates_w"), command.get("heat_temperatures_k"))
+            new = r["state"]
+            if (
+                not 0
+                < r["dt_s"]
+                <= min(model.maximum_step_s, command.get("maximum_step_s", model.maximum_step_s))
+                * (1 + 1e-12)
+            ):
+                raise ValueError("Extended pipe CFL violated")
+            close(
+                new["time_s"] - old["time_s"], r["dt_s"], atol=8 * math.ulp(new["time_s"]), rtol=0.0
+            )
+            pipe_audit(
+                model,
+                PRActiveMultifluidState.from_dict(old),
+                PRActiveMultifluidState.from_dict(new),
+                r,
+            )
+            transfer = r["wall_impulse_kg_m_s"] + r["gravity_impulse_kg_m_s"]
+            residual = stored(new) - stored(old)
+            residual[-1] -= transfer
+            residual[-2] -= r.get("external_heat_j", 0.0)
+            close(residual, np.zeros(len(mw) + 2), atol=1e-6, rtol=0.0)
+            close(r["conservation_residuals"], residual, atol=1e-7, rtol=0.0)
+            maximum_energy = max(maximum_energy, abs(residual[-2]))
+            interval_impulse += transfer
+            interval_heat += r.get("external_heat_j", 0.0)
+            old = new
+            checked += 1
+        if interval["state"] != old:
+            raise ValueError("Extended pipe published interval differs")
+        close(
+            old["time_s"],
+            start["time_s"] + command["duration_s"],
+            atol=8 * math.ulp(old["time_s"]),
+            rtol=0.0,
+        )
+        residual = stored(old) - stored(start)
+        residual[-1] -= interval_impulse
+        residual[-2] -= interval_heat
+        close(interval["conservation_residuals"], residual, atol=1e-6, rtol=0.0)
+        impulse += interval_impulse
+        total_heat += interval_heat
+    if old != report["state"]:
+        raise ValueError("Extended pipe final state differs")
+    residual = stored(old) - stored(initial)
+    residual[-1] -= impulse
+    residual[-2] -= total_heat
+    close(report["conservation_residuals"], residual, atol=1e-6, rtol=0.0)
+    return {
+        "accepted": True,
+        "checked_substeps": checked,
+        "maximum_energy_residual_j": maximum_energy,
+        "active_phase_counts": [len(c) for c in old["cells"]],
+    }
+
+
 def audit(config, report):
     if config != report["config"]:
         raise ValueError("Active pipe request differs")
@@ -40,6 +138,12 @@ def audit(config, report):
         raise ValueError("Active initial stocks differ")
     if len(config["schedule"]) != len(report["intervals"]):
         raise ValueError("Active schedule count differs")
+    if (
+        model.elevations is not None
+        or model.friction is not None
+        or any("heat_rates_w" in c or "heat_temperatures_k" in c for c in config["schedule"])
+    ):
+        return audit_extended(model, config, report)
     checked = 0
     impulse = 0.0
     maximum_energy = 0.0
