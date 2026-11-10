@@ -720,23 +720,68 @@ class PRActiveSurfaceNetwork:
             "qualification": "Normal source on live graph stocks; axial surface-energy transport not implemented",
         }
 
-    def capillary_chain_totals(self, state, pipe_order, parameters):
+    def capillary_chain_totals(self, state, pipe_order, parameters, *, port_openings=None):
         from .pr_capillary_chain import assemble
 
-        _, view, source = assemble(self, state, pipe_order, parameters)
+        _, view, source = assemble(self, state, pipe_order, parameters, port_openings=port_openings)
         surface = source.surface_energy(view)
         values = self.totals(state)
         values[-1] += surface
         return {"stocks": values, "surface_energy_j": surface}
 
-    def relax_capillary_chain(self, state, dt_s, pipe_order, parameters):
+    def relax_capillary_chain(self, state, dt_s, pipe_order, parameters, *, port_openings=None):
         """Joint normal/chemical solve, including shared continuation edges.
 
         Source transaction only; the old axial step is not a capillary step.
         """
         from .pr_capillary_chain import relax
 
-        return relax(self, state, dt_s, pipe_order, parameters)
+        return relax(self, state, dt_s, pipe_order, parameters, port_openings=port_openings)
+
+    def capillary_chain_transport_work(
+        self,
+        before,
+        after,
+        pipe_order,
+        parameters,
+        integrated_liquid_flux_m3,
+        *,
+        volume_source_m3=None,
+        port_openings=None,
+    ):
+        """Return constitutive axial work/ports; does not advance graph stocks."""
+        from .pr_capillary_chain import transport_work
+
+        return transport_work(
+            self,
+            before,
+            after,
+            pipe_order,
+            parameters,
+            integrated_liquid_flux_m3,
+            volume_source_m3=volume_source_m3,
+            port_openings=port_openings,
+        )
+
+    def advance_capillary_open_line(self, state, duration_s, pipe_order, parameters, **options):
+        """Coupled line with maintained PR face states and explicit capillary work."""
+        from .pr_capillary_chain import advance_line
+
+        return advance_line(
+            self, state, duration_s, pipe_order, parameters, maintained_faces=True, **options
+        )
+
+    def advance_capillary_line(self, state, duration_s, pipe_order, parameters, **options):
+        """Coupled PR/capillary dynamics for a complete isolated line or loop."""
+        from .pr_capillary_chain import advance_line
+
+        return advance_line(self, state, duration_s, pipe_order, parameters, **options)
+
+    def advance_capillary_loop(self, state, duration_s, pipe_order, parameters, **options):
+        """Actual coupled transport/normal dynamics for a complete isolated loop."""
+        from .pr_capillary_chain import advance_loop
+
+        return advance_loop(self, state, duration_s, pipe_order, parameters, **options)
 
     def _column_entropy(self, column, state):
         f = self.fluid

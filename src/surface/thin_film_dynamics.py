@@ -11,6 +11,7 @@ from dataclasses import asdict, dataclass
 
 import torch
 
+from .film_wetting import LongWaveWettingPotential
 from .liquid import ConservationError, HydraulicConvergenceError, PropertyModelError, _number
 from .operation import _digest
 
@@ -87,7 +88,8 @@ class ThinFilmDynamics:
         self.device = torch.device(device)
         self.spacing = tuple(l / n for l, n in zip(self.lengths, self.shape))
         self.cell_area = math.prod(self.spacing) * (self.width if len(self.shape) == 1 else 1)
-        self.wetting_scale = 10 / 3 * self.sigma * (1 - math.cos(math.radians(self.angle)))
+        self.wall_potential = LongWaveWettingPotential(self.sigma, self.adsorption, self.angle)
+        self.wetting_scale = self.wall_potential.scale
         self.model_id = _digest(self.to_dict())
 
     def to_dict(self):
@@ -127,20 +129,10 @@ class ThinFilmDynamics:
         return sum(self.divergence(self.gradient(h, k), k) for k in range(len(self.shape)))
 
     def potential(self, h):
-        r = self.adsorption / h
-        return (
-            self.wetting_scale * (-r.square() / 2 + r**5 / 5)
-            + self.rho * self.normal_g * h.square() / 2
-        )
+        return self.wall_potential.potential(h) + self.rho * self.normal_g * h.square() / 2
 
     def potential_divided_difference(self, a, b):
-        # Polynomial identity avoids cancellation and the a==b removable pole.
-        ra, rb = self.adsorption / a, self.adsorption / b
-        fifth = sum(ra**k * rb ** (4 - k) for k in range(5))
-        return (
-            self.wetting_scale / self.adsorption * ra * rb * ((ra + rb) / 2 - fifth / 5)
-            + self.rho * self.normal_g * (a + b) / 2
-        )
+        return self.wall_potential.divided_difference(a, b) + self.rho * self.normal_g * (a + b) / 2
 
     def free_energy(self, h):
         density = self.potential(h) + self.sigma / 2 * sum(

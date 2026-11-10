@@ -274,8 +274,10 @@ def test_device_parity_uses_height_units_instead_of_a_generic_absolute_tolerance
 def test_finite_coordinates_cannot_hide_a_nan_in_derived_energy():
     from surface.liquid import PropertyModelError
 
-    m = setup(time_scheme="roe")
-    # The inactive wetting potential may overflow internally at an impossible
-    # molecular scale; a NaN must never pass a residual comparison.
+    raw = setup(time_scheme="roe").to_dict()
+    raw["maximum_velocity_m_s"] = 1e200
+    m = InertialCapillaryFilm.from_dict(raw)
+    # Finite primitive coordinates can still overflow the kinetic energy.
+    # Do not rely on the former 0*inf bug in the inactive wall potential.
     with pytest.raises(PropertyModelError, match="Nonfinite"):
-        m.initialize([1e-100] * 16)
+        m.initialize([3e-6] * 16, [1e190] * 16)

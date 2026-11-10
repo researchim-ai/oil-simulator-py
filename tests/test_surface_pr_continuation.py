@@ -206,7 +206,7 @@ def test_heat_and_phase_birth_cross_a_continuation_like_an_unsplit_line():
         pipe_heat_w={"a": [{"liquid": 100.0}], "b": [{"liquid": 100.0}]},
         pipe_heat_temperatures_k={"a": [{"liquid": 400.0}], "b": [{"liquid": 400.0}]},
     )
-    expected, reference = base.step(
+    expected, _reference = base.step(
         bs,
         dt,
         pipe_heat_w={"line": [{"liquid": 100.0}] * 2},
@@ -284,3 +284,65 @@ def test_missing_chemical_surface_support_does_not_create_a_residual_phase():
     with pytest.raises(ValueError, match="both declared phases"):
         m.relax_capillary_chain(old, 0.001, ["a", "b"], params)
     assert old.to_dict() == snapshot
+
+
+@pytest.mark.parametrize("loop", [False, True])
+def test_independent_chain_audit_rejects_corrupt_work_and_inventory(loop):
+    import copy
+
+    from check_pr_capillary_chain import audit
+
+    m, old, params, _, _ = capillary_case(loop=loop)
+    end, report = m.relax_capillary_chain(old, 0.001, ["a", "b"], params)
+    assert audit(m, old, end, report, params)["accepted"]
+    bad = copy.deepcopy(report)
+    bad["capillary_ports"]["join"]["work_into_left_j"] *= -1
+    with pytest.raises(ValueError, match="left port work"):
+        audit(m, old, end, bad, params)
+    bad = copy.deepcopy(report)
+    bad["capillary_ports"].pop("join")
+    with pytest.raises(ValueError, match="Missing or extra"):
+        audit(m, old, end, bad, params)
+
+
+def test_closed_capillary_join_rejects_instead_of_transferring_work():
+    m, old, params, _, _ = capillary_case()
+    snapshot = old.to_dict()
+    for command, message in (
+        ({"join": False}, "Closed continuation"),
+        ({"join": 0}, "boolean"),
+        ({"absent": True}, "Unknown"),
+    ):
+        with pytest.raises(ValueError, match=message):
+            m.relax_capillary_chain(old, 0.001, ["a", "b"], params, port_openings=command)
+    assert old.to_dict() == snapshot
+
+
+def test_single_pipe_closed_continuation_and_source_restart():
+    import json
+
+    from check_pr_capillary_chain import audit
+
+    from surface.pr_active_surface import PRActiveSurfaceState
+
+    m, old, params, _, _ = capillary_case(loop=True)
+    from surface.pr_capillary_chain import assemble
+
+    pipe, view, _ = assemble(m, old, ["a", "b"], params)
+    raw = pipe.to_dict()
+    raw["boundary_mode"] = "walls"
+    pipe = PRActiveMultifluidPipe.from_dict(raw)
+    view = pipe.initialize([dict(c) for c in view.cells])
+    one = PRActiveSurfaceNetwork(
+        {"line": {"pipe": pipe, "boundary_nodes": ("join", "join")}},
+        {},
+        [],
+        continuations={"join": PRActivePipeContinuation("line", "line")},
+    )
+    seed = one.initialize({}, {"line": view})
+    restored = PRActiveSurfaceNetwork.from_dict(json.loads(json.dumps(one.to_dict())))
+    restart = PRActiveSurfaceState.from_dict(json.loads(json.dumps(seed.to_dict())))
+    end, report = restored.relax_capillary_chain(restart, 0.001, ["line"], params)
+    assert audit(restored, restart, end, report, params)["shared_edges"] == 1
+    expected, _ = one.relax_capillary_chain(seed, 0.001, ["line"], params)
+    assert end == expected

@@ -105,10 +105,91 @@ def test_gross_exchange_still_costs_energy_when_net_surface_area_is_unchanged():
     assert max(map(abs, p.ledger(s, end))) < 1e-10
 
 
+@pytest.mark.parametrize("adsorption_ratio", [0.5, 2.0])
+def test_partial_wetting_pays_actual_wall_energy_in_both_gross_transfers(adsorption_ratio):
+    from dataclasses import replace
+
+    from reference_pr_film_mist_exchange import audit
+
+    p, old, base = case(mist=True)
+    width = 0.1
+    height = dict(old.cells[0])["film"].volume_m3 / (width * p.lengths[0])
+    law = replace(base, film_surface_model="planar_long_wave_wetting", wetting={
+        "film_width_m": width,
+        "adsorption_thickness_m": adsorption_ratio * height,
+        "equilibrium_contact_angle_deg": 5.0,
+    })
+    e, d = [1e-7, 0.0], [2e-8, 0.0]
+    final, r = law.apply(p, old, 0.01, entrainment_m3_s=e, deposition_m3_s=d)
+    assert audit(p, old.to_dict(), final.to_dict(), r, law.to_dict(), e, d, 0.01)["accepted"]
+    drop_only = 6 * law.surface_tension_n_m / law.droplet_diameter_m * 0.01 * e[0]
+    assert abs(r["surface_creation_j"][0] - drop_only) > 1e-15
+    assert final.cells[1] == old.cells[1]
+    restored = PRFilmMistExchange.from_dict(law.to_dict())
+    repeated, _ = restored.apply(p, old, 0.01, entrainment_m3_s=e, deposition_m3_s=d)
+    assert repeated == final
+
+
+def test_partial_wetting_never_replaces_a_singular_dry_state_with_a_mass_floor():
+    from dataclasses import replace
+
+    from surface.liquid import PropertyModelError
+
+    p, old, base = case(gas_u=100.0)
+    law = replace(base, film_surface_model="planar_long_wave_wetting", wetting={
+        "film_width_m": 0.1, "adsorption_thickness_m": 1e-4,
+        "equilibrium_contact_angle_deg": 5.0,
+    })
+    snapshot = old.to_dict()
+    volume = dict(old.cells[0])["film"].volume_m3
+    with pytest.raises(PropertyModelError, match="positive film"):
+        law.apply(p, old, 1.0, entrainment_m3_s=[volume, 0.0], deposition_m3_s=[0.0, 0.0])
+    assert old.to_dict() == snapshot
+
+
+def test_material_surface_release_heats_real_phases_without_negative_drag():
+    from dataclasses import replace
+
+    from reference_pr_film_mist_exchange import audit
+
+    p, old, base = case()
+    width, height = 0.1, 2e-8
+    volume = width * p.lengths[0] * height
+    cells = []
+    for cell in old.cells:
+        row = dict(cell)
+        for name, root, v, u in (
+            ("film", "liquid", volume, 0.0),
+            ("gas", "vapor", p.volumes[0] - volume, 30.0),
+        ):
+            row[name] = phase(p.fluid, row[name].pressure_pa, 200.0, root, v, u)
+        cells.append(row)
+    old = p.initialize(cells)
+    law = replace(base, droplet_diameter_m=1e-4, film_surface_model="planar_long_wave_wetting", wetting={
+        "film_width_m": width, "adsorption_thickness_m": 1e-8,
+        "equilibrium_contact_angle_deg": 20.0,
+    })
+    e, d = [volume * 0.001, 0.0], [0.0, 0.0]
+    final, report = law.apply(p, old, 1.0, entrainment_m3_s=e, deposition_m3_s=d)
+    assert report["surface_creation_j"][0] < 0
+    assert report["kinetic_energy_removed_j"] == [0.0, 0.0]
+    assert report["gas_to_mist_impulse_kg_m_s"] == [0.0, 0.0]
+    assert report["irreversible_heat_j"][0] == -report["surface_creation_j"][0]
+    assert audit(p, old.to_dict(), final.to_dict(), report, law.to_dict(), e, d, 1.0)["accepted"]
+
+
 @pytest.mark.skipif(not torch.cuda.is_available(), reason="CUDA unavailable")
-def test_morphology_exchange_cuda_parity():
+@pytest.mark.parametrize("material_wetting", [False, True])
+def test_morphology_exchange_cuda_parity(material_wetting):
+    from dataclasses import replace
+
     a, s, law = case(mist=True)
     b, sg, _ = case(mist=True, device="cuda")
+    if material_wetting:
+        law = replace(law, film_surface_model="planar_long_wave_wetting", wetting={
+            "film_width_m": 0.1, "adsorption_thickness_m": 1e-4,
+            "equilibrium_contact_angle_deg": 5.0,
+        })
     u, ru = law.apply(a, s, 0.01, entrainment_m3_s=[1e-7, 0.0], deposition_m3_s=[2e-8, 0.0])
     v, rv = law.apply(b, sg, 0.01, entrainment_m3_s=[1e-7, 0.0], deposition_m3_s=[2e-8, 0.0])
     for ca, cb in zip(u.cells, v.cells):

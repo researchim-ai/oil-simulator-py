@@ -12,6 +12,7 @@ from dataclasses import replace
 
 import torch
 
+from .film_wetting import LongWaveWettingPotential
 from .liquid import ConservationError, HydraulicConvergenceError, PropertyModelError, _number
 from .operation import _digest
 from .peng_robinson import R
@@ -65,6 +66,8 @@ class PRCapillaryPressure:
         transfer_energy_j_mol=None,
         heat_conductance_w_k=0.0,
         maximum_slope=0.2,
+        boundary_heights_m=None,
+        wetting=None,
     ):
         self.pipe = pipe
         roots = {s["name"]: s["root"] for s in pipe.slots}
@@ -77,6 +80,7 @@ class PRCapillaryPressure:
         self.liquid, self.gas = liquid_slot, gas_slot
         self.width = _number(width_m, "resolved interface width", positive=True)
         self.sigma = _number(surface_tension_n_m, "surface tension", positive=True)
+        self.wetting = None if wetting is None else LongWaveWettingPotential(self.sigma, **wetting)
         self.mobility = _number(volume_mobility_m3_pa_s, "normal volume mobility", positive=True)
         self.maximum_slope = _number(maximum_slope, "capillary slope envelope", positive=True)
         if self.maximum_slope > 0.2:
@@ -114,29 +118,39 @@ class PRCapillaryPressure:
             raise ValueError("Capillary chemical solve exceeds configured unknown budget")
         self.maximum_unknowns = maximum_unknowns
         self.area = pipe.fluid.tensor(pipe.lengths) * self.width
+        heights = (None, None) if boundary_heights_m is None else tuple(boundary_heights_m)
+        if len(heights) != 2 or (
+            pipe.boundary_mode == "periodic" and any(h is not None for h in heights)
+        ):
+            raise ValueError("Two face heights require nonperiodic geometry")
+        self.boundary_heights = tuple(
+            None if h is None else _number(h, "boundary interface height", nonnegative=True)
+            for h in heights
+        )
         edges = [(i, i + 1) for i in range(len(pipe.lengths) - 1)]
         if pipe.boundary_mode == "periodic":
             if len(pipe.lengths) < 3:
                 raise ValueError("Periodic film requires at least three cells")
             edges.append((len(pipe.lengths) - 1, 0))
-        self.incidence = pipe.fluid.tensor(
-            [[float(k == j) - float(k == i) for k in range(len(pipe.lengths))] for i, j in edges]
-        )
+        rows = [[float(k == j) - float(k == i) for k in range(len(pipe.lengths))] for i, j in edges]
+        distances = [0.5 * (pipe.lengths[i] + pipe.lengths[j]) for i, j in edges]
+        offsets = [0.0] * len(rows)
+        for side, height in enumerate(self.boundary_heights):
+            if height is not None:
+                index = 0 if side == 0 else len(pipe.lengths) - 1
+                rows.append([float(k == index) for k in range(len(pipe.lengths))])
+                distances.append(pipe.lengths[index] / 2)
+                offsets.append(-height)
+        self.incidence = pipe.fluid.tensor(rows)
+        self.height_offsets = pipe.fluid.tensor(offsets)
         if not edges:
             raise ValueError("Resolved film needs connected cells")
-        self.distances = pipe.fluid.tensor(
-            [0.5 * (pipe.lengths[i] + pipe.lengths[j]) for i, j in edges]
-        )
-        self.weights = pipe.fluid.tensor(
-            [
-                self.sigma * self.width / (0.5 * (pipe.lengths[i] + pipe.lengths[j]))
-                for i, j in edges
-            ]
-        )
+        self.distances = pipe.fluid.tensor(distances)
+        self.weights = self.sigma * self.width / self.distances
         self.model_id = _digest(self.to_dict())
 
     def to_dict(self):
-        return {
+        result = {
             "model": "pr_capillary_pressure_v1",
             "pipe_model_id": self.pipe.model_id,
             "liquid_slot": self.liquid,
@@ -151,6 +165,11 @@ class PRCapillaryPressure:
             "heat_conductance_w_k": self.conductance,
             "maximum_slope": self.maximum_slope,
         }
+        if any(h is not None for h in self.boundary_heights):
+            result["boundary_heights_m"] = self.boundary_heights
+        if self.wetting is not None:
+            result["wetting"] = self.wetting.to_dict()
+        return result
 
     @classmethod
     def from_dict(cls, pipe, raw):
@@ -171,10 +190,27 @@ class PRCapillaryPressure:
             / self.area
         )
         if not bool(
-            ((self.incidence @ h).abs() / self.distances <= self.maximum_slope).all().cpu()
+            (
+                (self.incidence @ h + self.height_offsets).abs() / self.distances
+                <= self.maximum_slope
+            )
+            .all()
+            .cpu()
         ):
             raise PropertyModelError("Capillary geometry exceeds the small-slope envelope")
-        return float((0.5 * self.weights * (self.incidence @ h).square()).sum().cpu())
+        energy = (0.5 * self.weights * (self.incidence @ h + self.height_offsets).square()).sum()
+        if self.wetting is not None:
+            energy = energy + (self.area * self.wetting.potential(h)).sum()
+        return float(energy.cpu())
+
+    def discrete_pressure(self, old_height, new_height):
+        mid = (old_height + new_height) / 2
+        pressure = (
+            self.incidence.T @ (self.weights * (self.incidence @ mid + self.height_offsets))
+        ) / self.area
+        if self.wetting is not None:
+            pressure = pressure + self.wetting.divided_difference(old_height, new_height)
+        return pressure
 
     def apply(self, state, dt_s):
         pipe = self.pipe
@@ -230,10 +266,7 @@ class PRCapillaryPressure:
             masses = (numbers * f.molar_masses).sum(-1)
             ke = 0.5 * momenta.square() / masses
             q = caloric_tv(f, temperature, volumes / amounts, compositions)
-            midheight = h0 + dv / (2 * self.area)
-            chemical = (
-                self.incidence.T @ (self.weights * (self.incidence @ midheight))
-            ) / self.area
+            chemical = self.discrete_pressure(h0, h0 + dv / self.area)
             force = q["p"][:, 0] - q["p"][:, 1] - chemical
             heat = dv.square() / (dt * self.mobility)
             heat_transfer = dt * self.conductance * (temperature[:, 1] - temperature[:, 0])
@@ -278,7 +311,8 @@ class PRCapillaryPressure:
                 & (q["p"] >= f.min_pressure_pa).all()
                 & (q["p"] <= f.max_pressure_pa).all()
                 & (
-                    (self.incidence @ (volumes[:, 0] / self.area)).abs() / self.distances
+                    (self.incidence @ (volumes[:, 0] / self.area) + self.height_offsets).abs()
+                    / self.distances
                     <= self.maximum_slope
                 ).all()
             )
@@ -298,24 +332,41 @@ class PRCapillaryPressure:
                 heat_transfer,
             )
 
+        # Tiny acoustic substeps need the local phasic energy equation to
+        # converge in inventory ULPs as well as in the scaled Newton norm.
+        # Otherwise a globally cancelling phase-energy defect can exceed the
+        # actual heat exchanged during the substep.
+        energy_tolerance = (
+            f.tensor([256 * math.ulp(p.total_energy_j) + 5e-23 for p in old]).reshape(nc, 2)
+            / thermal
+        )
+        tolerances = torch.cat(
+            (
+                f.tensor([2e-12] * nc),
+                energy_tolerance.flatten(),
+                f.tensor([2e-12] * (nc * len(self.active))),
+            )
+        )
         z = f.tensor([0.0] * ((3 + len(self.active)) * nc))
         for iteration in range(31):
             r, valid, *_ = evaluate(z)
-            norm = float(r.abs().max().cpu())
+            norm = float((r / tolerances).abs().max().cpu())
             if not bool(valid.cpu()) or not math.isfinite(norm):
                 raise PropertyModelError("Inadmissible capillary PR iterate")
-            if norm <= 2e-12:
+            if norm <= 1.0:
                 break
             if iteration == 30:
                 raise HydraulicConvergenceError("Capillary normal Newton exhausted")
-            try:
-                change = torch.linalg.solve(torch.func.jacfwd(lambda y: evaluate(y)[0])(z), -r)
-            except RuntimeError as exc:
-                raise HydraulicConvergenceError("Capillary normal linear solve failed") from exc
+            jacobian = torch.func.jacfwd(lambda y: evaluate(y)[0])(z)
+            if not bool(torch.isfinite(jacobian).all().cpu()):
+                raise HydraulicConvergenceError("Nonfinite capillary normal Jacobian")
+            change, info = torch.linalg.solve_ex(jacobian, -r, check_errors=False)
+            if int(info.cpu()) != 0 or not bool(torch.isfinite(change).all().cpu()):
+                raise HydraulicConvergenceError("Capillary normal linear solve failed")
             for power in range(25):
                 trial = z + change * 2.0 ** (-power)
                 rr, ok, *_ = evaluate(trial)
-                if bool(ok.cpu()) and float(rr.abs().max().cpu()) < norm:
+                if bool(ok.cpu()) and float((rr / tolerances).abs().max().cpu()) < norm:
                     z = trial
                     break
             else:
@@ -384,7 +435,9 @@ class PRCapillaryPressure:
             "state": end.to_dict(),
             "source_model_id": self.model_id,
             "source_model": self.to_dict(),
-            "surface_energy_definition": "small_slope_excess_over_fixed_flat_interface",
+            "surface_energy_definition": "small_slope_excess_plus_material_wall_potential"
+            if self.wetting is not None
+            else "small_slope_excess_over_fixed_flat_interface",
             "dt_s": dt,
             "clock_advanced": False,
             "newton_iterations": iteration,

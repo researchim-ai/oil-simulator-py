@@ -228,3 +228,8 @@ opm-tests/
 !/benchmarks/results/pr_gas_loaded_capillary_validation.json
 !/benchmarks/results/pr_open_surface_validation.json
 !/benchmarks/results/pr_capillary_pressure_validation.json
+!/benchmarks/results/pr_capillary_continuation_validation.json
+!/benchmarks/results/pr_capillary_transport_validation.json
+!/benchmarks/results/pr_capillary_axial_validation.json
+!/benchmarks/results/pr_capillary_reflecting_validation.json
+!/benchmarks/results/pr_shared_wetting_validation.json

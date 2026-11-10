@@ -4,6 +4,7 @@ import math
 
 import numpy as np
 from reference_pr_active_multifluid import packets
+from reference_wetting_potential import potential
 
 
 def audit(pipe, before, after, report, law, entrainment_m3_s, deposition_m3_s, dt_s):
@@ -15,7 +16,7 @@ def audit(pipe, before, after, report, law, entrainment_m3_s, deposition_m3_s, d
         or report["state"] != after
     ):
         raise ValueError("Morphology source command/report differs")
-    if law["film_surface_model"] != "planar_complete_wetting":
+    if law["film_surface_model"] not in ("planar_complete_wetting", "planar_long_wave_wetting"):
         raise ValueError("Unsupported film surface-energy model")
     a, b = packets(pipe, before), packets(pipe, after)
     nc = len(pipe.fluid.names)
@@ -52,12 +53,22 @@ def audit(pipe, before, after, report, law, entrainment_m3_s, deposition_m3_s, d
             [*p["component_moles"], p["volume_m3"], p["momentum_kg_m_s"], p["total_energy_j"]]
         )
 
+    def wall_energy(index, volume):
+        material = law.get("wetting")
+        if material is None:
+            return 0.0
+        area = pipe.lengths[index] * material["film_width_m"]
+        if volume <= 0 and material["equilibrium_contact_angle_deg"] > 0:
+            raise ValueError("Singular wetting potential on absent film")
+        return float(area * potential(material, law["surface_tension_n_m"], volume / area))
+
     for i, (ca, cb) in enumerate(zip(before["cells"], after["cells"], strict=True)):
         for name in pipe.names:
             if name not in (film, mist, gas) and ca.get(name) != cb.get(name):
                 raise ValueError("Uninvolved phase changed during morphology exchange")
         stocks = {n: row(ca[n]) if n in ca else np.zeros(nc + 3) for n in (film, mist, gas)}
         v0 = stocks[mist][nc]
+        wall0 = wall_energy(i, stocks[film][nc])
         ve, vd = dt_s * entrainment_m3_s[i], dt_s * deposition_m3_s[i]
         if vd > stocks[mist][nc]:
             raise ValueError("Deposition without donor inventory")
@@ -65,15 +76,18 @@ def audit(pipe, before, after, report, law, entrainment_m3_s, deposition_m3_s, d
             parcel = stocks[mist] * (vd / stocks[mist][nc])
             stocks[mist] = stocks[mist] * (1 - vd / stocks[mist][nc])
             stocks[film] += parcel
-            stocks[film][-1] += coeff * vd
+        wall_d = wall_energy(i, stocks[film][nc])
+        deposition_heat = coeff * vd - (wall_d - wall0)
+        stocks[film][-1] += deposition_heat
         if ve > stocks[film][nc]:
             raise ValueError("Entrainment without donor inventory")
         if ve:
             parcel = stocks[film] * (ve / stocks[film][nc])
             stocks[film] = stocks[film] * (1 - ve / stocks[film][nc])
             stocks[mist] += parcel
-        cost = coeff * ve
-        loss = cost / law["atomization_efficiency"]
+        wall_e = wall_energy(i, stocks[film][nc])
+        cost = coeff * ve + wall_e - wall_d
+        loss = max(cost, 0.0) / law["atomization_efficiency"]
         extra = loss - cost
         impulse = 0.0
         if loss:
@@ -94,13 +108,11 @@ def audit(pipe, before, after, report, law, entrainment_m3_s, deposition_m3_s, d
             ud = barycentric - mg / (mg + md) * new_relative
             new_pg, new_pd = mg * ug, md * ud
             stocks[gas][-2], stocks[mist][-2] = new_pg, new_pd
-            stocks[gas][-1] += (new_pg - pg) * (new_pg + pg) / (2 * mg) + (
-                1 - law["heat_to_mist_fraction"]
-            ) * extra
-            stocks[mist][-1] += (new_pd - pd) * (new_pd + pd) / (2 * md) + law[
-                "heat_to_mist_fraction"
-            ] * extra
+            stocks[gas][-1] += (new_pg - pg) * (new_pg + pg) / (2 * mg)
+            stocks[mist][-1] += (new_pd - pd) * (new_pd + pd) / (2 * md)
             impulse = pg - new_pg
+        stocks[gas][-1] += (1 - law["heat_to_mist_fraction"]) * extra
+        stocks[mist][-1] += law["heat_to_mist_fraction"] * extra
         for n, expected in stocks.items():
             if expected[nc] == 0:
                 if n in cb:
@@ -120,10 +132,10 @@ def audit(pipe, before, after, report, law, entrainment_m3_s, deposition_m3_s, d
                 rtol=0.0,
             )
         values = (
-            coeff * v0,
-            coeff * stocks[mist][nc],
+            coeff * v0 + wall0,
+            coeff * stocks[mist][nc] + wall_e,
             cost,
-            coeff * vd,
+            deposition_heat,
             loss,
             extra,
             impulse,
@@ -167,5 +179,5 @@ def audit(pipe, before, after, report, law, entrainment_m3_s, deposition_m3_s, d
     return {
         "accepted": True,
         "checked_cells": len(before["cells"]),
-        "qualification": "Prescribed rates and planar complete wetting; not a regime/onset model",
+        "qualification": "Prescribed rates, fixed drop diameter and explicitly declared planar wall energy; not a regime/onset model",
     }

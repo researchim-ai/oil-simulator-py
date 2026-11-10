@@ -59,7 +59,7 @@ def run(config, *, device="cpu"):
         "request": config,
         "source_sha256": sha,
         "device": device,
-        "qualification": "Local fixed-diameter exchange; prescribed rates; planar complete wetting; not a spatial network or empirical onset model",
+        "qualification": "Local fixed-diameter exchange; prescribed rates and explicit planar wall energy; not a spatial network or empirical onset model",
         "initial": initial.to_dict(),
         "intervals": intervals,
         "final": state.to_dict(),

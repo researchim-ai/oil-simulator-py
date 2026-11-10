@@ -13,8 +13,13 @@ from .pr_active_multifluid_pipe import PRActiveMultifluidPipe, PRActiveMultiflui
 from .pr_capillary_pressure import PRCapillaryPressure
 
 
-def assemble(network, state, pipe_order, parameters):
+def assemble(network, state, pipe_order, parameters, *, port_openings=None):
     network.inspect(state)
+    openings = {} if port_openings is None else dict(port_openings)
+    if set(openings) - set(network.continuations):
+        raise ValueError("Unknown capillary continuation opening")
+    if any(type(value) is not bool for value in openings.values()):
+        raise ValueError("Capillary continuation openings must be boolean")
     names = tuple(pipe_order)
     if not names or len(set(names)) != len(names) or set(names) - set(network.pipes):
         raise ValueError("Unique known continued pipe order required")
@@ -31,6 +36,10 @@ def assemble(network, state, pipe_order, parameters):
     for link in network.continuations.values():
         if (link.left_pipe in names) != (link.right_pipe in names):
             raise ValueError("Capillary assembly must include the whole continuation component")
+        if link.left_pipe in names and not openings.get(
+            network.pipes[link.left_pipe]["boundary_nodes"][1], True
+        ):
+            raise ValueError("Closed continuation requires separate capillary geometries")
     # Only an actual last-to-first continuation closes the geometry.
     closing = network.pipes[names[-1]]["boundary_nodes"][1]
     periodic = (
@@ -67,9 +76,13 @@ def assemble(network, state, pipe_order, parameters):
     return assembled, view, source
 
 
-def relax(network, state, dt_s, pipe_order, parameters):
+def relax(network, state, dt_s, pipe_order, parameters, *, port_openings=None):
     order = tuple(pipe_order)
-    assembled, old, source = assemble(network, state, order, parameters)
+    assembled, old, source = assemble(
+        network, state, order, parameters, port_openings=port_openings
+    )
+    if any(h is not None for h in source.boundary_heights):
+        raise ValueError("Fixed face geometry requires explicit external surface-work ports")
     new, record = source.apply(old, dt_s)
     inventory = dict(state.pipes)
     offsets = {}
@@ -121,6 +134,12 @@ def relax(network, state, dt_s, pipe_order, parameters):
                 "surface_energy_before_j": ea,
                 "surface_energy_after_j": eb,
             }
+    if source.wetting is not None:
+        phi0 = (source.area * source.wetting.potential(oldh)).cpu().tolist()
+        phi1 = (source.area * source.wetting.potential(newh)).cpu().tolist()
+        for i, name in enumerate(owners):
+            local_before[name] += phi0[i]
+            local_after[name] += phi1[i]
     block_residuals = {}
     for name in order:
         i, j = offsets[name]
@@ -166,3 +185,139 @@ def relax(network, state, dt_s, pipe_order, parameters):
         "conservation_residuals": residual,
         "qualification": "Shared normal/chemical capillary geometry and work ports; axial capillary transport and topology change remain separate",
     }
+
+
+def transport_work(
+    network,
+    before,
+    after,
+    pipe_order,
+    parameters,
+    integrated_liquid_flux_m3,
+    *,
+    volume_source_m3=None,
+    port_openings=None,
+):
+    """Constitutive axial work on real graph states, not a state integrator."""
+    from .pr_capillary_transport import PRCapillaryTransportWork
+
+    order = tuple(pipe_order)
+    _, old, source = assemble(network, before, order, parameters, port_openings=port_openings)
+    _, new, _ = assemble(network, after, order, parameters, port_openings=port_openings)
+    record = PRCapillaryTransportWork(source).evaluate(
+        old, new, integrated_liquid_flux_m3, volume_source_m3=volume_source_m3
+    )
+    periodic = source.pipe.boundary_mode == "periodic"
+    segments, ports = {}, {}
+    cursor = 0
+    for name in order:
+        count = len(dict(before.pipes)[name].cells)
+        left = (cursor - 1) % len(old.cells) if periodic else cursor
+        right = (cursor + count - 1) % len(old.cells) if periodic else cursor + count
+        segments[name] = {
+            "surface_energy_before_j": math.fsum(
+                record["surface_energy_before_j"][cursor : cursor + count]
+            ),
+            "surface_energy_after_j": math.fsum(
+                record["surface_energy_after_j"][cursor : cursor + count]
+            ),
+            "axial_bulk_work_j": math.fsum(record["axial_bulk_work_j"][cursor : cursor + count]),
+            "normal_bulk_work_j": math.fsum(record["normal_bulk_work_j"][cursor : cursor + count]),
+            "surface_energy_in_j": record["face_surface_energy_transfer_j"][left],
+            "surface_energy_out_j": record["face_surface_energy_transfer_j"][right],
+            "energy_residual_j": math.fsum(
+                record["local_energy_residual_j"][cursor : cursor + count]
+            ),
+        }
+        node = network.pipes[name]["boundary_nodes"][1]
+        if node in network.continuations:
+            ports[node] = {
+                "left_pipe": name,
+                "right_pipe": network.continuations[node].right_pipe,
+                "liquid_volume_transfer_m3": record["integrated_liquid_flux_m3"][right],
+                "surface_energy_into_right_j": record["face_surface_energy_transfer_j"][right],
+                "surface_energy_into_left_j": -record["face_surface_energy_transfer_j"][right],
+            }
+        cursor += count
+    return {**record, "pipe_order": list(order), "segments": segments, "continuations": ports}
+
+
+def advance_line(
+    network,
+    state,
+    duration_s,
+    pipe_order,
+    parameters,
+    *,
+    port_openings=None,
+    normal_relaxation=True,
+    require_periodic=False,
+    maintained_faces=False,
+    volume_diffusion="acoustic",
+    **step_options,
+):
+    """Advance a complete isolated uniform continuation line or loop."""
+    from .pr_capillary_axial import PRCapillaryAxialPipe
+
+    order = tuple(pipe_order)
+    if (
+        set(order) != set(network.pipes)
+        or network.columns
+        or (network.reservoirs and not maintained_faces)
+        or network.equipment is not None
+        or network.walls
+    ):
+        raise ValueError("The capillary line must be the complete isolated graph")
+    _, initial, source = assemble(network, state, order, parameters, port_openings=port_openings)
+    if require_periodic and source.pipe.boundary_mode != "periodic":
+        raise ValueError("The capillary loop requires an actual closing continuation")
+    boundaries = [None, None]
+    if maintained_faces:
+        for side, name in enumerate((order[0], order[-1])):
+            pipe = network.pipes[name]["pipe"]
+            node = network.pipes[name]["boundary_nodes"][side]
+            if node in network.reservoirs:
+                reservoir = network.reservoirs[node]
+                boundaries[side] = network._assign(
+                    pipe, (), reservoir.phases, reservoir.phase_roots
+                )
+        if not any(row is not None for row in boundaries):
+            raise ValueError("Open capillary line requires a maintained reservoir endpoint")
+    model = PRCapillaryAxialPipe(source, boundaries=boundaries, volume_diffusion=volume_diffusion)
+    source = model.source
+    step_options.setdefault("initial_step_s", state.next_step_s)
+    final, record = model.advance(
+        initial, duration_s, normal_relaxation=normal_relaxation, **step_options
+    )
+    inventory, cursor = dict(state.pipes), 0
+    for name in order:
+        count = len(inventory[name].cells)
+        inventory[name] = replace(
+            inventory[name], cells=final.cells[cursor : cursor + count], time_s=final.time_s
+        )
+        cursor += count
+    end = replace(
+        state,
+        pipes=tuple(sorted(inventory.items())),
+        time_s=final.time_s,
+        next_step_s=record["next_step_s"],
+    )
+    network.inspect(end)
+    return end, {
+        "state": end.to_dict(),
+        "pipe_order": list(order),
+        "assembly_pipe": source.pipe.to_dict(),
+        "assembly_initial": initial.to_dict(),
+        "source_model": source.to_dict(),
+        "axial_model": model.to_dict(),
+        "maintained_faces": maintained_faces,
+        "advance": record,
+        "normal_relaxation": normal_relaxation,
+        "qualification": "Isolated uniform two-phase continuation line or loop; open-flow/branching/topology-changing capillary graph remains unsupported",
+    }
+
+
+def advance_loop(network, state, duration_s, pipe_order, parameters, **options):
+    return advance_line(
+        network, state, duration_s, pipe_order, parameters, require_periodic=True, **options
+    )

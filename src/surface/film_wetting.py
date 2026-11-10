@@ -105,3 +105,51 @@ class FilmWettingCriterion:
             "history_dependent": valid & (~wet) & (~dry),
             "curvature_ratio": gap,
         }
+
+
+@dataclass(frozen=True)
+class LongWaveWettingPotential:
+    """Shared material wall energy formerly embedded in ThinFilmDynamics.
+
+    The adsorption length describes actual liquid; it is not a mass floor.
+    Nonzero contact angle gives a singular dry limit, h -> 0, deliberately.
+    """
+
+    surface_tension_n_m: float
+    adsorption_thickness_m: float
+    equilibrium_contact_angle_deg: float
+
+    def __post_init__(self):
+        _number(self.surface_tension_n_m, "surface tension", positive=True)
+        _number(self.adsorption_thickness_m, "material adsorption length", positive=True)
+        angle = _number(self.equilibrium_contact_angle_deg, "contact angle", nonnegative=True)
+        if angle > 20:
+            raise ValueError("Long-wave wetting potential requires contact angle <=20 degrees")
+
+    @property
+    def scale(self):
+        return (
+            10
+            / 3
+            * self.surface_tension_n_m
+            * (1 - math.cos(math.radians(self.equilibrium_contact_angle_deg)))
+        )
+
+    def potential(self, h):
+        if self.scale == 0:
+            return torch.zeros_like(h)
+        r = self.adsorption_thickness_m / h
+        return self.scale * (-r.square() / 2 + r**5 / 5)
+
+    def divided_difference(self, a, b):
+        if self.scale == 0:
+            return torch.zeros_like(a + b)
+        ra, rb = self.adsorption_thickness_m / a, self.adsorption_thickness_m / b
+        fifth = sum(ra**k * rb ** (4 - k) for k in range(5))
+        return self.scale / self.adsorption_thickness_m * ra * rb * ((ra + rb) / 2 - fifth / 5)
+
+    def to_dict(self):
+        return {
+            "adsorption_thickness_m": self.adsorption_thickness_m,
+            "equilibrium_contact_angle_deg": self.equilibrium_contact_angle_deg,
+        }

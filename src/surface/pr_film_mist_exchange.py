@@ -5,11 +5,14 @@ an exchange operator, not an empirical onset/rate law or a network solver.
 Monodisperse fixed diameter is defined for this local fixed-volume source.
 """
 
+from __future__ import annotations
+
 import math
 from dataclasses import asdict, dataclass, replace
 
 import torch
 
+from .film_wetting import LongWaveWettingPotential
 from .liquid import ConservationError, PropertyModelError, _name, _number
 from .pr_homogeneous_uv import recover_homogeneous_phases
 from .pr_stock_balances import entropy_allowance
@@ -26,6 +29,7 @@ class PRFilmMistExchange:
     heat_to_mist_fraction: float
     film_surface_model: str
     model: str = "pr_film_mist_exchange_v1"
+    wetting: dict | None = None
 
     def __post_init__(self):
         for n in (self.film_slot, self.mist_slot, self.gas_slot):
@@ -36,10 +40,20 @@ class PRFilmMistExchange:
         _number(self.surface_tension_n_m, "surface tension", positive=True)
         _number(self.atomization_efficiency, "atomization efficiency", positive=True)
         _number(self.heat_to_mist_fraction, "heat partition", nonnegative=True)
-        if self.film_surface_model != "planar_complete_wetting":
+        if self.film_surface_model not in ("planar_complete_wetting", "planar_long_wave_wetting"):
             raise ValueError(
-                "Exchange currently requires an explicit planar complete-wetting reservoir"
+                "Explicit planar complete or long-wave wetting model required"
             )
+        if self.film_surface_model == "planar_complete_wetting":
+            if self.wetting is not None:
+                raise ValueError("Complete-wetting reservoir cannot carry a material wall potential")
+        else:
+            if not isinstance(self.wetting, dict) or set(self.wetting) != {
+                "film_width_m", "adsorption_thickness_m", "equilibrium_contact_angle_deg"
+            }:
+                raise ValueError("Long-wave wetting requires width, adsorption length and contact angle")
+            _number(self.wetting["film_width_m"], "film width", positive=True)
+            self._potential()
         volume = (
             math.pi
             / 6
@@ -59,7 +73,31 @@ class PRFilmMistExchange:
             raise ValueError("Unknown film/mist exchange model")
 
     def to_dict(self):
-        return asdict(self)
+        result = asdict(self)
+        if self.wetting is None:
+            result.pop("wetting")
+        return result
+
+    def _potential(self):
+        return LongWaveWettingPotential(
+            self.surface_tension_n_m,
+            self.wetting["adsorption_thickness_m"],
+            self.wetting["equilibrium_contact_angle_deg"],
+        )
+
+    def wall_energy(self, pipe, film_volume):
+        if self.wetting is None:
+            return torch.zeros_like(film_volume)
+        potential = self._potential()
+        area = pipe.fluid.tensor(pipe.lengths) * self.wetting["film_width_m"]
+        if potential.scale > 0 and bool((film_volume <= 0).any().cpu()):
+            raise PropertyModelError(
+                "Singular adsorption potential requires real positive film; no dry-state floor"
+            )
+        energy = area * potential.potential(film_volume / area)
+        if not bool(torch.isfinite(energy).all().cpu()):
+            raise PropertyModelError("Nonfinite material wall energy")
+        return energy
 
     @classmethod
     def from_dict(cls, data):
@@ -102,6 +140,7 @@ class PRFilmMistExchange:
         )
         new = old.clone()
         area_energy = 6 * self.surface_tension_n_m / self.droplet_diameter_m
+        wall_before = self.wall_energy(pipe, old[:, 1, nc])
         if bool((vd > old[:, 2, nc]).any().cpu()):
             raise PropertyModelError("Deposition exceeds actual droplet volume")
         safe_v = torch.where(old[:, 2, nc] > 0, old[:, 2, nc], torch.ones_like(vd))
@@ -109,7 +148,8 @@ class PRFilmMistExchange:
         parcel_d = old[:, 2, :] * fd[:, None]
         new[:, 2, :] = old[:, 2, :] * (1 - fd)[:, None]
         new[:, 1, :] += parcel_d
-        deposition_heat = area_energy * vd
+        wall_deposited = self.wall_energy(pipe, new[:, 1, nc])
+        deposition_heat = area_energy * vd - (wall_deposited - wall_before)
         new[:, 1, -1] += deposition_heat
         if bool((ve > new[:, 1, nc]).any().cpu()):
             raise PropertyModelError("Entrainment exceeds actual post-deposition film volume")
@@ -118,6 +158,7 @@ class PRFilmMistExchange:
         parcel_e = new[:, 1, :] * fe[:, None]
         new[:, 1, :] = new[:, 1, :] * (1 - fe)[:, None]
         new[:, 2, :] += parcel_e
+        wall_after = self.wall_energy(pipe, new[:, 1, nc])
         mass = new[:, :, :nc] @ f.molar_masses
         mg, md = mass[:, 0], mass[:, 2]
         needs = ve > 0
@@ -129,8 +170,10 @@ class PRFilmMistExchange:
         ug, ud = new[:, 0, -2] / sg, new[:, 2, -2] / sd
         relative = ug - ud
         available = 0.5 * reduced * relative.square()
-        surface_creation = area_energy * ve
-        kinetic_loss = surface_creation / self.atomization_efficiency
+        surface_creation = area_energy * ve + (wall_after - wall_deposited)
+        # Releasing wall energy heats the real droplets. Positive creation
+        # alone consumes the declared gas/drop relative kinetic reservoir.
+        kinetic_loss = torch.clamp_min(surface_creation, 0) / self.atomization_efficiency
         if bool((kinetic_loss > available).any().cpu()):
             raise PropertyModelError(
                 "Insufficient relative kinetic energy for declared atomization"
@@ -198,13 +241,13 @@ class PRFilmMistExchange:
         production = after["entropy"] - before["entropy"]
         if production < -entropy_allowance(after["entropy"], before["entropy"]):
             raise ConservationError("Film/mist exchange decreased fluid entropy")
-        delta_surface = area_energy * (ve - vd)
+        delta_surface = area_energy * (ve - vd) + wall_after - wall_before
         residual = pipe.ledger(state, end, external_heat_j=-float(delta_surface.sum().cpu()))
         roundoff = 64 * math.fsum(
             math.ulp(p.total_energy_j) for s in (state, end) for c in s.cells for _, p in c
         )
         if abs(residual[-2]) > roundoff + 1e-18 + 1e-10 * float(
-            (surface_creation + deposition_heat).sum().cpu()
+            (surface_creation.abs() + deposition_heat.abs()).sum().cpu()
         ):
             raise ConservationError("Film/mist surface plus bulk energy balance failed")
         return end, {
@@ -213,8 +256,8 @@ class PRFilmMistExchange:
             "state": end.to_dict(),
             "entrainment_m3_s": list(entrainment_m3_s),
             "deposition_m3_s": list(deposition_m3_s),
-            "surface_energy_before_j": (area_energy * old[:, 2, nc]).cpu().tolist(),
-            "surface_energy_after_j": (area_energy * new[:, 2, nc]).cpu().tolist(),
+            "surface_energy_before_j": (area_energy * old[:, 2, nc] + wall_before).cpu().tolist(),
+            "surface_energy_after_j": (area_energy * new[:, 2, nc] + wall_after).cpu().tolist(),
             "surface_creation_j": surface_creation.cpu().tolist(),
             "deposition_heat_j": deposition_heat.cpu().tolist(),
             "kinetic_energy_removed_j": kinetic_loss.cpu().tolist(),

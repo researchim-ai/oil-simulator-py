@@ -88,8 +88,12 @@ def audit(model, before, after, report):
         entropy.append(math.fsum(ent))
     area = np.array(pipe.lengths) * model.width
     heights = [np.array([row[0][0].volume_m3 for row in state]) / area for state in stocks]
-    edges = [(i, i + 1) for i in range(count - 1)]
-    if pipe.boundary_mode == "periodic":
+    edges = (
+        list(model.surface_edges)
+        if hasattr(model, "surface_edges")
+        else [(i, i + 1) for i in range(count - 1)]
+    )
+    if pipe.boundary_mode == "periodic" and not hasattr(model, "surface_edges"):
         edges.append((count - 1, 0))
     cap = np.zeros(count)
     surface = []
@@ -114,6 +118,21 @@ def audit(model, before, after, report):
         )
         cap[i] += force / area[i]
         cap[j] -= force / area[j]
+    for side, height in enumerate(model.boundary_heights):
+        if height is not None:
+            index = 0 if side == 0 else count - 1
+            coefficient = model.sigma * model.width / (pipe.lengths[index] / 2)
+            for k, h in enumerate(heights):
+                surface[k] += 0.5 * coefficient * (h[index] - height) ** 2
+            cap[index] += coefficient * (mid[index] - height) / area[index]
+    if model.wetting is not None:
+        from reference_wetting_potential import potential as wall_energy
+        from reference_wetting_potential import pressure as wall_pressure
+
+        params = model.wetting.to_dict()
+        for i, h in enumerate(heights):
+            surface[i] += float(np.dot(area, wall_energy(params, model.sigma, h)))
+        cap += wall_pressure(params, model.sigma, *heights)
     close(report["capillary_pressure_pa"], cap, "variational pressure", atol=1e-9)
     dtotal = []
     lower = []
@@ -139,7 +158,14 @@ def audit(model, before, after, report):
             atol=64 * math.ulp(pl.volume_m3),
             rtol=1e-9,
         )
-        close(report["component_transfer_to_liquid_mol"][i], dn, "component transfer", atol=1e-24)
+        # At acoustic substeps, subtraction of two large inventories loses
+        # digits of the small increment. Bind the reported increment to those
+        # inventories in ULPs, then audit its constitutive rate independently.
+        reported_dn = np.asarray(report["component_transfer_to_liquid_mol"][i])
+        increment_roundoff = np.array(
+            [2 * (math.ulp(a) + math.ulp(b)) for a, b in zip(nl0, nl, strict=True)]
+        )
+        close(reported_dn, dn, "component transfer", atol=increment_roundoff, rtol=0)
         close(
             pl.pressure_pa - pg.pressure_pa - cap[i],
             dv / (dt * model.mobility),
@@ -170,7 +196,7 @@ def audit(model, before, after, report):
         mobility = np.array(model.component_mobility)
         active = np.flatnonzero(mobility > 0)
         close(
-            dn[active] / (dt * mobility[active]),
+            reported_dn[active] / (dt * mobility[active]),
             affinity[active],
             "chemical affinity law",
             atol=1e-8,

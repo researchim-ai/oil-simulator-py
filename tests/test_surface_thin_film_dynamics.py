@@ -234,7 +234,7 @@ def test_driven_stokes_power_matches_independent_profile_integration():
 def test_nonfinite_derived_energy_cannot_be_accepted_from_finite_height():
     from surface.liquid import PropertyModelError
 
-    m = model(theta=0.0)
+    m = model(theta=5.0)
     with pytest.raises(PropertyModelError, match="Nonfinite"):
         m.initialize([1e-100] * 16)
 
