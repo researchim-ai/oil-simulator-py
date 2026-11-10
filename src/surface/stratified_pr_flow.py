@@ -23,7 +23,7 @@ from .peng_robinson import R
 from .phase_geometry import EquilibriumLevelControl, validate_pickup
 from .stratified_pr import StratifiedPRColumn
 from .stratified_pr_thermal import StratifiedPRThermal, StratifiedThermalState
-from .three_phase_properties import disk_area_moment
+from .three_phase_properties import disk_band_area
 from .torch_linear import TorchNewton
 from .vessel_wall import VesselWall
 
@@ -116,10 +116,10 @@ class StratifiedPRFlow(StratifiedPRThermal):
         a, b = angle(low), angle(high)
         nodes, weights = self.column._rules[order]
         theta = (a + b) / 2 + (b - a) * nodes / 2
-        fraction = (
-            disk_area_moment(high - port.height_m + radius, port.diameter_m)[0]
-            - disk_area_moment(low - port.height_m + radius, port.diameter_m)[0]
-        ) / (math.pi * radius**2)
+        mirror = low >= port.height_m
+        band_low = torch.where(mirror, port.height_m + radius - high, low - port.height_m + radius)
+        band_high = torch.where(mirror, port.height_m + radius - low, high - port.height_m + radius)
+        fraction = disk_band_area(band_low, band_high, port.diameter_m) / (math.pi * radius**2)
         raw = weights * torch.cos(theta) ** 2
         ww = fraction * raw / raw.sum().clamp_min(1e-30)
         hh = torch.where(

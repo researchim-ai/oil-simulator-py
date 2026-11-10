@@ -11,7 +11,7 @@ import torch
 
 from .liquid import _name, _number
 from .separator_geometry import SeparatorGeometry
-from .three_phase_properties import disk_area_moment, level_tensor
+from .three_phase_properties import disk_band_area, level_tensor
 
 
 @dataclass(frozen=True)
@@ -90,6 +90,9 @@ def pickup_fractions(layout, height_m, diameter_m):
     bottom = height_m - diameter_m / 2
     high = layout["phase_tops_m"] - bottom
     low = layout["phase_bottoms_m"] - bottom
-    area_high = disk_area_moment(high, diameter_m)[0]
-    area_low = disk_area_moment(low, diameter_m)[0]
-    return ((area_high - area_low) / (math.pi * diameter_m**2 / 4)).clamp(0, 1)
+    # Mirror upper caps before subtraction in world coordinates; a tiny
+    # occupied cap must not be lost by subtracting two almost-full disks.
+    mirror = layout["phase_bottoms_m"] >= height_m
+    high = torch.where(mirror, height_m + diameter_m / 2 - layout["phase_bottoms_m"], high)
+    low = torch.where(mirror, height_m + diameter_m / 2 - layout["phase_tops_m"], low)
+    return (disk_band_area(low, high, diameter_m) / (math.pi * diameter_m**2 / 4)).clamp(0, 1)

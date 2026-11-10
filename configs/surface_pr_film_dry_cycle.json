@@ -1,0 +1,166 @@
+{
+  "pipe": {
+    "model": "pr_active_multifluid_pipe_v1",
+    "fluid": {
+      "components": [
+        {
+          "name": "Methane",
+          "critical_temperature_k": 190.564,
+          "critical_pressure_pa": 4599200.0,
+          "acentric_factor": 0.01142,
+          "molar_mass_kg_mol": 0.0160428,
+          "ideal_cp_j_mol_k": 35.7,
+          "min_temperature_k": 160.0,
+          "max_temperature_k": 500.0,
+          "reference_temperature_k": 298.15,
+          "reference_pressure_pa": 100000.0
+        },
+        {
+          "name": "Ethane",
+          "critical_temperature_k": 305.322,
+          "critical_pressure_pa": 4872200.0,
+          "acentric_factor": 0.099,
+          "molar_mass_kg_mol": 0.03006904,
+          "ideal_cp_j_mol_k": 52.5,
+          "min_temperature_k": 160.0,
+          "max_temperature_k": 500.0,
+          "reference_temperature_k": 298.15,
+          "reference_pressure_pa": 100000.0
+        }
+      ],
+      "binary_interactions": [
+        [
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0
+        ]
+      ],
+      "min_pressure_pa": 100.0,
+      "max_pressure_pa": 1000000000.0,
+      "max_phases": 3
+    },
+    "phase_slots": [
+      {
+        "name": "film",
+        "root": "liquid"
+      },
+      {
+        "name": "mist",
+        "root": "liquid"
+      },
+      {
+        "name": "gas",
+        "root": "vapor"
+      }
+    ],
+    "lengths_m": [
+      0.012732395447351627,
+      0.012732395447351627
+    ],
+    "diameter_m": 0.1,
+    "boundary_mode": "walls",
+    "wave_speed_bound_m_s": 4000.0,
+    "maximum_courant": 0.2,
+    "thermochemical_relaxation_time_s": null
+  },
+  "initial": {
+    "cells": [
+      {
+        "film": {
+          "component_moles": [
+            0.0,
+            0.03782651367337157
+          ],
+          "volume_m3": 2.0000000000000003e-06,
+          "pressure_pa": 217835.82168129366,
+          "temperature_k": 200.0,
+          "momentum_kg_m_s": 0.0,
+          "total_energy_j": -736.2789891226612
+        },
+        "gas": {
+          "component_moles": [
+            0.0,
+            0.013580113616460276
+          ],
+          "volume_m3": 9.800000000000001e-05,
+          "pressure_pa": 217835.82168129366,
+          "temperature_k": 200.0,
+          "momentum_kg_m_s": 0.04083409795378887,
+          "total_energy_j": -92.41538150033531
+        }
+      },
+      {
+        "film": {
+          "component_moles": [
+            0.0,
+            0.03782651367337157
+          ],
+          "volume_m3": 2.0000000000000003e-06,
+          "pressure_pa": 217835.82168129366,
+          "temperature_k": 200.0,
+          "momentum_kg_m_s": 0.0,
+          "total_energy_j": -736.2789891226612
+        },
+        "gas": {
+          "component_moles": [
+            0.0,
+            0.013580113616460276
+          ],
+          "volume_m3": 9.800000000000001e-05,
+          "pressure_pa": 217835.82168129366,
+          "temperature_k": 200.0,
+          "momentum_kg_m_s": 0.04083409795378887,
+          "total_energy_j": -92.41538150033531
+        }
+      }
+    ],
+    "time_s": 0.0,
+    "model_id": "e7177f0355e8ba525ceb235613f1b8d86090d64447c41cf58046a8ed22a0f78b"
+  },
+  "exchange": {
+    "film_slot": "film",
+    "mist_slot": "mist",
+    "gas_slot": "gas",
+    "droplet_diameter_m": 1e-05,
+    "surface_tension_n_m": 0.02,
+    "atomization_efficiency": 1.0,
+    "heat_to_mist_fraction": 0.75,
+    "film_surface_model": "planar_long_wave_wetting",
+    "model": "pr_film_mist_exchange_v1",
+    "wetting": {
+      "film_width_m": 0.1,
+      "adsorption_thickness_m": 0.0001,
+      "equilibrium_contact_angle_deg": 5.0,
+      "dry_extension": "c2_half_adsorption"
+    }
+  },
+  "schedule": [
+    {
+      "duration_s": 1.0,
+      "maximum_step_s": 1.0,
+      "entrainment_m3_s": [
+        2.0000000000000003e-06,
+        0.0
+      ],
+      "deposition_m3_s": [
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "duration_s": 1.0,
+      "maximum_step_s": 1.0,
+      "entrainment_m3_s": [
+        0.0,
+        0.0
+      ],
+      "deposition_m3_s": [
+        2.0000000000000003e-06,
+        0.0
+      ]
+    }
+  ]
+}

@@ -58,7 +58,11 @@ def audit(pipe, before, after, report, law, entrainment_m3_s, deposition_m3_s, d
         if material is None:
             return 0.0
         area = pipe.lengths[index] * material["film_width_m"]
-        if volume <= 0 and material["equilibrium_contact_angle_deg"] > 0:
+        if (
+            volume <= 0
+            and material["equilibrium_contact_angle_deg"] > 0
+            and material.get("dry_extension") is None
+        ):
             raise ValueError("Singular wetting potential on absent film")
         return float(area * potential(material, law["surface_tension_n_m"], volume / area))
 

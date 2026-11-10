@@ -96,6 +96,7 @@
       }
     },
     "maximum_unknowns": 192,
+    "transport_state": "midpoint_intrinsic",
     "boundaries": [
       {
         "liquid": {

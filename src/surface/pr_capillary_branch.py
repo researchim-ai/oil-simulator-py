@@ -32,12 +32,7 @@ class PRCapillaryGraphPressure(PRCapillaryPressure):
         super().__init__(pipe, **parameters)
         if any(h is not None for h in self.boundary_heights):
             raise ValueError("Graph boundary heights need explicit external ports")
-        self.incidence = pipe.fluid.tensor(
-            [
-                [float(k == j) - float(k == i) for k in range(len(pipe.lengths))]
-                for i, j in self.surface_edges
-            ]
-        ).reshape(len(self.surface_edges), len(pipe.lengths))
+        self.set_geometry(self.surface_edges)
         self.distances = pipe.fluid.tensor(
             [(pipe.lengths[i] + pipe.lengths[j]) / 2 for i, j in self.surface_edges]
         )
@@ -59,6 +54,8 @@ class _BranchSolver(PRCapillaryAxialPipe):
         self.spec = spec
         self.maximum_unknowns = spec["maximum_unknowns"]
         self.volume_diffusion = spec.get("volume_diffusion", "acoustic")
+        self.linear_solver = spec.get("linear_solver", "auto")
+        self.boundary_geometry = "extrapolated_face"
         self.boundaries = [None, None]
         self.boundary_packets = [None, None]
         self.boundary_entropy = [None, None]
@@ -150,16 +147,10 @@ class _BranchSolver(PRCapillaryAxialPipe):
         reflect(left, self.wall_left)
         reflect(right, self.wall_right)
         _, _, _, _, ff = fluctuations(left, right, p.wave_speed)
-        jump = right["conserved"] - left["conserved"]
+        intrinsic_l, intrinsic_r = self.intrinsic_pair(left, right)
+        jump = intrinsic_r * right["alpha"][..., None] - intrinsic_l * left["alpha"][..., None]
         if self.volume_diffusion == "none":
-            jump = (
-                (left["alpha"] + right["alpha"])[..., None]
-                / 2
-                * (
-                    right["conserved"] / right["alpha"][..., None]
-                    - left["conserved"] / left["alpha"][..., None]
-                )
-            )
+            jump = (left["alpha"] + right["alpha"])[..., None] / 2 * (intrinsic_r - intrinsic_l)
         flux = (left["flux"] + right["flux"]) / 2 - self.face_speed[:, None, None] / 2 * jump
         return left, right, ff, flux
 
@@ -352,6 +343,7 @@ class PRCapillaryBranchNetwork:
         sources=None,
         openings=None,
         volume_diffusion="acoustic",
+        linear_solver="auto",
     ):
         if type(maximum_unknowns) is not int or maximum_unknowns <= 0:
             raise ValueError("Positive dense unknown budget required")
@@ -366,6 +358,9 @@ class PRCapillaryBranchNetwork:
         self.fluid = first.fluid
         self.parameters = dict(parameters)
         self.maximum_unknowns = maximum_unknowns
+        if linear_solver not in ("auto", "dense", "sparse"):
+            raise ValueError("Capillary linear solver must be auto, dense or sparse")
+        self.linear_solver = linear_solver
         self.offsets = {}
         lengths = []
         pinned = []
@@ -545,10 +540,13 @@ class PRCapillaryBranchNetwork:
             "junction_volumes_m3": self.junction_volumes,
             "parameters": self.parameters,
             "maximum_unknowns": self.maximum_unknowns,
+            "transport_state": "midpoint_intrinsic",
         }
 
         if self.volume_diffusion != "acoustic":
             result["volume_diffusion"] = self.volume_diffusion
+        if self.linear_solver != "auto":
+            result["linear_solver"] = self.linear_solver
         if self.sources:
             result["sources"] = self.sources
         if any(not value for value in self.openings.values()):
@@ -558,9 +556,11 @@ class PRCapillaryBranchNetwork:
     @classmethod
     def from_dict(cls, raw, *, device="cpu"):
         if (
-            set(raw) - {"sources", "openings", "volume_diffusion"}
+            set(raw)
+            - {"sources", "openings", "volume_diffusion", "linear_solver", "transport_state"}
             != {"model", "pipes", "junction_volumes_m3", "parameters", "maximum_unknowns"}
             or raw["model"] != "pr_capillary_branch_network_v1"
+            or raw.get("transport_state", "midpoint_intrinsic") != "midpoint_intrinsic"
         ):
             raise ValueError("Explicit finite-chamber PR graph model required")
         pipes = {
@@ -575,6 +575,7 @@ class PRCapillaryBranchNetwork:
             sources=raw.get("sources"),
             openings=raw.get("openings"),
             volume_diffusion=raw.get("volume_diffusion", "acoustic"),
+            linear_solver=raw.get("linear_solver", "auto"),
         )
 
     def _view(self, state):
@@ -643,6 +644,7 @@ class PRCapillaryBranchNetwork:
             sources=self.sources,
             openings=openings,
             volume_diffusion=self.volume_diffusion,
+            linear_solver=self.linear_solver,
         )
         end = replace(state, model_id=model.model_id)
         final = model._view(end)

@@ -233,3 +233,8 @@ opm-tests/
 !/benchmarks/results/pr_capillary_axial_validation.json
 !/benchmarks/results/pr_capillary_reflecting_validation.json
 !/benchmarks/results/pr_shared_wetting_validation.json
+!/benchmarks/results/pr_capillary_sparse_scaling.json
+!/benchmarks/results/pr_capillary_column_scaling.json
+!/benchmarks/results/pr_capillary_column_validation.json
+!/benchmarks/results/pr_dry_wall_validation.json
+!/benchmarks/results/pr_capillary_facility_validation.json

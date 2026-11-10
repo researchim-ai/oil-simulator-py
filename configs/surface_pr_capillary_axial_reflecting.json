@@ -87,7 +87,8 @@
       "heat_conductance_w_k": 1e-08,
       "maximum_slope": 0.2
     },
-    "maximum_unknowns": 192
+    "maximum_unknowns": 192,
+    "transport_state": "midpoint_intrinsic"
   },
   "initial": {
     "cells": [

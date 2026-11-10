@@ -329,6 +329,7 @@ class PRActiveMultifluidPipe:
         entropies = [[] for _ in state.cells]
         entropy_fluxes = [[] for _ in state.cells]
         entropy_terms = []
+        phase_entropy_density = [[0.0] * slots for _ in state.cells]
         for (i, j, phase, amount, mass, velocity, x), (vm, internal, entropy, acoustic, cv) in zip(
             flat, values
         ):
@@ -342,6 +343,7 @@ class PRActiveMultifluidPipe:
                     "Active phase checkpoint disagrees with its homogeneous EOS"
                 )
             phase_entropy = amount * entropy
+            phase_entropy_density[i][j] = phase_entropy / volume
             entropy_terms.append(phase_entropy)
             entropies[i].append(phase_entropy / volume)
             entropy_fluxes[i].append(phase_entropy * velocity / volume)
@@ -394,6 +396,7 @@ class PRActiveMultifluidPipe:
             "flux": flux,
             "entropy": math.fsum(entropy_terms),
             "entropy_density": f.tensor(entropy_density),
+            "phase_entropy_density": f.tensor(phase_entropy_density),
             "entropy_flux": f.tensor(entropy_flux),
         }
         self._cache = (state, data)

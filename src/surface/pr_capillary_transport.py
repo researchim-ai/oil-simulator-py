@@ -75,8 +75,8 @@ class PRCapillaryTransportWork:
         i = torch.arange(n if periodic else n - 1, device=f.device)
         j = (i + 1) % n
         face = i if periodic else i + 1
-        e0 = 0.5 * s.weights * (s.incidence @ h0).square()
-        e1 = 0.5 * s.weights * (s.incidence @ h1).square()
+        e0 = 0.5 * s.weights * s.height_jump(h0).square()
+        e1 = 0.5 * s.weights * s.height_jump(h1).square()
         assigned0 = torch.zeros_like(mu).index_add(0, i, e0 / 2).index_add(0, j, e0 / 2)
         assigned1 = torch.zeros_like(mu).index_add(0, i, e1 / 2).index_add(0, j, e1 / 2)
         if s.wetting is not None:

@@ -41,17 +41,21 @@ class PRFilmMistExchange:
         _number(self.atomization_efficiency, "atomization efficiency", positive=True)
         _number(self.heat_to_mist_fraction, "heat partition", nonnegative=True)
         if self.film_surface_model not in ("planar_complete_wetting", "planar_long_wave_wetting"):
-            raise ValueError(
-                "Explicit planar complete or long-wave wetting model required"
-            )
+            raise ValueError("Explicit planar complete or long-wave wetting model required")
         if self.film_surface_model == "planar_complete_wetting":
             if self.wetting is not None:
-                raise ValueError("Complete-wetting reservoir cannot carry a material wall potential")
+                raise ValueError(
+                    "Complete-wetting reservoir cannot carry a material wall potential"
+                )
         else:
-            if not isinstance(self.wetting, dict) or set(self.wetting) != {
-                "film_width_m", "adsorption_thickness_m", "equilibrium_contact_angle_deg"
+            if not isinstance(self.wetting, dict) or set(self.wetting) - {"dry_extension"} != {
+                "film_width_m",
+                "adsorption_thickness_m",
+                "equilibrium_contact_angle_deg",
             }:
-                raise ValueError("Long-wave wetting requires width, adsorption length and contact angle")
+                raise ValueError(
+                    "Long-wave wetting requires width, adsorption length and contact angle"
+                )
             _number(self.wetting["film_width_m"], "film width", positive=True)
             self._potential()
         volume = (
@@ -83,6 +87,7 @@ class PRFilmMistExchange:
             self.surface_tension_n_m,
             self.wetting["adsorption_thickness_m"],
             self.wetting["equilibrium_contact_angle_deg"],
+            self.wetting.get("dry_extension"),
         )
 
     def wall_energy(self, pipe, film_volume):
@@ -90,7 +95,11 @@ class PRFilmMistExchange:
             return torch.zeros_like(film_volume)
         potential = self._potential()
         area = pipe.fluid.tensor(pipe.lengths) * self.wetting["film_width_m"]
-        if potential.scale > 0 and bool((film_volume <= 0).any().cpu()):
+        if (
+            potential.scale > 0
+            and potential.dry_extension is None
+            and bool((film_volume <= 0).any().cpu())
+        ):
             raise PropertyModelError(
                 "Singular adsorption potential requires real positive film; no dry-state floor"
             )

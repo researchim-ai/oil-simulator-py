@@ -248,7 +248,8 @@
       "heat_conductance_w_k": 1e-08,
       "maximum_slope": 0.2
     },
-    "maximum_unknowns": 192
+    "maximum_unknowns": 192,
+    "transport_state": "midpoint_intrinsic"
   },
   "initial": {
     "pipes": {
@@ -467,7 +468,7 @@
     },
     "time_s": 0.0,
     "next_step_s": 5.0000000000000015e-11,
-    "model_id": "af9e1050f078324992394741378cd409436fce1835bf579f0987588f5b7dd651"
+    "model_id": "a616cfb497610867b787ce115cea357a9fda103e20947184c3487d007f057be2"
   },
   "schedule": [
     {

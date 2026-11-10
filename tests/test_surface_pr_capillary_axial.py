@@ -10,7 +10,6 @@ import torch
 from check_pr_capillary_axial import audit
 from test_surface_pr_capillary_pressure import chemical_case
 
-from surface.liquid import ConservationError
 from surface.pr_active_multifluid_pipe import PRActiveMultifluidState
 from surface.pr_capillary_axial import PRCapillaryAxialPipe
 from surface.pr_capillary_pressure import PRCapillaryPressure
@@ -55,14 +54,13 @@ def test_surface_tension_changes_actual_phase_momentum():
     assert max(changes) > 1e-23
 
 
-def test_entropy_failure_cuts_step_and_report_clock_is_exact():
+def test_consistent_transport_removes_the_old_false_entropy_failure_and_covers_time():
     model, old = setup()
     checkpoint = old.to_dict()
-    with pytest.raises(ConservationError, match="entropy decreased"):
-        model.step(old, 1e-10)
+    single, record = model.step(old, 1e-10)
+    assert audit(model, old, single, record)["accepted"]
     end, report = model.advance(old, 1e-10, initial_step_s=1e-10)
     assert end.time_s == 1e-10
-    assert report["rejected"]
     assert report["steps"]
     last = old
     for step in report["steps"]:

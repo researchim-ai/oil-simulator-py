@@ -7,6 +7,8 @@ This diagnoses whether full wetting is supported; it does not evolve a
 contact line, rivulet geometry, wave field or a nucleation barrier.
 """
 
+from __future__ import annotations
+
 import math
 from dataclasses import asdict, dataclass
 
@@ -112,12 +114,14 @@ class LongWaveWettingPotential:
     """Shared material wall energy formerly embedded in ThinFilmDynamics.
 
     The adsorption length describes actual liquid; it is not a mass floor.
-    Nonzero contact angle gives a singular dry limit, h -> 0, deliberately.
+    The default nonzero-angle law is singular at h=0. A finite dry material
+    continuation is available only when explicitly selected.
     """
 
     surface_tension_n_m: float
     adsorption_thickness_m: float
     equilibrium_contact_angle_deg: float
+    dry_extension: str | None = None
 
     def __post_init__(self):
         _number(self.surface_tension_n_m, "surface tension", positive=True)
@@ -125,6 +129,8 @@ class LongWaveWettingPotential:
         angle = _number(self.equilibrium_contact_angle_deg, "contact angle", nonnegative=True)
         if angle > 20:
             raise ValueError("Long-wave wetting potential requires contact angle <=20 degrees")
+        if self.dry_extension not in (None, "c2_half_adsorption"):
+            raise ValueError("Unknown explicitly declared dry-state material extension")
 
     @property
     def scale(self):
@@ -138,18 +144,57 @@ class LongWaveWettingPotential:
     def potential(self, h):
         if self.scale == 0:
             return torch.zeros_like(h)
-        r = self.adsorption_thickness_m / h
-        return self.scale * (-r.square() / 2 + r**5 / 5)
+        safe = h if self.dry_extension is None else h.clamp_min(self.adsorption_thickness_m / 2)
+        r = self.adsorption_thickness_m / safe
+        original = self.scale * (-r.square() / 2 + r**5 / 5)
+        if self.dry_extension is None:
+            return original
+        x = (h / (self.adsorption_thickness_m / 2)).clamp_max(1)
+        # Explicit C2 Hermite material continuation: Phi(0)=Phi'(0)=Phi''(0)=0,
+        # matching the original Phi/Phi'/Phi'' at h_ads/2. No liquid is stored
+        # by this energy evaluation; h=0 is an actual absent liquid inventory.
+        dry = self.scale * (x**3 * (1230 + x * (-2210 + 1002 * x)) / 5)
+        return torch.where(h < self.adsorption_thickness_m / 2, dry, original)
 
-    def divided_difference(self, a, b):
-        if self.scale == 0:
-            return torch.zeros_like(a + b)
+    def _original_difference(self, a, b):
         ra, rb = self.adsorption_thickness_m / a, self.adsorption_thickness_m / b
         fifth = sum(ra**k * rb ** (4 - k) for k in range(5))
         return self.scale / self.adsorption_thickness_m * ra * rb * ((ra + rb) / 2 - fifth / 5)
 
+    def _dry_difference(self, a, b):
+        length = self.adsorption_thickness_m / 2
+        x, y = a / length, b / length
+        return (
+            self.scale
+            / length
+            * sum(
+                coefficient * sum(x**k * y ** (degree - 1 - k) for k in range(degree))
+                for degree, coefficient in ((3, 246), (4, -442), (5, 200.4))
+            )
+        )
+
+    def divided_difference(self, a, b):
+        if self.scale == 0:
+            return torch.zeros_like(a + b)
+        if self.dry_extension is None:
+            return self._original_difference(a, b)
+        length = self.adsorption_thickness_m / 2
+        low, high = torch.minimum(a, b), torch.maximum(a, b)
+        below, above = low.clamp_max(length), high.clamp_min(length)
+        left = self._dry_difference(below, high.clamp_max(length))
+        right = self._original_difference(low.clamp_min(length), above)
+        cross = (
+            self._dry_difference(below, below.new_full(below.shape, length)) * (length - below)
+            + self._original_difference(above.new_full(above.shape, length), above)
+            * (above - length)
+        ) / torch.where(high > low, high - low, torch.ones_like(high))
+        return torch.where(high <= length, left, torch.where(low >= length, right, cross))
+
     def to_dict(self):
-        return {
+        result = {
             "adsorption_thickness_m": self.adsorption_thickness_m,
             "equilibrium_contact_angle_deg": self.equilibrium_contact_angle_deg,
         }
+        if self.dry_extension is not None:
+            result["dry_extension"] = self.dry_extension
+        return result

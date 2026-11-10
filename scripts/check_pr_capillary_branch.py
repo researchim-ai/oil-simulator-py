@@ -132,11 +132,12 @@ def audit(network, before, after, report):
         phase_entropy.append(np.array(entropy_rows))
     alpha = (vv[0] + vv[1]) / (2 * volume[:, None])
     u = uu[1]
+    transported = q[1] / (vv[1] / volume[:, None])[..., None] * alpha[..., None]
     fluxphysical = np.concatenate(
         (
-            q[1][..., :nc] * u[..., None],
-            (q[1][..., -2] * u + alpha * pp[1])[..., None],
-            ((q[1][..., -1] + alpha * pp[1]) * u)[..., None],
+            transported[..., :nc] * u[..., None],
+            (transported[..., -2] * u + alpha * pp[1])[..., None],
+            ((transported[..., -1] + alpha * pp[1]) * u)[..., None],
         ),
         -1,
     )
@@ -146,7 +147,7 @@ def audit(network, before, after, report):
             "pressure": pp[1][i],
             "temperature": tt[1][i],
             "velocity": u[i],
-            "conserved": q[1][i],
+            "conserved": transported[i],
             "flux": fluxphysical[i],
             "pressure_precision": np.zeros(2),
         }

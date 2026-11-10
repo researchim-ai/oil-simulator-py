@@ -121,7 +121,7 @@ def audit(model, before, after, report):
     for side, height in enumerate(model.boundary_heights):
         if height is not None:
             index = 0 if side == 0 else count - 1
-            coefficient = model.sigma * model.width / (pipe.lengths[index] / 2)
+            coefficient = model.sigma * model.width / model.boundary_distances[side]
             for k, h in enumerate(heights):
                 surface[k] += 0.5 * coefficient * (h[index] - height) ** 2
             cap[index] += coefficient * (mid[index] - height) / area[index]
@@ -155,9 +155,14 @@ def audit(model, before, after, report):
             report["volume_transfer_m3"][i],
             dv,
             "normal volume change",
-            atol=64 * math.ulp(pl.volume_m3),
-            rtol=1e-9,
+            atol=2 * (math.ulp(pl0.volume_m3) + math.ulp(pl.volume_m3)),
+            rtol=0,
         )
+        # As for components below, use the accurately reported increment
+        # after binding it to the canonical stocks in ULPs. Dividing the
+        # cancellation-prone stock difference by dt*mobility invents a rate
+        # error when a normal substep is much smaller than the cell volume.
+        dv = report["volume_transfer_m3"][i]
         # At acoustic substeps, subtraction of two large inventories loses
         # digits of the small increment. Bind the reported increment to those
         # inventories in ULPs, then audit its constitutive rate independently.

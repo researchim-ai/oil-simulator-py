@@ -16,6 +16,7 @@ from .film_wetting import LongWaveWettingPotential
 from .liquid import ConservationError, HydraulicConvergenceError, PropertyModelError, _number
 from .operation import _digest
 from .peng_robinson import R
+from .pr_capillary_linear import CapillaryLinearSystem
 from .pr_homogeneous_uv import caloric_tv, recover_homogeneous_phases
 
 
@@ -68,8 +69,13 @@ class PRCapillaryPressure:
         maximum_slope=0.2,
         boundary_heights_m=None,
         wetting=None,
+        linear_solver="auto",
+        boundary_distances_m=None,
     ):
         self.pipe = pipe
+        if linear_solver not in ("auto", "dense", "sparse"):
+            raise ValueError("Capillary linear solver must be auto, dense or sparse")
+        self.linear_solver = linear_solver
         roots = {s["name"]: s["root"] for s in pipe.slots}
         if (
             liquid_slot == gas_slot
@@ -127,27 +133,83 @@ class PRCapillaryPressure:
             None if h is None else _number(h, "boundary interface height", nonnegative=True)
             for h in heights
         )
+        declared_distances = (
+            (None, None) if boundary_distances_m is None else tuple(boundary_distances_m)
+        )
+        if len(declared_distances) != 2:
+            raise ValueError("Two physical boundary distances required")
+        self.boundary_distances = tuple(
+            (
+                None
+                if height is None
+                else (
+                    pipe.lengths[0 if side == 0 else -1] / 2
+                    if distance is None
+                    else _number(distance, "boundary distance", positive=True)
+                )
+            )
+            for side, (height, distance) in enumerate(
+                zip(self.boundary_heights, declared_distances)
+            )
+        )
+        if any(
+            h is None and d is not None for h, d in zip(self.boundary_heights, declared_distances)
+        ):
+            raise ValueError("A boundary distance needs a prescribed interface height")
         edges = [(i, i + 1) for i in range(len(pipe.lengths) - 1)]
         if pipe.boundary_mode == "periodic":
             if len(pipe.lengths) < 3:
                 raise ValueError("Periodic film requires at least three cells")
             edges.append((len(pipe.lengths) - 1, 0))
-        rows = [[float(k == j) - float(k == i) for k in range(len(pipe.lengths))] for i, j in edges]
         distances = [0.5 * (pipe.lengths[i] + pipe.lengths[j]) for i, j in edges]
-        offsets = [0.0] * len(rows)
+        offsets = [0.0] * len(edges)
+        fixed = []
         for side, height in enumerate(self.boundary_heights):
             if height is not None:
                 index = 0 if side == 0 else len(pipe.lengths) - 1
-                rows.append([float(k == index) for k in range(len(pipe.lengths))])
-                distances.append(pipe.lengths[index] / 2)
+                fixed.append(index)
+                distances.append(self.boundary_distances[side])
                 offsets.append(-height)
-        self.incidence = pipe.fluid.tensor(rows)
+        self.set_geometry(edges, fixed)
         self.height_offsets = pipe.fluid.tensor(offsets)
         if not edges:
             raise ValueError("Resolved film needs connected cells")
         self.distances = pipe.fluid.tensor(distances)
         self.weights = self.sigma * self.width / self.distances
         self.model_id = _digest(self.to_dict())
+
+    def set_geometry(self, edges, fixed=()):
+        self._normal_linear = None
+        self.geometry_edges = tuple(tuple(e) for e in edges)
+        device = self.pipe.fluid.device
+        self.edge_left = torch.tensor([e[0] for e in edges], dtype=torch.long, device=device)
+        self.edge_right = torch.tensor([e[1] for e in edges], dtype=torch.long, device=device)
+        self.fixed_indices = torch.tensor(fixed, dtype=torch.long, device=device)
+
+    @property
+    def incidence(self):
+        """Dense diagnostic view only; production operators use edge gathers."""
+        count = len(self.geometry_edges) + self.fixed_indices.numel()
+        matrix = self.area.new_zeros((count, len(self.pipe.lengths)))
+        rows = torch.arange(len(self.geometry_edges), device=self.area.device)
+        matrix[rows, self.edge_left] = -1
+        matrix[rows, self.edge_right] = 1
+        matrix[torch.arange(len(rows), count, device=self.area.device), self.fixed_indices] = 1
+        return matrix
+
+    def height_jump(self, height):
+        return torch.cat(
+            (height[self.edge_right] - height[self.edge_left], height[self.fixed_indices])
+        )
+
+    def height_adjoint(self, values):
+        count = len(self.geometry_edges)
+        return (
+            torch.zeros_like(self.area)
+            .index_add(0, self.edge_left, -values[:count])
+            .index_add(0, self.edge_right, values[:count])
+            .index_add(0, self.fixed_indices, values[count:])
+        )
 
     def to_dict(self):
         result = {
@@ -167,8 +229,15 @@ class PRCapillaryPressure:
         }
         if any(h is not None for h in self.boundary_heights):
             result["boundary_heights_m"] = self.boundary_heights
+        if any(
+            d is not None and d != self.pipe.lengths[0 if side == 0 else -1] / 2
+            for side, d in enumerate(self.boundary_distances)
+        ):
+            result["boundary_distances_m"] = self.boundary_distances
         if self.wetting is not None:
             result["wetting"] = self.wetting.to_dict()
+        if self.linear_solver != "auto":
+            result["linear_solver"] = self.linear_solver
         return result
 
     @classmethod
@@ -191,14 +260,14 @@ class PRCapillaryPressure:
         )
         if not bool(
             (
-                (self.incidence @ h + self.height_offsets).abs() / self.distances
+                (self.height_jump(h) + self.height_offsets).abs() / self.distances
                 <= self.maximum_slope
             )
             .all()
             .cpu()
         ):
             raise PropertyModelError("Capillary geometry exceeds the small-slope envelope")
-        energy = (0.5 * self.weights * (self.incidence @ h + self.height_offsets).square()).sum()
+        energy = (0.5 * self.weights * (self.height_jump(h) + self.height_offsets).square()).sum()
         if self.wetting is not None:
             energy = energy + (self.area * self.wetting.potential(h)).sum()
         return float(energy.cpu())
@@ -206,7 +275,7 @@ class PRCapillaryPressure:
     def discrete_pressure(self, old_height, new_height):
         mid = (old_height + new_height) / 2
         pressure = (
-            self.incidence.T @ (self.weights * (self.incidence @ mid + self.height_offsets))
+            self.height_adjoint(self.weights * (self.height_jump(mid) + self.height_offsets))
         ) / self.area
         if self.wetting is not None:
             pressure = pressure + self.wetting.divided_difference(old_height, new_height)
@@ -311,7 +380,7 @@ class PRCapillaryPressure:
                 & (q["p"] >= f.min_pressure_pa).all()
                 & (q["p"] <= f.max_pressure_pa).all()
                 & (
-                    (self.incidence @ (volumes[:, 0] / self.area) + self.height_offsets).abs()
+                    (self.height_jump(volumes[:, 0] / self.area) + self.height_offsets).abs()
                     / self.distances
                     <= self.maximum_slope
                 ).all()
@@ -348,6 +417,22 @@ class PRCapillaryPressure:
             )
         )
         z = f.tensor([0.0] * ((3 + len(self.active)) * nc))
+        blocks = [
+            [
+                i,
+                nc + 2 * i,
+                nc + 2 * i + 1,
+                *(3 * nc + i * len(self.active) + j for j in range(len(self.active))),
+            ]
+            for i in range(nc)
+        ]
+        if self._normal_linear is None:
+            self._normal_linear = CapillaryLinearSystem(
+                blocks, self.geometry_edges, f.device, radius=1, mode=self.linear_solver
+            )
+        linear = self._normal_linear
+        linear.solves, linear.maximum_relative_residual = 0, 0.0
+        linear.krylov_restarts = 0
         for iteration in range(31):
             r, valid, *_ = evaluate(z)
             norm = float((r / tolerances).abs().max().cpu())
@@ -357,12 +442,7 @@ class PRCapillaryPressure:
                 break
             if iteration == 30:
                 raise HydraulicConvergenceError("Capillary normal Newton exhausted")
-            jacobian = torch.func.jacfwd(lambda y: evaluate(y)[0])(z)
-            if not bool(torch.isfinite(jacobian).all().cpu()):
-                raise HydraulicConvergenceError("Nonfinite capillary normal Jacobian")
-            change, info = torch.linalg.solve_ex(jacobian, -r, check_errors=False)
-            if int(info.cpu()) != 0 or not bool(torch.isfinite(change).all().cpu()):
-                raise HydraulicConvergenceError("Capillary normal linear solve failed")
+            change = linear.solve(lambda y: evaluate(y)[0], z, r)
             for power in range(25):
                 trial = z + change * 2.0 ** (-power)
                 rr, ok, *_ = evaluate(trial)
@@ -441,6 +521,7 @@ class PRCapillaryPressure:
             "dt_s": dt,
             "clock_advanced": False,
             "newton_iterations": iteration,
+            "linear_solver": linear.report(),
             "volume_transfer_m3": dv.cpu().tolist(),
             "component_transfer_to_liquid_mol": dn.cpu().tolist(),
             "heat_transfer_to_liquid_j": heat_transfer.cpu().tolist(),

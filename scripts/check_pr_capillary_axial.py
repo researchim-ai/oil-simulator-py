@@ -88,11 +88,12 @@ def audit(model, before, after, report):
     volume = np.array(p.volumes)
     amid = (vv[0] + vv[1]) / (2 * volume[:, None])
     u, pressure = velocities[1], pressures[1]
+    transported = q[1] / (vv[1] / volume[:, None])[..., None] * amid[..., None]
     fluxphysical = np.concatenate(
         (
-            q[1][..., :nc] * u[..., None],
-            (q[1][..., -2] * u + amid * pressure)[..., None],
-            ((q[1][..., -1] + amid * pressure) * u)[..., None],
+            transported[..., :nc] * u[..., None],
+            (transported[..., -2] * u + amid * pressure)[..., None],
+            ((transported[..., -1] + amid * pressure) * u)[..., None],
         ),
         -1,
     )
@@ -103,12 +104,17 @@ def audit(model, before, after, report):
             "pressure": pressure[i],
             "temperature": temperatures[1][i],
             "velocity": u[i],
-            "conserved": q[1][i],
+            "conserved": transported[i],
             "flux": fluxphysical[i],
             "pressure_precision": np.zeros(2),
-            "phase_entropy_density": phase_entropy_density[1][i],
-            "entropy_density": np.array(entropy_density[1][i]),
-            "entropy_flux": np.array(entropy_flux[1][i]),
+            "phase_entropy_density": phase_entropy_density[1][i] / (vv[1][i] / volume[i]) * amid[i],
+            "entropy_density": np.array(
+                np.sum(phase_entropy_density[1][i] / (vv[1][i] / volume[i]) * amid[i])
+            ),
+            "entropy_flux": np.array(
+                np.sum(phase_entropy_density[1][i] / (vv[1][i] / volume[i]) * amid[i] * u[i])
+            ),
+            "boundary_absent": np.zeros(2, dtype=bool),
         }
         for i in range(n)
     ]
@@ -126,9 +132,17 @@ def audit(model, before, after, report):
         if stocks is None:
             return reflected(adjacent)
         total = math.fsum(v.volume_m3 for v in stocks.values())
-        face_alpha = np.array([stocks[name].volume_m3 / total for name in names])
-        alpha = 2 * face_alpha - adjacent["alpha"]
-        if np.any(alpha <= 0):
+        face_alpha = np.array(
+            [stocks[name].volume_m3 / total if name in stocks else 0 for name in names]
+        )
+        alpha = (
+            face_alpha
+            if model.boundary_geometry == "reservoir_cell"
+            else 2 * face_alpha - adjacent["alpha"]
+        )
+        if np.any(alpha < 0) or (
+            model.boundary_geometry == "extrapolated_face" and np.any(alpha == 0)
+        ):
             raise ValueError("Maintained face extrapolation lost positive support")
         pressure = []
         temp = []
@@ -136,6 +150,13 @@ def audit(model, before, after, report):
         density = []
         ent = []
         for name, root in zip(names, ("liquid", "vapor")):
+            if name not in stocks:
+                pressure.append(0.0)
+                temp.append(1.0)
+                vel.append(adjacent["velocity"][names.index(name)])
+                density.append(np.zeros(nc + 2))
+                ent.append(0.0)
+                continue
             phase = stocks[name]
             nn = np.array(phase.component_moles)
             mass = nn @ mw
@@ -174,6 +195,7 @@ def audit(model, before, after, report):
             "conserved": conserved,
             "flux": flux,
             "pressure_precision": np.zeros(2),
+            "boundary_absent": np.array([name not in stocks for name in names]),
             "phase_entropy_density": alpha * np.array(ent),
             "entropy_density": np.dot(alpha, ent),
             "entropy_flux": np.dot(alpha * np.array(ent), vel),
@@ -193,14 +215,13 @@ def audit(model, before, after, report):
     for leftp, rightp in pairs:
         jump = rightp["conserved"] - leftp["conserved"]
         if model.volume_diffusion == "none":
-            jump = (
-                (leftp["alpha"] + rightp["alpha"])[:, None]
-                / 2
-                * (
-                    rightp["conserved"] / rightp["alpha"][:, None]
-                    - leftp["conserved"] / leftp["alpha"][:, None]
-                )
+            il = leftp["conserved"] / np.where(leftp["alpha"] > 0, leftp["alpha"], 1)[:, None]
+            ir = rightp["conserved"] / np.where(rightp["alpha"] > 0, rightp["alpha"], 1)[:, None]
+            il, ir = (
+                np.where(leftp["alpha"][:, None] > 0, il, ir),
+                np.where(rightp["alpha"][:, None] > 0, ir, il),
             )
+            jump = (leftp["alpha"] + rightp["alpha"])[:, None] / 2 * (ir - il)
         numerical_fluxes.append((leftp["flux"] + rightp["flux"]) / 2 - p.wave_speed / 2 * jump)
     flux = np.array(numerical_fluxes)
     if periodic:
@@ -233,6 +254,7 @@ def audit(model, before, after, report):
                     else np.zeros(2)
                 )
                 vr = velocity[0]
+                vl = np.where(aa_packet["boundary_absent"], vr, vl)
             elif face_index == n:
                 vl = velocity[-1]
                 vr = (
@@ -240,6 +262,7 @@ def audit(model, before, after, report):
                     if include_boundary and model.boundaries[1] is not None
                     else np.zeros(2)
                 )
+                vr = np.where(bb_packet["boundary_absent"], vl, vr)
             else:
                 vl, vr = velocity[face_index - 1], velocity[face_index]
             al, ar = aa_packet["alpha"], bb_packet["alpha"]
@@ -263,7 +286,7 @@ def audit(model, before, after, report):
     for side, height in enumerate(s.boundary_heights):
         if height is not None:
             ci = 0 if side == 0 else n - 1
-            curvature[ci] += 2 * (mid[ci] - height)
+            curvature[ci] += p.lengths[ci] / s.boundary_distances[side] * (mid[ci] - height)
     mu = coefficient * curvature / (s.width * np.array(p.lengths))
     if s.wetting is not None:
         from reference_wetting_potential import pressure as wall_pressure
@@ -312,6 +335,7 @@ def audit(model, before, after, report):
     cap_impulse = dt * float(force.sum()) if open_faces else material_impulse
     external = np.zeros(nc + 2)
     incoming_entropy = 0.0
+    port_transfers = [None, None]
     if not periodic:
         for side, boundary in enumerate(model.boundaries):
             if boundary is None:
@@ -320,16 +344,32 @@ def audit(model, before, after, report):
             sign = 1 if side == 0 else -1
             external += sign * dt * p.area * flux[index].sum(0)
             leftp, rightp = pairs[index]
+            al, ar = leftp["alpha"], rightp["alpha"]
+            outside = leftp if side == 0 else rightp
+            external_velocity = np.where(outside["boundary_absent"], 0.0, outside["velocity"])
+            vv_left, vv_right = (
+                (external_velocity, np.zeros(2)) if side == 0 else (np.zeros(2), external_velocity)
+            )
+            integral = weights @ (
+                (al + nodes[:, None] * (ar - al))
+                * (vv_left + nodes[:, None] * (vv_right - vv_left))
+            ).sum(-1)
+            port_transfers[side] = {
+                "transfer_n_m_e": (sign * dt * p.area * flux[index].sum(0)).tolist(),
+                "capillary_work_j": float(
+                    -dt * p.area / 2 * mu[index] * (ar[0] - al[0]) * integral
+                ),
+            }
             jump = rightp["entropy_density"] - leftp["entropy_density"]
             if model.volume_diffusion == "none":
-                jump = np.sum(
-                    (leftp["alpha"] + rightp["alpha"])
-                    / 2
-                    * (
-                        rightp["phase_entropy_density"] / rightp["alpha"]
-                        - leftp["phase_entropy_density"] / leftp["alpha"]
-                    )
+                il = leftp["phase_entropy_density"] / np.where(
+                    leftp["alpha"] > 0, leftp["alpha"], 1
                 )
+                ir = rightp["phase_entropy_density"] / np.where(
+                    rightp["alpha"] > 0, rightp["alpha"], 1
+                )
+                il, ir = np.where(leftp["alpha"] > 0, il, ir), np.where(rightp["alpha"] > 0, ir, il)
+                jump = np.sum((leftp["alpha"] + rightp["alpha"]) / 2 * (ir - il))
             incoming_entropy += (
                 sign
                 * dt
@@ -404,7 +444,13 @@ def audit(model, before, after, report):
         for side, height_face in enumerate(s.boundary_heights):
             if height_face is not None:
                 ci = 0 if side == 0 else n - 1
-                surface += coefficient * (height[ci] - height_face) ** 2
+                surface += (
+                    0.5
+                    * s.sigma
+                    * s.width
+                    / s.boundary_distances[side]
+                    * (height[ci] - height_face) ** 2
+                )
         if s.wetting is not None:
             from reference_wetting_potential import potential as wall_energy
 
@@ -421,6 +467,25 @@ def audit(model, before, after, report):
     global_defect[nc] -= wall_impulse + cap_impulse
     global_defect[-1] -= cap_work
     allowance = 5e-11 * np.sum(abs(q[0] * volume[:, None, None]), axis=(0, 1)) + 1e-22
+    # A pipe starting from rest has zero old momentum, but its wall and open
+    # face pressure impulses can be large and nearly cancel. Include only a
+    # machine-roundoff bound on those actual operands, not a new relative
+    # convergence tolerance on the pressure forces.
+    allowance[nc] += (
+        64
+        * np.finfo(float).eps
+        * (
+            abs(wall_impulse)
+            + abs(cap_impulse)
+            + abs(external[nc])
+            + np.sum(abs(q[1][..., -2] * volume[:, None]))
+            + dt
+            * (
+                p.area * (2 * np.abs(flux[..., -2]).sum() + np.abs(path[..., -2]).sum())
+                + np.abs(force).sum()
+            )
+        )
+    )
     close(global_defect, np.zeros_like(global_defect), "global N/M/(E+F)", atol=allowance, rtol=0)
     if not open_faces:
         close(
@@ -446,4 +511,5 @@ def audit(model, before, after, report):
         "entropy_production_j_k": entropy,
         "maximum_component_equation_residual_mol": float(abs(mass_res).max()),
         "maximum_energy_equation_residual_j": float(abs(energy_res).max()),
+        "port_transfers": port_transfers,
     }

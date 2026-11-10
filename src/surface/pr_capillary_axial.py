@@ -16,13 +16,21 @@ from .liquid import ConservationError, HydraulicConvergenceError, PropertyModelE
 from .operation import _digest
 from .pr_active_multifluid_flux import fluctuations
 from .pr_active_multifluid_pipe import PRActiveMultifluidState
+from .pr_capillary_linear import CapillaryLinearSystem
 from .pr_capillary_pressure import PRCapillaryPressure
 from .pr_homogeneous_uv import caloric_tv, recover_homogeneous_phases
 
 
 class PRCapillaryAxialPipe:
     def __init__(
-        self, source, *, maximum_unknowns=192, boundaries=None, volume_diffusion="acoustic"
+        self,
+        source,
+        *,
+        maximum_unknowns=192,
+        boundaries=None,
+        volume_diffusion="acoustic",
+        linear_solver="auto",
+        boundary_geometry="extrapolated_face",
     ):
         if (
             not isinstance(source, PRCapillaryPressure)
@@ -30,6 +38,14 @@ class PRCapillaryAxialPipe:
         ):
             raise TypeError("Resolved PR capillary source required")
         self.source, self.pipe = source, source.pipe
+        if linear_solver not in ("auto", "dense", "sparse"):
+            raise ValueError("Capillary linear solver must be auto, dense or sparse")
+        self.linear_solver = linear_solver
+        if boundary_geometry not in ("extrapolated_face", "reservoir_cell"):
+            raise ValueError(
+                "Explicit extrapolated_face or reservoir_cell boundary geometry required"
+            )
+        self.boundary_geometry = boundary_geometry
         p = self.pipe
         if (
             p.boundary_mode not in ("periodic", "walls")
@@ -44,7 +60,7 @@ class PRCapillaryAxialPipe:
                 "Uniform periodic or reflecting two-phase line without gravity/other split sources required"
             )
         if type(maximum_unknowns) is not int or maximum_unknowns < 1:
-            raise ValueError("Explicit positive dense unknown budget required")
+            raise ValueError("Explicit positive unknown budget required")
         rows = (None, None) if boundaries is None else tuple(boundaries)
         if len(rows) != 2 or (p.boundary_mode == "periodic" and any(b is not None for b in rows)):
             raise ValueError("Two maintained face states require nonperiodic geometry")
@@ -58,18 +74,19 @@ class PRCapillaryAxialPipe:
                 heights.append(None)
                 continue
             packet, phases = p._boundary_packet(row)
-            if set(phases) != set(p.names) or any(
-                min(v.component_moles) <= 0 for v in phases.values()
-            ):
-                raise ValueError(
-                    "Maintained capillary faces require both phases and positive components"
-                )
+            if set(phases) != set(p.names) and boundary_geometry != "reservoir_cell":
+                raise ValueError("Absent boundary phases require reservoir_cell geometry")
+            if set(phases) != set(p.names) and volume_diffusion != "acoustic":
+                raise ValueError("Absent boundary phases require acoustic volume transport")
             height = float(packet["alpha"][0, 0].cpu()) * p.area / source.width
             heights.append(height)
             self.boundaries.append(phases)
             self.boundary_packets.append(packet)
             entropy = []
             for name, root in zip(p.names, ("liquid", "vapor")):
+                if name not in phases:
+                    entropy.append(0.0)
+                    continue
                 phase = phases[name]
                 amount = math.fsum(phase.component_moles)
                 eos = p.fluid.homogeneous(
@@ -90,6 +107,11 @@ class PRCapillaryAxialPipe:
                 k: v for k, v in source.to_dict().items() if k not in ("model", "pipe_model_id")
             }
             params["boundary_heights_m"] = heights
+            if boundary_geometry == "reservoir_cell":
+                params["boundary_distances_m"] = [
+                    None if h is None else p.lengths[0 if side == 0 else -1]
+                    for side, h in enumerate(heights)
+                ]
             self.source = PRCapillaryPressure(p, **params)
         elif any(h is not None for h in source.boundary_heights):
             raise ValueError(
@@ -109,6 +131,7 @@ class PRCapillaryAxialPipe:
             "pipe": self.pipe.to_dict(),
             "source": self.source.to_dict(),
             "maximum_unknowns": self.maximum_unknowns,
+            "transport_state": "midpoint_intrinsic",
         }
 
         if any(b is not None for b in self.boundaries):
@@ -118,15 +141,28 @@ class PRCapillaryAxialPipe:
             ]
         if self.volume_diffusion != "acoustic":
             result["volume_diffusion"] = self.volume_diffusion
+        if self.linear_solver != "auto":
+            result["linear_solver"] = self.linear_solver
+        if self.boundary_geometry != "extrapolated_face":
+            result["boundary_geometry"] = self.boundary_geometry
         return result
 
-    def boundary_packet(self, side, adjacent_alpha):
+    def boundary_packet(self, side, adjacent_alpha, adjacent_velocity=None):
         reference = self.boundary_packets[side]
         if reference is None:
             return None
-        alpha = 2 * reference["alpha"] - adjacent_alpha
-        conserved = reference["conserved"] * (alpha / reference["alpha"])[..., None]
+        alpha = (
+            reference["alpha"]
+            if self.boundary_geometry == "reservoir_cell"
+            else 2 * reference["alpha"] - adjacent_alpha
+        )
+        conserved = (
+            reference["conserved"]
+            * (alpha / torch.where(reference["alpha"] > 0, reference["alpha"], 1))[..., None]
+        )
         velocity, pressure = reference["velocity"], reference["pressure"]
+        if adjacent_velocity is not None:
+            velocity = torch.where(reference["alpha"] > 0, velocity, adjacent_velocity)
         flux = torch.cat(
             (
                 conserved[..., :-2] * velocity[..., None],
@@ -138,6 +174,7 @@ class PRCapillaryAxialPipe:
         entropy = alpha * self.boundary_entropy[side]
         return {
             **reference,
+            "velocity": velocity,
             "alpha": alpha,
             "end_alpha": alpha,
             "conserved": conserved,
@@ -152,9 +189,20 @@ class PRCapillaryAxialPipe:
 
         if (
             set(raw)
-            - {"model", "pipe", "source", "maximum_unknowns", "boundaries", "volume_diffusion"}
+            - {
+                "model",
+                "pipe",
+                "source",
+                "maximum_unknowns",
+                "boundaries",
+                "volume_diffusion",
+                "linear_solver",
+                "transport_state",
+                "boundary_geometry",
+            }
             or not {"model", "pipe", "source", "maximum_unknowns"} <= set(raw)
             or raw["model"] != "pr_capillary_axial_v1"
+            or raw.get("transport_state", "midpoint_intrinsic") != "midpoint_intrinsic"
         ):
             raise ValueError("Explicit joint PR capillary axial model required")
         pipe = PRActiveMultifluidPipe.from_dict(raw["pipe"], device=device)
@@ -163,21 +211,26 @@ class PRCapillaryAxialPipe:
             source,
             maximum_unknowns=raw["maximum_unknowns"],
             boundaries=raw.get("boundaries"),
+            linear_solver=raw.get("linear_solver", "auto"),
+            boundary_geometry=raw.get("boundary_geometry", "extrapolated_face"),
             volume_diffusion=raw.get("volume_diffusion", "acoustic"),
         )
 
-    def _spatial(self, packet, h0, h1, *, potential_override=None):
-        p, s, f = self.pipe, self.source, self.pipe.fluid
-        n, nc = len(p.lengths), len(f.names)
-        area, c = p.area, p.wave_speed
-        velocity, amid, conserved = packet["velocity"], packet["alpha"], packet["conserved"]
+    def _face_fields(self, packet):
+        """Physical traces and fluxes shared by Newton and roundoff accounting."""
+        p = self.pipe
+        c = p.wave_speed
+        velocity, amid = packet["velocity"], packet["alpha"]
         periodic = p.boundary_mode == "periodic"
         if periodic:
             left = packet
             right = {k: torch.roll(v, -1, 0) for k, v in packet.items()}
         else:
             left, right = {}, {}
-            maintained = [self.boundary_packet(0, amid[:1]), self.boundary_packet(1, amid[-1:])]
+            maintained = [
+                self.boundary_packet(0, amid[:1], velocity[:1]),
+                self.boundary_packet(1, amid[-1:], velocity[-1:]),
+            ]
             for key, value in packet.items():
                 gl, gr = value[:1].clone(), value[-1:].clone()
                 if key == "velocity":
@@ -198,17 +251,25 @@ class PRCapillaryAxialPipe:
                 right[key] = torch.cat((value, gr), 0)
         _, _, _, _, ff = fluctuations(left, right, c)
         # Always use the declared acoustic viscosity, with no contact switch.
-        jump = right["conserved"] - left["conserved"]
+        intrinsic_l, intrinsic_r = self.intrinsic_pair(left, right)
+        jump = intrinsic_r * right["alpha"][..., None] - intrinsic_l * left["alpha"][..., None]
         if self.volume_diffusion == "none":
-            jump = (
-                (left["alpha"] + right["alpha"])[..., None]
-                / 2
-                * (
-                    right["conserved"] / right["alpha"][..., None]
-                    - left["conserved"] / left["alpha"][..., None]
-                )
-            )
+            jump = (left["alpha"] + right["alpha"])[..., None] / 2 * (intrinsic_r - intrinsic_l)
         flux = (left["flux"] + right["flux"]) / 2 - c / 2 * jump
+        return left, right, ff, flux
+
+    def _spatial(self, packet, h0, h1, *, potential_override=None):
+        p, s, f = self.pipe, self.source, self.pipe.fluid
+        n, nc = len(p.lengths), len(f.names)
+        area, c = p.area, p.wave_speed
+        velocity, amid, conserved = packet["velocity"], packet["alpha"], packet["conserved"]
+        periodic = p.boundary_mode == "periodic"
+        left, right, ff, flux = self._face_fields(packet)
+        if not periodic:
+            maintained = [
+                self.boundary_packet(0, amid[:1], velocity[:1]),
+                self.boundary_packet(1, amid[-1:], velocity[-1:]),
+            ]
         if periodic:
             delta = (
                 flux
@@ -272,6 +333,9 @@ class PRCapillaryAxialPipe:
                 factor = area / 2 * potential[ci] * (bb[0] - aa[0])
                 inside = coeff_right if side == 0 else coeff_left
                 outside = coeff_left if side == 0 else coeff_right
+                absent = self.boundary_packets[side]["alpha"][0] == 0
+                inside = inside + torch.where(absent, outside, 0.0)
+                outside = torch.where(absent, 0.0, outside)
                 extra = torch.zeros_like(force).index_add(
                     0, torch.tensor([ci], device=f.device), (factor * inside)[None, :]
                 )
@@ -306,16 +370,24 @@ class PRCapillaryAxialPipe:
             boundary_alpha,
         )
 
-    def state_packet(self, before, after):
-        p = self.pipe
-        old, new = p.inspect(before), p.inspect(after)
+    @staticmethod
+    def intrinsic_pair(left, right):
+        """No EOS/stock in an absent phase; intensive traces copy the real side."""
+        la, ra = left["end_alpha"] > 0, right["end_alpha"] > 0
+        ll = left["conserved"] / torch.where(la, left["end_alpha"], 1)[..., None]
+        rr = right["conserved"] / torch.where(ra, right["end_alpha"], 1)[..., None]
+        return torch.where(la[..., None], ll, rr), torch.where(ra[..., None], rr, ll)
+
+    @staticmethod
+    def midpoint_packet(old, new):
         alpha = (old["alpha"] + new["alpha"]) / 2
         q, u, pressure = new["conserved"], new["velocity"], new["pressure"]
+        transported = q / new["alpha"][..., None] * alpha[..., None]
         flux = torch.cat(
             (
-                q[..., :-2] * u[..., None],
-                (q[..., -2] * u + alpha * pressure)[..., None],
-                ((q[..., -1] + alpha * pressure) * u)[..., None],
+                transported[..., :-2] * u[..., None],
+                (transported[..., -2] * u + alpha * pressure)[..., None],
+                ((transported[..., -1] + alpha * pressure) * u)[..., None],
             ),
             -1,
         )
@@ -326,6 +398,11 @@ class PRCapillaryAxialPipe:
             flux=flux,
             pressure_precision=torch.zeros_like(pressure),
         )
+        return packet
+
+    def state_packet(self, before, after):
+        p = self.pipe
+        packet = self.midpoint_packet(p.inspect(before), p.inspect(after))
         h0 = (
             p.fluid.tensor([dict(c)[self.source.liquid].volume_m3 for c in before.cells])
             / self.source.area
@@ -335,6 +412,55 @@ class PRCapillaryAxialPipe:
             / self.source.area
         )
         return packet, h0, h1
+
+    def port_transfers(self, before, after):
+        """Accepted transfers into this pipe, separately at each real endpoint.
+
+        Reconstruct the same midpoint-volume/end-caloric traces as Newton.
+        These are flux integrals, never a partition of the global residual.
+        Wall endpoints have no material or capillary-work port.
+        """
+        if self.pipe.boundary_mode == "periodic":
+            return (None, None)
+        dt = after.time_s - before.time_s
+        if dt <= 0:
+            raise ValueError("Accepted positive pipe interval required")
+        packet, h0, h1 = self.state_packet(before, after)
+        potential = self.source.discrete_pressure(h0, h1)
+        rows = []
+        for side, reference in enumerate(self.boundary_packets):
+            if reference is None:
+                rows.append(None)
+                continue
+            ci = 0 if side == 0 else -1
+            body = {k: v[:1] if side == 0 else v[-1:] for k, v in packet.items()}
+            ghost = self.boundary_packet(side, body["alpha"], body["velocity"])
+            left, right = (ghost, body) if side == 0 else (body, ghost)
+            il, ir = self.intrinsic_pair(left, right)
+            jump = ir * right["alpha"][..., None] - il * left["alpha"][..., None]
+            if self.volume_diffusion == "none":
+                jump = (left["alpha"] + right["alpha"])[..., None] / 2 * (ir - il)
+            flux = (left["flux"] + right["flux"]) / 2 - self.pipe.wave_speed / 2 * jump
+            sign = 1 if side == 0 else -1
+            transfer = sign * dt * self.pipe.area * flux[0].sum(0)
+            aa, bb = left["alpha"][0], right["alpha"][0]
+            outside = (2 * aa + bb) / 6 if side == 0 else (aa + 2 * bb) / 6
+            outside = torch.where(reference["alpha"][0] > 0, outside, 0.0)
+            work = (
+                -dt
+                * self.pipe.area
+                / 2
+                * potential[ci]
+                * (bb[0] - aa[0])
+                * (outside * ghost["velocity"][0]).sum()
+            )
+            rows.append(
+                {
+                    "transfer_n_m_e": transfer.cpu().tolist(),
+                    "capillary_work_j": float(work.cpu()),
+                }
+            )
+        return tuple(rows)
 
     def step(self, state, dt_s):
         p, s, f = self.pipe, self.source, self.pipe.fluid
@@ -366,7 +492,11 @@ class PRCapillaryAxialPipe:
         alpha0 = vv0 / volume[:, None]
         for side, ref in enumerate(self.boundary_packets):
             adjacent = alpha0[:1] if side == 0 else alpha0[-1:]
-            if ref is not None and not bool((2 * ref["alpha"] - adjacent > 0).all().cpu()):
+            if (
+                ref is not None
+                and self.boundary_geometry == "extrapolated_face"
+                and not bool((2 * ref["alpha"] - adjacent > 0).all().cpu())
+            ):
                 raise ValueError("Initial interface incompatible with prescribed face height")
         h0 = vv0[:, 0] / s.area
         mw = f.tensor([c.molar_mass_kg_mol for c in f.components])
@@ -398,11 +528,12 @@ class PRCapillaryAxialPipe:
                 / volume[:, None, None]
             )
             amid = (volumes / volume[:, None] + alpha0) / 2
+            transported = conserved / (volumes / volume[:, None])[..., None] * amid[..., None]
             physical_flux = torch.cat(
                 (
-                    conserved[..., :-2] * velocity[..., None],
-                    (conserved[..., -2] * velocity + amid * pressure)[..., None],
-                    ((conserved[..., -1] + amid * pressure) * velocity)[..., None],
+                    transported[..., :-2] * velocity[..., None],
+                    (transported[..., -2] * velocity + amid * pressure)[..., None],
+                    ((transported[..., -1] + amid * pressure) * velocity)[..., None],
                 ),
                 -1,
             )
@@ -468,7 +599,11 @@ class PRCapillaryAxialPipe:
             return bool(
                 (
                     torch.isfinite(torch.cat([x.reshape(-1) for x in result])).all()
-                    & (boundary_alpha > 0).all()
+                    & (
+                        (boundary_alpha >= 0).all()
+                        if self.boundary_geometry == "reservoir_cell"
+                        else (boundary_alpha > 0).all()
+                    )
                     & (numbers > 0).all()
                     & (volumes > 0).all()
                     & (temperature >= f.min_temperature_k).all()
@@ -480,6 +615,20 @@ class PRCapillaryAxialPipe:
             )
 
         z = f.tensor([0.0] * (n * width))
+        if getattr(self, "_linear", None) is None:
+            edges = set(s.geometry_edges)
+            if hasattr(self, "faces"):
+                edges.update((a, b) for a, b, _wall, _axis in self.faces if a != b)
+            self._linear = CapillaryLinearSystem(
+                [list(range(i * width, (i + 1) * width)) for i in range(n)],
+                edges,
+                f.device,
+                radius=2,
+                mode=self.linear_solver,
+            )
+        linear = self._linear
+        linear.solves, linear.maximum_relative_residual = 0, 0.0
+        linear.krylov_restarts = 0
         for iteration in range(31):
             result = evaluate(z)
             norm = float(result[0].abs().max().cpu())
@@ -491,12 +640,7 @@ class PRCapillaryAxialPipe:
                 raise HydraulicConvergenceError("Joint capillary axial Newton failed")
             # Differentiation/programming errors are not time-step failures.
             # Only an invalid/singular linear system belongs to adaptive retry.
-            jacobian = torch.func.jacfwd(lambda w: evaluate(w)[0])(z)
-            if not bool(torch.isfinite(jacobian).all().cpu()):
-                raise HydraulicConvergenceError("Nonfinite joint capillary axial Jacobian")
-            correction, info = torch.linalg.solve_ex(jacobian, -result[0], check_errors=False)
-            if int(info.cpu()) != 0 or not bool(torch.isfinite(correction).all().cpu()):
-                raise HydraulicConvergenceError("Joint capillary axial linear solve failed")
+            correction = linear.solve(lambda w: evaluate(w)[0], z, result[0])
             accepted = False
             for power in range(24):
                 trial = z + correction * 2.0 ** (-power)
@@ -573,39 +717,66 @@ class PRCapillaryAxialPipe:
         defect = [defect[j] for j in ledger_indices]
         oldtot = [oldtot[j] for j in ledger_indices]
         newtot = [newtot[j] for j in ledger_indices]
+        # Nearly opposed pressure impulses can leave zero total momentum.
+        # Their arithmetic error scales with the actual flux/path operands,
+        # not that cancelled total. This is a forward-roundoff bound only;
+        # the nonlinear equations still use their original 2e-12 tolerance.
+        packet = self.midpoint_packet(initial, current)
+        _, _, face_fields, face_flux = self._face_fields(packet)
+        momentum_roundoff = (
+            64
+            * torch.finfo(numbers.dtype).eps
+            * (
+                float((mm0.abs().sum() + momenta.abs().sum()).cpu())
+                + abs(wall_impulse)
+                + abs(transfer[-2])
+                + abs(cap_impulse)
+                + dt
+                * (
+                    area
+                    * float(
+                        (
+                            2 * face_flux[..., -2].abs().sum()
+                            + face_fields["phase_path"][..., -2].abs().sum()
+                        ).cpu()
+                    )
+                    + float(force.abs().sum().cpu())
+                )
+            )
+        )
         for j, value in enumerate(defect):
             scale = abs(oldtot[j]) + abs(newtot[j])
-            if not math.isfinite(value) or abs(value) > 2e-10 * scale + 1e-22:
-                raise ConservationError("Joint capillary axial augmented inventory failed")
+            limit = 2e-10 * scale + 1e-22
+            if ledger_indices[j] == nc + 1:
+                limit += momentum_roundoff
+            if not math.isfinite(value) or abs(value) > limit:
+                raise ConservationError(
+                    f"Joint capillary axial augmented inventory failed: ledger index "
+                    f"{ledger_indices[j]}, defect={value:.17g}, limit={limit:.17g}"
+                )
         incoming_entropy = 0.0
         final_alpha = (volumes / volume[:, None] + alpha0) / 2
         for side, ref in enumerate(self.boundary_packets):
             if ref is None:
                 continue
             ci = 0 if side == 0 else -1
-            ghost = self.boundary_packet(side, final_alpha[:1] if side == 0 else final_alpha[-1:])
-            si, fi = current["entropy_density"][ci], current["entropy_flux"][ci]
+            ghost = self.boundary_packet(
+                side,
+                final_alpha[:1] if side == 0 else final_alpha[-1:],
+                current["velocity"][:1] if side == 0 else current["velocity"][-1:],
+            )
+            body_alpha, ghost_alpha = final_alpha[ci], ghost["alpha"][0]
+            intrinsic_entropy = current["phase_entropy_density"][ci] / current["alpha"][ci]
+            body_entropy = intrinsic_entropy * body_alpha
+            si = body_entropy.sum()
+            fi = (body_entropy * current["velocity"][ci]).sum()
             sg, fg = ghost["entropy_density"][0], ghost["entropy_flux"][0]
             entropy_jump = (si - sg) if side == 0 else (sg - si)
             if self.volume_diffusion == "none":
-                values = []
-                phases = dict(new.cells[ci])
-                for j, name in enumerate(names):
-                    phase = phases[name]
-                    amount = math.fsum(phase.component_moles)
-                    eos = f.homogeneous(
-                        phase.pressure_pa,
-                        phase.temperature_k,
-                        [v / amount for v in phase.component_moles],
-                        p.slots[j]["root"],
-                    )
-                    values.append(
-                        amount * float(eos["molar_entropy_j_mol_k"].cpu()) / p.volumes[ci]
-                    )
-                body_entropy = f.tensor(values)
-                ghost_entropy = ghost["alpha"][0] * self.boundary_entropy[side][0]
-                body_alpha, ghost_alpha = final_alpha[ci], ghost["alpha"][0]
-                difference = body_entropy / body_alpha - ghost_entropy / ghost_alpha
+                ghost_intrinsic = torch.where(
+                    ref["alpha"][0] > 0, self.boundary_entropy[side][0], intrinsic_entropy
+                )
+                difference = intrinsic_entropy - ghost_intrinsic
                 entropy_jump = ((body_alpha + ghost_alpha) / 2 * difference).sum() * (
                     1 if side == 0 else -1
                 )
@@ -624,10 +795,12 @@ class PRCapillaryAxialPipe:
             "state": new.to_dict(),
             "dt_s": dt,
             "newton_iterations": iteration,
+            "linear_solver": linear.report(),
             "normal_sources_applied": False,
             "source_model": s.to_dict(),
             "source_model_id": s.model_id,
             "wall_impulse_kg_m_s": wall_impulse,
+            "momentum_roundoff_allowance_kg_m_s": momentum_roundoff,
             "external_transfer_n_m_e": transfer,
             "external_capillary_work_j": cap_work,
             "external_capillary_impulse_kg_m_s": cap_impulse,
@@ -708,4 +881,12 @@ class PRCapillaryAxialPipe:
             current = trial
             steps.append(record)
             dt = attempt * (1.3 if record["newton_iterations"] <= 4 else 0.8)
+            if current.time_s == target:
+                return current, {
+                    "state": current.to_dict(),
+                    "steps": steps,
+                    "rejected": rejected,
+                    "next_step_s": dt,
+                    "duration_s": target - state.time_s,
+                }
         raise HydraulicConvergenceError("Capillary axial report attempt budget exhausted")
