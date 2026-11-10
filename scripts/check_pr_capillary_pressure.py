@@ -48,17 +48,27 @@ def audit(model, before, after, report):
     if not math.isfinite(dt) or dt <= 0:
         raise ValueError("Invalid capillary source interval")
     mw = np.array([c.molar_mass_kg_mol for c in f.components])
+    selected = tuple(
+        i for i, c in enumerate(before.cells) if set(dict(c)) == {model.liquid, model.gas}
+    )
+    if model.phase_support == "active" and report.get("active_cells") != list(selected):
+        raise ValueError("Normal-source active registry differs")
     stocks = []
     entropy = []
     for state in (before, after):
         rows = []
         ent = []
         for cell in state.cells:
-            if set(dict(cell)) != {model.liquid, model.gas}:
+            if set(dict(cell)) - {model.liquid, model.gas} or (
+                model.phase_support != "active" and set(dict(cell)) != {model.liquid, model.gas}
+            ):
                 raise ValueError("Capillary phase support differs")
             row = []
             for name, root in ((model.liquid, "liquid"), (model.gas, "vapor")):
-                p = dict(cell)[name]
+                p = dict(cell).get(name)
+                if p is None:
+                    row.append((None, np.zeros(len(f.names)), np.zeros(len(f.names))))
+                    continue
                 n = np.array(p.component_moles)
                 amount = n.sum()
                 x = n / amount
@@ -87,7 +97,10 @@ def audit(model, before, after, report):
         stocks.append(rows)
         entropy.append(math.fsum(ent))
     area = np.array(pipe.lengths) * model.width
-    heights = [np.array([row[0][0].volume_m3 for row in state]) / area for state in stocks]
+    heights = [
+        np.array([row[0][0].volume_m3 if row[0][0] is not None else 0.0 for row in state]) / area
+        for state in stocks
+    ]
     edges = (
         list(model.surface_edges)
         if hasattr(model, "surface_edges")
@@ -133,10 +146,20 @@ def audit(model, before, after, report):
         for i, h in enumerate(heights):
             surface[i] += float(np.dot(area, wall_energy(params, model.sigma, h)))
         cap += wall_pressure(params, model.sigma, *heights)
-    close(report["capillary_pressure_pa"], cap, "variational pressure", atol=1e-9)
+    if selected:
+        close(
+            report["capillary_pressure_pa"], cap[list(selected)], "variational pressure", atol=1e-9
+        )
+    elif report["volume_transfer_m3"]:
+        raise ValueError("Interface-free normal source transferred volume")
     dtotal = []
     lower = []
     for i, (old, new) in enumerate(zip(*stocks, strict=True)):
+        if i not in selected:
+            if before.cells[i] != after.cells[i]:
+                raise ValueError("Normal source changed an interface-free cell")
+            continue
+        ri = selected.index(i)
         pl0, nl0, _ = old[0]
         pg0, ng0, _ = old[1]
         pl, nl, mul = new[0]
@@ -152,7 +175,7 @@ def audit(model, before, after, report):
             rtol=1e-14,
         )
         close(
-            report["volume_transfer_m3"][i],
+            report["volume_transfer_m3"][ri],
             dv,
             "normal volume change",
             atol=2 * (math.ulp(pl0.volume_m3) + math.ulp(pl.volume_m3)),
@@ -162,11 +185,11 @@ def audit(model, before, after, report):
         # after binding it to the canonical stocks in ULPs. Dividing the
         # cancellation-prone stock difference by dt*mobility invents a rate
         # error when a normal substep is much smaller than the cell volume.
-        dv = report["volume_transfer_m3"][i]
+        dv = report["volume_transfer_m3"][ri]
         # At acoustic substeps, subtraction of two large inventories loses
         # digits of the small increment. Bind the reported increment to those
         # inventories in ULPs, then audit its constitutive rate independently.
-        reported_dn = np.asarray(report["component_transfer_to_liquid_mol"][i])
+        reported_dn = np.asarray(report["component_transfer_to_liquid_mol"][ri])
         increment_roundoff = np.array(
             [2 * (math.ulp(a) + math.ulp(b)) for a, b in zip(nl0, nl, strict=True)]
         )
@@ -230,8 +253,8 @@ def audit(model, before, after, report):
                 atol=allowance,
                 rtol=1e-8,
             )
-        close(report["heat_transfer_to_liquid_j"][i], q, "interphase heat", atol=1e-22)
-        close(report["normal_dissipation_j"][i], heat, "normal heat", atol=1e-22, rtol=1e-7)
+        close(report["heat_transfer_to_liquid_j"][ri], q, "interphase heat", atol=1e-22)
+        close(report["normal_dissipation_j"][ri], heat, "normal heat", atol=1e-22, rtol=1e-7)
         dtotal.extend(
             [pl.total_energy_j - pl0.total_energy_j, pg.total_energy_j - pg0.total_energy_j]
         )

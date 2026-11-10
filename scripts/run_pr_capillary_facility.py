@@ -25,7 +25,10 @@ def run(config, *, device="cpu"):
     cuda = device == "cuda"
     intervals, checks = [], []
     for period in config["schedule"]:
-        if set(period) != {"duration_s", "heaters"}:
+        if set(period) - {"duration_s", "heaters", "phase_controls"} or not {
+            "duration_s",
+            "heaters",
+        } <= set(period):
             raise ValueError("Each facility interval requires duration and heater commands")
         if cuda:
             torch.cuda.synchronize()
@@ -36,6 +39,7 @@ def run(config, *, device="cpu"):
             maximum_attempts=config["maximum_attempts"],
             normal_relaxation=config["normal_relaxation"],
             heaters=period["heaters"],
+            phase_controls=period.get("phase_controls"),
         )
         if cuda:
             torch.cuda.synchronize()
@@ -50,6 +54,7 @@ def run(config, *, device="cpu"):
                     step,
                     normal_relaxation=config["normal_relaxation"],
                     heaters=period["heaters"],
+                    phase_controls=period.get("phase_controls"),
                 )
             )
             previous = current
@@ -66,7 +71,7 @@ def run(config, *, device="cpu"):
         "intervals": intervals,
         "final": previous.to_dict(),
         "independent_audits": checks,
-        "qualification": "Fixed graph of finite shared PR gravity columns and horizontal capillary lines; synchronous first-order IMEX with positive axial phase support, not monolithic facility Newton or empirical validation",
+        "qualification": "Fixed graph of finite shared PR gravity columns and horizontal capillary lines; declared initial or converged end-profile coupling of first-order split pipe operators with declared positive/active axial support and optional global reduced Schur Newton; not an unreduced all-cell matrix or empirical validation",
     }
 
 

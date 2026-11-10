@@ -71,7 +71,11 @@ class PRCapillaryPressure:
         wetting=None,
         linear_solver="auto",
         boundary_distances_m=None,
+        phase_support="positive",
     ):
+        if phase_support not in ("positive", "active"):
+            raise ValueError("Capillary phase support must be positive or active")
+        self.phase_support = phase_support
         self.pipe = pipe
         if linear_solver not in ("auto", "dense", "sparse"):
             raise ValueError("Capillary linear solver must be auto, dense or sparse")
@@ -238,6 +242,8 @@ class PRCapillaryPressure:
             result["wetting"] = self.wetting.to_dict()
         if self.linear_solver != "auto":
             result["linear_solver"] = self.linear_solver
+        if self.phase_support != "positive":
+            result["phase_support"] = self.phase_support
         return result
 
     @classmethod
@@ -252,10 +258,19 @@ class PRCapillaryPressure:
 
     def surface_energy(self, state):
         self.pipe.inspect(state)
-        if any(self.liquid not in dict(c) or self.gas not in dict(c) for c in state.cells):
+        if any(set(dict(c)) - {self.liquid, self.gas} for c in state.cells):
+            raise ValueError("Capillary geometry needs its declared two-slot registry")
+        if self.phase_support == "positive" and any(
+            self.liquid not in dict(c) or self.gas not in dict(c) for c in state.cells
+        ):
             raise PropertyModelError("Both film phases required for surface geometry")
         h = (
-            self.pipe.fluid.tensor([dict(c)[self.liquid].volume_m3 for c in state.cells])
+            self.pipe.fluid.tensor(
+                [
+                    dict(c)[self.liquid].volume_m3 if self.liquid in dict(c) else 0.0
+                    for c in state.cells
+                ]
+            )
             / self.area
         )
         if not bool(
@@ -285,16 +300,59 @@ class PRCapillaryPressure:
         pipe = self.pipe
         f = pipe.fluid
         pipe.inspect(state)
+        if any(set(dict(c)) - {self.liquid, self.gas} for c in state.cells):
+            raise ValueError("Capillary normal source needs its two-slot phase registry")
         if _digest(self.to_dict()) != self.model_id:
             raise ValueError("Changed capillary normal-source model")
         dt = _number(dt_s, "capillary volume source interval", positive=True)
-        if any(set(dict(c)) != {self.liquid, self.gas} for c in state.cells):
+        selected = tuple(
+            i for i, c in enumerate(state.cells) if set(dict(c)) == {self.liquid, self.gas}
+        )
+        if len(selected) != len(state.cells) and self.phase_support != "active":
             raise PropertyModelError(
                 "Capillary normal source requires both declared phases in each cell"
             )
         self.surface_energy(state)
-        old = [dict(c)[name] for c in state.cells for name in (self.liquid, self.gas)]
-        nc = len(state.cells)
+        if not selected:
+            energy = self.surface_energy(state)
+            return state, {
+                "state": state.to_dict(),
+                "source_model_id": self.model_id,
+                "source_model": self.to_dict(),
+                "dt_s": dt,
+                "clock_advanced": False,
+                "newton_iterations": 0,
+                "active_cells": [],
+                "volume_transfer_m3": [],
+                "linear_solver": {
+                    "backend": "no_phase_interface",
+                    "unknowns": 0,
+                    "linear_solves": 0,
+                    "large_dense_fallback": False,
+                },
+                "surface_energy_before_j": energy,
+                "surface_energy_after_j": energy,
+                "energy_residual_j": 0.0,
+                "entropy_production_j_k": 0.0,
+                "qualification": "No phase-pair interface: normal and interphase chemical/heat rates are zero",
+            }
+        indices = torch.tensor(selected, dtype=torch.long, device=f.device)
+        area = self.area[indices]
+        whole_h0 = (
+            f.tensor(
+                [
+                    dict(c)[self.liquid].volume_m3 if self.liquid in dict(c) else 0.0
+                    for c in state.cells
+                ]
+            )
+            / self.area
+        )
+
+        def heights(dv):
+            return whole_h0.index_add(0, indices, dv / area)
+
+        old = [dict(state.cells[i])[name] for i in selected for name in (self.liquid, self.gas)]
+        nc = len(selected)
         n = f.tensor([p.component_moles for p in old]).reshape(nc, 2, -1)
         amount = n.sum(-1)
         x = n / amount[..., None]
@@ -308,7 +366,6 @@ class PRCapillaryPressure:
         pscale = f.tensor(
             [max(1.0, a.pressure_pa, b.pressure_pa) for a, b in zip(old[::2], old[1::2])]
         )
-        h0 = v0[:, 0] / self.area
 
         active = torch.tensor(self.active, dtype=torch.long, device=f.device)
         if self.active and not bool((n[:, :, active] > 0).all().cpu()):
@@ -335,7 +392,7 @@ class PRCapillaryPressure:
             masses = (numbers * f.molar_masses).sum(-1)
             ke = 0.5 * momenta.square() / masses
             q = caloric_tv(f, temperature, volumes / amounts, compositions)
-            chemical = self.discrete_pressure(h0, h0 + dv / self.area)
+            chemical = self.discrete_pressure(whole_h0, heights(dv))[indices]
             force = q["p"][:, 0] - q["p"][:, 1] - chemical
             heat = dv.square() / (dt * self.mobility)
             heat_transfer = dt * self.conductance * (temperature[:, 1] - temperature[:, 0])
@@ -380,8 +437,7 @@ class PRCapillaryPressure:
                 & (q["p"] >= f.min_pressure_pa).all()
                 & (q["p"] <= f.max_pressure_pa).all()
                 & (
-                    (self.height_jump(volumes[:, 0] / self.area) + self.height_offsets).abs()
-                    / self.distances
+                    (self.height_jump(heights(dv)) + self.height_offsets).abs() / self.distances
                     <= self.maximum_slope
                 ).all()
             )
@@ -426,10 +482,18 @@ class PRCapillaryPressure:
             ]
             for i in range(nc)
         ]
-        if self._normal_linear is None:
+        if (
+            self._normal_linear is None
+            or getattr(self._normal_linear, "capillary_cells", None) != selected
+        ):
+            remap = {original: i for i, original in enumerate(selected)}
+            edges = [
+                (remap[i], remap[j]) for i, j in self.geometry_edges if i in remap and j in remap
+            ]
             self._normal_linear = CapillaryLinearSystem(
-                blocks, self.geometry_edges, f.device, radius=1, mode=self.linear_solver
+                blocks, edges, f.device, radius=1, mode=self.linear_solver
             )
+            self._normal_linear.capillary_cells = selected
         linear = self._normal_linear
         linear.solves, linear.maximum_relative_residual = 0, 0.0
         linear.krylov_restarts = 0
@@ -474,12 +538,17 @@ class PRCapillaryPressure:
             volumes.flatten(),
             momenta.flatten(),
             (numbers.sum(-1) * q["u"] + ke).flatten(),
-            [r for _ in state.cells for r in ("liquid", "vapor")],
+            [r for _ in selected for r in ("liquid", "vapor")],
             temperature.flatten(),
         )
         cells = []
+        local = {original: i for i, original in enumerate(selected)}
         for i, c in enumerate(state.cells):
-            updates = {self.liquid: recovered[2 * i], self.gas: recovered[2 * i + 1]}
+            if i not in local:
+                cells.append(c)
+                continue
+            k = local[i]
+            updates = {self.liquid: recovered[2 * k], self.gas: recovered[2 * k + 1]}
             cells.append(tuple((name, updates[name]) for name, _ in c))
         end = replace(state, cells=tuple(cells))
         before = pipe.inspect(state)
@@ -520,6 +589,7 @@ class PRCapillaryPressure:
             else "small_slope_excess_over_fixed_flat_interface",
             "dt_s": dt,
             "clock_advanced": False,
+            "active_cells": list(selected),
             "newton_iterations": iteration,
             "linear_solver": linear.report(),
             "volume_transfer_m3": dv.cpu().tolist(),
@@ -534,5 +604,5 @@ class PRCapillaryPressure:
             "energy_roundoff_allowance_j": allowance,
             "entropy_production_j_k": production,
             "entropy_production_lower_bound_j_k": lower,
-            "qualification": "Nonisothermal capillary normal/chemical/heat source on positive two-phase support; axial surface transport and phase births not included",
+            "qualification": "Nonisothermal normal/chemical/heat source on cells with both phases; pure cells unchanged; axial phase support handled separately",
         }

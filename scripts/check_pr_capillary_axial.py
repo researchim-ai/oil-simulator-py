@@ -12,6 +12,7 @@ from surface.operation import _digest
 
 def audit(model, before, after, report):
     s, p = model.source, model.pipe
+    active = bool(report.get("active_phase_support", False))
     f = p.fluid
     names = (s.liquid, s.gas)
     n, nc = len(p.lengths), len(f.names)
@@ -39,7 +40,17 @@ def audit(model, before, after, report):
             local_entropy = []
             rowq, rowv, rowu, rowp, rowt = [], [], [], [], []
             for name, root in zip(names, ("liquid", "vapor")):
-                phase = dict(cell)[name]
+                phase = dict(cell).get(name)
+                if phase is None and active:
+                    rowq.append(np.zeros(nc + 2))
+                    rowv.append(0.0)
+                    rowu.append(0.0)
+                    rowp.append(0.0)
+                    rowt.append(0.0)
+                    local_entropy.append(0.0)
+                    continue
+                if phase is None:
+                    raise ValueError("Missing positive-support phase")
                 numbers = np.array(phase.component_moles)
                 amount, mass = numbers.sum(), numbers @ mw
                 ref = Reference(f, np.flatnonzero(numbers > 0))
@@ -88,7 +99,45 @@ def audit(model, before, after, report):
     volume = np.array(p.volumes)
     amid = (vv[0] + vv[1]) / (2 * volume[:, None])
     u, pressure = velocities[1], pressures[1]
-    transported = q[1] / (vv[1] / volume[:, None])[..., None] * amid[..., None]
+    trace_entropy = None
+    if active:
+        trace = report["primitive_traces"]
+        rho = np.asarray(trace["component_densities_mol_m3"], dtype=float)
+        u = np.asarray(trace["velocity_m_s"], dtype=float)
+        pressure = np.asarray(trace["pressure_pa"], dtype=float)
+        temperatures[1] = np.asarray(trace["temperature_k"], dtype=float)
+        if rho.shape != (n, 2, nc) or np.any(rho < 0):
+            raise ValueError("Invalid active intrinsic trace")
+        intrinsic = np.zeros((n, 2, nc + 2))
+        trace_entropy = np.zeros((n, 2))
+        for i in range(n):
+            for j, root in enumerate(("liquid", "vapor")):
+                if amid[i, j] == 0 and not rho[i, j].any():
+                    continue
+                amount = rho[i, j].sum()
+                if amount <= 0:
+                    raise ValueError("Missing finite active trace")
+                eos = Reference(f, np.flatnonzero(rho[i, j] > 0)).state(
+                    pressure[i, j], temperatures[1][i, j], rho[i, j] / amount, root
+                )
+                close(amount * eos["vm"], 1.0, "trace PR density", atol=1e-9)
+                mass = rho[i, j] @ mw
+                intrinsic[i, j] = np.r_[
+                    rho[i, j], mass * u[i, j], amount * eos["u"] + 0.5 * mass * u[i, j] ** 2
+                ]
+                trace_entropy[i, j] = amount * eos["s"]
+                close(
+                    q[1][i, j] * volume[i],
+                    intrinsic[i, j] * vv[1][i, j],
+                    "owned stock versus trace",
+                    atol=1e-20,
+                    rtol=1e-9,
+                )
+        transported = intrinsic * amid[..., None]
+        prepared_entropy = trace_entropy * amid
+    else:
+        transported = q[1] / (vv[1] / volume[:, None])[..., None] * amid[..., None]
+        prepared_entropy = phase_entropy_density[1] / (vv[1] / volume[:, None]) * amid
     fluxphysical = np.concatenate(
         (
             transported[..., :nc] * u[..., None],
@@ -107,13 +156,9 @@ def audit(model, before, after, report):
             "conserved": transported[i],
             "flux": fluxphysical[i],
             "pressure_precision": np.zeros(2),
-            "phase_entropy_density": phase_entropy_density[1][i] / (vv[1][i] / volume[i]) * amid[i],
-            "entropy_density": np.array(
-                np.sum(phase_entropy_density[1][i] / (vv[1][i] / volume[i]) * amid[i])
-            ),
-            "entropy_flux": np.array(
-                np.sum(phase_entropy_density[1][i] / (vv[1][i] / volume[i]) * amid[i] * u[i])
-            ),
+            "phase_entropy_density": prepared_entropy[i],
+            "entropy_density": np.array(np.sum(prepared_entropy[i])),
+            "entropy_flux": np.array(np.sum(prepared_entropy[i] * u[i])),
             "boundary_absent": np.zeros(2, dtype=bool),
         }
         for i in range(n)
@@ -266,6 +311,8 @@ def audit(model, before, after, report):
             else:
                 vl, vr = velocity[face_index - 1], velocity[face_index]
             al, ar = aa_packet["alpha"], bb_packet["alpha"]
+            if active and (periodic or 0 < face_index < n):
+                vl, vr = np.where(al > 0, vl, vr), np.where(ar > 0, vr, vl)
             aa = al + nodes[:, None] * (ar - al)
             vv = vl + nodes[:, None] * (vr - vl)
             rates.append((ar[0] - al[0]) * (weights @ (aa * vv).sum(-1)))
@@ -376,7 +423,25 @@ def audit(model, before, after, report):
                 * p.area
                 * ((leftp["entropy_flux"] + rightp["entropy_flux"]) / 2 - p.wave_speed / 2 * jump)
             )
-    close(report["external_transfer_n_m_e"], external, "external transport", atol=1e-24, rtol=1e-8)
+    # The two actual endpoint impulses can be large and almost opposite.
+    # Compare their sum with a forward arithmetic bound on the operands;
+    # the small cancelled resultant is not its own roundoff scale.
+    external_roundoff = (
+        64
+        * np.finfo(float).eps
+        * np.sum(
+            [np.abs(row["transfer_n_m_e"]) for row in port_transfers if row is not None], axis=0
+        )
+        if any(row is not None for row in port_transfers)
+        else np.zeros(nc + 2)
+    )
+    close(
+        report["external_transfer_n_m_e"],
+        external,
+        "external transport",
+        atol=1e-24 + external_roundoff,
+        rtol=1e-8,
+    )
     close(
         report["external_capillary_work_j"],
         cap_work,
@@ -391,9 +456,6 @@ def audit(model, before, after, report):
         atol=1e-24,
         rtol=1e-8,
     )
-    close(
-        report["incoming_entropy_j_k"], incoming_entropy, "external entropy", atol=1e-22, rtol=1e-8
-    )
     close(report["capillary_force_n"], force, "independent adjoint force", atol=1e-22, rtol=1e-8)
     close(
         report["capillary_diffusion_heat_j"],
@@ -402,26 +464,114 @@ def audit(model, before, after, report):
         atol=1e-25,
         rtol=1e-8,
     )
+    boundary_entropy = incoming_entropy
+    side_n = np.zeros((n, 2, nc))
+    side_m, side_e = np.zeros((n, 2)), np.zeros((n, 2))
+    side_v = np.zeros(n)
+    side_total = np.zeros(nc + 2)
+    actuator = 0.0
+    if active:
+        rows = report["controls"]
+        commands = report["phase_controls"]
+        if len(rows) != len(commands) or len({r["cell"] for r in rows}) != len(rows):
+            raise ValueError("Side-port registry differs")
+        for row in rows:
+            i = row["cell"]
+            command = commands[str(i)]
+            j = names.index(command["inlet_slot"])
+            out = 1 - j
+            rate = row["volume_rate_m3_s"]
+            if rate < 0 or not math.isfinite(rate):
+                raise ValueError("Negative side-port rate")
+            close(
+                vv[1][i, 0] / volume[i],
+                command["target_liquid_fraction"],
+                "requested holdup",
+                atol=1e-14,
+            )
+            inlet = command["inlet_phase"]
+            ni = np.asarray(inlet["component_moles"])
+            vi = inlet["volume_m3"]
+            pin, tin = inlet["pressure_pa"], inlet["temperature_k"]
+            eos = Reference(f, np.flatnonzero(ni > 0)).state(
+                pin, tin, ni / ni.sum(), ("liquid", "vapor")[j]
+            )
+            close(vi, ni.sum() * eos["vm"], "inlet PR volume", atol=1e-25)
+            mi = inlet["momentum_kg_m_s"]
+            ei = ni.sum() * eos["u"] + 0.5 * mi**2 / (ni @ mw)
+            close(ei, inlet["total_energy_j"], "inlet PR energy", atol=1e-20)
+            side_n[i, j] = rate * ni / vi
+            side_n[i, out] = -rate * rho[i, out]
+            side_m[i, j] = rate * mi / vi
+            side_m[i, out] = -rate * intrinsic[i, out, -2]
+            side_e[i, j] = rate * (ei / vi + pin)
+            side_e[i, out] = -rate * (intrinsic[i, out, -1] + pressure[i, out])
+            side_total += dt * np.r_[side_n[i].sum(0), side_m[i].sum(), side_e[i].sum()]
+            qvl = rate * (1 if j == 0 else -1)
+            qv = np.array([qvl, -qvl])
+            close(row["phase_volume_transfer_m3"], dt * qv, "side-port volume", atol=1e-24)
+            w = dt * qvl * (mu[i] - pressure[i, 0] + pressure[i, 1])
+            close(row["actuator_work_j"], w, "actuator work", atol=1e-20)
+            actuator += w
+            side_v[i] = qvl
+            side_e[i] -= pressure[i] * qv
+            incoming_entropy += dt * rate * (ni.sum() / vi * eos["s"] - trace_entropy[i, out])
+        close(report["sideport_transfer_n_m_e"], side_total, "side-port N/M/H", atol=1e-20)
+        close(report["sideport_actuator_work_j"], actuator, "total actuator work", atol=1e-20)
+        close(
+            report["sideport_incoming_entropy_j_k"],
+            incoming_entropy - boundary_entropy,
+            "side-port entropy",
+            atol=1e-20,
+            rtol=1e-8,
+        )
+    close(
+        report["incoming_entropy_j_k"],
+        incoming_entropy,
+        "full external entropy",
+        atol=1e-20,
+        rtol=1e-8,
+    )
     mass_res = (q[1][..., :nc] - q[0][..., :nc]) * volume[:, None, None] + dt * p.area * delta[
         ..., :nc
     ]
+    mass_res -= dt * side_n
     momentum_res = (q[1][..., -2] - q[0][..., -2]) * volume[:, None] + dt * (
         p.area * delta[..., -2] - force
     )
+    momentum_res -= dt * side_m
     energy_res = (q[1][..., -1] - q[0][..., -1]) * volume[:, None] + dt * (
-        p.area * delta[..., -1] - u * force - heat[:, None] * np.array([s.share, 1 - s.share])
+        p.area * delta[..., -1]
+        - u * force
+        - heat[:, None]
+        * (
+            np.where(
+                (amid > 0).all(-1)[:, None],
+                np.array([s.share, 1 - s.share]),
+                (amid > 0).astype(float),
+            )
+            if active
+            else np.array([s.share, 1 - s.share])
+        )
     )
-    vol_res = vv[1][:, 0] - vv[0][:, 0] - dt * (volume_rate(u) + numerical)
+    energy_res -= dt * side_e
+    vol_res = vv[1][:, 0] - vv[0][:, 0] - dt * (volume_rate(u) + numerical + side_v)
     close(
         mass_res,
         np.zeros_like(mass_res),
         "component equations",
-        atol=5e-11 * np.maximum(abs(q[0][..., :nc] * volume[:, None, None]), 1e-30),
+        atol=5e-11
+        * np.maximum(
+            np.maximum(abs(q[0][..., :nc]), abs(q[1][..., :nc])) * volume[:, None, None], 1e-30
+        )
+        + 1e-22,
         rtol=0,
     )
     mscale = (q[0][..., :nc] * volume[:, None, None] * mw).sum(-1) * np.maximum(
         abs(velocities[0]), 1.0
     )
+    if active:
+        mscale = np.maximum(mscale, (rho * mw).sum(-1) * volume[:, None] * np.maximum(abs(u), 1.0))
     close(
         momentum_res, np.zeros_like(momentum_res), "momentum equations", atol=5e-11 * mscale, rtol=0
     )
@@ -429,7 +579,7 @@ def audit(model, before, after, report):
         energy_res,
         np.zeros_like(energy_res),
         "energy equations",
-        atol=5e-11 * abs(q[0][..., -1]) * volume[:, None] + 1e-22,
+        atol=5e-11 * np.maximum(abs(q[0][..., -1]), abs(q[1][..., -1])) * volume[:, None] + 1e-22,
         rtol=0,
     )
     close(vol_res, np.zeros_like(vol_res), "volume equations", atol=5e-11 * volume, rtol=0)
@@ -463,10 +613,15 @@ def audit(model, before, after, report):
         augmented.append(stock)
     # Conserved packet order is N, M, E; the runtime pipe ledger is N, E, M.
     global_defect = augmented[1] - augmented[0]
-    global_defect -= external
+    global_defect -= external + side_total
     global_defect[nc] -= wall_impulse + cap_impulse
-    global_defect[-1] -= cap_work
+    global_defect[-1] -= cap_work + actuator
     allowance = 5e-11 * np.sum(abs(q[0] * volume[:, None, None]), axis=(0, 1)) + 1e-22
+    # An externally supplied component can have exactly zero old stock.
+    # Subtracting its actual incoming transfer still incurs floating-point
+    # cancellation. Bound that arithmetic by the real operands, not a floor
+    # on the absent material and not a relaxed nonlinear tolerance.
+    allowance += 64 * np.finfo(float).eps * (abs(side_total) + abs(external))
     # A pipe starting from rest has zero old momentum, but its wall and open
     # face pressure impulses can be large and nearly cancel. Include only a
     # machine-roundoff bound on those actual operands, not a new relative

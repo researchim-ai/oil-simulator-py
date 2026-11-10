@@ -285,7 +285,10 @@ class PRCapillaryAxialPipe:
         al, ar = amid[i], amid[j]
         da = ar[:, 0] - al[:, 0]
         cl, cr = (2 * al + ar) / 6, (al + 2 * ar) / 6
-        uface = (cl * velocity[i] + cr * velocity[j]).sum(-1)
+        vl, vr = velocity[i], velocity[j]
+        if s.phase_support == "active":
+            vl, vr = torch.where(al > 0, vl, vr), torch.where(ar > 0, vr, vl)
+        uface = (cl * vl + cr * vr).sum(-1)
         path = da * uface
         if periodic:
             physical_dv_rate = -area / 2 * (path + torch.roll(path, 1, 0))
@@ -311,6 +314,11 @@ class PRCapillaryAxialPipe:
             s.discrete_pressure(h0, h1) if potential_override is None else potential_override
         )
         conjugate = area / 2 * (potential[i] + potential[j]) * da
+        if s.phase_support == "active":
+            cl, cr = (
+                torch.where(al > 0, cl + torch.where(ar > 0, 0.0, cr), 0.0),
+                torch.where(ar > 0, cr + torch.where(al > 0, 0.0, cl), 0.0),
+            )
         force = (
             torch.zeros_like(velocity)
             .index_add(0, i, conjugate[:, None] * cl)
@@ -420,6 +428,14 @@ class PRCapillaryAxialPipe:
         These are flux integrals, never a partition of the global residual.
         Wall endpoints have no material or capillary-work port.
         """
+        if self.source.phase_support == "active":
+            cached = getattr(self, "_active_port_cache", None)
+            if cached is None or cached[:2] != (
+                _digest(before.to_dict()),
+                _digest(after.to_dict()),
+            ):
+                raise ValueError("Active phase events require the accepted step's limiting traces")
+            return cached[2]
         if self.pipe.boundary_mode == "periodic":
             return (None, None)
         dt = after.time_s - before.time_s
@@ -462,7 +478,13 @@ class PRCapillaryAxialPipe:
             )
         return tuple(rows)
 
-    def step(self, state, dt_s):
+    def step(self, state, dt_s, *, phase_controls=None):
+        if self.source.phase_support == "active":
+            from .pr_active_capillary_axial import active_step
+
+            return active_step(self, state, dt_s, phase_controls=phase_controls)
+        if phase_controls is not None:
+            raise ValueError("Phase controls require active capillary phase support")
         p, s, f = self.pipe, self.source, self.pipe.fluid
         initial = p.inspect(state)
         if _digest(s.to_dict()) != s.model_id or _digest(self.to_dict()) != self.model_id:
@@ -818,9 +840,9 @@ class PRCapillaryAxialPipe:
             "qualification": "Uniform positive two-phase PR capillary line with periodic, reflecting or maintained faces; no phase-topology-change or field qualification; material wall resultant includes spatial truncation error",
         }
 
-    def step_coupled(self, state, dt_s):
+    def step_coupled(self, state, dt_s, *, phase_controls=None):
         """First-order axial/normal split, both on the same real PR stocks/F."""
-        transport, axial = self.step(state, dt_s)
+        transport, axial = self.step(state, dt_s, phase_controls=phase_controls)
         final, normal = self.source.apply(transport, axial["dt_s"])
         return final, {
             "state": final.to_dict(),
@@ -840,6 +862,7 @@ class PRCapillaryAxialPipe:
         minimum_step_s=1e-20,
         maximum_attempts=10000,
         normal_relaxation=False,
+        phase_controls=None,
     ):
         """Reach the report clock exactly; failed trials never mutate stocks."""
         if type(normal_relaxation) is not bool:
@@ -872,7 +895,7 @@ class PRCapillaryAxialPipe:
                 raise HydraulicConvergenceError("Capillary axial minimum step/clock reached")
             try:
                 trial, record = (self.step_coupled if normal_relaxation else self.step)(
-                    current, attempt
+                    current, attempt, phase_controls=phase_controls
                 )
             except (HydraulicConvergenceError, ConservationError, PropertyModelError) as exc:
                 rejected.append({"time_s": current.time_s, "dt_s": attempt, "reason": str(exc)})

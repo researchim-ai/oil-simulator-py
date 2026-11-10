@@ -21,7 +21,13 @@ from surface.pr_capillary_axial import PRCapillaryAxialPipe
 from surface.pr_capillary_pressure import PRCapillaryPressure
 
 
-def audit(system, before, after, report, *, normal_relaxation=True, heaters=None):
+def audit(
+    system, before, after, report, *, normal_relaxation=True, heaters=None, phase_controls=None
+):
+    coupling = system.get("coupling", "imex")
+    if report.get("coupling", "imex") != coupling or not report.get("coupling_converged", True):
+        raise ValueError("Facility coupling declaration differs or has not converged")
+    boundary_version = 0 if coupling == "imex" else 1
     if (
         before.model_id != _digest(system)
         or after.model_id != before.model_id
@@ -130,7 +136,7 @@ def audit(system, before, after, report, *, normal_relaxation=True, heaters=None
                     if fraction == 0:
                         continue
                     active_names.add(slot)
-                    if version == 0:
+                    if version == boundary_version:
                         phase = model.boundaries[side][slot]
                         pressure, x, q = sample((low + high) / 2, i)
                         volume = fraction * p.area * p.lengths[0 if side == 0 else -1]
@@ -175,15 +181,18 @@ def audit(system, before, after, report, *, normal_relaxation=True, heaters=None
                 height = fractions.get(source.liquid, 0.0) * p.area / source.width
                 heights.append(height)
                 ci = 0 if side == 0 else -1
-                # Shape work compares old/new exterior geometry on the SAME
-                # final pipe stock, rather than assigning its bulk F change.
-                hfinal = dict(newp[name].cells[ci])[source.liquid].volume_m3 / (
+                # Explicit coupling changes exterior geometry AFTER the pipe;
+                # implicit coupling changes it BEFORE the end-profile pipe
+                # solve. Each declared first-order ordering has its own work.
+                shape_state = newp[name] if coupling == "imex" else oldp[name]
+                phase = dict(shape_state.cells[ci]).get(source.liquid)
+                hfinal = (phase.volume_m3 if phase is not None else 0.0) / (
                     source.width * p.lengths[ci]
                 )
                 boundary_energy[version][name, side] = (
                     source.sigma * source.width / (2 * p.lengths[ci]) * (hfinal - height) ** 2
                 )
-                if version == 0:
+                if version == boundary_version:
                     if set(model.boundaries[side]) != active_names:
                         raise ValueError("Absent aperture phase acquired ghost stock")
                     close(
@@ -200,9 +209,12 @@ def audit(system, before, after, report, *, normal_relaxation=True, heaters=None
                         atol=0,
                         rtol=0,
                     )
-            h = np.array([dict(c)[source.liquid].volume_m3 for c in ps.cells]) / (
-                source.width * np.array(p.lengths)
-            )
+            h = np.array(
+                [
+                    dict(c)[source.liquid].volume_m3 if source.liquid in dict(c) else 0.0
+                    for c in ps.cells
+                ]
+            ) / (source.width * np.array(p.lengths))
             surf = source.sigma * source.width / (2 * p.lengths[0]) * np.sum(np.diff(h) ** 2)
             for side, height in enumerate(heights):
                 if height is not None:
@@ -232,6 +244,44 @@ def audit(system, before, after, report, *, normal_relaxation=True, heaters=None
                     energy_terms.append(
                         sign * (phase.total_energy_j + gravity * p.elevations[0] * mass)
                     )
+    from dataclasses import asdict, is_dataclass
+
+    commands = {} if phase_controls is None else phase_controls
+    normalized = {
+        name: {
+            str(i): {
+                **command,
+                "inlet_phase": asdict(command["inlet_phase"])
+                if is_dataclass(command["inlet_phase"])
+                else command["inlet_phase"],
+            }
+            for i, command in cells.items()
+        }
+        for name, cells in commands.items()
+    }
+    if _digest(report.get("phase_controls", {})) != _digest(normalized):
+        raise ValueError("Facility side-port request differs")
+    for name, model in models.items():
+        body = report["pipes"][name]
+        axial = body["axial"] if normal_relaxation else body
+        if _digest(axial.get("phase_controls", {})) != _digest(normalized.get(name, {})):
+            raise ValueError("Pipe side-port request differs from facility command")
+        side = axial.get("sideport_transfer_n_m_e", [0.0] * (nc + 2))
+        for j, value in enumerate(side[:-2]):
+            number_terms[j].append(-value)
+        ports = [p for p in system["lines"][name]["ports"] if p is not None]
+        gravity = system["columns"][ports[0]["column"]]["gravity_m_s2"] if ports else 0.0
+        mass = math.fsum(
+            v * c.molar_mass_kg_mol for v, c in zip(side[:-2], model.pipe.fluid.components)
+        )
+        energy_terms.extend(
+            (
+                -side[-1],
+                -axial.get("sideport_actuator_work_j", 0.0),
+                -mass * gravity * model.pipe.elevations[0],
+            )
+        )
+        entropy_terms.append(-axial.get("sideport_incoming_entropy_j_k", 0.0))
     defects = []
     for name, column in system["columns"].items():
         old, new = oldc[name], newc[name]
@@ -337,5 +387,5 @@ def audit(system, before, after, report, *, normal_relaxation=True, heaters=None
         "maximum_column_energy_defect_j": max(defects),
         "global_component_energy_residuals": residual,
         "entropy_production_j_k": production,
-        "qualification": "Independent scalar PR profiles, finite aperture areas and every pipe/port/column/global balance of the declared partitioned graph; no empirical or monolithic-network claim",
+        "qualification": "Independent scalar PR profiles, finite aperture areas and every pipe/port/column/global balance with the declared initial/end-profile coupling and shape-work ordering; no empirical or monolithic-Newton claim",
     }

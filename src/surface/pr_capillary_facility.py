@@ -1,10 +1,12 @@
-"""Synchronous conservative capillary lines sharing finite gravity columns.
+"""Conservative capillary lines sharing finite gravity columns.
 
 Columns are actual graph vertices, lines are edges; parallel edges and
 cycles do not clone inventories. Pipe solves use beginning-of-step column
 profiles. Their accepted per-port transfers are aggregated before any
 column is updated, including gravitational enthalpy and end-geometry work.
-This is first-order partitioned IMEX, not a monolithic facility Newton.
+Optional nonlinear iteration closes flows against actual END profiles,
+with a consistent change of the surface-work ordering. Both schemes are
+first-order split operators, not a monolithic facility Newton matrix.
 """
 
 import math
@@ -66,7 +68,24 @@ class PRCapillaryFacilityState:
 
 
 class PRCapillaryFacility:
-    def __init__(self, lines, columns):
+    def __init__(
+        self,
+        lines,
+        columns,
+        *,
+        coupling="imex",
+        maximum_coupling_iterations=12,
+        maximum_schur_unknowns=96,
+    ):
+        if coupling not in ("imex", "implicit", "newton"):
+            raise ValueError("Facility coupling must be imex, implicit or newton")
+        if type(maximum_schur_unknowns) is not int or maximum_schur_unknowns < 1:
+            raise ValueError("Positive global Schur unknown budget required")
+        self.maximum_schur_unknowns = maximum_schur_unknowns
+        if type(maximum_coupling_iterations) is not int or maximum_coupling_iterations < 1:
+            raise ValueError("Positive nonlinear coupling iteration budget required")
+        self.coupling = coupling
+        self.maximum_coupling_iterations = maximum_coupling_iterations
         if not lines or not columns:
             raise ValueError("Nonempty named lines and finite columns required")
         if any(not isinstance(n, str) or not n for n in (*lines, *columns)):
@@ -142,7 +161,7 @@ class PRCapillaryFacility:
         self.model_id = _digest(self.to_dict())
 
     def to_dict(self):
-        return {
+        result = {
             "model": "pr_capillary_facility_imex_v1",
             "lines": {
                 n: {
@@ -155,11 +174,19 @@ class PRCapillaryFacility:
             },
             "columns": {n: c.to_dict() for n, c in self.columns.items()},
         }
+        if self.coupling != "imex":
+            result.update(
+                coupling=self.coupling, maximum_coupling_iterations=self.maximum_coupling_iterations
+            )
+        if self.coupling == "newton":
+            result["maximum_schur_unknowns"] = self.maximum_schur_unknowns
+        return result
 
     @classmethod
     def from_dict(cls, raw, *, device="cpu"):
         if (
-            set(raw) != {"model", "lines", "columns"}
+            set(raw) - {"coupling", "maximum_coupling_iterations", "maximum_schur_unknowns"}
+            != {"model", "lines", "columns"}
             or raw["model"] != "pr_capillary_facility_imex_v1"
         ):
             raise ValueError("Explicit capillary facility model required")
@@ -169,6 +196,9 @@ class PRCapillaryFacility:
                 for n, r in raw["lines"].items()
             },
             {n: StratifiedPRColumn.from_dict(c, device=device) for n, c in raw["columns"].items()},
+            coupling=raw.get("coupling", "imex"),
+            maximum_coupling_iterations=raw.get("maximum_coupling_iterations", 12),
+            maximum_schur_unknowns=raw.get("maximum_schur_unknowns", 96),
         )
 
     def initialize(self, pipes, columns, *, layer_slots=None, next_step_s=1e-7):
@@ -250,10 +280,13 @@ class PRCapillaryFacility:
         if hf is None:
             return 0.0
         ci = 0 if side == 0 else -1
-        h = dict(state.cells[ci])[s.liquid].volume_m3 / s.area[ci].item()
+        phase = dict(state.cells[ci]).get(s.liquid)
+        h = (phase.volume_m3 if phase is not None else 0.0) / (s.width * model.pipe.lengths[ci])
         return s.sigma * s.width / (2 * s.boundary_distances[side]) * (h - hf) ** 2
 
-    def ledger(self, before, after, *, external_heat_j=0.0):
+    def ledger(
+        self, before, after, *, external_heat_j=0.0, external_components=None, external_energy_j=0.0
+    ):
         old_models, new_models = self.inspect(before), self.inspect(after)
         nc = len(next(iter(self.lines.values()))["pipe"].fluid.names)
         oldp, newp = dict(before.pipes), dict(after.pipes)
@@ -283,16 +316,67 @@ class PRCapillaryFacility:
             for j in range(nc):
                 terms[j].extend((-oldc[name].component_moles[j], newc[name].component_moles[j]))
             terms[-1].extend((-oldc[name].total_energy_j, newc[name].total_energy_j))
-        terms[-1].append(-external_heat_j)
+        if external_components is not None:
+            for j, v in enumerate(external_components):
+                terms[j].append(-v)
+        terms[-1].extend((-external_heat_j, -external_energy_j))
         return [math.fsum(t) for t in terms], [
             128 * math.fsum(math.ulp(v) for v in t) + (1e-18 if j == nc else 1e-20)
             for j, t in enumerate(terms)
         ]
 
-    def step(self, state, dt_s, *, normal_relaxation=True, heaters=None):
+    def step(self, state, dt_s, *, normal_relaxation=True, heaters=None, phase_controls=None):
+        if self.coupling == "newton":
+            from .pr_facility_schur import solve_schur
+
+            return solve_schur(
+                self,
+                state,
+                dt_s,
+                normal_relaxation=normal_relaxation,
+                heaters=heaters,
+                phase_controls=phase_controls,
+            )
+        if self.coupling == "imex":
+            return self._trial(
+                state,
+                dt_s,
+                normal_relaxation=normal_relaxation,
+                heaters=heaters,
+                phase_controls=phase_controls,
+            )
+        boundary_state = state
+        for iteration in range(self.maximum_coupling_iterations):
+            end, report = self._trial(
+                state,
+                dt_s,
+                normal_relaxation=normal_relaxation,
+                heaters=heaters,
+                phase_controls=phase_controls,
+                boundary_state=boundary_state,
+            )
+            if report["coupling_converged"]:
+                report["nonlinear_coupling_iterations"] = iteration + 1
+                return end, report
+            # Only exterior profiles are iterated. Every pipe trial starts
+            # from the ORIGINAL pipe stocks and original report clock.
+            boundary_state = replace(state, columns=end.columns, layer_slots=end.layer_slots)
+        raise HydraulicConvergenceError("Implicit facility boundary coupling failed to converge")
+
+    def _trial(
+        self,
+        state,
+        dt_s,
+        *,
+        normal_relaxation=True,
+        heaters=None,
+        boundary_state=None,
+        phase_controls=None,
+    ):
         if type(normal_relaxation) is not bool:
             raise ValueError("Explicit normal relaxation switch required")
-        models = self.inspect(state)
+        initial_models = self.inspect(state)
+        models = initial_models if boundary_state is None else self._models(boundary_state)
         dt = _number(dt_s, "facility interval", positive=True)
         dt = (state.time_s + dt) - state.time_s
         if dt <= 0 or not math.isfinite(dt):
@@ -300,6 +384,9 @@ class PRCapillaryFacility:
         heaters = {} if heaters is None else dict(heaters)
         if set(heaters) - set(self.columns):
             raise ValueError("Unknown facility heater column")
+        phase_controls = {} if phase_controls is None else dict(phase_controls)
+        if set(phase_controls) - set(self.lines):
+            raise ValueError("Unknown facility phase-control line")
         heat, bath = {}, {}
         for name in self.columns:
             command = heaters.get(name, {"power_w": 0.0, "temperature_k": None})
@@ -317,9 +404,9 @@ class PRCapillaryFacility:
         pipes, pipe_reports, transfers = {}, {}, {}
         for name, model in models.items():
             final, report = (
-                model.step_coupled(oldp[name], dt)
+                model.step_coupled(oldp[name], dt, phase_controls=phase_controls.get(name))
                 if normal_relaxation
-                else model.step(oldp[name], dt)
+                else model.step(oldp[name], dt, phase_controls=phase_controls.get(name))
             )
             axial = report["axial"] if normal_relaxation else report
             axial_state = PRActiveMultifluidState.from_dict(axial["state"])
@@ -376,11 +463,15 @@ class PRCapillaryFacility:
                         if src.liquid in phases
                         else 0.0
                     )
-                    body = dict(pipes[line].cells[ci])[src.liquid].volume_m3 / (
+                    shape_state = pipes[line] if boundary_state is None else oldp[line]
+                    phase = dict(shape_state.cells[ci]).get(src.liquid)
+                    body = (phase.volume_m3 if phase is not None else 0.0) / (
                         a.pipe.lengths[ci] * src.width
                     )
                     value = src.sigma * src.width / (2 * a.pipe.lengths[ci]) * (body - height) ** 2
-                    work.append(value - self.boundary_energy(models[line], pipes[line], side))
+                    work.append(
+                        value - self.boundary_energy(initial_models[line], shape_state, side)
+                    )
                 shape = math.fsum(work)
                 required = target - shape
                 if abs(energy - required) <= 8 * math.ulp(energy) + 1e-20:
@@ -400,7 +491,37 @@ class PRCapillaryFacility:
         end = PRCapillaryFacilityState(
             tuple(pipes.items()), tuple(columns.items()), tuple(slots.items()), dt, self.model_id
         )
-        residual, tolerance = self.ledger(state, end, external_heat_j=math.fsum(heat.values()))
+        converged = boundary_state is None or (
+            end.columns == boundary_state.columns and end.layer_slots == boundary_state.layer_slots
+        )
+        if not converged:
+            # This is a nonlinear trial, never a partially accepted time step.
+            return end, {"coupling_converged": False}
+        external_components = [0.0] * len(next(iter(self.lines.values()))["pipe"].fluid.names)
+        external_energies, external_entropies = [], []
+        for name, row in self.lines.items():
+            ax = pipe_reports[name]["axial"] if normal_relaxation else pipe_reports[name]
+            side = ax.get("sideport_transfer_n_m_e", [0.0] * (len(external_components) + 2))
+            for j, value in enumerate(side[:-2]):
+                external_components[j] += value
+            attached = [port for port in row["ports"] if port is not None]
+            gravity = self.columns[attached[0]["column"]].gravity_m_s2 if attached else 0.0
+            mass = math.fsum(
+                v * c.molar_mass_kg_mol for v, c in zip(side[:-2], row["pipe"].fluid.components)
+            )
+            external_energies.append(
+                side[-1]
+                + ax.get("sideport_actuator_work_j", 0.0)
+                + mass * gravity * row["pipe"].elevations[0]
+            )
+            external_entropies.append(ax.get("sideport_incoming_entropy_j_k", 0.0))
+        residual, tolerance = self.ledger(
+            state,
+            end,
+            external_heat_j=math.fsum(heat.values()),
+            external_components=external_components,
+            external_energy_j=math.fsum(external_energies),
+        )
         if any(not math.isfinite(v) or abs(v) > t for v, t in zip(residual, tolerance)):
             raise ConservationError("Facility shared component/augmented energy balance failed")
         entropy_terms = []
@@ -418,6 +539,7 @@ class PRCapillaryFacility:
             )
             if heat[name]:
                 entropy_terms.append(-heat[name] / bath[name])
+        entropy_terms.extend(-v for v in external_entropies)
         production = math.fsum(entropy_terms)
         if production < -256 * math.fsum(math.ulp(v) for v in entropy_terms) - 1e-10:
             raise ConservationError("Facility entropy decreased")
@@ -425,14 +547,23 @@ class PRCapillaryFacility:
             "state": end.to_dict(),
             "dt_s": dt,
             "normal_relaxation": normal_relaxation,
+            "coupling": self.coupling,
+            "coupling_converged": True,
+            "nonlinear_coupling_iterations": 1,
             "pipe_models": {n: m.to_dict() for n, m in models.items()},
             "pipes": pipe_reports,
             "port_transfers": transfers,
+            "phase_controls": {
+                name: (
+                    pipe_reports[name]["axial"] if normal_relaxation else pipe_reports[name]
+                ).get("phase_controls", {})
+                for name in phase_controls
+            },
             "columns": column_reports,
             "conservation_residuals": residual,
             "roundoff_allowances": tolerance,
             "entropy_production_j_k": production,
-            "qualification": "Shared finite columns and horizontal capillary lines, first-order synchronous IMEX; fixed graph, positive axial phase support; not monolithic facility Newton",
+            "qualification": "Shared finite columns and horizontal capillary lines; first-order split pipe operator with initial or converged end-profile coupling; fixed graph, positive or active axial support with explicit material/actuator side-port ledgers; global reduced Newton is reported separately",
         }
 
     def advance(self, state, duration_s, *, maximum_attempts=1000, **commands):

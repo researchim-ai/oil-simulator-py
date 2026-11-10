@@ -238,3 +238,6 @@ opm-tests/
 !/benchmarks/results/pr_capillary_column_validation.json
 !/benchmarks/results/pr_dry_wall_validation.json
 !/benchmarks/results/pr_capillary_facility_validation.json
+!/benchmarks/results/pr_implicit_facility_validation.json
+!/benchmarks/results/pr_schur_newton_validation.json
+!/benchmarks/results/pr_active_capillary_facility_validation.json
