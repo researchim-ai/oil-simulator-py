@@ -386,6 +386,21 @@ class StratifiedPRColumn:
 
         return initial, lower, upper, evaluate, active, roots
 
+    def _check_locals(self, pressures, temperature, compositions, properties):
+        """Batch confirmation, followed by original full checks of every miss."""
+        if not pressures:
+            return
+        p = torch.cat(pressures)
+        x = torch.cat(compositions)
+        phi = torch.cat([q["log_fugacity_coefficients"] for q in properties])
+        confirmed = self.fluid.homogeneous_stability_mask(p, temperature, x, phi)
+        unresolved = torch.nonzero(~confirmed).flatten().cpu().tolist()
+        if unresolved:
+            packet = p[unresolved].cpu().tolist()
+            temp = float(self.fluid.tensor(temperature).cpu())
+            for i, pp in zip(unresolved, packet):
+                self._check_local(pp, temp, x[i], {"log_fugacity_coefficients": phi[i]})
+
     def _check_local(self, p, t, x, q):
         stable = self.fluid.flash_pt(p, t, x, _allow_pure_coexistence=True)
         active = x > 0
@@ -431,9 +446,7 @@ class StratifiedPRColumn:
             raise HydraulicConvergenceError("Stratified PR UV Newton rejected")
         m = len(roots)
         temp = float(data["temperature"].cpu())
-        for p, x, q in zip(data["pressures"], data["compositions"], data["properties"]):
-            for j in range(len(p)):
-                self._check_local(float(p[j].cpu()), temp, x[j], {k: v[j] for k, v in q.items()})
+        self._check_locals(data["pressures"], temp, data["compositions"], data["properties"])
         self._check_topology(data, roots)
         constants = self.fluid.tensor([0.0] * len(self.fluid.names)).index_copy(
             0, active, data["constants"]

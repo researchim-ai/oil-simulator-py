@@ -10,10 +10,19 @@ from dataclasses import asdict, dataclass
 
 import torch
 
+from .equilibrium_cache import FlashCache, cached_equilibrium
+from .equilibrium_stability_batch import stability_candidates
 from .liquid import HydraulicConvergenceError, PropertyModelError, _name, _number
 from .operation import _digest
 from .peng_robinson import PengRobinsonFluid, R
 from .peng_robinson_mixture import PengRobinsonMixture
+
+
+def _gibbs_logit_gradient(u, weighted_potential, probabilities, dim):
+    """Exact Gibbs--Duhem softmax/tanh gradient; EOS need not build an AD tape."""
+    return (weighted_potential - probabilities * weighted_potential.sum(dim, keepdim=True)) * (
+        1 - torch.tanh(u / 80).square()
+    )
 
 
 @dataclass(frozen=True)
@@ -310,7 +319,135 @@ class EquilibriumFluid:
             raise HydraulicConvergenceError("No nonsingular mechanically stable PR root")
         return result
 
-    def _stability(self, p, t, z, chemical, active):
+    def homogeneous_stability_mask(
+        self,
+        pressures,
+        temperatures,
+        compositions,
+        log_fugacity_coefficients,
+        *,
+        maximum_seed_rows=4096,
+    ):
+        """Confirm stable homogeneous states in bounded spatial batches.
+
+        False means "use the full individual flash", never "unstable" or
+        "ignore this point". Every original TPD start must resolve before a
+        point can be confirmed. Supports differ? Keep the scalar reference.
+        """
+        if type(maximum_seed_rows) is not int or maximum_seed_rows < 1:
+            raise ValueError("Positive stability batch budget required")
+        p, t = torch.broadcast_tensors(self.tensor(pressures), self.tensor(temperatures))
+        x, phi = self.tensor(compositions), self.tensor(log_fugacity_coefficients)
+        if p.ndim != 1 or x.shape != (len(p), len(self.components)) or phi.shape != x.shape:
+            raise ValueError("One pressure/temperature and component row per point required")
+        confirmed = torch.zeros_like(p, dtype=torch.bool)
+        if not len(p):
+            return confirmed
+        with torch.no_grad():
+            valid = (
+                torch.isfinite(p).all()
+                & torch.isfinite(t).all()
+                & torch.isfinite(x).all()
+                & torch.isfinite(phi).all()
+                & (p >= self.min_pressure_pa).all()
+                & (p <= self.max_pressure_pa).all()
+                & (t >= self.min_temperature_k).all()
+                & (t <= self.max_temperature_k).all()
+                & (x >= 0).all()
+                & ((x.sum(-1) - 1).abs() <= 1e-10).all()
+                & ((1 + self.kappa * (1 - torch.sqrt(t[:, None] / self.tc))) > 0).all()
+            )
+            if not bool(valid.cpu()):
+                raise PropertyModelError("Spatial stability states outside EOS domain")
+            support = x > 0
+            if not bool((support == support[0]).all().cpu()):
+                return confirmed
+            active = torch.nonzero(support[0]).flatten()
+            n = len(active)
+            seeds = 3 + 2 * n
+            if seeds > maximum_seed_rows:
+                return confirmed
+            cache = getattr(self, "_active_flash_cache", None)
+            width = max(1, maximum_seed_rows // seeds)
+            omega = self.tensor([c.acentric_factor for c in self.components])
+            eye = torch.eye(n, device=self.device, dtype=torch.float64)
+            for begin in range(0, len(p), width):
+                end = min(len(p), begin + width)
+                pp, tt, xx, ph = p[begin:end], t[begin:end], x[begin:end], phi[begin:end]
+                feed = torch.vmap(self.tensor_homogeneous)(pp, tt, xx)
+                matches = (
+                    (ph[:, active] - feed["log_fugacity_coefficients"][:, active]).abs().amax(-1)
+                    <= 2e-7
+                ) & feed["valid"]
+                if n == 1:
+                    confirmed[begin:end] = matches
+                    continue
+                xa = xx[:, active]
+                base = torch.log(xa)
+                lk = torch.log(self.pc[active] / pp[:, None]) + 5.373 * (1 + omega[active]) * (
+                    1 - self.tc[active] / tt[:, None]
+                )
+                starts = torch.cat(
+                    (
+                        torch.stack((base, base + lk, base - lk), 1),
+                        torch.log(0.98 * eye[None, :, :] + 0.02 * xa[:, None, :]),
+                        torch.log(0.5 * eye[None, :, :] + 0.5 * xa[:, None, :]),
+                    ),
+                    1,
+                )
+                bounded = 80 * torch.tanh(starts / 80)
+                points = (bounded[:, :, :-1] - bounded[:, :, -1:]).reshape(-1, n - 1)
+                mu = base + feed["log_fugacity_coefficients"][:, active]
+                try:
+                    value, _, _, accepted = stability_candidates(
+                        self,
+                        pp[:, None].expand(-1, seeds).reshape(-1),
+                        tt[:, None].expand(-1, seeds).reshape(-1),
+                        mu[:, None, :].expand(-1, seeds, -1).reshape(-1, n),
+                        active,
+                        points,
+                    )
+                    resolved = accepted.reshape(end - begin, seeds).all(-1)
+                    stable = value.reshape(end - begin, seeds).amin(-1) >= -1e-8
+                    confirmed[begin:end] = matches & resolved & stable
+                except torch.linalg.LinAlgError:
+                    accepted = torch.zeros(len(points), device=self.device, dtype=torch.bool)
+                if isinstance(cache, FlashCache):
+                    counts = (
+                        torch.stack((accepted.sum(), confirmed[begin:end].sum())).cpu().tolist()
+                    )
+                    cache.stability_seeds += len(points)
+                    cache.stability_batched_seeds += int(counts[0])
+                    cache.spatial_stability_batches += 1
+                    cache.spatial_stability_points += end - begin
+                    cache.spatial_stability_confirmed += int(counts[1])
+        return confirmed
+
+    def _stability_predictors(self, p, t, z, chemical, active, starts):
+        """All original starts, with independent batched tangents and fallback."""
+        bounded = 80 * torch.tanh(torch.stack(starts) / 80)
+        point = (bounded[:, :-1] - bounded[:, -1:]).detach()
+        value, w, q, accepted = stability_candidates(
+            self,
+            p.expand(len(starts)),
+            t.expand(len(starts)),
+            chemical[active].expand(len(starts), -1),
+            active,
+            point,
+        )
+        mask = accepted.cpu().tolist()
+        cache = getattr(self, "_active_flash_cache", None)
+        if isinstance(cache, FlashCache):
+            cache.stability_seeds += len(mask)
+            cache.stability_batched_seeds += sum(mask)
+        return [
+            (value[i].detach(), w[i].detach(), {k: v[i].detach() for k, v in q.items()})
+            if yes
+            else None
+            for i, yes in enumerate(mask)
+        ]
+
+    def _stability(self, p, t, z, chemical, active, *, _accelerated=True):
         """Numerical multistart TPD minimization, never a global certificate."""
         za = z[active]
         n = len(za)
@@ -329,8 +466,21 @@ class EquilibriumFluid:
         starts.extend(
             torch.log(0.5 * torch.eye(n, device=self.device, dtype=torch.float64) + 0.5 * za)
         )
+        try:
+            accelerated = (
+                self._stability_predictors(p, t, z, chemical, active, starts)
+                if _accelerated
+                else [None] * len(starts)
+            )
+        except torch.linalg.LinAlgError:
+            # A failed predictor is not a failed phase test: every original
+            # seed still has the independent reference minimizer below.
+            accelerated = [None] * len(starts)
         minima = []
-        for seed in starts:
+        for seed, predicted in zip(starts, accelerated):
+            if predicted is not None:
+                minima.append(predicted)
+                continue
             # Independent histories avoid one converged/boundary seed spoiling
             # the curvature model for all other composition searches.
             u = seed.detach().clone().requires_grad_(True)
@@ -360,11 +510,14 @@ class EquilibriumFluid:
                 optimizer.zero_grad()
                 # Bound only the optimizer's trial coordinates, not the final
                 # equilibrium composition. Newton below uses unbounded logits.
-                wa, _, _, delta = values(80 * torch.tanh(u / 80))
-                # Gibbs-Duhem: sum(x_i d ln phi_i) = 0 at fixed P,T.
-                loss = (wa * delta.detach()).sum()
-                loss.backward()
-                return loss
+                # This is exactly the previous detached-delta objective's
+                # softmax/tanh gradient, without recording the entire cubic
+                # EOS graph only to throw its derivatives away.
+                with torch.no_grad():
+                    wa, _, _, delta = values(80 * torch.tanh(u / 80))
+                    weighted = wa * delta
+                    u.grad = _gibbs_logit_gradient(u, weighted, wa, -1)
+                    return weighted.sum()
 
             with torch.enable_grad():
                 optimizer.step(closure)
@@ -440,10 +593,13 @@ class EquilibriumFluid:
 
         def closure():
             optimizer.zero_grad()
-            a, _, _, _, mu = decode(80 * torch.tanh(u / 80))
-            loss = (a * mu.detach()).sum()
-            loss.backward()
-            return loss
+            with torch.no_grad():
+                bounded = 80 * torch.tanh(u / 80)
+                a, _, _, _, mu = decode(bounded)
+                weighted = a * mu
+                probabilities = torch.log_softmax(bounded, dim=0).exp()
+                u.grad = _gibbs_logit_gradient(u, weighted, probabilities, 0)
+                return weighted.sum()
 
         with torch.enable_grad():
             optimizer.step(closure)
@@ -490,6 +646,7 @@ class EquilibriumFluid:
             error.detach(),
         )
 
+    @cached_equilibrium
     def flash_pt(
         self, pressure_pa, temperature_k, mole_fractions, *, _allow_pure_coexistence=False
     ):
@@ -569,6 +726,73 @@ class EquilibriumFluid:
         }
 
     def _flash_property(self, p, target, z, key, temperature_guess_k=None):
+        """Cheap homogeneous caloric predictor, accepted ONLY by full PT flash.
+
+        No phase search is skipped in an accepted result. The original
+        bracketed multiphase/latent-heat solve remains the fallback.
+        """
+        target = _number(target, key)
+        guess = (
+            0.5 * (self.min_temperature_k + self.max_temperature_k)
+            if temperature_guess_k is None
+            else _number(temperature_guess_k, "temperature_guess_k", positive=True)
+        )
+        if not self.min_temperature_k <= guess <= self.max_temperature_k:
+            raise PropertyModelError("Temperature guess outside caloric domain")
+        pp, zz = self.tensor(p).detach(), self.tensor(z).detach()
+        self._validate(pp, self.tensor(guess), zz)
+        tolerance = 1e-7 + abs(target) * 1e-10
+        previous = math.inf
+        for _ in range(12):
+            with torch.no_grad():
+                q = self.tensor_homogeneous(pp, self.tensor(guess), zz)
+                derivative = q["homogeneous_molar_cp_j_mol_k"]
+                if key == "molar_entropy_j_mol_k":
+                    derivative = derivative / guess
+                packet = torch.stack(
+                    (
+                        q[key],
+                        derivative,
+                        q["valid"].to(torch.float64),
+                        q["coexistence_degenerate"].to(torch.float64),
+                    )
+                )
+                value, slope, valid, degenerate = packet.cpu().tolist()
+            error = value - target
+            if (
+                not valid
+                or degenerate
+                or not math.isfinite(error)
+                or not math.isfinite(slope)
+                or slope <= 0
+            ):
+                break
+            if abs(error) <= 0.25 * tolerance:
+                try:
+                    result = self.flash_pt(pp, guess, zz)
+                except (HydraulicConvergenceError, PropertyModelError):
+                    break
+                defect = float(result[key].detach().cpu()) - target
+                if result["phase_count"] == 1 and abs(defect) <= tolerance:
+                    cache = getattr(self, "_active_flash_cache", None)
+                    if isinstance(cache, FlashCache):
+                        cache.caloric_fast_accepts += 1
+                    return dict(result, property_residual=self.tensor(defect))
+                break
+            if abs(error) >= previous:
+                break
+            previous = abs(error)
+            change = max(-50.0, min(50.0, -error / slope))
+            trial = max(self.min_temperature_k, min(self.max_temperature_k, guess + change))
+            if trial == guess:
+                break
+            guess = trial
+        cache = getattr(self, "_active_flash_cache", None)
+        if isinstance(cache, FlashCache):
+            cache.caloric_bracket_fallbacks += 1
+        return self._flash_property_bracketed(p, target, z, key, temperature_guess_k)
+
+    def _flash_property_bracketed(self, p, target, z, key, temperature_guess_k=None):
         p = self.tensor(p)
         target = _number(target, key)
         low, high = self.min_temperature_k, self.max_temperature_k
@@ -645,6 +869,7 @@ class EquilibriumFluid:
                 hi, fh = t, error
         raise HydraulicConvergenceError("Thermal flash failed to converge")
 
+    @cached_equilibrium
     def flash_ph(self, pressure_pa, molar_enthalpy_j_mol, mole_fractions, temperature_guess_k=None):
         return self._flash_property(
             pressure_pa,
@@ -654,6 +879,7 @@ class EquilibriumFluid:
             temperature_guess_k,
         )
 
+    @cached_equilibrium
     def flash_ps(
         self, pressure_pa, molar_entropy_j_mol_k, mole_fractions, temperature_guess_k=None
     ):

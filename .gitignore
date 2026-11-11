@@ -243,3 +243,5 @@ opm-tests/
 !/benchmarks/results/pr_active_capillary_facility_validation.json
 !/benchmarks/results/pr_surface_release_progress.json
 !/benchmarks/results/fim_dynamic_pr_receiver_validation.json
+!/benchmarks/results/fim_dynamic_pr_receiver_optimization.json
+!/benchmarks/results/pr_spatial_stability_validation.json

@@ -420,7 +420,14 @@ class StratifiedPRFlow(StratifiedPRThermal):
                 constants,
             )
             try:
-                candidate, report = c._solve(n, energy, seed, order)
+                profile_acceptance = "verified_joint_flow_iterate"
+                try:
+                    candidate, report = c._accept(
+                        n, energy, seed, order, result["column_variables"], solver_success=ok
+                    )
+                except (HydraulicConvergenceError, PropertyModelError):
+                    profile_acceptance = "refined_fixed_inventory_profile"
+                    candidate, report = c._solve(n, energy, seed, order)
             except PropertyModelError:
                 topology_attempts += 1
                 if topology_attempts > 4:
@@ -430,15 +437,13 @@ class StratifiedPRFlow(StratifiedPRThermal):
                 seed = c._seed(n, energy, seed[3], seed[4])
                 previous = None
                 continue
-            for port in result["ports"]:
-                for h, area, p, x, q in port["pieces"]:
-                    for j in range(order):
-                        c._check_local(
-                            float(p[j].cpu()),
-                            float(data["temperature"].cpu()),
-                            x[j],
-                            {k: v[j] for k, v in q.items()},
-                        )
+            pieces = [piece for port in result["ports"] for piece in port["pieces"]]
+            c._check_locals(
+                [piece[2] for piece in pieces],
+                data["temperature"],
+                [piece[3] for piece in pieces],
+                [piece[4] for piece in pieces],
+            )
             if abs(candidate.temperature_k - float(data["temperature"].cpu())) > 1e-6:
                 raise ConservationError("Flow/equilibrium temperatures differ")
             if max(
@@ -570,6 +575,7 @@ class StratifiedPRFlow(StratifiedPRThermal):
                         candidate, tw, state.time_s + dt, state.next_step_s, self.model_id
                     ), {
                         "dt_s": dt,
+                        "profile_acceptance": profile_acceptance,
                         "column_state": candidate.to_dict(),
                         "wall_temperature_k": tw,
                         "ambient_heat_j": dt * ambient,

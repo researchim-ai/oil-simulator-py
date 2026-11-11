@@ -20,6 +20,7 @@ from .thermal_surface_boundary import characterize_well_thermal_boundaries
 
 try:
     from ..surface.component_energy import StockComponentAssay
+    from ..surface.equilibrium_cache import cached_flashes
     from ..surface.liquid import ConservationError, HydraulicConvergenceError, PropertyModelError
     from ..surface.operation import _digest
     from ..surface.stratified_pr_flow import (
@@ -31,6 +32,7 @@ try:
     from ..surface.time_interval import split_step_s
 except ImportError:
     from surface.component_energy import StockComponentAssay
+    from surface.equilibrium_cache import cached_flashes
     from surface.liquid import ConservationError, HydraulicConvergenceError, PropertyModelError
     from surface.operation import _digest
     from surface.stratified_pr_flow import (
@@ -213,7 +215,7 @@ class DynamicReceiverCoupledFIM:
             **{key: getattr(base, key) for key in keys},
         )
 
-    def _backward_euler(self, old, dt, current_time):
+    def _backward_euler(self, old, dt, current_time, *, pressure_guess_pa=None):
         s, net = self.solver, self.solver.wells.surface_network
         initial = _StepState(s)
         before = self._inventory()
@@ -222,6 +224,12 @@ class DynamicReceiverCoupledFIM:
         domain = net.model.pressure_bounds_pa
         fluid = self.receiver.column.fluid
         lo, hi = max(domain[0], fluid.min_pressure_pa), min(domain[1], fluid.max_pressure_pa)
+        if (
+            pressure_guess_pa is not None
+            and math.isfinite(pressure_guess_pa)
+            and lo <= pressure_guess_pa <= hi
+        ):
+            point = pressure_guess_pa
 
         def reset():
             nonlocal initial
@@ -447,6 +455,16 @@ class DynamicReceiverCoupledFIM:
         }
 
     def step(self, dt, current_time=None):
+        # Scratch lives for this complete coarse/two-half transaction only.
+        # Exact keys include model tensor versions, so no old phase region or
+        # rejected inventory can become a stale physical boundary.
+        with cached_flashes(self.receiver.column.fluid) as cache:
+            accepted = self._step_impl(dt, current_time)
+            if accepted:
+                self.report["property_evaluations"] = cache.statistics()
+            return accepted
+
+    def _step_impl(self, dt, current_time=None):
         if isinstance(dt, bool) or not math.isfinite(dt) or dt <= 0:
             raise ValueError("Coupled receiver step must be finite and positive")
         self._validate_binding()
@@ -474,8 +492,14 @@ class DynamicReceiverCoupledFIM:
             initial = _StepState(self.solver)
             self.solver.wells.surface_network = network
             a, b = split_step_s(old.time_s, dt)
-            middle, first = self._backward_euler(old, a, old.time_s)
-            end, second = self._backward_euler(middle, b, middle.time_s)
+            # Use the already solved coarse endpoint as a pressure PREDICTOR
+            # for the half steps; their states, flows and error are still
+            # solved and checked independently from the same old reservoir.
+            p0, pc = self._pressure(old), self._pressure(coarse)
+            middle, first = self._backward_euler(
+                old, a, old.time_s, pressure_guess_pa=p0 + (pc - p0) * (a / dt)
+            )
+            end, second = self._backward_euler(middle, b, middle.time_s, pressure_guess_pa=pc)
             error = self._temporal_error(coarse, end, coarse_reservoir)
             if not math.isfinite(error) or error > 1:
                 raise HydraulicConvergenceError("Whole-system temporal error above tolerance")
