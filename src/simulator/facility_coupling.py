@@ -56,7 +56,9 @@ class CoupledFacilityControl:
 
 
 class FacilityCoupledFIM:
-    def __init__(self, solver, facility, control=None):
+    def __init__(
+        self, solver, facility, control=None, *, energy_process=None, energy_controls=None
+    ):
         if not isinstance(solver.wells, SurfaceCoupledBlackOilWells):
             raise PropertyModelError(
                 "Facility feedback requires a physical black-oil gathering FIM"
@@ -90,6 +92,13 @@ class FacilityCoupledFIM:
             for key, value in table.items()
         ):
             raise PropertyModelError("Gathering/facility PVTO differs")
+        if energy_process is not None:
+            from .accepted_well_energy import AcceptedWellEnergyProcess
+
+            if not isinstance(energy_process, AcceptedWellEnergyProcess):
+                raise TypeError("Expected AcceptedWellEnergyProcess")
+        self.energy_process = energy_process
+        self.energy_controls = {} if energy_controls is None else dict(energy_controls)
         self.solver, self.facility = solver, facility
         self.control = (
             CoupledFacilityControl()
@@ -189,6 +198,8 @@ class FacilityCoupledFIM:
         }
         if set(self.controls) - allowed_controls:
             raise ValueError("Unsupported coupled facility controls; feed scaling is forbidden")
+        if getattr(self, "energy_controls", {}) and getattr(self, "energy_process", None) is None:
+            raise PropertyModelError("Caloric controls require an explicit energy process")
         solver = self.solver
         net = solver.wells.surface_network
         if net.by_name[net.root].pressure_pa != self.facility.stages[0].pressure_pa:
@@ -299,6 +310,14 @@ class FacilityCoupledFIM:
                 if not ok:
                     raise HydraulicConvergenceError("Selected coupled facility mode failed replay")
             material_account = self._material_account(inventory_before, plant, dt)
+            energy = None
+            if getattr(self, "energy_process", None) is not None:
+                energy = self.energy_process.run(
+                    solver.wells.surface_report["wells"],
+                    dt,
+                    None if previous is None else previous.get("energy_process"),
+                    controls=getattr(self, "energy_controls", {}),
+                )
             self.report = {
                 "model": "outer_rate_cap_coupled_blackoil_fim_facility",
                 "fraction": chosen,
@@ -310,6 +329,8 @@ class FacilityCoupledFIM:
                 "applied_rate_caps_m3_day": [cap * chosen for cap in caps],
                 "scope": "Common producer rate-cap multiplier; each trial solves the same FIM step. No monolithic facility Jacobian.",
             }
+            if energy is not None:
+                self.report["energy_process"] = energy
             self.last_attempt = {"success": True, "evaluations": len(trace)}
             accepted = True
             return True

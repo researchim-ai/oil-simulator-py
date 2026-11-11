@@ -61,6 +61,15 @@ class Simulator:
             )
         
         self.facility_coupling = None
+        if (sim_params.get('coupled_facility') is not None and
+                sim_params.get('dynamic_receiver') is not None):
+            raise ValueError('Choose coupled_facility or dynamic_receiver; two drivers cannot own one FIM step')
+        if sim_params.get('dynamic_receiver') is not None:
+            if self.solver_type != 'fully_implicit':
+                raise ValueError('dynamic_receiver requires black-oil FIM')
+            from .dynamic_receiver_coupling import DynamicReceiverCoupledFIM
+            self.facility_coupling = DynamicReceiverCoupledFIM.from_dict(
+                self.fim_solver, sim_params['dynamic_receiver'], device=self.device)
         if sim_params.get('coupled_facility') is not None:
             if self.solver_type != 'fully_implicit':
                 raise ValueError('coupled_facility requires black-oil FIM')
@@ -70,10 +79,16 @@ class Simulator:
             except ImportError:
                 from surface import SurfaceFacility
             spec = sim_params['coupled_facility']
-            if set(spec) - {'facility', 'control'}:
+            if set(spec) - {'facility', 'control', 'energy_process', 'energy_controls'}:
                 raise ValueError('Unknown coupled_facility fields')
+            energy_process = None
+            if spec.get('energy_process') is not None:
+                from .accepted_well_energy import AcceptedWellEnergyProcess
+                energy_process = AcceptedWellEnergyProcess.from_dict(
+                    spec['energy_process'], device=self.device)
             self.facility_coupling = FacilityCoupledFIM(
-                self.fim_solver, SurfaceFacility.from_dict(spec['facility']), spec.get('control'))
+                self.fim_solver, SurfaceFacility.from_dict(spec['facility']), spec.get('control'),
+                energy_process=energy_process, energy_controls=spec.get('energy_controls'))
 
         # Инициализация проводимостей для IMPES схемы
         if self.solver_type == 'impes':

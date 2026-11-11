@@ -206,7 +206,9 @@ class StratifiedPRThermal:
             solver = TorchNewton(f.device, maximum_iterations=40, dense_limit=768)
             solver.host_convergence = True
             with torch.no_grad():
-                y, r, ok, _ = solver.solve(residual, initial, lower, upper, tolerance=3e-12)
+                y, r, ok, evaluations = solver.solve(
+                    residual, initial, lower, upper, tolerance=3e-12
+                )
                 r = residual(y)
                 _, data = evaluate(y)
             if not bool((ok & torch.isfinite(r).all() & (r.abs().max() < 1e-9)).cpu()):
@@ -228,8 +230,20 @@ class StratifiedPRThermal:
                 constants,
             )
             energy = old.total_energy_j + dt * q
-            # Independent fixed-N/E residual and local stability checks before acceptance.
-            candidate, report = c._solve(n, energy, solved_seed, order)
+            # The coupled thermal iterate ALREADY solves this exact fixed-N/E
+            # collocation problem. Validate that iterate with all original
+            # EOS, stability, topology and quadrature checks. Rebuilding a
+            # hydrostatic profile in another Newton is normally redundant.
+            # Retain the original solve as a fallback if rescaling the energy
+            # residual or a near-boundary refinement requires more precision.
+            profile_acceptance = "verified_thermal_iterate"
+            try:
+                candidate, report = c._accept(
+                    n, energy, seed, order, y, evaluations=evaluations, solver_success=ok
+                )
+            except (HydraulicConvergenceError, ConservationError, PropertyModelError):
+                profile_acceptance = "refined_fixed_inventory_profile"
+                candidate, report = c._solve(n, energy, solved_seed, order)
             if abs(candidate.temperature_k - t) > 1e-6:
                 raise ConservationError("Thermal/equilibrium temperatures differ")
             if previous is not None:
@@ -297,6 +311,7 @@ class StratifiedPRThermal:
                         "quadrature_error_ratio": max(errors),
                         "phase_count": len(roots),
                         "seed_strategy": seed_strategy,
+                        "profile_acceptance": profile_acceptance,
                     }
             previous = candidate, report
             seed = solved_seed

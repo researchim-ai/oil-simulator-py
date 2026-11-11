@@ -118,30 +118,67 @@ class FacilitySchurProblem:
         self.last_evaluation = key, result
         return result
 
-    def jacobian(self, point, residual, *, step=1e-4):
-        """Joint central difference; one-sided only at a real stock boundary.
+    def jacobian(self, point, residual, *, step=1e-4, grouped=True):
+        """Central differences coloured by the physical column/pipe graph.
 
-        The perturbation is dimensionless, not kilograms or Joules. Reusing
-        a tangent is chord Newton; final acceptance still requires the exact
-        end-profile fixed point and the original physical balance checks.
+        Two columns share a perturbation only if their residual row supports
+        do not overlap. A failed simultaneous sample falls back to its exact
+        individual columns, retaining one-sided differences at real bounds.
         """
-        columns = []
-        for j in range(self.size):
+        width = self.nc + 1
+        if not hasattr(self, "_row_supports"):
+            indices = {name: i for i, name in enumerate(self.names)}
+            supports = [{i} for i in range(len(self.names))]
+            for spec in self.facility.lines.values():
+                owned = [indices[port["column"]] for port in spec["ports"] if port is not None]
+                for i in owned:
+                    supports[i].update(owned)
+            groups = []
+            for column, support in enumerate(supports):
+                for group, rows in groups:
+                    if rows.isdisjoint(support):
+                        group.append(column)
+                        rows.update(support)
+                        break
+                else:
+                    groups.append(([column], set(support)))
+            self._row_supports = tuple(tuple(sorted(rows)) for rows in supports)
+            self._colours = tuple(tuple(group) for group, _ in groups)
+        colours = self._colours if grouped else tuple((i,) for i in range(len(self.names)))
+        matrix = torch.zeros((self.size, self.size), dtype=point.dtype, device=point.device)
+        self.jacobian_group_fallbacks = getattr(self, "jacobian_group_fallbacks", 0)
+        self.jacobian_sample_groups = getattr(self, "jacobian_sample_groups", 0)
+
+        def difference(columns, coordinate):
             direction = torch.zeros_like(point)
-            direction[j] = step
+            direction[list(columns)] = step
+            self.jacobian_sample_groups += 1
             try:
                 plus = self.evaluate(point + direction)[0]
-            except (PropertyModelError, HydraulicConvergenceError, ConservationError):
                 minus = self.evaluate(point - direction)[0]
-                columns.append((residual - minus) / step)
-                continue
-            try:
-                minus = self.evaluate(point - direction)[0]
+                return (plus - minus) / (2 * step)
             except (PropertyModelError, HydraulicConvergenceError, ConservationError):
-                columns.append((plus - residual) / step)
-            else:
-                columns.append((plus - minus) / (2 * step))
-        matrix = torch.stack(columns, dim=1)
+                if len(columns) > 1:
+                    return None
+                try:
+                    plus = self.evaluate(point + direction)[0]
+                except (PropertyModelError, HydraulicConvergenceError, ConservationError):
+                    minus = self.evaluate(point - direction)[0]
+                    return (residual - minus) / step
+                return (plus - residual) / step
+
+        for coordinate in range(width):
+            for group in colours:
+                columns = [i * width + coordinate for i in group]
+                values = difference(columns, coordinate)
+                if values is None:
+                    self.jacobian_group_fallbacks += 1
+                    samples = [difference([column], coordinate) for column in columns]
+                else:
+                    samples = [values] * len(columns)
+                for owner, column, values in zip(group, columns, samples):
+                    rows = [i * width + j for i in self._row_supports[owner] for j in range(width)]
+                    matrix[rows, column] = values[rows]
         if not bool(torch.isfinite(matrix).all().cpu()):
             raise HydraulicConvergenceError("Nonfinite global Schur Jacobian")
         self.jacobian_builds += 1
@@ -167,6 +204,9 @@ def solve_schur(
                 "method": "scaled_central_difference_nonlinear_schur_chord_newton",
                 "unknowns": problem.size,
                 "jacobian_builds": problem.jacobian_builds,
+                "jacobian_colours": len(getattr(problem, "_colours", ())),
+                "jacobian_sample_groups": getattr(problem, "jacobian_sample_groups", 0),
+                "jacobian_group_fallbacks": getattr(problem, "jacobian_group_fallbacks", 0),
                 "linear_solves": linear_solves,
                 "flow_map_evaluations": problem.evaluations,
                 "last_point_cache_hits": problem.cache_hits,

@@ -9,6 +9,7 @@ import math
 import numpy as np
 from check_stratified_pr import Reference
 
+from surface.operation import _digest
 from surface.peng_robinson import R
 
 
@@ -24,17 +25,33 @@ def close(actual, expected, label, *, atol=1e-22, rtol=1e-9):
 
 
 def audit(model, before, after, report):
-    if report["source_model_id"] != model.model_id or report["source_model"] != model.to_dict():
-        from surface.operation import _digest
+    if report.get("thermochemical_equilibrium"):
+        from check_pr_capillary_equilibrium import audit as equilibrium_audit
 
-        if report["source_model_id"] != model.model_id or _digest(
-            report["source_model"]
-        ) != _digest(model.to_dict()):
-            raise ValueError("Capillary source constitutive model differs")
+        from surface.pr_capillary_equilibrium import PRCapillaryEquilibrium
+
+        if (
+            not getattr(model, "phase_equilibrium", False)
+            or not report.get("converged")
+            or not report.get("equilibrium_sweeps")
+            or report["source_model_id"] != model.model_id
+            or _digest(report["source_model"]) != _digest(model.to_dict())
+            or report["clock_advanced"]
+            or report["dt_s"] <= 0
+            or report.get("maximum_sweeps") != getattr(model, "phase_equilibrium_sweeps", 12)
+        ):
+            raise ValueError("Capillary equilibrium dispatch differs from declared source")
+        equilibrium = PRCapillaryEquilibrium(model)
+        if _digest(report["equilibrium_model"]) != _digest(equilibrium.to_dict()):
+            raise ValueError("Capillary equilibrium model differs")
+        return equilibrium_audit(equilibrium, before, after, report)
+    if report["source_model_id"] != model.model_id or _digest(report["source_model"]) != _digest(
+        model.to_dict()
+    ):
+        raise ValueError("Capillary source constitutive model differs")
     pipe = model.pipe
     f = pipe.fluid
     count = len(pipe.lengths)
-    from surface.operation import _digest
 
     if (
         before.time_s != after.time_s
@@ -296,7 +313,6 @@ def main():
 
     from run_pr_active_surface import fingerprints
 
-    from surface.operation import _digest
     from surface.pr_active_multifluid_pipe import PRActiveMultifluidPipe, PRActiveMultifluidState
     from surface.pr_capillary_pressure import PRCapillaryPressure
 

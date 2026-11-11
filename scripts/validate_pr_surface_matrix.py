@@ -16,7 +16,10 @@ from pathlib import Path
 
 CASES = {
     "active_surface_open_gas": ("surface_pr_active_surface_open_gas", "active_surface"),
-    "active_surface_open_evaporation": ("surface_pr_active_surface_open_evaporation", "active_surface"),
+    "active_surface_open_evaporation": (
+        "surface_pr_active_surface_open_evaporation",
+        "active_surface",
+    ),
     "active_surface_open_branch": ("surface_pr_active_surface_open_branch", "active_surface"),
     "pr_gas_loaded_capillary": ("surface_pr_gas_loaded_capillary", "gas_loaded_capillary"),
     "capillary_backward": ("surface_inertial_capillary_backward", "joint_capillary"),
@@ -141,11 +144,26 @@ CASES = {
 }
 
 
+SUITES = {
+    "transition-release": (
+        "active_surface_reverse",
+        "active_surface_isolated",
+        "active_surface_restart_schedule",
+        "signed_pump_reversal",
+        "pump_shutoff",
+        "controlled_antisurge",
+        "active_surface_open_evaporation",
+        "gas_mist_reinjection",
+    )
+}
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--device", choices=["cpu", "cuda"], default="cpu")
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--case", action="append", choices=CASES)
+    parser.add_argument("--suite", choices=SUITES)
     parser.add_argument("--timeout-s", type=float, default=240.0)
     parser.add_argument("--jobs", type=int, default=1)
     args = parser.parse_args()
@@ -156,7 +174,7 @@ def main():
     if args.device == "cuda" and os.environ.get("CUDA_VISIBLE_DEVICES", "") in ("", "-1"):
         parser.error("Explicitly select the CUDA device with CUDA_VISIBLE_DEVICES")
     root = Path(__file__).resolve().parents[1]
-    selected = args.case or list(CASES)
+    selected = list(dict.fromkeys([*SUITES.get(args.suite, ()), *(args.case or ())])) or list(CASES)
     paths = [
         *sorted((root / "src/surface").glob("*.py")),
         *sorted((root / "scripts").glob("*.py")),
@@ -241,6 +259,7 @@ def main():
         raise RuntimeError("Surface sources, verification scripts or configs changed during matrix")
     report = {
         "device": args.device,
+        "suite": args.suite,
         "cases": results,
         "source_sha256": before,
         "qualification": "Functional numerical verification; timings are not throughput benchmarks",

@@ -72,9 +72,21 @@ class PRCapillaryPressure:
         linear_solver="auto",
         boundary_distances_m=None,
         phase_support="positive",
+        phase_equilibrium=False,
+        phase_equilibrium_sweeps=12,
     ):
         if phase_support not in ("positive", "active"):
             raise ValueError("Capillary phase support must be positive or active")
+        if type(phase_equilibrium) is not bool or (phase_equilibrium and phase_support != "active"):
+            raise ValueError("Instantaneous phase equilibrium requires explicit active support")
+        if (
+            type(phase_equilibrium_sweeps) is not int
+            or phase_equilibrium_sweeps < 1
+            or (not phase_equilibrium and phase_equilibrium_sweeps != 12)
+        ):
+            raise ValueError("Explicit positive sweep budget requires equilibrium mode")
+        self.phase_equilibrium_sweeps = phase_equilibrium_sweeps
+        self.phase_equilibrium = phase_equilibrium
         self.phase_support = phase_support
         self.pipe = pipe
         if linear_solver not in ("auto", "dense", "sparse"):
@@ -126,6 +138,8 @@ class PRCapillaryPressure:
         )
         if maximum_unknowns < (3 + len(self.active)) * len(pipe.lengths):
             raise ValueError("Capillary chemical solve exceeds configured unknown budget")
+        if self.phase_equilibrium and (self.active or self.conductance):
+            raise ValueError("Do not combine instantaneous and finite-rate chemical/heat closures")
         self.maximum_unknowns = maximum_unknowns
         self.area = pipe.fluid.tensor(pipe.lengths) * self.width
         heights = (None, None) if boundary_heights_m is None else tuple(boundary_heights_m)
@@ -242,6 +256,10 @@ class PRCapillaryPressure:
             result["wetting"] = self.wetting.to_dict()
         if self.linear_solver != "auto":
             result["linear_solver"] = self.linear_solver
+        if getattr(self, "phase_equilibrium", False):
+            result["phase_equilibrium"] = True
+            if getattr(self, "phase_equilibrium_sweeps", 12) != 12:
+                result["phase_equilibrium_sweeps"] = self.phase_equilibrium_sweeps
         if self.phase_support != "positive":
             result["phase_support"] = self.phase_support
         return result
@@ -297,6 +315,28 @@ class PRCapillaryPressure:
         return pressure
 
     def apply(self, state, dt_s):
+        if getattr(self, "phase_equilibrium", False):
+            from .pr_capillary_equilibrium import PRCapillaryEquilibrium
+
+            dt = _number(dt_s, "instantaneous capillary source interval", positive=True)
+            model = PRCapillaryEquilibrium(self)
+            final, report = model.equilibrate(
+                state, maximum_sweeps=getattr(self, "phase_equilibrium_sweeps", 12)
+            )
+            report.update(
+                source_model_id=self.model_id,
+                source_model=self.to_dict(),
+                equilibrium_model=model.to_dict(),
+                thermochemical_equilibrium=True,
+                dt_s=dt,
+                clock_advanced=False,
+                newton_iterations=sum(
+                    row["newton_iterations"]
+                    for sweep in report["equilibrium_sweeps"]
+                    for row in sweep["cells"]
+                ),
+            )
+            return final, report
         pipe = self.pipe
         f = pipe.fluid
         pipe.inspect(state)

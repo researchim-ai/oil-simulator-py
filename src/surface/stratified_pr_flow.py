@@ -28,6 +28,19 @@ from .torch_linear import TorchNewton
 from .vessel_wall import VesselWall
 
 
+class ReceiverFeedPressureError(EquipmentOperatingError):
+    """Rejected trial carrying the solved local pressure for an outer coupling.
+
+    The candidate is never published. A coupled driver can use this physical
+    pressure defect to bracket its next trial without suppressing the check.
+    """
+
+    def __init__(self, supply_pressure_pa, receiver_pressure_pa):
+        self.supply_pressure_pa = supply_pressure_pa
+        self.receiver_pressure_pa = receiver_pressure_pa
+        super().__init__("Feed pressure below receiver; explicit pump required")
+
+
 @dataclass(frozen=True)
 class StratifiedFeed:
     height_m: float
@@ -443,8 +456,8 @@ class StratifiedPRFlow(StratifiedPRThermal):
                         local["pressure_pa"]
                         > feed.stream.pressure_pa + 1e-7 * feed.stream.pressure_pa
                     ):
-                        raise EquipmentOperatingError(
-                            "Feed pressure below receiver; explicit pump required"
+                        raise ReceiverFeedPressureError(
+                            feed.stream.pressure_pa, local["pressure_pa"]
                         )
             if previous is not None:
                 prior, prior_report, prior_out, prior_e, prior_ports = previous
