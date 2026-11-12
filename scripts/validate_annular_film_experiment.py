@@ -18,6 +18,55 @@ from surface.annular_film import countercurrent_film
 from surface.pr_active_pipe_friction import darcy_factor
 
 
+def score_dry_series(cases, sensitivity):
+    """Compare every dry reference on the same covered wet-window population."""
+
+    def identity(row):
+        return row["sheet"], row["first_row"], row["last_row"]
+
+    references = {identity(row): row for row in sensitivity["cases"]}
+    common = [row for row in cases if references[identity(row)]["all_dry_series_covered"]]
+    series = {}
+    for name in sensitivity["dry_series"]:
+        scored = []
+        for row in common:
+            ref = references[identity(row)]["dry_series"][name]
+            error = row["predicted_wet_increment_pa"] - ref["wet_increment_pa"]
+            scored.append(
+                {
+                    "sheet": row["sheet"],
+                    "first_row": row["first_row"],
+                    "last_row": row["last_row"],
+                    **ref,
+                    "predicted_wet_increment_pa": row["predicted_wet_increment_pa"],
+                    "error_pa": error,
+                }
+            )
+        errors = np.array([row["error_pa"] for row in scored])
+        series[name] = {
+            "cases": scored,
+            "windows": len(scored),
+            "mean_absolute_error_pa": float(np.abs(errors).mean()) if len(errors) else None,
+            "bias_pa": float(errors.mean()) if len(errors) else None,
+            "within_instrument_only_4pa_count": int((np.abs(errors) <= 4).sum()),
+        }
+    spreads = [
+        references[identity(row)]["dry_series_spread_pa"]
+        for row in common
+        if references[identity(row)]["dry_series_spread_pa"] is not None
+    ]
+    return {
+        "common_wet_windows": len(common),
+        "total_model_windows": len(cases),
+        "excluded_from_common_coverage": len(cases) - len(common),
+        "maximum_dry_series_spread_pa": max(spreads) if spreads else None,
+        "is_uncertainty_interval": False,
+        "fit_performed": False,
+        "changes_legacy_score_or_bound": False,
+        "dry_series": series,
+    }
+
+
 def validate(data, *, shear_velocity="mean"):
     baseline = run(data)
     all_rows = baseline["roughness_sensitivity"]["0.0"]["cases"]
@@ -64,6 +113,26 @@ def validate(data, *, shear_velocity="mean"):
                 )
             ],
         }
+        cases[str(roughness)]["dry_series_sensitivity"] = score_dry_series(
+            cases[str(roughness)]["cases"], baseline["dry_series_sensitivity"]
+        )
+    pressure_passed = all(
+        v["fraction_within_instrument_only_4pa_bound"] == 1.0 for v in cases.values()
+    )
+    applicability = baseline["annular_applicability"]
+    blockers = (
+        ([] if pressure_passed else ["pressure_increment_discrepancy"])
+        + (
+            []
+            if applicability["full_circumferential_wetting_confirmed"]
+            else ["full_circumferential_wetting_not_confirmed"]
+        )
+        + (
+            ["liquid_application_losses_not_separately_measured"]
+            if applicability["pressure_span_includes_liquid_application"]
+            else []
+        )
+    )
     return {
         "format": "annular_film_experimental_challenge_v1",
         "closure": "laminar_annular_wallis_interface_v1"
@@ -71,6 +140,8 @@ def validate(data, *, shear_velocity="mean"):
         else "laminar_annulus_wallis_relative_v1",
         "source": baseline["source"],
         "source_sha256": baseline["source_sha256"],
+        "manifest_sha256": hashlib.sha256((Path(data) / "manifest.json").read_bytes()).hexdigest(),
+        "annular_applicability": applicability,
         "runtime_sha256": {
             name: hashlib.sha256((ROOT / name).read_bytes()).hexdigest()
             for name in ["src/surface/annular_film.py", "src/surface/pr_active_pipe_friction.py"]
@@ -120,9 +191,9 @@ def validate(data, *, shear_velocity="mean"):
         "roughness_sensitivity": cases,
         "instrument_bound_note": baseline["instrument_bound_note"],
         "water_properties_assumption": baseline["water_properties_assumption"],
-        "accepted_as_validated_for_annular_countercurrent": all(
-            v["fraction_within_instrument_only_4pa_bound"] == 1.0 for v in cases.values()
-        ),
+        "within_declared_pressure_bounds": pressure_passed,
+        "accepted_as_validated_for_annular_countercurrent": not blockers,
+        "qualification_blockers": blockers,
         "integration_status": "Opt-in dynamic source, with conservative interface work; unqualified experimentally."
         if shear_velocity == "interface"
         else "Steady constitutive solver only; not enabled in transient active PR pipe.",

@@ -1,0 +1,12 @@
+{
+  "format": "may2015_external_reference_provenance_v1",
+  "doi": "10.1021/acs.jced.5b00610",
+  "source_url": "https://trc.nist.gov/ThermoML/10.1021/acs.jced.5b00610.json",
+  "original_json_sha256": "77630e90db70bb6aabfdfa520f61f14cee5076ece0265754140a25f771659662",
+  "original_xml_md5": "34606e365ff8cb273d9f9f46ef00337e",
+  "reference_sha256": "33cfa9c24bd1300f6f98c5118e570e5814e0c412a831e3b721d93ef85f1add08",
+  "excerpt_sha256": "73af4b8ca70e5845a38bf1bab5d3ed63840fe305d3e355e2a6414fd8128d0a13",
+  "extraction": "Numeric data and metadata from datasets 1/2; compounds 1/2. Abstract omitted. Join by exact temperature/liquid methane fraction, kPa converted to Pa, vapor value is ethane. Original XML MD5 independently matched the original JSON archive checksum.",
+  "rights_note": "Extracted numeric experimental facts with source attribution; see NIST/TRC archive terms and primary article. No CC-BY license inferred for the article.",
+  "reproduce": "Download the original .json and .xml from NIST; run scripts/import_may2015_vle.py SOURCE --xml SOURCE.xml --output REFERENCE.json and compare hashes/points."
+}

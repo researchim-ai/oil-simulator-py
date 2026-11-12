@@ -158,20 +158,14 @@ def predicted_increment(
     return (length * (wet - dry)).numpy(), alpha.numpy()
 
 
-def run(directory):
-    directory = Path(directory)
-    manifest = json.loads((directory / "manifest.json").read_text())
-    for name, digest in manifest["sha256"].items():
-        if hashlib.sha256((directory / name).read_bytes()).hexdigest() != digest:
-            raise ValueError("Experimental source checksum changed")
-    dry, dry_rejected = windows(directory / "dry_pipe.xlsx", wet=False)
-    wet, wet_rejected = windows(directory / "countercurrent.xlsx", wet=True)
+def dry_baseline(rows):
+    """The original fixed-bin protocol, reusable without mixing dry series."""
     # Fixed 5 m3/h bins reduce many repeated dry samples to one baseline point.
     bins = {}
-    for row in dry:
+    for row in rows:
         key = math.floor(row["gas_volume_flow_m3_h"] / 5)
         bins.setdefault(key, []).append(row)
-    baseline = sorted(
+    return sorted(
         [
             {
                 "q": statistics.fmean(r["gas_volume_flow_m3_h"] for r in rows),
@@ -183,6 +177,61 @@ def run(directory):
         ],
         key=lambda r: r["q"],
     )
+
+
+def dry_series_sensitivity(dry, wet):
+    """Independent dry-run alternatives; no extrapolation or favorable selection.
+
+    This is sensitivity to the reference run, NOT an uncertainty interval. The
+    pooled legacy comparison remains unchanged. Each wet window is retained,
+    including ones unsupported by one or all individual dry series.
+    """
+    curves = {
+        name: dry_baseline([r for r in dry if r["sheet"] == name])
+        for name in sorted({r["sheet"] for r in dry})
+    }
+    cases = []
+    for row in wet:
+        q = row["gas_volume_flow_m3_h"]
+        alternatives = {}
+        for name, curve in curves.items():
+            if len(curve) >= 2 and curve[0]["q"] <= q <= curve[-1]["q"]:
+                dp = float(np.interp(q, [p["q"] for p in curve], [p["dp"] for p in curve]))
+                alternatives[name] = {
+                    "dry_pressure_pa": dp,
+                    "wet_increment_pa": row["pressure_loss_pa"] - dp,
+                }
+        values = [p["dry_pressure_pa"] for p in alternatives.values()]
+        cases.append(
+            {
+                "sheet": row["sheet"],
+                "first_row": row["first_row"],
+                "last_row": row["last_row"],
+                "gas_volume_flow_m3_h": q,
+                "dry_series": alternatives,
+                "all_dry_series_covered": bool(curves) and len(values) == len(curves),
+                "dry_series_spread_pa": max(values) - min(values) if len(values) >= 2 else None,
+            }
+        )
+    return {
+        "method": "Same fixed 5 m3/h bins and linear interpolation, separately per dry sheet; no extrapolation",
+        "fit_performed": False,
+        "is_uncertainty_interval": False,
+        "selection_by_model_error": False,
+        "dry_series": curves,
+        "cases": cases,
+    }
+
+
+def run(directory):
+    directory = Path(directory)
+    manifest = json.loads((directory / "manifest.json").read_text())
+    for name, digest in manifest["sha256"].items():
+        if hashlib.sha256((directory / name).read_bytes()).hexdigest() != digest:
+            raise ValueError("Experimental source checksum changed")
+    dry, dry_rejected = windows(directory / "dry_pipe.xlsx", wet=False)
+    wet, wet_rejected = windows(directory / "countercurrent.xlsx", wet=True)
+    baseline = dry_baseline(dry)
     if len(baseline) < 3:
         raise ValueError("Insufficient steady dry baseline coverage")
     x = np.array([r["q"] for r in baseline])
@@ -229,6 +278,7 @@ def run(directory):
         "source": manifest["source"],
         "license": manifest["license"],
         "source_sha256": manifest["sha256"],
+        "annular_applicability": manifest["annular_applicability"],
         "geometry": manifest["geometry"],
         "qualification_scope": "steady constitutive pressure augmentation; not full PR water or transient validation",
         "closure": "darcy_volume_wetted_v1, no interphase drag, no chemical transfer",
@@ -243,6 +293,7 @@ def run(directory):
         "wet_outside_dry_coverage": len(wet) - len(usable),
         "measured_wet_increment_range_pa": [float(actual.min()), float(actual.max())],
         "dry_baseline": baseline,
+        "dry_series_sensitivity": dry_series_sensitivity(dry, wet),
         "roughness_sensitivity": roughness_cases,
         "instrument_bound_note": "Each DP sensor bound is +/-2 Pa in the publication; +/-4 Pa is worst-case wet-minus-dry instrumental bound ONLY, not a statistical confidence interval; no SE independence assumption.",
         "water_properties_assumption": {

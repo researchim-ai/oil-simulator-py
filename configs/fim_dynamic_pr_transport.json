@@ -1,0 +1,591 @@
+{
+  "simulator": {
+    "simulation": {
+      "solver_type": "fully_implicit",
+      "fim_model": "blackoil",
+      "newton_max_iter": 30,
+      "newton_tol_cnv": 1e-07,
+      "newton_tol_mb": 1e-08,
+      "newton_tol_well_bhp": 0.1,
+      "newton_relaxed_max_pv_fraction": 0.0,
+      "physical_surface_network": {
+        "well_nodes": {
+          "P1": "bottom_1",
+          "P2": "bottom_2"
+        },
+        "network": {
+          "model": "homogeneous_blackoil_tree",
+          "pvt": {
+            "pressure_MPa": [
+              0.1,
+              1.0,
+              5.0
+            ],
+            "Bo": [
+              1.0,
+              1.04,
+              1.16
+            ],
+            "Bw": [
+              1,
+              1,
+              1
+            ],
+            "Bg": [
+              1.0,
+              0.1,
+              0.02
+            ],
+            "mu_o_cP": [
+              5.0,
+              4.2,
+              1.8
+            ],
+            "mu_w_cP": [
+              1.0,
+              1.0,
+              1.0
+            ],
+            "mu_g_cP": [
+              0.01,
+              0.012,
+              0.015
+            ],
+            "Rs_m3m3": [
+              0.0,
+              20.0,
+              80.0
+            ],
+            "Rv_m3m3": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "extended": {
+              "oil": {
+                "rs_values": [
+                  0.0,
+                  20.0,
+                  80.0
+                ],
+                "tables": {
+                  "0.0": {
+                    "pressure_MPa": [
+                      0.1,
+                      1.0,
+                      5.0
+                    ],
+                    "Bo": [
+                      1.0,
+                      0.9991,
+                      0.9951
+                    ],
+                    "mu_o_cP": [
+                      5.0,
+                      5.009,
+                      5.049
+                    ]
+                  },
+                  "20.0": {
+                    "pressure_MPa": [
+                      0.1,
+                      1.0,
+                      5.0
+                    ],
+                    "Bo": [
+                      1.0409,
+                      1.04,
+                      1.036
+                    ],
+                    "mu_o_cP": [
+                      4.191,
+                      4.2,
+                      4.24
+                    ]
+                  },
+                  "80.0": {
+                    "pressure_MPa": [
+                      0.1,
+                      1.0,
+                      5.0
+                    ],
+                    "Bo": [
+                      1.1648999999999998,
+                      1.164,
+                      1.16
+                    ],
+                    "mu_o_cP": [
+                      1.751,
+                      1.7599999999999998,
+                      1.7999999999999998
+                    ]
+                  }
+                }
+              }
+            }
+          },
+          "stock_densities": {
+            "oil_kg_m3": 850,
+            "water_kg_m3": 1000,
+            "gas_kg_m3": 1.2
+          },
+          "nodes": [
+            {
+              "name": "bottom_1",
+              "elevation_m": -40
+            },
+            {
+              "name": "bottom_2",
+              "elevation_m": -40
+            },
+            {
+              "name": "header",
+              "elevation_m": -10
+            },
+            {
+              "name": "outlet",
+              "pressure_pa": 1000000.0
+            }
+          ],
+          "pipes": [
+            {
+              "name": "tube1",
+              "start": "bottom_1",
+              "end": "header",
+              "length_m": 300,
+              "diameter_m": 0.025,
+              "roughness_m": 1e-05
+            },
+            {
+              "name": "tube2",
+              "start": "bottom_2",
+              "end": "header",
+              "length_m": 300,
+              "diameter_m": 0.025,
+              "roughness_m": 1e-05
+            },
+            {
+              "name": "collector",
+              "start": "header",
+              "end": "outlet",
+              "length_m": 700,
+              "diameter_m": 0.02,
+              "roughness_m": 1e-05
+            }
+          ]
+        },
+        "network_backend": "torch_device"
+      },
+      "dynamic_receiver": {
+        "model": "dynamic_pr_transport_fim_v1",
+        "receiver": {
+          "model": "pr_open_transport_v1",
+          "transport": {
+            "model": "pr_equilibrium_transport_graph_v1",
+            "fluid": {
+              "components": [
+                {
+                  "name": "Methane",
+                  "critical_temperature_k": 190.564,
+                  "critical_pressure_pa": 4599200.0,
+                  "acentric_factor": 0.01142,
+                  "molar_mass_kg_mol": 0.0160428,
+                  "ideal_cp_j_mol_k": 35.7,
+                  "min_temperature_k": 160.0,
+                  "max_temperature_k": 500.0,
+                  "reference_temperature_k": 298.15,
+                  "reference_pressure_pa": 100000.0
+                },
+                {
+                  "name": "Ethane",
+                  "critical_temperature_k": 305.322,
+                  "critical_pressure_pa": 4872200.0,
+                  "acentric_factor": 0.099,
+                  "molar_mass_kg_mol": 0.03006904,
+                  "ideal_cp_j_mol_k": 52.5,
+                  "min_temperature_k": 160.0,
+                  "max_temperature_k": 500.0,
+                  "reference_temperature_k": 298.15,
+                  "reference_pressure_pa": 100000.0
+                }
+              ],
+              "binary_interactions": [
+                [
+                  0.0,
+                  0.0
+                ],
+                [
+                  0.0,
+                  0.0
+                ]
+              ],
+              "min_pressure_pa": 100.0,
+              "max_pressure_pa": 1000000000.0,
+              "max_phases": 3
+            },
+            "nodes": [
+              {
+                "name": "export",
+                "volume_m3": 0.1,
+                "kind": "vessel",
+                "elevation_m": 0.0,
+                "length_m": null,
+                "diameter_m": null,
+                "elevation_change_m": 0.0,
+                "dynamic_viscosity_pa_s": 0.0,
+                "roughness_m": 0.0,
+                "distribution_strength": 0.0,
+                "buoyancy_relaxation_s": 0.0,
+                "local_loss_coefficient": 0.0,
+                "drift_flux": null,
+                "wall": null,
+                "geometry": null,
+                "left_diameter_m": null,
+                "right_diameter_m": null
+              },
+              {
+                "name": "inlet",
+                "volume_m3": 0.1,
+                "kind": "vessel",
+                "elevation_m": 0.0,
+                "length_m": null,
+                "diameter_m": null,
+                "elevation_change_m": 0.0,
+                "dynamic_viscosity_pa_s": 0.0,
+                "roughness_m": 0.0,
+                "distribution_strength": 0.0,
+                "buoyancy_relaxation_s": 0.0,
+                "local_loss_coefficient": 0.0,
+                "drift_flux": null,
+                "wall": null,
+                "geometry": null,
+                "left_diameter_m": null,
+                "right_diameter_m": null
+              },
+              {
+                "name": "line__0000",
+                "volume_m3": 0.009817477042468105,
+                "kind": "pipe_cell",
+                "elevation_m": 0.0,
+                "length_m": 5.0,
+                "diameter_m": 0.05,
+                "elevation_change_m": 0.0,
+                "dynamic_viscosity_pa_s": 0.0,
+                "roughness_m": 0.0,
+                "distribution_strength": 0.0,
+                "buoyancy_relaxation_s": 0.0,
+                "local_loss_coefficient": 0.0,
+                "drift_flux": null,
+                "wall": null,
+                "geometry": null,
+                "left_diameter_m": null,
+                "right_diameter_m": null
+              },
+              {
+                "name": "line__0001",
+                "volume_m3": 0.009817477042468105,
+                "kind": "pipe_cell",
+                "elevation_m": 0.0,
+                "length_m": 5.0,
+                "diameter_m": 0.05,
+                "elevation_change_m": 0.0,
+                "dynamic_viscosity_pa_s": 0.0,
+                "roughness_m": 0.0,
+                "distribution_strength": 0.0,
+                "buoyancy_relaxation_s": 0.0,
+                "local_loss_coefficient": 0.0,
+                "drift_flux": null,
+                "wall": null,
+                "geometry": null,
+                "left_diameter_m": null,
+                "right_diameter_m": null
+              }
+            ],
+            "links": [
+              {
+                "name": "line__face_0000",
+                "source": "inlet",
+                "target": "line__0000",
+                "diameter_m": 0.05,
+                "source_port": "right",
+                "target_port": "left",
+                "source_height_m": null,
+                "target_height_m": null
+              },
+              {
+                "name": "line__face_0001",
+                "source": "line__0000",
+                "target": "line__0001",
+                "diameter_m": 0.05,
+                "source_port": "right",
+                "target_port": "left",
+                "source_height_m": null,
+                "target_height_m": null
+              },
+              {
+                "name": "line__face_0002",
+                "source": "line__0001",
+                "target": "export",
+                "diameter_m": 0.05,
+                "source_port": "right",
+                "target_port": "left",
+                "source_height_m": null,
+                "target_height_m": null
+              }
+            ],
+            "heat_links": [],
+            "pipe_paths": {
+              "line": [
+                "line__0000",
+                "line__0001"
+              ]
+            },
+            "reservoir_ports": "riemann",
+            "wave_fan": "fixed_bound",
+            "dense_limit": 128,
+            "maximum_unknowns": 100000,
+            "gravity_m_s2": 9.80665,
+            "reference_elevation_m": 0.0,
+            "wave_speed_bound_m_s": 2000.0,
+            "maximum_velocity_m_s": 100.0,
+            "initial_step_s": 0.001,
+            "minimum_step_s": 1e-10,
+            "maximum_step_s": 0.1,
+            "relative_tolerance": 0.0001,
+            "temperature_tolerance_k": 0.002,
+            "velocity_tolerance_m_s": 0.001,
+            "maximum_attempts": 1000,
+            "maximum_branch_attempts": 32
+          },
+          "feeds": [],
+          "pressure_ports": [
+            {
+              "name": "export",
+              "node": "export",
+              "pressure_pa": 990000.0,
+              "temperature_k": 320.0,
+              "mole_fractions": [
+                0.5,
+                0.5
+              ],
+              "volume_conductance_m3_s_pa": 1e-07,
+              "allow_reverse": false,
+              "opening": 1.0,
+              "maximum_pressure_drop_fraction": 0.05
+            }
+          ]
+        },
+        "assay": {
+          "component_names": [
+            "Methane",
+            "Ethane"
+          ],
+          "stock_mass_fractions": [
+            [
+              0.2,
+              0.8
+            ],
+            [
+              0.1,
+              0.9
+            ],
+            [
+              0.9,
+              0.1
+            ]
+          ],
+          "fluid_id": "aa2016c1a0d812a3aa1ec5b5d93d0e60f06a350d3786f212a0f1b3740a080ee8"
+        },
+        "thermal_conditions": {
+          "P1": {
+            "temperature_k": 330.0,
+            "elevation_m": -40.0
+          },
+          "P2": {
+            "temperature_k": 330.0,
+            "elevation_m": -40.0
+          }
+        },
+        "inlet_height_m": 0.0,
+        "control": {
+          "maximum_pressure_iterations": 24,
+          "pressure_tolerance_pa": 0.01,
+          "pressure_relative_tolerance": 1e-09,
+          "temporal_pressure_tolerance_pa": 1.0,
+          "temporal_temperature_tolerance_k": 0.002,
+          "temporal_relative_tolerance": 1e-05,
+          "temporal_reservoir_pressure_tolerance_pa": 10.0,
+          "temporal_saturation_tolerance": 1e-05
+        },
+        "inlet_vessel": "inlet",
+        "initial_state": {
+          "nodes": {
+            "export": {
+              "component_moles": [
+                19.55635961620102,
+                19.55635961620102
+              ],
+              "total_energy_j": -74966.59745671987,
+              "momentum_kg_m_s": 0.0,
+              "phase_component_moles": [
+                [
+                  19.55635961620102,
+                  19.55635961620102
+                ]
+              ],
+              "phase_roots": [
+                "stable"
+              ],
+              "pressure_pa": 1000000.0,
+              "temperature_k": 320.0,
+              "wall_temperature_k": null
+            },
+            "inlet": {
+              "component_moles": [
+                19.55635961620102,
+                19.55635961620102
+              ],
+              "total_energy_j": -74966.59745671987,
+              "momentum_kg_m_s": 0.0,
+              "phase_component_moles": [
+                [
+                  19.55635961620102,
+                  19.55635961620102
+                ]
+              ],
+              "phase_roots": [
+                "stable"
+              ],
+              "pressure_pa": 1000000.0,
+              "temperature_k": 320.0,
+              "wall_temperature_k": null
+            },
+            "line__0000": {
+              "component_moles": [
+                1.9199411156630388,
+                1.9199411156630388
+              ],
+              "total_energy_j": -7359.828494832951,
+              "momentum_kg_m_s": 0.0,
+              "phase_component_moles": [
+                [
+                  1.9199411156630388,
+                  1.9199411156630388
+                ]
+              ],
+              "phase_roots": [
+                "stable"
+              ],
+              "pressure_pa": 1000000.0,
+              "temperature_k": 320.0,
+              "wall_temperature_k": null
+            },
+            "line__0001": {
+              "component_moles": [
+                1.9199411156630388,
+                1.9199411156630388
+              ],
+              "total_energy_j": -7359.828494832951,
+              "momentum_kg_m_s": 0.0,
+              "phase_component_moles": [
+                [
+                  1.9199411156630388,
+                  1.9199411156630388
+                ]
+              ],
+              "phase_roots": [
+                "stable"
+              ],
+              "pressure_pa": 1000000.0,
+              "temperature_k": 320.0,
+              "wall_temperature_k": null
+            }
+          },
+          "time_s": 0.0,
+          "next_step_s": 0.001,
+          "model_id": "5c002a5ef84d11e64145e44b7c3ccc67b4503beb4b2811c29191ca97113c81c7"
+        }
+      },
+      "initial_time_step_days": 1.1574074074074074e-08,
+      "min_time_step_days": 1e-09,
+      "max_time_step_days": 1.1574074074074074e-08
+    },
+    "reservoir": {
+      "dimensions": [
+        3,
+        1,
+        1
+      ],
+      "grid_size": [
+        20,
+        20,
+        80
+      ],
+      "porosity": 0.2,
+      "permeability": 100
+    },
+    "fluid": {
+      "pressure": 3.0,
+      "s_w": 0.35,
+      "s_g": 0.03,
+      "rho_oil": 850,
+      "rho_water": 1000,
+      "rho_gas": 1.2,
+      "pvt_path": "configs/pvt/pvt_surface_coupled.json",
+      "c_rock": 1e-05,
+      "relative_permeability": {
+        "nw": 2,
+        "no": 2,
+        "ng": 2,
+        "sw_cr": 0.2,
+        "so_r": 0.2,
+        "sg_cr": 0.02
+      }
+    },
+    "wells": [
+      {
+        "name": "P1",
+        "type": "producer",
+        "i": 0,
+        "j": 0,
+        "k": 0,
+        "radius": 0.1,
+        "control_type": "rate",
+        "control_value": 100,
+        "surface_phase": "liquid",
+        "well_index": 1e-12
+      },
+      {
+        "name": "P2",
+        "type": "producer",
+        "i": 2,
+        "j": 0,
+        "k": 0,
+        "radius": 0.1,
+        "control_type": "rate",
+        "control_value": 100,
+        "surface_phase": "liquid",
+        "well_index": 1e-12
+      }
+    ]
+  },
+  "intervals": [
+    {
+      "duration_s": 0.001,
+      "outlet_openings": {}
+    },
+    {
+      "duration_s": 0.001,
+      "outlet_openings": {
+        "export": 0.0
+      }
+    },
+    {
+      "duration_s": 0.001,
+      "outlet_openings": {
+        "export": 1.0
+      }
+    }
+  ],
+  "qualification": "Synthetic isothermal black-oil FIM -> steady PVT gathering -> supported PR inlet vessel -> two finite pipe cells with N/M/E stocks -> finite export vessel and low-dP one-way outlet. Open/close/reopen trajectory. Explicit methane/ethane stock assay is not field oil/water characterization. No thermal reservoir, dynamic injection coupling or resolved stratified separator connection; no experimental calibration or Norne speed claim."
+}

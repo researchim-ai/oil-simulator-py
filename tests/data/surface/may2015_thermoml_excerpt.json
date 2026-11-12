@@ -1,0 +1,2136 @@
+{
+  "Citation": {
+    "yrPubYr": "2015",
+    "sTitle": "Reference Quality Vapor-Liquid Equilibrium Data for the Binary Systems Methane + Ethane, + Propane, + Butane and, + 2-Methylpropane, at Temperatures from (203 to 273) K and Pressures to 9 MPa",
+    "sDOI": "10.1021/acs.jced.5b00610",
+    "sAuthor": [
+      "May, E. F.[Eric F.]",
+      "Guo, J. Y.[Jerry Y.]",
+      "Oakley, J. H.[Jordan H.]",
+      "Hughes, T. J.[Thomas J.]",
+      "Graham, B. F.[Brendan F.]",
+      "Marsh, K. N.[Kenneth N.]",
+      "Huang, S. H.[Stanley H.]"
+    ]
+  },
+  "Compound": [
+    {
+      "sFormulaMolec": "CH4",
+      "Sample": [
+        {
+          "eSource": "Commercial source",
+          "nSampleNm": 1,
+          "purity": [
+            {
+              "nPurityMolDigits": 5,
+              "nStep": 1,
+              "tml_elements": [
+                "nStep",
+                "nPurityMol",
+                "nPurityMolDigits",
+                "eAnalMeth"
+              ],
+              "nPurityMol": 99.999,
+              "eAnalMeth": [
+                "Stated by supplier"
+              ]
+            }
+          ],
+          "tml_elements": [
+            "nSampleNm",
+            "eSource",
+            "purity"
+          ]
+        }
+      ],
+      "sCommonName": [
+        "methane",
+        "carbane"
+      ],
+      "tml_elements": [
+        "RegNum",
+        "sStandardInChI",
+        "sStandardInChIKey",
+        "sCommonName",
+        "sFormulaMolec",
+        "Sample"
+      ],
+      "sStandardInChI": "InChI=1S/CH4/h1H4",
+      "RegNum": {
+        "nOrgNum": 1,
+        "tml_elements": [
+          "nOrgNum"
+        ]
+      },
+      "sStandardInChIKey": "VNWKTOKETHGBQD-UHFFFAOYSA-N"
+    },
+    {
+      "RegNum": {
+        "tml_elements": [
+          "nOrgNum"
+        ],
+        "nOrgNum": 2
+      },
+      "sStandardInChI": "InChI=1S/C2H6/c1-2/h1-2H3",
+      "sStandardInChIKey": "OTMSDBZUPAUEDD-UHFFFAOYSA-N",
+      "sCommonName": [
+        "ethane",
+        "R-170"
+      ],
+      "tml_elements": [
+        "RegNum",
+        "sStandardInChI",
+        "sStandardInChIKey",
+        "sCommonName",
+        "sFormulaMolec",
+        "Sample"
+      ],
+      "Sample": [
+        {
+          "purity": [
+            {
+              "nPurityMol": 99.99,
+              "tml_elements": [
+                "nStep",
+                "nPurityMol",
+                "nPurityMolDigits",
+                "eAnalMeth"
+              ],
+              "nPurityMolDigits": 4,
+              "nStep": 1,
+              "eAnalMeth": [
+                "Stated by supplier"
+              ]
+            }
+          ],
+          "tml_elements": [
+            "nSampleNm",
+            "eSource",
+            "purity"
+          ],
+          "eSource": "Commercial source",
+          "nSampleNm": 1
+        }
+      ],
+      "sFormulaMolec": "C2H6"
+    }
+  ],
+  "PureOrMixtureData": [
+    {
+      "sCompiler": "EP",
+      "nPureOrMixtureDataNumber": 1,
+      "dateDateAdded": "9/9/2015",
+      "NumValues": [
+        {
+          "VariableValue": [
+            {
+              "nVarValue": 243.58,
+              "nVarDigits": 5,
+              "tml_elements": [
+                "nVarNumber",
+                "nVarValue",
+                "nVarDigits"
+              ],
+              "nVarNumber": 1
+            },
+            {
+              "nVarNumber": 2,
+              "tml_elements": [
+                "nVarNumber",
+                "nVarValue",
+                "nVarDigits"
+              ],
+              "nVarDigits": 4,
+              "nVarValue": 0.3099
+            }
+          ],
+          "PropertyValue": [
+            {
+              "nPropValue": 3949,
+              "CombinedUncertainty": {
+                "nCombExpandUncertValue": 52,
+                "tml_elements": [
+                  "nCombUncertAssessNum",
+                  "nCombExpandUncertValue"
+                ],
+                "nCombUncertAssessNum": 1
+              },
+              "tml_elements": [
+                "nPropNumber",
+                "nPropValue",
+                "nPropDigits",
+                "CombinedUncertainty"
+              ],
+              "nPropNumber": 1,
+              "nPropDigits": 4
+            }
+          ],
+          "tml_elements": [
+            "VariableValue",
+            "PropertyValue"
+          ]
+        },
+        {
+          "PropertyValue": [
+            {
+              "nPropDigits": 4,
+              "nPropNumber": 1,
+              "tml_elements": [
+                "nPropNumber",
+                "nPropValue",
+                "nPropDigits",
+                "CombinedUncertainty"
+              ],
+              "nPropValue": 2124,
+              "CombinedUncertainty": {
+                "tml_elements": [
+                  "nCombUncertAssessNum",
+                  "nCombExpandUncertValue"
+                ],
+                "nCombExpandUncertValue": 137,
+                "nCombUncertAssessNum": 1
+              }
+            }
+          ],
+          "tml_elements": [
+            "VariableValue",
+            "PropertyValue"
+          ],
+          "VariableValue": [
+            {
+              "nVarNumber": 1,
+              "tml_elements": [
+                "nVarNumber",
+                "nVarValue",
+                "nVarDigits"
+              ],
+              "nVarDigits": 5,
+              "nVarValue": 203.22
+            },
+            {
+              "nVarValue": 0.3653,
+              "nVarDigits": 4,
+              "tml_elements": [
+                "nVarNumber",
+                "nVarValue",
+                "nVarDigits"
+              ],
+              "nVarNumber": 2
+            }
+          ]
+        },
+        {
+          "PropertyValue": [
+            {
+              "nPropValue": 2517,
+              "CombinedUncertainty": {
+                "tml_elements": [
+                  "nCombUncertAssessNum",
+                  "nCombExpandUncertValue"
+                ],
+                "nCombExpandUncertValue": 157,
+                "nCombUncertAssessNum": 1
+              },
+              "nPropNumber": 1,
+              "nPropDigits": 4,
+              "tml_elements": [
+                "nPropNumber",
+                "nPropValue",
+                "nPropDigits",
+                "CombinedUncertainty"
+              ]
+            }
+          ],
+          "tml_elements": [
+            "VariableValue",
+            "PropertyValue"
+          ],
+          "VariableValue": [
+            {
+              "nVarValue": 213.39,
+              "nVarDigits": 5,
+              "tml_elements": [
+                "nVarNumber",
+                "nVarValue",
+                "nVarDigits"
+              ],
+              "nVarNumber": 1
+            },
+            {
+              "nVarNumber": 2,
+              "tml_elements": [
+                "nVarNumber",
+                "nVarValue",
+                "nVarDigits"
+              ],
+              "nVarDigits": 4,
+              "nVarValue": 0.3464
+            }
+          ]
+        },
+        {
+          "VariableValue": [
+            {
+              "nVarValue": 223.5,
+              "nVarDigits": 5,
+              "tml_elements": [
+                "nVarNumber",
+                "nVarValue",
+                "nVarDigits"
+              ],
+              "nVarNumber": 1
+            },
+            {
+              "nVarNumber": 2,
+              "tml_elements": [
+                "nVarNumber",
+                "nVarValue",
+                "nVarDigits"
+              ],
+              "nVarDigits": 4,
+              "nVarValue": 0.3315
+            }
+          ],
+          "tml_elements": [
+            "VariableValue",
+            "PropertyValue"
+          ],
+          "PropertyValue": [
+            {
+              "nPropValue": 2945,
+              "CombinedUncertainty": {
+                "nCombUncertAssessNum": 1,
+                "nCombExpandUncertValue": 81,
+                "tml_elements": [
+                  "nCombUncertAssessNum",
+                  "nCombExpandUncertValue"
+                ]
+              },
+              "tml_elements": [
+                "nPropNumber",
+                "nPropValue",
+                "nPropDigits",
+                "CombinedUncertainty"
+              ],
+              "nPropDigits": 4,
+              "nPropNumber": 1
+            }
+          ]
+        },
+        {
+          "VariableValue": [
+            {
+              "nVarNumber": 1,
+              "tml_elements": [
+                "nVarNumber",
+                "nVarValue",
+                "nVarDigits"
+              ],
+              "nVarDigits": 5,
+              "nVarValue": 233.56
+            },
+            {
+              "nVarValue": 0.3188,
+              "tml_elements": [
+                "nVarNumber",
+                "nVarValue",
+                "nVarDigits"
+              ],
+              "nVarDigits": 4,
+              "nVarNumber": 2
+            }
+          ],
+          "tml_elements": [
+            "VariableValue",
+            "PropertyValue"
+          ],
+          "PropertyValue": [
+            {
+              "nPropValue": 3417,
+              "CombinedUncertainty": {
+                "tml_elements": [
+                  "nCombUncertAssessNum",
+                  "nCombExpandUncertValue"
+                ],
+                "nCombExpandUncertValue": 74,
+                "nCombUncertAssessNum": 1
+              },
+              "nPropNumber": 1,
+              "nPropDigits": 4,
+              "tml_elements": [
+                "nPropNumber",
+                "nPropValue",
+                "nPropDigits",
+                "CombinedUncertainty"
+              ]
+            }
+          ]
+        },
+        {
+          "VariableValue": [
+            {
+              "nVarNumber": 1,
+              "tml_elements": [
+                "nVarNumber",
+                "nVarValue",
+                "nVarDigits"
+              ],
+              "nVarDigits": 5,
+              "nVarValue": 243.6
+            },
+            {
+              "nVarValue": 0.3082,
+              "nVarNumber": 2,
+              "nVarDigits": 4,
+              "tml_elements": [
+                "nVarNumber",
+                "nVarValue",
+                "nVarDigits"
+              ]
+            }
+          ],
+          "tml_elements": [
+            "VariableValue",
+            "PropertyValue"
+          ],
+          "PropertyValue": [
+            {
+              "CombinedUncertainty": {
+                "nCombExpandUncertValue": 52,
+                "tml_elements": [
+                  "nCombUncertAssessNum",
+                  "nCombExpandUncertValue"
+                ],
+                "nCombUncertAssessNum": 1
+              },
+              "nPropValue": 3942,
+              "nPropNumber": 1,
+              "nPropDigits": 4,
+              "tml_elements": [
+                "nPropNumber",
+                "nPropValue",
+                "nPropDigits",
+                "CombinedUncertainty"
+              ]
+            }
+          ]
+        },
+        {
+          "tml_elements": [
+            "VariableValue",
+            "PropertyValue"
+          ],
+          "PropertyValue": [
+            {
+              "tml_elements": [
+                "nPropNumber",
+                "nPropValue",
+                "nPropDigits",
+                "CombinedUncertainty"
+              ],
+              "nPropDigits": 4,
+              "nPropNumber": 1,
+              "CombinedUncertainty": {
+                "nCombExpandUncertValue": 77,
+                "tml_elements": [
+                  "nCombUncertAssessNum",
+                  "nCombExpandUncertValue"
+                ],
+                "nCombUncertAssessNum": 1
+              },
+              "nPropValue": 4831
+            }
+          ],
+          "VariableValue": [
+            {
+              "nVarValue": 243.6,
+              "tml_elements": [
+                "nVarNumber",
+                "nVarValue",
+                "nVarDigits"
+              ],
+              "nVarDigits": 5,
+              "nVarNumber": 1
+            },
+            {
+              "nVarDigits": 4,
+              "tml_elements": [
+                "nVarNumber",
+                "nVarValue",
+                "nVarDigits"
+              ],
+              "nVarNumber": 2,
+              "nVarValue": 0.3973
+            }
+          ]
+        },
+        {
+          "VariableValue": [
+            {
+              "nVarNumber": 1,
+              "tml_elements": [
+                "nVarNumber",
+                "nVarValue",
+                "nVarDigits"
+              ],
+              "nVarDigits": 5,
+              "nVarValue": 243.6
+            },
+            {
+              "nVarValue": 0.4553,
+              "nVarNumber": 2,
+              "nVarDigits": 4,
+              "tml_elements": [
+                "nVarNumber",
+                "nVarValue",
+                "nVarDigits"
+              ]
+            }
+          ],
+          "tml_elements": [
+            "VariableValue",
+            "PropertyValue"
+          ],
+          "PropertyValue": [
+            {
+              "nPropValue": 5395,
+              "CombinedUncertainty": {
+                "nCombUncertAssessNum": 1,
+                "tml_elements": [
+                  "nCombUncertAssessNum",
+                  "nCombExpandUncertValue"
+                ],
+                "nCombExpandUncertValue": 76
+              },
+              "nPropDigits": 4,
+              "nPropNumber": 1,
+              "tml_elements": [
+                "nPropNumber",
+                "nPropValue",
+                "nPropDigits",
+                "CombinedUncertainty"
+              ]
+            }
+          ]
+        },
+        {
+          "VariableValue": [
+            {
+              "nVarValue": 243.61,
+              "tml_elements": [
+                "nVarNumber",
+                "nVarValue",
+                "nVarDigits"
+              ],
+              "nVarDigits": 5,
+              "nVarNumber": 1
+            },
+            {
+              "nVarValue": 0.5273,
+              "nVarNumber": 2,
+              "tml_elements": [
+                "nVarNumber",
+                "nVarValue",
+                "nVarDigits"
+              ],
+              "nVarDigits": 4
+            }
+          ],
+          "PropertyValue": [
+            {
+              "nPropValue": 6080,
+              "CombinedUncertainty": {
+                "nCombExpandUncertValue": 111,
+                "tml_elements": [
+                  "nCombUncertAssessNum",
+                  "nCombExpandUncertValue"
+                ],
+                "nCombUncertAssessNum": 1
+              },
+              "nPropNumber": 1,
+              "nPropDigits": 3,
+              "tml_elements": [
+                "nPropNumber",
+                "nPropValue",
+                "nPropDigits",
+                "CombinedUncertainty"
+              ]
+            }
+          ],
+          "tml_elements": [
+            "VariableValue",
+            "PropertyValue"
+          ]
+        },
+        {
+          "VariableValue": [
+            {
+              "tml_elements": [
+                "nVarNumber",
+                "nVarValue",
+                "nVarDigits"
+              ],
+              "nVarDigits": 5,
+              "nVarNumber": 1,
+              "nVarValue": 243.61
+            },
+            {
+              "nVarValue": 0.5673,
+              "nVarNumber": 2,
+              "tml_elements": [
+                "nVarNumber",
+                "nVarValue",
+                "nVarDigits"
+              ],
+              "nVarDigits": 4
+            }
+          ],
+          "PropertyValue": [
+            {
+              "nPropNumber": 1,
+              "nPropDigits": 4,
+              "tml_elements": [
+                "nPropNumber",
+                "nPropValue",
+                "nPropDigits",
+                "CombinedUncertainty"
+              ],
+              "CombinedUncertainty": {
+                "nCombExpandUncertValue": 1683,
+                "tml_elements": [
+                  "nCombUncertAssessNum",
+                  "nCombExpandUncertValue"
+                ],
+                "nCombUncertAssessNum": 1
+              },
+              "nPropValue": 6469
+            }
+          ],
+          "tml_elements": [
+            "VariableValue",
+            "PropertyValue"
+          ]
+        },
+        {
+          "PropertyValue": [
+            {
+              "nPropDigits": 4,
+              "nPropNumber": 1,
+              "tml_elements": [
+                "nPropNumber",
+                "nPropValue",
+                "nPropDigits",
+                "CombinedUncertainty"
+              ],
+              "CombinedUncertainty": {
+                "nCombUncertAssessNum": 1,
+                "nCombExpandUncertValue": 1187,
+                "tml_elements": [
+                  "nCombUncertAssessNum",
+                  "nCombExpandUncertValue"
+                ]
+              },
+              "nPropValue": 6691
+            }
+          ],
+          "tml_elements": [
+            "VariableValue",
+            "PropertyValue"
+          ],
+          "VariableValue": [
+            {
+              "tml_elements": [
+                "nVarNumber",
+                "nVarValue",
+                "nVarDigits"
+              ],
+              "nVarDigits": 5,
+              "nVarNumber": 1,
+              "nVarValue": 243.61
+            },
+            {
+              "nVarValue": 0.5957,
+              "tml_elements": [
+                "nVarNumber",
+                "nVarValue",
+                "nVarDigits"
+              ],
+              "nVarDigits": 4,
+              "nVarNumber": 2
+            }
+          ]
+        },
+        {
+          "VariableValue": [
+            {
+              "nVarValue": 243.6,
+              "nVarNumber": 1,
+              "nVarDigits": 5,
+              "tml_elements": [
+                "nVarNumber",
+                "nVarValue",
+                "nVarDigits"
+              ]
+            },
+            {
+              "tml_elements": [
+                "nVarNumber",
+                "nVarValue",
+                "nVarDigits"
+              ],
+              "nVarDigits": 4,
+              "nVarNumber": 2,
+              "nVarValue": 0.6218
+            }
+          ],
+          "tml_elements": [
+            "VariableValue",
+            "PropertyValue"
+          ],
+          "PropertyValue": [
+            {
+              "tml_elements": [
+                "nPropNumber",
+                "nPropValue",
+                "nPropDigits",
+                "CombinedUncertainty"
+              ],
+              "nPropDigits": 4,
+              "nPropNumber": 1,
+              "nPropValue": 6885,
+              "CombinedUncertainty": {
+                "nCombUncertAssessNum": 1,
+                "nCombExpandUncertValue": 1349,
+                "tml_elements": [
+                  "nCombUncertAssessNum",
+                  "nCombExpandUncertValue"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "VariableValue": [
+            {
+              "nVarDigits": 5,
+              "tml_elements": [
+                "nVarNumber",
+                "nVarValue",
+                "nVarDigits"
+              ],
+              "nVarNumber": 1,
+              "nVarValue": 243.6
+            },
+            {
+              "nVarNumber": 2,
+              "tml_elements": [
+                "nVarNumber",
+                "nVarValue",
+                "nVarDigits"
+              ],
+              "nVarDigits": 4,
+              "nVarValue": 0.5754
+            }
+          ],
+          "PropertyValue": [
+            {
+              "CombinedUncertainty": {
+                "tml_elements": [
+                  "nCombUncertAssessNum",
+                  "nCombExpandUncertValue"
+                ],
+                "nCombExpandUncertValue": 1373,
+                "nCombUncertAssessNum": 1
+              },
+              "nPropValue": 6487,
+              "nPropDigits": 4,
+              "nPropNumber": 1,
+              "tml_elements": [
+                "nPropNumber",
+                "nPropValue",
+                "nPropDigits",
+                "CombinedUncertainty"
+              ]
+            }
+          ],
+          "tml_elements": [
+            "VariableValue",
+            "PropertyValue"
+          ]
+        },
+        {
+          "PropertyValue": [
+            {
+              "tml_elements": [
+                "nPropNumber",
+                "nPropValue",
+                "nPropDigits",
+                "CombinedUncertainty"
+              ],
+              "nPropDigits": 4,
+              "nPropNumber": 1,
+              "CombinedUncertainty": {
+                "nCombExpandUncertValue": 80,
+                "tml_elements": [
+                  "nCombUncertAssessNum",
+                  "nCombExpandUncertValue"
+                ],
+                "nCombUncertAssessNum": 1
+              },
+              "nPropValue": 5564
+            }
+          ],
+          "tml_elements": [
+            "VariableValue",
+            "PropertyValue"
+          ],
+          "VariableValue": [
+            {
+              "nVarNumber": 1,
+              "tml_elements": [
+                "nVarNumber",
+                "nVarValue",
+                "nVarDigits"
+              ],
+              "nVarDigits": 5,
+              "nVarValue": 243.6
+            },
+            {
+              "nVarNumber": 2,
+              "nVarDigits": 4,
+              "tml_elements": [
+                "nVarNumber",
+                "nVarValue",
+                "nVarDigits"
+              ],
+              "nVarValue": 0.4741
+            }
+          ]
+        },
+        {
+          "VariableValue": [
+            {
+              "nVarNumber": 1,
+              "nVarDigits": 5,
+              "tml_elements": [
+                "nVarNumber",
+                "nVarValue",
+                "nVarDigits"
+              ],
+              "nVarValue": 243.6
+            },
+            {
+              "nVarValue": 0.4255,
+              "nVarNumber": 2,
+              "tml_elements": [
+                "nVarNumber",
+                "nVarValue",
+                "nVarDigits"
+              ],
+              "nVarDigits": 4
+            }
+          ],
+          "tml_elements": [
+            "VariableValue",
+            "PropertyValue"
+          ],
+          "PropertyValue": [
+            {
+              "nPropDigits": 4,
+              "nPropNumber": 1,
+              "tml_elements": [
+                "nPropNumber",
+                "nPropValue",
+                "nPropDigits",
+                "CombinedUncertainty"
+              ],
+              "nPropValue": 5094,
+              "CombinedUncertainty": {
+                "tml_elements": [
+                  "nCombUncertAssessNum",
+                  "nCombExpandUncertValue"
+                ],
+                "nCombExpandUncertValue": 78,
+                "nCombUncertAssessNum": 1
+              }
+            }
+          ]
+        },
+        {
+          "VariableValue": [
+            {
+              "nVarNumber": 1,
+              "tml_elements": [
+                "nVarNumber",
+                "nVarValue",
+                "nVarDigits"
+              ],
+              "nVarDigits": 5,
+              "nVarValue": 243.61
+            },
+            {
+              "nVarValue": 0.2865,
+              "nVarDigits": 4,
+              "tml_elements": [
+                "nVarNumber",
+                "nVarValue",
+                "nVarDigits"
+              ],
+              "nVarNumber": 2
+            }
+          ],
+          "tml_elements": [
+            "VariableValue",
+            "PropertyValue"
+          ],
+          "PropertyValue": [
+            {
+              "tml_elements": [
+                "nPropNumber",
+                "nPropValue",
+                "nPropDigits",
+                "CombinedUncertainty"
+              ],
+              "nPropNumber": 1,
+              "nPropDigits": 4,
+              "CombinedUncertainty": {
+                "nCombExpandUncertValue": 60,
+                "tml_elements": [
+                  "nCombUncertAssessNum",
+                  "nCombExpandUncertValue"
+                ],
+                "nCombUncertAssessNum": 1
+              },
+              "nPropValue": 3718
+            }
+          ]
+        },
+        {
+          "VariableValue": [
+            {
+              "nVarValue": 243.6,
+              "nVarNumber": 1,
+              "tml_elements": [
+                "nVarNumber",
+                "nVarValue",
+                "nVarDigits"
+              ],
+              "nVarDigits": 5
+            },
+            {
+              "nVarNumber": 2,
+              "tml_elements": [
+                "nVarNumber",
+                "nVarValue",
+                "nVarDigits"
+              ],
+              "nVarDigits": 4,
+              "nVarValue": 0.2812
+            }
+          ],
+          "PropertyValue": [
+            {
+              "nPropValue": 3675,
+              "CombinedUncertainty": {
+                "nCombUncertAssessNum": 1,
+                "tml_elements": [
+                  "nCombUncertAssessNum",
+                  "nCombExpandUncertValue"
+                ],
+                "nCombExpandUncertValue": 68
+              },
+              "nPropNumber": 1,
+              "nPropDigits": 4,
+              "tml_elements": [
+                "nPropNumber",
+                "nPropValue",
+                "nPropDigits",
+                "CombinedUncertainty"
+              ]
+            }
+          ],
+          "tml_elements": [
+            "VariableValue",
+            "PropertyValue"
+          ]
+        }
+      ],
+      "eExpPurpose": "Principal objective of the work",
+      "Property": [
+        {
+          "CombinedUncertainty": {
+            "tml_elements": [
+              "nCombUncertAssessNum",
+              "sCombUncertEvaluator",
+              "eCombUncertEvalMethod",
+              "nCombUncertLevOfConfid"
+            ],
+            "nCombUncertLevOfConfid": 95,
+            "eCombUncertEvalMethod": "Propagation of evaluated standard uncertainties",
+            "nCombUncertAssessNum": 1,
+            "sCombUncertEvaluator": "Data file compiler"
+          },
+          "ePresentation": "Direct value, X",
+          "tml_elements": [
+            "nPropNumber",
+            "Property-MethodID",
+            "PropPhaseID",
+            "ePresentation",
+            "CombinedUncertainty"
+          ],
+          "PropPhaseID": {
+            "tml_elements": [
+              "ePropPhase"
+            ],
+            "ePropPhase": "Liquid"
+          },
+          "Property-MethodID": {
+            "tml_elements": [
+              "PropertyGroup"
+            ],
+            "PropertyGroup": {
+              "VaporPBoilingTAzeotropTandP": {
+                "tml_elements": [
+                  "ePropName",
+                  "sMethodName"
+                ],
+                "ePropName": "Vapor or sublimation pressure, kPa",
+                "sMethodName": "Closed cell (Static) method"
+              },
+              "tml_elements": [
+                "VaporPBoilingTAzeotropTandP"
+              ]
+            }
+          },
+          "nPropNumber": 1
+        }
+      ],
+      "Variable": [
+        {
+          "nVarNumber": 1,
+          "VarPhaseID": {
+            "tml_elements": [
+              "eVarPhase"
+            ],
+            "eVarPhase": "Liquid"
+          },
+          "tml_elements": [
+            "nVarNumber",
+            "VariableID",
+            "VarPhaseID"
+          ],
+          "VariableID": {
+            "tml_elements": [
+              "VariableType"
+            ],
+            "VariableType": {
+              "eTemperature": "Temperature, K",
+              "tml_elements": [
+                "eTemperature"
+              ]
+            }
+          }
+        },
+        {
+          "nVarNumber": 2,
+          "VarPhaseID": {
+            "tml_elements": [
+              "eVarPhase"
+            ],
+            "eVarPhase": "Liquid"
+          },
+          "tml_elements": [
+            "nVarNumber",
+            "VariableID",
+            "VarPhaseID"
+          ],
+          "VariableID": {
+            "RegNum": {
+              "tml_elements": [
+                "nOrgNum"
+              ],
+              "nOrgNum": 1
+            },
+            "VariableType": {
+              "tml_elements": [
+                "eComponentComposition"
+              ],
+              "eComponentComposition": "Mole fraction"
+            },
+            "tml_elements": [
+              "VariableType",
+              "RegNum"
+            ]
+          }
+        }
+      ],
+      "sContributor": "EP",
+      "PhaseID": [
+        {
+          "tml_elements": [
+            "ePhase"
+          ],
+          "ePhase": "Liquid"
+        },
+        {
+          "tml_elements": [
+            "ePhase"
+          ],
+          "ePhase": "Gas"
+        }
+      ],
+      "tml_elements": [
+        "nPureOrMixtureDataNumber",
+        "Component",
+        "eExpPurpose",
+        "sCompiler",
+        "sContributor",
+        "dateDateAdded",
+        "Property",
+        "PhaseID",
+        "Variable",
+        "NumValues"
+      ],
+      "Component": [
+        {
+          "RegNum": {
+            "tml_elements": [
+              "nOrgNum"
+            ],
+            "nOrgNum": 1
+          },
+          "nSampleNm": 1,
+          "tml_elements": [
+            "RegNum",
+            "nSampleNm"
+          ]
+        },
+        {
+          "tml_elements": [
+            "RegNum",
+            "nSampleNm"
+          ],
+          "RegNum": {
+            "nOrgNum": 2,
+            "tml_elements": [
+              "nOrgNum"
+            ]
+          },
+          "nSampleNm": 1
+        }
+      ]
+    },
+    {
+      "Component": [
+        {
+          "nSampleNm": 1,
+          "RegNum": {
+            "tml_elements": [
+              "nOrgNum"
+            ],
+            "nOrgNum": 1
+          },
+          "tml_elements": [
+            "RegNum",
+            "nSampleNm"
+          ]
+        },
+        {
+          "nSampleNm": 1,
+          "RegNum": {
+            "tml_elements": [
+              "nOrgNum"
+            ],
+            "nOrgNum": 2
+          },
+          "tml_elements": [
+            "RegNum",
+            "nSampleNm"
+          ]
+        }
+      ],
+      "tml_elements": [
+        "nPureOrMixtureDataNumber",
+        "Component",
+        "eExpPurpose",
+        "sCompiler",
+        "sContributor",
+        "dateDateAdded",
+        "Property",
+        "PhaseID",
+        "Variable",
+        "NumValues"
+      ],
+      "PhaseID": [
+        {
+          "tml_elements": [
+            "ePhase"
+          ],
+          "ePhase": "Gas"
+        },
+        {
+          "tml_elements": [
+            "ePhase"
+          ],
+          "ePhase": "Liquid"
+        }
+      ],
+      "sContributor": "EP",
+      "Variable": [
+        {
+          "VarPhaseID": {
+            "tml_elements": [
+              "eVarPhase"
+            ],
+            "eVarPhase": "Liquid"
+          },
+          "nVarNumber": 1,
+          "tml_elements": [
+            "nVarNumber",
+            "VariableID",
+            "VarPhaseID"
+          ],
+          "VariableID": {
+            "tml_elements": [
+              "VariableType"
+            ],
+            "VariableType": {
+              "tml_elements": [
+                "eTemperature"
+              ],
+              "eTemperature": "Temperature, K"
+            }
+          }
+        },
+        {
+          "VariableID": {
+            "tml_elements": [
+              "VariableType",
+              "RegNum"
+            ],
+            "VariableType": {
+              "eComponentComposition": "Mole fraction",
+              "tml_elements": [
+                "eComponentComposition"
+              ]
+            },
+            "RegNum": {
+              "nOrgNum": 1,
+              "tml_elements": [
+                "nOrgNum"
+              ]
+            }
+          },
+          "tml_elements": [
+            "nVarNumber",
+            "VariableID",
+            "VarPhaseID"
+          ],
+          "VarPhaseID": {
+            "tml_elements": [
+              "eVarPhase"
+            ],
+            "eVarPhase": "Liquid"
+          },
+          "nVarNumber": 2
+        }
+      ],
+      "eExpPurpose": "Principal objective of the work",
+      "Property": [
+        {
+          "Property-MethodID": {
+            "PropertyGroup": {
+              "CompositionAtPhaseEquilibrium": {
+                "ePropName": "Mole fraction",
+                "eMethodName": "Chromatography",
+                "tml_elements": [
+                  "ePropName",
+                  "eMethodName"
+                ]
+              },
+              "tml_elements": [
+                "CompositionAtPhaseEquilibrium"
+              ]
+            },
+            "tml_elements": [
+              "PropertyGroup",
+              "RegNum"
+            ],
+            "RegNum": {
+              "nOrgNum": 2,
+              "tml_elements": [
+                "nOrgNum"
+              ]
+            }
+          },
+          "CombinedUncertainty": {
+            "tml_elements": [
+              "nCombUncertAssessNum",
+              "sCombUncertEvaluator",
+              "eCombUncertEvalMethod",
+              "nCombUncertLevOfConfid"
+            ],
+            "eCombUncertEvalMethod": "Propagation of evaluated standard uncertainties",
+            "nCombUncertLevOfConfid": 95,
+            "nCombUncertAssessNum": 1,
+            "sCombUncertEvaluator": "Data file compiler"
+          },
+          "PropPhaseID": {
+            "tml_elements": [
+              "ePropPhase"
+            ],
+            "ePropPhase": "Gas"
+          },
+          "nPropNumber": 1,
+          "ePresentation": "Direct value, X",
+          "tml_elements": [
+            "nPropNumber",
+            "Property-MethodID",
+            "PropPhaseID",
+            "ePresentation",
+            "CombinedUncertainty"
+          ]
+        }
+      ],
+      "NumValues": [
+        {
+          "PropertyValue": [
+            {
+              "nPropDigits": 4,
+              "nPropNumber": 1,
+              "tml_elements": [
+                "nPropNumber",
+                "nPropValue",
+                "nPropDigits",
+                "CombinedUncertainty"
+              ],
+              "nPropValue": 0.3336,
+              "CombinedUncertainty": {
+                "tml_elements": [
+                  "nCombUncertAssessNum",
+                  "nCombExpandUncertValue"
+                ],
+                "nCombExpandUncertValue": 0.0074,
+                "nCombUncertAssessNum": 1
+              }
+            }
+          ],
+          "tml_elements": [
+            "VariableValue",
+            "PropertyValue"
+          ],
+          "VariableValue": [
+            {
+              "nVarDigits": 5,
+              "tml_elements": [
+                "nVarNumber",
+                "nVarValue",
+                "nVarDigits"
+              ],
+              "nVarNumber": 1,
+              "nVarValue": 243.58
+            },
+            {
+              "tml_elements": [
+                "nVarNumber",
+                "nVarValue",
+                "nVarDigits"
+              ],
+              "nVarDigits": 4,
+              "nVarNumber": 2,
+              "nVarValue": 0.3099
+            }
+          ]
+        },
+        {
+          "tml_elements": [
+            "VariableValue",
+            "PropertyValue"
+          ],
+          "PropertyValue": [
+            {
+              "nPropValue": 0.1333,
+              "CombinedUncertainty": {
+                "tml_elements": [
+                  "nCombUncertAssessNum",
+                  "nCombExpandUncertValue"
+                ],
+                "nCombExpandUncertValue": 0.025,
+                "nCombUncertAssessNum": 1
+              },
+              "tml_elements": [
+                "nPropNumber",
+                "nPropValue",
+                "nPropDigits",
+                "CombinedUncertainty"
+              ],
+              "nPropNumber": 1,
+              "nPropDigits": 4
+            }
+          ],
+          "VariableValue": [
+            {
+              "nVarDigits": 5,
+              "tml_elements": [
+                "nVarNumber",
+                "nVarValue",
+                "nVarDigits"
+              ],
+              "nVarNumber": 1,
+              "nVarValue": 203.22
+            },
+            {
+              "nVarValue": 0.3653,
+              "nVarNumber": 2,
+              "nVarDigits": 4,
+              "tml_elements": [
+                "nVarNumber",
+                "nVarValue",
+                "nVarDigits"
+              ]
+            }
+          ]
+        },
+        {
+          "VariableValue": [
+            {
+              "nVarNumber": 1,
+              "tml_elements": [
+                "nVarNumber",
+                "nVarValue",
+                "nVarDigits"
+              ],
+              "nVarDigits": 5,
+              "nVarValue": 213.39
+            },
+            {
+              "nVarValue": 0.3464,
+              "nVarNumber": 2,
+              "nVarDigits": 4,
+              "tml_elements": [
+                "nVarNumber",
+                "nVarValue",
+                "nVarDigits"
+              ]
+            }
+          ],
+          "PropertyValue": [
+            {
+              "tml_elements": [
+                "nPropNumber",
+                "nPropValue",
+                "nPropDigits",
+                "CombinedUncertainty"
+              ],
+              "nPropNumber": 1,
+              "nPropDigits": 4,
+              "nPropValue": 0.1711,
+              "CombinedUncertainty": {
+                "nCombExpandUncertValue": 0.0182,
+                "tml_elements": [
+                  "nCombUncertAssessNum",
+                  "nCombExpandUncertValue"
+                ],
+                "nCombUncertAssessNum": 1
+              }
+            }
+          ],
+          "tml_elements": [
+            "VariableValue",
+            "PropertyValue"
+          ]
+        },
+        {
+          "VariableValue": [
+            {
+              "nVarNumber": 1,
+              "nVarDigits": 5,
+              "tml_elements": [
+                "nVarNumber",
+                "nVarValue",
+                "nVarDigits"
+              ],
+              "nVarValue": 223.5
+            },
+            {
+              "nVarNumber": 2,
+              "nVarDigits": 4,
+              "tml_elements": [
+                "nVarNumber",
+                "nVarValue",
+                "nVarDigits"
+              ],
+              "nVarValue": 0.3315
+            }
+          ],
+          "PropertyValue": [
+            {
+              "CombinedUncertainty": {
+                "nCombUncertAssessNum": 1,
+                "tml_elements": [
+                  "nCombUncertAssessNum",
+                  "nCombExpandUncertValue"
+                ],
+                "nCombExpandUncertValue": 0.0053
+              },
+              "nPropValue": 0.2195,
+              "nPropNumber": 1,
+              "nPropDigits": 4,
+              "tml_elements": [
+                "nPropNumber",
+                "nPropValue",
+                "nPropDigits",
+                "CombinedUncertainty"
+              ]
+            }
+          ],
+          "tml_elements": [
+            "VariableValue",
+            "PropertyValue"
+          ]
+        },
+        {
+          "tml_elements": [
+            "VariableValue",
+            "PropertyValue"
+          ],
+          "PropertyValue": [
+            {
+              "nPropValue": 0.2755,
+              "CombinedUncertainty": {
+                "nCombUncertAssessNum": 1,
+                "tml_elements": [
+                  "nCombUncertAssessNum",
+                  "nCombExpandUncertValue"
+                ],
+                "nCombExpandUncertValue": 0.0051
+              },
+              "tml_elements": [
+                "nPropNumber",
+                "nPropValue",
+                "nPropDigits",
+                "CombinedUncertainty"
+              ],
+              "nPropNumber": 1,
+              "nPropDigits": 4
+            }
+          ],
+          "VariableValue": [
+            {
+              "nVarValue": 233.56,
+              "nVarDigits": 5,
+              "tml_elements": [
+                "nVarNumber",
+                "nVarValue",
+                "nVarDigits"
+              ],
+              "nVarNumber": 1
+            },
+            {
+              "nVarNumber": 2,
+              "nVarDigits": 4,
+              "tml_elements": [
+                "nVarNumber",
+                "nVarValue",
+                "nVarDigits"
+              ],
+              "nVarValue": 0.3188
+            }
+          ]
+        },
+        {
+          "VariableValue": [
+            {
+              "tml_elements": [
+                "nVarNumber",
+                "nVarValue",
+                "nVarDigits"
+              ],
+              "nVarDigits": 5,
+              "nVarNumber": 1,
+              "nVarValue": 243.6
+            },
+            {
+              "nVarNumber": 2,
+              "nVarDigits": 4,
+              "tml_elements": [
+                "nVarNumber",
+                "nVarValue",
+                "nVarDigits"
+              ],
+              "nVarValue": 0.3082
+            }
+          ],
+          "tml_elements": [
+            "VariableValue",
+            "PropertyValue"
+          ],
+          "PropertyValue": [
+            {
+              "CombinedUncertainty": {
+                "tml_elements": [
+                  "nCombUncertAssessNum",
+                  "nCombExpandUncertValue"
+                ],
+                "nCombExpandUncertValue": 0.0062,
+                "nCombUncertAssessNum": 1
+              },
+              "nPropValue": 0.334,
+              "nPropNumber": 1,
+              "nPropDigits": 4,
+              "tml_elements": [
+                "nPropNumber",
+                "nPropValue",
+                "nPropDigits",
+                "CombinedUncertainty"
+              ]
+            }
+          ]
+        },
+        {
+          "VariableValue": [
+            {
+              "nVarNumber": 1,
+              "nVarDigits": 5,
+              "tml_elements": [
+                "nVarNumber",
+                "nVarValue",
+                "nVarDigits"
+              ],
+              "nVarValue": 243.6
+            },
+            {
+              "nVarValue": 0.3973,
+              "nVarNumber": 2,
+              "tml_elements": [
+                "nVarNumber",
+                "nVarValue",
+                "nVarDigits"
+              ],
+              "nVarDigits": 4
+            }
+          ],
+          "tml_elements": [
+            "VariableValue",
+            "PropertyValue"
+          ],
+          "PropertyValue": [
+            {
+              "tml_elements": [
+                "nPropNumber",
+                "nPropValue",
+                "nPropDigits",
+                "CombinedUncertainty"
+              ],
+              "nPropDigits": 4,
+              "nPropNumber": 1,
+              "nPropValue": 0.2954,
+              "CombinedUncertainty": {
+                "nCombUncertAssessNum": 1,
+                "tml_elements": [
+                  "nCombUncertAssessNum",
+                  "nCombExpandUncertValue"
+                ],
+                "nCombExpandUncertValue": 0.0059
+              }
+            }
+          ]
+        },
+        {
+          "PropertyValue": [
+            {
+              "CombinedUncertainty": {
+                "nCombUncertAssessNum": 1,
+                "nCombExpandUncertValue": 0.0078,
+                "tml_elements": [
+                  "nCombUncertAssessNum",
+                  "nCombExpandUncertValue"
+                ]
+              },
+              "nPropValue": 0.2788,
+              "tml_elements": [
+                "nPropNumber",
+                "nPropValue",
+                "nPropDigits",
+                "CombinedUncertainty"
+              ],
+              "nPropDigits": 4,
+              "nPropNumber": 1
+            }
+          ],
+          "tml_elements": [
+            "VariableValue",
+            "PropertyValue"
+          ],
+          "VariableValue": [
+            {
+              "tml_elements": [
+                "nVarNumber",
+                "nVarValue",
+                "nVarDigits"
+              ],
+              "nVarDigits": 5,
+              "nVarNumber": 1,
+              "nVarValue": 243.6
+            },
+            {
+              "nVarNumber": 2,
+              "tml_elements": [
+                "nVarNumber",
+                "nVarValue",
+                "nVarDigits"
+              ],
+              "nVarDigits": 4,
+              "nVarValue": 0.4553
+            }
+          ]
+        },
+        {
+          "VariableValue": [
+            {
+              "nVarNumber": 1,
+              "tml_elements": [
+                "nVarNumber",
+                "nVarValue",
+                "nVarDigits"
+              ],
+              "nVarDigits": 5,
+              "nVarValue": 243.61
+            },
+            {
+              "nVarDigits": 4,
+              "tml_elements": [
+                "nVarNumber",
+                "nVarValue",
+                "nVarDigits"
+              ],
+              "nVarNumber": 2,
+              "nVarValue": 0.5273
+            }
+          ],
+          "tml_elements": [
+            "VariableValue",
+            "PropertyValue"
+          ],
+          "PropertyValue": [
+            {
+              "CombinedUncertainty": {
+                "tml_elements": [
+                  "nCombUncertAssessNum",
+                  "nCombExpandUncertValue"
+                ],
+                "nCombExpandUncertValue": 0.0518,
+                "nCombUncertAssessNum": 1
+              },
+              "nPropValue": 0.2778,
+              "tml_elements": [
+                "nPropNumber",
+                "nPropValue",
+                "nPropDigits",
+                "CombinedUncertainty"
+              ],
+              "nPropDigits": 4,
+              "nPropNumber": 1
+            }
+          ]
+        },
+        {
+          "tml_elements": [
+            "VariableValue",
+            "PropertyValue"
+          ],
+          "PropertyValue": [
+            {
+              "nPropNumber": 1,
+              "nPropDigits": 4,
+              "tml_elements": [
+                "nPropNumber",
+                "nPropValue",
+                "nPropDigits",
+                "CombinedUncertainty"
+              ],
+              "nPropValue": 0.2731,
+              "CombinedUncertainty": {
+                "nCombExpandUncertValue": 0.2442,
+                "tml_elements": [
+                  "nCombUncertAssessNum",
+                  "nCombExpandUncertValue"
+                ],
+                "nCombUncertAssessNum": 1
+              }
+            }
+          ],
+          "VariableValue": [
+            {
+              "nVarValue": 243.61,
+              "tml_elements": [
+                "nVarNumber",
+                "nVarValue",
+                "nVarDigits"
+              ],
+              "nVarDigits": 5,
+              "nVarNumber": 1
+            },
+            {
+              "tml_elements": [
+                "nVarNumber",
+                "nVarValue",
+                "nVarDigits"
+              ],
+              "nVarDigits": 4,
+              "nVarNumber": 2,
+              "nVarValue": 0.5673
+            }
+          ]
+        },
+        {
+          "VariableValue": [
+            {
+              "nVarValue": 243.61,
+              "nVarNumber": 1,
+              "nVarDigits": 5,
+              "tml_elements": [
+                "nVarNumber",
+                "nVarValue",
+                "nVarDigits"
+              ]
+            },
+            {
+              "nVarValue": 0.5957,
+              "nVarNumber": 2,
+              "nVarDigits": 4,
+              "tml_elements": [
+                "nVarNumber",
+                "nVarValue",
+                "nVarDigits"
+              ]
+            }
+          ],
+          "PropertyValue": [
+            {
+              "CombinedUncertainty": {
+                "nCombExpandUncertValue": 0.1992,
+                "tml_elements": [
+                  "nCombUncertAssessNum",
+                  "nCombExpandUncertValue"
+                ],
+                "nCombUncertAssessNum": 1
+              },
+              "nPropValue": 0.2812,
+              "nPropNumber": 1,
+              "nPropDigits": 4,
+              "tml_elements": [
+                "nPropNumber",
+                "nPropValue",
+                "nPropDigits",
+                "CombinedUncertainty"
+              ]
+            }
+          ],
+          "tml_elements": [
+            "VariableValue",
+            "PropertyValue"
+          ]
+        },
+        {
+          "PropertyValue": [
+            {
+              "nPropValue": 0.2877,
+              "CombinedUncertainty": {
+                "tml_elements": [
+                  "nCombUncertAssessNum",
+                  "nCombExpandUncertValue"
+                ],
+                "nCombExpandUncertValue": 0.2658,
+                "nCombUncertAssessNum": 1
+              },
+              "tml_elements": [
+                "nPropNumber",
+                "nPropValue",
+                "nPropDigits",
+                "CombinedUncertainty"
+              ],
+              "nPropNumber": 1,
+              "nPropDigits": 4
+            }
+          ],
+          "tml_elements": [
+            "VariableValue",
+            "PropertyValue"
+          ],
+          "VariableValue": [
+            {
+              "nVarDigits": 5,
+              "tml_elements": [
+                "nVarNumber",
+                "nVarValue",
+                "nVarDigits"
+              ],
+              "nVarNumber": 1,
+              "nVarValue": 243.6
+            },
+            {
+              "nVarValue": 0.6218,
+              "nVarNumber": 2,
+              "nVarDigits": 4,
+              "tml_elements": [
+                "nVarNumber",
+                "nVarValue",
+                "nVarDigits"
+              ]
+            }
+          ]
+        },
+        {
+          "VariableValue": [
+            {
+              "nVarNumber": 1,
+              "nVarDigits": 5,
+              "tml_elements": [
+                "nVarNumber",
+                "nVarValue",
+                "nVarDigits"
+              ],
+              "nVarValue": 243.6
+            },
+            {
+              "tml_elements": [
+                "nVarNumber",
+                "nVarValue",
+                "nVarDigits"
+              ],
+              "nVarDigits": 4,
+              "nVarNumber": 2,
+              "nVarValue": 0.5754
+            }
+          ],
+          "PropertyValue": [
+            {
+              "nPropValue": 0.2801,
+              "CombinedUncertainty": {
+                "nCombUncertAssessNum": 1,
+                "nCombExpandUncertValue": 0.1443,
+                "tml_elements": [
+                  "nCombUncertAssessNum",
+                  "nCombExpandUncertValue"
+                ]
+              },
+              "nPropNumber": 1,
+              "nPropDigits": 4,
+              "tml_elements": [
+                "nPropNumber",
+                "nPropValue",
+                "nPropDigits",
+                "CombinedUncertainty"
+              ]
+            }
+          ],
+          "tml_elements": [
+            "VariableValue",
+            "PropertyValue"
+          ]
+        },
+        {
+          "VariableValue": [
+            {
+              "nVarValue": 243.6,
+              "tml_elements": [
+                "nVarNumber",
+                "nVarValue",
+                "nVarDigits"
+              ],
+              "nVarDigits": 5,
+              "nVarNumber": 1
+            },
+            {
+              "nVarValue": 0.4741,
+              "nVarNumber": 2,
+              "nVarDigits": 4,
+              "tml_elements": [
+                "nVarNumber",
+                "nVarValue",
+                "nVarDigits"
+              ]
+            }
+          ],
+          "PropertyValue": [
+            {
+              "nPropDigits": 4,
+              "nPropNumber": 1,
+              "tml_elements": [
+                "nPropNumber",
+                "nPropValue",
+                "nPropDigits",
+                "CombinedUncertainty"
+              ],
+              "nPropValue": 0.2745,
+              "CombinedUncertainty": {
+                "nCombUncertAssessNum": 1,
+                "nCombExpandUncertValue": 0.0036,
+                "tml_elements": [
+                  "nCombUncertAssessNum",
+                  "nCombExpandUncertValue"
+                ]
+              }
+            }
+          ],
+          "tml_elements": [
+            "VariableValue",
+            "PropertyValue"
+          ]
+        },
+        {
+          "PropertyValue": [
+            {
+              "nPropDigits": 4,
+              "nPropNumber": 1,
+              "tml_elements": [
+                "nPropNumber",
+                "nPropValue",
+                "nPropDigits",
+                "CombinedUncertainty"
+              ],
+              "nPropValue": 0.2856,
+              "CombinedUncertainty": {
+                "tml_elements": [
+                  "nCombUncertAssessNum",
+                  "nCombExpandUncertValue"
+                ],
+                "nCombExpandUncertValue": 0.0058,
+                "nCombUncertAssessNum": 1
+              }
+            }
+          ],
+          "tml_elements": [
+            "VariableValue",
+            "PropertyValue"
+          ],
+          "VariableValue": [
+            {
+              "nVarValue": 243.6,
+              "nVarDigits": 5,
+              "tml_elements": [
+                "nVarNumber",
+                "nVarValue",
+                "nVarDigits"
+              ],
+              "nVarNumber": 1
+            },
+            {
+              "nVarNumber": 2,
+              "nVarDigits": 4,
+              "tml_elements": [
+                "nVarNumber",
+                "nVarValue",
+                "nVarDigits"
+              ],
+              "nVarValue": 0.4255
+            }
+          ]
+        },
+        {
+          "PropertyValue": [
+            {
+              "CombinedUncertainty": {
+                "nCombExpandUncertValue": 0.0083,
+                "tml_elements": [
+                  "nCombUncertAssessNum",
+                  "nCombExpandUncertValue"
+                ],
+                "nCombUncertAssessNum": 1
+              },
+              "nPropValue": 0.3421,
+              "nPropDigits": 4,
+              "nPropNumber": 1,
+              "tml_elements": [
+                "nPropNumber",
+                "nPropValue",
+                "nPropDigits",
+                "CombinedUncertainty"
+              ]
+            }
+          ],
+          "tml_elements": [
+            "VariableValue",
+            "PropertyValue"
+          ],
+          "VariableValue": [
+            {
+              "tml_elements": [
+                "nVarNumber",
+                "nVarValue",
+                "nVarDigits"
+              ],
+              "nVarDigits": 5,
+              "nVarNumber": 1,
+              "nVarValue": 243.61
+            },
+            {
+              "nVarValue": 0.2865,
+              "tml_elements": [
+                "nVarNumber",
+                "nVarValue",
+                "nVarDigits"
+              ],
+              "nVarDigits": 4,
+              "nVarNumber": 2
+            }
+          ]
+        },
+        {
+          "PropertyValue": [
+            {
+              "nPropValue": 0.349,
+              "CombinedUncertainty": {
+                "nCombUncertAssessNum": 1,
+                "tml_elements": [
+                  "nCombUncertAssessNum",
+                  "nCombExpandUncertValue"
+                ],
+                "nCombExpandUncertValue": 0.012
+              },
+              "nPropNumber": 1,
+              "nPropDigits": 4,
+              "tml_elements": [
+                "nPropNumber",
+                "nPropValue",
+                "nPropDigits",
+                "CombinedUncertainty"
+              ]
+            }
+          ],
+          "tml_elements": [
+            "VariableValue",
+            "PropertyValue"
+          ],
+          "VariableValue": [
+            {
+              "nVarDigits": 5,
+              "tml_elements": [
+                "nVarNumber",
+                "nVarValue",
+                "nVarDigits"
+              ],
+              "nVarNumber": 1,
+              "nVarValue": 243.6
+            },
+            {
+              "nVarValue": 0.2812,
+              "tml_elements": [
+                "nVarNumber",
+                "nVarValue",
+                "nVarDigits"
+              ],
+              "nVarDigits": 4,
+              "nVarNumber": 2
+            }
+          ]
+        }
+      ],
+      "nPureOrMixtureDataNumber": 2,
+      "dateDateAdded": "8/27/2015",
+      "sCompiler": "EP"
+    }
+  ],
+  "THERMOML_MD5_CHECKSUM": "34606e365ff8cb273d9f9f46ef00337e"
+}

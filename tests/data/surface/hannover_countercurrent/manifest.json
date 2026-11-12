@@ -9,6 +9,12 @@
   ],
   "license": "CC-BY-4.0",
   "publication": "https://doi.org/10.1016/j.applthermaleng.2026.130975",
+  "annular_applicability": {
+    "full_circumferential_wetting_confirmed": false,
+    "pressure_span_includes_liquid_application": true,
+    "section_references": ["2.1.2 Pilot plant", "3 Results and discussion, Fig. 9"],
+    "note": "Authors cannot guarantee full circumferential wetting and observe detached drops; pressure span includes liquid application. This does not establish the actual wetted fraction or prove a particular closure erroneous."
+  },
   "geometry": {
     "diameter_m": 0.085,
     "pressure_tap_spacing_m": 3.0

@@ -2937,6 +2937,7 @@ class PREquilibriumTransportNetwork:
         loss_coefficients=None,
         drive_torque_nm=None,
         restriction_openings=None,
+        _coupling_factory=None,
     ):
         self.inspect(state)
         end = state.time_s + _number(duration_s, "duration", positive=True)
@@ -2992,6 +2993,9 @@ class PREquilibriumTransportNetwork:
                     heat,
                     utility,
                     losses,
+                    _coupling=None
+                    if _coupling_factory is None
+                    else _coupling_factory(current, dt, commands),
                     drive_torque_nm=drive_torque_nm,
                     restriction_openings=restriction_openings,
                 )
@@ -3002,6 +3006,9 @@ class PREquilibriumTransportNetwork:
                     heat,
                     utility,
                     losses,
+                    _coupling=None
+                    if _coupling_factory is None
+                    else _coupling_factory(current, first_dt, commands),
                     drive_torque_nm=drive_torque_nm,
                     restriction_openings=restriction_openings,
                 )
@@ -3012,6 +3019,9 @@ class PREquilibriumTransportNetwork:
                     heat,
                     utility,
                     losses,
+                    _coupling=None
+                    if _coupling_factory is None
+                    else _coupling_factory(half, second_dt, commands),
                     drive_torque_nm=drive_torque_nm,
                     restriction_openings=restriction_openings,
                 )
@@ -3035,7 +3045,17 @@ class PREquilibriumTransportNetwork:
             dt = nextdt
         heat = math.fsum(s["ambient_heat_j"] + s["external_heat_j"] for s in steps)
         work = math.fsum(s["external_work_j"] for s in steps)
-        residual = self._ledger(state, current, heat + work)
+        incoming_n = None
+        exchange_energy = 0.0
+        if _coupling_factory is not None:
+            incoming_n = [
+                math.fsum(s["exchange_component_moles"][j] for s in steps)
+                for j in range(len(self.fluid.names))
+            ]
+            exchange_energy = math.fsum(s["exchange_energy_j"] for s in steps)
+        residual = self._ledger(
+            state, current, heat + work + exchange_energy, incoming_n=incoming_n
+        )
         return {
             "state": current.to_dict(),
             "steps": steps,

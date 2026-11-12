@@ -24,7 +24,7 @@ from .liquid import (
 from .operation import _digest
 from .peng_robinson import R
 from .phase_geometry import validate_pickup
-from .stratified_pr_flow import StratifiedPRFlow
+from .stratified_pr_flow import ReceiverFeedPressureError, StratifiedPRFlow
 from .stratified_pr_thermal import StratifiedThermalState
 from .three_phase_properties import disk_area_moment
 from .torch_linear import TorchNewton
@@ -780,19 +780,17 @@ class StratifiedPRNetwork:
                 for port in d["ports"]:
                     if not bool(port["valid"].cpu()):
                         raise EquipmentOperatingError("External outlet outside domain")
-                    for h, area, p, x, properties in port["pieces"]:
-                        for j in range(order):
-                            col._check_local(
-                                float(p[j].cpu()),
-                                candidate.temperature_k,
-                                x[j],
-                                {k: z[j] for k, z in properties.items()},
-                            )
+                    col._check_locals(
+                        [piece[2] for piece in port["pieces"]],
+                        candidate.temperature_k,
+                        [piece[3] for piece in port["pieces"]],
+                        [piece[4] for piece in port["pieces"]],
+                    )
                 for feed in v.feeds:
-                    if feed.stream.molar_rate_mol_s and col.sample(
-                        candidate, feed.height_m, side="below"
-                    )["pressure_pa"] > feed.stream.pressure_pa * (1 + 1e-7):
-                        raise EquipmentOperatingError("Network feed pressure below receiver")
+                    if feed.stream.molar_rate_mol_s:
+                        pressure = col.sample(candidate, feed.height_m, side="below")["pressure_pa"]
+                        if pressure > feed.stream.pressure_pa * (1 + 1e-7):
+                            raise ReceiverFeedPressureError(feed.stream.pressure_pa, pressure)
                 incoming_s = math.fsum(
                     feed.stream.molar_rate_mol_s
                     * float(
@@ -824,13 +822,7 @@ class StratifiedPRNetwork:
                     (connection.source, connection.target), transfer["points"]
                 ):
                     col = self.vessels[name].column
-                    for j in range(order):
-                        col._check_local(
-                            float(p[j].cpu()),
-                            candidates[name].column.temperature_k,
-                            x[j],
-                            {k: v[j] for k, v in q.items()},
-                        )
+                    col._check_locals([p], candidates[name].column.temperature_k, [x], [q])
             error = math.inf
             if previous is not None:
                 old_candidates, old_reports, old_fluxes, old_external = previous
@@ -962,6 +954,21 @@ class StratifiedPRNetwork:
                         "transfers": transfers,
                         "openings": openings,
                         "component_boundary_moles": (dt * component_boundary).cpu().tolist(),
+                        "feed_component_moles": (
+                            dt
+                            * sum((problems[n][6] for n in self.vessels), torch.zeros_like(new_n))
+                        )
+                        .cpu()
+                        .tolist(),
+                        "outlet_component_moles": (
+                            dt
+                            * sum(
+                                (d["out_n"] for d in data["vessels"].values()),
+                                torch.zeros_like(new_n),
+                            )
+                        )
+                        .cpu()
+                        .tolist(),
                         "feed_energy_j": dt * feed_e,
                         "outlet_energy_j": dt * out_e,
                         "ambient_heat_j": dt * ambient_e,

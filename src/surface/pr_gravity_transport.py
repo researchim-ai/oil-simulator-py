@@ -22,6 +22,7 @@ from .pr_equilibrium_transport import (
     PREquilibriumTransportState,
 )
 from .pr_heat_link import PRHeatLink, thermal_exchange, thermal_records
+from .pr_material_predictor import carrier_inventory_guess
 from .pr_momentum_vessels import hllc_port
 from .stratified_pr import StratifiedPRColumn, StratifiedPRState
 from .stratified_pr_flow import StratifiedPRFlow
@@ -225,7 +226,7 @@ class PRGravityTransportNetwork:
             if not math.isfinite(t) or not w.min_temperature_k <= t <= w.max_temperature_k:
                 raise PropertyModelError("Column wall outside domain")
 
-    def _ledger(self, before, after, heat):
+    def _ledger(self, before, after, heat, *, incoming_n=None):
         f = self.transport.fluid
         nc = len(f.names)
 
@@ -255,7 +256,10 @@ class PRGravityTransportNetwork:
 
         a, ea = stocks(before)
         b, eb = stocks(after)
-        r = [y - x for x, y in zip(a, b)] + [eb - ea - heat]
+        r = [
+            y - x - (incoming_n[i] if incoming_n is not None else 0.0)
+            for i, (x, y) in enumerate(zip(a, b))
+        ] + [eb - ea - heat]
         if any(abs(x) > 1e-8 + 1e-9 * max(1, abs(a[i])) for i, x in enumerate(r[:-1])) or abs(
             r[-1]
         ) > 1e-5 + 1e-9 * max(1, abs(heat)):
@@ -273,7 +277,14 @@ class PRGravityTransportNetwork:
         *,
         drive_torque_nm=None,
         restriction_openings=None,
+        _material=None,
+        _column_work_j=None,
     ):
+        column_work = dict(_column_work_j or {})
+        if set(column_work) - set(self.columns) or any(
+            not math.isfinite(v) for v in column_work.values()
+        ):
+            raise ValueError("Known columns and finite mechanical work required")
         if not self.columns and not self.heat_links:
             # A resolved vessel already belongs to the transport graph. Do
             # not manufacture a column or repeat an empty aperture quadrature.
@@ -288,9 +299,11 @@ class PRGravityTransportNetwork:
                     for n, (_, s) in zip(t.names, state.transport.nodes)
                 ],
                 losses,
+                _coupling=_material,
                 drive_torque_nm=drive_torque_nm,
                 restriction_openings=restriction_openings,
             )
+            material = {} if _material is None else _material.ledger(report["coupling"], dt)
             new = PRGravityTransportState(result, (), (), self.model_id)
             self.inspect(new)
             heat = report["ambient_heat_j"] + report["external_heat_j"]
@@ -312,7 +325,13 @@ class PRGravityTransportNetwork:
                 "quadrature_error": 0.0,
                 "total_heat_j": heat,
                 "total_work_j": work,
-                "conservation_residuals": self._ledger(state, new, heat + work),
+                "conservation_residuals": self._ledger(
+                    state,
+                    new,
+                    heat + work + material.get("material_energy_j", 0.0),
+                    incoming_n=material.get("material_component_moles"),
+                ),
+                **material,
                 "entropy_production_j_k": report["entropy_production_j_k"],
             }
         previous = None
@@ -332,6 +351,8 @@ class PRGravityTransportNetwork:
                     utility,
                     seed_overrides=overrides,
                     warm_state=None if previous is None else previous[0],
+                    material=_material,
+                    column_work_j=column_work,
                 )
                 try:
                     result, report = self.transport._step(
@@ -364,8 +385,14 @@ class PRGravityTransportNetwork:
             )
             self.inspect(new)
             heat = report["ambient_heat_j"] + report["external_heat_j"] + cr["heat_j"]
-            work = report["external_work_j"]
-            residual = self._ledger(state, new, heat + work)
+            work = report["external_work_j"] + math.fsum(column_work.values())
+            material = {} if _material is None else _material.ledger(cr["material"], dt)
+            residual = self._ledger(
+                state,
+                new,
+                heat + work + material.get("material_energy_j", 0.0),
+                incoming_n=material.get("material_component_moles"),
+            )
             entropy = report["entropy_production_j_k"] + cr["entropy_production_j_k"]
             if entropy < -1e-6:
                 raise ConservationError("Coupled graph entropy rejected")
@@ -377,7 +404,9 @@ class PRGravityTransportNetwork:
                 "quadrature_order": order,
                 "total_heat_j": heat,
                 "total_work_j": work,
+                **({"column_mechanical_work_j": column_work} if column_work else {}),
                 "conservation_residuals": residual,
+                **material,
                 "entropy_production_j_k": entropy,
             }
             if previous is not None:
@@ -399,7 +428,13 @@ class PRGravityTransportNetwork:
 
     def _error(self, a, b):
         error = self.transport._error(a.transport, b.transport)
-        for (n, x), (_, y) in zip(a.columns, b.columns):
+        for (n, x), (other, y) in zip(a.columns, b.columns, strict=True):
+            if n != other:
+                raise ValueError("Temporal comparison requires the same column registry")
+            # Empty zip(interface heights) must not hide a disappeared layer.
+            # Cubic-root names alone do not identify a physical phase.
+            if len(x.phase_roots) != len(y.phase_roots):
+                error = max(error, 2.0)
             error = max(
                 error,
                 abs(x.temperature_k - y.temperature_k) / self.transport.temperature_tolerance_k,
@@ -434,6 +469,7 @@ class PRGravityTransportNetwork:
         loss_coefficients=None,
         drive_torque_nm=None,
         restriction_openings=None,
+        _material_factory=None,
     ):
         self.inspect(state)
         end = state.time_s + _number(duration_s, "duration", positive=True)
@@ -482,6 +518,9 @@ class PRGravityTransportNetwork:
                     heat,
                     utility,
                     losses,
+                    _material=None
+                    if _material_factory is None
+                    else _material_factory(current, dt, commands),
                     drive_torque_nm=drive_torque_nm,
                     restriction_openings=restriction_openings,
                 )
@@ -492,6 +531,9 @@ class PRGravityTransportNetwork:
                     heat,
                     utility,
                     losses,
+                    _material=None
+                    if _material_factory is None
+                    else _material_factory(current, first_dt, commands),
                     drive_torque_nm=drive_torque_nm,
                     restriction_openings=restriction_openings,
                 )
@@ -502,6 +544,9 @@ class PRGravityTransportNetwork:
                     heat,
                     utility,
                     losses,
+                    _material=None
+                    if _material_factory is None
+                    else _material_factory(half, second_dt, commands),
                     drive_torque_nm=drive_torque_nm,
                     restriction_openings=restriction_openings,
                 )
@@ -529,13 +574,28 @@ class PRGravityTransportNetwork:
             dt = nextdt
         heat = math.fsum(s["total_heat_j"] for s in steps)
         work = math.fsum(s["total_work_j"] for s in steps)
+        material = {}
+        if _material_factory is not None:
+            material = {
+                "material_component_moles": [
+                    math.fsum(r["material_component_moles"][j] for r in steps)
+                    for j in range(len(self.transport.fluid.names))
+                ],
+                "material_energy_j": math.fsum(r["material_energy_j"] for r in steps),
+            }
         return {
             "state": current.to_dict(),
             "steps": steps,
             "attempts": attempts,
             "total_heat_j": heat,
             "total_work_j": work,
-            "conservation_residuals": self._ledger(state, current, heat + work),
+            "conservation_residuals": self._ledger(
+                state,
+                current,
+                heat + work + material.get("material_energy_j", 0.0),
+                incoming_n=material.get("material_component_moles"),
+            ),
+            **material,
             "openings": commands,
             "loss_coefficients": losses,
         }
@@ -558,7 +618,11 @@ class _ColumnCoupling:
         *,
         seed_overrides=None,
         warm_state=None,
+        material=None,
+        column_work_j=None,
     ):
+        self.column_work_j = dict(column_work_j or {})
+        self.material = material
         self.model = model
         self.state = state
         self.dt = dt
@@ -629,6 +693,9 @@ class _ColumnCoupling:
             n: {i for i, v in enumerate(s.component_moles) if v > 0}
             for n, s in {**ordinary, **columns}.items()
         }
+        if self.material is not None:
+            for i, name in enumerate(t.names):
+                supports[name].update(self.material.active[i].cpu().tolist())
         edges = [(c.source, c.target) for c in t.links if self.openings[c.name]]
         edges += [(p.column, p.node) for p in m.ports if self.openings[p.name]]
         edges += [(u.source, u.target) for u in t.restrictions if self.openings[u.name]]
@@ -670,9 +737,16 @@ class _ColumnCoupling:
         if not missing:
             return
         data = [t._state_data(i, s) for i, (_, s) in enumerate(state.transport.nodes)]
-        net, _, _ = t._fluxes(
+        net, records, _ = t._fluxes(
             data, {c.name: self.openings[c.name] for c in t.links}, self.external_ports
         )
+        lookup = {n: i for i, n in enumerate(names)}
+        carrier_edges = [
+            (r["source_index"], r["target_index"], r["flux"][:-2].sum()) for r in records
+        ]
+        if self.material is not None:
+            external = self.material.exchange(data)
+            net = [a + b for a, b in zip(net, external["net"])]
         cn = {n: f.tensor([0.0] * len(f.names)) for n in m.columns}
         ce = {n: f.tensor(0.0) for n in m.columns}
         for port in m.ports:
@@ -733,6 +807,7 @@ class _ColumnCoupling:
                     flux = flux + correction
                     total = total + w * flux
             total = total * (math.pi * port.diameter_m**2 / 4)
+            carrier_edges.append((lookup[port.column], i, total[:-2].sum()))
             net[i] = net[i] + torch.cat(
                 (total[:-2], (-normal * total[-2]).reshape(1), total[-1].reshape(1))
             )
@@ -753,6 +828,42 @@ class _ColumnCoupling:
                 0, self.column_active[n], guess[self.column_active[n]].clamp_min(guess.sum() * 1e-8)
             )
             self.column_energy_guesses[n] += self.dt * float(ce[n].cpu())
+        # Newly supplied species can be many orders of magnitude below the
+        # old carrier inventory. A conservative implicit carrier predictor
+        # warms the WHOLE connected chain, rather than seeding every dry
+        # component at the same arbitrary mole fraction. Multiphase/selective
+        # equipment keeps its original branch-aware predictor.
+        bodies = {**ordinary, **columns}
+        if (
+            self.material is not None
+            and not (t.pumps or t.compressors or t.pump_connections or t.restrictions)
+            and all(len(v.phase_roots) == 1 for v in bodies.values())
+        ):
+            stocks = f.tensor([bodies[n].component_moles for n in names])
+            incoming = torch.zeros_like(stocks)
+            outgoing = stocks.new_zeros(len(names))
+            for i, _feed, amount, _energy, _entropy in self.material.prepared.feeds:
+                incoming[i] = incoming[i] + amount
+            for name, orientation, amount, _energy, _entropy, _volume in external[
+                "boundary_records"
+            ]:
+                if orientation == "feed":
+                    continue
+                port = next(p for p in self.material.model.pressure_ports if p.name == name)
+                i = lookup[port.node]
+                incoming[i] = incoming[i] + (-amount).clamp_min(0)
+                outgoing[i] = outgoing[i] + amount.clamp_min(0).sum()
+            predicted = carrier_inventory_guess(stocks, carrier_edges, incoming, outgoing, self.dt)
+            if predicted is not None:
+                for i, name in enumerate(names):
+                    active = self.active[i] if i < len(t.names) else self.column_active[name]
+                    guess = predicted[i].index_copy(
+                        0, active, predicted[i, active].clamp_min(predicted[i].sum() * 1e-30)
+                    )
+                    if i < len(t.names):
+                        self.ordinary_guesses[i] = guess
+                    else:
+                        self.column_guesses[name] = guess
 
     def prepare(self, y, lo, hi, base, offsets, dt, pattern):
         m = self.model
@@ -1004,7 +1115,9 @@ class _ColumnCoupling:
             def exchange(data):
                 net = [z.new_zeros(len(f.names) + 2) for _ in t.nodes]
                 cn = {name: z.new_zeros(len(f.names)) for name in m.columns}
-                ce = {name: z.new_zeros(()) for name in m.columns}
+                ce = {
+                    name: z.new_tensor(self.column_work_j.get(name, 0.0) / dt) for name in m.columns
+                }
                 cs = {name: z.new_zeros(()) for name in m.columns}
                 chemical = []
                 details = {}
@@ -1193,7 +1306,14 @@ class _ColumnCoupling:
                             (z.new_zeros(len(f.names) + 1), rate.reshape(1))
                         )
                         incoming_entropy = incoming_entropy + rate / temperatures[name]
+                material = None
+                if self.material is not None:
+                    material = self.material.exchange(data)
+                    net = [a + b for a, b in zip(net, material["net"])]
+                    incoming_entropy = incoming_entropy + material["incoming_entropy"]
+                    valid = valid & material["valid"]
                 return {
+                    "material": material,
                     "net": net,
                     "valid": valid,
                     "incoming_entropy": incoming_entropy,
@@ -1334,7 +1454,13 @@ class _ColumnCoupling:
                     raise PropertyModelError(
                         "Aperture requires resolved transverse pipe inlet hydrodynamics"
                     )
+        material = (
+            {}
+            if self.material is None
+            else {"material": self.material.accept(y, {**result, "exchange": ex["material"]})}
+        )
         return {
+            **material,
             "columns": columns,
             "walls": walls,
             "reports": reports,

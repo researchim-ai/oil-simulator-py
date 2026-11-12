@@ -7,6 +7,7 @@ import time
 import os
 import datetime
 import copy
+import math
 from simulator.manual_assembly_solver import ManualFIMSolver
 from simulator.blackoil_fim import BlackOilFIMSolver, needs_blackoil
 
@@ -242,8 +243,19 @@ class Simulator:
         (цель dt_target_dsw), не более чем в dt_increase_factor раз; при несходимости — дробится
         в dt_reduction_factor раз до min_time_step_days. Подобранный шаг переносится на следующий интервал.
         """
+        try:
+            from ..surface.time_interval import interval_step_s
+        except ImportError:
+            from surface.time_interval import interval_step_s
+        if isinstance(dt, bool) or not math.isfinite(dt) or dt <= 0:
+            raise ValueError("FIM reporting interval must be finite and positive")
         p = self.sim_params
+        coupled_time_control = p.get("coupled_time_control", True)
+        if type(coupled_time_control) is not bool:
+            raise ValueError("coupled_time_control must be a boolean")
         t_end = self.current_time + dt
+        if not math.isfinite(t_end) or t_end <= self.current_time:
+            raise ValueError("FIM reporting interval is below clock resolution")
         dt_min = float(p.get("min_time_step_days", 1e-6)) * 86400.0
         dt_max = float(p.get("max_time_step_days", dt / 86400.0)) * 86400.0
         grow_max = float(p.get("dt_increase_factor", 2.0))
@@ -270,12 +282,39 @@ class Simulator:
         dbg = self.fim_solver.debug
         verbose = not (dbg.enabled and dbg.console)
 
+        stats = {
+            "start_time_s": self.current_time, "requested_duration_s": dt,
+            "integrated_duration_s": 0.0, "accepted_steps": 0, "rejected_steps": 0,
+            "minimum_accepted_step_s": None, "maximum_accepted_step_s": None,
+            "time_error_limited_proposals": 0,
+        }
+        self.last_fim_interval_stats = stats
+
+        def limit_proposal(proposed, limiter, clipped):
+            # Repeated clock quantization must not lower a constant nominal
+            # proposal by an ULP on every accepted step. Use proposal ULPs,
+            # never a large absolute-epoch epsilon; every tail is still solved.
+            if abs(proposed - h) <= 8 * math.ulp(h):
+                proposed = h
+            if callable(limiter):
+                limited = limiter(proposed, clipped=clipped)
+                if isinstance(limited, bool) or not math.isfinite(limited) or limited <= 0:
+                    raise ValueError("Coupled time-step limiter returned an invalid proposal")
+                if limited < proposed:
+                    stats["time_error_limited_proposals"] += 1
+                proposed = limited
+            return min(max(proposed, dt_min), dt_max)
+
         cuts = 0
         restarted = False
-        while t_end - self.current_time > 1e-6:
-            h_try = min(h, t_end - self.current_time)
+        while self.current_time < t_end:
+            stepper = getattr(self, "facility_coupling", None) or self.fim_solver
+            coupled_limiter = (
+                getattr(stepper, "limit_next_time_step_s", None) if coupled_time_control else None
+            )
+            h_try = interval_step_s(self.current_time, t_end, h, maximum_s=dt_max)
             # не оставлять крошечный хвост в конце интервала
-            if (t_end - self.current_time <= dt_max and
+            if (not callable(coupled_limiter) and t_end - self.current_time <= dt_max and
                     t_end - self.current_time - h_try < 0.25 * h_try):
                 h_try = t_end - self.current_time
             if verbose:
@@ -283,9 +322,13 @@ class Simulator:
             if opm:
                 p0 = self.fluid.pressure.detach().double().clone()
                 s0 = torch.stack([self.fluid.s_w.detach().double(), self.fluid.s_g.detach().double()])
-            stepper = getattr(self, "facility_coupling", None) or self.fim_solver
+            clipped = h_try < 0.999 * h
             if stepper.step(h_try, current_time=self.current_time):
-                self.current_time += h_try
+                self.current_time = t_end if h_try >= t_end - self.current_time else self.current_time + h_try
+                stats["accepted_steps"] += 1
+                stats["integrated_duration_s"] = self.current_time - stats["start_time_s"]
+                for key, choose in (("minimum_accepted_step_s", min), ("maximum_accepted_step_s", max)):
+                    stats[key] = h_try if stats[key] is None else choose(stats[key], h_try)
                 self.fluid.prev_pressure = self.fluid.pressure.clone()
                 self.fluid.prev_sw = self.fluid.s_w.clone()
                 hook = getattr(self, "substep_hook", None)
@@ -297,21 +340,29 @@ class Simulator:
                     h_new = min(h_new, grow_max * h_try)
                     if restarted:
                         h_new = min(h_new, 2.0 * h_try)
-                    h = min(max(h_new, dt_min), dt_max)
+                    if callable(coupled_limiter) and clipped:
+                        h_new = max(h, h_new)
+                    h = limit_proposal(h_new, coupled_limiter, clipped)
                     cuts, restarted = 0, False
                     continue
                 ds = max(self.fim_solver.last_max_dsw, 1e-12)
                 f = min(grow_max, target_it / it, target_ds / ds)
                 f = max(f, 1.0 / cut)
-                h = min(max(h_try * f, dt_min), dt_max) if h_try >= 0.999 * h else max(h, h_try)
+                h_new = h_try * f if not clipped else max(h, h_try)
+                h = limit_proposal(h_new, coupled_limiter, clipped)
                 cuts = 0
                 continue
+            stats["rejected_steps"] += 1
             restarted = True
             cuts += 1
             h_new = h_try / cut
             dbg.dt_chop(cuts, h_try, h_new)
             if verbose:
-                print(f"  ✖ Ньютон не сошёлся, dt: {h_try/86400:.4g} → {h_new/86400:.4g} сут")
+                if stepper is not self.fim_solver:
+                    reason = (getattr(stepper, 'last_attempt', None) or {}).get('reason', 'coupled step rejected')
+                    print(f"  ✖ Связанный шаг отклонён: {reason}; dt: {h_try/86400:.4g} → {h_new/86400:.4g} сут")
+                else:
+                    print(f"  ✖ Ньютон не сошёлся, dt: {h_try/86400:.4g} → {h_new/86400:.4g} сут")
             if h_new < dt_min or cuts > max_cuts:
                 print("Не удалось добиться сходимости даже с минимальным шагом. Симуляция остановлена.")
                 self._fim_dt = h_new

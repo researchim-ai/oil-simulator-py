@@ -1,7 +1,6 @@
-"""Independent NumPy PR/32-point audit of closed direct-connector networks.
+"""Independent NumPy PR/32-point audit of open/closed direct-connector networks.
 
-No Torch vessel/network solve or inspect. External material boundaries are
-explicitly unsupported here; ambient heat and wall storage are included.
+No Torch vessel/network solve or inspect. Explicit material boundaries, ambient heat and wall storage are included.
 """
 
 import argparse
@@ -10,7 +9,7 @@ import math
 from pathlib import Path
 
 import numpy as np
-from check_stratified_pr_flow import close, profile
+from check_stratified_pr_flow import close, external_outflows, profile
 from scipy.optimize import brentq
 
 
@@ -33,11 +32,6 @@ def audit(config, report):
     if report["config"] != config:
         raise ValueError("Network config differs from supplied request")
     descriptions = config["vessels"]
-    for d in descriptions.values():
-        if d["model"]["feeds"] or d["model"]["outlets"]:
-            raise ValueError(
-                "Independent network auditor currently requires closed material boundaries"
-            )
     old = report["initial"]
     time = old["time_s"]
     checked = 0
@@ -62,7 +56,8 @@ def audit(config, report):
             p["name"]: command.get("openings", {}).get(p["name"], p.get("opening", 1.0))
             for p in config["connections"]
         }
-        ambient_interval = production_interval = 0.0
+        ambient_interval = production_interval = feed_interval = out_interval = 0.0
+        boundary_interval = None
         initial_energy = math.fsum(
             old["vessels"][n]["column"]["total_energy_j"]
             + descriptions[n]["model"]["wall"]["heat_capacity_j_k"]
@@ -300,7 +295,10 @@ def audit(config, report):
                 enet[b] += energy
                 snet[a] -= entropy
                 snet[b] += entropy
-            production = error = ambient_total = 0.0
+            production = error = ambient_total = feed_total = out_total = 0.0
+            boundary_n = np.zeros_like(nnet[names[0]])
+            total_feed_n = np.zeros_like(boundary_n)
+            total_out_n = np.zeros_like(boundary_n)
             nerror = np.zeros_like(nnet[names[0]])
             for name in names:
                 model = descriptions[name]["model"]
@@ -313,6 +311,47 @@ def audit(config, report):
                 tamb = wall.get("ambient_temperature_k", 298.15)
                 heat = wall["fluid_ua_w_k"] * (tw - col1["temperature_k"])
                 ambient = wall.get("ambient_ua_w_k", 0.0) * (tamb - tw)
+                on, oe, os = external_outflows(model, col1, resolved=current[name])
+                fn = sum(
+                    (np.array(v["stream"]["component_molar_rates_mol_s"]) for v in model["feeds"]),
+                    np.zeros_like(on),
+                )
+                fe = math.fsum(v["stream"]["total_energy_rate_w"] for v in model["feeds"])
+                fs = 0.0
+                if model["feeds"]:
+                    from check_dynamic_receiver import stream_state
+
+                    f, _, sample, *_ = current[name]
+                    for feed in model["feeds"]:
+                        stream = feed["stream"]
+                        close(
+                            stream["gravity_m_s2"], model["column"]["gravity_m_s2"], atol=0, rtol=0
+                        )
+                        if stream["model_id"] != f.model_id:
+                            raise ValueError("Network feed component/reference identity differs")
+                        height = feed["height_m"]
+                        close(
+                            stream["elevation_m"],
+                            model["column"]["elevation_m"] + height,
+                            atol=1e-9,
+                            rtol=0,
+                        )
+                        if sum(stream["component_molar_rates_mol_s"]):
+                            phase = np.searchsorted(
+                                col1["interface_heights_m"], height, side="left"
+                            )
+                            p, _, _ = sample(height, phase)
+                            if p > stream["pressure_pa"] * (1 + 1e-7):
+                                raise ValueError("Independent feed pressure below network receiver")
+                            fs += stream_state(stream, f)
+                nnet[name] += fn - on
+                enet[name] += fe - oe
+                snet[name] += fs - os
+                boundary_n += dt * (fn - on)
+                total_feed_n += dt * fn
+                total_out_n += dt * on
+                feed_total += dt * fe
+                out_total += dt * oe
                 delta_n = np.array(col1["component_moles"]) - col0["component_moles"]
                 close(delta_n, dt * nnet[name], atol=1e-8)
                 close(
@@ -341,14 +380,22 @@ def audit(config, report):
                 )
                 ambient_total += dt * ambient
                 close(after["time_s"], time + dt, atol=1e-10, rtol=1e-12)
-            close(step["component_boundary_moles"], np.zeros_like(nerror), atol=1e-10)
+            close(step["component_boundary_moles"], boundary_n, atol=1e-10)
+            if "feed_component_moles" in step:
+                close(step["feed_component_moles"], total_feed_n, atol=1e-10)
+                close(step["outlet_component_moles"], total_out_n, atol=1e-10)
             close(step["component_residuals_mol"], nerror, atol=1e-8, rtol=0.0)
             close(step["energy_residual_j"], error, atol=2e-6)
             close(step["entropy_production_j_k"], production, atol=2e-6)
             close(step["ambient_heat_j"], ambient_total, atol=1e-7)
-            close(step["feed_energy_j"], 0.0)
-            close(step["outlet_energy_j"], 0.0)
+            close(step["feed_energy_j"], feed_total)
+            close(step["outlet_energy_j"], out_total)
             maximum_error = max(maximum_error, abs(error))
+            feed_interval += feed_total
+            out_interval += out_total
+            boundary_interval = (
+                boundary_n.copy() if boundary_interval is None else boundary_interval + boundary_n
+            )
             ambient_interval += ambient_total
             production_interval += production
             old = state
@@ -376,13 +423,13 @@ def audit(config, report):
         )
         close(
             interval["energy_residual_j"],
-            final_energy - initial_energy - ambient_interval,
+            final_energy - initial_energy - ambient_interval - feed_interval + out_interval,
             atol=2e-6,
         )
         close(interval["ambient_heat_j"], ambient_interval, atol=1e-7)
         close(interval["entropy_production_j_k"], production_interval, atol=2e-6)
-        close(interval["feed_energy_j"], 0.0)
-        close(interval["outlet_energy_j"], 0.0)
+        close(interval["feed_energy_j"], feed_interval)
+        close(interval["outlet_energy_j"], out_interval)
         total_n = sum(
             (
                 np.array(old["vessels"][n]["column"]["component_moles"]) - interval_n[n]
@@ -390,7 +437,7 @@ def audit(config, report):
             ),
             np.zeros_like(nnet[names[0]]),
         )
-        close(interval["component_residuals_mol"], total_n, atol=1e-8)
+        close(interval["component_residuals_mol"], total_n - boundary_interval, atol=1e-8)
         old = interval["state"]
     return {
         "accepted": True,

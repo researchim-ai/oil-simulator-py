@@ -40,6 +40,77 @@ def stream_state(stream, fluid):
     return q["molar_entropy_j_mol_k"] * total
 
 
+def audit_inlet_packets(spec, stage, f, system, height):
+    dt = stage["dt_s"]
+    trial = stage["pressure_trials"][-1]
+    assay = np.array(spec["assay"]["stock_mass_fractions"])
+    mw = np.array([c.molar_mass_kg_mol for c in f.components])
+    stock = np.zeros(3)
+    conditions = spec["thermal_conditions"]
+    if set(conditions) != set(stage["accepted_wells"]) or set(conditions) != set(
+        stage["well_boundary"]
+    ):
+        raise ValueError("Accepted well/thermal boundary registry differs")
+    for name, well in stage["accepted_wells"].items():
+        mass = np.array(well["component_mass_rates_kg_s"])
+        n = mass @ assay / mw
+        stock += dt * mass
+        saved = stage["well_boundary"][name]["stream"]
+        close(saved["component_molar_rates_mol_s"], n, atol=1e-12, rtol=1e-10)
+        close(saved["pressure_pa"], well["bhp_pa"], atol=1e-8, rtol=0.0)
+        condition = conditions[name]
+        close(saved["elevation_m"], condition["elevation_m"], atol=1e-10, rtol=0)
+        close(saved["velocity_m_s"], condition.get("velocity_m_s", 0), atol=1e-10, rtol=0)
+        if "total_energy_rate_w" in condition:
+            close(
+                saved["total_energy_rate_w"],
+                condition["total_energy_rate_w"],
+                atol=1e-9,
+                rtol=1e-10,
+            )
+        elif sum(n):
+            ref = Reference(f, np.flatnonzero(n > 0))
+            z = n / sum(n)
+            if ref.pure:
+                q = ref.pure.state(
+                    well["bhp_pa"], condition["temperature_k"], "stable", derivatives=False
+                )
+                h = q["enthalpy_j_kg"] * ref.mw[0]
+            else:
+                q = ref.mixture.flash_pt(well["bhp_pa"], condition["temperature_k"], z[ref.active])
+                h = q["molar_enthalpy_j_mol"]
+            expected = sum(n) * h + sum(mass) * (
+                saved["gravity_m_s2"] * saved["elevation_m"] + 0.5 * saved["velocity_m_s"] ** 2
+            )
+            close(saved["total_energy_rate_w"], expected, atol=1e-6, rtol=1e-8)
+    close(stock, stage["actual_stock_component_mass_kg"], atol=1e-12, rtol=1e-10)
+    # Every accepted per-well packet is transported once, preserving N/E;
+    # the independent PH states also check passive transfer entropy.
+    streams = stage["inlet_streams"]
+    if len(streams) != len(stage["well_boundary"]):
+        raise ValueError("Missing accepted inlet")
+    names = stage["inlet_well_names"]
+    if len(names) != len(set(names)) or set(names) != set(stage["well_boundary"]):
+        raise ValueError("Inlet well identities differ from accepted wells")
+    for name, inlet in zip(names, streams, strict=True):
+        source = stage["well_boundary"][name]["stream"]
+        for key in ("component_molar_rates_mol_s", "total_energy_rate_w", "model_id"):
+            if key == "model_id":
+                if source[key] != inlet[key] or source[key] != f.model_id:
+                    raise ValueError("Stream EOS/reference identity changed")
+            else:
+                close(inlet[key], source[key], atol=1e-9, rtol=1e-10)
+        close(inlet["gravity_m_s2"], system["gravity_m_s2"], atol=0, rtol=0)
+        close(source["gravity_m_s2"], system["gravity_m_s2"], atol=0, rtol=0)
+        close(inlet["elevation_m"], system["elevation_m"] + height, atol=1e-10, rtol=0)
+        close(inlet["pressure_pa"], trial["pressure_pa"], atol=1e-8, rtol=0)
+        source_s = stream_state(source, f)
+        inlet_s = stream_state(inlet, f)
+        if source_s is not None and inlet_s < source_s - 1e-6:
+            raise ValueError("Passive well-to-vessel transport lowers entropy")
+    return stock
+
+
 def audit_step(spec, report):
     model = {k: v for k, v in spec.items() if k != "initial_state"}
     if report["model_id"] != _digest(model) or report["model"] != model["model"]:
@@ -57,6 +128,22 @@ def audit_step(spec, report):
         or not 0 <= report["temporal_error_ratio"] <= 1
     ):
         raise ValueError("Rejected whole-system temporal estimate published")
+    if spec["model"] == "dynamic_pr_capillary_surface_fim_v1":
+        from check_dynamic_pr_capillary_surface import audit_capillary_step
+
+        return audit_capillary_step(spec, report)
+    if spec["model"] == "dynamic_pr_gravity_transport_fim_v1":
+        from check_dynamic_pr_gravity_transport import audit_gravity_step
+
+        return audit_gravity_step(spec, report)
+    if spec["model"] == "dynamic_pr_transport_fim_v1":
+        from check_dynamic_pr_transport import audit_transport_step
+
+        return audit_transport_step(spec, report)
+    if spec["model"] == "dynamic_pr_vessel_network_fim_v1":
+        from check_dynamic_pr_network import audit_network_step
+
+        return audit_network_step(spec, report)
     system, wall = receiver["column"], receiver["wall"]
     height = spec["inlet_height_m"]
     assay = np.array(spec["assay"]["stock_mass_fractions"])
@@ -117,70 +204,7 @@ def audit_step(spec, report):
             raise ValueError("Independent END-pressure coupling residual rejected")
         close(trial["receiver_pressure_pa"], p, atol=1e-4, rtol=1e-10)
         pmax = max(pmax, abs(defect))
-        mw = np.array([c.molar_mass_kg_mol for c in f.components])
-        stock = np.zeros(3)
-        conditions = spec["thermal_conditions"]
-        if set(conditions) != set(stage["accepted_wells"]) or set(conditions) != set(
-            stage["well_boundary"]
-        ):
-            raise ValueError("Accepted well/thermal boundary registry differs")
-        for name, well in stage["accepted_wells"].items():
-            mass = np.array(well["component_mass_rates_kg_s"])
-            n = mass @ assay / mw
-            stock += dt * mass
-            saved = stage["well_boundary"][name]["stream"]
-            close(saved["component_molar_rates_mol_s"], n, atol=1e-12, rtol=1e-10)
-            close(saved["pressure_pa"], well["bhp_pa"], atol=1e-8, rtol=0.0)
-            condition = conditions[name]
-            close(saved["elevation_m"], condition["elevation_m"], atol=1e-10, rtol=0)
-            close(saved["velocity_m_s"], condition.get("velocity_m_s", 0), atol=1e-10, rtol=0)
-            if "total_energy_rate_w" in condition:
-                close(
-                    saved["total_energy_rate_w"],
-                    condition["total_energy_rate_w"],
-                    atol=1e-9,
-                    rtol=1e-10,
-                )
-            elif sum(n):
-                ref = Reference(f, np.flatnonzero(n > 0))
-                z = n / sum(n)
-                if ref.pure:
-                    q = ref.pure.state(
-                        well["bhp_pa"], condition["temperature_k"], "stable", derivatives=False
-                    )
-                    h = q["enthalpy_j_kg"] * ref.mw[0]
-                else:
-                    q = ref.mixture.flash_pt(
-                        well["bhp_pa"], condition["temperature_k"], z[ref.active]
-                    )
-                    h = q["molar_enthalpy_j_mol"]
-                expected = sum(n) * h + sum(mass) * (
-                    saved["gravity_m_s2"] * saved["elevation_m"] + 0.5 * saved["velocity_m_s"] ** 2
-                )
-                close(saved["total_energy_rate_w"], expected, atol=1e-6, rtol=1e-8)
-        close(stock, stage["actual_stock_component_mass_kg"], atol=1e-12, rtol=1e-10)
-        # Every accepted per-well packet is transported once, preserving N/E;
-        # the independent PH states also check passive transfer entropy.
-        streams = stage["inlet_streams"]
-        if len(streams) != len(stage["well_boundary"]):
-            raise ValueError("Missing accepted inlet")
-        names = stage["inlet_well_names"]
-        if len(names) != len(set(names)) or set(names) != set(stage["well_boundary"]):
-            raise ValueError("Inlet well identities differ from accepted wells")
-        for name, inlet in zip(names, streams, strict=True):
-            source = stage["well_boundary"][name]["stream"]
-            for key in ("component_molar_rates_mol_s", "total_energy_rate_w", "model_id"):
-                if key == "model_id":
-                    if source[key] != inlet[key] or source[key] != f.model_id:
-                        raise ValueError("Stream EOS/reference identity changed")
-                else:
-                    close(inlet[key], source[key], atol=1e-9, rtol=1e-10)
-            close(inlet["elevation_m"], system["elevation_m"] + height, atol=1e-10, rtol=0)
-            close(inlet["pressure_pa"], trial["pressure_pa"], atol=1e-8, rtol=0)
-            source_s = stream_state(source, f)
-            inlet_s = stream_state(inlet, f)
-            if source_s is not None and inlet_s < source_s - 1e-6:
-                raise ValueError("Passive well-to-vessel transport lowers entropy")
+        stock = audit_inlet_packets(spec, stage, f, system, height)
         checks.append(independent)
         incoming += np.array(step["feed_component_moles"])
         outgoing += np.array(step["outlet_component_moles"])
@@ -218,22 +242,34 @@ def audit(config, result):
         if hashlib.sha256((root / path).read_bytes()).hexdigest() != sha:
             raise ValueError(f"Changed source: {path}")
     spec = config["simulator"]["simulation"]["dynamic_receiver"]
+
+    def time(state):
+        return (
+            state["transport"]["time_s"]
+            if spec["model"] == "dynamic_pr_gravity_transport_fim_v1"
+            else state["time_s"]
+        )
+
     old = spec["initial_state"]
     audits = []
     schedule = config["intervals"]
     period, period_end = 0, schedule[0]["duration_s"]
     totals = {}
+    accepted_dts = [[] for _ in schedule]
     for report in result["records"]:
-        while old["time_s"] >= period_end and period + 1 < len(schedule):
+        while time(old) >= period_end and period + 1 < len(schedule):
             period += 1
             period_end += schedule[period]["duration_s"]
+        if report.get("connection_openings", {}) != schedule[period].get("connection_openings", {}):
+            raise ValueError("Connection commands differ from requested schedule")
         if report["outlet_openings"] != schedule[period]["outlet_openings"]:
             raise ValueError("Accepted commands differ from requested schedule")
-        if report["state"]["time_s"] > period_end + 1e-12:
+        if time(report["state"]) > period_end + 1e-12:
             raise ValueError("Coupled substep crosses a scheduled command")
         if _digest(report["initial_state"]) != _digest(old):
             raise ValueError("Discontinuous coupled checkpoint")
         checked = audit_step(spec, report)
+        accepted_dts[period].append(time(report["state"]) - time(old))
         audits.append(checked)
         for key in (
             "feed_component_moles",
@@ -247,11 +283,38 @@ def audit(config, result):
                 checked[key]
             )
             close(report["cumulative"][key], totals[key], atol=1e-8, rtol=1e-9)
-        close(report["cumulative"]["elapsed_s"], report["state"]["time_s"], atol=1e-12, rtol=0)
+        if "surface_external_energy_j" in checked:
+            key = "surface_external_energy_j"
+            totals[key] = totals.get(key, 0.0) + checked[key]
+            close(report["cumulative"][key], totals[key], atol=1e-8, rtol=1e-9)
+        close(report["cumulative"]["elapsed_s"], time(report["state"]), atol=1e-12, rtol=0)
         old = report["state"]
     if not audits:
         raise ValueError("No accepted coupled intervals")
-    close(old["time_s"], sum(i["duration_s"] for i in config["intervals"]), atol=1e-10, rtol=1e-12)
+    close(time(old), sum(i["duration_s"] for i in config["intervals"]), atol=1e-10, rtol=1e-12)
+    if "time_step_statistics" in result:
+        start = 0.0
+        for command, dts, stats in zip(
+            schedule, accepted_dts, result["time_step_statistics"], strict=True
+        ):
+            if stats["accepted_steps"] != len(dts) or not dts:
+                raise ValueError("Accepted time-step count differs from trajectory")
+            for key in ("accepted_steps", "rejected_steps", "time_error_limited_proposals"):
+                if type(stats[key]) is not int or stats[key] < 0:
+                    raise ValueError("Invalid time-step statistics")
+            if stats["time_error_limited_proposals"] > len(dts):
+                raise ValueError("More limited proposals than accepted steps")
+            end = start + command["duration_s"]
+            tol = 16 * math.ulp(max(abs(start), abs(end), command["duration_s"]))
+            for key, value in (
+                ("start_time_s", start),
+                ("requested_duration_s", command["duration_s"]),
+                ("integrated_duration_s", math.fsum(dts)),
+                ("minimum_accepted_step_s", min(dts)),
+                ("maximum_accepted_step_s", max(dts)),
+            ):
+                close(stats[key], value, atol=tol, rtol=1e-12)
+            start = end
     return {"accepted": True, "intervals": audits}
 
 

@@ -32,7 +32,14 @@ def run(config, device="cpu"):
     raw = deepcopy(config["simulator"])
     if raw["simulation"].get("dynamic_receiver") is None:
         raise ValueError("An actual FIM/dynamic receiver configuration is required")
-    if raw["simulation"]["dynamic_receiver"]["initial_state"]["time_s"] != 0.0:
+    spec = raw["simulation"]["dynamic_receiver"]
+    initial = spec["initial_state"]
+    clock = (
+        initial["transport"]["time_s"]
+        if spec["model"] == "dynamic_pr_gravity_transport_fim_v1"
+        else initial["time_s"]
+    )
+    if clock != 0.0:
         raise ValueError("Fresh runs start at zero; restore a full simulator checkpoint to resume")
     hashes = fingerprints()
     dev = torch.device(device)
@@ -41,12 +48,13 @@ def run(config, device="cpu"):
     sim = Simulator(
         reservoir, fluid, WellManager(raw["wells"], reservoir), raw["simulation"], device=dev
     )
-    records, timings = [], []
+    records, timings, step_statistics = [], [], []
     sim.substep_hook = lambda _time: records.append(deepcopy(sim.facility_coupling.report))
     for interval in config["intervals"]:
-        if set(interval) != {"duration_s", "outlet_openings"}:
+        if set(interval) - {"connection_openings"} != {"duration_s", "outlet_openings"}:
             raise ValueError("Explicit duration and outlet commands required")
         sim.facility_coupling.outlet_openings = dict(interval["outlet_openings"])
+        sim.facility_coupling.connection_openings = dict(interval.get("connection_openings", {}))
         if device == "cuda":
             torch.cuda.synchronize()
         start = time.perf_counter()
@@ -55,6 +63,7 @@ def run(config, device="cpu"):
         if device == "cuda":
             torch.cuda.synchronize()
         timings.append(time.perf_counter() - start)
+        step_statistics.append(deepcopy(sim.last_fim_interval_stats))
     if fingerprints() != hashes:
         raise RuntimeError("Coupled run sources changed")
     result = {
@@ -64,6 +73,7 @@ def run(config, device="cpu"):
         "source_sha256": hashes,
         "runtime": runtime_fingerprint(),
         "interval_seconds": timings,
+        "time_step_statistics": step_statistics,
         "records": records,
         "qualification": config["qualification"],
     }

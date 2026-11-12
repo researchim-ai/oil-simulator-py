@@ -10,8 +10,11 @@ first-order split operators, not a monolithic facility Newton matrix.
 """
 
 import math
+from collections import OrderedDict
+from contextlib import contextmanager
 from dataclasses import dataclass, replace
 
+from .equilibrium_cache import _signature
 from .liquid import ConservationError, HydraulicConvergenceError, PropertyModelError, _number
 from .operation import _digest
 from .pr_active_multifluid_pipe import PRActiveMultifluidPipe, PRActiveMultifluidState
@@ -65,6 +68,22 @@ class PRCapillaryFacilityState:
             raw["next_step_s"],
             raw["model_id"],
         )
+
+
+class _InspectionCache:
+    def __init__(self, maximum_entries):
+        self.maximum_entries = maximum_entries
+        self.entries = OrderedDict()
+        self.hits = self.misses = self.evictions = 0
+
+    def statistics(self):
+        return {
+            "hits": self.hits,
+            "misses": self.misses,
+            "evictions": self.evictions,
+            "entries": len(self.entries),
+            "maximum_entries": self.maximum_entries,
+        }
 
 
 class PRCapillaryFacility:
@@ -222,6 +241,38 @@ class PRCapillaryFacility:
         self.inspect(state)
         return state
 
+    @contextmanager
+    def cached_inspections(self, *, enabled=True, maximum_entries=64):
+        """Exact bounded scratch for one accepted/rejected outer transaction.
+
+        Physics/model mutations and differentiable EOS parameters invalidate
+        reuse. No cache survives the transaction or enters a checkpoint.
+        An explicit outer disabled scope also disables nested default scopes.
+        """
+        if type(enabled) is not bool or type(maximum_entries) is not int or maximum_entries < 1:
+            raise ValueError("Explicit inspection-cache switch and positive budget required")
+        marker = object()
+        previous = getattr(self, "_active_inspection_cache", marker)
+        if previous is not marker and enabled:
+            yield previous
+            return
+        cache = _InspectionCache(maximum_entries) if enabled else None
+        self._active_inspection_cache = cache
+        try:
+            yield cache
+        finally:
+            if previous is marker:
+                del self._active_inspection_cache
+            else:
+                self._active_inspection_cache = previous
+            if cache is not None:
+                cache.entries.clear()
+
+    def _inspection_key(self, state):
+        fluids = [r["pipe"].fluid for r in self.lines.values()]
+        fluids.extend(c.fluid for c in self.columns.values())
+        return (state.pipes, state.columns, state.layer_slots, tuple(_signature(f) for f in fluids))
+
     def _models(self, state):
         columns, slots = dict(state.columns), dict(state.layer_slots)
         models = {}
@@ -267,10 +318,35 @@ class PRCapillaryFacility:
                 )
             ):
                 raise ValueError("Explicit physical column layer binding required")
+        cache = getattr(self, "_active_inspection_cache", None)
+        key = None
+        if cache is not None:
+            try:
+                key = self._inspection_key(state)
+            except (TypeError, RuntimeError):
+                pass  # Parameter sensitivities retain the complete checked path.
+            if key is not None and key in cache.entries:
+                models = cache.entries[key]
+                if set(models) == set(self.lines) and all(
+                    _digest(m.to_dict()) == m.model_id for m in models.values()
+                ):
+                    cache.hits += 1
+                    cache.entries.move_to_end(key)
+                    for name, model in models.items():
+                        if name in self.cache:
+                            model._linear, model.source._normal_linear = self.cache[name]
+                    return dict(models)
+                del cache.entries[key]
+            cache.misses += 1
         models = self._models(state)
         for name, ps in state.pipes:
             models[name].pipe.inspect(ps)
             models[name].source.surface_energy(ps)
+        if cache is not None and key is not None:
+            cache.entries[key] = dict(models)
+            if len(cache.entries) > cache.maximum_entries:
+                cache.entries.popitem(last=False)
+                cache.evictions += 1
         return models
 
     @staticmethod
@@ -284,38 +360,107 @@ class PRCapillaryFacility:
         h = (phase.volume_m3 if phase is not None else 0.0) / (s.width * model.pipe.lengths[ci])
         return s.sigma * s.width / (2 * s.boundary_distances[side]) * (h - hf) ** 2
 
+    def rebind_columns(self, state, columns):
+        """Bind shared physical profiles through the existing phase registry.
+
+        No material is moved here. A caller replacing shared columns owns
+        their conservative update; this method only follows physical layer
+        appearance/disappearance and validates the resulting pipe boundaries.
+        """
+        self.inspect(state)
+        columns = dict(columns)
+        if set(columns) != set(self.columns):
+            raise ValueError("Exactly the existing facility columns are required")
+        pipes, previous, slots = dict(state.pipes), dict(state.columns), dict(state.layer_slots)
+        bindings = []
+        for name in self.columns:
+            line, side = self.column_ports[name][0]
+            adapter = self.adapters[line, side]
+            before = PRCapillaryColumnState(
+                pipes[line], previous[name], state.next_step_s, adapter.model_id, slots[name]
+            )
+            bindings.append((name, adapter._match_layers(before, columns[name])))
+        rebound = replace(state, columns=tuple(columns.items()), layer_slots=tuple(bindings))
+        self.inspect(rebound)
+        return rebound
+
+    def conserved_terms(self, state, *, include_columns=True, reference_elevation_m=0.0):
+        """Component and augmented-energy operands for shared graph accounting.
+
+        Pipe energy includes kinetic, gravitational, wetting and interfacial
+        contributions from the existing checked source model. Excluding columns
+        lets a host graph count shared vessels exactly once. Operands are kept
+        separate so ledgers retain cancellation-aware floating-point bounds.
+        """
+        models = self.inspect(state)
+        if type(include_columns) is not bool:
+            raise ValueError("Explicit column inclusion switch required")
+        datum = _number(reference_elevation_m, "energy reference elevation")
+        nc = len(next(iter(self.lines.values()))["pipe"].fluid.names)
+        terms = [[] for _ in range(nc + 1)]
+        for name, ps in state.pipes:
+            row = self.lines[name]
+            pipe = row["pipe"]
+            attached = [r for r in row["ports"] if r is not None]
+            gravity = self.columns[attached[0]["column"]].gravity_m_s2 if attached else 0.0
+            terms[-1].append(models[name].source.surface_energy(ps))
+            for cell in ps.cells:
+                for _, phase in cell:
+                    for j, amount in enumerate(phase.component_moles):
+                        terms[j].append(amount)
+                    mass = math.fsum(
+                        n * c.molar_mass_kg_mol
+                        for n, c in zip(phase.component_moles, pipe.fluid.components)
+                    )
+                    terms[-1].append(
+                        phase.total_energy_j + mass * gravity * (pipe.elevations[0] - datum)
+                    )
+        if include_columns:
+            for name, cs in state.columns:
+                for j, amount in enumerate(cs.component_moles):
+                    terms[j].append(amount)
+                column = self.columns[name]
+                mass = math.fsum(
+                    n * c.molar_mass_kg_mol
+                    for n, c in zip(cs.component_moles, column.fluid.components)
+                )
+                terms[-1].append(cs.total_energy_j - mass * column.gravity_m_s2 * datum)
+        return terms
+
+    def external_exchange(self, report, *, reference_elevation_m=0.0):
+        """Accepted side-port N/E/S, using the same datum as conserved_terms."""
+        datum = _number(reference_elevation_m, "energy reference elevation")
+        nc = len(next(iter(self.lines.values()))["pipe"].fluid.names)
+        components = [[] for _ in range(nc)]
+        energies, entropies = [], []
+        for name, row in self.lines.items():
+            ax = (
+                report["pipes"][name]["axial"]
+                if report["normal_relaxation"]
+                else report["pipes"][name]
+            )
+            side = ax.get("sideport_transfer_n_m_e", [0.0] * (nc + 2))
+            for values, value in zip(components, side[:-2]):
+                values.append(value)
+            attached = [p for p in row["ports"] if p is not None]
+            gravity = self.columns[attached[0]["column"]].gravity_m_s2 if attached else 0.0
+            mass = math.fsum(
+                n * c.molar_mass_kg_mol for n, c in zip(side[:-2], row["pipe"].fluid.components)
+            )
+            energies.append(
+                side[-1]
+                + ax.get("sideport_actuator_work_j", 0.0)
+                + mass * gravity * (row["pipe"].elevations[0] - datum)
+            )
+            entropies.append(ax.get("sideport_incoming_entropy_j_k", 0.0))
+        return [math.fsum(v) for v in components], math.fsum(energies), math.fsum(entropies)
+
     def ledger(
         self, before, after, *, external_heat_j=0.0, external_components=None, external_energy_j=0.0
     ):
-        old_models, new_models = self.inspect(before), self.inspect(after)
-        nc = len(next(iter(self.lines.values()))["pipe"].fluid.names)
-        oldp, newp = dict(before.pipes), dict(after.pipes)
-        oldc, newc = dict(before.columns), dict(after.columns)
-        terms = [[] for _ in range(nc + 1)]
-        for name, row in self.lines.items():
-            p = row["pipe"]
-            elevation = p.elevations[0]
-            # All attached columns agree on gravity; pipe equations store U+KE.
-            attached = [r for r in row["ports"] if r is not None]
-            gravity = self.columns[attached[0]["column"]].gravity_m_s2 if attached else 0.0
-            for sign, state, model in (
-                (-1, oldp[name], old_models[name]),
-                (1, newp[name], new_models[name]),
-            ):
-                terms[-1].append(sign * model.source.surface_energy(state))
-                for cell in state.cells:
-                    for _, phase in cell:
-                        for j, amount in enumerate(phase.component_moles):
-                            terms[j].append(sign * amount)
-                        mass = math.fsum(
-                            n * c.molar_mass_kg_mol
-                            for n, c in zip(phase.component_moles, p.fluid.components)
-                        )
-                        terms[-1].append(sign * (phase.total_energy_j + mass * gravity * elevation))
-        for name in self.columns:
-            for j in range(nc):
-                terms[j].extend((-oldc[name].component_moles[j], newc[name].component_moles[j]))
-            terms[-1].extend((-oldc[name].total_energy_j, newc[name].total_energy_j))
+        old, new = self.conserved_terms(before), self.conserved_terms(after)
+        nc = len(old) - 1
+        terms = [[*(-v for v in a), *b] for a, b in zip(old, new)]
         if external_components is not None:
             for j, v in enumerate(external_components):
                 terms[j].append(-v)
@@ -497,30 +642,15 @@ class PRCapillaryFacility:
         if not converged:
             # This is a nonlinear trial, never a partially accepted time step.
             return end, {"coupling_converged": False}
-        external_components = [0.0] * len(next(iter(self.lines.values()))["pipe"].fluid.names)
-        external_energies, external_entropies = [], []
-        for name, row in self.lines.items():
-            ax = pipe_reports[name]["axial"] if normal_relaxation else pipe_reports[name]
-            side = ax.get("sideport_transfer_n_m_e", [0.0] * (len(external_components) + 2))
-            for j, value in enumerate(side[:-2]):
-                external_components[j] += value
-            attached = [port for port in row["ports"] if port is not None]
-            gravity = self.columns[attached[0]["column"]].gravity_m_s2 if attached else 0.0
-            mass = math.fsum(
-                v * c.molar_mass_kg_mol for v, c in zip(side[:-2], row["pipe"].fluid.components)
-            )
-            external_energies.append(
-                side[-1]
-                + ax.get("sideport_actuator_work_j", 0.0)
-                + mass * gravity * row["pipe"].elevations[0]
-            )
-            external_entropies.append(ax.get("sideport_incoming_entropy_j_k", 0.0))
+        external_components, external_energy, _ = self.external_exchange(
+            {"pipes": pipe_reports, "normal_relaxation": normal_relaxation}
+        )
         residual, tolerance = self.ledger(
             state,
             end,
             external_heat_j=math.fsum(heat.values()),
             external_components=external_components,
-            external_energy_j=math.fsum(external_energies),
+            external_energy_j=external_energy,
         )
         if any(not math.isfinite(v) or abs(v) > t for v, t in zip(residual, tolerance)):
             raise ConservationError("Facility shared component/augmented energy balance failed")
@@ -539,7 +669,13 @@ class PRCapillaryFacility:
             )
             if heat[name]:
                 entropy_terms.append(-heat[name] / bath[name])
-        entropy_terms.extend(-v for v in external_entropies)
+        # Retain individual operand ULPs in the entropy acceptance bound.
+        entropy_terms.extend(
+            -(body["axial"] if normal_relaxation else body).get(
+                "sideport_incoming_entropy_j_k", 0.0
+            )
+            for body in pipe_reports.values()
+        )
         production = math.fsum(entropy_terms)
         if production < -256 * math.fsum(math.ulp(v) for v in entropy_terms) - 1e-10:
             raise ConservationError("Facility entropy decreased")

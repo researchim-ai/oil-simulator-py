@@ -1,0 +1,156 @@
+{
+  "format": "fetrig_cci_input_audit_v1",
+  "source": "https://doi.org/10.18419/DARUS-4998",
+  "manifest_sha256": "652d47a367c0688f60bd39f4869035d574cf7bc0c079496fbea785c4e741e63b",
+  "auditor_sha256": "4dc29ba4a5bb40e6f24dab461af4297f7dade9054936ebae77cf1f1bf5a3dced",
+  "geometry": {
+    "channel_width_m": 0.1,
+    "channel_depth_m": 0.03,
+    "source": "https://doi.org/10.1016/j.applthermaleng.2026.130975, section 2.1.3"
+  },
+  "cases": [
+    {
+      "original_member": "Film Data_MC_RC_Water_RH80_T25Deg_CopperPlate_28_08_24/MC_RC_Water_RH80_T25Deg_CopperPlate_28_08_24/Y_100/X_50/Keyence Data/ReL500_ReG0.csv",
+      "raw_sha256": "557afcb368eb9f370bb0e597c03bd987a3045058538c76bd8dde887c298d3fdd",
+      "records": 100000,
+      "sensor_status_counts": {
+        "GO": 99870,
+        "ALARM": 130
+      },
+      "sensor_acceptance_fraction": 0.9987,
+      "sampling_period_s": 0.00019999999999999998,
+      "first_trigger": 646066,
+      "last_trigger": 746065,
+      "elapsed_first_to_last_s": 19.999799999999997,
+      "missing_triggers": 0,
+      "go_mean_thickness_m": 0.000482399137879243,
+      "go_sample_std_thickness_m": 1.7822720623770695e-05,
+      "go_minimum_thickness_m": 0.0004047,
+      "go_maximum_thickness_m": 0.0005618999999999999,
+      "standard_error_or_confidence_interval_estimated": false,
+      "outliers_replaced": false,
+      "zero_offset_adjusted": false
+    },
+    {
+      "original_member": "Film Data_MC_RC_Water_RH80_T25Deg_CopperPlate_28_08_24/MC_RC_Water_RH80_T25Deg_CopperPlate_28_08_24/Y_100/X_50/Keyence Data/ReL500_ReG12900.csv",
+      "raw_sha256": "25cb09d1a4dd0ec87cd437e9195d78cd3fd708493a0c0debdf6a90b573c75ef0",
+      "records": 100000,
+      "sensor_status_counts": {
+        "GO": 100000,
+        "ALARM": 0
+      },
+      "sensor_acceptance_fraction": 1.0,
+      "sampling_period_s": 0.00019999999999999998,
+      "first_trigger": 18084084,
+      "last_trigger": 18184083,
+      "elapsed_first_to_last_s": 19.999799999999997,
+      "missing_triggers": 0,
+      "go_mean_thickness_m": 0.000510333424,
+      "go_sample_std_thickness_m": 2.2878356624291052e-05,
+      "go_minimum_thickness_m": 0.0004222,
+      "go_maximum_thickness_m": 0.0006109,
+      "standard_error_or_confidence_interval_estimated": false,
+      "outliers_replaced": false,
+      "zero_offset_adjusted": false
+    },
+    {
+      "original_member": "Film Data_MC_RC_Water_RH80_T25Deg_CopperPlate_28_08_24/MC_RC_Water_RH80_T25Deg_CopperPlate_28_08_24/Y_100/X_50/Keyence Data/ReL500_ReG20900.csv",
+      "raw_sha256": "0e371f7d1e74ec2c8b45f9165e9dcf8c452ec92290f3005d2d9e658cc9b58879",
+      "records": 100000,
+      "sensor_status_counts": {
+        "GO": 94903,
+        "ALARM": 5097
+      },
+      "sensor_acceptance_fraction": 0.94903,
+      "sampling_period_s": 0.00019999999999999998,
+      "first_trigger": 230511,
+      "last_trigger": 330510,
+      "elapsed_first_to_last_s": 19.999799999999997,
+      "missing_triggers": 0,
+      "go_mean_thickness_m": 0.0005897733201268663,
+      "go_sample_std_thickness_m": 0.00015796716182067387,
+      "go_minimum_thickness_m": 0.00017680000000000001,
+      "go_maximum_thickness_m": 0.0015698,
+      "standard_error_or_confidence_interval_estimated": false,
+      "outliers_replaced": false,
+      "zero_offset_adjusted": false
+    },
+    {
+      "original_member": "Film Data_MC_RC_Water_RH80_T25Deg_CopperPlate_28_08_24/MC_RC_Water_RH80_T25Deg_CopperPlate_28_08_24/Y_600/X_50/Keyence Data 3/ReL500_ReG0.csv",
+      "raw_sha256": "08c1909a33b1fa23055917f805981959f25283b14ca466ac8404c5d99e3363fc",
+      "records": 100000,
+      "sensor_status_counts": {
+        "GO": 98249,
+        "ALARM": 1751
+      },
+      "sensor_acceptance_fraction": 0.98249,
+      "sampling_period_s": 0.00019999999999999998,
+      "first_trigger": 2021144,
+      "last_trigger": 2121143,
+      "elapsed_first_to_last_s": 19.999799999999997,
+      "missing_triggers": 0,
+      "go_mean_thickness_m": 0.000500648417795601,
+      "go_sample_std_thickness_m": 0.00011088735189938804,
+      "go_minimum_thickness_m": 1.23e-05,
+      "go_maximum_thickness_m": 0.0012929999999999999,
+      "standard_error_or_confidence_interval_estimated": false,
+      "outliers_replaced": false,
+      "zero_offset_adjusted": false
+    },
+    {
+      "original_member": "Film Data_MC_RC_Water_RH80_T25Deg_CopperPlate_28_08_24/MC_RC_Water_RH80_T25Deg_CopperPlate_28_08_24/Y_600/X_50/Keyence Data 3/ReL500_ReG12900.csv",
+      "raw_sha256": "07e0b66a0f5fab583d57903a4c660958c03c04a1eebd89e6ad520e6873d0e7a3",
+      "records": 100000,
+      "sensor_status_counts": {
+        "GO": 99449,
+        "ALARM": 551
+      },
+      "sensor_acceptance_fraction": 0.99449,
+      "sampling_period_s": 0.00019999999999999998,
+      "first_trigger": 35208179,
+      "last_trigger": 35308178,
+      "elapsed_first_to_last_s": 19.999799999999997,
+      "missing_triggers": 0,
+      "go_mean_thickness_m": 0.0005379573027380868,
+      "go_sample_std_thickness_m": 0.00011951034186712762,
+      "go_minimum_thickness_m": 0.0001478,
+      "go_maximum_thickness_m": 0.0015149,
+      "standard_error_or_confidence_interval_estimated": false,
+      "outliers_replaced": false,
+      "zero_offset_adjusted": false
+    },
+    {
+      "original_member": "Film Data_MC_RC_Water_RH80_T25Deg_CopperPlate_28_08_24/MC_RC_Water_RH80_T25Deg_CopperPlate_28_08_24/Y_600/X_50/Keyence Data 3/ReL500_ReG20900.csv",
+      "raw_sha256": "81c5d430e04a58ee58bc681b48e792a0a5fa8af8842a161145839c86e4e16613",
+      "records": 100000,
+      "sensor_status_counts": {
+        "GO": 97800,
+        "ALARM": 2200
+      },
+      "sensor_acceptance_fraction": 0.978,
+      "sampling_period_s": 0.00019999999999999998,
+      "first_trigger": 51793906,
+      "last_trigger": 51893905,
+      "elapsed_first_to_last_s": 19.999799999999997,
+      "missing_triggers": 0,
+      "go_mean_thickness_m": 0.0005471037290388547,
+      "go_sample_std_thickness_m": 0.00013844634053583022,
+      "go_minimum_thickness_m": 3.99e-05,
+      "go_maximum_thickness_m": 0.0028607999999999997,
+      "standard_error_or_confidence_interval_estimated": false,
+      "outliers_replaced": false,
+      "zero_offset_adjusted": false
+    }
+  ],
+  "total_cci_records": 600000,
+  "model_fitted": false,
+  "model_scored": false,
+  "experimentally_qualified": false,
+  "interpretation": "GO-only descriptive thickness statistics following source Keyence_Data_Manager.m; ALARM is missing sensor information, not a zero-thickness observation. Correlated samples and possibly nonrandom dropouts do not define an independent-sample confidence interval.",
+  "remaining_before_model_scoring": [
+    "LabView channel units, actual mass/gas flow and fluid properties",
+    "clock alignment and steady-input selection independent of model error",
+    "sensor zero reference and acceptance/dropout effects",
+    "compatible rectangular-channel physical model and wave-domain assumptions"
+  ]
+}

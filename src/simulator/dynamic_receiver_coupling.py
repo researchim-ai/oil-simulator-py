@@ -9,13 +9,15 @@ explicit physical inputs.
 """
 
 import math
+from contextlib import ExitStack
 from copy import deepcopy
-from dataclasses import asdict, dataclass, replace
+from dataclasses import asdict, dataclass
 
 import torch
 
 from .blackoil_surface_coupling import SurfaceCoupledBlackOilWells
 from .fim_transaction import _StepState
+from .pr_surface_boundary import make_surface_boundary
 from .thermal_surface_boundary import characterize_well_thermal_boundaries
 
 try:
@@ -25,7 +27,6 @@ try:
     from ..surface.operation import _digest
     from ..surface.stratified_pr_flow import (
         ReceiverFeedPressureError,
-        StratifiedFeed,
         StratifiedPRFlow,
     )
     from ..surface.stratified_pr_thermal import StratifiedThermalState
@@ -37,7 +38,6 @@ except ImportError:
     from surface.operation import _digest
     from surface.stratified_pr_flow import (
         ReceiverFeedPressureError,
-        StratifiedFeed,
         StratifiedPRFlow,
     )
     from surface.stratified_pr_thermal import StratifiedThermalState
@@ -78,14 +78,16 @@ class DynamicReceiverCoupledFIM:
         thermal_conditions,
         inlet_height_m,
         control=None,
+        *,
+        inlet_vessel=None,
     ):
         if not isinstance(solver.wells, SurfaceCoupledBlackOilWells):
             raise PropertyModelError("Dynamic receiver requires physical black-oil gathering FIM")
-        if not isinstance(receiver, StratifiedPRFlow) or receiver.feeds:
-            raise TypeError("An unforced StratifiedPRFlow receiver is required")
+        self.inlet_vessel = inlet_vessel
+        boundary = make_surface_boundary(receiver, inlet_vessel)
         if not isinstance(assay, StockComponentAssay):
             raise TypeError("Explicit StockComponentAssay required")
-        f = receiver.column.fluid
+        f = boundary.fluid
         if assay.fluid_id != f.model_id or assay.component_names != f.names:
             raise PropertyModelError("Receiver EOS and well assay differ")
         receiver.inspect(receiver_state)
@@ -98,7 +100,7 @@ class DynamicReceiverCoupledFIM:
         if (
             isinstance(inlet_height_m, bool)
             or not math.isfinite(self.inlet_height_m)
-            or not (0 <= self.inlet_height_m <= receiver.column.geometry.height_m)
+            or not (0 <= self.inlet_height_m <= boundary.maximum_inlet_height_m)
         ):
             raise ValueError("Receiver inlet height outside vessel")
         self.control = (
@@ -109,15 +111,20 @@ class DynamicReceiverCoupledFIM:
         if not isinstance(self.control, DynamicReceiverControl):
             raise TypeError("Expected DynamicReceiverControl")
         self.outlet_openings = {}
+        self.connection_openings = {}
         self.report, self.last_attempt = None, None
         self._validate_binding()
         self.model_id = _digest(self.to_dict())
 
+    @property
+    def boundary(self):
+        return make_surface_boundary(self.receiver, getattr(self, "inlet_vessel", None))
+
     def _validate_binding(self):
-        s, c = self.solver, self.receiver.column
+        s, c = self.solver, self.boundary
         net = s.wells.surface_network
         if not math.isclose(
-            c.elevation_m + self.inlet_height_m,
+            c.inlet_elevation(self.inlet_height_m),
             net.by_name[net.root].elevation_m,
             abs_tol=1e-9,
             rel_tol=0,
@@ -148,45 +155,103 @@ class DynamicReceiverCoupledFIM:
                 )
 
     def to_dict(self):
-        return {
-            "model": "dynamic_pr_receiver_fim_v1",
+        result = {
+            "model": self.boundary.model_tag,
             "receiver": self.receiver.to_dict(),
             "assay": asdict(self.assay),
             "thermal_conditions": deepcopy(self.thermal_conditions),
             "inlet_height_m": self.inlet_height_m,
             "control": asdict(self.control),
         }
+        if self.boundary.network:
+            result["inlet_vessel"] = self.inlet_vessel
+        return result
 
     @classmethod
     def from_dict(cls, solver, raw, *, device="cpu"):
-        if (
-            set(raw)
-            != {
-                "model",
-                "receiver",
-                "initial_state",
-                "assay",
-                "thermal_conditions",
-                "inlet_height_m",
-                "control",
-            }
-            or raw["model"] != "dynamic_pr_receiver_fim_v1"
+        capillary = raw.get("model") == "dynamic_pr_capillary_surface_fim_v1"
+        resolved = capillary or raw.get("model") == "dynamic_pr_gravity_transport_fim_v1"
+        distributed = resolved or raw.get("model") == "dynamic_pr_transport_fim_v1"
+        graph = distributed or raw.get("model") == "dynamic_pr_vessel_network_fim_v1"
+        keys = {
+            "model",
+            "receiver",
+            "initial_state",
+            "assay",
+            "thermal_conditions",
+            "inlet_height_m",
+            "control",
+        }
+        if graph:
+            keys.add("inlet_vessel")
+        if set(raw) != keys or raw["model"] not in (
+            "dynamic_pr_receiver_fim_v1",
+            "dynamic_pr_vessel_network_fim_v1",
+            "dynamic_pr_transport_fim_v1",
+            "dynamic_pr_gravity_transport_fim_v1",
+            "dynamic_pr_capillary_surface_fim_v1",
         ):
             raise ValueError("Explicit dynamic receiver specification required")
+        if capillary:
+            try:
+                from ..surface.pr_capillary_surface_plant import (
+                    PRCapillarySurfacePlant,
+                    PRCapillarySurfaceState,
+                )
+            except ImportError:
+                from surface.pr_capillary_surface_plant import (
+                    PRCapillarySurfacePlant,
+                    PRCapillarySurfaceState,
+                )
+            model = PRCapillarySurfacePlant.from_dict(raw["receiver"], device=device)
+            state = PRCapillarySurfaceState.from_dict(raw["initial_state"])
+        elif resolved:
+            try:
+                from ..surface.pr_gravity_transport import PRGravityTransportState
+                from ..surface.pr_open_gravity_transport import PROpenGravityTransportNetwork
+            except ImportError:
+                from surface.pr_gravity_transport import PRGravityTransportState
+                from surface.pr_open_gravity_transport import PROpenGravityTransportNetwork
+            model = PROpenGravityTransportNetwork.from_dict(raw["receiver"], device=device)
+            state = PRGravityTransportState.from_dict(raw["initial_state"])
+        elif distributed:
+            try:
+                from ..surface.pr_equilibrium_transport import PREquilibriumTransportState
+                from ..surface.pr_open_transport import PROpenTransportNetwork
+            except ImportError:
+                from surface.pr_equilibrium_transport import PREquilibriumTransportState
+                from surface.pr_open_transport import PROpenTransportNetwork
+            model = PROpenTransportNetwork.from_dict(raw["receiver"], device=device)
+            state = PREquilibriumTransportState.from_dict(raw["initial_state"])
+        elif graph:
+            try:
+                from ..surface.stratified_pr_network import (
+                    StratifiedNetworkState,
+                    StratifiedPRNetwork,
+                )
+            except ImportError:
+                from surface.stratified_pr_network import (
+                    StratifiedNetworkState,
+                    StratifiedPRNetwork,
+                )
+            model = StratifiedPRNetwork.from_dict(raw["receiver"], device=device)
+            state = StratifiedNetworkState.from_dict(raw["initial_state"])
+        else:
+            model = StratifiedPRFlow.from_dict(raw["receiver"], device=device)
+            state = StratifiedThermalState.from_dict(raw["initial_state"])
         return cls(
             solver,
-            StratifiedPRFlow.from_dict(raw["receiver"], device=device),
-            StratifiedThermalState.from_dict(raw["initial_state"]),
+            model,
+            state,
             StockComponentAssay(**raw["assay"]),
             raw["thermal_conditions"],
             raw["inlet_height_m"],
             raw["control"],
+            inlet_vessel=raw.get("inlet_vessel"),
         )
 
     def _pressure(self, state):
-        return self.receiver.column.sample(state.column, self.inlet_height_m, side="below")[
-            "pressure_pa"
-        ]
+        return self.boundary.pressure(state, self.inlet_height_m)
 
     def _inventory(self):
         s = self.solver
@@ -195,24 +260,11 @@ class DynamicReceiverCoupledFIM:
             return v.sum(1).detach().cpu().tolist()
 
     def _flow(self, streams):
-        base = self.receiver
-        keys = (
-            "initial_step_s",
-            "minimum_step_s",
-            "maximum_step_s",
-            "temperature_tolerance_k",
-            "relative_tolerance",
-            "maximum_attempts",
-        )
-        return StratifiedPRFlow(
-            base.column,
-            base.wall,
-            outlets=[
-                replace(p, opening=self.outlet_openings.get(p.name, p.opening))
-                for p in base.outlets
-            ],
-            feeds=[StratifiedFeed(self.inlet_height_m, stream) for stream in streams],
-            **{key: getattr(base, key) for key in keys},
+        return self.boundary.build(
+            streams,
+            self.inlet_height_m,
+            self.outlet_openings,
+            getattr(self, "connection_openings", {}),
         )
 
     def _backward_euler(self, old, dt, current_time, *, pressure_guess_pa=None):
@@ -222,7 +274,7 @@ class DynamicReceiverCoupledFIM:
         trace, accepted = [], False
         point, lower, upper = self._pressure(old), None, None
         domain = net.model.pressure_bounds_pa
-        fluid = self.receiver.column.fluid
+        fluid = self.boundary.fluid
         lo, hi = max(domain[0], fluid.min_pressure_pa), min(domain[1], fluid.max_pressure_pa)
         if (
             pressure_guess_pa is not None
@@ -256,16 +308,18 @@ class DynamicReceiverCoupledFIM:
                     stream.transport(
                         fluid,
                         point,
-                        elevation_m=self.receiver.column.elevation_m + self.inlet_height_m,
+                        elevation_m=self.boundary.inlet_elevation(self.inlet_height_m),
                         velocity_m_s=0.0,
-                        temperature_guess_k=old.column.temperature_k,
+                        temperature_guess_k=self.boundary.temperature(old),
                     )
                     for stream in boundary["streams"].values()
                 ]
                 flow = self._flow(streams)
-                trial = replace(old, model_id=flow.model_id)
+                trial = self.boundary.rebind(old, flow)
                 try:
-                    candidate, report = flow._step(trial, dt)
+                    candidate, report = self.boundary.step(
+                        flow, trial, dt, getattr(self, "connection_openings", {})
+                    )
                     pressure = self._pressure(candidate)
                     physical = True
                 except ReceiverFeedPressureError as exc:
@@ -286,7 +340,7 @@ class DynamicReceiverCoupledFIM:
                 if physical and abs(defect) <= tolerance:
                     # The temporary model binds actual accepted feeds/commands;
                     # the persistent checkpoint uses the unforced receiver ID.
-                    end = replace(candidate, model_id=self.receiver.model_id)
+                    end = self.boundary.rebind(candidate, self.receiver)
                     self.receiver.inspect(end)
                     accepted = True
                     return end, {
@@ -329,29 +383,7 @@ class DynamicReceiverCoupledFIM:
 
     def _temporal_error(self, coarse, fine, coarse_reservoir):
         c = self.control
-        nc, nf = coarse.column.component_moles, fine.column.component_moles
-        scale = max(1.0, math.fsum(nf))
-        pressure_c, pressure_f = self._pressure(coarse), self._pressure(fine)
-        error = max(
-            abs(pressure_c - pressure_f)
-            / (c.temporal_pressure_tolerance_pa + c.temporal_relative_tolerance * pressure_f),
-            abs(coarse.column.temperature_k - fine.column.temperature_k)
-            / c.temporal_temperature_tolerance_k,
-            abs(coarse.wall_temperature_k - fine.wall_temperature_k)
-            / c.temporal_temperature_tolerance_k,
-            max(abs(a - b) for a, b in zip(nc, nf))
-            / (1e-9 + c.temporal_relative_tolerance * scale),
-            abs(coarse.column.total_energy_j - fine.column.total_energy_j)
-            / (
-                1e-5
-                + c.temporal_relative_tolerance
-                * max(
-                    1.0,
-                    abs(fine.column.total_energy_j),
-                    scale * 8.314462618 * fine.column.temperature_k,
-                )
-            ),
-        )
+        error = self.boundary.temporal_error(coarse, fine, c, self.inlet_height_m)
         f = self.solver.fluid
         terms = [
             (
@@ -377,49 +409,27 @@ class DynamicReceiverCoupledFIM:
                     ).max()
                 )
         error = max(error, float(torch.stack(terms).max().detach().cpu()))
-        if len(coarse.column.phase_roots) != len(fine.column.phase_roots):
-            error = max(error, 2.0)
-        else:
-            for a, b in zip(coarse.column.interface_heights_m, fine.column.interface_heights_m):
-                error = max(
-                    error,
-                    abs(a - b)
-                    / (
-                        1e-8
-                        + c.temporal_relative_tolerance * self.receiver.column.geometry.height_m
-                    ),
-                )
         return error
 
     def _account(self, old, end, stages):
         flows = [s["flow"] for s in stages]
-        n = len(end.column.component_moles)
+        old_n, old_energy = self.boundary.totals(old)
+        end_n, end_energy = self.boundary.totals(end)
+        n = len(end_n)
         incoming = [math.fsum(f["feed_component_moles"][j] for f in flows) for j in range(n)]
         outgoing = [math.fsum(f["outlet_component_moles"][j] for f in flows) for j in range(n)]
         energy_in = math.fsum(f["feed_energy_j"] for f in flows)
         energy_out = math.fsum(f["outlet_energy_j"] for f in flows)
         ambient = math.fsum(f["ambient_heat_j"] for f in flows)
-        balance = [
-            b - a - i + o
-            for a, b, i, o in zip(
-                old.column.component_moles, end.column.component_moles, incoming, outgoing
-            )
-        ]
+        external_energy = math.fsum(f.get("external_energy_j", 0.0) for f in flows)
+        balance = [b - a - i + o for a, b, i, o in zip(old_n, end_n, incoming, outgoing)]
         energy_balance = math.fsum(
-            (
-                end.column.total_energy_j,
-                -old.column.total_energy_j,
-                self.receiver.wall.heat_capacity_j_k
-                * (end.wall_temperature_k - old.wall_temperature_k),
-                -energy_in,
-                energy_out,
-                -ambient,
-            )
+            (end_energy, -old_energy, -energy_in, energy_out, -ambient, -external_energy)
         )
-        if max(map(abs, balance)) > 1e-8 + 1e-9 * math.fsum(end.column.component_moles):
+        if max(map(abs, balance)) > 1e-8 + 1e-9 * math.fsum(end_n):
             raise ConservationError("Coupled receiver component ledger rejected")
         if abs(energy_balance) > 1e-5 + 1e-9 * max(
-            1, abs(energy_in), abs(energy_out), abs(ambient)
+            1, abs(energy_in), abs(energy_out), abs(ambient), abs(external_energy)
         ):
             raise ConservationError("Coupled receiver energy ledger rejected")
         prev = {} if self.report is None else self.report["cumulative"]
@@ -435,6 +445,14 @@ class DynamicReceiverCoupledFIM:
             ("ambient_heat_j", ambient),
         ):
             account[key] = math.fsum((prev.get(key, 0.0), value))
+        if self.boundary.model_tag in (
+            "dynamic_pr_transport_fim_v1",
+            "dynamic_pr_gravity_transport_fim_v1",
+            "dynamic_pr_capillary_surface_fim_v1",
+        ):
+            account["surface_external_energy_j"] = math.fsum(
+                (prev.get("surface_external_energy_j", 0.0), external_energy)
+            )
         stock = [
             math.fsum(s["actual_stock_component_mass_kg"][j] for s in stages) for j in range(3)
         ]
@@ -458,11 +476,43 @@ class DynamicReceiverCoupledFIM:
         # Scratch lives for this complete coarse/two-half transaction only.
         # Exact keys include model tensor versions, so no old phase region or
         # rejected inventory can become a stale physical boundary.
-        with cached_flashes(self.receiver.column.fluid) as cache:
+        with ExitStack() as stack:
+            inspections = stack.enter_context(self.boundary.transaction())
+            caches = [stack.enter_context(cached_flashes(f)) for f in self.boundary.fluids()]
             accepted = self._step_impl(dt, current_time)
             if accepted:
-                self.report["property_evaluations"] = cache.statistics()
+                if inspections is not None:
+                    self.report["boundary_inspections"] = inspections.statistics()
+                stats = [cache.statistics() for cache in caches]
+                if len(stats) == 1:
+                    self.report["property_evaluations"] = stats[0]
+                else:
+                    keys = set().union(*(s.keys() for s in stats)) - {"enabled"}
+                    total = {k: sum(s.get(k, 0) for s in stats) for k in sorted(keys)}
+                    total["enabled"] = all(s["enabled"] for s in stats)
+                    total["fluid_caches"] = [{"index": i, **s} for i, s in enumerate(stats)]
+                    self.report["property_evaluations"] = total
             return accepted
+
+    def limit_next_time_step_s(self, proposed_s, *, clipped=False):
+        """Bound a reservoir proposal by the accepted whole-system time error.
+
+        Full versus two-half backward Euler has an O(dt**2) local defect.
+        This is a predictor only: every proposed step is solved and checked
+        again. A small low-error report tail must not erase a useful step.
+        """
+        if isinstance(proposed_s, bool) or not math.isfinite(proposed_s) or proposed_s <= 0:
+            raise ValueError("Positive finite next coupled time step required")
+        if type(clipped) is not bool:
+            raise ValueError("Explicit reporting-tail switch required")
+        if self.report is None:
+            return proposed_s
+        error, dt = self.report["temporal_error_ratio"], self.report["dt_s"]
+        if not math.isfinite(error) or not 0 <= error <= 1 or not math.isfinite(dt) or dt <= 0:
+            raise ValueError("Invalid accepted coupled temporal estimate")
+        if error == 0 or (clipped and error <= 0.25):
+            return proposed_s
+        return min(proposed_s, dt * 0.9 / math.sqrt(error))
 
     def _step_impl(self, dt, current_time=None):
         if isinstance(dt, bool) or not math.isfinite(dt) or dt <= 0:
@@ -473,7 +523,7 @@ class DynamicReceiverCoupledFIM:
         self.receiver.inspect(self.receiver_state)
         if current_time is not None and current_time != self.receiver_state.time_s:
             raise ValueError("Reservoir and receiver clocks differ")
-        if set(self.outlet_openings) - {p.name for p in self.receiver.outlets}:
+        if set(self.outlet_openings) - self.boundary.outlet_names():
             raise ValueError("Unknown receiver outlet command")
         # Validate commands before starting any reservoir trial.
         self._flow(())
@@ -502,7 +552,9 @@ class DynamicReceiverCoupledFIM:
             end, second = self._backward_euler(middle, b, middle.time_s, pressure_guess_pa=pc)
             error = self._temporal_error(coarse, end, coarse_reservoir)
             if not math.isfinite(error) or error > 1:
-                raise HydraulicConvergenceError("Whole-system temporal error above tolerance")
+                raise HydraulicConvergenceError(
+                    f"Whole-system temporal error above tolerance: ratio={error:.8g}"
+                )
             account = self._account(old, end, (first, second))
             # The next full-interval dt controller must see the full change,
             # not just the accepted second half-step.
@@ -526,7 +578,7 @@ class DynamicReceiverCoupledFIM:
                 first["accepted_newton_iterations"], second["accepted_newton_iterations"]
             )
             self.report = {
-                "model": "dynamic_pr_receiver_fim_v1",
+                "model": self.to_dict()["model"],
                 "model_id": self.model_id,
                 "state": end.to_dict(),
                 "initial_state": old.to_dict(),
@@ -540,6 +592,17 @@ class DynamicReceiverCoupledFIM:
                 "pvt_eos_characterization_calibrated": False,
                 "scope": "Producer-only two-way finite-receiver pressure feedback. Steady PVT gathering, conservative adiabatic energy transfer, explicit thermal boundary; no pipe storage or reservoir energy equation.",
             }
+            if self.boundary.network:
+                self.report["connection_openings"] = dict(self.connection_openings)
+                self.report["scope"] = (
+                    "Producer-only two-way pressure feedback into a finite gravitational PR vessel graph with direct massless connectors and finite outlets. Steady PVT gathering; explicit thermal boundary; no distributed pipe storage, pipe momentum, injection or reservoir energy equation."
+                )
+            if self.boundary.model_tag in (
+                "dynamic_pr_transport_fim_v1",
+                "dynamic_pr_gravity_transport_fim_v1",
+                "dynamic_pr_capillary_surface_fim_v1",
+            ):
+                self.report["scope"] = self.boundary.scope
             self.receiver_state = end
             self.last_attempt = {"success": True}
             accepted = True

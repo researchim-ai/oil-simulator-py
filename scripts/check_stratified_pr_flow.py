@@ -104,6 +104,111 @@ def profile(state, system):
     return f, geometry, sample, np.array(amounts), np.array(densities), entropy
 
 
+def external_outflows(model, state, saved_ports=None, resolved=None):
+    """Independent finite-aperture component, energy and entropy fluxes."""
+    system = model["column"]
+    f, geo, sample, amounts, density, _ = profile(state, system) if resolved is None else resolved
+    out_n = np.zeros(len(f.names))
+    out_e = out_s = 0.0
+    mw = np.array([component.molar_mass_kg_mol for component in f.components])
+    bounds = np.r_[0, state["interface_heights_m"], geo.height_m]
+    mean_x = amounts / amounts.sum(-1, keepdims=True)
+    nodes, weights = np.polynomial.legendre.leggauss(32)
+    for port, saved in zip(
+        model["outlets"],
+        saved_ports if saved_ports is not None else [None] * len(model["outlets"]),
+        strict=True,
+    ):
+        radius = port["diameter_m"] / 2
+        center = port["height_m"]
+        pieces = []
+        mean_p = 0.0
+        for i in range(len(amounts)):
+            lo = max(bounds[i], center - radius)
+            hi = min(bounds[i + 1], center + radius)
+            if hi <= lo:
+                continue
+            a = math.asin(np.clip((lo - center) / radius, -1, 1))
+            b = math.asin(np.clip((hi - center) / radius, -1, 1))
+            angles = (a + b) / 2 + (b - a) / 2 * nodes
+            fraction = ((b - a) + (math.sin(2 * b) - math.sin(2 * a)) / 2) / math.pi
+            ww = weights * np.cos(angles) ** 2
+            ww = ww / ww.sum() * fraction
+            for h, area in zip(center + radius * np.sin(angles), ww):
+                p, x, q = sample(h, i)
+                pieces.append((i, h, area, p, x, q))
+                mean_p += p * area
+        opening = port.get("opening", 1.0)
+        if port.get("pressure_setpoint_pa") is not None:
+            opening = np.clip(
+                port.get("opening_bias", 0.0)
+                + port.get("opening_gain_per_pa", 0.0) * (mean_p - port["pressure_setpoint_pa"]),
+                0,
+                1,
+            )
+        control = port.get("level_control")
+        if control:
+            values = mean_x[:, f.names.index(control["component"])]
+            index = values.argmax()
+            opening = (
+                float(
+                    np.clip(
+                        control.get("opening_bias", 0.0)
+                        + control["opening_gain_per_m"]
+                        * (bounds[index + 1] - control["setpoint_m"]),
+                        0,
+                        1,
+                    )
+                )
+                if values[index] > 0 and values[index] >= control.get("minimum_mole_fraction", 0.5)
+                else 0.0
+            )
+        pn = np.zeros(len(f.names))
+        pe = volume = 0.0
+        for i, h, area, p, x, q in pieces:
+            selection = port.get("selection", "bulk")
+            selected = True
+            if selection == "densest":
+                selected = i == density.argmax()
+            if selection == "lightest":
+                selected = i == density.argmin()
+            if selection == "component_rich":
+                values = mean_x[:, f.names.index(port["component"])]
+                selected = (
+                    i == values.argmax()
+                    and values[i] > 0
+                    and values[i] >= port.get("minimum_mole_fraction", 0.5)
+                )
+            vdot = (
+                port["volume_conductance_m3_s_pa"]
+                * opening
+                * area
+                * max(p - port["back_pressure_pa"], 0)
+                * selected
+            )
+            if (
+                vdot
+                and (p - port["back_pressure_pa"]) / p
+                > port.get("maximum_pressure_drop_fraction", 0.05) + 1e-9
+            ):
+                raise ValueError("Independent external outlet pressure domain rejected")
+            rate = vdot / q["vm"]
+            pn += rate * x
+            pe += rate * (
+                q["h"] + float(x @ mw) * system["gravity_m_s2"] * (system["elevation_m"] + h)
+            )
+            out_s += rate * q["s"]
+            volume += vdot
+        if saved is not None:
+            close(pn, saved["component_rates_mol_s"], atol=1e-12)
+            close(pe, saved["total_energy_rate_w"], atol=1e-7)
+            close(volume, saved["volume_rate_m3_s"], atol=1e-14)
+            close(opening, saved["opening"], atol=1e-8)
+        out_n += pn
+        out_e += pe
+    return out_n, out_e, out_s
+
+
 def audit(config, report):
     if report["config"] != config:
         raise ValueError("Config differs from supplied request")
@@ -134,96 +239,12 @@ def audit(config, report):
                 np.zeros(len(f.names)),
             )
             feed_e = math.fsum(v["stream"]["total_energy_rate_w"] for v in config["feeds"])
-            out_n = np.zeros(len(f.names))
-            out_e = out_s = 0.0
-            mw = np.array([component.molar_mass_kg_mol for component in f.components])
-            bounds = np.r_[0, state["interface_heights_m"], geo.height_m]
-            mean_x = amounts / amounts.sum(-1, keepdims=True)
-            nodes, weights = np.polynomial.legendre.leggauss(32)
-            for port, saved in zip(config["outlets"], step["outlets"], strict=True):
-                radius = port["diameter_m"] / 2
-                center = port["height_m"]
-                pieces = []
-                mean_p = 0.0
-                for i in range(len(amounts)):
-                    lo = max(bounds[i], center - radius)
-                    hi = min(bounds[i + 1], center + radius)
-                    if hi <= lo:
-                        continue
-                    a = math.asin(np.clip((lo - center) / radius, -1, 1))
-                    b = math.asin(np.clip((hi - center) / radius, -1, 1))
-                    angles = (a + b) / 2 + (b - a) / 2 * nodes
-                    fraction = ((b - a) + (math.sin(2 * b) - math.sin(2 * a)) / 2) / math.pi
-                    ww = weights * np.cos(angles) ** 2
-                    ww = ww / ww.sum() * fraction
-                    for h, area in zip(center + radius * np.sin(angles), ww):
-                        p, x, q = sample(h, i)
-                        pieces.append((i, h, area, p, x, q))
-                        mean_p += p * area
-                opening = port.get("opening", 1.0)
-                if port.get("pressure_setpoint_pa") is not None:
-                    opening = np.clip(
-                        port.get("opening_bias", 0.0)
-                        + port.get("opening_gain_per_pa", 0.0)
-                        * (mean_p - port["pressure_setpoint_pa"]),
-                        0,
-                        1,
-                    )
-                control = port.get("level_control")
-                if control:
-                    values = mean_x[:, f.names.index(control["component"])]
-                    index = values.argmax()
-                    opening = (
-                        float(
-                            np.clip(
-                                control.get("opening_bias", 0.0)
-                                + control["opening_gain_per_m"]
-                                * (bounds[index + 1] - control["setpoint_m"]),
-                                0,
-                                1,
-                            )
-                        )
-                        if values[index] > 0
-                        and values[index] >= control.get("minimum_mole_fraction", 0.5)
-                        else 0.0
-                    )
-                pn = np.zeros(len(f.names))
-                pe = volume = 0.0
-                for i, h, area, p, x, q in pieces:
-                    selection = port.get("selection", "bulk")
-                    selected = True
-                    if selection == "densest":
-                        selected = i == density.argmax()
-                    if selection == "lightest":
-                        selected = i == density.argmin()
-                    if selection == "component_rich":
-                        values = mean_x[:, f.names.index(port["component"])]
-                        selected = (
-                            i == values.argmax()
-                            and values[i] > 0
-                            and values[i] >= port.get("minimum_mole_fraction", 0.5)
-                        )
-                    vdot = (
-                        port["volume_conductance_m3_s_pa"]
-                        * opening
-                        * area
-                        * max(p - port["back_pressure_pa"], 0)
-                        * selected
-                    )
-                    rate = vdot / q["vm"]
-                    pn += rate * x
-                    pe += rate * (
-                        q["h"]
-                        + float(x @ mw) * system["gravity_m_s2"] * (system["elevation_m"] + h)
-                    )
-                    out_s += rate * q["s"]
-                    volume += vdot
-                close(pn, saved["component_rates_mol_s"], atol=1e-12)
-                close(pe, saved["total_energy_rate_w"], atol=1e-7)
-                close(volume, saved["volume_rate_m3_s"], atol=1e-14)
-                close(opening, saved["opening"], atol=1e-8)
-                out_n += pn
-                out_e += pe
+            out_n, out_e, out_s = external_outflows(
+                {"column": system, "outlets": config["outlets"]},
+                state,
+                step["outlets"],
+                (f, geo, sample, amounts, density, s),
+            )
             close(
                 np.array(state["component_moles"]) - old["component_moles"],
                 dt * (feed_n - out_n),

@@ -1,0 +1,57 @@
+{
+  "format": "unfitted_may2015_pr_protocol_v1",
+  "fluid": {
+    "components": [
+      {
+        "name": "Methane",
+        "critical_temperature_k": 190.564,
+        "critical_pressure_pa": 4599200.0,
+        "acentric_factor": 0.01142,
+        "molar_mass_kg_mol": 0.0160428,
+        "ideal_cp_j_mol_k": 35.7,
+        "min_temperature_k": 160.0,
+        "max_temperature_k": 500.0,
+        "reference_temperature_k": 298.15,
+        "reference_pressure_pa": 100000.0
+      },
+      {
+        "name": "Ethane",
+        "critical_temperature_k": 305.322,
+        "critical_pressure_pa": 4872200.0,
+        "acentric_factor": 0.099,
+        "molar_mass_kg_mol": 0.03006904,
+        "ideal_cp_j_mol_k": 52.5,
+        "min_temperature_k": 160.0,
+        "max_temperature_k": 500.0,
+        "reference_temperature_k": 298.15,
+        "reference_pressure_pa": 100000.0
+      }
+    ],
+    "binary_interactions": [
+      [
+        0.0,
+        0.0
+      ],
+      [
+        0.0,
+        0.0
+      ]
+    ],
+    "min_pressure_pa": 100.0,
+    "max_pressure_pa": 1000000000.0,
+    "max_phases": 3
+  },
+  "model_origin": "Unchanged fluid from configs/surface_stratified_pr_gas.json; same methane/ethane parameters and kij=0 used by the capillary FIM examples.",
+  "model_inputs": [
+    "measured liquid temperature",
+    "measured liquid methane mole fraction"
+  ],
+  "predicted_observables": [
+    "bubble pressure",
+    "vapor ethane mole fraction"
+  ],
+  "initialization": "Wilson estimate from fixed component critical constants; pressure scales 0.2, 0.5, 1, 2, 4; no measured pressure or vapor composition used.",
+  "fit_performed": false,
+  "qualification": "All 17 measured states. Marginal archived expanded uncertainties are diagnostics, not a predeclared overall industrial acceptance threshold.",
+  "model_origin_config": "configs/surface_stratified_pr_gas.json"
+}

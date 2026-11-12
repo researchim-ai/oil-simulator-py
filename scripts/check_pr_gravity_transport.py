@@ -59,7 +59,9 @@ def component_balance(before, after, transfer):
         raise ValueError("Independent component-specific transport balance rejected")
 
 
-def audit(config, report):
+def audit(
+    config, report, *, external_exchange=None, reference_aperture_order=None, column_work_j=None
+):
     if config != report["config"]:
         raise ValueError("Request differs")
     parsed = PRGravityTransportNetwork.from_dict(config["model"])
@@ -73,6 +75,11 @@ def audit(config, report):
     mw = np.array([c.molar_mass_kg_mol for c in fluid.components])
     gravity = tm["gravity_m_s2"]
     datum = tm["reference_elevation_m"]
+    column_work = dict(column_work_j or {})
+    if set(column_work) - set(model["columns"]) or any(
+        not math.isfinite(v) for v in column_work.values()
+    ):
+        raise ValueError("Known columns and finite mechanical work required")
     old = report["initial"]
     if set(config["initial"]) == {"state"}:
         if config["initial"]["state"] != old:
@@ -83,6 +90,8 @@ def audit(config, report):
     checked = 0
     heat_total = 0.0
     work_total = 0.0
+    material_n_total = np.zeros(nc)
+    material_e_total = 0.0
     maximum = 0.0
 
     def identity(state):
@@ -101,7 +110,7 @@ def audit(config, report):
             if state["columns"][name]["model_id"] != c.model_id:
                 raise ValueError("Column identity differs")
 
-    def ledger(a, b, heat):
+    def ledger(a, b, heat, incoming_n=None):
         def stocks(s):
             n = sum(
                 (np.array(v["component_moles"]) for v in s["transport"]["nodes"].values()),
@@ -128,7 +137,7 @@ def audit(config, report):
 
         na, ea = stocks(a)
         nb, eb = stocks(b)
-        r = np.r_[nb - na, eb - ea - heat]
+        r = np.r_[nb - na - (np.zeros(nc) if incoming_n is None else incoming_n), eb - ea - heat]
         close(r, np.zeros(nc + 1), atol=1e-5, rtol=0.0)
         return r
 
@@ -161,6 +170,8 @@ def audit(config, report):
         end = old["transport"]["time_s"] + command["duration_s"]
         interval_heat = 0.0
         interval_work = 0.0
+        interval_material_n = np.zeros(nc)
+        interval_material_e = 0.0
         commands = {
             p["name"]: True
             for p in (
@@ -211,6 +222,23 @@ def audit(config, report):
                 reference_sound,
             )
             net = {name: np.zeros(nc + 2) for name in nodes}
+            material_n = np.zeros(nc)
+            material_e = material_s = 0.0
+            if external_exchange is not None:
+                exchanged = external_exchange(old, new, data, dt)
+                if set(exchanged["net"]) != set(nodes):
+                    raise ValueError("External gravitational boundary registry differs")
+                for name, rate in exchanged["net"].items():
+                    rate = np.asarray(rate, dtype=float)
+                    if rate.shape != (nc + 2,) or not np.isfinite(rate).all():
+                        raise ValueError("Invalid gravitational material exchange")
+                    net[name] += rate
+                material_n = dt * sum((r[:-2] for r in net.values()), np.zeros(nc))
+                material_e = dt * sum(r[-1] for r in net.values())
+                material_s = float(exchanged["incoming_entropy"])
+                close(step["material_component_moles"], material_n, atol=1e-10, rtol=2e-7)
+                close(step["material_energy_j"], material_e, atol=1e-7, rtol=2e-7)
+
             particle_rates = {
                 name: 0.0
                 for name, node in nodes.items()
@@ -218,13 +246,13 @@ def audit(config, report):
             }
             occupied = set()
             coln = {name: np.zeros(nc) for name in model["columns"]}
-            cole = {name: 0.0 for name in coln}
+            cole = {name: column_work.get(name, 0.0) / dt for name in coln}
             colentropy = {}
             profiles = {
                 name: profile(new["columns"][name], c) for name, c in model["columns"].items()
             }
             current_entropy = entropy_stock(new, data, profiles)
-            production = current_entropy - previous_entropy
+            production = current_entropy - previous_entropy - dt * material_s
             for link in tm["links"]:
                 a, b = link["source"], link["target"]
                 left_data, right_data = data[a], data[b]
@@ -394,7 +422,12 @@ def audit(config, report):
                     raise ValueError("Missing quadrature for a gravitational or thermal coupling")
                 gn, gw = np.empty(0), np.empty(0)
             else:
-                gn, gw = np.polynomial.legendre.leggauss(order)
+                audit_order = (
+                    order
+                    if reference_aperture_order is None
+                    else max(reference_aperture_order, 2 * order)
+                )
+                gn, gw = np.polynomial.legendre.leggauss(audit_order)
             for port in model["ports"]:
                 name = port["column"]
                 node = port["node"]
@@ -536,9 +569,12 @@ def audit(config, report):
             }:
                 raise ValueError("Mechanical agitation work differs")
             work += drive_work_correction
+            if step.get("column_mechanical_work_j", {}) != column_work:
+                raise ValueError("Column mechanical work differs")
             for name, rate in drive_heat_sources.items():
                 net[name][-1] += rate
             close(step["transport"].get("external_work_j", 0.0), work, atol=1e-10, rtol=2e-7)
+            work += math.fsum(column_work.values())
             heat = 0.0
             for name, node in nodes.items():
                 d = data[name]
@@ -649,10 +685,15 @@ def audit(config, report):
                 raise ValueError("Independent coupled entropy rejected")
             close(step["entropy_production_j_k"], production, atol=2e-6, rtol=2e-6)
             close(
-                step["conservation_residuals"], ledger(old, new, heat + work), atol=1e-6, rtol=2e-7
+                step["conservation_residuals"],
+                ledger(old, new, heat + work + material_e, incoming_n=material_n),
+                atol=1e-6,
+                rtol=2e-7,
             )
             interval_heat += heat
             interval_work += work
+            interval_material_n += material_n
+            interval_material_e += material_e
             checked += 1
             old = new
             previous_entropy = current_entropy
@@ -680,15 +721,22 @@ def audit(config, report):
         close(interval.get("total_work_j", 0.0), interval_work, atol=1e-10, rtol=2e-7)
         close(
             interval["conservation_residuals"],
-            ledger(start, old, interval_heat + interval_work),
+            ledger(
+                start,
+                old,
+                interval_heat + interval_work + interval_material_e,
+                incoming_n=interval_material_n,
+            ),
             atol=1e-6,
             rtol=2e-7,
         )
         heat_total += interval_heat
         work_total += interval_work
+        material_n_total += interval_material_n
+        material_e_total += interval_material_e
     close(
         report["conservation_residuals"],
-        ledger(first, old, heat_total + work_total),
+        ledger(first, old, heat_total + work_total + material_e_total, incoming_n=material_n_total),
         atol=1e-6,
         rtol=2e-7,
     )
