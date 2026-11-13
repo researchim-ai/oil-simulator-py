@@ -10,6 +10,7 @@ import json
 from pathlib import Path
 
 from validate_annular_film_experiment import validate as annular
+from validate_fetrig_film import run as fetrig
 from validate_may2015_vle import ROOT
 from validate_may2015_vle import run as vle
 from validate_multiphase_experiments import run as darcy
@@ -25,6 +26,12 @@ def run(output_dir):
         *sorted((ROOT / "src/surface").glob("*.py")),
         *sorted((ROOT / "scripts").glob("validate*.py")),
         ROOT / "scripts/import_may2015_vle.py",
+        ROOT / "scripts/fetrig_labview.py",
+        ROOT / "scripts/audit_fetrig_measurements.py",
+        *sorted(p for p in (ROOT / "tests/data/surface/fetrig").rglob("*") if p.is_file()),
+        *sorted(
+            p for p in (ROOT / "tests/data/surface/fetrig_processing").rglob("*") if p.is_file()
+        ),
     ]
     hashes = {str(p.relative_to(ROOT)): hashlib.sha256(p.read_bytes()).hexdigest() for p in watched}
     data = ROOT / "tests/data/surface/hannover_countercurrent"
@@ -43,6 +50,7 @@ def run(output_dir):
         ("volume_wetted_control", lambda: darcy(data)),
         ("annular_mean_control", lambda: annular(data, shear_velocity="mean")),
         ("annular_interface", lambda: annular(data, shear_velocity="interface")),
+        ("fetrig_conditioned_film", lambda: fetrig(ROOT / "tests/data/surface/fetrig")),
     ]
     reports, entries = {}, {}
     for name, job in jobs:
@@ -60,7 +68,7 @@ def run(output_dir):
     v = reports["methane_ethane_vle"]
     qualified = current["accepted_as_validated_for_annular_countercurrent"]
     result = {
-        "format": "surface_external_experiment_gate_v1",
+        "format": "surface_external_experiment_gate_v2",
         "source_sha256": hashes,
         "reports": entries,
         "fit_performed": False,
@@ -107,6 +115,15 @@ def run(output_dir):
             "passed": qualified,
         },
         "complete_surface_plant_experimentally_qualified": False,
+        "fetrig_conditioning": {
+            "cases": len(reports["fetrig_conditioned_film"]["cases"]),
+            "input_steady_windows": sum(
+                len(row["input_windows"]["accepted"])
+                for row in reports["fetrig_conditioned_film"]["cases"]
+            ),
+            "experimentally_qualified": False,
+            "status": "conditional_shear_free_reference_only; channel units and CCI clock alignment unconfirmed",
+        },
         "uncovered_scopes": [
             "transient multiphase pipes and finite ports against time-resolved measurements",
             "separator levels and phase entrainment",
@@ -114,7 +131,16 @@ def run(output_dir):
             "oil/water and real PVT/thermal properties",
             "complete reservoir/well/surface assembly",
         ],
-        "gate_passed": qualified and v["predicted_points"] == v["experimental_points"],
+        "gate_requirements": {
+            "annular_pressure_and_applicability": qualified,
+            "all_vle_states_computed": v["predicted_points"] == v["experimental_points"],
+            "fetrig_experimental_qualification": reports["fetrig_conditioned_film"][
+                "experimentally_qualified"
+            ],
+        },
+        "gate_passed": qualified
+        and v["predicted_points"] == v["experimental_points"]
+        and reports["fetrig_conditioned_film"]["experimentally_qualified"],
         "qualification": "Scoped external comparison gate, not a whole-project industrial certification. Numerical verification and experimental validation remain distinct. Failure is retained, not converted into a test pass.",
     }
     (output / "summary.json").write_text(json.dumps(result, indent=2, allow_nan=False) + "\n")

@@ -400,10 +400,10 @@ class RotorBundle:
             result[name] = record
         return result
 
-    def pattern(self, offsets, compressor_entries, pump_entries=()):
+    def pattern(self, offsets, compressor_entries, pump_entries=(), pump_sizes=None):
         result = set()
         comp = {e[0].name: (e, 3) for e in compressor_entries}
-        comp.update({e[0].name: (e, 5) for e in pump_entries})
+        comp.update({e[0].name: (e, (pump_sizes or {}).get(e[0].name, 5)) for e in pump_entries})
         for d, offset, *_ in self.entries:
             if d.machine in comp:
                 e, count = comp[d.machine]

@@ -555,7 +555,7 @@ def test_sparse_graph_newton_matches_direct_and_support_is_exact(monkeypatch):
         assert float(j[~mask].abs().max()) == 0.0
     direct, _ = m._step(s, 1e-5, {"internal": True}, [0.0, 0.0], [196.2, 196.2])
     import surface.pr_equilibrium_transport as implementation
-    from surface.torch_linear import TorchNewton
+    from surface.torch_nonlinear import TorchNewton
 
     def sparse(*args, **kwargs):
         kwargs["dense_limit"] = 0
@@ -622,3 +622,23 @@ def test_named_drift_flux_closure_transports_energy_and_roundtrips():
     assert max(map(abs, r["conservation_residuals"])) < 1e-6
     restored = PREquilibriumTransportNetwork.from_dict(json.loads(json.dumps(m.to_dict())))
     restored.inspect(PREquilibriumTransportState.from_dict(json.loads(json.dumps(final.to_dict()))))
+
+
+def test_converged_multiphase_graph_keeps_full_stability_without_cold_reallocation(monkeypatch):
+    model, state = pipe(temperature=196.2)
+    stability = model.fluid._stability
+    calls = []
+
+    def checked(*args, **kwargs):
+        calls.append(True)
+        return stability(*args, **kwargs)
+
+    def cold_allocation(*args, **kwargs):
+        raise AssertionError("Converged branch repeated a cold PT Gibbs allocation")
+
+    monkeypatch.setattr(model.fluid, "_stability", checked)
+    monkeypatch.setattr(model.fluid, "flash_pt", cold_allocation)
+    new, report = model._step(state, 1e-4, {"internal": True}, [0.0, 0.0], [196.2, 196.2])
+    assert len(calls) >= 2
+    assert all(len(s.phase_roots) == 2 for _, s in new.nodes)
+    assert max(map(abs, report["conservation_residuals"])) < 1e-7

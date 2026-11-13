@@ -2,7 +2,8 @@
 
 Nonlinear constant-density shallow film, plug momentum profile and optional
 Poiseuille/Navier wall drag. Periodic planar, energetically neutral wetting;
-exterior pressure prescribed, no gas inertia. This is a mechanical kernel,
+prescribed tangential gravity and interface shear have signed work ledgers.
+Exterior pressure prescribed, no gas inertia. This is a mechanical kernel,
 not a compressible PR/network coupling or a turbulent three-phase closure.
 """
 
@@ -13,6 +14,7 @@ import torch
 
 from .liquid import ConservationError, HydraulicConvergenceError, PropertyModelError, _number
 from .operation import _digest
+from .planar_film import resistance_response
 from .thin_film_dynamics import ThinFilmDynamics
 
 
@@ -24,13 +26,17 @@ class InertialCapillaryState:
     physical_heat_j: float
     numerical_heat_j: float
     model_id: str
+    external_work_j: float = 0.0
 
     def __post_init__(self):
         object.__setattr__(self, "thickness_m", tuple(self.thickness_m))
         object.__setattr__(self, "face_velocity_m_s", tuple(self.face_velocity_m_s))
 
     def to_dict(self):
-        return asdict(self)
+        result = asdict(self)
+        if self.external_work_j == 0.0:
+            result.pop("external_work_j")
+        return result
 
     @classmethod
     def from_dict(cls, data):
@@ -120,6 +126,7 @@ class InertialCapillaryFilm:
             (state.numerical_heat_j, "numerical heat"),
         ):
             _number(value, name, nonnegative=True)
+        _number(state.external_work_j, "signed external mechanical work")
         values = {
             "liquid_volume_m3": float((h.sum() * s.cell_area).cpu()),
             "momentum_kg_m_s": float((s.rho * s.cell_area * (self.face(h) * u).sum()).cpu()),
@@ -132,25 +139,29 @@ class InertialCapillaryFilm:
             raise PropertyModelError("Nonfinite derived capillary inventory or energy")
         return values
 
-    def step(self, state, dt_s, *, normal_load=None):
+    def step(
+        self, state, dt_s, *, normal_load=None, tangential_gravity_m_s2=0.0, interface_shear_pa=0.0
+    ):
         self.inspect(state)
         dt = _number(dt_s, "joint capillary step", positive=True)
         end_time = state.time_s + dt
         if not math.isfinite(end_time) or end_time <= state.time_s:
             raise ValueError("Joint capillary clock cannot represent this interval")
         dt = end_time - state.time_s
+        gravity = _number(tangential_gravity_m_s2, "tangential gravity")
+        shear = _number(interface_shear_pa, "prescribed interface shear")
         s = self.surface
         h = self.face(s.tensor(state.thickness_m))
         stiff = self.drag and bool((dt * s.mu / (s.rho * h * (h / 3 + s.slip)) > 2).any().cpu())
         backward = self.time_scheme == "backward" or (self.time_scheme == "auto" and stiff)
-        new, report = self._step(state, dt, backward, normal_load)
+        new, report = self._step(state, dt, backward, normal_load, gravity, shear)
         if self.time_scheme == "auto" and self.drag and not backward:
             mid = (h + self.face(s.tensor(new.thickness_m))) / 2
             if bool((dt * s.mu / (s.rho * mid * (mid / 3 + s.slip)) > 2).any().cpu()):
-                return self._step(state, dt, True, normal_load)
+                return self._step(state, dt, True, normal_load, gravity, shear)
         return new, report
 
-    def _step(self, state, dt_s, backward, normal_load=None):
+    def _step(self, state, dt_s, backward, normal_load=None, gravity=0.0, shear=0.0):
         before = self.inspect(state)
         dt = _number(dt_s, "joint capillary step", positive=True)
         s = self.surface
@@ -162,6 +173,8 @@ class InertialCapillaryFilm:
         mu0 = -s.sigma * s.laplacian(h0) + s.rho * s.normal_g * h0
         load0 = h0 * 0 if normal_load is None else normal_load.pressure_and_energy(h0, h0 * 0)[0]
         kick = dt * s.gradient(mu0 + load0, 0).abs().max() / s.rho
+        if gravity != 0 or shear != 0:
+            kick = torch.maximum(kick, dt * (abs(gravity) + 1.5 * abs(shear) / (s.rho * hf0.min())))
         us = torch.maximum(torch.maximum(u0.abs().max(), kick), s.tensor(1e-12))
 
         def evaluate(z):
@@ -182,15 +195,30 @@ class InertialCapillaryFilm:
             if normal_load is not None:
                 chemical = chemical + normal_load.pressure_and_energy(h0, dh)[0]
             traction = hf * s.gradient(chemical, 0)
-            resistance = s.mu / (hf / 3 + s.slip) if self.drag else hf * 0
+            if self.drag:
+                eta, beta, resistance = resistance_response(hf, s.mu, s.slip)
+            else:
+                eta, beta, resistance = hf * 0 + 1, hf * 0, hf * 0
+            forcing = s.rho * hf * gravity + eta * shear
             rm = (dh + dt * s.divergence(mass_flux, 0)) / hs
             rp = (
                 self.face(dh) * u
                 + hf0 * du
                 + dt * s.gradient(adv_flux, 0)
-                + dt / s.rho * (traction + resistance * ut)
+                + dt / s.rho * (traction + resistance * ut - forcing)
             ) / (hs * us)
-            return torch.cat((rm, rp)), h, u, mass_flux, adv_flux, traction, resistance, ut
+            return (
+                torch.cat((rm, rp)),
+                h,
+                u,
+                mass_flux,
+                adv_flux,
+                traction,
+                resistance,
+                ut,
+                eta,
+                beta,
+            )
 
         z = torch.zeros(2 * n, dtype=h0.dtype, device=h0.device)
         iterations = 0
@@ -217,9 +245,15 @@ class InertialCapillaryFilm:
                     break
             if not accepted:
                 raise HydraulicConvergenceError("Positive joint capillary line search failed")
-        _, h, u, mass_flux, adv_flux, traction, resistance, ut = evaluate(z)
+        _, h, u, mass_flux, adv_flux, traction, resistance, ut, eta, beta = evaluate(z)
+        hf = self.face(h0 + (h - h0) / 2)
+        interface_velocity = eta * ut + beta * shear
+        face_interface_work = dt * s.cell_area * shear * interface_velocity
+        face_gravity_work = dt * s.cell_area * s.rho * hf * gravity * ut
+        face_external_work = face_interface_work + face_gravity_work
+        external_work = face_external_work.sum()
         s._validate_h(h)
-        physical = dt * s.cell_area * (resistance * ut.square()).sum()
+        physical = dt * s.cell_area * (resistance * ut.square() + beta * shear**2).sum()
         numerical = (
             0.5 * s.rho * s.cell_area * (hf0 * (z[n:] * us).square()).sum()
             if backward
@@ -241,6 +275,7 @@ class InertialCapillaryFilm:
             state.physical_heat_j + float(physical.cpu()),
             state.numerical_heat_j + float(numerical.cpu()),
             self.model_id,
+            state.external_work_j + float(external_work.cpu()),
         )
         after = self.inspect(end)
         de = (
@@ -261,12 +296,24 @@ class InertialCapillaryFilm:
             * s.cell_area
             * (self.face(h0 + z[:n] * hs / 2) * s.gradient(load_pressure, 0)).sum()
         )
-        energy_residual = de + float((physical + numerical + load_energy.sum()).cpu())
-        impulse = -dt * s.cell_area * (resistance * ut).sum()
+        energy_residual = de + float(
+            (physical + numerical + load_energy.sum() - external_work).cpu()
+        )
+        face_wall_impulse = dt * s.cell_area * (-resistance * ut + (eta - 1) * shear)
+        face_interface_impulse = torch.full_like(hf, dt * s.cell_area * shear)
+        face_gravity_impulse = dt * s.cell_area * s.rho * hf * gravity
+        impulse = face_wall_impulse.sum()
         momentum_residual = (
             after["momentum_kg_m_s"]
             - before["momentum_kg_m_s"]
-            - float((impulse + load_impulse).cpu())
+            - float(
+                (
+                    impulse
+                    + load_impulse
+                    + face_interface_impulse.sum()
+                    + face_gravity_impulse.sum()
+                ).cpu()
+            )
         )
         budget = (
             abs(before["kinetic_energy_j"])
@@ -275,6 +322,7 @@ class InertialCapillaryFilm:
             + abs(after["potential_energy_j"])
             + float((physical + numerical).cpu())
             + float(load_energy.abs().sum().cpu())
+            + float(face_external_work.abs().sum().cpu())
         )
         if abs(energy_residual) > 1e-22 + 2e-9 * budget:
             raise ConservationError("Joint capillary energy/work balance failed")
@@ -282,6 +330,7 @@ class InertialCapillaryFilm:
             abs(before["momentum_kg_m_s"])
             + abs(after["momentum_kg_m_s"])
             + float((impulse.abs() + load_impulse.abs()).cpu())
+            + float((face_interface_impulse.abs().sum() + face_gravity_impulse.abs().sum()).cpu())
         )
         if abs(momentum_residual) > 1e-22 + 2e-10 * momentum_scale:
             raise ConservationError("Joint capillary momentum balance failed")
@@ -320,18 +369,20 @@ class InertialCapillaryFilm:
                 + 0.5 * s.rho * s.normal_g * hh.square()
             )
 
-        face_physical = dt * s.cell_area * resistance * ut.square()
+        face_physical = dt * s.cell_area * (resistance * ut.square() + beta * shear**2)
         face_numerical = (
             0.5 * s.rho * s.cell_area * hf0 * du.square() if backward else face_physical * 0
         )
         cell_physical = self.center(face_physical)
         cell_numerical = self.center(face_numerical)
+        cell_external_work = self.center(face_external_work)
         ce0, ce1 = cell_energy(h0, u0), cell_energy(h, u)
         local_residual = (
             s.cell_area * (ce1 - ce0 + dt * s.divergence(energy_flux, 0))
             + cell_physical
             + cell_numerical
             + load_energy
+            - cell_external_work
         )
         local_budget = (
             s.cell_area * (ce1.abs() + ce0.abs())
@@ -339,6 +390,7 @@ class InertialCapillaryFilm:
             + cell_physical
             + cell_numerical
             + load_energy.abs()
+            + cell_external_work.abs()
         )
         if not bool((local_residual.abs() <= 1e-23 + 2e-9 * local_budget).all().cpu()):
             raise ConservationError("Joint local capillary energy flux balance failed")
@@ -347,7 +399,8 @@ class InertialCapillaryFilm:
         )
         material_momentum_flux = s.rho * self.face(adv_flux) + momentum_shift / dt
         cell_force = self.center(-s.cell_area * traction)
-        cell_wall_impulse = self.center(-dt * s.cell_area * resistance * ut)
+        cell_wall_impulse = self.center(face_wall_impulse)
+        cell_external_impulse = self.center(face_interface_impulse + face_gravity_impulse)
         material_m0 = s.rho * s.cell_area * h0 * self.center(u0)
         material_m1 = s.rho * s.cell_area * h * self.center(u)
         local_momentum_residual = (
@@ -356,6 +409,7 @@ class InertialCapillaryFilm:
             + dt * s.cell_area * s.divergence(material_momentum_flux, 0)
             - dt * cell_force
             - cell_wall_impulse
+            - cell_external_impulse
         )
         momentum_budget = (
             material_m1.abs()
@@ -365,6 +419,7 @@ class InertialCapillaryFilm:
             * (material_momentum_flux.abs() + torch.roll(material_momentum_flux, 1, 0).abs())
             + dt * cell_force.abs()
             + cell_wall_impulse.abs()
+            + cell_external_impulse.abs()
         )
         if not bool((local_momentum_residual.abs() <= 1e-23 + 2e-9 * momentum_budget).all().cpu()):
             raise ConservationError("Material-cell capillary impulse flux balance failed")
@@ -378,6 +433,14 @@ class InertialCapillaryFilm:
             "face_mechanical_energy_flux_w": (energy_flux * s.width).cpu().tolist(),
             "cell_physical_heat_j": cell_physical.cpu().tolist(),
             "cell_numerical_heat_j": cell_numerical.cpu().tolist(),
+            "cell_external_work_j": cell_external_work.cpu().tolist(),
+            "cell_external_impulse_kg_m_s": cell_external_impulse.cpu().tolist(),
+            "external_work_j": float(external_work.cpu()),
+            "gravity_work_j": float(face_gravity_work.sum().cpu()),
+            "interface_work_j": float(face_interface_work.sum().cpu()),
+            "interface_velocity_m_s": interface_velocity.cpu().tolist(),
+            "gravity_impulse_kg_m_s": float(face_gravity_impulse.sum().cpu()),
+            "interface_impulse_kg_m_s": float(face_interface_impulse.sum().cpu()),
             "cell_energy_residual_j": local_residual.cpu().tolist(),
             "face_material_momentum_flux_n": (material_momentum_flux * s.width).cpu().tolist(),
             "cell_potential_force_n": cell_force.cpu().tolist(),
@@ -398,7 +461,15 @@ class InertialCapillaryFilm:
         }
 
     def advance(
-        self, state, duration_s, *, initial_step_s, minimum_step_s=1e-12, maximum_attempts=10000
+        self,
+        state,
+        duration_s,
+        *,
+        initial_step_s,
+        minimum_step_s=1e-12,
+        maximum_attempts=10000,
+        tangential_gravity_m_s2=0.0,
+        interface_shear_pa=0.0,
     ):
         self.inspect(state)
         duration = _number(duration_s, "joint interval", positive=True)
@@ -417,7 +488,12 @@ class InertialCapillaryFilm:
                 raise HydraulicConvergenceError("Joint capillary attempt limit")
             trial = min(dt, target - state.time_s)
             try:
-                new, r = self.step(state, trial)
+                new, r = self.step(
+                    state,
+                    trial,
+                    tangential_gravity_m_s2=tangential_gravity_m_s2,
+                    interface_shear_pa=interface_shear_pa,
+                )
             except (HydraulicConvergenceError, PropertyModelError, ConservationError):
                 dt = trial / 2
                 rejected += 1

@@ -35,6 +35,9 @@ def audit(config, report):
         if hashlib.sha256(path.read_bytes()).hexdigest() != sha:
             raise ValueError("Changed joint capillary source")
     is_pr = report["family"] == "pr_isothermal"
+    driving = config.get("driving", {})
+    gravity = driving.get("tangential_gravity_m_s2", 0.0)
+    shear = driving.get("interface_shear_pa", 0.0)
     # Runtime constructors are used only to normalize metadata and registry.
     # Numeric trajectory checks below do not call step/inspect/force/energy.
     metadata = (PRIsothermalCapillaryFilm if is_pr else InertialCapillaryFilm).from_dict(
@@ -82,6 +85,8 @@ def audit(config, report):
             raise ValueError("Invalid mechanical field/domain")
         if st["physical_heat_j"] < 0 or st["numerical_heat_j"] < 0:
             raise ValueError("Negative heat ledger")
+        if not math.isfinite(st.get("external_work_j", 0.0)):
+            raise ValueError("Nonfinite signed external work")
         return h, u
 
     def energy(h, u):
@@ -97,7 +102,7 @@ def audit(config, report):
     if old["model_id"] != metadata.model_id:
         raise ValueError("Initial mechanical identity differs")
     if "initial_state" in config:
-        if old != config["initial_state"]:
+        if json.loads(json.dumps(old)) != json.loads(json.dumps(config["initial_state"])):
             raise ValueError("Initial mechanical restart differs")
     else:
         close(om["thickness_m"], config["initial_thickness_m"], "initial height", atol=0, rtol=0)
@@ -199,6 +204,15 @@ def audit(config, report):
         chemical = -sigma * (np.roll(hm, -1) - 2 * hm + np.roll(hm, 1)) / dx**2 + rho * normal * hm
         force = -area * hf * grad(chemical)
         resistance = mu / (hf / 3 + slip) if mc["viscous_drag"] else hf * 0
+        if mc["viscous_drag"]:
+            # Independent integrated planar profile, without runtime helper.
+            mobility = hf**3 / (3 * mu) + slip * hf**2 / mu
+            coupling = hf**2 / (2 * mu) + slip * hf / mu
+            eta = hf * coupling / mobility
+            beta = (hf**2 / 12 + slip * hf / 3) / (mu * (hf / 3 + slip))
+        else:
+            eta, beta = hf * 0 + 1, hf * 0
+        body = rho * hf * gravity + eta * shear
         eps = np.finfo(float).eps
         hround = (
             128
@@ -221,7 +235,7 @@ def audit(config, report):
         close(h - h0, -dt * div(mass_flux), "local volume", atol=hround)
         close(
             face(h) * u - hf0 * u0,
-            -dt * grad(adv_flux) + dt * force / (rho * area) - dt / rho * resistance * ut,
+            -dt * grad(adv_flux) + dt * force / (rho * area) - dt / rho * (resistance * ut - body),
             "local impulse",
             atol=mround,
         )
@@ -236,9 +250,40 @@ def audit(config, report):
             * (sigma * np.max(hm) / dx**3 + rho * abs(normal) * np.max(hm) / dx)
         )
         close(r["capillary_force_n"], force, "capillary force", atol=force_round)
-        physical = dt * area * np.sum(resistance * ut * ut)
+        physical = dt * area * np.sum(resistance * ut * ut + beta * shear**2)
         numerical = 0.5 * rho * area * np.sum(hf0 * (u - u0) ** 2) if scheme == "backward" else 0.0
-        impulse = -dt * area * np.sum(resistance * ut)
+        wall = dt * area * (-resistance * ut + (eta - 1) * shear)
+        gravity_impulse = dt * area * rho * hf * gravity
+        interface_impulse = np.full(n, dt * area * shear)
+        impulse = np.sum(wall)
+        interface_velocity = eta * ut + beta * shear
+        gravity_work = dt * area * rho * hf * gravity * ut
+        interface_work = dt * area * shear * interface_velocity
+        work = gravity_work + interface_work
+        close(
+            r.get("interface_velocity_m_s", interface_velocity),
+            interface_velocity,
+            "interface velocity",
+            atol=1e-14,
+        )
+        close(r.get("external_work_j", 0), work.sum(), "external work", atol=1e-22)
+        close(r.get("interface_work_j", 0), interface_work.sum(), "interface work", atol=1e-22)
+        close(r.get("gravity_work_j", 0), gravity_work.sum(), "gravity work", atol=1e-22)
+        close(
+            r.get("gravity_impulse_kg_m_s", 0), gravity_impulse.sum(), "gravity impulse", atol=1e-22
+        )
+        close(
+            r.get("interface_impulse_kg_m_s", 0),
+            interface_impulse.sum(),
+            "interface impulse",
+            atol=1e-22,
+        )
+        close(
+            nm.get("external_work_j", 0) - om.get("external_work_j", 0),
+            work.sum(),
+            "external work ledger",
+            atol=1e-22,
+        )
         # Local energy and impulse fluxes, independently reconstructed from
         # full stored states rather than runtime Newton increments.
         dh = h - h0
@@ -267,7 +312,7 @@ def audit(config, report):
             atol=jround,
             rtol=1e-9,
         )
-        cell_physical = center(dt * area * resistance * ut**2)
+        cell_physical = center(dt * area * (resistance * ut**2 + beta * shear**2))
         cell_numerical = (
             center(0.5 * rho * area * hf0 * (u - u0) ** 2)
             if scheme == "backward"
@@ -275,6 +320,18 @@ def audit(config, report):
         )
         close(r["cell_physical_heat_j"], cell_physical, "cell physical heat", atol=1e-22)
         close(r["cell_numerical_heat_j"], cell_numerical, "cell numerical heat", atol=1e-22)
+        close(
+            r.get("cell_external_work_j", np.zeros(n)),
+            center(work),
+            "cell external work",
+            atol=1e-22,
+        )
+        close(
+            r.get("cell_external_impulse_kg_m_s", np.zeros(n)),
+            center(gravity_impulse + interface_impulse),
+            "cell external impulse",
+            atol=1e-22,
+        )
 
         def density(hh, uu):
             gg = grad(hh)
@@ -285,13 +342,17 @@ def audit(config, report):
             )
 
         local_energy = (
-            area * (density(h, u) - density(h0, u0) + dt * div(j)) + cell_physical + cell_numerical
+            area * (density(h, u) - density(h0, u0) + dt * div(j))
+            + cell_physical
+            + cell_numerical
+            - center(work)
         )
         local_budget = (
             area * (np.abs(density(h, u)) + np.abs(density(h0, u0)))
             + dt * c["transverse_width_m"] * (np.abs(j) + np.abs(np.roll(j, 1)))
             + cell_physical
             + cell_numerical
+            + np.abs(center(work))
         )
         if np.any(np.abs(local_energy) > 1e-23 + 2e-9 * local_budget):
             raise ValueError("Local mechanical energy flux failed")
@@ -319,7 +380,7 @@ def audit(config, report):
         )
         close(
             r["cell_wall_impulse_kg_m_s"],
-            center(-dt * area * resistance * ut),
+            center(wall),
             "cell wall impulse",
             atol=1e-22,
         )
@@ -327,22 +388,31 @@ def audit(config, report):
             rho * area * (h * center(u) - h0 * center(u0))
             + dt * area * div(jm)
             - dt * center(force)
-            - center(-dt * area * resistance * ut)
+            - center(wall + gravity_impulse + interface_impulse)
         )
         mbudget = (
             rho * area * (np.abs(h * center(u)) + np.abs(h0 * center(u0)))
             + dt * c["transverse_width_m"] * (np.abs(jm) + np.abs(np.roll(jm, 1)))
             + dt * np.abs(center(force))
-            + np.abs(center(-dt * area * resistance * ut))
+            + np.abs(center(wall))
+            + np.abs(center(gravity_impulse + interface_impulse))
         )
         if np.any(np.abs(local_momentum) > 1e-23 + 2e-9 * mbudget):
             raise ValueError("Local material momentum balance failed")
         close(r["physical_heat_j"], physical, "physical heat", atol=1e-22)
         close(r["numerical_heat_j"], numerical, "numerical heat", atol=1e-22)
         close(r["wall_impulse_kg_m_s"], impulse, "wall impulse", atol=1e-22)
-        defect = energy(h, u) - energy(h0, u0) + physical + numerical
-        momdef = momentum(h, u) - momentum(h0, u0) - impulse
-        ebudget = abs(energy(h, u)) + abs(energy(h0, u0)) + physical + numerical
+        defect = energy(h, u) - energy(h0, u0) + physical + numerical - work.sum()
+        momdef = (
+            momentum(h, u)
+            - momentum(h0, u0)
+            - impulse
+            - gravity_impulse.sum()
+            - interface_impulse.sum()
+        )
+        ebudget = (
+            abs(energy(h, u)) + abs(energy(h0, u0)) + physical + numerical + np.abs(work).sum()
+        )
         close(defect, 0.0, "mechanical energy", atol=1e-22 + 2e-9 * ebudget, rtol=0)
         close(
             r["energy_residual_j"],
@@ -355,7 +425,15 @@ def audit(config, report):
             momdef,
             0.0,
             "total momentum",
-            atol=1e-22 + 1e-10 * (abs(momentum(h, u)) + abs(momentum(h0, u0)) + abs(impulse)),
+            atol=1e-22
+            + 1e-10
+            * (
+                abs(momentum(h, u))
+                + abs(momentum(h0, u0))
+                + abs(impulse)
+                + abs(gravity_impulse.sum())
+                + abs(interface_impulse.sum())
+            ),
             rtol=0,
         )
         close(
@@ -413,6 +491,7 @@ def audit(config, report):
                 + dt * (total_flux - np.roll(total_flux, 1))
                 + cell_physical
                 + cell_numerical
+                - center(work)
             )
             pr_budget = (
                 np.abs(e0)
@@ -420,6 +499,7 @@ def audit(config, report):
                 + dt * (np.abs(total_flux) + np.abs(np.roll(total_flux, 1)))
                 + cell_physical
                 + cell_numerical
+                + np.abs(center(work))
             )
             if np.any(np.abs(pr_local) > 1e-23 + 512 * eps * pr_budget):
                 raise ValueError("Local PR/film energy failed")
@@ -440,7 +520,7 @@ def audit(config, report):
                 + 1e-21
             )
             close(
-                float(np.sum(e1) - np.sum(e0) + bath),
+                float(np.sum(e1) - np.sum(e0) + bath - work.sum()),
                 0.0,
                 "joint PR energy",
                 atol=roundoff,

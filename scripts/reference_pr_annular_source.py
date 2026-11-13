@@ -84,6 +84,16 @@ def audit(pipe, before, after, report, close):
             wall = pipe.lengths[i] * c
             matrix = np.array([[mg / dt + k, -eta * k], [-eta * k, ml / dt + eta**2 * k + wall]])
             ug, ul = np.linalg.solve(matrix, [mg / dt * speeds[gas], ml / dt * speeds[liquid]])
+            re_initial = abs(stocks[liquid].momentum_kg_m_s) / (
+                pipe.lengths[i] * math.pi * pipe.diameter * pipe.friction.viscosity[liquid]
+            )
+            re_final = (
+                ml
+                * abs(ul)
+                / (pipe.lengths[i] * math.pi * pipe.diameter * pipe.friction.viscosity[liquid])
+            )
+            if not (0 < alpha <= 0.3 and re_initial <= 400 and re_final <= 400):
+                raise ValueError("Annular source accepted a trial outside the laminar film domain")
             tau = effective * (ug - eta * ul)
             ui = eta * ul + beta * tau
             if pipe.friction.wetting is not None:
@@ -220,6 +230,15 @@ def audit(pipe, before, after, report, close):
             / (math.pi * pipe.diameter * pipe.friction.viscosity[pipe.friction.liquid_slot])
         )
         close(re, found["film_reynolds"], atol=1e-10, rtol=1e-9)
+        final_p = dict(after.cells[int(found["cell"])])[pipe.friction.liquid_slot]
+        final_re = abs(final_p.momentum_kg_m_s) / (
+            pipe.lengths[int(found["cell"])]
+            * math.pi
+            * pipe.diameter
+            * pipe.friction.viscosity[pipe.friction.liquid_slot]
+        )
+        if "film_reynolds_after" in found:
+            close(final_re, found["film_reynolds_after"], atol=1e-10, rtol=1e-9)
         gas = cell[pipe.friction.gas_slot]
         mg = np.array(gas.component_moles) @ mw
         drive = gas.momentum_kg_m_s / mg - found["eta"] * p.momentum_kg_m_s / m

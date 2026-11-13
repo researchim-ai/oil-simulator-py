@@ -92,7 +92,14 @@ def test_pressure_feedback_and_fail_safe_are_stateful():
 def test_controlled_interval_exact_time_restart_and_atomic_invalid_command():
     m, s = controlled()
     original = s.to_dict()
-    r = m.advance(s, 1e-7, targets={"v": 0.5})
+    events = []
+    r = m.advance(s, 1e-7, targets={"v": 0.5}, progress=events.append)
+    assert events[0]["event"] == "attempt"
+    assert events[-1]["event"] == "accepted"
+    assert events[-1]["time_s"] == 1e-7
+    assert len(r["steps"]) == 2
+    assert all(len(step["plant"]["steps"]) == 1 for step in r["steps"])
+    assert r == m.advance(s, 1e-7, targets={"v": 0.5})
     new = PRControlledSurfaceState.from_dict(r["state"])
     assert new.time_s == 1e-7
     restored = PRControlledSurface.from_dict(json.loads(json.dumps(m.to_dict())))
@@ -177,3 +184,45 @@ def test_independent_control_auditor_does_not_replay_runtime_and_rejects_tamperi
     broken["intervals"][0]["steps"][0]["state"]["positions"]["v"] += 0.01
     with pytest.raises(ValueError):
         checker.audit(config, broken)
+
+
+def test_step_doubling_uses_measured_error_without_relaxing_acceptance(monkeypatch):
+    from dataclasses import replace
+
+    from surface.pr_plant_registry import align_physical_clock
+
+    base, initial = controlled()
+    model = PRControlledSurface(
+        base.plant,
+        base.valves,
+        initial_step_s=0.1,
+        maximum_step_s=0.1,
+        minimum_step_s=1e-10,
+        position_tolerance=1e-4,
+    )
+    state = model.initialize(initial.plant, {"v": 0.5})
+    before = state.to_dict()
+
+    def euler_step(old, dt, manual, modes, commands):
+        # Manufactured x'=t, x(0)=0.5. Euler's local discrepancy is known
+        # independently: coarse vs two halves differs by dt**2/4.
+        new = replace(
+            old,
+            plant=align_physical_clock(old.plant, old.time_s + dt),
+            positions=(("v", dict(old.positions)["v"] + dt * old.time_s),),
+        )
+        return new, {"state": new.to_dict(), "total_heat_j": 0.0, "total_work_j": 0.0}
+
+    monkeypatch.setattr(model, "_step", euler_step)
+    events = []
+    result = model.advance(state, 0.1, targets={"v": 0.5}, progress=events.append)
+    rejected = [e for e in events if e["event"] == "rejected"]
+    assert len(rejected) == 1
+    assert rejected[0]["error"] == pytest.approx(25.0)
+    assert 0 < rejected[0]["next_step_s"] < 0.5 * rejected[0]["dt_s"]
+    accepted = [e for e in events if e["event"] == "accepted"]
+    assert accepted and all(e["error"] <= 1 for e in accepted)
+    final = PRControlledSurfaceState.from_dict(result["state"])
+    assert final.time_s == 0.1
+    assert dict(final.positions)["v"] == pytest.approx(0.5 + 0.5 * 0.1**2, abs=5e-4)
+    assert state.to_dict() == before

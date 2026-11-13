@@ -8,6 +8,7 @@ import torch
 from test_surface_pr_active_multifluid_pipe import phase, setup
 
 from surface.annular_film import annular_response
+from surface.liquid import PropertyModelError
 from surface.pr_active_annular_friction import MODEL
 from surface.pr_active_multifluid_pipe import PRActiveMultifluidPipe
 
@@ -195,6 +196,35 @@ def test_annular_domain_rejects_horizontal_and_thick_liquid_not_silent_regime_sw
     raw["face_elevations_m"] = [0.0, 0.0, 0.0]
     with pytest.raises(ValueError, match="near-vertical"):
         PRActiveMultifluidPipe.from_dict(raw)
+
+
+def test_gas_acceleration_cannot_accept_an_out_of_domain_liquid_trial():
+    pipe, old = model_state(gas_u=30.0, liquid_u=0.0)
+    initial = deepcopy(old.to_dict())
+    # Independent audit solves the unguarded 2x2 system. This formerly
+    # accepted trial gives Gamma/mu=525 although its initial value is zero.
+    from reference_pr_annular_source import audit
+
+    with pytest.raises(ValueError, match="outside the laminar film domain"):
+        audit(pipe, old, old, {"model": MODEL, "dt_s": 0.1}, None)
+    with pytest.raises(PropertyModelError, match="trial leaves laminar film domain"):
+        pipe.friction.apply(pipe, old, 0.1)
+    assert old.to_dict() == initial
+    new, report = pipe.friction.apply(pipe, old, 0.01)
+    assert all(0 < c["film_reynolds_after"] <= 400 for c in report["annular_cells"])
+    from check_pr_active_surface import friction_audit
+
+    friction_audit(pipe, old, new, report)
+    bad = deepcopy(report)
+    bad["annular_cells"][0]["film_reynolds_after"] = 0.0
+    with pytest.raises(ValueError, match="audit differs"):
+        friction_audit(pipe, old, new, bad)
+
+
+def test_initial_domain_exit_is_a_recoverable_physical_step_failure():
+    pipe, old = model_state(alpha=0.5)
+    with pytest.raises(PropertyModelError, match="Annular state outside"):
+        pipe.friction.apply(pipe, old, 0.001)
 
 
 def test_connected_finite_aperture_stop_restart_and_checkpoint_are_auditable():

@@ -26,6 +26,9 @@ CASES = {
     "capillary_roe": ("surface_inertial_capillary_roe", "joint_capillary"),
     "pr_capillary": ("surface_pr_isothermal_capillary", "joint_capillary"),
     "pr_capillary_viscous": ("surface_pr_isothermal_capillary_viscous", "joint_capillary"),
+    "capillary_driven": ("surface_inertial_capillary_driven", "joint_capillary"),
+    "pr_capillary_driven": ("surface_pr_isothermal_capillary_driven", "joint_capillary"),
+    "pr_profile_gas_exchange": ("surface_pr_profile_gas_exchange", "gas_film_source"),
     "gas_mist": ("surface_pr_gas_mist", "equilibrium"),
     "gas_mist_sections": ("surface_pr_gas_mist_sections", "equilibrium"),
     "gas_mist_capture": ("surface_pr_gas_mist_capture", "equilibrium"),
@@ -199,6 +202,7 @@ def main():
         result = output / (name + ".json")
         stem = {
             "joint_capillary": "inertial_capillary_film",
+            "gas_film_source": "pr_capillary_gas_exchange",
             "gas_loaded_capillary": "pr_gas_loaded_capillary",
             "equilibrium": "pr_equilibrium_transport",
             "gravity": "pr_gravity_transport",

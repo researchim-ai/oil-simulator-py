@@ -1,0 +1,504 @@
+{
+  "source": {
+    "model": "pr_capillary_gas_exchange_v1",
+    "film": {
+      "model": "pr_isothermal_capillary_film_v1",
+      "fluid": {
+        "components": [
+          {
+            "name": "Methane",
+            "critical_temperature_k": 190.564,
+            "critical_pressure_pa": 4599200.0,
+            "acentric_factor": 0.01142,
+            "molar_mass_kg_mol": 0.0160428,
+            "ideal_cp_j_mol_k": 35.7,
+            "min_temperature_k": 160.0,
+            "max_temperature_k": 500.0,
+            "reference_temperature_k": 298.15,
+            "reference_pressure_pa": 100000.0
+          },
+          {
+            "name": "Ethane",
+            "critical_temperature_k": 305.322,
+            "critical_pressure_pa": 4872200.0,
+            "acentric_factor": 0.099,
+            "molar_mass_kg_mol": 0.03006904,
+            "ideal_cp_j_mol_k": 52.5,
+            "min_temperature_k": 160.0,
+            "max_temperature_k": 500.0,
+            "reference_temperature_k": 298.15,
+            "reference_pressure_pa": 100000.0
+          }
+        ],
+        "binary_interactions": [
+          [
+            0.0,
+            0.0
+          ],
+          [
+            0.0,
+            0.0
+          ]
+        ],
+        "min_pressure_pa": 100.0,
+        "max_pressure_pa": 1000000000.0,
+        "max_phases": 3
+      },
+      "mechanics": {
+        "model": "inertial_capillary_film_v1",
+        "surface": {
+          "model": "periodic_long_wave_film_v1",
+          "shape": [
+            16
+          ],
+          "lengths_m": [
+            0.001
+          ],
+          "surface_tension_n_m": 0.02,
+          "viscosity_pa_s": 0.001,
+          "density_kg_m3": 570.0222477127443,
+          "adsorption_thickness_m": 1e-06,
+          "equilibrium_contact_angle_deg": 0.0,
+          "slip_length_m": 1e-08,
+          "transverse_width_m": 0.001,
+          "maximum_slope": 0.2,
+          "normal_gravity_m_s2": 0.0,
+          "maximum_unknowns": 512
+        },
+        "viscous_drag": true,
+        "maximum_unknowns": 256,
+        "maximum_velocity_m_s": 10.0,
+        "time_scheme": "auto"
+      },
+      "reference_pressure_pa": 1000000.0,
+      "temperature_k": 200.0,
+      "mole_fractions": [
+        0.0,
+        1.0
+      ],
+      "maximum_density_response": 0.0001
+    },
+    "interface_model": "stokes_profile"
+  },
+  "initial_film": {
+    "mechanics": {
+      "thickness_m": [
+        2.999999999999996e-06,
+        3e-06,
+        2.9999999999999992e-06,
+        3.0000000000000005e-06,
+        2.9999999999999997e-06,
+        2.9999999999999975e-06,
+        3.000000000000005e-06,
+        3.0000000000000026e-06,
+        3.000000000000004e-06,
+        2.9999999999999997e-06,
+        2.999999999999998e-06,
+        2.9999999999999997e-06,
+        2.999999999999997e-06,
+        2.999999999999998e-06,
+        2.9999999999999975e-06,
+        3.000000000000004e-06
+      ],
+      "face_velocity_m_s": [
+        0.0014715040300476018,
+        0.0014715040300476052,
+        0.0014715040300476052,
+        0.0014715040300476052,
+        0.0014715040300476052,
+        0.0014715040300476052,
+        0.0014715040300476104,
+        0.0014715040300476087,
+        0.0014715040300476087,
+        0.0014715040300476035,
+        0.0014715040300476035,
+        0.0014715040300476052,
+        0.0014715040300476018,
+        0.0014715040300476052,
+        0.0014715040300476052,
+        0.0014715040300476087
+      ],
+      "time_s": 1e-05,
+      "physical_heat_j": 2.1438860103429155e-14,
+      "numerical_heat_j": 6.219106048982354e-14,
+      "model_id": "47769d16a70aa1a16d6ee67a5d2b749e89510143eeaa22dd06d5fd17d533af45",
+      "external_work_j": -2.1992188964078066e-17
+    },
+    "phases": [
+      {
+        "component_moles": [
+          0.0,
+          3.554459053103771e-09
+        ],
+        "volume_m3": 1.8749999999999973e-13,
+        "pressure_pa": 1000000.0,
+        "temperature_k": 200.0,
+        "momentum_kg_m_s": 1.5727313151114306e-13,
+        "total_energy_j": -6.92674797817577e-05
+      },
+      {
+        "component_moles": [
+          0.0,
+          3.5544590531037763e-09
+        ],
+        "volume_m3": 1.875e-13,
+        "pressure_pa": 1000000.0,
+        "temperature_k": 200.0,
+        "momentum_kg_m_s": 1.572731315111431e-13,
+        "total_energy_j": -6.926747978175779e-05
+      },
+      {
+        "component_moles": [
+          0.0,
+          3.5544590531037747e-09
+        ],
+        "volume_m3": 1.8749999999999993e-13,
+        "pressure_pa": 1000000.0,
+        "temperature_k": 200.0,
+        "momentum_kg_m_s": 1.5727313151114324e-13,
+        "total_energy_j": -6.926747978175777e-05
+      },
+      {
+        "component_moles": [
+          0.0,
+          3.5544590531037767e-09
+        ],
+        "volume_m3": 1.8750000000000003e-13,
+        "pressure_pa": 1000000.0,
+        "temperature_k": 200.0,
+        "momentum_kg_m_s": 1.5727313151114331e-13,
+        "total_energy_j": -6.92674797817578e-05
+      },
+      {
+        "component_moles": [
+          0.0,
+          3.5544590531037755e-09
+        ],
+        "volume_m3": 1.8749999999999996e-13,
+        "pressure_pa": 1000000.0,
+        "temperature_k": 200.0,
+        "momentum_kg_m_s": 1.5727313151114326e-13,
+        "total_energy_j": -6.926747978175778e-05
+      },
+      {
+        "component_moles": [
+          0.0,
+          3.554459053103773e-09
+        ],
+        "volume_m3": 1.8749999999999983e-13,
+        "pressure_pa": 1000000.0,
+        "temperature_k": 200.0,
+        "momentum_kg_m_s": 1.5727313151114314e-13,
+        "total_energy_j": -6.926747978175774e-05
+      },
+      {
+        "component_moles": [
+          0.0,
+          3.554459053103782e-09
+        ],
+        "volume_m3": 1.875000000000003e-13,
+        "pressure_pa": 1000000.0,
+        "temperature_k": 200.0,
+        "momentum_kg_m_s": 1.5727313151114382e-13,
+        "total_energy_j": -6.926747978175791e-05
+      },
+      {
+        "component_moles": [
+          0.0,
+          3.554459053103779e-09
+        ],
+        "volume_m3": 1.8750000000000016e-13,
+        "pressure_pa": 1000000.0,
+        "temperature_k": 200.0,
+        "momentum_kg_m_s": 1.572731315111439e-13,
+        "total_energy_j": -6.926747978175786e-05
+      },
+      {
+        "component_moles": [
+          0.0,
+          3.5544590531037804e-09
+        ],
+        "volume_m3": 1.8750000000000024e-13,
+        "pressure_pa": 1000000.0,
+        "temperature_k": 200.0,
+        "momentum_kg_m_s": 1.5727313151114384e-13,
+        "total_energy_j": -6.926747978175787e-05
+      },
+      {
+        "component_moles": [
+          0.0,
+          3.5544590531037755e-09
+        ],
+        "volume_m3": 1.8749999999999996e-13,
+        "pressure_pa": 1000000.0,
+        "temperature_k": 200.0,
+        "momentum_kg_m_s": 1.5727313151114334e-13,
+        "total_energy_j": -6.926747978175778e-05
+      },
+      {
+        "component_moles": [
+          0.0,
+          3.5544590531037734e-09
+        ],
+        "volume_m3": 1.8749999999999986e-13,
+        "pressure_pa": 1000000.0,
+        "temperature_k": 200.0,
+        "momentum_kg_m_s": 1.5727313151114298e-13,
+        "total_energy_j": -6.926747978175774e-05
+      },
+      {
+        "component_moles": [
+          0.0,
+          3.5544590531037755e-09
+        ],
+        "volume_m3": 1.8749999999999996e-13,
+        "pressure_pa": 1000000.0,
+        "temperature_k": 200.0,
+        "momentum_kg_m_s": 1.5727313151114316e-13,
+        "total_energy_j": -6.926747978175778e-05
+      },
+      {
+        "component_moles": [
+          0.0,
+          3.5544590531037726e-09
+        ],
+        "volume_m3": 1.874999999999998e-13,
+        "pressure_pa": 1000000.0,
+        "temperature_k": 200.0,
+        "momentum_kg_m_s": 1.5727313151114293e-13,
+        "total_energy_j": -6.926747978175773e-05
+      },
+      {
+        "component_moles": [
+          0.0,
+          3.5544590531037734e-09
+        ],
+        "volume_m3": 1.8749999999999986e-13,
+        "pressure_pa": 1000000.0,
+        "temperature_k": 200.0,
+        "momentum_kg_m_s": 1.5727313151114298e-13,
+        "total_energy_j": -6.926747978175774e-05
+      },
+      {
+        "component_moles": [
+          0.0,
+          3.554459053103773e-09
+        ],
+        "volume_m3": 1.8749999999999983e-13,
+        "pressure_pa": 1000000.0,
+        "temperature_k": 200.0,
+        "momentum_kg_m_s": 1.5727313151114314e-13,
+        "total_energy_j": -6.926747978175774e-05
+      },
+      {
+        "component_moles": [
+          0.0,
+          3.5544590531037804e-09
+        ],
+        "volume_m3": 1.8750000000000024e-13,
+        "pressure_pa": 1000000.0,
+        "temperature_k": 200.0,
+        "momentum_kg_m_s": 1.5727313151114367e-13,
+        "total_energy_j": -6.926747978175787e-05
+      }
+    ],
+    "model_id": "ca7698f8241889a4c63554d9207a7c036f92b6edf576f5003a9474fe5f2649cd"
+  },
+  "initial_gas": [
+    {
+      "component_moles": [
+        2.503595060266519e-09,
+        0.0
+      ],
+      "volume_m3": 6.23125e-11,
+      "pressure_pa": 100000.0,
+      "temperature_k": 300.0,
+      "momentum_kg_m_s": 8.032934966568742e-11,
+      "total_energy_j": -6.110810237005481e-06
+    },
+    {
+      "component_moles": [
+        2.503595060266519e-09,
+        0.0
+      ],
+      "volume_m3": 6.23125e-11,
+      "pressure_pa": 100000.0,
+      "temperature_k": 300.0,
+      "momentum_kg_m_s": -8.032934966568742e-11,
+      "total_energy_j": -6.110810237005481e-06
+    },
+    {
+      "component_moles": [
+        2.503595060266519e-09,
+        0.0
+      ],
+      "volume_m3": 6.23125e-11,
+      "pressure_pa": 100000.0,
+      "temperature_k": 300.0,
+      "momentum_kg_m_s": 8.032934966568742e-11,
+      "total_energy_j": -6.110810237005481e-06
+    },
+    {
+      "component_moles": [
+        2.503595060266519e-09,
+        0.0
+      ],
+      "volume_m3": 6.23125e-11,
+      "pressure_pa": 100000.0,
+      "temperature_k": 300.0,
+      "momentum_kg_m_s": -8.032934966568742e-11,
+      "total_energy_j": -6.110810237005481e-06
+    },
+    {
+      "component_moles": [
+        2.503595060266519e-09,
+        0.0
+      ],
+      "volume_m3": 6.23125e-11,
+      "pressure_pa": 100000.0,
+      "temperature_k": 300.0,
+      "momentum_kg_m_s": 8.032934966568742e-11,
+      "total_energy_j": -6.110810237005481e-06
+    },
+    {
+      "component_moles": [
+        2.503595060266519e-09,
+        0.0
+      ],
+      "volume_m3": 6.23125e-11,
+      "pressure_pa": 100000.0,
+      "temperature_k": 300.0,
+      "momentum_kg_m_s": -8.032934966568742e-11,
+      "total_energy_j": -6.110810237005481e-06
+    },
+    {
+      "component_moles": [
+        2.503595060266519e-09,
+        0.0
+      ],
+      "volume_m3": 6.23125e-11,
+      "pressure_pa": 100000.0,
+      "temperature_k": 300.0,
+      "momentum_kg_m_s": 8.032934966568742e-11,
+      "total_energy_j": -6.110810237005481e-06
+    },
+    {
+      "component_moles": [
+        2.503595060266519e-09,
+        0.0
+      ],
+      "volume_m3": 6.23125e-11,
+      "pressure_pa": 100000.0,
+      "temperature_k": 300.0,
+      "momentum_kg_m_s": -8.032934966568742e-11,
+      "total_energy_j": -6.110810237005481e-06
+    },
+    {
+      "component_moles": [
+        2.503595060266519e-09,
+        0.0
+      ],
+      "volume_m3": 6.23125e-11,
+      "pressure_pa": 100000.0,
+      "temperature_k": 300.0,
+      "momentum_kg_m_s": 8.032934966568742e-11,
+      "total_energy_j": -6.110810237005481e-06
+    },
+    {
+      "component_moles": [
+        2.503595060266519e-09,
+        0.0
+      ],
+      "volume_m3": 6.23125e-11,
+      "pressure_pa": 100000.0,
+      "temperature_k": 300.0,
+      "momentum_kg_m_s": -8.032934966568742e-11,
+      "total_energy_j": -6.110810237005481e-06
+    },
+    {
+      "component_moles": [
+        2.503595060266519e-09,
+        0.0
+      ],
+      "volume_m3": 6.23125e-11,
+      "pressure_pa": 100000.0,
+      "temperature_k": 300.0,
+      "momentum_kg_m_s": 8.032934966568742e-11,
+      "total_energy_j": -6.110810237005481e-06
+    },
+    {
+      "component_moles": [
+        2.503595060266519e-09,
+        0.0
+      ],
+      "volume_m3": 6.23125e-11,
+      "pressure_pa": 100000.0,
+      "temperature_k": 300.0,
+      "momentum_kg_m_s": -8.032934966568742e-11,
+      "total_energy_j": -6.110810237005481e-06
+    },
+    {
+      "component_moles": [
+        2.503595060266519e-09,
+        0.0
+      ],
+      "volume_m3": 6.23125e-11,
+      "pressure_pa": 100000.0,
+      "temperature_k": 300.0,
+      "momentum_kg_m_s": 8.032934966568742e-11,
+      "total_energy_j": -6.110810237005481e-06
+    },
+    {
+      "component_moles": [
+        2.503595060266519e-09,
+        0.0
+      ],
+      "volume_m3": 6.23125e-11,
+      "pressure_pa": 100000.0,
+      "temperature_k": 300.0,
+      "momentum_kg_m_s": -8.032934966568742e-11,
+      "total_energy_j": -6.110810237005481e-06
+    },
+    {
+      "component_moles": [
+        2.503595060266519e-09,
+        0.0
+      ],
+      "volume_m3": 6.23125e-11,
+      "pressure_pa": 100000.0,
+      "temperature_k": 300.0,
+      "momentum_kg_m_s": 8.032934966568742e-11,
+      "total_energy_j": -6.110810237005481e-06
+    },
+    {
+      "component_moles": [
+        2.503595060266519e-09,
+        0.0
+      ],
+      "volume_m3": 6.23125e-11,
+      "pressure_pa": 100000.0,
+      "temperature_k": 300.0,
+      "momentum_kg_m_s": -8.032934966568742e-11,
+      "total_energy_j": -6.110810237005481e-06
+    }
+  ],
+  "dt_s": 0.001,
+  "conductance_kg_s": [
+    0.0,
+    1e-12,
+    1e-08,
+    1e+308,
+    0.0,
+    1e-12,
+    1e-08,
+    1e+308,
+    0.0,
+    1e-12,
+    1e-08,
+    1e+308,
+    0.0,
+    1e-12,
+    1e-08,
+    1e+308
+  ]
+}

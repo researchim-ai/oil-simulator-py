@@ -1,0 +1,8 @@
+{"event": "initialized", "time_s": 0.0}
+{"event": "attempt", "time_s": 0.0, "dt_s": 1e-06, "attempt": 1, "end_time_s": 0.2}
+{"event": "accepted", "time_s": 1e-06, "dt_s": 1e-06, "attempt": 1, "error": 0.026414637856201663, "next_step_s": 1.5e-06}
+{"event": "attempt", "time_s": 1e-06, "dt_s": 1.4999999999999998e-06, "attempt": 2, "end_time_s": 0.2}
+{"event": "accepted", "time_s": 2.4999999999999998e-06, "dt_s": 1.4999999999999998e-06, "attempt": 2, "error": 0.057090785985362824, "next_step_s": 2.2499999999999996e-06}
+{"event": "attempt", "time_s": 2.4999999999999998e-06, "dt_s": 2.2499999999999996e-06, "attempt": 3, "end_time_s": 0.2}
+{"event": "accepted", "time_s": 4.749999999999999e-06, "dt_s": 2.2499999999999996e-06, "attempt": 3, "error": 0.1209789568718915, "next_step_s": 3.3749999999999995e-06}
+{"event": "attempt", "time_s": 4.749999999999999e-06, "dt_s": 3.375e-06, "attempt": 4, "end_time_s": 0.2}

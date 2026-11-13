@@ -500,13 +500,17 @@ class CompositionalSeparator:
             else _network_incoming
         )
 
-        def evaluate(y):
+        def evaluate(y, phase_values=None):
             np_ = torch.exp(y[: m * c]).reshape(m, c)
             p = torch.exp(y[m * c])
             t = y[m * c + 1] * ref
             tw = y[-1] * ref if self.wall else t
             totals = f.tensor([0.0] * len(f.names)).index_copy(0, active, np_.sum(0))
-            phase_n, x, q = self._phase_values(p, t, np_, active, tags)
+            phase_n, x, q = (
+                self._phase_values(p, t, np_, active, tags)
+                if phase_values is None
+                else phase_values
+            )
             volume = (phase_n * q["molar_volume_m3_mol"]).sum()
             internal = (phase_n * q["molar_internal_energy_j_mol"]).sum()
             potential = (totals * f.molar_masses).sum() * self.gravity_m_s2 * self.elevation_m

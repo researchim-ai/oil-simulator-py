@@ -11,10 +11,12 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 
-def run(config, *, device="cpu"):
+def run(config, *, device="cpu", progress=None):
+    from surface.equilibrium_properties import EquilibriumFluid
     from surface.pr_surface_control import PRControlledSurface, PRControlledSurfaceState
     from surface.stratified_pr import StratifiedPRState
     from surface.torch_backend import runtime_fingerprint
+    from surface.torch_nonlinear import TorchNewton
 
     if (
         set(config) != {"model", "initial", "schedule"}
@@ -54,6 +56,8 @@ def run(config, *, device="cpu"):
             physical = model.plant.initialize(ts, columns, spec["wall_temperatures"])
         state = model.initialize(physical, initial["positions"], initial["integrals"])
     first = state
+    if progress is not None:
+        progress({"event": "initialized", "time_s": state.time_s})
     intervals = []
     for command in config["schedule"]:
         if (
@@ -76,7 +80,7 @@ def run(config, *, device="cpu"):
             or "duration_s" not in command
         ):
             raise ValueError("Unknown/missing equilibrium transport command")
-        report = model.advance(state, **command)
+        report = model.advance(state, progress=progress, **command)
         state = PRControlledSurfaceState.from_dict(report["state"])
         intervals.append(report)
     heat = sum(r["total_heat_j"] for r in intervals)
@@ -90,6 +94,21 @@ def run(config, *, device="cpu"):
         "total_heat_j": heat,
         "total_work_j": work,
         "runtime": runtime_fingerprint(),
+        "numerical_policy": {
+            "jacobian_reuse": TorchNewton._reuse_jacobian,
+            "compiled_chemical": EquilibriumFluid._compiled_chemical,
+            "grouped_column_eos": {
+                name: column._batch_column_eos
+                for name, column in getattr(model.plant, "columns", {}).items()
+            },
+            "chemical_kernels": [
+                fluid.chemical_kernel_statistics()
+                for fluid in dict.fromkeys(
+                    [model.plant.transport.fluid]
+                    + [column.fluid for column in getattr(model.plant, "columns", {}).values()]
+                )
+            ],
+        },
     }
 
 
@@ -98,11 +117,50 @@ def main():
     parser.add_argument("config", type=Path)
     parser.add_argument("--device", choices=["cpu", "cuda"], default="cpu")
     parser.add_argument("--output", type=Path, required=True)
+    parser.add_argument("--progress", action="store_true", help="JSON progress on stderr")
+    parser.add_argument(
+        "--fresh-jacobians",
+        action="store_true",
+        help="Rebuild every Newton tangent for reference/performance comparisons",
+    )
+    parser.add_argument(
+        "--eager-chemical",
+        action="store_true",
+        help="Disable fused CUDA chemical EOS for reference/performance comparisons",
+    )
+    column_eos = parser.add_mutually_exclusive_group()
+    column_eos.add_argument(
+        "--scalar-column-eos",
+        action="store_true",
+        help="Evaluate each column/port EOS segment separately for reference comparisons",
+    )
+    column_eos.add_argument(
+        "--group-column-eos",
+        action="store_true",
+        help="Force grouped column/port EOS (CPU default; CUDA requires separate timing)",
+    )
     args = parser.parse_args()
     root = Path(__file__).resolve().parents[1]
     paths = [Path(__file__), *sorted((root / "src/surface").glob("*.py"))]
     hashes = {str(p.relative_to(root)): hashlib.sha256(p.read_bytes()).hexdigest() for p in paths}
-    result = run(json.loads(args.config.read_text()), device=args.device)
+    from surface.torch_nonlinear import TorchNewton
+
+    TorchNewton._reuse_jacobian = not args.fresh_jacobians
+    from surface.equilibrium_properties import EquilibriumFluid
+
+    EquilibriumFluid._compiled_chemical = not args.eager_chemical
+    from surface.stratified_pr import StratifiedPRColumn
+
+    StratifiedPRColumn._batch_column_eos = (
+        False if args.scalar_column_eos else True if args.group_column_eos else None
+    )
+    result = run(
+        json.loads(args.config.read_text()),
+        device=args.device,
+        progress=(lambda event: print(json.dumps(event), file=sys.stderr, flush=True))
+        if args.progress
+        else None,
+    )
     if any(
         hashlib.sha256(p.read_bytes()).hexdigest() != hashes[str(p.relative_to(root))]
         for p in paths

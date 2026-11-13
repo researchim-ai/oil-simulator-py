@@ -21,6 +21,7 @@ from .inclined_cylinder import InclinedCylinderGeometry, geometry_from_dict
 from .liquid import ConservationError, HydraulicConvergenceError, PropertyModelError, _number
 from .operation import _digest
 from .peng_robinson import R
+from .pr_phase_batch import PhaseEOSGroups
 from .separator_geometry import SeparatorGeometry
 from .three_phase_properties import disk_area_moment, level_tensor
 from .torch_linear import TorchNewton
@@ -89,6 +90,9 @@ class StratifiedPRState:
 
 
 class StratifiedPRColumn:
+    _batch_local_stability = True
+    _batch_column_eos = None  # Auto: validated CPU grouping; explicit CUDA opt-in.
+
     def __init__(
         self,
         fluid,
@@ -106,6 +110,9 @@ class StratifiedPRColumn:
         if not isinstance(geometry, SeparatorGeometry):
             raise TypeError("Expected SeparatorGeometry")
         self.fluid, self.geometry = fluid, geometry
+        self._batch_column_eos = (
+            fluid.device.type == "cpu" if self._batch_column_eos is None else self._batch_column_eos
+        )
         self.gravity_m_s2 = _number(gravity_m_s2, "gravity", nonnegative=True)
         self.elevation_m = _number(elevation_m, "elevation")
         for key, v in (
@@ -210,13 +217,21 @@ class StratifiedPRColumn:
             volumes.append(w)
         return heights, volumes
 
-    def _decode_nodes(self, y, active, temperature, tag):
+    def _node_coordinates(self, y, active):
         p = torch.exp(y[:, 0])
         logits = torch.cat((y[:, 1:], y.new_zeros((len(y), 1))), dim=-1)
         xa = torch.softmax(logits, dim=-1)
         x = y.new_zeros((len(y), len(self.fluid.names))).index_copy(-1, active, xa)
+        return p, x
+
+    def _decode_nodes(self, y, active, temperature, tag):
+        p, x = self._node_coordinates(y, active)
         q = torch.vmap(lambda pp, xx: self.fluid.tensor_homogeneous(pp, temperature, xx, tag))(p, x)
         return p, x, q
+
+    def _decode_grouped_nodes(self, y, active, temperature, plan):
+        p, x = self._node_coordinates(y, active)
+        return p, x, plan.properties(p, temperature, x)
 
     def _problem(self, n, energy, seed, order, *, _network_active=None, _network_guess=None):
         f = self.fluid
@@ -248,6 +263,11 @@ class StratifiedPRColumn:
                 initial_rows.append(row.reshape(1, c))
                 segments.append((offset, offset + 1, j, interfaces[i].reshape(1)))
                 offset += 1
+        eos_plan = (
+            PhaseEOSGroups(f, [roots[phase] for a, b, phase, _ in segments for _ in range(a, b)])
+            if self._batch_column_eos
+            else None
+        )
         fractions = (
             torch.diff(torch.cat((f.tensor([0.0]), interfaces, f.tensor([g.height_m]))))
             / g.height_m
@@ -298,8 +318,17 @@ class StratifiedPRColumn:
             properties = []
             pressures = []
             xs = []
+            decoded = (
+                self._decode_grouped_nodes(local, active, temperature, eos_plan)
+                if eos_plan is not None
+                else None
+            )
             for (a, b, phase, _), height in zip(segments, node_heights):
-                p, x, q = self._decode_nodes(local[a:b], active, temperature, roots[phase])
+                if decoded is None:
+                    p, x, q = self._decode_nodes(local[a:b], active, temperature, roots[phase])
+                else:
+                    pp, xx, qq = decoded
+                    p, x, q = pp[a:b], xx[a:b], {key: value[a:b] for key, value in qq.items()}
                 mu = (
                     torch.log(x[:, active].clamp_min(1e-300))
                     + q["log_fugacity_coefficients"][:, active]
@@ -396,14 +425,66 @@ class StratifiedPRColumn:
         confirmed = self.fluid.homogeneous_stability_mask(p, temperature, x, phi)
         unresolved = torch.nonzero(~confirmed).flatten().cpu().tolist()
         if unresolved:
+            if self._batch_local_stability:
+                # Retain every original TPD start, but evaluate predictors
+                # across collocation points together, just as in pipe cells.
+                # Supports are topology data; pack their host read once.
+                supports = (x[unresolved] > 0).cpu().tolist()
+                indices, requests, pure = {}, [], []
+                temp = self.fluid.tensor(temperature)
+                for i, mask in zip(unresolved, supports):
+                    support = tuple(j for j, yes in enumerate(mask) if yes)
+                    if len(support) <= 1:
+                        pure.append(i)
+                        continue
+                    if support not in indices:
+                        indices[support] = torch.tensor(
+                            support, dtype=torch.long, device=self.fluid.device
+                        )
+                    chemical = x[i].clamp_min(1e-300).log() + phi[i]
+                    requests.append((p[i], temp, x[i], chemical, indices[support]))
+                results = self.fluid._stability_many(requests)
+                minima = []
+                for result in results:
+                    if isinstance(result, (HydraulicConvergenceError, PropertyModelError)):
+                        raise result
+                    minima.append(result[0])
+                if minima and bool((torch.stack(minima) < -1e-8).any().cpu()):
+                    raise PropertyModelError(
+                        "Column requires a different locally stable phase topology"
+                    )
+                unresolved = pure
+                if not unresolved:
+                    return
             packet = p[unresolved].cpu().tolist()
             temp = float(self.fluid.tensor(temperature).cpu())
             for i, pp in zip(unresolved, packet):
                 self._check_local(pp, temp, x[i], {"log_fugacity_coefficients": phi[i]})
 
     def _check_local(self, p, t, x, q):
-        stable = self.fluid.flash_pt(p, t, x, _allow_pure_coexistence=True)
         active = x > 0
+        if int(active.sum().cpu()) > 1:
+            # This point already has a local homogeneous EOS solution. Check
+            # every original TPD seed against its chemical potentials rather
+            # than reconstructing an incipient multiphase allocation merely
+            # to compare the same chemical potentials afterwards. Batched
+            # misses still run the full scalar stability minimizer here.
+            chemical = x.clamp_min(1e-300).log() + q["log_fugacity_coefficients"]
+            minimum, _, _ = self.fluid._stability(
+                self.fluid.tensor(p),
+                self.fluid.tensor(t),
+                x,
+                chemical,
+                torch.nonzero(active).flatten(),
+            )
+            if float(minimum.cpu()) < -1e-8:
+                raise PropertyModelError(
+                    "Column requires a different locally stable phase topology"
+                )
+            return
+        # Pure-fluid root/coexistence handling cannot use the multicomponent
+        # TPD shortcut: a one-component composition search has no direction.
+        stable = self.fluid.flash_pt(p, t, x, _allow_pure_coexistence=True)
         phase = stable["phases"][0]
         delta = (
             torch.log(x[active])
@@ -602,11 +683,9 @@ class StratifiedPRColumn:
         for i, x in enumerate(data["compositions"][: len(roots)]):
             if float((x[0] - f.tensor(state.phase_seeds[i])).abs().max().cpu()) > 1e-10:
                 raise ConservationError("Column phase seed differs from solved profile")
-        for p, x, q in zip(data["pressures"], data["compositions"], data["properties"]):
-            for j in range(len(p)):
-                self._check_local(
-                    float(p[j].cpu()), state.temperature_k, x[j], {k: v[j] for k, v in q.items()}
-                )
+        self._check_locals(
+            data["pressures"], state.temperature_k, data["compositions"], data["properties"]
+        )
         self._check_topology(data, roots)
         self._remember(state)
 

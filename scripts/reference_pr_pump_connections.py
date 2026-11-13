@@ -68,12 +68,48 @@ def audit_pump_connections(model, data, openings, saved, fluid):
                 and not table["flow_m3_s"][0] <= reduced <= table["flow_m3_s"][-1]
             ):
                 raise ValueError("Pump table flow outside envelope")
-        x = source["x"][0]
-        ref = Reference(fluid, np.flatnonzero(x > 0))
-        qin = ref.state(source["p"], source["t"], x, "stable")
-        qis = ref.state(p, row["isentropic_temperature_k"], x, "liquid")
-        qp = ref.state(p, row["pump_temperature_k"], x, "liquid")
-        qd = ref.state(target["p"], row["delivery_temperature_k"], x, "liquid")
+        mixture = unit.get("equilibrium_liquid_mixture", False)
+        if mixture:
+            from reference_liquid_mixture_pump import mixture_trace
+
+            x = source["n"] / source["n"].sum()
+            beta = source["pn"] / source["pn"].sum()
+            qin = {
+                "h": beta @ source["h"],
+                "s": source["entropy"] / source["pn"].sum(),
+                "rho": source["rho"],
+            }
+            traces = row.get("equilibrium_traces", [])
+            if len(traces) != 3:
+                raise ValueError("Liquid-mixture pump needs all three equilibrium traces")
+            qis, qp, qd = [
+                mixture_trace(
+                    fluid,
+                    x,
+                    trace,
+                    pp,
+                    tt,
+                    unit["minimum_density_kg_m3"] if not closed or i == 0 else 0.0,
+                )
+                for i, (trace, pp, tt) in enumerate(
+                    zip(
+                        traces,
+                        (p, p, target["p"]),
+                        (
+                            row["isentropic_temperature_k"],
+                            row["pump_temperature_k"],
+                            row["delivery_temperature_k"],
+                        ),
+                    )
+                )
+            ]
+        else:
+            x = source["x"][0]
+            ref = Reference(fluid, np.flatnonzero(x > 0))
+            qin = ref.state(source["p"], source["t"], x, "stable")
+            qis = ref.state(p, row["isentropic_temperature_k"], x, "liquid")
+            qp = ref.state(p, row["pump_temperature_k"], x, "liquid")
+            qd = ref.state(target["p"], row["delivery_temperature_k"], x, "liquid")
         mw = x @ masses
         close(qis["h"] - qin["h"], mw * 9.80665 * head, atol=1e-5, rtol=1e-8)
         close(qis["s"], qin["s"], atol=1e-7, rtol=1e-9)
@@ -88,13 +124,22 @@ def audit_pump_connections(model, data, openings, saved, fluid):
             close(pressure_gap, 0.0, atol=1e-4, rtol=0.0)
             close(qp["h"] - qin["h"], (qis["h"] - qin["h"]) / eta, atol=1e-5, rtol=1e-8)
             close(qd["h"], qp["h"], atol=1e-5, rtol=1e-9)
+        if mixture and np.any(source["rho_phase"] < unit["minimum_density_kg_m3"]):
+            raise ValueError("Liquid-mixture pump inlet includes a non-dense phase")
         if (
-            len(source["pn"]) != 1
+            (len(source["pn"]) != 1 and not mixture)
             or min(qin["rho"], qis["rho"]) < unit["minimum_density_kg_m3"]
             or (not closed and min(qp["rho"], qd["rho"]) < unit["minimum_density_kg_m3"])
         ):
             raise ValueError("Pump leaves dense single-phase envelope")
-        if 9.80665 * head / source["sound"] ** 2 > unit["maximum_compressibility_fraction"]:
+        sound = source["sound"]
+        if mixture:
+            from check_pr_equilibrium_transport import reference_sound
+
+            sound = min(
+                reference_sound(fluid, source["p"], source["t"], xx, "liquid") for xx in source["x"]
+            )
+        if 9.80665 * head / sound**2 > unit["maximum_compressibility_fraction"]:
             raise ValueError("Pump compressibility envelope exceeded")
         mass = q * source["rho"]
         molar = mass / mw
@@ -135,10 +180,12 @@ def audit_pump_connections(model, data, openings, saved, fluid):
             "npsh_available_m": npsh,
             "enabled": True,
         }
+        if mixture:
+            expected["equilibrium_traces"] = row["equilibrium_traces"]
         if set(row) != set(expected):
             raise ValueError("Pump report schema differs")
         for key, value in expected.items():
-            if not isinstance(value, bool):
+            if key != "equilibrium_traces" and not isinstance(value, bool):
                 close(row[key], value, atol=1e-8, rtol=2e-7)
         phi = model["gravity_m_s2"] * (nodes[a]["elevation_m"] - model["reference_elevation_m"])
         net[a] = net.get(a, 0.0) - np.r_[molar * x, 0.0, molar * (qin["h"] + mw * phi)]

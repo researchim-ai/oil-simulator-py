@@ -107,7 +107,7 @@ def selection():
     return names
 
 
-def run(output):
+def run(output, *, processing_only=False):
     output = Path(output)
     if output.exists():
         raise FileExistsError("Import destination must not exist")
@@ -130,7 +130,15 @@ def run(output):
         entries = []
         remote = RangeArchive(ARCHIVE, ARCHIVE_SIZE)
         with zipfile.ZipFile(remote) as archive:
-            for name in selection():
+            names = (
+                [
+                    PREFIX + "Post_Process_Data_Handling.mlx",
+                    PREFIX + "Post_Processing/Keyence_Data_Plotter.m",
+                ]
+                if processing_only
+                else selection()
+            )
+            for name in names:
                 info = archive.getinfo(name)
                 if info.file_size > 4 * 1024**2:
                     raise ValueError("Selected member exceeds expected measurement size")
@@ -149,7 +157,7 @@ def run(output):
                     }
                 )
         manifest = {
-            "format": "fetrig_raw_subset_v1",
+            "format": "fetrig_processing_subset_v1" if processing_only else "fetrig_raw_subset_v1",
             "source": SOURCE,
             "license": version["license"],
             "archive_url": ARCHIVE,
@@ -158,7 +166,9 @@ def run(output):
             "metadata_sha256": hashlib.sha256(metadata_raw).hexdigest(),
             "importer_sha256": hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),
             "transferred_archive_bytes": remote.bytes_read,
-            "selection": "Y_100 and Y_600, X_50, filename ReL500; ReG0/12900/20900, both raw instruments; chosen before model scoring",
+            "selection": "Original processing descriptions only, not executed"
+            if processing_only
+            else "Y_100 and Y_600, X_50, filename ReL500; ReG0/12900/20900, both raw instruments; chosen before model scoring",
             "geometry": {
                 "channel_width_m": 0.1,
                 "channel_depth_m": 0.03,
@@ -189,8 +199,9 @@ def run(output):
 if __name__ == "__main__":
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument("--output", type=Path, required=True)
+    p.add_argument("--processing-only", action="store_true")
     args = p.parse_args()
-    report = run(args.output)
+    report = run(args.output, processing_only=args.processing_only)
     print(
         json.dumps(
             {

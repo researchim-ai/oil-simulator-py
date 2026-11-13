@@ -12,7 +12,8 @@ from dataclasses import dataclass, replace
 
 import torch
 
-from .liquid import PropertyModelError, Pump, _number
+from .liquid import EquipmentOperatingError, PropertyModelError, Pump, _number
+from .pr_liquid_mixture_pump import LiquidMixtureTrace
 from .pr_pump_four_quadrant import SignedPumpMap
 from .pr_pump_unit import G, PRPumpUnit, pump_curve, pump_head_efficiency
 
@@ -29,6 +30,7 @@ class PRPumpConnection:
 
     signed_map: SignedPumpMap | None = None
     mapped_speed_rad_s: float | None = None
+    equilibrium_liquid_mixture: bool = False
 
     @property
     def name(self):
@@ -46,6 +48,10 @@ class PRPumpConnection:
         if not isinstance(self.card, Pump) or self.card.start == self.card.end:
             raise ValueError("Pump connection needs a card and two distinct finite plenums")
         _number(self.outlet_loss_pa_s2_m6, "pump outlet valve resistance", nonnegative=True)
+        if type(self.equilibrium_liquid_mixture) is not bool:
+            raise TypeError("Explicit boolean equilibrium_liquid_mixture required")
+        if self.equilibrium_liquid_mixture and self.signed_map is not None:
+            raise ValueError("Equilibrium liquid-mixture pump does not support a signed map")
         if self.signed_map is not None:
             if not isinstance(self.signed_map, SignedPumpMap):
                 raise TypeError("Expected SignedPumpMap")
@@ -75,18 +81,40 @@ class PRPumpConnection:
         return cls(**{**data, "card": Pump(**data["card"])})
 
 
+def enabled_predictor(unit, enabled, ratio):
+    return enabled and ratio > 0 and unit.signed_map is None and unit.card.head_curve is None
+
+
 class PumpConnectionBundle:
     count = 5
+    _thermodynamic_predictor = True
 
-    def __init__(self, model, state, openings, offset):
+    def __init__(self, model, state, openings, offset, seeds=None, active=None):
         self.model = model
         self.entries = []
+        self.mixtures, self.sizes, self.mixture_snapshots = {}, {}, {}
         self.initial, self.lower, self.upper = [], [], []
         f = model.fluid
         speeds = dict(state.rotors)
         for unit in model.pump_connections:
             a, b = model.names.index(unit.source), model.names.index(unit.target)
             old = state.nodes[a][1]
+            if openings[unit.name]:
+                # This equipment closure is a single-liquid PS/PH machine.
+                # Selecting x[0] from a multiphase suction can select a tiny
+                # water layer instead of the bulk oil. It is not a timestep
+                # failure: UV branch enumeration cannot repair an unsupported
+                # initial equipment state. Isolation remains permitted.
+                donors = (a, b) if unit.signed_map is not None else (a,)
+                for donor in donors:
+                    stock = state.nodes[donor][1]
+                    if len(stock.phase_roots) != 1 and not unit.equilibrium_liquid_mixture:
+                        raise EquipmentOperatingError(
+                            f"Pump {unit.name!r} requires a single liquid inlet; "
+                            f"node {model.names[donor]!r} has {len(stock.phase_roots)} "
+                            "equilibrium phases. Multiphase pumping requires a "
+                            "different equipment closure, not timestep subdivision."
+                        )
             drive = model._drives.get(unit.name)
             ratio = (
                 speeds[unit.name] / drive.nominal_speed_rad_s if drive else unit.card.speed_ratio
@@ -142,14 +170,19 @@ class PumpConnectionBundle:
                     ),
                 )
                 old = donor
+            temperatures = (old.temperature_k, old.temperature_k, state.nodes[b][1].temperature_k)
+            if self._thermodynamic_predictor and enabled_predictor(
+                unit, openings[unit.name], ratio
+            ):
+                guess, pressure, temperatures = self._initial_liquid_guess(
+                    unit, state, a, b, ratio, qscale, rho, guess, pressure, temperatures
+                )
             self.initial.append(
                 f.tensor(
                     [
                         guess,
                         math.log(pressure),
-                        old.temperature_k / f.tref,
-                        old.temperature_k / f.tref,
-                        state.nodes[b][1].temperature_k / f.tref,
+                        *(temperature / f.tref for temperature in temperatures),
                     ]
                 )
             )
@@ -196,12 +229,99 @@ class PumpConnectionBundle:
                     f.tensor(unit.card.efficiency),
                 )
             )
-            offset += self.count
+            size = self.count
+            if unit.equilibrium_liquid_mixture and openings[unit.name]:
+                mixture = LiquidMixtureTrace(
+                    model,
+                    unit,
+                    model._state_data(a, state.nodes[a][1]),
+                    (seeds or {}).get(unit.name),
+                    None if active is None else active[a],
+                )
+                self.mixtures[unit.name] = mixture
+                extra = torch.cat(mixture.extra_initial)
+                core = self.initial[-1]
+                if seeds is not None and unit.name in seeds:
+                    # Rebranching already solved the thermodynamic trace: retain
+                    # those P/T guesses instead of resetting every stage to Tin.
+                    core = torch.cat(
+                        (
+                            core[:1],
+                            seeds[unit.name][0]["pressure_pa"].log().reshape(1),
+                            torch.stack([trace.initial[0] for trace in mixture.traces]),
+                        )
+                    )
+                self.initial[-1] = torch.cat((core, extra))
+                self.lower[-1] = torch.cat((self.lower[-1], torch.full_like(extra, -240.0)))
+                self.upper[-1] = torch.cat((self.upper[-1], torch.full_like(extra, 240.0)))
+                size = mixture.count
+            self.sizes[unit.name] = size
+            offset += size
+
+    def _initial_liquid_guess(
+        self, unit, state, a, b, ratio, qscale, rho, guess, pressure, temperatures
+    ):
+        """Frozen-liquid tangent as a guess; full PS/PH and TPD remain exact.
+
+        All derivatives are from the same Torch EOS. This avoids a large
+        artificial enthalpy residual from Tin being used at all three stages.
+        """
+        f = self.model.fluid
+        old, target = state.nodes[a][1], state.nodes[b][1]
+        head0 = unit.card.shutoff_head_m * ratio**2
+        resistance = unit.outlet_loss_pa_s2_m6 + rho * G * unit.card.curve_coefficient_s2_m5
+        available = old.pressure_pa + rho * G * head0 - target.pressure_pa
+        closed = unit.card.check_valve and available <= 0
+        if resistance > 0 and available > 0:
+            flow = min(unit.card.max_flow_m3_s * ratio, math.sqrt(available / resistance))
+            if unit.card.curve_coefficient_s2_m5 > 0:
+                flow = min(flow, math.sqrt(head0 / unit.card.curve_coefficient_s2_m5))
+            guess = flow / qscale
+            pressure = min(
+                f.max_pressure_pa,
+                max(f.min_pressure_pa, target.pressure_pa + unit.outlet_loss_pa_s2_m6 * flow**2),
+            )
+        if unit.card.efficiency_curve is not None:
+            return guess, pressure, temperatures
+        data = self.model._state_data(a, old)
+        beta = data["phase_n"] / data["phase_n"].sum()
+        derivatives = []
+        for x, tag in zip(data["x"], old.phase_roots):
+            derivatives.append(
+                torch.func.jacfwd(
+                    lambda t, x=x, tag=tag: f.tensor_homogeneous(data["p"], t, x, tag)[
+                        "molar_volume_m3_mol"
+                    ]
+                )(data["t"])
+            )
+        cp = (beta * data["q"]["homogeneous_molar_cp_j_mol_k"]).sum()
+        dvdt = (beta * torch.stack(derivatives)).sum()
+        volume = (beta * data["q"]["molar_volume_m3_mol"]).sum()
+        mass = ((data["n"] / data["n"].sum()) * f.molar_masses).sum()
+        cp, dvdt, volume, mass = torch.stack((cp, dvdt, volume, mass)).detach().cpu().tolist()
+        if not all(math.isfinite(v) for v in (cp, dvdt, volume, mass)) or cp <= 0:
+            return guess, pressure, temperatures
+        dp = pressure - old.pressure_pa
+        dhdp = volume - old.temperature_k * dvdt
+        head = head0 - unit.card.curve_coefficient_s2_m5 * (guess * qscale) ** 2
+        work = mass * G * head
+        tis = old.temperature_k + old.temperature_k * dvdt / cp * dp
+        tpump = (
+            tis if closed else old.temperature_k + (work / unit.card.efficiency - dhdp * dp) / cp
+        )
+        tdel = (
+            target.temperature_k if closed else tpump - dhdp / cp * (target.pressure_pa - pressure)
+        )
+        temperatures = tuple(
+            min(f.max_temperature_k, max(f.min_temperature_k, t)) for t in (tis, tpump, tdel)
+        )
+        return guess, pressure, temperatures
 
     def evaluate(self, y, data, speeds):
         f = self.model.fluid
         net, records = {}, {}
         rows, traces = [], []
+        roundoff = {}
         valid = y.new_ones((), dtype=torch.bool)
         for unit, a, b, offset, enabled, qscale, curves, efficiency in self.entries:
             if unit.signed_map is not None and enabled:
@@ -213,6 +333,18 @@ class PumpConnectionBundle:
                 rows.append(local_rows)
                 records[unit.name] = row
                 traces.append(trace)
+                valid = valid & admissible
+                continue
+            if unit.name in self.mixtures:
+                local_net, local_rows, row, snapshots, admissible, limits = self.mixtures[
+                    unit.name
+                ].evaluate(unit, a, b, offset, qscale, curves, efficiency, y, data, speeds)
+                for index, flux in local_net.items():
+                    net[index] = net.get(index, 0) + flux
+                rows.append(local_rows)
+                records[unit.name] = row
+                traces.append((self.mixtures[unit.name], snapshots, row["valve_closed"]))
+                roundoff[unit.name] = limits
                 valid = valid & admissible
                 continue
             source, target = data[a], data[b]
@@ -378,7 +510,22 @@ class PumpConnectionBundle:
                 "npsh_available_m": npsh,
             }
             traces.append((unit, pressure, tis, tpump, target["p"], tdel, x, closed))
-        return net, rows, records, traces, valid
+        if self.entries:
+            start = self.entries[0][3]
+            end = self.entries[-1][3] + self.sizes[self.entries[-1][0].name]
+            bounds = torch.cat(
+                (
+                    y.new_zeros(start),
+                    *(
+                        roundoff.get(e[0].name, y.new_zeros(self.sizes[e[0].name]))
+                        for e in self.entries
+                    ),
+                    y.new_zeros(len(y) - end),
+                )
+            )
+        else:
+            bounds = torch.zeros_like(y)
+        return net, rows, records, traces, valid, bounds
 
     def _signed(self, unit, a, b, offset, qscale, y, data, speeds):
         """Direction-dependent PS/PH traces, with viscous loss heated at donor.
@@ -505,7 +652,17 @@ class PumpConnectionBundle:
         return net, rows, row, (unit, pressure, tis, tpump, pout, tdel, x, closed, pin, tin), valid
 
     def validate(self, traces):
-        for unit, pressure, tis, tpump, target, tdel, x, closed, *donor in traces:
+        changes = {}
+        self.mixture_snapshots = {}
+        for trace in traces:
+            if isinstance(trace[0], LiquidMixtureTrace):
+                mixture, snapshots, closed = trace
+                update = mixture.replacements(snapshots, closed=bool(closed.cpu()))
+                self.mixture_snapshots[mixture.unit.name] = snapshots
+                if update is not None:
+                    changes[mixture.unit.name] = update
+                continue
+            unit, pressure, tis, tpump, target, tdel, x, closed, *donor = trace
             pairs = (
                 [(pressure, tis)]
                 if bool(closed.cpu())
@@ -523,6 +680,19 @@ class PumpConnectionBundle:
                         "Pump thermodynamic trace leaves the single-phase dense-liquid domain"
                     )
 
+        return changes
+
+    @staticmethod
+    def failed_branch_seeds(traces):
+        changes = {}
+        for trace in traces:
+            if isinstance(trace[0], LiquidMixtureTrace):
+                mixture, snapshots, _closed = trace
+                seeds = mixture.failed_branch_seeds(snapshots)
+                if seeds is not None:
+                    changes[mixture.unit.name] = seeds
+        return changes
+
     def serialize(self, records):
         output = {}
         for unit, *_ in self.entries:
@@ -532,6 +702,10 @@ class PumpConnectionBundle:
                 key: bool(value) if row[key].dtype == torch.bool else value
                 for key, value in zip(row, values)
             }
+            if unit.name in self.mixture_snapshots:
+                output[unit.name]["equilibrium_traces"] = LiquidMixtureTrace.serialize(
+                    self.mixture_snapshots[unit.name]
+                )
             output[unit.name]["enabled"] = next(
                 e[4] for e in self.entries if e[0].name == unit.name
             )
@@ -543,11 +717,11 @@ class PumpConnectionBundle:
             local = [
                 *range(offsets[a], offsets[a + 1]),
                 *range(offsets[b], offsets[b + 1]),
-                *range(offset, offset + self.count),
+                *range(offset, offset + self.sizes[_unit.name]),
             ]
             for row in local:
-                for col in range(offset, offset + self.count):
+                for col in range(offset, offset + self.sizes[_unit.name]):
                     support.add((row, col))
-            for row in range(offset, offset + self.count):
+            for row in range(offset, offset + self.sizes[_unit.name]):
                 support.update((row, col) for col in local)
         return support

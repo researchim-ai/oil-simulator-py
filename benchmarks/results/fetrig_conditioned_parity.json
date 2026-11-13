@@ -1,0 +1,105 @@
+{
+  "format": "fetrig_conditioned_parity_v1",
+  "gpu_uuid": "GPU-2f9ce359-f3f4-accc-bf9c-31bc88bb1cb7",
+  "source_sha256": {
+    "scripts/validate_fetrig_film.py": "89d849b012463e3580ee5821d51066ea72b2ed5ec1d78c54856216f9eb16498c",
+    "scripts/fetrig_labview.py": "519407f803c58a5d86983fe117b343f1afabcf9e880c604996ed6d2b4eb29f73",
+    "scripts/audit_fetrig_measurements.py": "4dc29ba4a5bb40e6f24dab461af4297f7dade9054936ebae77cf1f1bf5a3dced",
+    "src/surface/planar_film.py": "26b900c5d8da3d085c82c424aea3a7e18d7e644aac399866ac411a6deae34a49",
+    "src/surface/thin_film_dynamics.py": "e36cf592d82bc5bc2acb3233514c41d870c96353f8ab27c026cf5e86fb3d0f56"
+  },
+  "manifest_sha256": "652d47a367c0688f60bd39f4869035d574cf7bc0c079496fbea785c4e741e63b",
+  "cpu_report_sha256": "741bd55216ae42e7406af76f755d7d85be6b13cff1b7d3fe74200c4a39c7d695",
+  "cuda_report_sha256": "73f2974d68aad7b69dc06ad0647fb3765ca1e9ad7c892b5d224cc0c25efa971b",
+  "conditioned_cases": 6,
+  "paired_reference_windows": 14,
+  "maximum_absolute_thickness_difference_m": 1.0842021724855044e-19,
+  "all_other_structure_and_input_selection_equal": true,
+  "experimentally_qualified": false,
+  "pairs": [
+    {
+      "case": "Film Data_MC_RC_Water_RH80_T25Deg_CopperPlate_28_08_24/MC_RC_Water_RH80_T25Deg_CopperPlate_28_08_24/Y_100/X_50/Keyence Data/ReL500_ReG0.csv",
+      "window_index": 75,
+      "cpu_thickness_m": 0.0004978729156379845,
+      "cuda_thickness_m": 0.0004978729156379846
+    },
+    {
+      "case": "Film Data_MC_RC_Water_RH80_T25Deg_CopperPlate_28_08_24/MC_RC_Water_RH80_T25Deg_CopperPlate_28_08_24/Y_100/X_50/Keyence Data/ReL500_ReG0.csv",
+      "window_index": 76,
+      "cpu_thickness_m": 0.0004957883759974342,
+      "cuda_thickness_m": 0.0004957883759974342
+    },
+    {
+      "case": "Film Data_MC_RC_Water_RH80_T25Deg_CopperPlate_28_08_24/MC_RC_Water_RH80_T25Deg_CopperPlate_28_08_24/Y_100/X_50/Keyence Data/ReL500_ReG0.csv",
+      "window_index": 77,
+      "cpu_thickness_m": 0.0004958025478316496,
+      "cuda_thickness_m": 0.0004958025478316496
+    },
+    {
+      "case": "Film Data_MC_RC_Water_RH80_T25Deg_CopperPlate_28_08_24/MC_RC_Water_RH80_T25Deg_CopperPlate_28_08_24/Y_100/X_50/Keyence Data/ReL500_ReG0.csv",
+      "window_index": 78,
+      "cpu_thickness_m": 0.0004957811243683262,
+      "cuda_thickness_m": 0.0004957811243683262
+    },
+    {
+      "case": "Film Data_MC_RC_Water_RH80_T25Deg_CopperPlate_28_08_24/MC_RC_Water_RH80_T25Deg_CopperPlate_28_08_24/Y_100/X_50/Keyence Data/ReL500_ReG0.csv",
+      "window_index": 79,
+      "cpu_thickness_m": 0.0004957731025116353,
+      "cuda_thickness_m": 0.0004957731025116353
+    },
+    {
+      "case": "Film Data_MC_RC_Water_RH80_T25Deg_CopperPlate_28_08_24/MC_RC_Water_RH80_T25Deg_CopperPlate_28_08_24/Y_100/X_50/Keyence Data/ReL500_ReG0.csv",
+      "window_index": 80,
+      "cpu_thickness_m": 0.0004957996872202233,
+      "cuda_thickness_m": 0.0004957996872202233
+    },
+    {
+      "case": "Film Data_MC_RC_Water_RH80_T25Deg_CopperPlate_28_08_24/MC_RC_Water_RH80_T25Deg_CopperPlate_28_08_24/Y_100/X_50/Keyence Data/ReL500_ReG0.csv",
+      "window_index": 81,
+      "cpu_thickness_m": 0.0004957487725269797,
+      "cuda_thickness_m": 0.0004957487725269796
+    },
+    {
+      "case": "Film Data_MC_RC_Water_RH80_T25Deg_CopperPlate_28_08_24/MC_RC_Water_RH80_T25Deg_CopperPlate_28_08_24/Y_100/X_50/Keyence Data/ReL500_ReG0.csv",
+      "window_index": 82,
+      "cpu_thickness_m": 0.00049576055531002,
+      "cuda_thickness_m": 0.0004957605553100201
+    },
+    {
+      "case": "Film Data_MC_RC_Water_RH80_T25Deg_CopperPlate_28_08_24/MC_RC_Water_RH80_T25Deg_CopperPlate_28_08_24/Y_100/X_50/Keyence Data/ReL500_ReG0.csv",
+      "window_index": 83,
+      "cpu_thickness_m": 0.0004957702782370939,
+      "cuda_thickness_m": 0.0004957702782370939
+    },
+    {
+      "case": "Film Data_MC_RC_Water_RH80_T25Deg_CopperPlate_28_08_24/MC_RC_Water_RH80_T25Deg_CopperPlate_28_08_24/Y_600/X_50/Keyence Data 3/ReL500_ReG0.csv",
+      "window_index": 4,
+      "cpu_thickness_m": 0.0004958862842616911,
+      "cuda_thickness_m": 0.0004958862842616911
+    },
+    {
+      "case": "Film Data_MC_RC_Water_RH80_T25Deg_CopperPlate_28_08_24/MC_RC_Water_RH80_T25Deg_CopperPlate_28_08_24/Y_600/X_50/Keyence Data 3/ReL500_ReG0.csv",
+      "window_index": 5,
+      "cpu_thickness_m": 0.0004957546000292406,
+      "cuda_thickness_m": 0.0004957546000292408
+    },
+    {
+      "case": "Film Data_MC_RC_Water_RH80_T25Deg_CopperPlate_28_08_24/MC_RC_Water_RH80_T25Deg_CopperPlate_28_08_24/Y_600/X_50/Keyence Data 3/ReL500_ReG0.csv",
+      "window_index": 6,
+      "cpu_thickness_m": 0.0004957777343320768,
+      "cuda_thickness_m": 0.0004957777343320767
+    },
+    {
+      "case": "Film Data_MC_RC_Water_RH80_T25Deg_CopperPlate_28_08_24/MC_RC_Water_RH80_T25Deg_CopperPlate_28_08_24/Y_600/X_50/Keyence Data 3/ReL500_ReG0.csv",
+      "window_index": 7,
+      "cpu_thickness_m": 0.0004957416571777963,
+      "cuda_thickness_m": 0.0004957416571777963
+    },
+    {
+      "case": "Film Data_MC_RC_Water_RH80_T25Deg_CopperPlate_28_08_24/MC_RC_Water_RH80_T25Deg_CopperPlate_28_08_24/Y_600/X_50/Keyence Data 3/ReL500_ReG0.csv",
+      "window_index": 8,
+      "cpu_thickness_m": 0.0004957738143327602,
+      "cuda_thickness_m": 0.0004957738143327603
+    }
+  ]
+}

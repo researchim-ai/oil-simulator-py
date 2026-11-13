@@ -33,6 +33,7 @@ def run(config, *, device="cpu"):
         "duration_s",
         "initial_step_s",
         "minimum_step_s",
+        "driving",
     }
     if (
         set(config) - allowed
@@ -42,6 +43,12 @@ def run(config, *, device="cpu"):
         raise ValueError("One complete mechanical initial condition or checkpoint required")
     sha = fingerprints()
     is_pr = config["model"]["model"] == "pr_isothermal_capillary_film_v1"
+    driving = config.get("driving", {})
+    if not isinstance(driving, dict) or set(driving) - {
+        "tangential_gravity_m_s2",
+        "interface_shear_pa",
+    }:
+        raise ValueError("Explicit known mechanical driving fields required")
     cls = PRIsothermalCapillaryFilm if is_pr else InertialCapillaryFilm
     model = cls.from_dict(config["model"], device=device)
     if "initial_state" in config:
@@ -58,6 +65,7 @@ def run(config, *, device="cpu"):
         config["duration_s"],
         initial_step_s=config["initial_step_s"],
         minimum_step_s=config.get("minimum_step_s", 1e-12),
+        **driving,
     )
     if fingerprints() != sha:
         raise RuntimeError("Joint capillary sources changed during run")
@@ -68,7 +76,7 @@ def run(config, *, device="cpu"):
         "source_sha256": sha,
         "device": device,
         "family": "pr_isothermal" if is_pr else "mechanical",
-        "qualification": "Periodic planar single-liquid coating; passive exterior; neutral wetting; not general gas/liquid network",
+        "qualification": "Periodic planar single-liquid film; prescribed exterior traction/gravity; neutral wetting. Plug inertia with local Stokes wall closure; no resolved gas or turbulent/wave experimental qualification.",
         "initial": initial.to_dict(),
         "final": state.to_dict(),
         "result": result,

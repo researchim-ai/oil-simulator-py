@@ -1,0 +1,10 @@
+{"event": "initialized", "time_s": 0.0}
+{"event": "attempt", "time_s": 0.0, "dt_s": 1e-06, "attempt": 1, "end_time_s": 0.2}
+{"event": "accepted", "time_s": 1e-06, "dt_s": 1e-06, "attempt": 1, "error": 0.02641463785631095, "next_step_s": 1.5e-06}
+{"event": "attempt", "time_s": 1e-06, "dt_s": 1.4999999999999998e-06, "attempt": 2, "end_time_s": 0.2}
+{"event": "accepted", "time_s": 2.4999999999999998e-06, "dt_s": 1.4999999999999998e-06, "attempt": 2, "error": 0.05709078598527609, "next_step_s": 2.2499999999999996e-06}
+{"event": "attempt", "time_s": 2.4999999999999998e-06, "dt_s": 2.2499999999999996e-06, "attempt": 3, "end_time_s": 0.2}
+{"event": "accepted", "time_s": 4.749999999999999e-06, "dt_s": 2.2499999999999996e-06, "attempt": 3, "error": 0.12097895687194354, "next_step_s": 3.3749999999999995e-06}
+{"event": "attempt", "time_s": 4.749999999999999e-06, "dt_s": 3.375e-06, "attempt": 4, "end_time_s": 0.2}
+{"event": "accepted", "time_s": 8.125e-06, "dt_s": 3.375e-06, "attempt": 4, "error": 0.24898383363077675, "next_step_s": 5.062499999999999e-06}
+{"event": "attempt", "time_s": 8.125e-06, "dt_s": 5.062499999999999e-06, "attempt": 5, "end_time_s": 0.2}

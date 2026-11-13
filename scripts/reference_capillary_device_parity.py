@@ -3,15 +3,7 @@
 import math
 
 
-def audit(a, b):
-    if (
-        a["format"] != b["format"]
-        or a["request"] != b["request"]
-        or a["normalized_model"] != b["normalized_model"]
-        or a["source_sha256"] != b["source_sha256"]
-        or a["family"] != b["family"]
-    ):
-        raise ValueError("Capillary CPU/CUDA provenance differs")
+def compare_checkpoints(pairs):
     count = 0
     worst = (0.0, "")
     tolerances = {
@@ -26,7 +18,31 @@ def audit(a, b):
         "momentum_kg_m_s": (1e-22, 1e-8),
         "pressure_pa": (1e-4, 1e-10),
         "temperature_k": (1e-9, 0.0),
+        "external_work_j": (1e-22, 1e-8),
+        "dt_s": (5e-15, 1e-12),
+        "interface_velocity_m_s": (1e-12, 1e-8),
+        "interface_shear_pa": (1e-12, 1e-8),
+        "relaxation_weight": (1e-14, 1e-10),
     }
+    for name in (
+        "gas_to_liquid_impulse_kg_m_s",
+        "liquid_net_impulse_kg_m_s",
+        "stationary_wall_impulse_kg_m_s",
+        "momentum_residual_kg_m_s",
+    ):
+        tolerances[name] = (1e-22, 1e-8)
+    for name in (
+        "gas_to_liquid_work_j",
+        "gas_physical_heat_j",
+        "gas_numerical_heat_j",
+        "liquid_numerical_heat_j",
+        "liquid_profile_heat_j",
+        "local_liquid_work_residual_j",
+        "local_gas_heat_residual_j",
+        "energy_residual_j",
+        "energy_roundoff_allowance_j",
+    ):
+        tolerances[name] = (1e-22, 1e-8)
 
     def compare(x, y, path, quantity=None):
         nonlocal count, worst
@@ -64,13 +80,8 @@ def audit(a, b):
         elif x != y:
             raise ValueError("Capillary checkpoint metadata differs: " + path)
 
-    sa, sb = a["result"]["steps"], b["result"]["steps"]
-    if len(sa) != len(sb):
-        raise ValueError("Different accepted capillary histories")
-    compare(a["initial"], b["initial"], "initial")
-    for i, (x, y) in enumerate(zip(sa, sb, strict=True)):
-        compare(x["state"], y["state"], f"steps/{i}")
-    compare(a["final"], b["final"], "final")
+    for path, x, y in pairs:
+        compare(x, y, path)
     return {
         "accepted": True,
         "checked_state_scalars": count,
@@ -79,3 +90,27 @@ def audit(a, b):
         "tolerances": tolerances,
         "total_energy_tolerance": "64 ULP + 1e-22 J",
     }
+
+
+def audit(a, b):
+    if (
+        a["format"] != b["format"]
+        or a["request"] != b["request"]
+        or a["normalized_model"] != b["normalized_model"]
+        or a["source_sha256"] != b["source_sha256"]
+        or a["family"] != b["family"]
+    ):
+        raise ValueError("Capillary CPU/CUDA provenance differs")
+    sa, sb = a["result"]["steps"], b["result"]["steps"]
+    if len(sa) != len(sb):
+        raise ValueError("Different accepted capillary histories")
+    return compare_checkpoints(
+        [
+            ("initial", a["initial"], b["initial"]),
+            *(
+                (f"steps/{i}", x["state"], y["state"])
+                for i, (x, y) in enumerate(zip(sa, sb, strict=True))
+            ),
+            ("final", a["final"], b["final"]),
+        ]
+    )

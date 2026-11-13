@@ -12,6 +12,7 @@ from dataclasses import asdict, dataclass
 from types import SimpleNamespace
 
 from .actuator import ConnectionActuator
+from .equilibrium_cache import cached_fluid_transaction
 from .liquid import ConservationError, HydraulicConvergenceError, PropertyModelError, _name, _number
 from .operation import _digest
 from .pr_control_channels import PRMotorControl, PRSurfaceTrip, compressor_margin
@@ -895,6 +896,11 @@ class PRControlledSurface:
                 "loss_coefficients": physical,
                 **({"restriction_openings": areas} if areas else {}),
                 **({"drive_torque_nm": torques} if torques else {}),
+                **(
+                    {"_controlled_step": True}
+                    if isinstance(self.plant, PRGravityTransportNetwork)
+                    else {}
+                ),
             },
         )
         plant_state = physical_state_from_dict(plant_report["state"])
@@ -1026,6 +1032,9 @@ class PRControlledSurface:
                 e = max(e, abs(x - y) / self.integral_tolerance)
         return e
 
+    @cached_fluid_transaction(
+        lambda self: (self.plant.transport.fluid, *(c.fluid for c in self.plant.columns.values()))
+    )
     def advance(
         self,
         state,
@@ -1034,11 +1043,14 @@ class PRControlledSurface:
         targets=None,
         actuator_modes=None,
         reset_trips=(),
+        progress=None,
         **plant_commands,
     ):
         from dataclasses import replace
 
         self.inspect(state)
+        if progress is not None and not callable(progress):
+            raise TypeError("Controlled progress must be callable")
         end = state.time_s + _number(duration_s, "controlled duration", positive=True)
         if not math.isfinite(end) or end <= state.time_s:
             raise ValueError("Unrepresentable controlled interval")
@@ -1108,22 +1120,54 @@ class PRControlledSurface:
             if current.time_s + dt / 2 <= current.time_s:
                 raise ValueError("Controlled substep below time resolution")
             first_dt, second_dt = split_step_s(current.time_s, dt)
+            if progress is not None:
+                progress(
+                    {
+                        "event": "attempt",
+                        "time_s": current.time_s,
+                        "dt_s": dt,
+                        "attempt": attempts,
+                        "end_time_s": end,
+                    }
+                )
+            error = None
+            reduction = 0.5
             try:
                 coarse, _ = self._step(current, dt, manual, modes, plant_commands)
                 half, one = self._step(current, first_dt, manual, modes, plant_commands)
                 fine, two = self._step(half, second_dt, manual, modes, plant_commands)
                 error = self._error(coarse, fine)
-                if error > 1:
+                if not math.isfinite(error) or error > 1:
+                    # Step doubling of this first-order coupled update has
+                    # O(dt**2) local error. A measured large error can require
+                    # several expensive halvings; estimate the needed cut in
+                    # one attempt, still checking the next full coarse/fine
+                    # solution against the unchanged error budget.
+                    if error > 1:
+                        reduction = max(0.1, min(0.5, 0.9 / math.sqrt(error)))
                     raise HydraulicConvergenceError(
                         "Combined plant/control temporal error exceeded"
                     )
             except (HydraulicConvergenceError, ConservationError, PropertyModelError) as exc:
-                dt /= 2
+                if progress is not None:
+                    progress(
+                        {
+                            "event": "rejected",
+                            "time_s": current.time_s,
+                            "dt_s": dt,
+                            "attempt": attempts,
+                            "reason": str(exc),
+                            "error": error if error is not None and math.isfinite(error) else None,
+                            "next_step_s": dt * reduction,
+                        }
+                    )
+                dt *= reduction
                 if dt < self.minimum_step_s:
                     raise HydraulicConvergenceError("Controlled minimum step exhausted") from exc
                 continue
             nextdt = min(
-                self.maximum_step_s, max(self.minimum_step_s, dt * (1.5 if error < 0.25 else 1.0))
+                self.maximum_step_s,
+                max(self.minimum_step_s, dt * min(1.5, 0.9 / math.sqrt(max(error, 1e-30)))),
             )
             reached_end = dt >= end - current.time_s
             current = replace(fine, next_step_s=nextdt)
@@ -1133,6 +1177,17 @@ class PRControlledSurface:
                     plant=align_physical_clock(current.plant, end),
                 )
             steps.extend((one, two))
+            if progress is not None:
+                progress(
+                    {
+                        "event": "accepted",
+                        "time_s": current.time_s,
+                        "dt_s": dt,
+                        "attempt": attempts,
+                        "error": error,
+                        "next_step_s": nextdt,
+                    }
+                )
             dt = nextdt
         heat = math.fsum(s["total_heat_j"] for s in steps)
         work = math.fsum(s["total_work_j"] for s in steps)

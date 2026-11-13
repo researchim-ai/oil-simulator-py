@@ -80,6 +80,41 @@ def audit(cpu_directory, cuda_directory, *, root, atol=1e-9, rtol=1e-8):
                 raise ValueError(f"Checkpoint value differs: {path}")
 
         a, b = reports
+        if (
+            a.get("format") == "pr_capillary_gas_exchange_run_v1"
+            or b.get("format") == "pr_capillary_gas_exchange_run_v1"
+        ):
+            if (
+                a.get("format") != b.get("format")
+                or a["request"] != b["request"]
+                or a["source_sha256"] != b["source_sha256"]
+            ):
+                raise ValueError("Gas/film source CPU/CUDA provenance differs")
+            from reference_capillary_device_parity import compare_checkpoints
+
+            # Residual diagnostics are independently checked in each physical
+            # audit against its own arithmetic/ULP budget. Compare the actual
+            # stocks, impulses, work and heat across devices, not cancellation
+            # residuals as if they were conserved physical coordinates.
+            diagnostics = {
+                "energy_residual_j",
+                "energy_roundoff_allowance_j",
+                "momentum_residual_kg_m_s",
+                "local_liquid_work_residual_j",
+                "local_gas_heat_residual_j",
+            }
+            rows[name] = compare_checkpoints(
+                [
+                    ("final_film", a["final_film"], b["final_film"]),
+                    ("final_gas", a["final_gas"], b["final_gas"]),
+                    (
+                        "source_report",
+                        {k: v for k, v in a["source_report"].items() if k not in diagnostics},
+                        {k: v for k, v in b["source_report"].items() if k not in diagnostics},
+                    ),
+                ]
+            )
+            continue
         if a.get("format") in (
             "inertial_capillary_run_v1",
             "pr_gas_loaded_capillary_run_v1",

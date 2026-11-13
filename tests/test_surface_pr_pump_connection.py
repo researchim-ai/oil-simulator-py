@@ -295,3 +295,25 @@ def test_parallel_pumps_share_finite_stocks_with_independent_check_valves():
     assert row["drives"]["standby"]["shaft_work_j"] == 0.0
     assert row["drives"]["booster"]["shaft_work_j"] > 0
     assert max(map(abs, result["conservation_residuals"])) < 1e-7
+
+
+def test_multiliquid_suction_is_not_misreported_as_a_timestep_failure(monkeypatch):
+    from surface.liquid import EquipmentOperatingError
+    from surface.pr_pump_connection import PumpConnectionBundle
+    from surface.torch_nonlinear import TorchNewton
+
+    model, _, initial = setup()
+    initial["feed"]["mole_fractions"] = [0.0, 0.5, 0.5]
+    old = model.initialize(initial)
+    assert len(dict(old.nodes)["feed"].phase_roots) == 2
+    checkpoint = old.to_dict()
+
+    def forbidden(*args, **kwargs):
+        raise AssertionError("Unsupported initial pump state reached Newton/UV enumeration")
+
+    monkeypatch.setattr(TorchNewton, "solve", forbidden)
+    with pytest.raises(EquipmentOperatingError, match="booster.*single liquid inlet.*feed"):
+        model.advance(old, 1.0)
+    assert old.to_dict() == checkpoint
+    # An isolated machine must not prevent conserving a multiphase network.
+    PumpConnectionBundle(model, old, {"booster": False}, 0)

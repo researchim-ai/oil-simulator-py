@@ -95,7 +95,7 @@ class PRActiveAnnularFriction:
                 / (math.pi * pipe.diameter * mu)
             )
             if not bool(((alpha > 0) & (alpha <= 0.3) & (rg < rl) & (film_re <= 400)).all().cpu()):
-                raise ValueError(
+                raise PropertyModelError(
                     "Annular state outside alpha_l (0,.3], density or laminar film domain"
                 )
             effective, eta, beta, c, perimeter, gas_re = interfacial_conductance(
@@ -120,6 +120,11 @@ class PRActiveAnnularFriction:
                 ml + dt * wall + eta.square() * mg * share
             )
             ug = mg / (mg + dt * k) * velocity[gi] + share * eta * ul
+            film_re_after = ml / lengths * ul.abs() / (math.pi * pipe.diameter * mu)
+            if not bool((torch.isfinite(film_re_after) & (film_re_after <= 400)).all().cpu()):
+                raise PropertyModelError(
+                    "Annular trial leaves laminar film domain Gamma/mu<=400; reduce step or use a qualified regime model"
+                )
             tau = effective * (ug - eta * ul)
             ui = eta * ul + beta * tau
             if self.wetting is not None:
@@ -143,7 +148,9 @@ class PRActiveAnnularFriction:
                 wall * ul.square() + lengths * perimeter * beta * tau.square()
             )
             packed = (
-                torch.stack((alpha, eta, beta, c, effective, tau, ui, film_re, gas_re), -1)
+                torch.stack(
+                    (alpha, eta, beta, c, effective, tau, ui, film_re, gas_re, film_re_after), -1
+                )
                 .cpu()
                 .tolist()
             )
@@ -161,6 +168,7 @@ class PRActiveAnnularFriction:
                             "interface_velocity_m_s",
                             "film_reynolds",
                             "gas_driving_reynolds",
+                            "film_reynolds_after",
                         ),
                         (i, *row),
                     )

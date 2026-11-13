@@ -248,22 +248,53 @@ class TorchNewton:
         *,
         blocks=None,
         maximum_update=None,
+        stagnation_tolerance=None,
     ):
+        if stagnation_tolerance is not None and (
+            not math.isfinite(stagnation_tolerance) or stagnation_tolerance < tolerance
+        ):
+            raise ValueError("Stagnation tolerance must be finite and no smaller than target")
         x = torch.maximum(lower, torch.minimum(upper, x)).clone()
         evaluations = 0
+        best_acceptable = math.inf
+        best_acceptable_x = None
+        stagnant = 0
+        self.stop_reason = "iteration_budget"
         for _ in range(self.maximum_iterations):
             r = function(x)
             evaluations += 1
             # CPU checks require no device synchronization. CUDA keeps a fixed
             # iteration budget; accepted status is read once at the API boundary.
-            if self.device.type == "cpu" or self.host_convergence:
+            if (
+                self.device.type == "cpu"
+                or self.host_convergence
+                or stagnation_tolerance is not None
+            ):
                 if self.device.type == "cuda":
-                    converged = bool((r.abs().max() <= tolerance).detach().cpu())
+                    norm = float(r.abs().max().detach().cpu())
                     self.status_reads += 1
                 else:
-                    converged = bool(r.abs().max() <= tolerance)
-                if converged:
+                    norm = float(r.abs().max().detach())
+                if norm <= tolerance:
+                    self.stop_reason = "target_tolerance"
                     break
+                if stagnation_tolerance is not None and norm < stagnation_tolerance:
+                    previous_best = best_acceptable
+                    if norm < best_acceptable:
+                        best_acceptable = norm
+                        best_acceptable_x = x.clone()
+                    stagnant = 0 if norm < 0.99 * previous_best else stagnant + 1
+                    if stagnant >= 4:
+                        # Keep the best infinity-norm candidate, not the last
+                        # rounded iterate. This only shortens iterations already
+                        # inside the explicit caller's strict acceptance budget.
+                        x = best_acceptable_x
+                        self.stop_reason = "stagnated_within_tolerance"
+                        break
+                else:
+                    best_acceptable = math.inf
+                    best_acceptable_x = None
+                    stagnant = 0
             if x.numel() <= self.dense_limit:
                 J = torch.func.jacfwd(function)(x)
                 step, info = torch.linalg.solve_ex(J, -r, check_errors=False)
@@ -351,6 +382,7 @@ class TorchNewton:
                     if self.device.type == "cuda":
                         self.status_reads += 1
                     if bool((best_norm >= torch.dot(r, r)).detach().cpu()):
+                        self.stop_reason = "line_search_stalled"
                         break
             x = torch.where((r.abs().max() <= tolerance), x, best)
         residual = function(x)

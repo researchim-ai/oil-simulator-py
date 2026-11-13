@@ -10,7 +10,14 @@ from dataclasses import asdict, dataclass
 
 import torch
 
-from .equilibrium_cache import FlashCache, cached_equilibrium
+from .equilibrium_cache import (
+    FlashCache,
+    _copy,
+    _request_key,
+    _signature,
+    cached_equilibrium,
+    cached_stability_result,
+)
 from .equilibrium_stability_batch import stability_candidates
 from .liquid import HydraulicConvergenceError, PropertyModelError, _name, _number
 from .operation import _digest
@@ -64,6 +71,8 @@ class EquilibriumFluid:
     No compositional inference from oil/water/gas labels is performed.
     """
 
+    _compiled_chemical = True
+
     def __init__(
         self,
         components,
@@ -103,8 +112,17 @@ class EquilibriumFluid:
         self.b = self.tensor([c.b for c in self.components])
         self.a0 = self.tensor([c.attraction_coefficient for c in self.components])
         self.kij = self.tensor(self.binary_interactions)
+        self._root_angle_offsets = self.tensor([0, 2 * math.pi, 4 * math.pi])
+        self._acentric_factors = self.tensor([c.acentric_factor for c in self.components])
+        self._stability_line_scales = self.tensor([1.0, 0.5, 0.25, 0.125, 0.0625, 0.03125])
         self.tref = self.components[0].reference_temperature_k
         self.pref = self.components[0].reference_pressure_pa
+        self._chemical_compile_failure = None
+        self._chemical_compiled_batches = 0
+        self._chemical_compiled_points = 0
+        self._chemical_jacobian_compile_failure = None
+        self._chemical_jacobian_compiled_batches = 0
+        self._chemical_jacobian_compiled_points = 0
         self.model_id = _digest({"model": "caloric_pr_multiphase_v1", **self.to_dict()})
 
     def tensor(self, value):
@@ -163,7 +181,7 @@ class EquilibriumFluid:
             disc = r * r - q**3
             sqrtq = q.clamp_min(1e-300).sqrt()
             angle = torch.acos((r / sqrtq**3).clamp(-1, 1))
-            angles = (angle[..., None] + self.tensor([0, 2 * math.pi, 4 * math.pi])) / 3
+            angles = (angle[..., None] + self._root_angle_offsets) / 3
             three = -2 * sqrtq[..., None] * torch.cos(angles) - a[..., None] / 3
             d = disc.clamp_min(0).sqrt()
             cb = lambda v: v.sign() * v.abs().pow(1 / 3)
@@ -191,7 +209,9 @@ class EquilibriumFluid:
 
         return roots, fz
 
-    def tensor_homogeneous(self, p, t, x, phase="stable", *, derivative_order=1):
+    def tensor_homogeneous(
+        self, p, t, x, phase="stable", *, derivative_order=1, _chemical_only=False
+    ):
         """Local differentiable EOS; callers validate domain before solving."""
         if derivative_order not in (1, 2):
             raise ValueError("EOS derivative order must be one or two")
@@ -264,6 +284,11 @@ class EquilibriumFluid:
         selected_phi = torch.gather(
             ph, -2, index[..., None, None].expand(*index.shape, 1, len(self.components))
         ).squeeze(-2)
+        if _chemical_only:
+            # Root selection retains ALL mechanical and caloric validity
+            # checks above. A TPD trial does not need h, s or sound speed,
+            # nor their forward derivatives. Accepted minima get full EOS.
+            return {"log_fugacity_coefficients": selected_phi, "valid": valid.any(-1)}
         selected_z = select(z)
         selected_g = select(gibbs)
         degenerate = (
@@ -309,6 +334,43 @@ class EquilibriumFluid:
             ),
             "valid": valid.any(-1),
             "coexistence_degenerate": degenerate,
+        }
+
+    def tensor_chemical(self, p, t, x):
+        """Exact stable-root fugacities and full root admissibility for TPD."""
+        if self.device.type == "cuda":
+            from .chemical_kernel import eligible, evaluate
+
+            if p.ndim == 0 and t.ndim == 0 and x.ndim == 1 and eligible(self, p, t, x):
+                q = evaluate(self, p.reshape(1), t.reshape(1), x.reshape(1, -1))
+                return {key: value[0] for key, value in q.items()}
+        return self.tensor_homogeneous(p, t, x, _chemical_only=True)
+
+    def tensor_chemical_batch(self, p, t, x):
+        if self.device.type == "cuda":
+            from .chemical_kernel import eligible, evaluate
+
+            if eligible(self, p, t, x):
+                return evaluate(self, p, t, x)
+        return torch.vmap(
+            lambda pp, tt, xx: self.tensor_homogeneous(pp, tt, xx, _chemical_only=True)
+        )(p, t, x)
+
+    def tensor_chemical_jacobian(self, p, t, chemical, active, point):
+        from .chemical_kernel import jacobian
+
+        return jacobian(self, p, t, chemical, active, point)
+
+    def chemical_kernel_statistics(self):
+        return {
+            "components": list(self.names),
+            "enabled": self._compiled_chemical and self.device.type == "cuda",
+            "compiled_batches": self._chemical_compiled_batches,
+            "compiled_points": self._chemical_compiled_points,
+            "compilation_failure": self._chemical_compile_failure,
+            "jacobian_compiled_batches": self._chemical_jacobian_compiled_batches,
+            "jacobian_compiled_points": self._chemical_jacobian_compiled_points,
+            "jacobian_compilation_failure": self._chemical_jacobian_compile_failure,
         }
 
     def homogeneous(self, pressure_pa, temperature_k, mole_fractions, phase="stable"):
@@ -369,7 +431,7 @@ class EquilibriumFluid:
                 return confirmed
             cache = getattr(self, "_active_flash_cache", None)
             width = max(1, maximum_seed_rows // seeds)
-            omega = self.tensor([c.acentric_factor for c in self.components])
+            omega = self._acentric_factors
             eye = torch.eye(n, device=self.device, dtype=torch.float64)
             for begin in range(0, len(p), width):
                 end = min(len(p), begin + width)
@@ -423,8 +485,185 @@ class EquilibriumFluid:
                     cache.spatial_stability_confirmed += int(counts[1])
         return confirmed
 
+    def _stability_many(self, requests, *, maximum_seed_rows=4096):
+        """Same complete searches, with predictor kernels across spatial points.
+
+        Every unresolved start still runs the original independent minimizer.
+        Per-point failures are returned to the owner for its existing flash
+        fallback. The temporary predictor slot is matched by tensor identity,
+        is never a physical cache, and is restored even on exceptions.
+        """
+        if type(maximum_seed_rows) is not int or maximum_seed_rows < 1:
+            raise ValueError("Positive spatial stability seed budget required")
+        requests = list(requests)
+        if not requests:
+            return []
+        try:
+            model_signature = _signature(self)  # Sensitivities use the original path.
+            normalized = all(
+                all(
+                    isinstance(v, torch.Tensor)
+                    and v.dtype == torch.float64
+                    and v.device == self.molar_masses.device
+                    and not v.requires_grad
+                    and not torch._C._functorch.is_functorch_wrapped_tensor(v)
+                    for v in request[:4]
+                )
+                and request[4].dtype == torch.long
+                and request[4].device == self.molar_masses.device
+                and request[0].ndim == 0
+                and request[1].ndim == 0
+                and request[2].shape == (len(self.components),)
+                and request[3].shape == request[2].shape
+                and request[4].ndim == 1
+                and len(request[4]) <= len(self.components)
+                for request in requests
+            )
+        except (TypeError, RuntimeError):
+            normalized = False
+        groups, aliases, warm = {}, {}, {}
+        cache = getattr(self, "_active_stability_cache", None)
+        if normalized:
+            # Pack all values and support indices in one device-to-host read.
+            # The common key builder preserves the exact scalar cache identity.
+            width = len(self.components)
+            packed = (
+                torch.stack(
+                    [
+                        torch.cat(
+                            (
+                                r[0].reshape(1),
+                                r[1].reshape(1),
+                                r[2],
+                                r[3],
+                                torch.nn.functional.pad(
+                                    r[4].to(torch.float64), (0, width - len(r[4])), value=-1
+                                ),
+                            )
+                        )
+                        for r in requests
+                    ]
+                )
+                .cpu()
+                .tolist()
+            )
+            seen = {}
+            for i, (request, values) in enumerate(zip(requests, packed)):
+                z = values[2 : 2 + width]
+                active = tuple(int(v) for v in values[2 + 2 * width :][: len(request[4])])
+                key = _request_key(
+                    self,
+                    "_stability",
+                    {
+                        "p": values[0],
+                        "t": values[1],
+                        "z": z,
+                        "chemical": values[2 + width : 2 + 2 * width],
+                        "active": active,
+                        "_accelerated": True,
+                    },
+                    model_signature=model_signature,
+                )
+                if key in seen:
+                    aliases[i] = seen[key]
+                    continue
+                seen[key] = i
+                if isinstance(cache, FlashCache) and key in cache.entries:
+                    warm[i] = _copy(cache.entries[key][0])
+                    cache.entries.move_to_end(key)
+                    cache.hits += 1
+                    continue
+                expected = tuple(j for j, value in enumerate(z) if value > 0)
+                if active == expected and len(active) > 1:
+                    groups.setdefault(active, []).append(i)
+        predicted = {}
+        for support, indices in groups.items():
+            n, seeds = len(support), 3 + 2 * len(support)
+            if len(indices) < 2 or seeds > maximum_seed_rows:
+                continue
+            width = max(1, maximum_seed_rows // seeds)
+            active = requests[indices[0]][4]
+            eye = torch.eye(n, device=self.device, dtype=torch.float64)
+            omega = self._acentric_factors[active]
+            for begin in range(0, len(indices), width):
+                chosen = indices[begin : begin + width]
+                if len(chosen) < 2:
+                    continue
+                pp, tt, zz, mu = [torch.stack([requests[i][j] for i in chosen]) for j in range(4)]
+                base = zz[:, active].log()
+                lk = torch.log(self.pc[active] / pp[:, None]) + 5.373 * (1 + omega) * (
+                    1 - self.tc[active] / tt[:, None]
+                )
+                starts = torch.cat(
+                    (
+                        torch.stack((base, base + lk, base - lk), 1),
+                        (0.98 * eye[None] + 0.02 * zz[:, None, active]).log(),
+                        (0.5 * eye[None] + 0.5 * zz[:, None, active]).log(),
+                    ),
+                    1,
+                )
+                bounded = 80 * torch.tanh(starts / 80)
+                point = (bounded[:, :, :-1] - bounded[:, :, -1:]).reshape(-1, n - 1)
+                try:
+                    values, compositions, properties, accepted = stability_candidates(
+                        self,
+                        pp[:, None].expand(-1, seeds).reshape(-1),
+                        tt[:, None].expand(-1, seeds).reshape(-1),
+                        mu[:, None, active].expand(-1, seeds, -1).reshape(-1, n),
+                        active,
+                        point,
+                    )
+                except torch.linalg.LinAlgError:
+                    continue  # Scalar predictor and reference minimizer remain available.
+                masks = accepted.cpu().tolist()
+                for row, index in enumerate(chosen):
+                    predicted[index] = [
+                        (
+                            values[k].detach(),
+                            compositions[k].detach(),
+                            {name: value[k].detach() for name, value in properties.items()},
+                        )
+                        if masks[k]
+                        else None
+                        for k in range(row * seeds, (row + 1) * seeds)
+                    ]
+        output = []
+        missing = object()
+        previous = getattr(self, "_spatial_stability_predictor", missing)
+        try:
+            for index, request in enumerate(requests):
+                if index in aliases:
+                    output.append(_copy(output[aliases[index]]))
+                    continue
+                if index in warm:
+                    output.append(warm[index])
+                    continue
+                self._spatial_stability_predictor = (request, predicted.get(index))
+                try:
+                    output.append(_copy(self._stability(*request)))
+                except (HydraulicConvergenceError, PropertyModelError) as exc:
+                    output.append(exc)
+        finally:
+            if previous is missing:
+                if hasattr(self, "_spatial_stability_predictor"):
+                    del self._spatial_stability_predictor
+            else:
+                self._spatial_stability_predictor = previous
+        return output
+
     def _stability_predictors(self, p, t, z, chemical, active, starts):
         """All original starts, with independent batched tangents and fallback."""
+        pending = getattr(self, "_spatial_stability_predictor", None)
+        if (
+            pending is not None
+            and pending[1] is not None
+            and all(a is b for a, b in zip(pending[0], (p, t, z, chemical, active)))
+        ):
+            cache = getattr(self, "_active_flash_cache", None)
+            if isinstance(cache, FlashCache):
+                cache.stability_seeds += len(pending[1])
+                cache.stability_batched_seeds += sum(row is not None for row in pending[1])
+            return pending[1]
         bounded = 80 * torch.tanh(torch.stack(starts) / 80)
         point = (bounded[:, :-1] - bounded[:, -1:]).detach()
         value, w, q, accepted = stability_candidates(
@@ -447,6 +686,7 @@ class EquilibriumFluid:
             for i, yes in enumerate(mask)
         ]
 
+    @cached_stability_result
     def _stability(self, p, t, z, chemical, active, *, _accelerated=True):
         """Numerical multistart TPD minimization, never a global certificate."""
         za = z[active]
@@ -454,9 +694,7 @@ class EquilibriumFluid:
         if n == 1:
             q = self.tensor_homogeneous(p, t, z)
             return self.tensor(0.0), z, q
-        lk = torch.log(self.pc / p) + 5.373 * (
-            1 + self.tensor([c.acentric_factor for c in self.components])
-        ) * (1 - self.tc / t)
+        lk = torch.log(self.pc / p) + 5.373 * (1 + self._acentric_factors) * (1 - self.tc / t)
         base = torch.log(za)
         starts = [base, base + lk[active], base - lk[active]]
         starts.extend(
@@ -498,7 +736,7 @@ class EquilibriumFluid:
                 v = u if v is None else v
                 wa = torch.softmax(v, -1)
                 w = torch.zeros_like(z).index_copy(0, active, wa)
-                q = self.tensor_homogeneous(p, t, w)
+                q = self.tensor_chemical(p, t, w)
                 delta = (
                     torch.log_softmax(v, -1)
                     + q["log_fugacity_coefficients"][active]
@@ -551,6 +789,14 @@ class EquilibriumFluid:
                     break
             with torch.no_grad():
                 wa, w, q, delta = values(torch.cat((v, v.new_zeros(1))))
+                q = self.tensor_homogeneous(p, t, w)
+                # Compiled trials can differ by float64 rounding. Certify
+                # the final candidate against the full eager EOS again.
+                delta = (
+                    torch.log_softmax(torch.cat((v, v.new_zeros(1))), -1)
+                    + q["log_fugacity_coefficients"][active]
+                    - chemical[active]
+                )
                 tpd = (wa * delta).sum()
                 grad = wa * (delta - tpd)
                 resolved = (grad.abs().max() < 2e-7) & q["valid"] & torch.isfinite(tpd)
@@ -560,7 +806,10 @@ class EquilibriumFluid:
                         f"gradient={float(grad.abs().max().cpu())}, composition={w.cpu().tolist()}"
                     )
                 minima.append((tpd.detach(), w.detach(), {k: v.detach() for k, v in q.items()}))
-        return min(minima, key=lambda entry: float(entry[0].cpu()))
+        # Keep first-minimum tie semantics, with one device read instead of
+        # one host synchronization for every original TPD start.
+        index = int(torch.stack([entry[0] for entry in minima]).argmin().cpu())
+        return minima[index]
 
     def _allocation(self, p, t, z, active, allocation):
         """Conservative Gibbs minimization then equal-fugacity Newton polish."""
@@ -635,7 +884,12 @@ class EquilibriumFluid:
                 raise HydraulicConvergenceError("Phase-equilibrium Newton line search failed")
         a, beta, x, q, mu = decode(torch.cat((v, v.new_zeros((1, v.shape[-1]))), dim=0))
         error = (mu[:-1] - mu[-1]).abs().max()
-        if not bool(((error < 1e-8) & q["valid"].all() & (beta > 1e-12).all()).detach().cpu()):
+        # A separated stream can be arbitrarily close to its bubble/dew
+        # boundary. A positive trace phase still has a resolved composition
+        # and must not be rejected (or discarded) by a bulk-fraction cutoff.
+        # Equal fugacities, root validity and the caller's stability, material
+        # and Gibbs audits remain mandatory, irrespective of phase amount.
+        if not bool(((error < 1e-8) & q["valid"].all() & (beta > 0).all()).detach().cpu()):
             raise HydraulicConvergenceError("Unresolved/vanishing phase split")
         return (
             a.detach(),

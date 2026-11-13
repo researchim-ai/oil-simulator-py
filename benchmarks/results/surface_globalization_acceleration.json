@@ -1,0 +1,411 @@
+{
+  "format": "surface_globalization_acceleration_v1",
+  "whole_operating_cycle_qualified": false,
+  "experimental_equipment_calibration": false,
+  "scope": "Whole connected saturated facility startup to 1 microsecond and complete short two-node pump cycle; startup timings are not full-cycle throughput",
+  "single_run_timings": true,
+  "changes": [
+    "Early full-step acceptance only for finite squared L2 residual <= 0.25 of previous squared L2 residual; otherwise unchanged best-of-six and small-step fallback",
+    "Full multistart TPD checks batched across unresolved gravity-column collocation points; pure-fluid flash path retained",
+    "Chemical-only EOS omits unused caloric outputs during TPD trial evaluation, preserving root admissibility; full EOS properties recomputed for candidate minima"
+  ],
+  "startup": {
+    "cpu": {
+      "elapsed_s": 94.77,
+      "simulated_s": 1e-06,
+      "audit": {
+        "accepted": true,
+        "checked_substeps": 2,
+        "maximum_local_energy_residual_j": 6.035289999012372e-08,
+        "checked_control_substeps": 2
+      },
+      "baseline_state_comparison": {
+        "accepted": true,
+        "numeric_coordinates": 306,
+        "maximum_scaled_difference": 0.0,
+        "absolute_difference_at_worst_scaled_coordinate": 0.0,
+        "worst_scaled_coordinate": "state.positions.water_valve",
+        "rtol": 1e-08,
+        "atol": 1e-09,
+        "model_id_excluded": true
+      },
+      "report_bundle_key": "chemical_cpu",
+      "before_elapsed_s": 109.57,
+      "observed_speedup": 1.1561675635749709,
+      "observed_runtime_reduction_fraction": 0.13507346901524142,
+      "baseline_artifact": "surface_solver_acceleration.json"
+    },
+    "cuda": {
+      "elapsed_s": 200.29,
+      "simulated_s": 1e-06,
+      "audit": {
+        "accepted": true,
+        "checked_substeps": 2,
+        "maximum_local_energy_residual_j": 6.035574594970283e-08,
+        "checked_control_substeps": 2
+      },
+      "baseline_state_comparison": {
+        "accepted": true,
+        "numeric_coordinates": 306,
+        "maximum_scaled_difference": 3.7356978488601244e-12,
+        "absolute_difference_at_worst_scaled_coordinate": 3.7424033507704735e-06,
+        "worst_scaled_coordinate": "state.plant.transport.nodes.water_takeoff_0.pressure_pa",
+        "rtol": 1e-08,
+        "atol": 1e-09,
+        "model_id_excluded": true
+      },
+      "report_bundle_key": "chemical_cuda",
+      "before_elapsed_s": 226.47,
+      "observed_speedup": 1.1307104698187629,
+      "observed_runtime_reduction_fraction": 0.11560030026052015,
+      "baseline_artifact": "surface_solver_acceleration.json"
+    }
+  },
+  "intermediate_search_and_column_batch": {
+    "cpu": {
+      "elapsed_s": 96.65,
+      "simulated_s": 1e-06,
+      "audit": {
+        "accepted": true,
+        "checked_substeps": 2,
+        "maximum_local_energy_residual_j": 6.035289999012372e-08,
+        "checked_control_substeps": 2
+      },
+      "baseline_state_comparison": {
+        "accepted": true,
+        "numeric_coordinates": 306,
+        "maximum_scaled_difference": 0.0,
+        "absolute_difference_at_worst_scaled_coordinate": 0.0,
+        "worst_scaled_coordinate": "state.positions.water_valve",
+        "rtol": 1e-08,
+        "atol": 1e-09,
+        "model_id_excluded": true
+      },
+      "report_bundle_key": "search_batch_cpu"
+    },
+    "cuda": {
+      "elapsed_s": 211.61,
+      "simulated_s": 1e-06,
+      "audit": {
+        "accepted": true,
+        "checked_substeps": 2,
+        "maximum_local_energy_residual_j": 6.035574594970283e-08,
+        "checked_control_substeps": 2
+      },
+      "baseline_state_comparison": {
+        "accepted": true,
+        "numeric_coordinates": 306,
+        "maximum_scaled_difference": 3.7356978488601244e-12,
+        "absolute_difference_at_worst_scaled_coordinate": 3.7424033507704735e-06,
+        "worst_scaled_coordinate": "state.plant.transport.nodes.water_takeoff_0.pressure_pa",
+        "rtol": 1e-08,
+        "atol": 1e-09,
+        "model_id_excluded": true
+      },
+      "report_bundle_key": "search_batch_cuda"
+    }
+  },
+  "startup_device_parity": {
+    "accepted": true,
+    "numeric_coordinates": 306,
+    "maximum_scaled_difference": 3.5953201152792915e-12,
+    "absolute_difference_at_worst_scaled_coordinate": 3.6017736420035362e-06,
+    "worst_scaled_coordinate": "state.plant.transport.nodes.water_takeoff_0.pressure_pa",
+    "rtol": 1e-08,
+    "atol": 1e-09,
+    "model_id_excluded": true
+  },
+  "short_pump_cycle": {
+    "cpu": {
+      "audit": {
+        "accepted": true,
+        "checked_substeps": 12,
+        "maximum_local_component_residual_mol": 2.488503686155861e-14,
+        "maximum_local_energy_residual_j": 3.5206029758150237e-10
+      },
+      "report_bundle_key": "pump_cycle_cpu"
+    },
+    "cuda": {
+      "audit": {
+        "accepted": true,
+        "checked_substeps": 12,
+        "maximum_local_component_residual_mol": 2.4891306599434185e-14,
+        "maximum_local_energy_residual_j": 3.517581087519872e-10
+      },
+      "report_bundle_key": "pump_cycle_cuda"
+    }
+  },
+  "short_pump_cycle_device_parity": {
+    "accepted": true,
+    "numeric_coordinates": 87,
+    "maximum_scaled_difference": 2.0245337798345462e-13,
+    "absolute_difference_at_worst_scaled_coordinate": 2.0244624465703964e-07,
+    "worst_scaled_coordinate": "state[2].nodes.feed.pressure_pa",
+    "rtol": 1e-08,
+    "atol": 1e-09,
+    "model_id_excluded": true
+  },
+  "checks": {
+    "cpu_regression": "..............................s......................................... [ 44%]\n........................................................................ [ 88%]\n..................                                                       [100%]\n161 passed, 1 skipped in 177.77s (0:02:57)",
+    "cpu_cuda_selected": "....................................................                     [100%]\n52 passed in 8.03s",
+    "test_source_sha256": {
+      "tests/test_surface_chemical_eos.py": "5c7cda38f23a70934fc78dfba32bada43a29d7c3f70a9d117e1507f332600518",
+      "tests/test_surface_column_stability_batch.py": "72e9e1edab263609e2316a7fdce3fc9a46c5732b77e36651854ff646c99c8a5d",
+      "tests/test_surface_newton_full_step.py": "d01a0edc1dc98e3fb26f65b93c3a6aa536282fac72e86d254fbf0ecc9a6f9571"
+    }
+  },
+  "baseline_profiling": {
+    "elapsed_with_profiler_s": 155.54500882999966,
+    "timing_is_instrumented_not_a_benchmark": true,
+    "total_calls": 288011914,
+    "calls": [
+      {
+        "file": "equilibrium_properties.py",
+        "line": 204,
+        "function": "tensor_homogeneous",
+        "primitive_calls": 78764,
+        "calls": 78764,
+        "exclusive_s": 29.350859095,
+        "inclusive_s": 97.605088694
+      },
+      {
+        "file": "wrappers.py",
+        "line": 287,
+        "function": "_fn",
+        "primitive_calls": 752592,
+        "calls": 752592,
+        "exclusive_s": 0.7552177760000001,
+        "inclusive_s": 59.066392623000006
+      },
+      {
+        "file": "_compile.py",
+        "line": 41,
+        "function": "inner",
+        "primitive_calls": 786883,
+        "calls": 786883,
+        "exclusive_s": 0.37496434500000003,
+        "inclusive_s": 58.927750504
+      },
+      {
+        "file": "eval_frame.py",
+        "line": 829,
+        "function": "_fn",
+        "primitive_calls": 786883,
+        "calls": 786883,
+        "exclusive_s": 1.3352482330000002,
+        "inclusive_s": 58.459489506000004
+      },
+      {
+        "file": "equilibrium_cache.py",
+        "line": 137,
+        "function": "wrapped",
+        "primitive_calls": 326,
+        "calls": 336,
+        "exclusive_s": 0.017121935,
+        "inclusive_s": 55.40036992
+      },
+      {
+        "file": "equilibrium_cache.py",
+        "line": 191,
+        "function": "wrapped",
+        "primitive_calls": 324,
+        "calls": 324,
+        "exclusive_s": 0.001547434,
+        "inclusive_s": 55.394594602000005
+      },
+      {
+        "file": "equilibrium_properties.py",
+        "line": 637,
+        "function": "_stability",
+        "primitive_calls": 306,
+        "calls": 306,
+        "exclusive_s": 0.06795758,
+        "inclusive_s": 55.331631438
+      },
+      {
+        "file": "wrappers.py",
+        "line": 126,
+        "function": "_fn",
+        "primitive_calls": 752592,
+        "calls": 752592,
+        "exclusive_s": 2.760921894,
+        "inclusive_s": 55.189558085
+      },
+      {
+        "file": "stratified_pr.py",
+        "line": 404,
+        "function": "_check_local",
+        "primitive_calls": 194,
+        "calls": 194,
+        "exclusive_s": 0.002322236,
+        "inclusive_s": 37.731158705000006
+      },
+      {
+        "file": "stratified_pr.py",
+        "line": 389,
+        "function": "_check_locals",
+        "primitive_calls": 13,
+        "calls": 13,
+        "exclusive_s": 0.00204986,
+        "inclusive_s": 37.693389903
+      },
+      {
+        "file": "pr_gravity_transport.py",
+        "line": 1437,
+        "function": "accept",
+        "primitive_calls": 6,
+        "calls": 6,
+        "exclusive_s": 0.0028524070000000004,
+        "inclusive_s": 34.13911384
+      },
+      {
+        "file": "equilibrium_properties.py",
+        "line": 602,
+        "function": "_stability_predictors",
+        "primitive_calls": 306,
+        "calls": 306,
+        "exclusive_s": 0.027889997000000003,
+        "inclusive_s": 33.628494077
+      },
+      {
+        "file": "stratified_pr.py",
+        "line": 213,
+        "function": "_decode_nodes",
+        "primitive_calls": 17923,
+        "calls": 17923,
+        "exclusive_s": 0.158966631,
+        "inclusive_s": 27.485693877000003
+      },
+      {
+        "file": "equilibrium_stability_batch.py",
+        "line": 41,
+        "function": "stationarity",
+        "primitive_calls": 2420,
+        "calls": 2420,
+        "exclusive_s": 0.034684437000000005,
+        "inclusive_s": 27.20134629
+      },
+      {
+        "file": "stratified_pr.py",
+        "line": 218,
+        "function": "<lambda>",
+        "primitive_calls": 17923,
+        "calls": 17923,
+        "exclusive_s": 0.107859755,
+        "inclusive_s": 24.974989261
+      },
+      {
+        "file": "equilibrium_properties.py",
+        "line": 163,
+        "function": "_roots",
+        "primitive_calls": 78764,
+        "calls": 78764,
+        "exclusive_s": 10.786979468,
+        "inclusive_s": 23.269909418
+      },
+      {
+        "file": "_ops.py",
+        "line": 755,
+        "function": "__call__",
+        "primitive_calls": 852764,
+        "calls": 852764,
+        "exclusive_s": 0.219834926,
+        "inclusive_s": 22.423685837
+      },
+      {
+        "file": "__init__.py",
+        "line": 1104,
+        "function": "add",
+        "primitive_calls": 423202,
+        "calls": 423202,
+        "exclusive_s": 0.596413005,
+        "inclusive_s": 21.834588381
+      },
+      {
+        "file": "fake_impl.py",
+        "line": 77,
+        "function": "meta_kernel",
+        "primitive_calls": 852764,
+        "calls": 852764,
+        "exclusive_s": 0.9386178040000001,
+        "inclusive_s": 20.813975114
+      },
+      {
+        "file": "optimizer.py",
+        "line": 465,
+        "function": "wrapper",
+        "primitive_calls": 479,
+        "calls": 479,
+        "exclusive_s": 0.004424496,
+        "inclusive_s": 19.356424391
+      },
+      {
+        "file": "_contextlib.py",
+        "line": 113,
+        "function": "decorate_context",
+        "primitive_calls": 479,
+        "calls": 34291,
+        "exclusive_s": 0.12282971300000001,
+        "inclusive_s": 19.334297592000002
+      },
+      {
+        "file": "lbfgs.py",
+        "line": 301,
+        "function": "step",
+        "primitive_calls": 479,
+        "calls": 479,
+        "exclusive_s": 0.925626044,
+        "inclusive_s": 19.330261236000002
+      },
+      {
+        "file": "utils.py",
+        "line": 31,
+        "function": "__call__",
+        "primitive_calls": 852764,
+        "calls": 852764,
+        "exclusive_s": 0.242960752,
+        "inclusive_s": 18.104508862
+      },
+      {
+        "file": "library.py",
+        "line": 1380,
+        "function": "inner",
+        "primitive_calls": 852764,
+        "calls": 852764,
+        "exclusive_s": 0.24318640000000002,
+        "inclusive_s": 17.86154811
+      },
+      {
+        "file": "stratified_pr.py",
+        "line": 448,
+        "function": "_accept",
+        "primitive_calls": 6,
+        "calls": 6,
+        "exclusive_s": 0.0006251210000000001,
+        "inclusive_s": 17.772883887000003
+      }
+    ],
+    "source_bundle_key": "profile_baseline_report"
+  },
+  "full_cycle_attempt": {
+    "device": "cpu",
+    "requested_schedule_s": [
+      0.2,
+      0.2,
+      0.6
+    ],
+    "wall_time_budget_s": 300,
+    "accepted": false,
+    "elapsed_s": 300.02279971999997,
+    "sources_unchanged": true,
+    "accepted_steps": 3,
+    "last_accepted_time_s": 4.749999999999999e-06,
+    "report_bundle_key": "full_cycle_cpu",
+    "failure": "TimeoutExpired: Command '['/home/user/miniconda3/bin/python', '/home/user/workspace/oil-simulator-py-impes/scripts/run_pr_controlled_surface.py', 'configs/surface_pr_integrated_facility_liquid_mixture.json', '--device', 'cpu', '--output', '/tmp/surface_globalization_full_cpu.trajectory.json', '--progress']' timed out after 299.9999945689997 seconds",
+    "not_comparable_to_earlier_600s_gate": true
+  },
+  "report_bundle": {
+    "path": "surface_globalization_acceleration_reports.json.gz",
+    "sha256": "b0ea3931437d4d0aa61b4c8cfba1a551bec698dc1f6e98c00689cc66e050a867"
+  }
+}

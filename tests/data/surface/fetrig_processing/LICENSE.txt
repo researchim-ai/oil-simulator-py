@@ -1,0 +1,4 @@
+FETRig dataset, Wirth et al., doi:10.18419/DARUS-4998.
+Original observations and processing descriptions, CC BY 4.0.
+https://creativecommons.org/licenses/by/4.0/
+Files extracted unchanged and gzip-compressed; original names and hashes in manifest.json.

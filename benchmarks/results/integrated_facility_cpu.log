@@ -1,0 +1,8 @@
+{"event": "initialized", "time_s": 0.0}
+{"event": "attempt", "time_s": 0.0, "dt_s": 0.0001, "attempt": 1, "end_time_s": 0.2}
+{"event": "rejected", "time_s": 0.0, "dt_s": 0.0001, "attempt": 1, "reason": "Combined plant/control temporal error exceeded"}
+{"event": "attempt", "time_s": 0.0, "dt_s": 5e-05, "attempt": 2, "end_time_s": 0.2}
+{"event": "rejected", "time_s": 0.0, "dt_s": 5e-05, "attempt": 2, "reason": "Combined plant/control temporal error exceeded"}
+{"event": "attempt", "time_s": 0.0, "dt_s": 2.5e-05, "attempt": 3, "end_time_s": 0.2}
+{"event": "rejected", "time_s": 0.0, "dt_s": 2.5e-05, "attempt": 3, "reason": "Combined plant/control temporal error exceeded"}
+{"event": "attempt", "time_s": 0.0, "dt_s": 1.25e-05, "attempt": 4, "end_time_s": 0.2}

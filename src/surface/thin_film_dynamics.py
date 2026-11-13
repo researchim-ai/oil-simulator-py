@@ -14,6 +14,7 @@ import torch
 from .film_wetting import LongWaveWettingPotential
 from .liquid import ConservationError, HydraulicConvergenceError, PropertyModelError, _number
 from .operation import _digest
+from .planar_film import mobilities
 
 
 @dataclass(frozen=True)
@@ -214,11 +215,9 @@ class ThinFilmDynamics:
         if not bool((courant <= 0.25).cpu()):
             raise HydraulicConvergenceError("Explicit film driving Courant bound exceeded")
         scale = old.mean()
-        mobility = old**3 / (3 * self.mu) + self.slip * old.square() / self.mu
-        shear_mobility = old.square() / (2 * self.mu) + self.slip * old / self.mu
+        mobility, shear_mobility, interface_mobility = mobilities(old, self.mu, self.slip)
         mf = [(mobility + torch.roll(mobility, -1, k)) / 2 for k in range(ndim)]
         sf = [(shear_mobility + torch.roll(shear_mobility, -1, k)) / 2 for k in range(ndim)]
-        interface_mobility = (old + self.slip) / self.mu
         cf = [(interface_mobility + torch.roll(interface_mobility, -1, k)) / 2 for k in range(ndim)]
         forcing = [
             mf[k] * self.rho * gravity[k]

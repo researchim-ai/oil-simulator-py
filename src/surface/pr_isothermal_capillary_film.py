@@ -211,17 +211,23 @@ class PRIsothermalCapillaryFilm:
             "potential_energy_j": mechanical["potential_energy_j"],
             "thermostat_energy_j": bath,
             "total_energy_j": bulk + variance + mechanical["potential_energy_j"] + bath,
+            "external_work_j": state.mechanics.external_work_j,
             "estimated_density_response": bound,
             "physical_entropy_production_j_k": state.mechanics.physical_heat_j / self.temperature,
             "numerical_entropy_j_k": state.mechanics.numerical_heat_j / self.temperature,
         }
 
-    def step(self, state, dt_s):
+    def step(self, state, dt_s, *, tangential_gravity_m_s2=0.0, interface_shear_pa=0.0):
         before = self.inspect(state)
-        m, r = self.mechanics.step(state.mechanics, dt_s)
+        m, r = self.mechanics.step(
+            state.mechanics,
+            dt_s,
+            tangential_gravity_m_s2=tangential_gravity_m_s2,
+            interface_shear_pa=interface_shear_pa,
+        )
         end = PRIsothermalCapillaryState(m, self._material(m), self.model_id)
         after = self.inspect(end)
-        dE = after["total_energy_j"] - before["total_energy_j"]
+        dE = after["total_energy_j"] - before["total_energy_j"] - r["external_work_j"]
         roundoff = 64 * math.fsum(
             math.ulp(p.total_energy_j) for st in (state, end) for p in st.phases
         )
@@ -230,7 +236,13 @@ class PRIsothermalCapillaryFilm:
         for a, b in zip(before["component_moles"], after["component_moles"], strict=True):
             if abs(a - b) > 1e-22 + 1e-11 * max(abs(a), abs(b)):
                 raise ConservationError("PR capillary component balance failed")
-        dM = after["momentum_kg_m_s"] - before["momentum_kg_m_s"] - r["wall_impulse_kg_m_s"]
+        dM = (
+            after["momentum_kg_m_s"]
+            - before["momentum_kg_m_s"]
+            - r["wall_impulse_kg_m_s"]
+            - r["gravity_impulse_kg_m_s"]
+            - r["interface_impulse_kg_m_s"]
+        )
         if abs(dM) > 1e-22 + 1e-10 * (
             abs(before["momentum_kg_m_s"]) + abs(after["momentum_kg_m_s"])
         ):
@@ -254,12 +266,20 @@ class PRIsothermalCapillaryFilm:
 
         e0, e1 = local_energy(state), local_energy(end)
         heat = f.tensor(r["cell_physical_heat_j"]) + f.tensor(r["cell_numerical_heat_j"])
-        local_residual = e1 - e0 + r["dt_s"] * (energy_flux - torch.roll(energy_flux, 1, 0)) + heat
+        external_work = f.tensor(r["cell_external_work_j"])
+        local_residual = (
+            e1
+            - e0
+            + r["dt_s"] * (energy_flux - torch.roll(energy_flux, 1, 0))
+            + heat
+            - external_work
+        )
         local_budget = (
             e0.abs()
             + e1.abs()
             + r["dt_s"] * (energy_flux.abs() + torch.roll(energy_flux, 1, 0).abs())
             + heat
+            + external_work.abs()
         )
         if not bool(
             (local_residual.abs() <= 1e-23 + 256 * torch.finfo(torch.float64).eps * local_budget)
@@ -277,12 +297,21 @@ class PRIsothermalCapillaryFilm:
             "pressure_work_convention": "uniform_exterior_pressure_enthalpy_and_surface_work_cancelled",
             "thermostat_physical_heat_j": r["physical_heat_j"],
             "thermostat_numerical_heat_j": r["numerical_heat_j"],
+            "external_work_j": r["external_work_j"],
             "joint_energy_residual_j": dE,
             "momentum_residual_kg_m_s": dM,
         }
 
     def advance(
-        self, state, duration_s, *, initial_step_s, minimum_step_s=1e-12, maximum_attempts=10000
+        self,
+        state,
+        duration_s,
+        *,
+        initial_step_s,
+        minimum_step_s=1e-12,
+        maximum_attempts=10000,
+        tangential_gravity_m_s2=0.0,
+        interface_shear_pa=0.0,
     ):
         self.inspect(state)
         duration = _number(duration_s, "PR film duration", positive=True)
@@ -301,7 +330,12 @@ class PRIsothermalCapillaryFilm:
                 raise PropertyModelError("PR film interval attempt limit")
             trial = min(dt, target - state.time_s)
             try:
-                new, r = self.step(state, trial)
+                new, r = self.step(
+                    state,
+                    trial,
+                    tangential_gravity_m_s2=tangential_gravity_m_s2,
+                    interface_shear_pa=interface_shear_pa,
+                )
             except (ConservationError, PropertyModelError, HydraulicConvergenceError):
                 dt = trial / 2
                 rejected += 1

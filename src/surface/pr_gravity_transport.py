@@ -24,6 +24,7 @@ from .pr_equilibrium_transport import (
 from .pr_heat_link import PRHeatLink, thermal_exchange, thermal_records
 from .pr_material_predictor import carrier_inventory_guess
 from .pr_momentum_vessels import hllc_port
+from .pr_phase_batch import PhaseEOSGroups
 from .stratified_pr import StratifiedPRColumn, StratifiedPRState
 from .stratified_pr_flow import StratifiedPRFlow
 from .time_interval import interval_step_s, split_step_s
@@ -279,6 +280,7 @@ class PRGravityTransportNetwork:
         restriction_openings=None,
         _material=None,
         _column_work_j=None,
+        _batch_aperture_rays=True,
     ):
         column_work = dict(_column_work_j or {})
         if set(column_work) - set(self.columns) or any(
@@ -353,6 +355,7 @@ class PRGravityTransportNetwork:
                     warm_state=None if previous is None else previous[0],
                     material=_material,
                     column_work_j=column_work,
+                    _batch_aperture_rays=_batch_aperture_rays,
                 )
                 try:
                     result, report = self.transport._step(
@@ -470,6 +473,7 @@ class PRGravityTransportNetwork:
         drive_torque_nm=None,
         restriction_openings=None,
         _material_factory=None,
+        _controlled_step=False,
     ):
         self.inspect(state)
         end = state.time_s + _number(duration_s, "duration", positive=True)
@@ -498,6 +502,44 @@ class PRGravityTransportNetwork:
             raise ValueError("Unknown resistance cell")
         for v in losses.values():
             _number(v, "loss coefficient", nonnegative=True)
+        if _controlled_step:
+            # The enclosing controller compares the complete coarse/fine
+            # plant state, including N/E, velocities, interfaces and rotors.
+            # A second adaptive coarse/fine loop here repeats that same
+            # physical error estimate three times per controller attempt.
+            # Keep aperture quadrature and all physical/domain audits; let
+            # failures and temporal error reach the enclosing adaptive loop.
+            new, record = self._step(
+                state,
+                duration_s,
+                commands,
+                heat,
+                utility,
+                losses,
+                _material=None
+                if _material_factory is None
+                else _material_factory(state, duration_s, commands),
+                drive_torque_nm=drive_torque_nm,
+                restriction_openings=restriction_openings,
+            )
+            new = replace(new, transport=replace(new.transport, time_s=end))
+            record = {**record, "state": new.to_dict()}
+            material = {
+                key: record[key]
+                for key in ("material_component_moles", "material_energy_j")
+                if key in record
+            }
+            return {
+                "state": new.to_dict(),
+                "steps": [record],
+                "attempts": 1,
+                "total_heat_j": record["total_heat_j"],
+                "total_work_j": record["total_work_j"],
+                "conservation_residuals": record["conservation_residuals"],
+                "openings": commands,
+                "loss_coefficients": losses,
+                **material,
+            }
         current = state
         dt = min(state.transport.next_step_s, duration_s)
         steps = []
@@ -620,8 +662,10 @@ class _ColumnCoupling:
         warm_state=None,
         material=None,
         column_work_j=None,
+        _batch_aperture_rays=True,
     ):
         self.column_work_j = dict(column_work_j or {})
+        self.batch_aperture_rays = _batch_aperture_rays
         self.material = material
         self.model = model
         self.state = state
@@ -1006,6 +1050,18 @@ class _ColumnCoupling:
                 upper.append(
                     f.tensor([math.log(f.max_pressure_pa)] + [100.0] * (count - 1)).repeat(order)
                 )
+        self.port_eos_plans = {}
+        for name, column in m.columns.items():
+            blocks = [
+                (index, a, b, root)
+                for index, (port, _phase, root, a, b) in enumerate(self.portblocks)
+                if port.column == name
+            ]
+            if blocks and column._batch_column_eos:
+                plan = PhaseEOSGroups(
+                    column.fluid, [root for _index, _a, _b, root in blocks for _ in range(order)]
+                )
+                self.port_eos_plans[name] = (plan, blocks)
         if offset > t.maximum_unknowns:
             raise ValueError("Coupled graph unknown budget exceeded")
         # Row blocks have the same offsets as unknown blocks. A column/pipe
@@ -1123,7 +1179,24 @@ class _ColumnCoupling:
                 details = {}
                 valid = z.new_ones((), dtype=torch.bool)
                 pieces = []
-                for port, phase, root, a, b in self.portblocks:
+                decoded_ports = {}
+                for name, (plan, blocks) in self.port_eos_plans.items():
+                    column = m.columns[name]
+                    active = self.problems[name][4]
+                    local = torch.cat(
+                        [z[a:b].reshape(order, len(active)) for _index, a, b, _root in blocks]
+                    )
+                    pp, xx, qq = column._decode_grouped_nodes(
+                        local, active, bodies[name]["temperature"], plan
+                    )
+                    for j, (index, _a, _b, _root) in enumerate(blocks):
+                        region = slice(j * order, (j + 1) * order)
+                        decoded_ports[index] = (
+                            pp[region],
+                            xx[region],
+                            {key: value[region] for key, value in qq.items()},
+                        )
+                for port_index, (port, phase, root, a, b) in enumerate(self.portblocks):
                     name = port.column
                     c = m.columns[name]
                     d = bodies[name]
@@ -1135,9 +1208,12 @@ class _ColumnCoupling:
                     heights, weights = StratifiedPRFlow._aperture(
                         helper, bounds, phase, port, order
                     )
-                    pp, xx, q = c._decode_nodes(
-                        z[a:b].reshape(order, len(active)), active, d["temperature"], root
-                    )
+                    if port_index in decoded_ports:
+                        pp, xx, q = decoded_ports[port_index]
+                    else:
+                        pp, xx, q = c._decode_nodes(
+                            z[a:b].reshape(order, len(active)), active, d["temperature"], root
+                        )
                     mu = (
                         xx[:, active].clamp_min(1e-300).log()
                         + q["log_fugacity_coefficients"][:, active]
@@ -1164,24 +1240,34 @@ class _ColumnCoupling:
                     endpoint, _, normal, extra = t._endpoint(i, data[i], "target", link)
                     fluxsum = z.new_zeros(len(f.names) + 2)
                     entropy = z.new_zeros(())
-                    for j in range(order):
-                        phi = c.gravity_m_s2 * (
-                            c.elevation_m + heights[j] - t.reference_elevation_m
-                        )
-                        rho = q["density_kg_m3"][j]
-                        vm = q["molar_volume_m3_mol"][j]
-                        energy = q["molar_internal_energy_j_mol"][j] / vm + rho * phi
-                        uc = torch.cat((xx[j] / vm, z.new_zeros(1), energy.reshape(1)))
+
+                    def ray(
+                        height,
+                        point_pressure,
+                        composition,
+                        properties,
+                        c=c,
+                        port=port,
+                        endpoint=endpoint,
+                        extra=extra,
+                        i=i,
+                        normal=normal,
+                    ):
+                        phi = c.gravity_m_s2 * (c.elevation_m + height - t.reference_elevation_m)
+                        rho = properties["density_kg_m3"]
+                        vm = properties["molar_volume_m3_mol"]
+                        energy = properties["molar_internal_energy_j_mol"] / vm + rho * phi
+                        uc = torch.cat((composition / vm, z.new_zeros(1), energy.reshape(1)))
                         fc = torch.cat(
-                            (z.new_zeros(len(f.names)), pp[j].reshape(1), z.new_zeros(1))
+                            (z.new_zeros(len(f.names)), point_pressure.reshape(1), z.new_zeros(1))
                         )
                         colend = (
                             uc,
                             fc,
-                            pp[j],
+                            point_pressure,
                             z.new_zeros(()),
                             rho,
-                            q["molar_entropy_j_mol_k"][j] / vm,
+                            properties["molar_entropy_j_mol_k"] / vm,
                         )
                         # The pipe is cross-section averaged; retain the same
                         # datum at both ends of each aperture quadrature ray.
@@ -1241,7 +1327,6 @@ class _ColumnCoupling:
                                     torch.zeros_like(extra["bulk_entropy"]),
                                 ).sum()
                             )
-                            valid = valid & ((weights[j] <= 0) | ok)
                         else:
                             pressure = (
                                 data[i]["p"]
@@ -1253,8 +1338,25 @@ class _ColumnCoupling:
                                 (z.new_zeros(len(f.names)), pressure.reshape(1), z.new_zeros(1))
                             )
                             sflux = z.new_zeros(())
-                        fluxsum = fluxsum + weights[j] * flux
-                        entropy = entropy + weights[j] * sflux
+                            ok = z.new_ones((), dtype=torch.bool)
+                        return flux, sflux, ok
+
+                    if self.batch_aperture_rays:
+                        ray_flux, ray_entropy, ray_valid = torch.vmap(ray)(heights, pp, xx, q)
+                    else:
+                        rays = [
+                            ray(heights[j], pp[j], xx[j], {k: v[j] for k, v in q.items()})
+                            for j in range(order)
+                        ]
+                        ray_flux = torch.stack([r[0] for r in rays])
+                        ray_entropy = torch.stack([r[1] for r in rays])
+                        ray_valid = torch.stack([r[2] for r in rays])
+                    valid = valid & ((weights <= 0) | ray_valid).all()
+                    # Keep the reference accumulation order; batching changes
+                    # ray execution, not quadrature weights or summation.
+                    for j in range(order):
+                        fluxsum = fluxsum + weights[j] * ray_flux[j]
+                        entropy = entropy + weights[j] * ray_entropy[j]
                     area = math.pi * port.diameter_m**2 / 4
                     physical = area * fluxsum
                     # Ray-resolved PE belongs to the column. The 1-D pipe
@@ -1438,22 +1540,24 @@ class _ColumnCoupling:
                     raise PropertyModelError("Column heat violates passive utility direction")
                 entropy -= dt * q / utility
             heat += dt * (float(result["column_ambient"][name].cpu()) + q)
+        aperture_checks = {name: ([], [], []) for name in m.columns}
         for port, root, heights, weights, pp, xx, q in ex["pieces"]:
             c = m.columns[port.column]
-            for j in range(self.order):
-                if float(weights[j].cpu()) <= 0:
-                    continue
-                phase = {k: v[j] for k, v in q.items()}
-                c._check_local(
-                    float(pp[j].cpu()), columns[port.column]["temperature_k"], xx[j], phase
+            active = weights > 0
+            head = q["density_kg_m3"] * c.gravity_m_s2 * port.diameter_m / pp
+            if bool((active & (head > m.maximum_transverse_head_fraction)).any().cpu()):
+                raise PropertyModelError(
+                    "Aperture requires resolved transverse pipe inlet hydrodynamics"
                 )
-                head = float(
-                    (phase["density_kg_m3"] * c.gravity_m_s2 * port.diameter_m / pp[j]).cpu()
-                )
-                if head > m.maximum_transverse_head_fraction:
-                    raise PropertyModelError(
-                        "Aperture requires resolved transverse pipe inlet hydrodynamics"
-                    )
+            if bool(active.any().cpu()):
+                pressures, compositions, properties = aperture_checks[port.column]
+                pressures.append(pp[active])
+                compositions.append(xx[active])
+                properties.append({k: v[active] for k, v in q.items()})
+        for name, (pressures, compositions, properties) in aperture_checks.items():
+            m.columns[name]._check_locals(
+                pressures, columns[name]["temperature_k"], compositions, properties
+            )
         material = (
             {}
             if self.material is None

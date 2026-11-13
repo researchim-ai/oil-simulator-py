@@ -1,0 +1,20 @@
+{
+  "accepted": true,
+  "qualification": "Checkpoint device parity; independent physical audits are separate",
+  "absolute_tolerance": 1e-09,
+  "relative_tolerance": 1e-08,
+  "cases": {
+    "controlled_motor": {
+      "accepted": true,
+      "checked_state_scalars": 54,
+      "maximum_tolerance_fraction": 8.882348480881212e-06,
+      "worst_path": "intervals/1/state/plant/transport/nodes/return/pressure_pa"
+    },
+    "native_column_parallel": {
+      "accepted": true,
+      "checked_state_scalars": 176,
+      "maximum_tolerance_fraction": 6.382645367793883e-07,
+      "worst_path": "intervals/1/state/columns/separator/solution_variables/4"
+    }
+  }
+}

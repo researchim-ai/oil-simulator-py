@@ -1,0 +1,114 @@
+{
+  "format": "surface_facility_batch_validation_v1",
+  "functional_audits_accepted": 6,
+  "whole_operating_cycle_qualified": false,
+  "qualification": "Small CPU/CUDA network cases plus common residual/Jacobian comparison; not full operating-cycle qualification",
+  "parity": {
+    "accepted": true,
+    "qualification": "Checkpoint device parity; independent physical audits are separate",
+    "absolute_tolerance": 1e-09,
+    "relative_tolerance": 1e-08,
+    "cases": {
+      "controlled_motor": {
+        "accepted": true,
+        "checked_state_scalars": 54,
+        "maximum_tolerance_fraction": 8.882348480881212e-06,
+        "worst_path": "intervals/1/state/plant/transport/nodes/return/pressure_pa"
+      },
+      "native_column_parallel": {
+        "accepted": true,
+        "checked_state_scalars": 176,
+        "maximum_tolerance_fraction": 6.382645367793883e-07,
+        "worst_path": "intervals/1/state/columns/separator/solution_variables/4"
+      },
+      "controlled_profile_graph": {
+        "accepted": true,
+        "checked_state_scalars": 118,
+        "maximum_tolerance_fraction": 2.7967284304253602e-08,
+        "worst_path": "intervals/0/state/plant/transport/nodes/body/total_energy_j"
+      }
+    }
+  },
+  "audits": {
+    "cpu": {
+      "controlled_motor": {
+        "audit": {
+          "accepted": true,
+          "checked_substeps": 10,
+          "maximum_local_energy_residual_j": 9.364062997230249e-11,
+          "checked_control_substeps": 10
+        },
+        "elapsed_s": 5.512477755997679,
+        "report": "controlled_motor.json"
+      },
+      "native_column_parallel": {
+        "audit": {
+          "accepted": true,
+          "checked_substeps": 4,
+          "maximum_local_energy_residual_j": 3.510439365248085e-13
+        },
+        "elapsed_s": 21.726495145994704,
+        "report": "native_column_parallel.json"
+      },
+      "controlled_profile_graph": {
+        "audit": {
+          "accepted": true,
+          "checked_substeps": 8,
+          "profile_branches": 1,
+          "ordinary": {
+            "accepted": true,
+            "checked_substeps": 8,
+            "maximum_local_component_residual_mol": 1.4210854715202004e-14,
+            "maximum_local_energy_residual_j": 0.0
+          },
+          "checked_control_substeps": 4
+        },
+        "elapsed_s": 7.512879189998785,
+        "report": "controlled_profile_graph.json"
+      }
+    },
+    "cuda": {
+      "controlled_motor": {
+        "audit": {
+          "accepted": true,
+          "checked_substeps": 10,
+          "maximum_local_energy_residual_j": 9.361238173521969e-11,
+          "checked_control_substeps": 10
+        },
+        "elapsed_s": 17.874481795995962,
+        "report": "controlled_motor.json"
+      },
+      "native_column_parallel": {
+        "audit": {
+          "accepted": true,
+          "checked_substeps": 4,
+          "maximum_local_energy_residual_j": 3.5104324811532425e-13
+        },
+        "elapsed_s": 73.45133131799957,
+        "report": "native_column_parallel.json"
+      },
+      "controlled_profile_graph": {
+        "audit": {
+          "accepted": true,
+          "checked_substeps": 8,
+          "profile_branches": 1,
+          "ordinary": {
+            "accepted": true,
+            "checked_substeps": 8,
+            "maximum_local_component_residual_mol": 1.4210854715202004e-14,
+            "maximum_local_energy_residual_j": 0.0
+          },
+          "checked_control_substeps": 4
+        },
+        "elapsed_s": 41.961579696995614,
+        "report": "controlled_profile_graph.json"
+      }
+    }
+  },
+  "kernel_benchmarks": [
+    "surface_facility_batch_cpu.json",
+    "surface_facility_batch_cuda.json"
+  ],
+  "report": "surface_facility_batch_network_reports.json.gz",
+  "report_sha256": "845933e4ed2f55067547fec611416fa774f34487e599d2a512a188f2e26ed674"
+}

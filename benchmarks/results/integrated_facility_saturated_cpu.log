@@ -1,0 +1,32 @@
+{"event": "initialized", "time_s": 0.0}
+{"event": "attempt", "time_s": 0.0, "dt_s": 0.0001, "attempt": 1, "end_time_s": 0.0001}
+Traceback (most recent call last):
+  File "/home/user/workspace/oil-simulator-py-impes/scripts/run_pr_controlled_surface.py", line 137, in <module>
+    main()
+  File "/home/user/workspace/oil-simulator-py-impes/scripts/run_pr_controlled_surface.py", line 108, in main
+    result = run(
+             ^^^^
+  File "/home/user/workspace/oil-simulator-py-impes/scripts/run_pr_controlled_surface.py", line 81, in run
+    report = model.advance(state, progress=progress, **command)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/user/workspace/oil-simulator-py-impes/src/surface/pr_surface_control.py", line 1130, in advance
+    coarse, _ = self._step(current, dt, manual, modes, plant_commands)
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/user/workspace/oil-simulator-py-impes/src/surface/pr_surface_control.py", line 889, in _step
+    plant_report = self.plant.advance(
+                   ^^^^^^^^^^^^^^^^^^^
+  File "/home/user/workspace/oil-simulator-py-impes/src/surface/pr_gravity_transport.py", line 509, in advance
+    new, record = self._step(
+                  ^^^^^^^^^^^
+  File "/home/user/workspace/oil-simulator-py-impes/src/surface/pr_gravity_transport.py", line 358, in _step
+    result, report = self.transport._step(
+                     ^^^^^^^^^^^^^^^^^^^^^
+  File "/home/user/workspace/oil-simulator-py-impes/src/surface/pr_equilibrium_transport.py", line 2431, in _step
+    y, lo, hi, evaluate, _offsets, problems, olddata = self._problem(
+                                                       ^^^^^^^^^^^^^^
+  File "/home/user/workspace/oil-simulator-py-impes/src/surface/pr_equilibrium_transport.py", line 1931, in _problem
+    pump_connection_bundle = PumpConnectionBundle(self, state, openings, sum(map(len, initial)))
+                             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/user/workspace/oil-simulator-py-impes/src/surface/pr_pump_connection.py", line 100, in __init__
+    raise EquipmentOperatingError(
+surface.liquid.EquipmentOperatingError: Pump 'oil_pump' requires a single liquid inlet; node 'oil_suction' has 2 equilibrium phases. Multiphase pumping requires a different equipment closure, not timestep subdivision.
