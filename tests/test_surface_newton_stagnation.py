@@ -94,4 +94,93 @@ def test_roundoff_scale_only_applies_to_its_certified_row(device, certified_row)
     else:
         assert outputs[1][0].stop_reason != "stagnated_within_roundoff"
         assert outputs[1][1][3] == outputs[0][1][3]
+    assert bool(outputs[1][1][2]) is certified_row
     assert float(outputs[1][1][1].abs().max()) == pytest.approx(floor)
+
+
+@pytest.mark.parametrize("device", DEVICES)
+@pytest.mark.parametrize("acceptance", [None, 1e-11])
+def test_small_but_out_of_budget_stalled_residual_is_not_success(device, acceptance):
+    start = torch.tensor([0.0], dtype=torch.float64, device=device)
+    solver = TorchNewton(device, maximum_iterations=4)
+    solver.host_convergence = True
+    # At the bound there is no feasible root. The defect is smaller than the
+    # old generic 1e-8 cutoff, but larger than either explicit caller budget.
+    _, residual, ok, _ = solver.solve(
+        lambda x: x + 2e-10,
+        start,
+        start.clone(),
+        start.new_ones(1),
+        tolerance=3e-12,
+        stagnation_tolerance=acceptance,
+    )
+    assert float(residual.abs().max()) == pytest.approx(2e-10)
+    assert not bool(ok)
+
+
+@pytest.mark.parametrize("device", DEVICES)
+def test_iteration_budget_does_not_override_requested_convergence(device):
+    start = torch.tensor([0.0], dtype=torch.float64, device=device)
+    solver = TorchNewton(device, maximum_iterations=1)
+    solver.host_convergence = True
+    _, residual, ok, _ = solver.solve(
+        lambda x: x - 1e-9,
+        start,
+        start.new_full((1,), -1.0),
+        start.new_ones(1),
+        maximum_update=start.new_full((1,), 1e-12),
+        tolerance=3e-12,
+    )
+    assert solver.stop_reason == "iteration_budget"
+    assert float(residual.abs().max()) > 3e-12
+    assert not bool(ok)
+
+
+@pytest.mark.parametrize("tolerance", [0.0, -1.0, float("nan"), float("inf")])
+def test_invalid_target_tolerance_is_rejected_before_residual_evaluation(tolerance):
+    start = torch.zeros(1, dtype=torch.float64)
+
+    def forbidden(_):
+        raise AssertionError("Invalid numerical policy must fail before solving")
+
+    with pytest.raises(ValueError, match="finite and positive"):
+        TorchNewton("cpu").solve(forbidden, start, start - 1, start + 1, tolerance=tolerance)
+
+
+def test_shorter_plateau_confirmation_keeps_the_same_best_qualified_iterate():
+    start = torch.tensor([0.0, 0.9e-11], dtype=torch.float64)
+    results = []
+    for patience in (4, 2):
+        solver = TorchNewton("cpu", maximum_iterations=40)
+        solver._stagnation_patience = patience
+        result = solver.solve(
+            lambda x: torch.stack(((x[0] + 1e10) - 1e10 + 1e-11, x[1])),
+            start,
+            start - 1e6,
+            start + 1e6,
+            maximum_update=start.new_tensor([float("inf"), 1e-14]),
+            tolerance=3e-12,
+            stagnation_tolerance=1.1e-11,
+        )
+        assert bool(result[2])
+        assert solver.stop_reason == "stagnated_within_tolerance"
+        results.append(result)
+    assert torch.equal(results[0][0], results[1][0])
+    assert torch.equal(results[0][1], results[1][1])
+    assert results[1][3] < results[0][3]
+
+
+def test_productive_progress_inside_stagnation_budget_reaches_target():
+    solver = TorchNewton("cpu", maximum_iterations=20)
+    start = torch.tensor([9e-12], dtype=torch.float64)
+    _, residual, ok, _ = solver.solve(
+        lambda x: x,
+        start,
+        start.new_full((1,), -1.0),
+        start.new_ones(1),
+        maximum_update=start.new_full((1,), 1e-12),
+        tolerance=3e-12,
+        stagnation_tolerance=1e-11,
+    )
+    assert bool(ok) and float(residual.abs().max()) <= 3e-12
+    assert solver.stop_reason == "target_tolerance"

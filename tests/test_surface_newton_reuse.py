@@ -67,6 +67,25 @@ def test_singular_dense_tangent_retains_regularized_device_fallback(device):
     assert solver.jacobian_builds > 0
 
 
+def test_healthy_dense_cpu_jacobian_does_not_factor_unused_normal_matrix(monkeypatch):
+    original = torch.linalg.lu_factor_ex
+    factorizations = []
+
+    def tracked(matrix, *args, **kwargs):
+        factorizations.append(matrix.detach().clone())
+        return original(matrix, *args, **kwargs)
+
+    monkeypatch.setattr(torch.linalg, "lu_factor_ex", tracked)
+    start = torch.zeros(2, dtype=torch.float64)
+    matrix = start.new_tensor([[2.0, 0.3], [-0.1, 3.0]])
+    target = start.new_tensor([1.0, 2.0])
+    solver, (x, residual, ok, _) = run("cpu", lambda x: matrix @ (x - target), start)
+    assert bool(ok) and float(residual.abs().max()) <= 3e-12
+    torch.testing.assert_close(x, target, rtol=0, atol=3e-12)
+    assert len(factorizations) == solver.jacobian_builds == 1
+    torch.testing.assert_close(factorizations[0], matrix)
+
+
 @pytest.mark.parametrize("device", DEVICES)
 def test_new_solve_never_reuses_previous_numeric_factors(device):
     start = torch.ones(1, device=device, dtype=torch.float64)

@@ -11,7 +11,9 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 
-def run(config, *, device="cpu"):
+def run(config, *, device="cpu", integrator="backward_euler"):
+    if integrator not in ("backward_euler", "gauss4"):
+        raise ValueError("Unknown PR integrator")
     from surface.pr_equilibrium_transport import (
         PREquilibriumTransportNetwork,
         PREquilibriumTransportState,
@@ -35,6 +37,11 @@ def run(config, *, device="cpu"):
         state = initialize_grouped(model, config["initial"]["groups"])
     else:
         raise ValueError("Initial input requires exactly nodes, groups or state")
+    solver = model
+    if integrator == "gauss4":
+        from surface import PRCollocation
+
+        solver = PRCollocation(model)
     first = state
     intervals = []
     for command in config["schedule"]:
@@ -52,12 +59,15 @@ def run(config, *, device="cpu"):
             or "duration_s" not in command
         ):
             raise ValueError("Unknown/missing equilibrium transport command")
-        report = model.advance(state, **command)
+        if integrator == "gauss4" and set(command) & {"drive_torque_nm", "restriction_openings"}:
+            raise ValueError("Machine commands require the original PR integrator")
+        report = solver.advance(state, **command)
         state = PREquilibriumTransportState.from_dict(report["state"])
         intervals.append(report)
     heat = sum(r["total_heat_j"] for r in intervals)
     work = sum(r["total_work_j"] for r in intervals)
     return {
+        "integrator": integrator,
         "config": config,
         "model": model.to_dict(),
         "initial": first.to_dict(),
@@ -74,11 +84,16 @@ def main():
     parser.add_argument("config", type=Path)
     parser.add_argument("--device", choices=["cpu", "cuda"], default="cpu")
     parser.add_argument("--output", type=Path, required=True)
+    parser.add_argument(
+        "--integrator", choices=["backward_euler", "gauss4"], default="backward_euler"
+    )
     args = parser.parse_args()
     root = Path(__file__).resolve().parents[1]
     paths = [Path(__file__), *sorted((root / "src/surface").glob("*.py"))]
     hashes = {str(p.relative_to(root)): hashlib.sha256(p.read_bytes()).hexdigest() for p in paths}
-    result = run(json.loads(args.config.read_text()), device=args.device)
+    result = run(
+        json.loads(args.config.read_text()), device=args.device, integrator=args.integrator
+    )
     if any(
         hashlib.sha256(p.read_bytes()).hexdigest() != hashes[str(p.relative_to(root))]
         for p in paths

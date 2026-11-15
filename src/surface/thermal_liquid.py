@@ -13,6 +13,7 @@ from .liquid_protection import LiquidTripMemory
 from .liquid_recycle import RecyclingLiquidState, RecyclingLiquidStation
 from .operation import _digest
 from .pid import PIDController, PIDState
+from .thermal_control import allocate_thermal_duties, sample_temperature_trip
 
 
 @dataclass(frozen=True)
@@ -470,14 +471,7 @@ class ThermalLiquidStation:
                     value = self._measure(rule, heat)
                     memory = memories[rule.name]
                     if memory.tripped_at_s is None:
-                        since = now if memory.armed_since_s is None else memory.armed_since_s
-                        bad = (
-                            (now if memory.violating_since_s is None else memory.violating_since_s)
-                            if rule.violating(value)
-                            else None
-                        )
-                        trigger = bad is not None and now - bad + tol >= rule.delay_s
-                        memory = LiquidTripMemory(since, bad, now if trigger else None)
+                        memory, trigger = sample_temperature_trip(rule, memory, value, now, tol)
                         if trigger:
                             events.append(
                                 {
@@ -511,13 +505,7 @@ class ThermalLiquidStation:
                         "requested_duty_w": update["output"],
                         "mode": modes[unit.name],
                     }
-                held = requested.copy()
-                for cap, sign in ((self.max_heating_w, 1), (self.max_cooling_w, -1)):
-                    total = math.fsum(max(0.0, sign * v) for v in held.values())
-                    if cap is not None and total > cap:
-                        for n, v in held.items():
-                            if sign * v > 0:
-                                held[n] = v * cap / total
+                held = allocate_thermal_duties(requested, self.max_heating_w, self.max_cooling_w)
                 for n, v in held.items():
                     sample["controllers"][n]["applied_duty_w"] = v
                 samples.append(sample)

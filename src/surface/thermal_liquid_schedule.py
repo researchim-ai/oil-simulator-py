@@ -93,6 +93,7 @@ def run_thermal_liquid_schedule(system, initial, periods, checkpoint=None, stop_
                     "liquid_recycle.py",
                     "liquid_heat.py",
                     "thermal_liquid.py",
+                    "thermal_control.py",
                     "thermal_liquid_schedule.py",
                     "vessel_wall.py",
                     "liquid_recycle_schedule.py",
@@ -110,6 +111,13 @@ def run_thermal_liquid_schedule(system, initial, periods, checkpoint=None, stop_
             },
         }
     )
+    return _run_replay_schedule(
+        system, initial, periods, checkpoint, stop_after, fingerprint, ThermalLiquidState
+    )
+
+
+def _run_replay_schedule(system, initial, periods, checkpoint, stop_after, fingerprint, state_type):
+    """Resume by replaying completed periods once; checksums alone are not evidence."""
     saved = {
         "fingerprint": fingerprint,
         "next_period": 0,
@@ -140,7 +148,7 @@ def run_thermal_liquid_schedule(system, initial, periods, checkpoint=None, stop_
             }
             if _digest(record) != _digest(replay):
                 raise ConservationError("Thermal liquid checkpoint physics replay mismatch")
-            current = ThermalLiquidState.from_dict(replay["state"])
+            current = state_type.from_dict(replay["state"])
         if current.to_dict() != candidate["state"]:
             raise ConservationError("Thermal liquid checkpoint final memory mismatch")
         saved = candidate
@@ -155,5 +163,5 @@ def run_thermal_liquid_schedule(system, initial, periods, checkpoint=None, stop_
         saved["records"].append(record)
         saved["next_period"] = index + 1
         saved["state"] = copy.deepcopy(record["state"])
-        current = ThermalLiquidState.from_dict(record["state"])
+        current = state_type.from_dict(record["state"])
     return {**saved, "checksum": _digest(saved)}

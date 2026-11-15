@@ -1,0 +1,14 @@
+{
+  "date": "2026-11-15",
+  "tests_passed": 191,
+  "tests_command": "CUDA_VISIBLE_DEVICES='' OMP_NUM_THREADS=1 MKL_NUM_THREADS=1 PYTHONPATH=src:scripts:tests /home/user/miniconda3/bin/python -m pytest -q tests/test_surface_liquid_collocation.py tests/test_surface_liquid_newton_policy.py tests/test_surface_liquid_transient.py tests/test_surface_liquid_interval.py tests/test_surface_controlled_liquid.py tests/test_surface_liquid_protection.py tests/test_surface_liquid_recycle.py tests/test_surface_thermal_liquid.py tests/test_surface_liquid_heat.py",
+  "ruff_passed": true,
+  "format_check_passed": true,
+  "production_hashes_match_summary": true,
+  "repeated_physical_trajectories_bitwise_identical": true,
+  "gauss_order4_analytic_test_passed": true,
+  "independent_stage_mass_energy_audit_passed": true,
+  "pairs": 3,
+  "gpu_benchmark_run": false,
+  "full_pr_system_integrated": false
+}

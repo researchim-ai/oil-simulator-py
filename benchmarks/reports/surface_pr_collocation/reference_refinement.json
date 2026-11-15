@@ -1,0 +1,14 @@
+{
+  "rtol": [
+    1e-13,
+    3e-14
+  ],
+  "atol": [
+    1e-12,
+    1e-13
+  ],
+  "grid_points": 51,
+  "duration_s": 0.5,
+  "maximum_temperature_difference_k": 4.126832209294662e-11,
+  "passed": true
+}

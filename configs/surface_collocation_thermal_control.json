@@ -1,0 +1,296 @@
+{
+  "system": {
+    "heat": {
+      "physics": {
+        "network": {
+          "model": "incompressible_liquid",
+          "fluid": {
+            "density_kg_m3": 1000,
+            "viscosity_pa_s": 0.1,
+            "vapor_pressure_pa": 2000
+          },
+          "nodes": [
+            {
+              "name": "in",
+              "elevation_m": 0.0,
+              "pressure_pa": 400000,
+              "source_mass_rate_kg_s": 0.0
+            },
+            {
+              "name": "h",
+              "elevation_m": 0.0,
+              "pressure_pa": null,
+              "source_mass_rate_kg_s": 0.0
+            },
+            {
+              "name": "t",
+              "elevation_m": 0.0,
+              "pressure_pa": null,
+              "source_mass_rate_kg_s": 0.0
+            },
+            {
+              "name": "out",
+              "elevation_m": 0.0,
+              "pressure_pa": 480000,
+              "source_mass_rate_kg_s": 0.0
+            }
+          ],
+          "pipes": [
+            {
+              "name": "line",
+              "start": "h",
+              "end": "t",
+              "length_m": 10,
+              "diameter_m": 0.05,
+              "roughness_m": 0.0,
+              "minor_loss_coefficient": 0.0,
+              "open": true,
+              "check_valve": false
+            }
+          ],
+          "pumps": [
+            {
+              "name": "a",
+              "start": "in",
+              "end": "h",
+              "shutoff_head_m": 20,
+              "curve_coefficient_s2_m5": 1000000.0,
+              "max_flow_m3_s": 0.004,
+              "efficiency": 0.8,
+              "speed_ratio": 1.0,
+              "max_shaft_power_w": null,
+              "npsh_required_m": null,
+              "inlet_diameter_m": null,
+              "open": true,
+              "check_valve": true,
+              "head_curve": null,
+              "efficiency_curve": null,
+              "npsh_curve": null
+            },
+            {
+              "name": "b",
+              "start": "in",
+              "end": "h",
+              "shutoff_head_m": 22,
+              "curve_coefficient_s2_m5": 1200000.0,
+              "max_flow_m3_s": 0.004,
+              "efficiency": 0.75,
+              "speed_ratio": 1.0,
+              "max_shaft_power_w": null,
+              "npsh_required_m": null,
+              "inlet_diameter_m": null,
+              "open": true,
+              "check_valve": true,
+              "head_curve": null,
+              "efficiency_curve": null,
+              "npsh_curve": null
+            }
+          ],
+          "valves": [
+            {
+              "name": "export",
+              "start": "t",
+              "end": "out",
+              "diameter_m": 0.02,
+              "discharge_coefficient": 0.7,
+              "opening": 1.0,
+              "open": true,
+              "check_valve": false
+            }
+          ]
+        },
+        "relief_valves": {},
+        "actuated_valves": {},
+        "drives": {
+          "a": {
+            "inertia_kg_m2": 0.5,
+            "max_speed_rad_s": 150,
+            "max_motor_torque_nm": 20,
+            "max_braking_torque_nm": 10,
+            "viscous_drag_nm_s": 0.01,
+            "motor_efficiency": 0.9,
+            "regeneration_efficiency": 0.7,
+            "max_electrical_draw_w": null,
+            "max_electrical_export_w": null
+          },
+          "b": {
+            "inertia_kg_m2": 0.7,
+            "max_speed_rad_s": 150,
+            "max_motor_torque_nm": 20,
+            "max_braking_torque_nm": 10,
+            "viscous_drag_nm_s": 0.015,
+            "motor_efficiency": 0.9,
+            "regeneration_efficiency": 0.7,
+            "max_electrical_draw_w": null,
+            "max_electrical_export_w": null
+          }
+        },
+        "backend": "torch",
+        "device": "cpu",
+        "storage_volumes_m3": {
+          "h": 0.1,
+          "t": 0.1
+        },
+        "bulk_modulus_pa": 10000000.0,
+        "reference_pressure_pa": 500000.0,
+        "nominal_speeds_rad_s": {
+          "a": 100,
+          "b": 110
+        },
+        "no_flow_power_w_at_nominal": {
+          "a": 5.0,
+          "b": 8.0
+        },
+        "max_station_electrical_draw_w": null,
+        "max_station_electrical_export_w": null,
+        "maximum_dt_s": 0.02,
+        "minimum_dt_s": 1e-08,
+        "acoustic_courant": 0.5,
+        "max_pressure_pa": 100000000.0,
+        "max_compression_fraction": 0.01,
+        "max_speed_change_rad_s": 2.0,
+        "max_pressure_change_pa": 200000.0,
+        "temporal_error_control": true,
+        "relative_tolerance": 1e-08,
+        "pressure_tolerance_pa": 0.1,
+        "flow_tolerance_m3_s": 1e-11,
+        "speed_tolerance_rad_s": 1e-06
+      },
+      "walls": {
+        "line::2": {
+          "heat_capacity_j_k": 1000.0,
+          "fluid_ua_w_k": 400.0,
+          "ambient_ua_w_k": 50.0,
+          "ambient_temperature_k": 295.0,
+          "reference_temperature_k": 298.15,
+          "min_temperature_k": 1.0,
+          "max_temperature_k": 2000.0,
+          "max_temperature_change_k": 5.0
+        }
+      },
+      "backend": "torch",
+      "device": "cpu",
+      "specific_heat_j_kg_k": 2000.0,
+      "boundary_temperatures_k": {
+        "out": 290.0
+      },
+      "boundary_reservoirs_kg": {
+        "in": 1000.0
+      },
+      "pipe_cells": {
+        "line": 4
+      },
+      "reference_temperature_k": 300.0,
+      "min_temperature_k": 250.0,
+      "max_temperature_k": 450.0,
+      "pump_heat_to_fluid_fraction": 1.0,
+      "shaft_heat_to_fluid_fraction": 0.25,
+      "motor_heat_to_fluid_fraction": 0.5,
+      "maximum_dt_s": 1.0,
+      "minimum_dt_s": 1e-10,
+      "positivity_courant": 0.8,
+      "maximum_temperature_change_k": 1.0,
+      "temporal_error_control": true,
+      "temperature_tolerance_k": 1e-06,
+      "relative_tolerance": 1e-08,
+      "store_step_temperatures": true
+    },
+    "thermostats": [
+      {
+        "name": "heater",
+        "location": "line::0",
+        "setpoint_k": 330.0,
+        "controller": {
+          "proportional_gain": 50.0,
+          "integral_gain": 100.0,
+          "derivative_gain": 0.0,
+          "min_output": -1000.0,
+          "max_output": 1000.0,
+          "derivative_filter_s": 0.1,
+          "tracking_time_s": 0.5,
+          "bias": 0.0,
+          "direction": 1
+        }
+      }
+    ],
+    "temperature_trips": [
+      {
+        "name": "hot",
+        "location": "h",
+        "threshold_k": 300.02,
+        "direction": "above",
+        "metric": "fluid_temperature_k",
+        "delay_s": 0.05,
+        "reset_margin_k": 0.01,
+        "stop_pumps": [],
+        "trip_station": true
+      }
+    ],
+    "control_interval_s": 0.05,
+    "max_heating_w": 100.0,
+    "max_cooling_w": 100.0,
+    "solver_options": {}
+  },
+  "initial": {
+    "physical": {
+      "pressures_pa": {
+        "h": 550000.0,
+        "t": 500000.0
+      },
+      "pipe_volume_rates_m3_s": {
+        "line": 0.002
+      },
+      "speeds_rad_s": {
+        "a": 100.0,
+        "b": 110.0
+      }
+    },
+    "temperatures_k": {
+      "in": 330.0
+    },
+    "wall_temperatures_k": {
+      "line::2": 305.0
+    }
+  },
+  "periods": [
+    {
+      "duration_s": 0.07,
+      "motor_torques_nm": {
+        "a": 5.0,
+        "b": 7.0
+      },
+      "temperature_control_modes": {
+        "heater": "manual"
+      },
+      "temperature_manual_duties_w": {
+        "heater": 1000.0
+      }
+    },
+    {
+      "duration_s": 0.08,
+      "motor_torques_nm": {
+        "a": 5.0,
+        "b": 7.0
+      },
+      "temperature_control_modes": {
+        "heater": "manual"
+      },
+      "temperature_manual_duties_w": {
+        "heater": 1000.0
+      }
+    },
+    {
+      "duration_s": 0.15,
+      "motor_torques_nm": {
+        "a": 5.0,
+        "b": 7.0
+      },
+      "temperature_control_modes": {
+        "heater": "manual"
+      },
+      "temperature_manual_duties_w": {
+        "heater": 1000.0
+      }
+    }
+  ]
+}

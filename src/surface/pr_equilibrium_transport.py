@@ -1280,8 +1280,9 @@ class PREquilibriumTransportNetwork:
             )
             return uc, flux
 
-        a = torch.func.jacfwd(lambda y: quantities(y)[0])(y0)
-        b = torch.func.jacfwd(lambda y: quantities(y)[1])(y0)
+        # Both tangents use the same EOS and phase constraints. Differentiate
+        # the pair in one pass, retaining the complete constrained flux model.
+        a, b = torch.func.jacfwd(quantities)(y0)
         count = c + 2 + int(particle_active)
         rhs = y0.new_zeros((len(y0), count))
         rhs[:count] = torch.eye(count, dtype=y0.dtype, device=y0.device)

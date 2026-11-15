@@ -1,0 +1,23 @@
+{
+  "scope": "Synthetic constant-state proposal-carry comparison; the old proposal is reconstructed, not an end-to-end old-solver timing benchmark",
+  "results": [
+    {
+      "first_duration_s": 0.020000000001,
+      "last_tail_s": 9.999986949615902e-13,
+      "old_carry_proposal_s": 1e-08,
+      "preserved_proposal_s": 0.02,
+      "following_steps_with_old_carry": 21,
+      "following_steps_with_preserved_carry": 1,
+      "following_physical_states_bitwise_identical": true
+    },
+    {
+      "first_duration_s": 1e-12,
+      "last_tail_s": 1e-12,
+      "old_carry_proposal_s": 1e-08,
+      "preserved_proposal_s": 0.02,
+      "following_steps_with_old_carry": 21,
+      "following_steps_with_preserved_carry": 1,
+      "following_physical_states_bitwise_identical": true
+    }
+  ]
+}

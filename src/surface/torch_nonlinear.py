@@ -18,6 +18,8 @@ class TorchNewton(_LinearNewton):
     _early_full_step = True
     _reuse_jacobian = True
     _jacobian_max_age = 3
+    _reuse_identical_trials = True
+    _stagnation_patience = 2
 
     def solve(
         self,
@@ -33,6 +35,8 @@ class TorchNewton(_LinearNewton):
         stagnation_tolerance=None,
         roundoff_tolerance=None,
     ):
+        if not math.isfinite(tolerance) or tolerance <= 0:
+            raise ValueError("Newton tolerance must be finite and positive")
         if stagnation_tolerance is not None and (
             not math.isfinite(stagnation_tolerance) or stagnation_tolerance < tolerance
         ):
@@ -49,6 +53,7 @@ class TorchNewton(_LinearNewton):
         self.jacobian_builds = 0
         self.jacobian_reuses = 0
         self.jacobian_retry_refreshes = 0
+        self.identical_trial_skips = 0
         # A reused solver object may now describe another phase pattern or
         # block partition. Compile topology anew for each solve as well.
         self.coloring = None
@@ -108,7 +113,7 @@ class TorchNewton(_LinearNewton):
                         best_acceptable = norm
                         best_acceptable_x = x.clone()
                     stagnant = 0 if norm < 0.99 * previous_best else stagnant + 1
-                    if stagnant >= 4:
+                    if stagnant >= self._stagnation_patience:
                         # Keep the best infinity-norm candidate, not the last
                         # rounded iterate. This only shortens iterations already
                         # inside the explicit caller's strict acceptance budget.
@@ -146,13 +151,26 @@ class TorchNewton(_LinearNewton):
                 if not reused:
                     J = torch.func.jacfwd(function)(x)
                     factors, pivots, info = torch.linalg.lu_factor_ex(J, check_errors=False)
-                    # Factor the explicit device regularization once per J,
-                    # retaining the original singular-J fallback.
-                    normal = J.T @ J + torch.eye(x.numel(), dtype=x.dtype, device=x.device) * 1e-12
-                    lm_factors, lm_pivots, _ = torch.linalg.lu_factor_ex(normal, check_errors=False)
+                    lm_factors = None
                 step = torch.linalg.lu_solve(factors, pivots, -r[:, None]).squeeze(-1)
-                lm = torch.linalg.lu_solve(lm_factors, lm_pivots, (-J.T @ r)[:, None]).squeeze(-1)
-                step = torch.where((info == 0) & torch.isfinite(step).all(), step, lm)
+                direct_valid = (info == 0) & torch.isfinite(step).all()
+                # CPU can inspect LU status without device synchronization:
+                # do not form/factor J^T J or solve its RHS on a healthy J.
+                # CUDA retains the device-selected fallback, without a new
+                # host read. A needed regularized factor lasts only this J.
+                if self.device.type != "cpu" or not bool(direct_valid):
+                    if lm_factors is None:
+                        normal = (
+                            J.T @ J
+                            + torch.eye(x.numel(), dtype=x.dtype, device=x.device) * 1e-12
+                        )
+                        lm_factors, lm_pivots, _ = torch.linalg.lu_factor_ex(
+                            normal, check_errors=False
+                        )
+                    lm = torch.linalg.lu_solve(
+                        lm_factors, lm_pivots, (-J.T @ r)[:, None]
+                    ).squeeze(-1)
+                    step = torch.where(direct_valid, step, lm)
             else:
                 if pattern is None:
                     raise ValueError("Sparse pattern required above dense limit")
@@ -188,10 +206,31 @@ class TorchNewton(_LinearNewton):
             best_norm = torch.dot(r, r)
             scales = (1.0, 0.5, 0.25, 0.125, 0.0625, 0.03125)
             remaining = scales
-            if self._early_full_step and (self.device.type == "cpu" or self.host_convergence):
-                candidate = torch.maximum(lower, torch.minimum(upper, x + step))
+            previous_trial = None
+            previous_value = None
+
+            def trial_value(candidate):
+                nonlocal evaluations, previous_trial, previous_value
+                # Near roundoff or a bound, different trial lengths can
+                # produce the exact same vector. The residual is a pure
+                # function: reuse its value, without changing candidates,
+                # line-search ordering or any acceptance threshold. Keep
+                # this CPU-only to avoid extra CUDA synchronization.
+                if self._reuse_identical_trials and self.device.type == "cpu":
+                    if torch.equal(candidate, x):
+                        self.identical_trial_skips += 1
+                        return r
+                    if previous_trial is not None and torch.equal(candidate, previous_trial):
+                        self.identical_trial_skips += 1
+                        return previous_value
                 value = function(candidate)
                 evaluations += 1
+                previous_trial, previous_value = candidate, value
+                return value
+
+            if self._early_full_step and (self.device.type == "cpu" or self.host_convergence):
+                candidate = torch.maximum(lower, torch.minimum(upper, x + step))
+                value = trial_value(candidate)
                 norm = torch.dot(value, value)
                 take = torch.isfinite(norm) & (norm < best_norm)
                 best = torch.where(take, candidate, best)
@@ -226,8 +265,7 @@ class TorchNewton(_LinearNewton):
             else:
                 for scale in remaining:
                     candidate = torch.maximum(lower, torch.minimum(upper, x + scale * step))
-                    value = function(candidate)
-                    evaluations += 1
+                    value = trial_value(candidate)
                     norm = torch.dot(value, value)
                     take = torch.isfinite(norm) & (norm < best_norm)
                     best = torch.where(take, candidate, best)
@@ -252,8 +290,7 @@ class TorchNewton(_LinearNewton):
                         candidate = torch.maximum(
                             lower, torch.minimum(upper, x + 2.0 ** (-power) * step)
                         )
-                        value = function(candidate)
-                        evaluations += 1
+                        value = trial_value(candidate)
                         norm = torch.dot(value, value)
                         take = torch.isfinite(norm) & (norm < best_norm)
                         best = torch.where(take, candidate, best)
@@ -269,9 +306,23 @@ class TorchNewton(_LinearNewton):
         self.iterations = iterations
         residual = function(x)
         evaluations += 1
+        # Success is a statement about THIS caller's error budget. A generic
+        # loose cutoff can otherwise turn a stalled or exhausted solve into a
+        # successful time step even though its requested accuracy was missed.
+        budget = residual.new_full(
+            residual.shape, tolerance if stagnation_tolerance is None else stagnation_tolerance
+        )
+        valid_budget = residual.new_tensor(True, dtype=torch.bool)
+        if roundoff_tolerance is not None:
+            bounds = roundoff_tolerance()
+            if not isinstance(bounds, torch.Tensor) or bounds.shape != residual.shape:
+                raise ValueError("One roundoff scale per nonlinear residual row required")
+            valid_budget = torch.isfinite(bounds).all() & (bounds >= 0).all()
+            budget = torch.maximum(budget, bounds)
         success = (
             torch.isfinite(x).all()
             & torch.isfinite(residual).all()
-            & (residual.abs().max() <= 1e-8)
+            & valid_budget
+            & (residual.abs() <= budget).all()
         )
         return x, residual, success, evaluations

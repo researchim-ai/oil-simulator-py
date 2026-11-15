@@ -1,0 +1,30 @@
+{
+  "date": "2026-11-15",
+  "cpu_only": true,
+  "selected_regression_tests_passed": 202,
+  "final_affected_tests_passed": 28,
+  "final_affected_files": [
+    "tests/test_surface_liquid_thermal_collocation.py",
+    "tests/test_surface_liquid_collocation.py"
+  ],
+  "test_sets_overlap": true,
+  "unique_cases_covered": 203,
+  "note": "Full selected regression passed after estimator repair; final affected suite repeated after inventory error-control addition. Counts must not be summed.",
+  "linear_acoustic_error_controller_test_passed": true,
+  "linear_thermal_error_controller_test_passed": true,
+  "inventory_controller_test_passed": true,
+  "conservative_ode_validation_passed": true,
+  "independent_combined_energy_audit_passed": true,
+  "checkpoint_and_atomic_failure_tests_passed": true,
+  "sparse_and_dense_thermal_solutions_agree": true,
+  "reference_tolerance_refinement_passed": true,
+  "all_three_benchmark_source_manifests_match_current_sources": true,
+  "repeated_hydraulic_trajectories_bitwise_identical": true,
+  "original_midpoint_inventory_budget_failure_preserved": true,
+  "strict_budget_single_pair_both_passed": true,
+  "ruff_passed": true,
+  "python_compile_passed": true,
+  "diff_check_passed": true,
+  "gpu_qualified": false,
+  "full_pr_system_integrated": false
+}

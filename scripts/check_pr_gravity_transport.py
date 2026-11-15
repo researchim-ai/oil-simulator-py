@@ -197,6 +197,15 @@ def audit(
         }
         losses.update(command.get("loss_coefficients", {}))
         for step in interval["steps"]:
+            if step.get("quadrature_probe", False):
+                raise ValueError("Unverified quadrature probe cannot be an accepted physical step")
+            spatial_error = step.get("quadrature_error")
+            if (
+                type(spatial_error) not in (int, float)
+                or not math.isfinite(spatial_error)
+                or not 0 <= spatial_error <= 1
+            ):
+                raise ValueError("Accepted physical step requires a valid quadrature certificate")
             new = step["state"]
             identity(new)
             dt = step["dt_s"]

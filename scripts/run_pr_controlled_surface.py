@@ -95,6 +95,9 @@ def run(config, *, device="cpu", progress=None):
         "total_work_j": work,
         "runtime": runtime_fingerprint(),
         "numerical_policy": {
+            "shared_probe_quadrature": PRControlledSurface._share_probe_quadrature,
+            "identical_trial_reuse": TorchNewton._reuse_identical_trials,
+            "stagnation_patience": TorchNewton._stagnation_patience,
             "jacobian_reuse": TorchNewton._reuse_jacobian,
             "compiled_chemical": EquilibriumFluid._compiled_chemical,
             "grouped_column_eos": {
@@ -118,6 +121,22 @@ def main():
     parser.add_argument("--device", choices=["cpu", "cuda"], default="cpu")
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--progress", action="store_true", help="JSON progress on stderr")
+    parser.add_argument(
+        "--refine-discarded-probe", action="store_true",
+        help="Independently refine the discarded temporal probe for reference comparisons",
+    )
+    parser.add_argument(
+        "--evaluate-identical-trials",
+        action="store_true",
+        help="Evaluate duplicate CPU trial vectors for reference/performance comparisons",
+    )
+    parser.add_argument(
+        "--stagnation-patience",
+        type=int,
+        choices=(2, 4),
+        default=2,
+        help="Consecutive sub-1%% improvements inside the explicit roundoff budget",
+    )
     parser.add_argument(
         "--fresh-jacobians",
         action="store_true",
@@ -146,6 +165,11 @@ def main():
     from surface.torch_nonlinear import TorchNewton
 
     TorchNewton._reuse_jacobian = not args.fresh_jacobians
+    from surface.pr_surface_control import PRControlledSurface
+
+    PRControlledSurface._share_probe_quadrature = not args.refine_discarded_probe
+    TorchNewton._reuse_identical_trials = not args.evaluate_identical_trials
+    TorchNewton._stagnation_patience = args.stagnation_patience
     from surface.equilibrium_properties import EquilibriumFluid
 
     EquilibriumFluid._compiled_chemical = not args.eager_chemical

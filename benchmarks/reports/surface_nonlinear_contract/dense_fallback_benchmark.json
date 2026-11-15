@@ -1,0 +1,29 @@
+{
+  "scope": "CPU float64 128-variable synthetic nonlinear dense solve; not whole-network timing",
+  "pairs": 6,
+  "solves_per_sample": 15,
+  "before_samples_s": [
+    0.038268643998890184,
+    0.03671645800204715,
+    0.03667750100066769,
+    0.03895707799892989,
+    0.036237910000636475,
+    0.03519539799890481
+  ],
+  "after_samples_s": [
+    0.030093863999354653,
+    0.028822977998061106,
+    0.028918962001625914,
+    0.028702925999823492,
+    0.02767660000245087,
+    0.02767271699849516
+  ],
+  "before_median_s": 0.03669697950135742,
+  "after_median_s": 0.0287629519989423,
+  "speedup": 1.275841906029217,
+  "factorizations_per_solve": {
+    "before": 6,
+    "after": 3
+  },
+  "identical_solution": true
+}

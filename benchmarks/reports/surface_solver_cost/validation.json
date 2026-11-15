@@ -1,0 +1,51 @@
+{
+  "date": "2026-11-15",
+  "test_environment": "CUDA_VISIBLE_DEVICES='' OMP_NUM_THREADS=1 MKL_NUM_THREADS=1 PYTHONPATH=src:scripts:tests",
+  "test_command_prefix": "/home/user/miniconda3/bin/python -m pytest -q",
+  "test_groups": [
+    {
+      "tests": [
+        "test_surface_characteristic_tangent.py",
+        "test_surface_pr_equilibrium_transport.py"
+      ],
+      "passed": 28
+    },
+    {
+      "tests": [
+        "test_surface_liquid_transient.py",
+        "test_surface_liquid_interval.py",
+        "test_surface_controlled_liquid.py",
+        "test_surface_liquid_protection.py",
+        "test_surface_liquid_recycle.py",
+        "test_surface_thermal_liquid.py",
+        "test_surface_liquid_heat.py"
+      ],
+      "passed": 173
+    },
+    {
+      "tests": [
+        "test_surface_liquid_newton_policy.py"
+      ],
+      "passed": 2
+    },
+    {
+      "tests": [
+        "test_surface_newton_full_step.py",
+        "test_surface_newton_reuse.py",
+        "test_surface_newton_stagnation.py",
+        "test_surface_newton_identical_trials.py",
+        "test_surface_stability_cache.py"
+      ],
+      "passed": 39,
+      "skipped": 1
+    }
+  ],
+  "total_passed": 242,
+  "total_skipped": 1,
+  "production_source_hashes_match_qualification": true,
+  "pr_independent_audits_passed": 4,
+  "accepted_pr_histories_bitwise_identical": true,
+  "liquid_accepted_states_bitwise_identical": true,
+  "gpu_benchmark_run": false,
+  "full_pr_operating_cycle_qualified": false
+}

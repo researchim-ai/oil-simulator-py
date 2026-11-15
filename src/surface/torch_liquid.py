@@ -10,6 +10,7 @@ import math
 import torch
 
 from .torch_linear import TorchIncidence, TorchNewton, checked_device
+from .torch_nonlinear import TorchNewton as _CpuNewton
 
 
 class TorchLiquidEquations:
@@ -167,7 +168,9 @@ class TorchLiquidEquations:
             physics.reference_pressure_pa
             + physics.bulk_modulus_pa * physics.max_compression_fraction,
         )
-        self.newton = TorchNewton(device=self.device)
+        # CPU can stop at a converged full trial and reuse a productive
+        # tangent. CUDA retains the fixed graph-capture-compatible schedule.
+        self.newton = (_CpuNewton if self.device.type == "cpu" else TorchNewton)(device=self.device)
         # Structural pattern is host topology, not a numerical matrix transfer.
         rows = []
         cols = []
@@ -297,7 +300,11 @@ class TorchLiquidEquations:
         torque = torch.where(
             torque > 0, torch.minimum(torque, draw_limit), torch.maximum(torque, -export_limit)
         )
-        speed_limit = self.J * (self.maxw - old) / dt + loads + self.drag * mid
+        if dt is None:
+            # Continuous constraint: cap acceleration only at the speed limit.
+            speed_limit = torch.where(mid >= self.maxw, loads + self.drag * mid, math.inf)
+        else:
+            speed_limit = self.J * (self.maxw - old) / dt + loads + self.drag * mid
         torque = torch.where(torque > 0, torch.minimum(torque, speed_limit), torque)
         draw = (torque.clamp_min(0) * peak / self.motor_eta).sum()
         export = ((-torque).clamp_min(0) * peak * self.regen_eta).sum()
@@ -347,34 +354,24 @@ class TorchLiquidEquations:
             * positive
         )
 
-    def evaluate(self, x, oldp, oldq, oldw, dt, commands, fixed, openings):
-        nf, nb, npip, npump = self.nf, self.nb, self.npipe, self.npump
-        ws = oldw.clamp_min(1.0)
-        endp = x[:nf] * self.ps
-        flows = x[nf : nf + nb] * self.qs
-        endw = x[nf + nb :] * ws
-        p = fixed.scatter(0, self.free, (oldp + endp) / 2)
-        qm = (oldq + flows[:npip]) / 2
-        allq = torch.cat((qm, flows[npip:]))
-        wm = ((oldw + endw) / 2).clamp_min(0)
+    def flow_equations(self, p, allq, omega, openings):
+        """Shared instantaneous branch laws for midpoint and collocation."""
+        npip, npump = self.npipe, self.npump
         dp = p[self.start] - p[self.end]
-        loss_pipe = self.pipe_loss(qm)
-        pipe_r = (self.L * (flows[:npip] - oldq) - dt * (dp[:npip] - loss_pipe)) / (
-            self.L * self.qs
-        )
+        loss_pipe = self.pipe_loss(allq[:npip])
         loss_pump, blocked, power, loads, _ratio, _eta = self.pump_quantities(
-            flows[npip : npip + npump], wm, dp[npip : npip + npump]
+            allq[npip : npip + npump], omega, dp[npip : npip + npump]
         )
         pump_r = torch.where(
             blocked,
-            flows[npip : npip + npump] / self.qs,
+            allq[npip : npip + npump] / self.qs,
             torch.maximum(
                 (dp[npip : npip + npump] - loss_pump) / self.ps,
-                -flows[npip : npip + npump] / self.qs,
+                -allq[npip : npip + npump] / self.qs,
             ),
         )
         vd = dp[npip + npump :]
-        vq = flows[npip + npump :]
+        vq = allq[npip + npump :]
         lift = ((vd - self.cracking) / (self.full_lift - self.cracking)).clamp(0, 1)
         opening = torch.where(self.relief, lift, openings)
         allowed = self.valve_open & (opening > 0)
@@ -401,6 +398,24 @@ class TorchLiquidEquations:
                 0.0,
             ),
         )
+        return pump_r, valve_r, loss_pipe, power, loads, valve_loss, dp
+
+    def evaluate(self, x, oldp, oldq, oldw, dt, commands, fixed, openings):
+        nf, nb, npip = self.nf, self.nb, self.npipe
+        ws = oldw.clamp_min(1.0)
+        endp = x[:nf] * self.ps
+        flows = x[nf : nf + nb] * self.qs
+        endw = x[nf + nb :] * ws
+        p = fixed.scatter(0, self.free, (oldp + endp) / 2)
+        qm = (oldq + flows[:npip]) / 2
+        allq = torch.cat((qm, flows[npip:]))
+        wm = ((oldw + endw) / 2).clamp_min(0)
+        pump_r, valve_r, loss_pipe, power, loads, valve_loss, dp = self.flow_equations(
+            p, allq, wm, openings
+        )
+        pipe_r = (self.L * (flows[:npip] - oldq) - dt * (dp[:npip] - loss_pipe)) / (
+            self.L * self.qs
+        )
         torque, fd, fe = self.allocate(oldw, endw, commands, loads, dt)
         initial = self.allocate(oldw, oldw, commands, torch.zeros_like(oldw), dt)[0]
         held = (oldw == 0) & (initial <= 0)
@@ -424,6 +439,54 @@ class TorchLiquidEquations:
             fe,
         )
         return residual, data
+
+    def instantaneous(self, y, commands, fixed, openings):
+        """Index-one liquid rates and constraints, independent of a timestep.
+
+        Coordinates use fixed pressure/flow/nominal-speed scales. Algebraic
+        rates are zero placeholders; their equations are returned separately.
+        Controls must be supplied at the evaluation time by the integrator.
+        """
+        nf, nb, npip = self.nf, self.nb, self.npipe
+        pressure = y[:nf] * self.ps
+        flows = y[nf : nf + nb] * self.qs
+        omega = y[nf + nb :] * self.nominal
+        p = fixed.scatter(0, self.free, pressure)
+        pump_r, valve_r, loss, power, loads, valve_loss, dp = self.flow_equations(
+            p, flows, omega, openings
+        )
+        torque, fd, fe = self.allocate(omega, omega, commands, loads, None)
+        shaft = (torque - loads - self.drag * omega) / (self.J * self.nominal)
+        shaft = torch.where((omega <= 0) & (shaft < 0), 0.0, shaft)
+        rates = torch.cat(
+            (
+                -self.incidence(flows)[self.free] / (self.C * self.ps),
+                (dp[:npip] - loss) / (self.L * self.qs),
+                torch.zeros_like(flows[npip:]),
+                shaft,
+            )
+        )
+        constraints = torch.cat((pump_r, valve_r))
+        data = (
+            pressure,
+            flows[:npip],
+            omega,
+            p,
+            flows,
+            omega,
+            torque,
+            power,
+            torch.cat((loss * flows[:npip], valve_loss)),
+            fd,
+            fe,
+        )
+        return rates, constraints, data
+
+    def continuous_residual(self, y, yp, commands, fixed, openings):
+        """F(y, ydot)=0 with true differential and algebraic rows."""
+        rates, constraints, _ = self.instantaneous(y, commands, fixed, openings)
+        split, shaft = self.nf + self.npipe, self.nf + self.nb
+        return torch.cat((yp[:split] - rates[:split], constraints, yp[shaft:] - rates[shaft:]))
 
     def pump_seed(self, dp, oldw):
         ratio = oldw / self.nominal
@@ -556,7 +619,7 @@ class TorchLiquidEquations:
             )
         )
         residual, data = self.evaluate(x, oldp, oldq, oldw, dt, commands, fixed, openings)
-        success = success & (residual.abs().max() <= 1e-8)
+        success = success & (residual.abs().max() <= 2e-11)
         return x, residual, data, success, evaluations
 
     def solve(self, oldp, oldq, oldw, dt, commands, fixed, openings):
@@ -619,6 +682,34 @@ class TorchLiquidEquations:
             (success & (residual.abs().max() <= 2e-11)).clone(),
             evaluations,
         )
+
+    def equipment_flags(self, data):
+        e = self
+        p = self.physics
+        _, _, _, pressure, flow, omega, _, power, _, _, _ = data
+        q = flow[e.npipe : e.npipe + e.npump]
+        ratio = omega / e.nominal
+        dp = (pressure[e.start] - pressure[e.end])[e.npipe : e.npipe + e.npump]
+        active = omega > 0
+        reverse = active & ((q < -1e-10) | (-dp * q < -1e-7))
+        outside = active & ((q < 0) | (q > ratio * e.qmax))
+        suction = pressure[e.start[e.npipe : e.npipe + e.npump]]
+        available = (suction - p.network.fluid.vapor_pressure_pa) / (e.rho * 9.80665) + (
+            q / e.inlet_area
+        ).square() / (2 * 9.80665)
+        required = torch.maximum(
+            e.required_npsh,
+            ratio.square() * e.interpolate(e.maps["npsh_curve"], q / ratio.clamp_min(1e-30)),
+        )
+        npsh = active & (available < required)
+        excessive = active & (power > e.max_shaft)
+        masks = torch.stack((reverse, outside, npsh, excessive), dim=1)
+        indices = (
+            masks.to(torch.long).argmax(dim=0)
+            if e.npump
+            else torch.zeros(4, dtype=torch.long, device=e.device)
+        )
+        return torch.cat((masks.any(dim=0).to(e.dtype), indices.to(e.dtype)))
 
     def mechanical_ledger(self, oldp, oldq, oldw, dt, data, residual):
         p1, q1, w1, pm, qm, wm, torque, power, losses, fd, fe = data

@@ -275,6 +275,8 @@ class PRControlledSurfaceState:
 
 
 class PRControlledSurface:
+    _share_probe_quadrature = True
+
     def __init__(
         self,
         plant,
@@ -729,7 +731,7 @@ class PRControlledSurface:
             else column.geometry.height_m
         )
 
-    def _step(self, state, dt, manual, modes, commands):
+    def _step(self, state, dt, manual, modes, commands, *, _probe_quadrature_order=None):
         positions = dict(state.positions)
         integrals = dict(state.integrals)
         targets = dict(manual)
@@ -901,6 +903,11 @@ class PRControlledSurface:
                     if isinstance(self.plant, PRGravityTransportNetwork)
                     else {}
                 ),
+                **(
+                    {"_probe_quadrature_order": _probe_quadrature_order}
+                    if _probe_quadrature_order is not None
+                    else {}
+                ),
             },
         )
         plant_state = physical_state_from_dict(plant_report["state"])
@@ -1032,6 +1039,54 @@ class PRControlledSurface:
                 e = max(e, abs(x - y) / self.integral_tolerance)
         return e
 
+    def _temporal_trial(self, current, dt, first_dt, second_dt, manual, modes, commands):
+        if not (
+            self._share_probe_quadrature
+            and type(self.plant) is PRGravityTransportNetwork
+            and self.plant.columns
+        ):
+            coarse, _ = self._step(current, dt, manual, modes, commands)
+            half, one = self._step(current, first_dt, manual, modes, commands)
+            fine, two = self._step(half, second_dt, manual, modes, commands)
+            return coarse, fine, one, two
+
+        # Qualify the two states that can actually be accepted FIRST. Their
+        # spatial refinement and flux comparison are unchanged. Only the
+        # discarded full temporal probe borrows their common refined order.
+        half, one = self._step(current, first_dt, manual, modes, commands)
+        fine, two = self._step(half, second_dt, manual, modes, commands)
+        records = [r for step in (one, two) for r in step.get("plant", {}).get("steps", ())]
+        orders = {r.get("quadrature_order") for r in records}
+        certified = (
+            len(records) == 2
+            and len(orders) == 1
+            and all(
+                type(r.get("quadrature_error")) in (int, float)
+                and math.isfinite(r["quadrature_error"])
+                and 0 <= r["quadrature_error"] <= 1
+                and not r.get("quadrature_probe", False)
+                for r in records
+            )
+        )
+        if certified:
+            order = next(iter(orders))
+            if (
+                type(order) is int
+                and order in (2, 4, 8, 16)
+                and self.plant.start_order < order <= self.plant.maximum_order
+            ):
+                try:
+                    coarse, _ = self._step(
+                        current, dt, manual, modes, commands, _probe_quadrature_order=order
+                    )
+                    return coarse, fine, one, two
+                except (HydraulicConvergenceError, ConservationError, PropertyModelError):
+                    # A low-order seed can discover a branch missed by a
+                    # direct refined solve. Preserve that original recovery.
+                    pass
+        coarse, _ = self._step(current, dt, manual, modes, commands)
+        return coarse, fine, one, two
+
     @cached_fluid_transaction(
         lambda self: (self.plant.transport.fluid, *(c.fluid for c in self.plant.columns.values()))
     )
@@ -1133,9 +1188,9 @@ class PRControlledSurface:
             error = None
             reduction = 0.5
             try:
-                coarse, _ = self._step(current, dt, manual, modes, plant_commands)
-                half, one = self._step(current, first_dt, manual, modes, plant_commands)
-                fine, two = self._step(half, second_dt, manual, modes, plant_commands)
+                coarse, fine, one, two = self._temporal_trial(
+                    current, dt, first_dt, second_dt, manual, modes, plant_commands
+                )
                 error = self._error(coarse, fine)
                 if not math.isfinite(error) or error > 1:
                     # Step doubling of this first-order coupled update has

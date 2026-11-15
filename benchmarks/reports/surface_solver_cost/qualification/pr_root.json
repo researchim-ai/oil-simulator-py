@@ -1,0 +1,33 @@
+{
+  "scope": "First nonlinear PR system only; not a full physical trajectory",
+  "unknowns": 292,
+  "colors": 174,
+  "results": [
+    {
+      "method": "torch_sparse",
+      "elapsed_s": 2.7861449130000437,
+      "maximum_residual": 9.328257560155591e-12,
+      "qualified": true,
+      "evaluations": 29,
+      "jacobians": 4
+    },
+    {
+      "method": "torch_dense",
+      "elapsed_s": 2.671022023999967,
+      "maximum_residual": 9.328257560155591e-12,
+      "qualified": true,
+      "evaluations": 29,
+      "jacobians": 4
+    },
+    {
+      "method": "scipy_trf_exact_torch_ad",
+      "elapsed_s": 5.008878075999974,
+      "maximum_residual": 1.3863576953099255e-11,
+      "qualified": true,
+      "evaluations": 13,
+      "jacobians": 7,
+      "scipy_success": true,
+      "message": "`xtol` termination condition is satisfied."
+    }
+  ]
+}

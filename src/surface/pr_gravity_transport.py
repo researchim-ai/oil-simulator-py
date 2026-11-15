@@ -281,7 +281,15 @@ class PRGravityTransportNetwork:
         _material=None,
         _column_work_j=None,
         _batch_aperture_rays=True,
+        _probe_quadrature_order=None,
     ):
+        if _probe_quadrature_order is not None and (
+            not self.columns
+            or type(_probe_quadrature_order) is not int
+            or _probe_quadrature_order not in (2, 4, 8, 16)
+            or not self.start_order < _probe_quadrature_order <= self.maximum_order
+        ):
+            raise ValueError("Temporal probe requires a supported refined column order")
         column_work = dict(_column_work_j or {})
         if set(column_work) - set(self.columns) or any(
             not math.isfinite(v) for v in column_work.values()
@@ -337,7 +345,7 @@ class PRGravityTransportNetwork:
                 "entropy_production_j_k": report["entropy_production_j_k"],
             }
         previous = None
-        order = self.start_order
+        order = self.start_order if _probe_quadrature_order is None else _probe_quadrature_order
         while order <= self.maximum_order:
             overrides = {}
             base_open = {c.name: openings[c.name] for c in self.transport.switches}
@@ -412,6 +420,13 @@ class PRGravityTransportNetwork:
                 **material,
                 "entropy_production_j_k": entropy,
             }
+            if _probe_quadrature_order is not None:
+                # Only the discarded coarse temporal probe may use this
+                # path. Accepted half-steps retain their independent spatial
+                # refinement. All physical/domain/ledger checks above remain.
+                record["quadrature_probe"] = True
+                record["quadrature_error"] = None
+                return new, record
             if previous is not None:
                 err = self._error(previous[0], new)
                 oldports = previous[1]["columns"]["ports"]
@@ -474,7 +489,10 @@ class PRGravityTransportNetwork:
         restriction_openings=None,
         _material_factory=None,
         _controlled_step=False,
+        _probe_quadrature_order=None,
     ):
+        if _probe_quadrature_order is not None and not _controlled_step:
+            raise ValueError("Unverified quadrature is only allowed for a controlled temporal probe")
         self.inspect(state)
         end = state.time_s + _number(duration_s, "duration", positive=True)
         if not math.isfinite(end) or end <= state.time_s:
@@ -521,6 +539,7 @@ class PRGravityTransportNetwork:
                 else _material_factory(state, duration_s, commands),
                 drive_torque_nm=drive_torque_nm,
                 restriction_openings=restriction_openings,
+                _probe_quadrature_order=_probe_quadrature_order,
             )
             new = replace(new, transport=replace(new.transport, time_s=end))
             record = {**record, "state": new.to_dict()}

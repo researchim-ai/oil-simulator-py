@@ -89,32 +89,7 @@ class TorchLiquidBridge:
             raise ValueError("Liquid model changed after Torch kernel construction")
 
     def physical_flags(self, data):
-        e = self.equations
-        p = self.physics
-        _, _, _, pressure, flow, omega, _, power, _, _, _ = data
-        q = flow[e.npipe : e.npipe + e.npump]
-        ratio = omega / e.nominal
-        dp = (pressure[e.start] - pressure[e.end])[e.npipe : e.npipe + e.npump]
-        active = omega > 0
-        reverse = active & ((q < -1e-10) | (-dp * q < -1e-7))
-        outside = active & ((q < 0) | (q > ratio * e.qmax))
-        suction = pressure[e.start[e.npipe : e.npipe + e.npump]]
-        available = (suction - p.network.fluid.vapor_pressure_pa) / (e.rho * 9.80665) + (
-            q / e.inlet_area
-        ).square() / (2 * 9.80665)
-        required = torch.maximum(
-            e.required_npsh,
-            ratio.square() * e.interpolate(e.maps["npsh_curve"], q / ratio.clamp_min(1e-30)),
-        )
-        npsh = active & (available < required)
-        excessive = active & (power > e.max_shaft)
-        masks = torch.stack((reverse, outside, npsh, excessive), dim=1)
-        indices = (
-            masks.to(torch.long).argmax(dim=0)
-            if e.npump
-            else torch.zeros(4, dtype=torch.long, device=e.device)
-        )
-        return torch.cat((masks.any(dim=0).to(e.dtype), indices.to(e.dtype)))
+        return self.equations.equipment_flags(data)
 
     def pack_result(self, x, residual, data, success, ledger):
         flags = self.physical_flags(data)

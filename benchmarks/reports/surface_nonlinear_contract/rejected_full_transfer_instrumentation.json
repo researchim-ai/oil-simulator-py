@@ -1,0 +1,182 @@
+{
+  "scope": "Instrumented CPU one-microsecond startup. Times are diagnostic, not performance claims.",
+  "elapsed_s": 109.01501014799942,
+  "global_newton_solves": [
+    {
+      "unknowns": 292,
+      "elapsed_s": 44.11075910999716,
+      "iterations": 40,
+      "evaluations": 993,
+      "jacobian_builds": 39,
+      "jacobian_reuses": 1,
+      "retry_refreshes": 0,
+      "stop_reason": "iteration_budget",
+      "maximum_residual": 1.2879045575228097e-11
+    },
+    {
+      "unknowns": 400,
+      "elapsed_s": 6.101870751001115,
+      "iterations": 7,
+      "evaluations": 117,
+      "jacobian_builds": 6,
+      "jacobian_reuses": 1,
+      "retry_refreshes": 0,
+      "stop_reason": "stagnated_within_tolerance",
+      "maximum_residual": 9.69934292275937e-12
+    },
+    {
+      "unknowns": 292,
+      "elapsed_s": 6.523960144997545,
+      "iterations": 9,
+      "evaluations": 99,
+      "jacobian_builds": 9,
+      "jacobian_reuses": 1,
+      "retry_refreshes": 0,
+      "stop_reason": "line_search_stalled",
+      "maximum_residual": 6.218838373437061e-12
+    },
+    {
+      "unknowns": 400,
+      "elapsed_s": 7.488640159001079,
+      "iterations": 9,
+      "evaluations": 131,
+      "jacobian_builds": 8,
+      "jacobian_reuses": 1,
+      "retry_refreshes": 0,
+      "stop_reason": "stagnated_within_roundoff",
+      "maximum_residual": 1.0913936421275139e-11
+    },
+    {
+      "unknowns": 292,
+      "elapsed_s": 5.800150021997979,
+      "iterations": 7,
+      "evaluations": 117,
+      "jacobian_builds": 6,
+      "jacobian_reuses": 1,
+      "retry_refreshes": 0,
+      "stop_reason": "stagnated_within_tolerance",
+      "maximum_residual": 7.275957614183426e-12
+    },
+    {
+      "unknowns": 400,
+      "elapsed_s": 6.163508306002768,
+      "iterations": 7,
+      "evaluations": 117,
+      "jacobian_builds": 6,
+      "jacobian_reuses": 1,
+      "retry_refreshes": 0,
+      "stop_reason": "stagnated_within_tolerance",
+      "maximum_residual": 9.723484990872586e-12
+    }
+  ],
+  "physical_trials": [
+    {
+      "dt_s": 1e-06,
+      "elapsed_s": 59.647059515002184,
+      "newton_solves": 2,
+      "newton_unknowns": [
+        292,
+        400
+      ],
+      "accepted_quadrature_order": 4,
+      "quadrature_error": 0.001965002417143641
+    },
+    {
+      "dt_s": 5e-07,
+      "elapsed_s": 23.34068343099716,
+      "newton_solves": 2,
+      "newton_unknowns": [
+        292,
+        400
+      ],
+      "accepted_quadrature_order": 4,
+      "quadrature_error": 0.0019591278522219074
+    },
+    {
+      "dt_s": 5e-07,
+      "elapsed_s": 21.592352745003154,
+      "newton_solves": 2,
+      "newton_unknowns": [
+        292,
+        400
+      ],
+      "accepted_quadrature_order": 4,
+      "quadrature_error": 0.0019534484501455007
+    }
+  ],
+  "temporal_error": [
+    {
+      "actual_error": 0.026414637856312685,
+      "manual_max": 0.026414637856312685,
+      "manual_matches": true,
+      "largest_contributors": [
+        [
+          "node:gas_recycle_0:velocity",
+          0.026414637856312685
+        ],
+        [
+          "node:gas_takeoff_0:velocity",
+          0.00012856425718911892
+        ],
+        [
+          "node:water_takeoff_0:pressure",
+          5.9913481772154296e-05
+        ],
+        [
+          "node:flowline_1_0:velocity",
+          5.0196400520908775e-05
+        ],
+        [
+          "node:flowline_2_0:velocity",
+          5.0196400520908775e-05
+        ],
+        [
+          "node:flowline_1_1:velocity",
+          2.489777310125239e-05
+        ],
+        [
+          "node:flowline_2_1:velocity",
+          2.489777310125239e-05
+        ],
+        [
+          "actuator:oil_motor",
+          1.586018649746279e-05
+        ],
+        [
+          "actuator:water_motor",
+          1.1047018300125444e-05
+        ],
+        [
+          "node:gas_recycle_0:temperature",
+          8.691500852364697e-06
+        ],
+        [
+          "actuator:gas_motor",
+          6.674127916994621e-06
+        ],
+        [
+          "node:oil_takeoff_0:velocity",
+          1.8405046819307117e-06
+        ],
+        [
+          "node:water_takeoff_0:velocity",
+          1.773144581436944e-06
+        ],
+        [
+          "node:water_suction:pressure",
+          6.931778524489702e-07
+        ],
+        [
+          "node:gas_recycle_0:pressure",
+          5.148068148334752e-07
+        ],
+        [
+          "node:gas_recycle_0:energy",
+          4.189844291095659e-07
+        ]
+      ],
+      "locally_predicted_dt_s": 5.5375821111459244e-06
+    }
+  ],
+  "sources_unchanged": true
+}
