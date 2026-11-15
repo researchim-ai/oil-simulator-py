@@ -1,0 +1,58 @@
+{
+  "passed": true,
+  "audit": [
+    {
+      "accepted": true,
+      "checked_substeps": 2,
+      "maximum_local_component_residual_mol": 1.9793136031810204e-15,
+      "maximum_local_energy_residual_j": 2.2922634276834053e-11,
+      "qualification": "Independent scalar phase EOS, N/M/E/S and pipe/equipment faces; empirical low-dP external characteristics, no experimental calibration or global stability certificate."
+    },
+    {
+      "accepted": true,
+      "checked_substeps": 2,
+      "maximum_local_component_residual_mol": 3.931159569008919e-15,
+      "maximum_local_energy_residual_j": 1.965515555630847e-11,
+      "qualification": "Independent scalar phase EOS, N/M/E/S and pipe/equipment faces; empirical low-dP external characteristics, no experimental calibration or global stability certificate."
+    },
+    {
+      "accepted": true,
+      "checked_substeps": 2,
+      "maximum_local_component_residual_mol": 3.599580531241506e-15,
+      "maximum_local_energy_residual_j": 2.6810861419434423e-11,
+      "qualification": "Independent scalar phase EOS, N/M/E/S and pipe/equipment faces; empirical low-dP external characteristics, no experimental calibration or global stability certificate."
+    }
+  ],
+  "simulated_duration_s": 3.0000000000000004e-05,
+  "conservation_residuals": [
+    3.6019313222941e-15,
+    -2.3981767491111964e-15,
+    3.163095133040805e-11
+  ],
+  "phase_counts_at_report_ends": [
+    {
+      "export": 2,
+      "inlet": 2,
+      "line__0000": 2,
+      "line__0001": 2,
+      "parallel__0000": 2,
+      "parallel__0001": 2
+    },
+    {
+      "export": 2,
+      "inlet": 2,
+      "line__0000": 2,
+      "line__0001": 2,
+      "parallel__0000": 2,
+      "parallel__0001": 2
+    },
+    {
+      "export": 2,
+      "inlet": 2,
+      "line__0000": 2,
+      "line__0001": 2,
+      "parallel__0000": 2,
+      "parallel__0001": 2
+    }
+  ]
+}

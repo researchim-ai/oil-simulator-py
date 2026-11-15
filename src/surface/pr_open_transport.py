@@ -15,6 +15,7 @@ from .component_energy import ComponentEnergyStream
 from .equilibrium_cache import cached_flashes
 from .liquid import PropertyModelError, _name, _number
 from .operation import _digest
+from .pr_boundary_cache import PreparedPRBoundaries
 from .pr_equilibrium_transport import PREquilibriumTransportNetwork
 from .stratified_pr_flow import ReceiverFeedPressureError
 
@@ -68,6 +69,8 @@ class PRTransportPressurePort:
 
 
 class PROpenTransportNetwork:
+    _reuse_boundary_properties = True
+
     def __init__(self, transport, feeds=(), pressure_ports=()):
         # Do not clone or override an unknown graph subclass's physical operator.
         if type(transport) is not PREquilibriumTransportNetwork:
@@ -111,6 +114,9 @@ class PROpenTransportNetwork:
                 self.fluid.tensor(port.mole_fractions),
             )
         self.model_id = _digest(self.to_dict())
+        self._prepared_boundaries = PreparedPRBoundaries(
+            self.fluid, max(1, len(self.feeds) + len(self.pressure_ports))
+        )
 
     def to_dict(self):
         return {
@@ -141,7 +147,9 @@ class PROpenTransportNetwork:
             raise PropertyModelError("Open boundary model changed")
         self.transport.inspect(state)
 
-    def advance(self, state, duration_s, *, port_openings=None, **controls):
+    def advance(
+        self, state, duration_s, *, port_openings=None, integrator="backward_euler", **controls
+    ):
         if _digest(self.to_dict()) != self.model_id:
             raise PropertyModelError("Open boundary model changed")
         if "_coupling_factory" in controls:
@@ -154,11 +162,18 @@ class PROpenTransportNetwork:
                 raise ValueError("Port opening outside [0,1]")
             commands[name] = value
         self.transport.inspect(state)
+        solver = self.transport
+        if integrator in ("gauss4", "radau3"):
+            from .pr_collocation import PRCollocation
+
+            solver = PRCollocation(self.transport, scheme=integrator)
+        elif integrator != "backward_euler":
+            raise ValueError("Unknown open PR integrator")
         # Immutable packets and maintained PT states are resolved once per call.
         # The transaction cache never leaks into the next control interval.
         with cached_flashes(self.fluid):
             prepared = _BoundaryProperties(self, commands)
-            result = self.transport.advance(
+            result = solver.advance(
                 state,
                 duration_s,
                 _coupling_factory=lambda s, dt, o: _OpenCoupling(self, prepared, s, dt, o),
@@ -167,6 +182,7 @@ class PROpenTransportNetwork:
         nc = len(self.fluid.names)
         result.update(
             {
+                "integrator": integrator,
                 "open_model_id": self.model_id,
                 "port_openings": commands,
                 "boundary_component_moles": [
@@ -180,6 +196,19 @@ class PROpenTransportNetwork:
         return result
 
 
+def _feed_entropy(stream, fluid):
+    state = stream.equilibrate(fluid)
+    return None if state is None else {"molar_entropy_j_mol_k": state["molar_entropy_j_mol_k"]}
+
+
+def _reservoir_state(fluid, port):
+    state = fluid.flash_pt(port.pressure_pa, port.temperature_k, port.mole_fractions)
+    return {
+        name: state[name]
+        for name in ("molar_volume_m3_mol", "molar_enthalpy_j_mol", "molar_entropy_j_mol_k")
+    }
+
+
 class _BoundaryProperties:
     def __init__(self, model, commands):
         t, f = model.transport, model.fluid
@@ -187,7 +216,22 @@ class _BoundaryProperties:
         self.feeds, self.reservoirs = [], []
         for feed in model.feeds:
             stream = feed.stream
-            state = stream.equilibrate(f)
+            stream.validate_fluid(f)
+            total = stream.molar_rate_mol_s
+            intensive = (
+                {
+                    "p": stream.pressure_pa,
+                    "h": stream.enthalpy_rate_w(f) / total,
+                    "z": [n / total for n in stream.component_molar_rates_mol_s],
+                }
+                if total
+                else None
+            )
+            state = model._prepared_boundaries.resolve(
+                ("feed", _digest(intensive)),
+                lambda stream=stream: _feed_entropy(stream, f),
+                enabled=model._reuse_boundary_properties,
+            )
             n = f.tensor(stream.component_molar_rates_mol_s)
             mass = (n * f.molar_masses).sum()
             energy = (
@@ -199,7 +243,20 @@ class _BoundaryProperties:
         for port in model.pressure_ports:
             # The receiving external PT state is used only if flow reverses.
             if commands[port.name] and port.allow_reverse and port.volume_conductance_m3_s_pa:
-                q = f.flash_pt(port.pressure_pa, port.temperature_k, port.mole_fractions)
+                q = model._prepared_boundaries.resolve(
+                    (
+                        "reservoir",
+                        _digest(
+                            {
+                                "p": port.pressure_pa,
+                                "t": port.temperature_k,
+                                "z": port.mole_fractions,
+                            }
+                        ),
+                    ),
+                    lambda port=port: _reservoir_state(f, port),
+                    enabled=model._reuse_boundary_properties,
+                )
                 density = f.tensor(port.mole_fractions) / q["molar_volume_m3_mol"]
                 node = t.nodes[t.names.index(port.node)]
                 potential = (

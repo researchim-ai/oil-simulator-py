@@ -10,6 +10,7 @@ import math
 
 import numpy as np
 from check_pr_equilibrium_transport import audit as transport_audit
+from check_pr_equilibrium_transport import decode
 from check_stratified_pr_flow import close
 from reference_pr_open_boundaries import reconstruct
 
@@ -56,6 +57,48 @@ def audit(model, initial, result, *, port_openings=None, **controls):
         boundaries.append((total_n, total_e))
         return {"net": net, "incoming_entropy": entropy}
 
+    def stage_exchange(old, step):
+        saved_step = next(saved_steps)
+        if saved_step != step:
+            raise ValueError("Stage boundary trajectory differs")
+        packets = []
+        nodes = {n["name"]: n for n in physical["nodes"]}
+        for states, coupling in zip(step["stage_states"], step["stage_couplings"], strict=True):
+            if (
+                coupling["model_id"] != result["open_model_id"]
+                or coupling["closure"] != "stage_stirred_material_boundaries"
+            ):
+                raise ValueError("Stage boundary closure differs")
+            data = {name: decode(states[name], node, physical, f) for name, node in nodes.items()}
+            packets.append(reconstruct(model, physical, f, data, coupling["ports"], openings))
+        if len(packets) != 2:
+            raise ValueError("Two external stages required")
+        endpoint = step["coupling"]
+        if (
+            endpoint["model_id"] != result["open_model_id"]
+            or endpoint["closure"] != "end_state_stirred_material_boundaries"
+        ):
+            raise ValueError("Endpoint boundary certificate differs")
+        data = {
+            name: decode(step["state"]["nodes"][name], node, physical, f)
+            for name, node in nodes.items()
+        }
+        reconstruct(model, physical, f, data, endpoint["ports"], openings)
+        weights = (0.5, 0.5) if step["method"] == "gauss4" else (0.75, 0.25)
+        dt = step["dt_s"]
+        n = dt * sum(
+            w * sum((v[:-2] for v in packet["net"].values()), np.zeros(nc))
+            for w, packet in zip(weights, packets)
+        )
+        e = dt * sum(
+            w * sum(v[-1] for v in packet["net"].values()) for w, packet in zip(weights, packets)
+        )
+        boundaries.append((n, e))
+        return {
+            "stage_net": [p["net"] for p in packets],
+            "stage_entropy": [p["incoming_entropy"] for p in packets],
+        }
+
     command = {"duration_s": result["state"]["time_s"] - initial["time_s"], **controls}
     config = {"model": physical, "initial": {"state": initial}, "schedule": [command]}
     report = {
@@ -67,7 +110,9 @@ def audit(model, initial, result, *, port_openings=None, **controls):
         "total_work_j": result["total_work_j"],
         "conservation_residuals": result["conservation_residuals"],
     }
-    check = transport_audit(config, report, external_exchange=exchange)
+    check = transport_audit(
+        config, report, external_exchange=exchange, external_stage_exchange=stage_exchange
+    )
     close(
         result["boundary_component_moles"],
         sum((v[0] for v in boundaries), np.zeros(nc)),

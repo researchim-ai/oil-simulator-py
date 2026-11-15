@@ -36,7 +36,7 @@ class CapillaryLinearSystem:
             pattern.extend((r, c) for j in sorted(support) for r in blocks[i] for c in blocks[j])
         self.rows = [r for r, _ in pattern]
         self.cols = [c for _, c in pattern]
-        self.coloring = ColoredJacobian(self.size, self.rows, self.cols, device)
+        self.coloring = ColoredJacobian(self.size, self.rows, self.cols, device, chunk_size=8)
         self.preconditioner = BlockJacobi(self.rows, self.cols, self.blocks, self.size, device)
 
     def solve(self, function, point, residual):
@@ -51,13 +51,7 @@ class CapillaryLinearSystem:
         else:
             # Bound transient forward-AD material tensors; all seeds, values,
             # factors and Krylov vectors remain on the requested device.
-            compressed = torch.cat(
-                [
-                    torch.vmap(lambda seed: torch.func.jvp(function, (point,), (seed,))[1])(batch)
-                    for batch in self.coloring.seeds.split(8)
-                ]
-            )
-            values = compressed[self.coloring.color[self.coloring.c], self.coloring.r]
+            values = self.coloring.values(function, point)
             if not bool(torch.isfinite(values).all().cpu()):
                 raise HydraulicConvergenceError("Nonfinite sparse capillary Jacobian")
             if self.matrix is None:
@@ -111,7 +105,7 @@ class CapillaryLinearSystem:
             "backend": "torch_colored_sparse_gmres" if self.sparse else "torch_dense",
             "unknowns": self.size,
             "stored_jacobian_entries": len(self.rows) if self.sparse else self.size**2,
-            "colors": int(self.coloring.seeds.shape[0]) if self.sparse else self.size,
+            "colors": self.coloring.color_count if self.sparse else self.size,
             "linear_solves": self.solves,
             "krylov_restarts": self.krylov_restarts,
             "maximum_relative_linear_residual": self.maximum_relative_residual,

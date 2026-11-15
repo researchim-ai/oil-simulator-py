@@ -102,7 +102,7 @@ def waves(cells, device, modes, intervals, macro_steps):
             "sparse_matrix_nnz": model._torch_bridge.equations.newton.matrix.values.numel()
             if model._torch_bridge.equations.newton.matrix is not None
             else None,
-            "jacobian_colors": model._torch_bridge.equations.newton.coloring.seeds.shape[0]
+            "jacobian_colors": model._torch_bridge.equations.newton.coloring.color_count
             if model._torch_bridge.equations.newton.coloring is not None
             else None,
             "physical_sha256": key,

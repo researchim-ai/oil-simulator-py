@@ -12,7 +12,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 
 def run(config, *, device="cpu", integrator="backward_euler"):
-    if integrator not in ("backward_euler", "gauss4"):
+    if integrator not in ("backward_euler", "gauss4", "radau3"):
         raise ValueError("Unknown PR integrator")
     from surface.pr_equilibrium_transport import (
         PREquilibriumTransportNetwork,
@@ -38,10 +38,10 @@ def run(config, *, device="cpu", integrator="backward_euler"):
     else:
         raise ValueError("Initial input requires exactly nodes, groups or state")
     solver = model
-    if integrator == "gauss4":
+    if integrator in ("gauss4", "radau3"):
         from surface import PRCollocation
 
-        solver = PRCollocation(model)
+        solver = PRCollocation(model, scheme=integrator)
     first = state
     intervals = []
     for command in config["schedule"]:
@@ -59,7 +59,10 @@ def run(config, *, device="cpu", integrator="backward_euler"):
             or "duration_s" not in command
         ):
             raise ValueError("Unknown/missing equilibrium transport command")
-        if integrator == "gauss4" and set(command) & {"drive_torque_nm", "restriction_openings"}:
+        if integrator in ("gauss4", "radau3") and set(command) & {
+            "drive_torque_nm",
+            "restriction_openings",
+        }:
             raise ValueError("Machine commands require the original PR integrator")
         report = solver.advance(state, **command)
         state = PREquilibriumTransportState.from_dict(report["state"])
@@ -85,7 +88,7 @@ def main():
     parser.add_argument("--device", choices=["cpu", "cuda"], default="cpu")
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument(
-        "--integrator", choices=["backward_euler", "gauss4"], default="backward_euler"
+        "--integrator", choices=["backward_euler", "gauss4", "radau3"], default="backward_euler"
     )
     args = parser.parse_args()
     root = Path(__file__).resolve().parents[1]

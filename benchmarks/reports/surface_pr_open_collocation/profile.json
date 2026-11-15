@@ -1,0 +1,62 @@
+{
+  "scope": "Instrumented cProfile of ONE open Radau report; inclusive times overlap and cannot be added. This is NOT a benchmark or GPU profile.",
+  "instrumented_total_s": 6.097308561000002,
+  "selected_hotspots": [
+    {
+      "file": "surface/pr_equilibrium_transport.py",
+      "function": "_stable_all",
+      "calls": 9,
+      "self_s": 0.0018430540000000002,
+      "inclusive_s": 2.0317294880000003
+    },
+    {
+      "file": "surface/pr_equilibrium_transport.py",
+      "function": "_stable",
+      "calls": 54,
+      "self_s": 0.0023471660000000004,
+      "inclusive_s": 1.609944864
+    },
+    {
+      "file": "surface/torch_nonlinear.py",
+      "function": "solve",
+      "calls": 3,
+      "self_s": 0.001104996,
+      "inclusive_s": 0.932642315
+    },
+    {
+      "file": "surface/pr_equilibrium_transport.py",
+      "function": "inspect",
+      "calls": 5,
+      "self_s": 0.000979744,
+      "inclusive_s": 0.5644910820000001
+    },
+    {
+      "file": "surface/equilibrium_properties.py",
+      "function": "_stability_many",
+      "calls": 9,
+      "self_s": 0.004478241,
+      "inclusive_s": 0.419418624
+    },
+    {
+      "file": "surface/pr_equilibrium_transport.py",
+      "function": "_fluxes",
+      "calls": 42,
+      "self_s": 0.025663251,
+      "inclusive_s": 0.41624605400000003
+    },
+    {
+      "file": "surface/compositional_separator.py",
+      "function": "_fluxes",
+      "calls": 252,
+      "self_s": 0.004394971,
+      "inclusive_s": 0.022643624
+    },
+    {
+      "file": "surface/pr_equilibrium_transport.py",
+      "function": "_continuation_flash",
+      "calls": 54,
+      "self_s": 0.003021834,
+      "inclusive_s": 0.004280043
+    }
+  ]
+}

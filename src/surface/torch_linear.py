@@ -194,9 +194,22 @@ def gmres_device(operator, b, diagonal, restart=24, cycles=2, *, preconditioner=
 
 
 class ColoredJacobian:
-    def __init__(self, size, rows, cols, device):
+    def __init__(self, size, rows, cols, device, *, chunk_size=64, maximum_seed_entries=1_048_576):
+        if type(chunk_size) is not int or chunk_size < 1:
+            raise ValueError("Positive Jacobian direction batch size required")
+        if type(maximum_seed_entries) is not int or maximum_seed_entries < 1:
+            raise ValueError("Positive Jacobian seed entry budget required")
         self.size = size
         self.device = checked_device(device)
+        rows, cols = list(rows), list(cols)
+        if (
+            size < 1
+            or len(rows) != len(cols)
+            or any(not (0 <= r < size and 0 <= c < size) for r, c in zip(rows, cols))
+        ):
+            raise ValueError("Square Jacobian graph and matching in-range coordinates required")
+        self.maximum_seed_entries = maximum_seed_entries
+        self.chunk_size = chunk_size = min(chunk_size, max(1, maximum_seed_entries // size))
         row_cols = [set() for _ in range(size)]
         col_rows = [set() for _ in range(size)]
         for r, c in zip(rows, cols):
@@ -212,13 +225,40 @@ class ColoredJacobian:
         self.rows = list(rows)
         self.cols = list(cols)
         self.color = torch.tensor(colors, dtype=torch.long, device=self.device)
-        self.seeds = torch.nn.functional.one_hot(self.color, max(colors) + 1).T.to(torch.float64)
+        self.color_count = max(colors) + 1
         self.r = torch.tensor(rows, dtype=torch.long, device=self.device)
         self.c = torch.tensor(cols, dtype=torch.long, device=self.device)
+        # Compile sparse extraction once; no color-by-size seed or compressed
+        # derivative tensor survives between calls (or across all colors).
+        packs = {}
+        for entry, (r, c) in enumerate(zip(rows, cols)):
+            start = colors[c] // chunk_size * chunk_size
+            packs.setdefault(start, []).append((colors[c] - start, r, entry))
+        self.packs = tuple(
+            (
+                torch.arange(start, min(start + chunk_size, self.color_count), device=self.device),
+                *(
+                    torch.tensor([e[j] for e in entries], dtype=torch.long, device=self.device)
+                    for j in range(2)
+                ),
+            )
+            for start, entries in sorted(packs.items())
+        )
+        ordering = [e[2] for _start, entries in sorted(packs.items()) for e in entries]
+        inverse = [0] * len(rows)
+        for position, entry in enumerate(ordering):
+            inverse[entry] = position
+        self.extraction_order = torch.tensor(inverse, dtype=torch.long, device=self.device)
 
     def values(self, function, x):
-        compressed = torch.vmap(lambda seed: torch.func.jvp(function, (x,), (seed,))[1])(self.seeds)
-        return compressed[self.color[self.c], self.r]
+        values = []
+        for directions, local_color, row in self.packs:
+            seeds = (directions[:, None] == self.color[None, :]).to(x.dtype)
+            compressed = torch.vmap(lambda seed: torch.func.jvp(function, (x,), (seed,))[1])(seeds)
+            values.append(compressed[local_color, row])
+        if not values:
+            return x.new_empty(0)
+        return torch.cat(values).index_select(0, self.extraction_order)
 
 
 class TorchNewton:

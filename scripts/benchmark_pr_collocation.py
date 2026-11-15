@@ -28,25 +28,40 @@ def main():
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--duration", type=float, default=0.05)
     parser.add_argument("--repeats", type=int, default=3)
+    parser.add_argument(
+        "--methods",
+        nargs=2,
+        choices=["backward_euler", "gauss4", "radau3"],
+        default=["backward_euler", "gauss4"],
+    )
+    parser.add_argument("--fixture", choices=["contact", "walls"], default="contact")
     args = parser.parse_args()
     if not 0 < args.duration <= 0.5 or not 1 <= args.repeats <= 10:
         parser.error("Duration must be (0, .5], repeats 1..10")
+    if len(set(args.methods)) != 2:
+        parser.error("Choose two different methods")
     if torch.get_num_threads() != 1:
         parser.error("Set OMP_NUM_THREADS=1 and MKL_NUM_THREADS=1")
     sources = [
         *sorted((ROOT / "src/surface").glob("*.py")),
-        Path(__file__).resolve(),
-        ROOT / "scripts/check_pr_collocation.py",
-        ROOT / "scripts/audit_pr_collocation.py",
+        *sorted((ROOT / "scripts").glob("*.py")),
         ROOT / "tests/data/surface/pr_mixture_coolprop.json",
     ]
     hashes = {str(p.relative_to(ROOT)): hashlib.sha256(p.read_bytes()).hexdigest() for p in sources}
-    model, state = thermal_fixture()
-    ref = IsochoricReference(model, state)
+    fixture, reference_type = thermal_fixture, IsochoricReference
+    if args.fixture == "walls":
+        from check_pr_collocation_walls import WallReference, wall_fixture
+
+        fixture, reference_type = wall_fixture, WallReference
+    model, state = fixture()
+    ref = reference_type(model, state)
+    initial = [s.temperature_k for _, s in state.nodes]
+    if args.fixture == "walls":
+        initial += [s.wall_temperature_k for _, s in state.nodes] + [0.0]
     reference = solve_ivp(
         ref.rhs,
         (0.0, args.duration),
-        [s.temperature_k for _, s in state.nodes],
+        initial,
         method="DOP853",
         rtol=1e-13,
         atol=1e-12,
@@ -56,15 +71,23 @@ def main():
     args.output.mkdir(parents=True, exist_ok=True)
     rows = []
     # Warm both implementations outside the measured intervals.
-    for method in ("backward_euler", "gauss4"):
-        m, s = thermal_fixture()
-        solver = m if method == "backward_euler" else PRCollocation(m, phase_fallback=False)
+    for method in args.methods:
+        m, s = fixture()
+        solver = (
+            m
+            if method == "backward_euler"
+            else PRCollocation(m, scheme=method, phase_fallback=False)
+        )
         solver.advance(s, min(0.001, args.duration))
     for pair in range(args.repeats):
-        methods = ("backward_euler", "gauss4") if pair % 2 == 0 else ("gauss4", "backward_euler")
+        methods = args.methods if pair % 2 == 0 else list(reversed(args.methods))
         for method in methods:
-            m, s = thermal_fixture()
-            solver = m if method == "backward_euler" else PRCollocation(m, phase_fallback=False)
+            m, s = fixture()
+            solver = (
+                m
+                if method == "backward_euler"
+                else PRCollocation(m, scheme=method, phase_fallback=False)
+            )
             gc.collect()
             start = time.perf_counter()
             report = solver.advance(s, args.duration)
@@ -77,7 +100,8 @@ def main():
                     error_t,
                     float(
                         abs(
-                            np.array([cell.temperature_k for _, cell in endpoint.nodes]) - expected
+                            np.array([cell.temperature_k for _, cell in endpoint.nodes])
+                            - expected[:2]
                         ).max()
                     ),
                 )
@@ -86,10 +110,20 @@ def main():
                     float(
                         abs(
                             np.array([cell.pressure_pa for _, cell in endpoint.nodes])
-                            - ref.pressure(expected)
+                            - ref.pressure(expected[:2])
                         ).max()
                     ),
                 )
+                if args.fixture == "walls":
+                    error_t = max(
+                        error_t,
+                        float(
+                            abs(
+                                np.array([cell.wall_temperature_k for _, cell in endpoint.nodes])
+                                - expected[2:4]
+                            ).max()
+                        ),
+                    )
             row = {
                 "pair": pair,
                 "method": method,
@@ -121,11 +155,13 @@ def main():
         raise RuntimeError("Sources changed during paired timing")
     medians = {
         name: statistics.median(row["elapsed_s"] for row in rows if row["method"] == name)
-        for name in ("backward_euler", "gauss4")
+        for name in args.methods
     }
     passed = all(row["within_requested_budgets"] for row in rows)
     summary = {
         "scope": "Same-input paired CPU synthetic pure-PR heat-contact benchmark; not full facility/GPU/OPM/Eclipse performance",
+        "methods": args.methods,
+        "fixture": args.fixture,
         "simulated_duration_s": args.duration,
         "pairs": args.repeats,
         "runtime": runtime_fingerprint(),
@@ -135,7 +171,9 @@ def main():
         "runs": rows,
         "median_elapsed_s": medians,
         "both_within_requested_budgets": passed,
-        "qualified_speedup": medians["backward_euler"] / medians["gauss4"] if passed else None,
+        "qualified_speedup": medians[args.methods[0]] / medians[args.methods[1]]
+        if passed
+        else None,
         "source_sha256": hashes,
     }
     (args.output / "summary.json").write_text(json.dumps(summary, indent=2) + "\n")

@@ -976,7 +976,8 @@ class PREquilibriumTransportNetwork:
             raise stability
         minimum, trial, trial_q = (
             f._stability(data["p"], data["t"], z, chemical[-1], active)
-            if stability is None else stability
+            if stability is None
+            else stability
         )
         beta = data["phase_n"] / data["n"].sum()
         phases = [
@@ -1007,23 +1008,111 @@ class PREquilibriumTransportNetwork:
 
     _batch_stability = True
 
+    _batch_characteristics = True
+    _characteristic_batch_size = 64
+
     def _stable_all(self, data):
-        """Retain full per-cell physical audits, sharing only TPD predictors."""
+        return self._stable_sets([data])[0]
+
+    def _stable_all_many(self, data_sets):
+        """Independent physical audits, grouped across ready time stages."""
+        if not self._batch_characteristics:
+            return [self._stable_all(data) for data in data_sets]
+        return self._stable_sets(data_sets)
+
+    def _stable_sets(self, data_sets):
+        data_sets = list(data_sets)
+        entries = [(k, i, d) for k, data in enumerate(data_sets) for i, d in enumerate(data)]
         selected, requests = [], []
         if self._batch_stability:
-            for i, d in enumerate(data):
+            for position, (_k, _i, d) in enumerate(entries):
                 z = d["n"] / d["n"].sum()
                 active = torch.nonzero(z > 0).flatten()
                 if len(active) > 1:
                     chemical = d["x"].clamp_min(1e-300).log() + d["q"]["log_fugacity_coefficients"]
-                    if float((chemical[:, active] - chemical[-1, active]).abs().max().cpu()) <= 1e-8:
-                        selected.append(i)
+                    if (
+                        float((chemical[:, active] - chemical[-1, active]).abs().max().cpu())
+                        <= 1e-8
+                    ):
+                        selected.append(position)
                         requests.append((d["p"], d["t"], z, chemical[-1], active))
         results = self.fluid._stability_many(requests) if requests else []
         ready = dict(zip(selected, results))
-        return [self._stable(i, d, ready.get(i)) for i, d in enumerate(data)]
+        output = [[None for _ in data] for data in data_sets]
+        tangent_entries = []
+        for position, (k, i, d) in enumerate(entries):
+            if self._batch_characteristics:
+                post = self._stable(i, d, ready.get(position), _defer_characteristics=True)
+                if post is None:
+                    active = torch.nonzero(d["n"] / d["n"].sum() > 0).flatten()
+                    tangent_entries.append((i, d, active))
+            else:
+                post = self._stable(i, d, ready.get(position))
+            output[k][i] = post
+        self._characteristics_many(tangent_entries)
+        return output
 
-    def _stable(self, index, data, stability=None):
+    def _characteristics_many(self, entries):
+        """Batch the exact scalar AD kernel only for statically identical HEM cells.
+
+        No frozen phase fraction, rounded state, relaxed spectral bound or
+        persistent physical cache. Different supports/roots/geometries never
+        share a kernel. Drift/population closures keep the scalar audit.
+        """
+        groups = {}
+        for index, data, active in entries:
+            node = self.nodes[index]
+            if (
+                node.drift_flux is not None
+                or node.droplet_population is not None
+                or node.distribution_strength
+                or node.buoyancy_relaxation_s
+            ):
+                data["characteristic_speeds"] = self._characteristics(index, data, active)
+                continue
+            key = (
+                _digest({k: v for k, v in asdict(node).items() if k not in ("name", "wall")}),
+                tuple(active.cpu().tolist()),
+                tuple(data["tags"]),
+            )
+            groups.setdefault(key, []).append((index, data, active))
+        for group in groups.values():
+            for start in range(0, len(group), self._characteristic_batch_size):
+                chunk = group[start : start + self._characteristic_batch_size]
+                if len(chunk) == 1:
+                    index, data, active = chunk[0]
+                    data["characteristic_speeds"] = self._characteristics(index, data, active)
+                    continue
+                prepared = [self._characteristic_problem(*entry) for entry in chunk]
+                y = torch.stack([row[0] for row in prepared])
+                quantities, count = prepared[0][1:]
+                try:
+                    a, b = torch.vmap(torch.func.jacfwd(quantities))(y)
+                    rhs = y.new_zeros((len(chunk), y.shape[-1], count))
+                    rhs[:, :count] = torch.eye(count, dtype=y.dtype, device=y.device)
+                    tangent = torch.linalg.solve(a, rhs)
+                    spectra = torch.linalg.eigvals(b @ tangent)
+                except RuntimeError:
+                    # Preserve the scalar failure diagnosis on an unsupported
+                    # batching kernel or singular member; never accept a miss.
+                    for index, data, active in chunk:
+                        data["characteristic_speeds"] = self._characteristics(index, data, active)
+                    continue
+                magnitude = spectra.real.abs().amax(-1)
+                admissible = (
+                    torch.isfinite(spectra).all(-1)
+                    & (spectra.imag.abs().amax(-1) <= 1e-7 * magnitude.clamp_min(1.0))
+                    & (magnitude <= self.wave_speed_bound_m_s)
+                )
+                if not bool(admissible.all().cpu()):
+                    # Use the original per-cell check only to diagnose a miss.
+                    # The admissible path needs one device/host reduction.
+                    for (index, _data, _active), speeds in zip(chunk, spectra):
+                        self._check_characteristic_speeds(index, speeds)
+                for (_index, data, _active), speeds in zip(chunk, spectra):
+                    data["characteristic_speeds"] = speeds.real.detach()
+
+    def _stable(self, index, data, stability=None, *, _defer_characteristics=False):
         f = self.fluid
         n = self.nodes[index]
         z = data["n"] / data["n"].sum()
@@ -1173,10 +1262,11 @@ class PREquilibriumTransportNetwork:
                     raise PropertyModelError(
                         "Wave bound below a phase-selective aperture acoustic speed"
                     )
-        data["characteristic_speeds"] = self._characteristics(index, data, active)
+        if not _defer_characteristics:
+            data["characteristic_speeds"] = self._characteristics(index, data, active)
         return None
 
-    def _characteristics(self, index, data, active):
+    def _characteristic_problem(self, index, data, active):
         """Exact constrained flux tangent on the accepted fixed phase branch.
 
         The algebraic phase/volume constraints are differentiated together with
@@ -1184,10 +1274,6 @@ class PREquilibriumTransportNetwork:
         """
         f = self.fluid
         node = self.nodes[index]
-        if isinstance(node.droplet_population, PRSectionalDropletPopulation):
-            from .pr_sectional_population import characteristics
-
-            return characteristics(self, index, data, active)
         m, c = data["amounts"].shape
         y0 = torch.cat(
             (
@@ -1280,10 +1366,16 @@ class PREquilibriumTransportNetwork:
             )
             return uc, flux
 
-        # Both tangents use the same EOS and phase constraints. Differentiate
-        # the pair in one pass, retaining the complete constrained flux model.
+        return y0, quantities, c + 2 + int(particle_active)
+
+    def _characteristics(self, index, data, active):
+        node = self.nodes[index]
+        if isinstance(node.droplet_population, PRSectionalDropletPopulation):
+            from .pr_sectional_population import characteristics
+
+            return characteristics(self, index, data, active)
+        y0, quantities, count = self._characteristic_problem(index, data, active)
         a, b = torch.func.jacfwd(quantities)(y0)
-        count = c + 2 + int(particle_active)
         rhs = y0.new_zeros((len(y0), count))
         rhs[:count] = torch.eye(count, dtype=y0.dtype, device=y0.device)
         try:
@@ -1293,6 +1385,10 @@ class PREquilibriumTransportNetwork:
             raise HydraulicConvergenceError(
                 "Singular equilibrium transport characteristic tangent"
             ) from exc
+        return self._check_characteristic_speeds(index, speeds)
+
+    def _check_characteristic_speeds(self, index, speeds):
+        node = self.nodes[index]
         if not bool(torch.isfinite(speeds).all().cpu()) or float(
             speeds.imag.abs().max().cpu()
         ) > 1e-7 * max(1.0, float(speeds.real.abs().max().cpu())):
@@ -2329,7 +2425,9 @@ class PREquilibriumTransportNetwork:
         evaluate.rotors = rotor_bundle
         evaluate.additional_sparsity = (
             rotor_bundle.pattern(
-                offsets, compressor_bundle.entries, pump_connection_bundle.entries,
+                offsets,
+                compressor_bundle.entries,
+                pump_connection_bundle.entries,
                 pump_connection_bundle.sizes,
             )
             | pump_connection_bundle.pattern(offsets)
@@ -2347,7 +2445,9 @@ class PREquilibriumTransportNetwork:
         for entry in compressor_bundle.entries:
             blocks.append(list(range(entry[3], entry[3] + 3)))
         for entry in pump_connection_bundle.entries:
-            blocks.append(list(range(entry[3], entry[3] + pump_connection_bundle.sizes[entry[0].name])))
+            blocks.append(
+                list(range(entry[3], entry[3] + pump_connection_bundle.sizes[entry[0].name]))
+            )
         for entry in restriction_bundle.entries:
             blocks.append(list(range(entry[3], entry[3] + len(entry[7]))))
         for _drive, offset, *_ in rotor_bundle.entries:
@@ -2556,8 +2656,14 @@ class PREquilibriumTransportNetwork:
                 )
                 if pump_changes:
                     return self._step(
-                        state, dt, openings, heat_w, utility, loss_coefficients,
-                        _coupling=_coupling, drive_torque_nm=drive_torque_nm,
+                        state,
+                        dt,
+                        openings,
+                        heat_w,
+                        utility,
+                        loss_coefficients,
+                        _coupling=_coupling,
+                        drive_torque_nm=drive_torque_nm,
                         restriction_openings=restriction_openings,
                         _restriction_seeds=_restriction_seeds,
                         _restriction_attempt=_restriction_attempt,
@@ -2568,22 +2674,36 @@ class PREquilibriumTransportNetwork:
             if accepted:
                 accepted = all(bool(d["q"]["valid"].all().cpu()) for d in result["data"])
                 if accepted:
-                    replacements = [(i, post) for i, post in enumerate(self._stable_all(result["data"]))
-                                    if post is not None]
+                    replacements = [
+                        (i, post)
+                        for i, post in enumerate(self._stable_all(result["data"]))
+                        if post is not None
+                    ]
                 if not replacements and accepted:
                     trace_bundle.validate(result["reservoir_trace_data"])
                     compressor_bundle.validate(result["compressor_traces"])
                     pump_changes = pump_connection_bundle.validate(result["pump_connection_traces"])
                     if pump_changes:
                         if _pump_connection_attempt >= self.maximum_branch_attempts:
-                            raise HydraulicConvergenceError("Liquid-mixture pump branch budget exhausted")
+                            raise HydraulicConvergenceError(
+                                "Liquid-mixture pump branch budget exhausted"
+                            )
                         return self._step(
-                            state, dt, openings, heat_w, utility, loss_coefficients,
-                            _coupling=_coupling, drive_torque_nm=drive_torque_nm,
+                            state,
+                            dt,
+                            openings,
+                            heat_w,
+                            utility,
+                            loss_coefficients,
+                            _coupling=_coupling,
+                            drive_torque_nm=drive_torque_nm,
                             restriction_openings=restriction_openings,
                             _restriction_seeds=_restriction_seeds,
                             _restriction_attempt=_restriction_attempt,
-                            _pump_connection_seeds={**(_pump_connection_seeds or {}), **pump_changes},
+                            _pump_connection_seeds={
+                                **(_pump_connection_seeds or {}),
+                                **pump_changes,
+                            },
                             _pump_connection_attempt=_pump_connection_attempt + 1,
                         )
                     restriction_changes = restriction_bundle.replacements(

@@ -116,14 +116,14 @@ def test_incidence_derivatives_and_colored_sparse_newton(device):
 
     x = torch.zeros(size, dtype=torch.float64, device=device)
     coloring = ColoredJacobian(size, rows, cols, device)
-    assert coloring.seeds.shape == (1, size)
+    assert coloring.color_count == 1
     torch.testing.assert_close(coloring.values(f, x), torch.ones_like(x))
     solver = TorchNewton(device, maximum_iterations=6)
     _out, residual, success, _ = solver.solve(f, x, x - 10, x + 10, (rows, cols))
     assert bool(success)
     assert float(residual.abs().max()) < 1e-10
     assert solver.matrix.values.numel() == size
-    assert solver.coloring.seeds.shape == (1, size)
+    assert solver.coloring.color_count == 1
 
 
 def test_device_and_precision_contracts(monkeypatch):
@@ -231,7 +231,7 @@ def test_sparse_physical_acoustic_wave_matches_independent_mode():
     solver = model._torch_bridge.equations.newton
     assert solver.matrix.size == 161
     assert solver.matrix.values.numel() < 4 * solver.matrix.size
-    assert solver.coloring.seeds.shape[0] <= 4
+    assert solver.coloring.color_count <= 4
 
 
 @pytest.mark.parametrize("device", DEVICES)

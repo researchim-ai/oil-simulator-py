@@ -1,0 +1,122 @@
+{
+  "scope": "Instrumented one-report Radau profile, NOT timing qualification; inclusive times overlap",
+  "modes": {
+    "scalar": {
+      "instrumented_total_s": 5.799977346999998,
+      "functions": [
+        {
+          "file": "surface/pr_equilibrium_transport.py",
+          "function": "_stable_sets",
+          "calls": 9,
+          "self_s": 0.001782235,
+          "inclusive_s": 1.938223392
+        },
+        {
+          "file": "surface/pr_equilibrium_transport.py",
+          "function": "_stable",
+          "calls": 54,
+          "self_s": 0.002222215,
+          "inclusive_s": 1.534025328
+        },
+        {
+          "file": "surface/pr_equilibrium_transport.py",
+          "function": "_characteristics",
+          "calls": 54,
+          "self_s": 0.00120771,
+          "inclusive_s": 1.5264821940000002
+        },
+        {
+          "file": "surface/pr_equilibrium_transport.py",
+          "function": "quantities",
+          "calls": 54,
+          "self_s": 0.030842588,
+          "inclusive_s": 1.4956891
+        },
+        {
+          "file": "surface/torch_nonlinear.py",
+          "function": "solve",
+          "calls": 3,
+          "self_s": 0.00104178,
+          "inclusive_s": 0.9038041090000001
+        },
+        {
+          "file": "surface/equilibrium_properties.py",
+          "function": "_stability_many",
+          "calls": 9,
+          "self_s": 0.00446856,
+          "inclusive_s": 0.401917148
+        },
+        {
+          "file": "surface/pr_equilibrium_transport.py",
+          "function": "_characteristics_many",
+          "calls": 9,
+          "self_s": 1.0022e-05,
+          "inclusive_s": 1.1573e-05
+        }
+      ]
+    },
+    "batched": {
+      "instrumented_total_s": 4.713535674000003,
+      "functions": [
+        {
+          "file": "surface/torch_nonlinear.py",
+          "function": "solve",
+          "calls": 3,
+          "self_s": 0.001157356,
+          "inclusive_s": 0.9127384220000001
+        },
+        {
+          "file": "surface/pr_equilibrium_transport.py",
+          "function": "_stable_sets",
+          "calls": 6,
+          "self_s": 0.0015619540000000002,
+          "inclusive_s": 0.782536141
+        },
+        {
+          "file": "surface/pr_equilibrium_transport.py",
+          "function": "_characteristics_many",
+          "calls": 6,
+          "self_s": 0.0014406400000000002,
+          "inclusive_s": 0.5635921100000001
+        },
+        {
+          "file": "surface/pr_equilibrium_transport.py",
+          "function": "quantities",
+          "calls": 18,
+          "self_s": 0.013409461000000001,
+          "inclusive_s": 0.547931029
+        },
+        {
+          "file": "surface/equilibrium_properties.py",
+          "function": "_stability_many",
+          "calls": 6,
+          "self_s": 0.0038686460000000003,
+          "inclusive_s": 0.211916651
+        },
+        {
+          "file": "surface/pr_equilibrium_transport.py",
+          "function": "_stable",
+          "calls": 54,
+          "self_s": 0.0014764530000000002,
+          "inclusive_s": 0.00490943
+        }
+      ]
+    }
+  },
+  "point_audits_preserved": true,
+  "counts": {
+    "scalar": {
+      "_stable_sets": 9,
+      "_stable": 54,
+      "_characteristics": 54,
+      "quantities": 54,
+      "_characteristics_many": 9
+    },
+    "batched": {
+      "_stable_sets": 6,
+      "_characteristics_many": 6,
+      "quantities": 18,
+      "_stable": 54
+    }
+  }
+}

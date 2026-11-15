@@ -1,0 +1,31 @@
+{
+  "scope": "Closed PR graph with finite wall storage; synthetic numerical audit only",
+  "passed": true,
+  "independent_audit": {
+    "accepted": true,
+    "checked_substeps": 12,
+    "maximum_local_component_residual_mol": 6.723510637129948e-12,
+    "maximum_local_energy_residual_j": 1.000444171950221e-11
+  },
+  "nodes": 1,
+  "wall_nodes": 1,
+  "duration_s": 2.0,
+  "methods": {
+    "backward_euler_fallback": 6,
+    "gauss4": 6
+  },
+  "conservation_residuals": [
+    0.0,
+    7.66142704833328e-12,
+    -2.546585164964199e-11
+  ],
+  "total_heat_j": -9.991134556148609,
+  "phase_counts_at_report_ends": [
+    {
+      "cell": 2
+    },
+    {
+      "cell": 1
+    }
+  ]
+}

@@ -1,0 +1,33 @@
+{
+  "passed": true,
+  "audit": [
+    {
+      "accepted": true,
+      "checked_substeps": 4,
+      "maximum_local_component_residual_mol": 5.944968841753266e-14,
+      "maximum_local_energy_residual_j": 3.637978807091713e-12,
+      "qualification": "Independent scalar phase EOS, N/M/E/S and pipe/equipment faces; empirical low-dP external characteristics, no experimental calibration or global stability certificate."
+    },
+    {
+      "accepted": true,
+      "checked_substeps": 8,
+      "maximum_local_component_residual_mol": 4.540575559686371e-12,
+      "maximum_local_energy_residual_j": 9.094947017729282e-12,
+      "qualification": "Independent scalar phase EOS, N/M/E/S and pipe/equipment faces; empirical low-dP external characteristics, no experimental calibration or global stability certificate."
+    }
+  ],
+  "simulated_duration_s": 2.0,
+  "conservation_residuals": [
+    0.0,
+    8.613088188632809e-12,
+    3.348255006585532e-11
+  ],
+  "phase_counts_at_report_ends": [
+    {
+      "cell": 2
+    },
+    {
+      "cell": 1
+    }
+  ]
+}

@@ -511,7 +511,7 @@ def endpoint(node, data, link, side, model):
     return (uc, ff, data["p"], v, rho, entropy), weights, normal, extra
 
 
-def audit(config, report, *, external_exchange=None):
+def audit(config, report, *, external_exchange=None, external_stage_exchange=None):
     if config != report["config"]:
         raise ValueError("Transport request differs")
     parsed = PREquilibriumTransportNetwork.from_dict(config["model"])
@@ -574,6 +574,31 @@ def audit(config, report, *, external_exchange=None):
                 atol=8 * max(math.ulp(new["time_s"]), math.ulp(old["time_s"])),
                 rtol=0.0,
             )
+            if step.get("method") in ("gauss4", "radau3"):
+                if external_exchange is not None and external_stage_exchange is None:
+                    raise ValueError("Stage-resolved boundary reference required")
+                from audit_pr_collocation import audit_gauss_step
+
+                checked_row = audit_gauss_step(
+                    model,
+                    old,
+                    step,
+                    fluid,
+                    {**command, "openings": opens},
+                    boundary_exchange=None
+                    if external_stage_exchange is None
+                    else external_stage_exchange(old, step),
+                )
+                maximum = np.maximum(maximum, checked_row["maximum_local_residuals"])
+                interval_heat += checked_row["ambient_heat_j"] + checked_row["external_heat_j"]
+                interval_entropy += checked_row["entropy_production_j_k"]
+                if checked_row["material_component_moles"] is not None:
+                    interval_exchange_n += checked_row["material_component_moles"]
+                    interval_exchange_e += checked_row["material_energy_j"]
+                old = new
+                olddata = {n: decode(new["nodes"][n], nodes[n], model, fluid) for n in names}
+                checked += 1
+                continue
             data = {n: decode(new["nodes"][n], nodes[n], model, fluid) for n in names}
             attach_faces(
                 model, nodes, data, step.get("hydrostatic_faces", {}), fluid, reference_sound

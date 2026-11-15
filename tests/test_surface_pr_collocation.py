@@ -16,7 +16,6 @@ from surface import (
     PREquilibriumTransportState,
 )
 from surface.liquid import HydraulicConvergenceError, PropertyModelError
-from surface.vessel_wall import VesselWall
 
 
 @pytest.mark.parametrize("temperature", [320.0, 196.2])
@@ -257,9 +256,9 @@ def test_unsupported_physics_rejected_and_model_mutation_detected():
     from surface import PRCollocation
 
     bad = PREquilibriumTransportNetwork(
-        model.fluid, [PREquilibriumNode("x", 0.001, wall=VesselWall(100.0, 1.0, 1.0, 300.0))]
+        model.fluid, [PREquilibriumNode("x", 0.001)], reservoir_ports="stagnation_single_phase"
     )
-    with pytest.raises(ValueError, match="homogeneous"):
+    with pytest.raises(ValueError, match="Stagnation"):
         PRCollocation(bad)
     model.relative_tolerance *= 2
     with pytest.raises(PropertyModelError):
