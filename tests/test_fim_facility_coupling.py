@@ -211,3 +211,36 @@ def test_material_account_rejects_corrupted_products_and_rolls_back(monkeypatch)
     assert "products" in c.last_attempt["reason"]
     assert c.report == previous
     assert torch.equal(masses(c.solver), inventory)
+
+
+@pytest.mark.parametrize("coverage_error", [True, False])
+def test_only_rate_dependent_pipe_coverage_is_recoverable(monkeypatch, coverage_error):
+    from surface.blackoil_pipe import PipePressureCoverageError
+
+    coupled = build()
+    initial = coupled.solver.fluid.pressure.clone()
+    original = coupled.solver.step
+    error = PipePressureCoverageError if coverage_error else PropertyModelError
+
+    def provisional(dt, current_time=None):
+        if max(w.control_value for w in coupled.solver.wells.wells) > 5:
+            # The outer transaction must discard this rejected trial state.
+            coupled.solver.fluid.pressure.add_(123)
+            raise error("provisional pipe pressure coverage" if coverage_error else "invalid PVT")
+        return original(dt, current_time=current_time)
+
+    monkeypatch.setattr(coupled.solver, "step", provisional)
+    if coverage_error:
+        assert coupled.step(86400)
+        assert "pipe_pressure_coverage" in coupled.report["trace"][0]["reason"][0]
+        assert coupled.report["fraction"] < 0.05
+        assert (
+            max(map(abs, coupled.report["material_account"]["end_to_end_residual_kg"].values()))
+            < 0.01
+        )
+    else:
+        with pytest.raises(PropertyModelError, match="invalid PVT"):
+            coupled.step(86400)
+        assert torch.equal(coupled.solver.fluid.pressure, initial)
+        assert coupled.report is None
+    assert [w.control_value for w in coupled.solver.wells.wells] == [100, 100]

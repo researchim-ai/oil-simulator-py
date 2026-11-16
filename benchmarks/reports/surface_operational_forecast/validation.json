@@ -1,0 +1,137 @@
+{
+  "scope": "Completed quasi-steady production-only forecast; not complete PR dynamics, injection, Norne or CUDA qualification.",
+  "runs": [
+    {
+      "run": "month_coverage_cpu",
+      "solve_wall_s": 14.502421458000299,
+      "cells": 3,
+      "audit": {
+        "accepted": true,
+        "checked_substeps": 3,
+        "elapsed_days": 30.0,
+        "minimum_step_s": 864000.0,
+        "maximum_step_s": 864000.0,
+        "capacity_evaluations": 60,
+        "operating_events": 3,
+        "mass_balance_error_kg": [
+          -2.482003765180707e-06,
+          -2.0960476831533015e-05,
+          -2.0634088286897168e-06
+        ],
+        "maximum_surface_component_residual_kg_s": 3.469446951953614e-18,
+        "mass_atol_kg": 0.01,
+        "mass_rtol": 1e-08,
+        "scope": "Audit accepted forecast material and controls without running either solver.\n\nThis is an accounting/constraint audit, not independent validation of the PVT\nor homogeneous gathering closure. The production FIM CNV/MB remain required.\n"
+      },
+      "current_source_differences": [
+        "/home/user/workspace/oil-simulator-py-impes/scripts/run_fim_facility_forecast.py"
+      ],
+      "summary_sha256": "5fb8a93204520d1982163fb16bb535dfb7467399f03eef69f54f28384dc0ac1f",
+      "trajectory_sha256": "07fb5f76becf05878f2692a1ad86df9d3a48ec4778189b3945cd25b3fdf74060"
+    },
+    {
+      "run": "month_fiveday_cpu",
+      "solve_wall_s": 24.886166568000135,
+      "cells": 3,
+      "audit": {
+        "accepted": true,
+        "checked_substeps": 6,
+        "elapsed_days": 30.0,
+        "minimum_step_s": 432000.0,
+        "maximum_step_s": 432000.0,
+        "capacity_evaluations": 120,
+        "operating_events": 3,
+        "mass_balance_error_kg": [
+          -3.368360921740532e-06,
+          -5.456022336147726e-07,
+          2.803926690830849e-07
+        ],
+        "maximum_surface_component_residual_kg_s": 3.469446951953614e-18,
+        "mass_atol_kg": 0.01,
+        "mass_rtol": 1e-08,
+        "scope": "Audit accepted forecast material and controls without running either solver.\n\nThis is an accounting/constraint audit, not independent validation of the PVT\nor homogeneous gathering closure. The production FIM CNV/MB remain required.\n"
+      },
+      "current_source_differences": [
+        "/home/user/workspace/oil-simulator-py-impes/scripts/run_fim_facility_forecast.py"
+      ],
+      "summary_sha256": "49a0c3557c510f28fe502e778f7b536b9a41e20a835d36e3ca278ff4d4be2e3e",
+      "trajectory_sha256": "3cff99a7da77ee0b3941b04296d56e87a9f78c322bb2b7f9948a99648685813d"
+    },
+    {
+      "run": "month_daily_coverage_cpu",
+      "solve_wall_s": 152.1574880039998,
+      "cells": 3,
+      "audit": {
+        "accepted": true,
+        "checked_substeps": 30,
+        "elapsed_days": 30.0,
+        "minimum_step_s": 86400.0,
+        "maximum_step_s": 86400.0,
+        "capacity_evaluations": 600,
+        "operating_events": 3,
+        "mass_balance_error_kg": [
+          2.933928044512868e-06,
+          2.8844515327364206e-06,
+          5.320734999259003e-07
+        ],
+        "maximum_surface_component_residual_kg_s": 6.938893903907228e-18,
+        "mass_atol_kg": 0.01,
+        "mass_rtol": 1e-08,
+        "scope": "Audit accepted forecast material and controls without running either solver.\n\nThis is an accounting/constraint audit, not independent validation of the PVT\nor homogeneous gathering closure. The production FIM CNV/MB remain required.\n"
+      },
+      "current_source_differences": [
+        "/home/user/workspace/oil-simulator-py-impes/scripts/run_fim_facility_forecast.py"
+      ],
+      "summary_sha256": "89e6bebcd23990105ab8e3cad59de2f1d10f31939021f4af9383aa81bb31552a",
+      "trajectory_sha256": "d753497361c4c7735ae4b755df1b9511ab85dd65d8cd436b5864640364e8bd0d"
+    },
+    {
+      "run": "grid32_month_cpu",
+      "solve_wall_s": 22.699494776999927,
+      "cells": 1024,
+      "audit": {
+        "accepted": true,
+        "checked_substeps": 6,
+        "elapsed_days": 30.0,
+        "minimum_step_s": 432000.0,
+        "maximum_step_s": 432000.0,
+        "capacity_evaluations": 120,
+        "operating_events": 3,
+        "mass_balance_error_kg": [
+          -0.00020648445934057236,
+          -0.0003201782383257523,
+          0.00027786348709923914
+        ],
+        "maximum_surface_component_residual_kg_s": 3.469446951953614e-18,
+        "mass_atol_kg": 0.01,
+        "mass_rtol": 1e-08,
+        "scope": "Audit accepted forecast material and controls without running either solver.\n\nThis is an accounting/constraint audit, not independent validation of the PVT\nor homogeneous gathering closure. The production FIM CNV/MB remain required.\n"
+      },
+      "current_source_differences": [
+        "/home/user/workspace/oil-simulator-py-impes/scripts/run_fim_facility_forecast.py"
+      ],
+      "summary_sha256": "7b88027b8e7dcdb6cd47ee080915c30f393718b32ab44121b884388ba6fb264d",
+      "trajectory_sha256": "3a629af34fb420bd5d35241bdd6a525cfa89475f8787b230434ca43c47c213fe"
+    }
+  ],
+  "refinement_10d_accepted": false,
+  "refinement_5d_accepted": true,
+  "regression": {
+    "passed": 47,
+    "skipped": 1,
+    "cuda_available_tested": false,
+    "wall_s": 51.08
+  },
+  "source_note": "All measured physical solver sources match. Only CLI default report_days changed 10 to 5 after runs; all runs passed explicit report_days. Original manifests retained.",
+  "protected_sources": {
+    "src/simulator/blackoil_fim.py": "658fde0e6119df6ae154c3c400ff24b8d2a519dfa9a33e612aeaa6bd51a16c3c",
+    "src/surface/torch_linear.py": "b7bda1aae66d9e979c147f821efba9990d6460d60b32a05c6fc5f9b873b752d5"
+  },
+  "artifact_sha256": {
+    "regression.txt": "7b932f4cb3877a628099307d324318265d71f58c471dc9c2493cf3c81e2699de",
+    "refinement_budgets.json": "e9380e83ac6c17ee0790bb53232192f3b73394dc28189c5e3565c56aa708e79d",
+    "refinement_10d_vs_1d.json": "ffb203f76384148a0eadb257c8fd44eff2aca33f53e22daa47c604e77de3eca0",
+    "refinement_5d_vs_1d.json": "8fdb24658ca5b864f068e8d530b152e236411506604d5da7750de256067d070e",
+    "grid32_input.json": "3b0704770a0611e952ba0c4268ad2039eb26d99d1650b50213deec868ab0e62b"
+  }
+}

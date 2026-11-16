@@ -16,6 +16,7 @@ import torch
 from .liquid import ConservationError, HydraulicConvergenceError, PropertyModelError, _name, _number
 from .operation import _digest
 from .peng_robinson import R
+from .pr_darcy_connection import DarcyMaterial, PRDarcyConnection
 from .pr_equilibrium_transport import (
     PREquilibriumLink,
     PREquilibriumTransportNetwork,
@@ -90,6 +91,7 @@ class PRGravityTransportNetwork:
         walls=None,
         maximum_transverse_head_fraction=1e-3,
         heat_links=(),
+        darcy_connections=(),
     ):
         if not isinstance(transport, PREquilibriumTransportNetwork):
             raise TypeError("Expected equilibrium transport graph")
@@ -99,6 +101,7 @@ class PRGravityTransportNetwork:
         self.columns = dict(sorted(columns.items()))
         self.ports = tuple(sorted(ports, key=lambda p: p.name))
         self.heat_links = tuple(sorted(heat_links, key=lambda p: p.name))
+        self.darcy_connections = tuple(sorted(darcy_connections, key=lambda p: p.name))
         if any(not isinstance(link, PRHeatLink) for link in self.heat_links):
             raise TypeError("Expected PRHeatLink")
         self.walls = dict(sorted((walls or {}).items()))
@@ -154,6 +157,18 @@ class PRGravityTransportNetwork:
             ):
                 raise ValueError("Aperture lies outside column")
         body_names = set(self.columns) | set(transport.names)
+        for connection in self.darcy_connections:
+            if not isinstance(connection, PRDarcyConnection) or connection.name in names:
+                raise ValueError("Unique Darcy connections required")
+            names.add(connection.name)
+            if {connection.source, connection.target} - set(transport.names):
+                raise ValueError("Unknown Darcy endpoint")
+            a, b = [
+                transport.nodes[transport.names.index(n)]
+                for n in (connection.source, connection.target)
+            ]
+            if a.kind != "vessel" or b.kind != "vessel" or a.elevation_m != b.elevation_m:
+                raise ValueError("Darcy reduction requires stirred vessels at equal elevation")
         for link in self.heat_links:
             if link.name in names or {link.source, link.target} - body_names:
                 raise ValueError("Unique thermal connection and known endpoints required")
@@ -175,6 +190,11 @@ class PRGravityTransportNetwork:
             "heat_links": [asdict(p) for p in self.heat_links],
             "walls": {n: asdict(w) for n, w in self.walls.items()},
             "maximum_transverse_head_fraction": self.maximum_transverse_head_fraction,
+            **(
+                {"darcy_connections": [asdict(c) for c in self.darcy_connections]}
+                if self.darcy_connections
+                else {}
+            ),
         }
 
     @classmethod
@@ -190,6 +210,9 @@ class PRGravityTransportNetwork:
         }
         data["ports"] = [PRColumnPort(**p) for p in data["ports"]]
         data["heat_links"] = [PRHeatLink(**p) for p in data.get("heat_links", [])]
+        data["darcy_connections"] = [
+            PRDarcyConnection(**p) for p in data.get("darcy_connections", [])
+        ]
         data["walls"] = {n: VesselWall(**w) for n, w in data["walls"].items()}
         return cls(**data)
 
@@ -291,6 +314,8 @@ class PRGravityTransportNetwork:
         ):
             raise ValueError("Temporal probe requires a supported refined column order")
         column_work = dict(_column_work_j or {})
+        if self.darcy_connections:
+            _material = DarcyMaterial(self, state.transport, openings, _material)
         if set(column_work) - set(self.columns) or any(
             not math.isfinite(v) for v in column_work.values()
         ):
@@ -428,7 +453,7 @@ class PRGravityTransportNetwork:
                 record["quadrature_error"] = None
                 return new, record
             if previous is not None:
-                err = self._error(previous[0], new)
+                err = self._error(previous[0], new, openings=openings)
                 oldports = previous[1]["columns"]["ports"]
                 for name, p in cr["ports"].items():
                     for x, y in zip(p["flux"], oldports[name]["flux"]):
@@ -444,8 +469,33 @@ class PRGravityTransportNetwork:
             order *= 2
         raise HydraulicConvergenceError("Coupled aperture quadrature budget exhausted")
 
-    def _error(self, a, b):
+    def _error(self, a, b, *, openings=None):
         error = self.transport._error(a.transport, b.transport)
+        if self.darcy_connections:
+            t, f = self.transport, self.transport.fluid
+            nodes = {n.name: n for n in t.nodes}
+            for c in self.darcy_connections:
+                if not (openings or {}).get(c.name, c.open):
+                    continue
+                velocities = []
+                for state in (a.transport, b.transport):
+                    stocks = dict(state.nodes)
+                    dp = stocks[c.source].pressure_pa - stocks[c.target].pressure_pa
+                    if not c.allow_reverse:
+                        dp = max(0.0, dp)
+                    donor = c.source if dp >= 0 else c.target
+                    rho = (
+                        math.fsum(
+                            n * component.molar_mass_kg_mol
+                            for n, component in zip(stocks[donor].component_moles, f.components)
+                        )
+                        / nodes[donor].volume_m3
+                    )
+                    velocities.append(c.velocity(f.tensor(dp), f.tensor(rho)))
+                error = max(
+                    error,
+                    float((velocities[0] - velocities[1]).abs().cpu()) / t.velocity_tolerance_m_s,
+                )
         for (n, x), (other, y) in zip(a.columns, b.columns, strict=True):
             if n != other:
                 raise ValueError("Temporal comparison requires the same column registry")
@@ -492,13 +542,24 @@ class PRGravityTransportNetwork:
         _probe_quadrature_order=None,
     ):
         if _probe_quadrature_order is not None and not _controlled_step:
-            raise ValueError("Unverified quadrature is only allowed for a controlled temporal probe")
+            raise ValueError(
+                "Unverified quadrature is only allowed for a controlled temporal probe"
+            )
         self.inspect(state)
         end = state.time_s + _number(duration_s, "duration", positive=True)
         if not math.isfinite(end) or end <= state.time_s:
             raise ValueError("Unrepresentable coupled interval")
-        commands = {p.name: True for p in (*self.transport.switches, *self.ports, *self.heat_links)}
+        commands = {
+            p.name: True
+            for p in (
+                *self.transport.switches,
+                *self.ports,
+                *self.heat_links,
+                *self.darcy_connections,
+            )
+        }
         commands.update(self.transport.default_openings)
+        commands.update({c.name: c.open for c in self.darcy_connections})
         changes = dict(openings or {})
         if set(changes) - set(commands) or any(type(v) is not bool for v in changes.values()):
             raise ValueError("Known binary isolation commands required")
@@ -611,7 +672,7 @@ class PRGravityTransportNetwork:
                     drive_torque_nm=drive_torque_nm,
                     restriction_openings=restriction_openings,
                 )
-                error = self._error(coarse, fine)
+                error = self._error(coarse, fine, openings=commands)
                 if error > 1:
                     raise HydraulicConvergenceError("Coupled temporal error exceeded")
             except (HydraulicConvergenceError, PropertyModelError, ConservationError) as exc:
@@ -761,12 +822,21 @@ class _ColumnCoupling:
                 supports[name].update(self.material.active[i].cpu().tolist())
         edges = [(c.source, c.target) for c in t.links if self.openings[c.name]]
         edges += [(p.column, p.node) for p in m.ports if self.openings[p.name]]
+        if self.material is not None:
+            edges += [
+                (t.names[a], t.names[b])
+                for a, b in getattr(self.material, "bidirectional_edges", ())
+            ]
         edges += [(u.source, u.target) for u in t.restrictions if self.openings[u.name]]
         directed = [
             (unit.source, unit.target)
             for unit in (*t.compressors, *t.pump_connections)
             if self.openings[unit.name] and getattr(unit, "signed_map", None) is None
         ]
+        if self.material is not None:
+            directed += [
+                (t.names[a], t.names[b]) for a, b in getattr(self.material, "directed_edges", ())
+            ]
         edges += [
             (unit.source, unit.target)
             for unit in (*t.compressors, *t.pump_connections)
@@ -1096,6 +1166,11 @@ class _ColumnCoupling:
             block_dependencies[(offsets[i], offsets[i + 1])] = {
                 (offsets[j], offsets[j + 1]) for j in connected
             }
+        if self.material is not None:
+            for a, b in getattr(self.material, "internal_edges", ()):
+                left, right = (offsets[a], offsets[a + 1]), (offsets[b], offsets[b + 1])
+                block_dependencies[left].add(right)
+                block_dependencies[right].add(left)
         for block in self.blocks.values():
             block_dependencies[block] = {block}
         for port, phase, root, a, b in self.portblocks:

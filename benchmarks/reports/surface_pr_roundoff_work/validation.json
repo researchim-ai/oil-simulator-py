@@ -1,0 +1,59 @@
+{
+  "date": "2026-11-15",
+  "scope": "Operand-roundoff work reduction and first-trial error attribution; no complete facility/GPU speed qualification",
+  "first_newton": {
+    "paired_repeats": 2,
+    "identical_initial_vector": true,
+    "median_elapsed_s": {
+      "legacy": 39.65905706349997,
+      "roundoff": 3.2481907359999695
+    },
+    "legacy_evaluations": [
+      931,
+      931
+    ],
+    "modified_evaluations": [
+      49,
+      49
+    ],
+    "unmodified_rows_below_target": true,
+    "speed_ratio_is_not_whole_facility_speedup": true
+  },
+  "temporal_error": {
+    "overall": 22.274250199161266,
+    "dominant": "transport_node:gas_recycle_0",
+    "other_groups_below": 0.116
+  },
+  "regression": {
+    "initial_run": {
+      "passed": 111,
+      "failed_stale_signed_pump_api": 6,
+      "skipped": 2,
+      "elapsed_s": 98.03
+    },
+    "signed_pump_after_test_api_correction": {
+      "passed": 24,
+      "elapsed_s": 13.45,
+      "already_passed_overlap": 18
+    },
+    "distinct_passed": 117,
+    "skipped": 2,
+    "original_api_already_returned_six_values": true
+  },
+  "physical_audit": {
+    "accepted": true,
+    "checked_substeps": 2,
+    "maximum_local_energy_residual_j": 3.841049387581785e-08,
+    "checked_control_substeps": 2,
+    "trajectory": "startup_final_trajectory.json",
+    "pre_cap_and_capped_intervals_exactly_equal": true
+  },
+  "all_recorded_final_source_manifests_match": true,
+  "full_operating_cycle_accepted": false,
+  "gpu_verified": false,
+  "source_sha256": {
+    "src/surface/pr_pump_connection.py": "e34d49700b620e6ee3dd16400d2db6bb35741b30accb5120dca142071c871f77",
+    "src/surface/torch_nonlinear.py": "24ba9f9804690bae74ccb7c28074d0d6a054dfb7ad73c29675169b1884422ac5",
+    "src/surface/torch_linear.py": "b7bda1aae66d9e979c147f821efba9990d6460d60b32a05c6fc5f9b873b752d5"
+  }
+}

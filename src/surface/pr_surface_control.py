@@ -507,6 +507,7 @@ class PRControlledSurface:
                 *plant.transport.switches,
                 *plant.ports,
                 *plant.heat_links,
+                *getattr(plant, "darcy_connections", ()),
                 *getattr(plant, "isolation_switches", ()),
             )
         }
@@ -810,6 +811,7 @@ class PRControlledSurface:
                 *self.plant.transport.switches,
                 *self.plant.ports,
                 *self.plant.heat_links,
+                *getattr(self.plant, "darcy_connections", ()),
                 *getattr(self.plant, "isolation_switches", ()),
             )
         }
@@ -1015,8 +1017,14 @@ class PRControlledSurface:
             "total_work_j": plant_report["total_work_j"],
         }
 
-    def _error(self, a, b):
-        e = self.plant._error(a.plant, b.plant)
+    def _error(self, a, b, *, plant_openings=None):
+        e = self.plant._error(
+            a.plant,
+            b.plant,
+            **(
+                {"openings": plant_openings} if getattr(self.plant, "darcy_connections", ()) else {}
+            ),
+        )
         # Flow samples belong to the last accepted hydraulic substep. Coarse
         # and fine samples have different averaging windows, so comparing them
         # as simultaneous conserved coordinates would force artificial cuts.
@@ -1191,7 +1199,15 @@ class PRControlledSurface:
                 coarse, fine, one, two = self._temporal_trial(
                     current, dt, first_dt, second_dt, manual, modes, plant_commands
                 )
-                error = self._error(coarse, fine)
+                error = self._error(
+                    coarse,
+                    fine,
+                    **(
+                        {"plant_openings": two["plant"].get("openings", {})}
+                        if getattr(self.plant, "darcy_connections", ())
+                        else {}
+                    ),
+                )
                 if not math.isfinite(error) or error > 1:
                     # Step doubling of this first-order coupled update has
                     # O(dt**2) local error. A measured large error can require

@@ -1,0 +1,58 @@
+{
+  "status": "incomplete",
+  "runs": [
+    {
+      "mode": "pipe1",
+      "elapsed_s": 25.045589784000185,
+      "accepted_substeps": 136,
+      "outlet_molar_rate_mol_s": 0.00043614869264260774,
+      "audit": {
+        "accepted": true,
+        "checked_substeps": 136,
+        "maximum_local_component_residual_mol": 1.3726716159714312e-14,
+        "maximum_local_energy_residual_j": 3.6229910198759714e-12
+      },
+      "reused_reference": true
+    },
+    {
+      "mode": "pipe4",
+      "elapsed_s": 37.662459483999555,
+      "accepted_substeps": 144,
+      "outlet_molar_rate_mol_s": 0.00042711574896444287,
+      "audit": {
+        "accepted": true,
+        "checked_substeps": 144,
+        "maximum_local_component_residual_mol": 1.3444961550809872e-14,
+        "maximum_local_energy_residual_j": 3.6212008326826084e-12
+      },
+      "reused_reference": true
+    },
+    {
+      "mode": "pipe8",
+      "elapsed_s": 57.317627132999405,
+      "accepted_substeps": 158,
+      "outlet_molar_rate_mol_s": 0.000425602316831639,
+      "audit": {
+        "accepted": true,
+        "checked_substeps": 158,
+        "maximum_local_component_residual_mol": 1.3428083984652418e-14,
+        "maximum_local_energy_residual_j": 3.5955079279832106e-12
+      },
+      "reused_reference": true
+    },
+    {
+      "mode": "darcy",
+      "elapsed_s": 4.210425344000214,
+      "accepted_substeps": 32,
+      "outlet_molar_rate_mol_s": 0.0004242370430496715,
+      "audit": {
+        "accepted": true,
+        "checked_substeps": 32,
+        "maximum_local_energy_residual_j": 3.625451718350381e-12
+      },
+      "reused_reference": false
+    }
+  ],
+  "comparisons": [],
+  "audit_certificates": {}
+}

@@ -20,6 +20,7 @@ class TorchNewton(_LinearNewton):
     _jacobian_max_age = 3
     _reuse_identical_trials = True
     _stagnation_patience = 2
+    _roundoff_line_search = True
 
     def solve(
         self,
@@ -74,6 +75,7 @@ class TorchNewton(_LinearNewton):
         while iterations < self.maximum_iterations:
             r = function(x)
             evaluations += 1
+            objective_scale = None
             current_norm = math.inf
             qualified = False
             # CPU checks require no device synchronization. CUDA keeps a fixed
@@ -90,6 +92,12 @@ class TorchNewton(_LinearNewton):
                         raise ValueError("One roundoff scale per nonlinear residual row required")
                     good = torch.isfinite(bounds).all() & (bounds >= 0).all()
                     scale = torch.maximum(bounds, bounds.new_full((), stagnation_tolerance))
+                    if self._roundoff_line_search:
+                        # Freeze the caller-certified row scales for this
+                        # entire line search. Cancellation noise in one row
+                        # must not hide improvement in stricter rows. This
+                        # changes globalization only, never the success budget.
+                        objective_scale = scale.detach() / stagnation_tolerance
                     ratio = torch.where(good, (r.abs() / scale).max(), r.new_full((), math.inf))
                     metrics = torch.stack((r.abs().max(), ratio)).detach().cpu().tolist()
                     norm, eligible = metrics[0], metrics[1] <= 1
@@ -161,15 +169,14 @@ class TorchNewton(_LinearNewton):
                 if self.device.type != "cpu" or not bool(direct_valid):
                     if lm_factors is None:
                         normal = (
-                            J.T @ J
-                            + torch.eye(x.numel(), dtype=x.dtype, device=x.device) * 1e-12
+                            J.T @ J + torch.eye(x.numel(), dtype=x.dtype, device=x.device) * 1e-12
                         )
                         lm_factors, lm_pivots, _ = torch.linalg.lu_factor_ex(
                             normal, check_errors=False
                         )
-                    lm = torch.linalg.lu_solve(
-                        lm_factors, lm_pivots, (-J.T @ r)[:, None]
-                    ).squeeze(-1)
+                    lm = torch.linalg.lu_solve(lm_factors, lm_pivots, (-J.T @ r)[:, None]).squeeze(
+                        -1
+                    )
                     step = torch.where(direct_valid, step, lm)
             else:
                 if pattern is None:
@@ -203,13 +210,18 @@ class TorchNewton(_LinearNewton):
             if maximum_update is not None:
                 step = torch.maximum(-maximum_update, torch.minimum(maximum_update, step))
             best = x
-            best_norm = torch.dot(r, r)
+
+            def squared_norm(value, objective_scale=objective_scale):
+                scaled = value if objective_scale is None else value / objective_scale
+                return torch.dot(scaled, scaled)
+
+            best_norm = squared_norm(r)
             scales = (1.0, 0.5, 0.25, 0.125, 0.0625, 0.03125)
             remaining = scales
             previous_trial = None
             previous_value = None
 
-            def trial_value(candidate):
+            def trial_value(candidate, x=x, r=r):
                 nonlocal evaluations, previous_trial, previous_value
                 # Near roundoff or a bound, different trial lengths can
                 # produce the exact same vector. The residual is a pure
@@ -231,7 +243,7 @@ class TorchNewton(_LinearNewton):
             if self._early_full_step and (self.device.type == "cpu" or self.host_convergence):
                 candidate = torch.maximum(lower, torch.minimum(upper, x + step))
                 value = trial_value(candidate)
-                norm = torch.dot(value, value)
+                norm = squared_norm(value)
                 take = torch.isfinite(norm) & (norm < best_norm)
                 best = torch.where(take, candidate, best)
                 previous_norm = best_norm
@@ -252,7 +264,8 @@ class TorchNewton(_LinearNewton):
                     lower, torch.minimum(upper, x + fractions[:, None] * step)
                 )
                 values = torch.vmap(function)(candidates)
-                norms = values.square().sum(-1)
+                scaled = values if objective_scale is None else values / objective_scale
+                norms = scaled.square().sum(-1)
                 norms = torch.where(torch.isfinite(norms), norms, math.inf)
                 index = norms.argmin()
                 take = norms.index_select(0, index.reshape(1)).squeeze(0) < best_norm
@@ -266,7 +279,7 @@ class TorchNewton(_LinearNewton):
                 for scale in remaining:
                     candidate = torch.maximum(lower, torch.minimum(upper, x + scale * step))
                     value = trial_value(candidate)
-                    norm = torch.dot(value, value)
+                    norm = squared_norm(value)
                     take = torch.isfinite(norm) & (norm < best_norm)
                     best = torch.where(take, candidate, best)
                     best_norm = torch.where(take, norm, best_norm)
@@ -276,7 +289,7 @@ class TorchNewton(_LinearNewton):
                 # remaining Newton budget at an unchanged iterate.
                 if self.device.type == "cuda":
                     self.status_reads += 1
-                if bool((best_norm >= torch.dot(r, r)).detach().cpu()):
+                if bool((best_norm >= squared_norm(r)).detach().cpu()):
                     if reused:
                         # Retry this SAME iterate with a fresh tangent before
                         # paying for tiny steps along an obsolete direction.
@@ -291,13 +304,13 @@ class TorchNewton(_LinearNewton):
                             lower, torch.minimum(upper, x + 2.0 ** (-power) * step)
                         )
                         value = trial_value(candidate)
-                        norm = torch.dot(value, value)
+                        norm = squared_norm(value)
                         take = torch.isfinite(norm) & (norm < best_norm)
                         best = torch.where(take, candidate, best)
                         best_norm = torch.where(take, norm, best_norm)
                     if self.device.type == "cuda":
                         self.status_reads += 1
-                    if bool((best_norm >= torch.dot(r, r)).detach().cpu()):
+                    if bool((best_norm >= squared_norm(r)).detach().cpu()):
                         self.stop_reason = "line_search_stalled"
                         break
             x = torch.where((r.abs().max() <= tolerance), x, best)

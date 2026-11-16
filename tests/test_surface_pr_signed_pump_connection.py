@@ -112,7 +112,8 @@ def test_live_donor_composition_enthalpy_and_density(flow):
     unit, a, b, offset, *_ = bundle.entries[0]
     y[offset] = flow / unit.signed_map.maximum_flow_m3_s
     data = [model._state_data(i, s) for i, (_, s) in enumerate(state.nodes)]
-    net, _, records, traces, _ = bundle.evaluate(y, data, {})
+    net, _, records, traces, _, bounds = bundle.evaluate(y, data, {})
+    assert not bool(bounds.any())  # Signed machines retain their strict budget.
     donor = data[a if flow > 0 else b]
     row = records[unit.name]
     mw = (donor["x"][0] * model.fluid.molar_masses).sum()
@@ -162,15 +163,15 @@ def test_validity_uses_live_donor_and_absolute_reverse_head(flow):
     data = [model._state_data(i, s) for i, (_, s) in enumerate(state.nodes)]
     donor = a if flow > 0 else b
     # Keep trace temperatures at donor temperature, making entropy nonnegative.
-    base = bundle.evaluate(y, data, {})[-1]
+    base = bundle.evaluate(y, data, {})[4]
     assert bool(base)
     bad = [dict(d) for d in data]
     bad[donor]["rho"] = y.new_tensor(1.0)
-    assert not bool(bundle.evaluate(y, bad, {})[-1])
+    assert not bool(bundle.evaluate(y, bad, {})[4])
     bad = [dict(d) for d in data]
     bad[donor]["q"] = dict(data[donor]["q"])
     bad[donor]["q"]["frozen_sound_speed_m_s"] = y.new_ones(1)
-    assert not bool(bundle.evaluate(y, bad, {})[-1])
+    assert not bool(bundle.evaluate(y, bad, {})[4])
 
 
 def test_example_changed_donor_independent_audit_and_disabled(monkeypatch):
@@ -241,7 +242,8 @@ def test_zero_flow_rotating_viscous_work_is_finite_donor_heat(speed):
     unit, a, b, offset, *_ = bundle.entries[0]
     y[offset] = 0.0
     data = [model._state_data(i, s) for i, (_, s) in enumerate(state.nodes)]
-    net, _, records, _, _ = bundle.evaluate(y, data, {})
+    net, _, records, _, _, bounds = bundle.evaluate(y, data, {})
+    assert not bool(bounds.any())
     row = records[unit.name]
     assert row["mass_rate_kg_s"] == 0
     assert row["shaft_power_w"] > 0

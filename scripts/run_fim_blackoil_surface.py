@@ -23,8 +23,46 @@ from simulator.simulation import Simulator
 from simulator.well import WellManager
 
 
-def run_case(config, outlet_pa, days, report_days=1.0, device_name="cpu", initial_rs=None):
+def run_case(
+    config,
+    outlet_pa,
+    days,
+    report_days=1.0,
+    device_name="cpu",
+    initial_rs=None,
+    facility_schedule=None,
+):
+    if any(
+        isinstance(v, bool) or not math.isfinite(v * 86400) or v <= 0 for v in (days, report_days)
+    ):
+        raise ValueError("days and report_days must be positive and finite")
     c = copy.deepcopy(config)
+    events = copy.deepcopy([] if facility_schedule is None else facility_schedule)
+    if not isinstance(events, list):
+        raise TypeError("facility_schedule must be a list")
+    if events and c["simulation"].get("coupled_facility") is None:
+        raise ValueError("Facility schedule requires coupled_facility")
+    from simulator.facility_coupling import FacilityCoupledFIM
+
+    previous_time = -1.0
+    for event in events:
+        if not isinstance(event, dict) or set(event) != {"time_days", "controls"}:
+            raise ValueError("Each facility event requires time_days and controls")
+        when = event["time_days"]
+        if (
+            isinstance(when, bool)
+            or not isinstance(when, (int, float))
+            or not math.isfinite(when)
+            or not previous_time < when < days
+            or when < 0
+        ):
+            raise ValueError("Facility events must be strictly ordered within [0, days)")
+        if (
+            not isinstance(event["controls"], dict)
+            or set(event["controls"]) - FacilityCoupledFIM.control_fields
+        ):
+            raise ValueError("Unsupported facility controls; feed scaling is forbidden")
+        previous_time = when
     network = c["simulation"]["physical_surface_network"]["network"]
     boundaries = [node for node in network["nodes"] if node.get("pressure_pa") is not None]
     if len(boundaries) != 1:
@@ -34,6 +72,7 @@ def run_case(config, outlet_pa, days, report_days=1.0, device_name="cpu", initia
     log = io.StringIO()
     steps = []
     interval_timings = []
+    applied_events = []
     with contextlib.redirect_stdout(log):
         r = Reservoir(c["reservoir"], device=device)
         f = Fluid(c["fluid"], r, device=device)
@@ -78,15 +117,29 @@ def run_case(config, outlet_pa, days, report_days=1.0, device_name="cpu", initia
             reservoir_hook(time_days)
             if sim.facility_coupling is not None:
                 steps[-1]["facility_coupling"] = copy.deepcopy(sim.facility_coupling.report)
+                steps[-1]["facility_controls"] = copy.deepcopy(sim.facility_coupling.controls)
 
         sim.substep_hook = accepted_with_facility
         end = days * 86400
         if device.type == "cuda":
             torch.cuda.synchronize(device)
         started = time.perf_counter()
+        event_index = 0
         while sim.current_time < end:
+            while (
+                event_index < len(events)
+                and events[event_index]["time_days"] * 86400 <= sim.current_time
+            ):
+                event = events[event_index]
+                # Complete replacement: an empty dictionary restores operator defaults.
+                sim.facility_coupling.controls = copy.deepcopy(event["controls"])
+                applied_events.append({**event, "applied_time_days": sim.current_time / 86400})
+                event_index += 1
+            target = min(sim.current_time + report_days * 86400, end)
+            if event_index < len(events):
+                target = min(target, events[event_index]["time_days"] * 86400)
             interval_start = time.perf_counter()
-            if not sim.run_step(min(report_days * 86400, end - sim.current_time)):
+            if not sim.run_step(target - sim.current_time):
                 raise RuntimeError("Physical black-oil interval failed")
             if device.type == "cuda":
                 torch.cuda.synchronize(device)
@@ -94,6 +147,7 @@ def run_case(config, outlet_pa, days, report_days=1.0, device_name="cpu", initia
                 {
                     "time_days": sim.current_time / 86400,
                     "wall_s": time.perf_counter() - interval_start,
+                    "time_step_statistics": copy.deepcopy(sim.last_fim_interval_stats),
                 }
             )
         if device.type == "cuda":
@@ -118,6 +172,7 @@ def run_case(config, outlet_pa, days, report_days=1.0, device_name="cpu", initia
         "withdrawn_component_mass_kg": withdrawn.tolist(),
         "mass_balance_error_kg": (old - new - withdrawn).tolist(),
         "accepted_substeps": steps,
+        "facility_control_events": applied_events,
         "final_pressure_pa": f.pressure.flatten().tolist(),
         "final_s_w": f.s_w.flatten().tolist(),
         "final_s_g": f.s_g.flatten().tolist(),

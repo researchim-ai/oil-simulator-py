@@ -23,6 +23,7 @@ def coverage(config):
     transport = plant["transport"]
     vertices = {n["name"] for n in transport["nodes"]} | set(plant["columns"])
     edges = [(x["source"], x["target"]) for x in transport["links"]]
+    edges += [(x["source"], x["target"]) for x in plant.get("darcy_connections", [])]
     edges += [(x["column"], x["node"]) for x in plant["ports"]]
     edges += [(x["card"]["start"], x["card"]["end"]) for x in transport["pump_connections"]]
     edges += [(x["source"], x["target"]) for x in transport["compressors"]]

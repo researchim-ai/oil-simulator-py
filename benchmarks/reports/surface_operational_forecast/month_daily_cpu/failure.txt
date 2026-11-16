@@ -1,0 +1,51 @@
+/home/user/workspace/oil-simulator-py-impes/src/simulator/blackoil_fim.py:1109: UserWarning: index_reduce() is in beta and the API may change at any time. (Triggered internally at /pytorch/aten/src/ATen/native/TensorAdvancedIndexing.cpp:1531.)
+  self.p_cell_max = zeros.clone().index_reduce_(0, cw, v[I_P][c], "amax", include_self=False)
+/home/user/workspace/oil-simulator-py-impes/src/simulator/cpr_gpu.py:75: UserWarning: Sparse CSR tensor support is in beta state. If you miss a functionality in the sparse tensor support, please submit a feature request to https://github.com/pytorch/pytorch/issues. (Triggered internally at /pytorch/aten/src/ATen/SparseCsrTensorImpl.cpp:53.)
+  A_p = torch.sparse_csr_tensor(crow, col, data_p, size=(n_cells, n_cells))
+Traceback (most recent call last):
+  File "/home/user/workspace/oil-simulator-py-impes/scripts/run_fim_facility_forecast.py", line 101, in <module>
+    main()
+  File "/home/user/workspace/oil-simulator-py-impes/scripts/run_fim_facility_forecast.py", line 71, in main
+    result = run_case(
+             ^^^^^^^^^
+  File "/home/user/workspace/oil-simulator-py-impes/scripts/run_fim_blackoil_surface.py", line 142, in run_case
+    if not sim.run_step(target - sim.current_time):
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/user/workspace/oil-simulator-py-impes/src/simulator/simulation.py", line 234, in run_step
+    return self._fully_implicit_step(dt)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/user/workspace/oil-simulator-py-impes/src/simulator/simulation.py", line 326, in _fully_implicit_step
+    if stepper.step(h_try, current_time=self.current_time):
+       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/user/workspace/oil-simulator-py-impes/src/simulator/facility_coupling.py", line 282, in step
+    ok, plant = trial(1.0)
+                ^^^^^^^^^^
+  File "/home/user/workspace/oil-simulator-py-impes/src/simulator/facility_coupling.py", line 241, in trial
+    if not solver.step(dt, current_time=current_time):
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/user/workspace/oil-simulator-py-impes/src/simulator/surface_coupling.py", line 37, in wrapped
+    return function(self, *args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/user/workspace/oil-simulator-py-impes/src/simulator/fim_transaction.py", line 126, in wrapped
+    result = step(self, *args, **kwargs)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/user/workspace/oil-simulator-py-impes/src/simulator/blackoil_fim.py", line 1955, in step
+    R, J, wsys = self.assemble_bo(p, sw, x, sat, acc_old, dt, p_bh, state, ug)
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/user/workspace/oil-simulator-py-impes/src/simulator/blackoil_fim.py", line 1766, in assemble_bo
+    wsys = self.wells.assemble(R, J, dm, v, d, p_bh) if self.wells.n_w else None
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/user/workspace/oil-simulator-py-impes/src/simulator/blackoil_surface_coupling.py", line 253, in assemble
+    self.surface_network.solve(sources)
+  File "/home/user/workspace/oil-simulator-py-impes/src/surface/blackoil_network.py", line 275, in solve
+    result = self.models[pipe.name].required_inlet(
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/user/workspace/oil-simulator-py-impes/src/surface/blackoil_pipe.py", line 298, in required_inlet
+    return self._solve(outlet_pressure_pa, component_mass_rates, model, True)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/user/miniconda3/lib/python3.12/site-packages/torch/utils/_contextlib.py", line 116, in decorate_context
+    return func(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "/home/user/workspace/oil-simulator-py-impes/src/surface/blackoil_pipe.py", line 206, in _solve
+    raise PropertyModelError("Required pipe pressure is outside PVT coverage")
+surface.liquid.PropertyModelError: Required pipe pressure is outside PVT coverage

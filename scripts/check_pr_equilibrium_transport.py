@@ -83,7 +83,7 @@ def reservoir_trace(data, saved, side, model, fluid):
     close(x, data["x"][0], atol=1e-10, rtol=2e-8)
     q = Reference(fluid, np.flatnonzero(x > 0)).state(p, t, x, "stable")
     contact = saved["contact_outward_velocity_m_s"]
-    outward = max(contact, 0.0)
+    outward = contact
     close(saved["outward_velocity_m_s"], outward, atol=1e-8, rtol=2e-7)
     mode = "reversible_outflow" if contact >= 0 else "mixed_inflow"
     if saved["mode"] != mode:

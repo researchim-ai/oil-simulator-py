@@ -1,0 +1,8 @@
+{
+  "accepted": true,
+  "checked_substeps": 2,
+  "maximum_local_energy_residual_j": 3.841049387581785e-08,
+  "checked_control_substeps": 2,
+  "trajectory": "startup_final_trajectory.json",
+  "pre_cap_and_capped_intervals_exactly_equal": true
+}

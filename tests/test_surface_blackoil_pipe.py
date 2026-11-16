@@ -9,7 +9,7 @@ import pytest
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 from test_surface_blackoil_properties import model
 
-from surface.blackoil_pipe import BlackOilPipe
+from surface.blackoil_pipe import BlackOilPipe, PipePressureCoverageError
 from surface.liquid import PropertyModelError
 
 
@@ -54,7 +54,7 @@ def test_pressure_jacobian_with_moving_bubble_point(outlet):
 def test_outside_pressure_coverage_and_geometry():
     with pytest.raises(PropertyModelError, match="upward"):
         BlackOilPipe("downhill", 100, 0.1, -10)
-    with pytest.raises(PropertyModelError, match="coverage"):
+    with pytest.raises(PipePressureCoverageError, match="coverage"):
         BlackOilPipe("huge_rise", 10000, 0.08, 9000).required_inlet(1e6, [0.85, 2, 0.06], model())
 
 

@@ -88,6 +88,7 @@ def enabled_predictor(unit, enabled, ratio):
 class PumpConnectionBundle:
     count = 5
     _thermodynamic_predictor = True
+    _enthalpy_roundoff = True
 
     def __init__(self, model, state, openings, offset, seeds=None, active=None):
         self.model = model
@@ -430,6 +431,31 @@ class PumpConnectionBundle:
                     )
                 )
             )
+            if self._enthalpy_roundoff:
+                # The single-liquid trace has the same subtractive enthalpy
+                # rows as the mixture trace. Do not certify pressure, entropy
+                # or the temperature constraints of a closed check valve.
+                precision = 3 * torch.finfo(y.dtype).eps
+                zero = q * 0
+                roundoff[unit.name] = torch.stack(
+                    (
+                        precision * (his.abs() + hin.abs() + (mw * G * head).abs()) / escale,
+                        zero,
+                        torch.where(
+                            closed,
+                            zero,
+                            precision
+                            * (
+                                hout.abs()
+                                + hin.abs()
+                                + (his.abs() + hin.abs()) / eta.clamp_min(1e-8)
+                            )
+                            / escale,
+                        ),
+                        torch.where(closed, zero, precision * (hdel.abs() + hout.abs()) / escale),
+                        zero,
+                    )
+                ).clamp_max(1e-10)  # Same hard cap as the liquid-mixture trace.
             actual = torch.where(closed, q * 0, q)
             mass = actual * source["rho"]
             molar = mass / mw

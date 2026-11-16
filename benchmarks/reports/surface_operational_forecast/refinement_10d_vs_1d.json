@@ -1,0 +1,20 @@
+{
+  "accepted": false,
+  "errors": {
+    "final_pressure_pa": 335.27559679793194,
+    "final_s_w": 3.5882088909089394e-05,
+    "final_s_g": 0.0001301790927098201,
+    "final_rs": 0.005029133951964582,
+    "withdrawal_relative": 0.011361037485423962
+  },
+  "budgets": {
+    "final_pressure_pa": 1000.0,
+    "final_s_w": 0.001,
+    "final_s_g": 0.001,
+    "final_rs": 0.01,
+    "withdrawal_relative": 0.01
+  },
+  "coarse": "benchmarks/reports/surface_operational_forecast/month_coverage_cpu/trajectory.json.gz",
+  "fine": "benchmarks/reports/surface_operational_forecast/month_daily_coverage_cpu/trajectory.json.gz",
+  "scope": "Compare completed operational forecasts at common event/report endpoints.\n\nBudgets must be supplied before inspecting the reference result. This is a\nstep-refinement check, not a proof that the finer trajectory is exact.\n"
+}

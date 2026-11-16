@@ -24,6 +24,7 @@ try:
         PropertyModelError,
         SurfaceFacility,
     )
+    from ..surface.blackoil_pipe import PipePressureCoverageError
     from ..surface.liquid import InvalidPressureError
 except ImportError:
     from surface import (
@@ -34,6 +35,7 @@ except ImportError:
         PropertyModelError,
         SurfaceFacility,
     )
+    from surface.blackoil_pipe import PipePressureCoverageError
     from surface.liquid import InvalidPressureError
 
 
@@ -56,6 +58,19 @@ class CoupledFacilityControl:
 
 
 class FacilityCoupledFIM:
+    control_fields = frozenset(
+        {
+            "pump_speed_ratios",
+            "valve_openings",
+            "gas_header_pressure_pa",
+            "gas_cooling_temperature_k",
+            "unavailable_pumps",
+            "station_target_pressure_pa",
+            "gas_valve_max_opening",
+            "gas_valve_outlet_pressure_pa",
+        }
+    )
+
     def __init__(
         self, solver, facility, control=None, *, energy_process=None, energy_controls=None
     ):
@@ -186,17 +201,7 @@ class FacilityCoupledFIM:
     def step(self, dt, current_time=None):
         if isinstance(dt, bool) or not math.isfinite(dt) or dt <= 0:
             raise ValueError("dt must be positive and finite")
-        allowed_controls = {
-            "pump_speed_ratios",
-            "valve_openings",
-            "gas_header_pressure_pa",
-            "gas_cooling_temperature_k",
-            "unavailable_pumps",
-            "station_target_pressure_pa",
-            "gas_valve_max_opening",
-            "gas_valve_outlet_pressure_pa",
-        }
-        if set(self.controls) - allowed_controls:
+        if set(self.controls) - self.control_fields:
             raise ValueError("Unsupported coupled facility controls; feed scaling is forbidden")
         if getattr(self, "energy_controls", {}) and getattr(self, "energy_process", None) is None:
             raise PropertyModelError("Caloric controls require an explicit energy process")
@@ -235,7 +240,21 @@ class FacilityCoupledFIM:
             reset()
             for w, cap in zip(solver.wells.wells, caps):
                 w.control_value = cap * fraction
-            if not solver.step(dt, current_time=current_time):
+            try:
+                converged = solver.step(dt, current_time=current_time)
+            except PipePressureCoverageError as error:
+                # Reject only this declared operating-envelope violation.
+                # Invalid PVT tables and other PropertyModelError instances
+                # still propagate; no pressure extrapolation is permitted.
+                trace.append(
+                    {
+                        "fraction": fraction,
+                        "feasible": False,
+                        "reason": [{"pipe_pressure_coverage": str(error)}],
+                    }
+                )
+                return False, None
+            if not converged:
                 raise HydraulicConvergenceError(
                     "Reservoir step failed during facility capacity trial"
                 )

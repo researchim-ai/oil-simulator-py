@@ -1,0 +1,54 @@
+{
+  "scope": "Bounded synthetic Darcy reduction, corrected stagnation ports, regression and full-facility startup. Whole operating cycle NOT qualified.",
+  "comparison_accepted": true,
+  "whole_facility_cycle_accepted": false,
+  "gpu_measured": false,
+  "comparison_sources_match": true,
+  "startup_sources_match": true,
+  "initial_global_inventory_preserved": true,
+  "detailed_substeps_independently_reaudited": 438,
+  "reduced_substeps_independently_audited": 32,
+  "timing_provenance": "Original measured CPU times, not rerun times; original manifests in reference metadata",
+  "startup_audit": {
+    "accepted": true,
+    "checked_substeps": 2,
+    "maximum_local_energy_residual_j": 5.204450204132627e-08,
+    "checked_control_substeps": 2
+  },
+  "startup_simulated_s": 0.0001,
+  "whole_cycle_failure": "TimeoutExpired: Command '['/home/user/miniconda3/bin/python', '/home/user/workspace/oil-simulator-py-impes/scripts/run_pr_controlled_surface.py', 'benchmarks/reports/surface_pr_darcy_reduction/reduced_config.json', '--device', 'cpu', '--output', '/home/user/workspace/oil-simulator-py-impes/benchmarks/reports/surface_pr_darcy_reduction/full_cycle_acceptance.trajectory.json', '--progress']' timed out after 59.99999206500007 seconds",
+  "regression": {
+    "passed": 111,
+    "wall_s": 137.85,
+    "log": "regression.txt"
+  },
+  "protected_source_sha256": {
+    "src/surface/torch_linear.py": "b7bda1aae66d9e979c147f821efba9990d6460d60b32a05c6fc5f9b873b752d5",
+    "src/simulator/blackoil_fim.py": "658fde0e6119df6ae154c3c400ff24b8d2a519dfa9a33e612aeaa6bd51a16c3c"
+  },
+  "artifact_sha256": {
+    "comparison/summary.json": "2df7f0f62d036a3232b710e19f31d144f46cc657cdf59c65a296136ce8047e56",
+    "reference/metadata.json": "f24e6f4ff2de6f3e1dce77f7e8115091406ceab19f59efb472b1c817bdf99328",
+    "startup_result.json": "d1171f0b09c34f87da972aed33227a13fab689438d9759fe76a774e546cee83f",
+    "startup_audit.json": "5f48af13978f49222f77fc49dc5e021e5e9311195bff13b32b16ad2ebf5c576e",
+    "full_cycle_acceptance.json": "e5b203010b1ca4dc93f8bac68f7f5e84ff9b12c3ba1dcd530b858a26553b5eac",
+    "regression.txt": "4b3f47c30e30b5786eb0e060f7f2a4ce6ed36b07666e7674958b8d47ef8e1038",
+    "comparison/darcy.json.gz": "283404597f502de1a5460e4850955e0a55f73ae9f947f5a86e315fc615402142",
+    "comparison/pipe1.json.gz": "12d9497808c5720eecedf390bd52088e405c1b363fdfe0d9be25bd52dfa90cd2",
+    "comparison/pipe4.json.gz": "8d2fe48c7a89870276667da1d126461f2f20c03c296895c04d3cf698ee3220c1",
+    "comparison/pipe8.json.gz": "6812e634a11c692b2e93534edcdee17e1d1e77b360e5e406fe02afc49f936fe9",
+    "full_cycle_profile.json": "19d6c97fb2f70de947f1eb9c0150568b4049e355016f9c25c699db2fd203f9c2",
+    "profiling_driver.py": "c08d0330a8fe428e8adf23860f76681eb3e692b76acd1a250101fc44659a49eb"
+  },
+  "profile": {
+    "completed_operating_cycle": false,
+    "scope": "Instrumented 45-second CPU profile of the complete reduced facility request; not a timing benchmark or accepted trajectory.",
+    "status": "profiling_budget_exhausted",
+    "sources_unchanged": true,
+    "artifact": "full_cycle_profile.json",
+    "driver": "profiling_driver.py",
+    "interpretation": "Overlapping cumulative costs of completed instrumented calls; not additive percentages or uninstrumented elapsed time.",
+    "original_driver_sha256": "f8e55720c3bf6ce99470668654c0220056f60c58b29a69db5b6990db03c4dcc1",
+    "archived_driver_changes": "Import spacing, formatting and equivalent dict literals only; original execution driver hash retained."
+  }
+}

@@ -389,6 +389,7 @@ def audit(config, report):
                     + plant["transport"].get("heat_links", [])
                     + plant.get("ports", [])
                     + plant.get("heat_links", [])
+                    + plant.get("darcy_connections", [])
                 )
             }
             actual.update(
@@ -404,6 +405,7 @@ def audit(config, report):
                 {unit["name"]: unit["open"] for unit in plant["transport"].get("compressors", [])}
             )
             actual.update({u["name"]: u["open"] for u in restrictions.values()})
+            actual.update({c["name"]: c["open"] for c in plant.get("darcy_connections", [])})
             for switch, (branch, i) in endpoint_switches.items():
                 actual[switch] = (
                     old["plant"].get("profile_openings", {}).get(branch, (True, True))[i]

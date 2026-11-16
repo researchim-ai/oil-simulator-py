@@ -30,6 +30,14 @@ class ChokedFlowError(EquipmentOperatingError):
     """Known physical flow-capacity boundary, distinct from numerical failure."""
 
 
+class PipePressureCoverageError(PropertyModelError):
+    """This rate needs a pipe port beyond the declared PVT pressure range.
+
+    A capacity driver may reject this candidate without extrapolating PVT.
+    This is not proof of physical choking or a corrupt property table.
+    """
+
+
 @lru_cache(maxsize=32)
 def _gauss(order, device="cpu"):
     nodes, weights = np.polynomial.legendre.leggauss(order)
@@ -203,7 +211,9 @@ class BlackOilPipe:
                 break
             increment *= 2
         if found is None:
-            raise PropertyModelError("Required pipe pressure is outside PVT coverage")
+            if previous != limit:
+                raise HydraulicConvergenceError("Pipe pressure bracket budget exhausted")
+            raise PipePressureCoverageError("Required pipe pressure is outside PVT coverage")
         root = brentq(
             lambda p: distance(p) - self.length_m,
             min(boundary, found),

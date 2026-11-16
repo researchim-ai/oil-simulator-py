@@ -179,6 +179,7 @@ def audit(
                 + tm.get("heat_links", [])
                 + model["ports"]
                 + model.get("heat_links", [])
+                + model.get("darcy_connections", [])
             )
         }
         commands.update(
@@ -188,6 +189,7 @@ def audit(
             }
         )
         commands.update({unit["name"]: unit["open"] for unit in tm.get("compressors", [])})
+        commands.update({c["name"]: c["open"] for c in model.get("darcy_connections", [])})
         commands.update({u["name"]: u["open"] for u in tm.get("restrictions", [])})
         commands.update(command.get("openings", {}))
         if interval["openings"] != commands or not interval["steps"]:
@@ -247,6 +249,19 @@ def audit(
                 material_s = float(exchanged["incoming_entropy"])
                 close(step["material_component_moles"], material_n, atol=1e-10, rtol=2e-7)
                 close(step["material_energy_j"], material_e, atol=1e-7, rtol=2e-7)
+
+            if model.get("darcy_connections"):
+                from reference_pr_darcy_connection import reconstruct
+
+                material = step["columns"].get("material", step["transport"].get("coupling", {}))
+                internal = reconstruct(
+                    model, nodes, data, commands, material.get("darcy_connections", {}), fluid
+                )
+                for name, rate in internal.items():
+                    net[name] += rate
+                if external_exchange is None:
+                    close(step["material_component_moles"], np.zeros(nc), atol=1e-10, rtol=0)
+                    close(step["material_energy_j"], 0.0, atol=1e-7, rtol=0)
 
             particle_rates = {
                 name: 0.0

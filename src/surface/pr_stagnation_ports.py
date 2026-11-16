@@ -103,7 +103,11 @@ class SinglePhaseReservoirTraces:
             incoming = torch.stack(((p / source["p"]).log(), (t - source["t"]) / f.tref))
             row = torch.where(vout >= 0, outgoing, incoming)
             residual.append(row)
-            actual_vout = torch.where(vout >= 0, vout, vout * 0)
+            # A receiving vessel mixes the incoming jet after the interface.
+            # The interface itself retains its signed contact velocity.
+            # Clamping it to zero adds an artificial acoustic pressure loss
+            # to the outlet and suppresses low-Mach pipe throughput.
+            actual_vout = vout
             point = {
                 **source,
                 "p": p,

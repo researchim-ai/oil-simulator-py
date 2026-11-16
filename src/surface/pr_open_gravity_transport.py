@@ -26,7 +26,7 @@ class PROpenGravityTransportNetwork(PROpenTransportNetwork):
             raise TypeError("Expected explicit resolved gravitational transport graph")
         self.graph = graph
         super().__init__(graph.transport, feeds, pressure_ports)
-        reserved = {p.name for p in (*graph.ports, *graph.heat_links)}
+        reserved = {p.name for p in (*graph.ports, *graph.heat_links, *graph.darcy_connections)}
         if reserved & {p.name for p in (*self.feeds, *self.pressure_ports)}:
             raise ValueError("Material and gravitational port names must be distinct")
 

@@ -61,7 +61,8 @@ def test_total_head_and_receiving_mixing_are_direction_consistent(
     trace = r["reservoir_traces"]["port"][reservoir_side]
     if reverse:
         assert trace["mode"] == "mixed_inflow"
-        assert trace["outward_velocity_m_s"] == 0.0
+        assert trace["outward_velocity_m_s"] < 0.0
+        assert trace["outward_velocity_m_s"] == pytest.approx(trace["contact_outward_velocity_m_s"])
     else:
         assert trace["mode"] == "reversible_outflow"
         assert trace["trace_entropy_j_mol_k"] == pytest.approx(
@@ -119,9 +120,7 @@ def test_gravity_column_pipe_and_reservoir_share_trace_unknowns(dense_limit, mon
     base, state, commands = gravity_setup()
     pipe = base.transport.nodes[0]
     sink = PREquilibriumNode("sink", 0.01, elevation_m=pipe.elevation_m)
-    link = PREquilibriumLink(
-        "drain", pipe.name, sink.name, pipe.diameter_m, source_port="right"
-    )
+    link = PREquilibriumLink("drain", pipe.name, sink.name, pipe.diameter_m, source_port="right")
     transport = PREquilibriumTransportNetwork(
         base.transport.fluid,
         [pipe, sink],
@@ -158,34 +157,38 @@ def test_gravity_column_pipe_and_reservoir_share_trace_unknowns(dense_limit, mon
         from check_pr_gravity_transport import audit
         from run_pr_gravity_transport import run
 
-        config = json.loads(json.dumps({
-            "model": model.to_dict(),
-            "initial": {
-                "transport": {
-                    name: {
-                        "pressure_pa": 990000.0 if name == "pipe" else 989900.0,
-                        "temperature_k": 320.0,
-                        "mole_fractions": [0.5, 0.5],
-                    }
-                    for name in transport.names
-                },
-                "columns": {
-                    "separator": {
-                        "pressure_pa": 1e6,
-                        "temperature_k": 320.0,
-                        "mole_fractions": [0.5, 0.5],
-                    }
-                },
-                "wall_temperatures": {},
-            },
-            "schedule": [{"duration_s": 1e-8}],
-        }))
+        config = json.loads(
+            json.dumps(
+                {
+                    "model": model.to_dict(),
+                    "initial": {
+                        "transport": {
+                            name: {
+                                "pressure_pa": 990000.0 if name == "pipe" else 989900.0,
+                                "temperature_k": 320.0,
+                                "mole_fractions": [0.5, 0.5],
+                            }
+                            for name in transport.names
+                        },
+                        "columns": {
+                            "separator": {
+                                "pressure_pa": 1e6,
+                                "temperature_k": 320.0,
+                                "mole_fractions": [0.5, 0.5],
+                            }
+                        },
+                        "wall_temperatures": {},
+                    },
+                    "schedule": [{"duration_s": 1e-8}],
+                }
+            )
+        )
         result = json.loads(json.dumps(run(config)))
         assert audit(config, result)["accepted"]
         broken = copy.deepcopy(result)
-        broken["intervals"][0]["steps"][0]["transport"]["reservoir_traces"]["drain"][
-            "target"
-        ]["trace_total_enthalpy_j_mol"] += 1.0
+        broken["intervals"][0]["steps"][0]["transport"]["reservoir_traces"]["drain"]["target"][
+            "trace_total_enthalpy_j_mol"
+        ] += 1.0
         with pytest.raises(ValueError):
             audit(config, broken)
 

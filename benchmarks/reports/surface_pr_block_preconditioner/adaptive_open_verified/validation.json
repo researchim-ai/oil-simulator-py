@@ -1,0 +1,36 @@
+{
+  "date": "2026-11-15",
+  "scope": "Adaptive PR preconditioner evidence; no whole-facility or GPU speed acceptance",
+  "regression": {
+    "passed": 21,
+    "elapsed_s": 21.9
+  },
+  "checks": {
+    "six_current_open_runs_completed": true,
+    "raw_payload_digests_and_measurements_match_summary": true,
+    "all_unique_trajectories_audited_completely": true,
+    "report_state_differences_within_predeclared_budgets": true,
+    "adaptive_error_ratios_at_most_one": true,
+    "measured_production_surface_sources_match_final_workspace": true,
+    "archival_thermal_trajectories_reaudited": true,
+    "archival_thermal_timing_provenance_qualified": false,
+    "full_facility_accepted": false,
+    "full_facility_sources_unchanged": true,
+    "profile_is_bounded_diagnostic_only": true
+  },
+  "open_medians": {
+    "open6": {
+      "diagonal": 44.149775541000054,
+      "block": 44.628978536000034
+    }
+  },
+  "open_speedup": {
+    "open6": 0.9892625148340908
+  },
+  "solver_backend_sha256": "b7bda1aae66d9e979c147f821efba9990d6460d60b32a05c6fc5f9b873b752d5",
+  "evidence_tools_sha256": {
+    "evidence_tools/profile_startup.py": "7cf10b162520a2eab6275fa8a3af1f3fcad5ee4fad9d3c88d731163b35b720ec",
+    "evidence_tools/recheck_thermal.py": "a1a14d42a8324ca814f3f1cc280f0abaaf66a11f3516edd4c80dc7ae308e9647"
+  },
+  "journal_change": "After measurement: durable protocol/progress files and fresh-directory enforcement; timed source hashes preserved in original summary."
+}

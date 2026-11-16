@@ -19,6 +19,7 @@ from unittest.mock import patch
 import numpy as np
 import torch
 from audit_pr_collocation import audit_gauss_step
+from benchmark_journal import BenchmarkJournal
 from benchmark_pr_block_preconditioner import fixture, trace_linear_solves
 from check_pr_collocation import ROOT, IsochoricReference
 from check_pr_open_transport import audit as open_audit
@@ -241,7 +242,7 @@ def main():
         or len(set(args.cases)) != len(args.cases)
     ):
         parser.error("One CPU thread, unique cases and 1..5 repeats required")
-    if (args.output / "summary.json").exists():
+    if args.output.exists():
         parser.error("Choose a fresh output directory")
     assert Path(__file__).resolve().parents[1] == ROOT, "Benchmark helper source root differs"
     assert Path(inspect.getfile(PRCollocation)).resolve() == ROOT / "src/surface/pr_collocation.py"
@@ -254,7 +255,20 @@ def main():
         OPEN_CONFIG,
     ]
     hashes = {str(p.relative_to(ROOT)): hashlib.sha256(p.read_bytes()).hexdigest() for p in paths}
-    args.output.mkdir(parents=True, exist_ok=True)
+    runtime = runtime_fingerprint()
+    protocol = {
+        "format": "pr_adaptive_preconditioner_v1",
+        "scope": __doc__,
+        "cases": args.cases,
+        "repeats": args.repeats,
+        "pair_budgets": PAIR_BUDGETS,
+        "independent_ode_budgets": REFERENCE_BUDGETS,
+        "runtime": runtime,
+        "cpu_threads": 1,
+        "source_sha256": hashes,
+        "source_root": str(ROOT),
+    }
+    journal = BenchmarkJournal(args.output, protocol)
     reference = None
     if "thermal32" in args.cases:
         model, state, schedule = prepare("thermal32", True)
@@ -341,8 +355,16 @@ def main():
                 paired[mode] = results
                 with gzip.open(args.output / f"{case}_pair{pair}_{mode}.json.gz", "wt") as f:
                     json.dump(
-                        {**payload, "measurement": row, "linear_solves": trace}, f, allow_nan=False
+                        {
+                            **payload,
+                            "measurement": row,
+                            "linear_solves": trace,
+                            "protocol": protocol,
+                        },
+                        f,
+                        allow_nan=False,
                     )
+                journal.checkpoint(rows, comparisons, certificates)
                 print(json.dumps(row), flush=True)
             comparisons.append(
                 {
@@ -351,6 +373,7 @@ def main():
                     "errors_at_report_times": pair_errors(paired["diagonal"], paired["block"]),
                 }
             )
+            journal.checkpoint(rows, comparisons, certificates)
     assert all(hashlib.sha256((ROOT / p).read_bytes()).hexdigest() == h for p, h in hashes.items())
     medians = {
         case: {
@@ -374,12 +397,12 @@ def main():
         "runs": rows,
         "comparisons": comparisons,
         "audit_certificates": certificates,
-        "runtime": runtime_fingerprint(),
+        "runtime": runtime,
         "cpu_threads": 1,
         "source_sha256": hashes,
         "source_root": str(ROOT),
     }
-    (args.output / "summary.json").write_text(json.dumps(summary, indent=2) + "\n")
+    journal.complete(summary)
     print(json.dumps({"medians": medians, "speedup": summary["speedup"]}, indent=2))
 
 

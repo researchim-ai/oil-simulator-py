@@ -1,0 +1,13 @@
+{
+  "removed_cell": "gas_recycle_0",
+  "receiving_vessel": "gas_suction",
+  "connection": "gas_recycle_0_darcy",
+  "relocated_volume_m3": 1.5707963267948966e-07,
+  "relocated_component_moles": [
+    4.439173828042783e-05,
+    8.218181613715836e-06,
+    2.1788658163606146e-06
+  ],
+  "relocated_total_energy_j": -0.14752064283355165,
+  "scope": "Explicit reduced model; fast cell inertia and spatial line storage are not resolved. Total initial N/E/V are retained in finite vessels."
+}
