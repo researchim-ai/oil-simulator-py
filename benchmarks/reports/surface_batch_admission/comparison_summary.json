@@ -1,0 +1,78 @@
+[
+  {
+    "scope": "Same complete FIM/torch_batch pipe model; only legacy versus batched PVT admission differs in memory. Identical config and horizon; both independently audited.",
+    "wells": 512,
+    "repeat": 1,
+    "legacy_s": 2.97836723400178,
+    "batch_s": 2.4677634239997133,
+    "exact_final_field_and_withdrawal_differences": {
+      "final_pressure_pa": 0.0,
+      "final_s_w": 0.0,
+      "final_s_g": 0.0,
+      "final_rs": 0.0,
+      "withdrawn_component_mass_kg": 0.0
+    },
+    "policy_calls": [
+      16,
+      16
+    ],
+    "accepted": true
+  },
+  {
+    "scope": "Same complete FIM/torch_batch pipe model; only legacy versus batched PVT admission differs in memory. Identical config and horizon; both independently audited.",
+    "wells": 512,
+    "repeat": 2,
+    "legacy_s": 3.0420090589977917,
+    "batch_s": 2.589057203000266,
+    "exact_final_field_and_withdrawal_differences": {
+      "final_pressure_pa": 0.0,
+      "final_s_w": 0.0,
+      "final_s_g": 0.0,
+      "final_rs": 0.0,
+      "withdrawn_component_mass_kg": 0.0
+    },
+    "policy_calls": [
+      16,
+      16
+    ],
+    "accepted": true
+  },
+  {
+    "scope": "Same complete FIM/torch_batch pipe model; only legacy versus batched PVT admission differs in memory. Identical config and horizon; both independently audited.",
+    "wells": 512,
+    "repeat": 3,
+    "legacy_s": 2.8882211380005174,
+    "batch_s": 2.6116002070011746,
+    "exact_final_field_and_withdrawal_differences": {
+      "final_pressure_pa": 0.0,
+      "final_s_w": 0.0,
+      "final_s_g": 0.0,
+      "final_rs": 0.0,
+      "withdrawn_component_mass_kg": 0.0
+    },
+    "policy_calls": [
+      16,
+      16
+    ],
+    "accepted": true
+  },
+  {
+    "scope": "Same complete FIM/torch_batch pipe model; only legacy versus batched PVT admission differs in memory. Identical config and horizon; both independently audited.",
+    "wells": 2048,
+    "repeat": 1,
+    "legacy_s": 9.94976392299941,
+    "batch_s": 8.522197957998287,
+    "exact_final_field_and_withdrawal_differences": {
+      "final_pressure_pa": 0.0,
+      "final_s_w": 0.0,
+      "final_s_g": 0.0,
+      "final_rs": 0.0,
+      "withdrawn_component_mass_kg": 0.0
+    },
+    "policy_calls": [
+      64,
+      64
+    ],
+    "accepted": true
+  }
+]

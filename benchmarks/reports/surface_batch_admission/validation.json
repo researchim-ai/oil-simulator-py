@@ -1,0 +1,384 @@
+{
+  "scope": "CPU-only identical-physics full FIM comparison, current pipe kernel with legacy or batched PVT admission injected locally; exact endpoint equivalence and independent accounting re-audit.",
+  "runs": {
+    "wells2048_batch_1": {
+      "audit": {
+        "accepted": true,
+        "wells": 2048,
+        "accepted_steps": 1,
+        "elapsed_days": 1.0,
+        "mode_samples": {
+          "surface": 2048
+        },
+        "component_mass_residual_kg": [
+          1.4886260032653809e-05,
+          -5.640089511871338e-06,
+          -5.32250851392746e-07
+        ],
+        "mass_atol_kg": 0.01,
+        "mass_rtol": 1e-08,
+        "well_block_backend": "tree_structured",
+        "scope": "Accepted producer-only FIM -> gathering material/operating audit.\n\nNo solver invocation or rescaling of requested production. This is accounting\nand constraint checking, not independent PVT/correlation validation.\n"
+      },
+      "policy": {
+        "scope": "Like-for-like FIM benchmark of scalar versus batched PVT admission only.\n\nBoth modes run the current torch_batch pipe solver. 'legacy' restores just the\nprevious per-stream admission in this process, never a different pipe model.\nThe ordinary forecast driver supplies accounting and source guards; this\nwrapper additionally records its own source, selected policy and unchanged hash.\n",
+        "admission_policy": "batch",
+        "wrapper_source": "/home/user/workspace/oil-simulator-py-impes/scripts/run_pipe_admission_forecast.py",
+        "wrapper_sha256": "2cca35e6175a5ec9ae87d17ff212969ffe3422bcd17585e6497d1062fe6e7608",
+        "wrapper_unchanged": true,
+        "admission_calls": 64
+      },
+      "sources_match_current": true
+    },
+    "wells2048_legacy_1": {
+      "audit": {
+        "accepted": true,
+        "wells": 2048,
+        "accepted_steps": 1,
+        "elapsed_days": 1.0,
+        "mode_samples": {
+          "surface": 2048
+        },
+        "component_mass_residual_kg": [
+          1.4886260032653809e-05,
+          -5.640089511871338e-06,
+          -5.32250851392746e-07
+        ],
+        "mass_atol_kg": 0.01,
+        "mass_rtol": 1e-08,
+        "well_block_backend": "tree_structured",
+        "scope": "Accepted producer-only FIM -> gathering material/operating audit.\n\nNo solver invocation or rescaling of requested production. This is accounting\nand constraint checking, not independent PVT/correlation validation.\n"
+      },
+      "policy": {
+        "scope": "Like-for-like FIM benchmark of scalar versus batched PVT admission only.\n\nBoth modes run the current torch_batch pipe solver. 'legacy' restores just the\nprevious per-stream admission in this process, never a different pipe model.\nThe ordinary forecast driver supplies accounting and source guards; this\nwrapper additionally records its own source, selected policy and unchanged hash.\n",
+        "admission_policy": "legacy",
+        "wrapper_source": "/home/user/workspace/oil-simulator-py-impes/scripts/run_pipe_admission_forecast.py",
+        "wrapper_sha256": "2cca35e6175a5ec9ae87d17ff212969ffe3422bcd17585e6497d1062fe6e7608",
+        "wrapper_unchanged": true,
+        "admission_calls": 64
+      },
+      "sources_match_current": true
+    },
+    "wells512_batch_1": {
+      "audit": {
+        "accepted": true,
+        "wells": 512,
+        "accepted_steps": 1,
+        "elapsed_days": 1.0,
+        "mode_samples": {
+          "surface": 512
+        },
+        "component_mass_residual_kg": [
+          -2.2953376173973083e-05,
+          2.6085413992404938e-05,
+          -3.527523949742317e-05
+        ],
+        "mass_atol_kg": 0.01,
+        "mass_rtol": 1e-08,
+        "well_block_backend": "tree_structured",
+        "scope": "Accepted producer-only FIM -> gathering material/operating audit.\n\nNo solver invocation or rescaling of requested production. This is accounting\nand constraint checking, not independent PVT/correlation validation.\n"
+      },
+      "policy": {
+        "scope": "Like-for-like FIM benchmark of scalar versus batched PVT admission only.\n\nBoth modes run the current torch_batch pipe solver. 'legacy' restores just the\nprevious per-stream admission in this process, never a different pipe model.\nThe ordinary forecast driver supplies accounting and source guards; this\nwrapper additionally records its own source, selected policy and unchanged hash.\n",
+        "admission_policy": "batch",
+        "wrapper_source": "/home/user/workspace/oil-simulator-py-impes/scripts/run_pipe_admission_forecast.py",
+        "wrapper_sha256": "2cca35e6175a5ec9ae87d17ff212969ffe3422bcd17585e6497d1062fe6e7608",
+        "wrapper_unchanged": true,
+        "admission_calls": 16
+      },
+      "sources_match_current": true
+    },
+    "wells512_batch_2": {
+      "audit": {
+        "accepted": true,
+        "wells": 512,
+        "accepted_steps": 1,
+        "elapsed_days": 1.0,
+        "mode_samples": {
+          "surface": 512
+        },
+        "component_mass_residual_kg": [
+          -2.2953376173973083e-05,
+          2.6085413992404938e-05,
+          -3.527523949742317e-05
+        ],
+        "mass_atol_kg": 0.01,
+        "mass_rtol": 1e-08,
+        "well_block_backend": "tree_structured",
+        "scope": "Accepted producer-only FIM -> gathering material/operating audit.\n\nNo solver invocation or rescaling of requested production. This is accounting\nand constraint checking, not independent PVT/correlation validation.\n"
+      },
+      "policy": {
+        "scope": "Like-for-like FIM benchmark of scalar versus batched PVT admission only.\n\nBoth modes run the current torch_batch pipe solver. 'legacy' restores just the\nprevious per-stream admission in this process, never a different pipe model.\nThe ordinary forecast driver supplies accounting and source guards; this\nwrapper additionally records its own source, selected policy and unchanged hash.\n",
+        "admission_policy": "batch",
+        "wrapper_source": "/home/user/workspace/oil-simulator-py-impes/scripts/run_pipe_admission_forecast.py",
+        "wrapper_sha256": "2cca35e6175a5ec9ae87d17ff212969ffe3422bcd17585e6497d1062fe6e7608",
+        "wrapper_unchanged": true,
+        "admission_calls": 16
+      },
+      "sources_match_current": true
+    },
+    "wells512_batch_3": {
+      "audit": {
+        "accepted": true,
+        "wells": 512,
+        "accepted_steps": 1,
+        "elapsed_days": 1.0,
+        "mode_samples": {
+          "surface": 512
+        },
+        "component_mass_residual_kg": [
+          -2.2953376173973083e-05,
+          2.6085413992404938e-05,
+          -3.527523949742317e-05
+        ],
+        "mass_atol_kg": 0.01,
+        "mass_rtol": 1e-08,
+        "well_block_backend": "tree_structured",
+        "scope": "Accepted producer-only FIM -> gathering material/operating audit.\n\nNo solver invocation or rescaling of requested production. This is accounting\nand constraint checking, not independent PVT/correlation validation.\n"
+      },
+      "policy": {
+        "scope": "Like-for-like FIM benchmark of scalar versus batched PVT admission only.\n\nBoth modes run the current torch_batch pipe solver. 'legacy' restores just the\nprevious per-stream admission in this process, never a different pipe model.\nThe ordinary forecast driver supplies accounting and source guards; this\nwrapper additionally records its own source, selected policy and unchanged hash.\n",
+        "admission_policy": "batch",
+        "wrapper_source": "/home/user/workspace/oil-simulator-py-impes/scripts/run_pipe_admission_forecast.py",
+        "wrapper_sha256": "2cca35e6175a5ec9ae87d17ff212969ffe3422bcd17585e6497d1062fe6e7608",
+        "wrapper_unchanged": true,
+        "admission_calls": 16
+      },
+      "sources_match_current": true
+    },
+    "wells512_legacy_1": {
+      "audit": {
+        "accepted": true,
+        "wells": 512,
+        "accepted_steps": 1,
+        "elapsed_days": 1.0,
+        "mode_samples": {
+          "surface": 512
+        },
+        "component_mass_residual_kg": [
+          -2.2953376173973083e-05,
+          2.6085413992404938e-05,
+          -3.527523949742317e-05
+        ],
+        "mass_atol_kg": 0.01,
+        "mass_rtol": 1e-08,
+        "well_block_backend": "tree_structured",
+        "scope": "Accepted producer-only FIM -> gathering material/operating audit.\n\nNo solver invocation or rescaling of requested production. This is accounting\nand constraint checking, not independent PVT/correlation validation.\n"
+      },
+      "policy": {
+        "scope": "Like-for-like FIM benchmark of scalar versus batched PVT admission only.\n\nBoth modes run the current torch_batch pipe solver. 'legacy' restores just the\nprevious per-stream admission in this process, never a different pipe model.\nThe ordinary forecast driver supplies accounting and source guards; this\nwrapper additionally records its own source, selected policy and unchanged hash.\n",
+        "admission_policy": "legacy",
+        "wrapper_source": "/home/user/workspace/oil-simulator-py-impes/scripts/run_pipe_admission_forecast.py",
+        "wrapper_sha256": "2cca35e6175a5ec9ae87d17ff212969ffe3422bcd17585e6497d1062fe6e7608",
+        "wrapper_unchanged": true,
+        "admission_calls": 16
+      },
+      "sources_match_current": true
+    },
+    "wells512_legacy_2": {
+      "audit": {
+        "accepted": true,
+        "wells": 512,
+        "accepted_steps": 1,
+        "elapsed_days": 1.0,
+        "mode_samples": {
+          "surface": 512
+        },
+        "component_mass_residual_kg": [
+          -2.2953376173973083e-05,
+          2.6085413992404938e-05,
+          -3.527523949742317e-05
+        ],
+        "mass_atol_kg": 0.01,
+        "mass_rtol": 1e-08,
+        "well_block_backend": "tree_structured",
+        "scope": "Accepted producer-only FIM -> gathering material/operating audit.\n\nNo solver invocation or rescaling of requested production. This is accounting\nand constraint checking, not independent PVT/correlation validation.\n"
+      },
+      "policy": {
+        "scope": "Like-for-like FIM benchmark of scalar versus batched PVT admission only.\n\nBoth modes run the current torch_batch pipe solver. 'legacy' restores just the\nprevious per-stream admission in this process, never a different pipe model.\nThe ordinary forecast driver supplies accounting and source guards; this\nwrapper additionally records its own source, selected policy and unchanged hash.\n",
+        "admission_policy": "legacy",
+        "wrapper_source": "/home/user/workspace/oil-simulator-py-impes/scripts/run_pipe_admission_forecast.py",
+        "wrapper_sha256": "2cca35e6175a5ec9ae87d17ff212969ffe3422bcd17585e6497d1062fe6e7608",
+        "wrapper_unchanged": true,
+        "admission_calls": 16
+      },
+      "sources_match_current": true
+    },
+    "wells512_legacy_3": {
+      "audit": {
+        "accepted": true,
+        "wells": 512,
+        "accepted_steps": 1,
+        "elapsed_days": 1.0,
+        "mode_samples": {
+          "surface": 512
+        },
+        "component_mass_residual_kg": [
+          -2.2953376173973083e-05,
+          2.6085413992404938e-05,
+          -3.527523949742317e-05
+        ],
+        "mass_atol_kg": 0.01,
+        "mass_rtol": 1e-08,
+        "well_block_backend": "tree_structured",
+        "scope": "Accepted producer-only FIM -> gathering material/operating audit.\n\nNo solver invocation or rescaling of requested production. This is accounting\nand constraint checking, not independent PVT/correlation validation.\n"
+      },
+      "policy": {
+        "scope": "Like-for-like FIM benchmark of scalar versus batched PVT admission only.\n\nBoth modes run the current torch_batch pipe solver. 'legacy' restores just the\nprevious per-stream admission in this process, never a different pipe model.\nThe ordinary forecast driver supplies accounting and source guards; this\nwrapper additionally records its own source, selected policy and unchanged hash.\n",
+        "admission_policy": "legacy",
+        "wrapper_source": "/home/user/workspace/oil-simulator-py-impes/scripts/run_pipe_admission_forecast.py",
+        "wrapper_sha256": "2cca35e6175a5ec9ae87d17ff212969ffe3422bcd17585e6497d1062fe6e7608",
+        "wrapper_unchanged": true,
+        "admission_calls": 16
+      },
+      "sources_match_current": true
+    }
+  },
+  "comparisons": [
+    {
+      "scope": "Same complete FIM/torch_batch pipe model; only legacy versus batched PVT admission differs in memory. Identical config and horizon; both independently audited.",
+      "wells": 512,
+      "repeat": 1,
+      "legacy_s": 2.97836723400178,
+      "batch_s": 2.4677634239997133,
+      "exact_final_field_and_withdrawal_differences": {
+        "final_pressure_pa": 0.0,
+        "final_s_w": 0.0,
+        "final_s_g": 0.0,
+        "final_rs": 0.0,
+        "withdrawn_component_mass_kg": 0.0
+      },
+      "policy_calls": [
+        16,
+        16
+      ],
+      "accepted": true
+    },
+    {
+      "scope": "Same complete FIM/torch_batch pipe model; only legacy versus batched PVT admission differs in memory. Identical config and horizon; both independently audited.",
+      "wells": 512,
+      "repeat": 2,
+      "legacy_s": 3.0420090589977917,
+      "batch_s": 2.589057203000266,
+      "exact_final_field_and_withdrawal_differences": {
+        "final_pressure_pa": 0.0,
+        "final_s_w": 0.0,
+        "final_s_g": 0.0,
+        "final_rs": 0.0,
+        "withdrawn_component_mass_kg": 0.0
+      },
+      "policy_calls": [
+        16,
+        16
+      ],
+      "accepted": true
+    },
+    {
+      "scope": "Same complete FIM/torch_batch pipe model; only legacy versus batched PVT admission differs in memory. Identical config and horizon; both independently audited.",
+      "wells": 512,
+      "repeat": 3,
+      "legacy_s": 2.8882211380005174,
+      "batch_s": 2.6116002070011746,
+      "exact_final_field_and_withdrawal_differences": {
+        "final_pressure_pa": 0.0,
+        "final_s_w": 0.0,
+        "final_s_g": 0.0,
+        "final_rs": 0.0,
+        "withdrawn_component_mass_kg": 0.0
+      },
+      "policy_calls": [
+        16,
+        16
+      ],
+      "accepted": true
+    },
+    {
+      "scope": "Same complete FIM/torch_batch pipe model; only legacy versus batched PVT admission differs in memory. Identical config and horizon; both independently audited.",
+      "wells": 2048,
+      "repeat": 1,
+      "legacy_s": 9.94976392299941,
+      "batch_s": 8.522197957998287,
+      "exact_final_field_and_withdrawal_differences": {
+        "final_pressure_pa": 0.0,
+        "final_s_w": 0.0,
+        "final_s_g": 0.0,
+        "final_rs": 0.0,
+        "withdrawn_component_mass_kg": 0.0
+      },
+      "policy_calls": [
+        64,
+        64
+      ],
+      "accepted": true
+    }
+  ],
+  "protected_source_sha256": {
+    "src/simulator/blackoil_fim.py": "658fde0e6119df6ae154c3c400ff24b8d2a519dfa9a33e612aeaa6bd51a16c3c",
+    "src/surface/torch_linear.py": "b7bda1aae66d9e979c147f821efba9990d6460d60b32a05c6fc5f9b873b752d5"
+  },
+  "regression": {
+    "passed": 205,
+    "skipped": 10
+  },
+  "cuda": {
+    "qualified": false,
+    "command": "nvidia-smi -L",
+    "exit_code": 9
+  },
+  "qualification_source_sha256": {
+    "src/surface/blackoil_batch_admission.py": "39a543bf980b0c2b09daf8b6c7cdca9b8e924a0c735ca41029646a82ca6cb868",
+    "src/surface/blackoil_pipe_batch.py": "6eff897ee448a9e9a3456d1ac0adac70e64276fa3fb76cea534ac1316ae37e39",
+    "scripts/run_pipe_admission_forecast.py": "2cca35e6175a5ec9ae87d17ff212969ffe3422bcd17585e6497d1062fe6e7608",
+    "tests/test_blackoil_batch_admission.py": "440be26ea9d62a65043da01c07000c655797b6aad5300a90094dc0d646ecc8e3"
+  },
+  "evidence_sha256": {
+    "comparison2048_1.json": "89167f4403d35399845e12b8dbd846766bed619fa095a75cd3dff46832bfd1d2",
+    "comparison512_1.json": "d7ddc1a68fb803f8fcb43196746f1d5aba5c765461af8e834d7a6e82641f70a2",
+    "comparison512_2.json": "a2366f701948e9dad79beca7a2e90cdd59439b63afe066cbf35f7e5907e2b736",
+    "comparison512_3.json": "4f52ff74956f19a96e54b3308061a52ce4db5a6d01523a9d562748a7a495d7b6",
+    "comparison_summary.json": "88fc025b158db536eb6e646fe3f54910e0b29ac404a9fb279d2d914cd8316fda",
+    "cuda_status.txt": "1d58470512e583a0acfabf6896ee5f31e5b493b8231aed54b864f64eb275b02c",
+    "lint.txt": "82b3e6a6c090a57601d22943bd23fca9218d1031dbe5a7b754092f9a156b4f18",
+    "regression.txt": "58565644ae462f96d1159df1b3da34086b8cdcb38c0d391aeb6144b0c098fe67",
+    "wells2048_batch_1/admission_policy.json": "88eae8fad31d8be2681e72065c2641300d309b24e4b4addf8e1a324cf4f5fb09",
+    "wells2048_batch_1/progress.json": "f50dbbc88c511cd14fe0bf4edefd3aef224f15779f13290a3af56881ae11c009",
+    "wells2048_batch_1/protocol.json": "ed9460a7ea328d2c1d1fe0177d286dc6d7f0b0c792ae58834a41110ed59fd2b6",
+    "wells2048_batch_1/summary.json": "722cf57c2ffe1cde9b9cd3611ab1c2da654a3b59a02fa7329c0e9a5e6e376d8a",
+    "wells2048_batch_1/trajectory.json.gz": "06ad73173ea2af4b6fe121321af35477f525452041bb40d6368b4c984e779250",
+    "wells2048_legacy_1/admission_policy.json": "5d7135ff06b1781a6f95db6c325441cb4e7e88cd3f82189ed8c8304311631490",
+    "wells2048_legacy_1/progress.json": "f50dbbc88c511cd14fe0bf4edefd3aef224f15779f13290a3af56881ae11c009",
+    "wells2048_legacy_1/protocol.json": "ed9460a7ea328d2c1d1fe0177d286dc6d7f0b0c792ae58834a41110ed59fd2b6",
+    "wells2048_legacy_1/summary.json": "86ff0c8d794ca14b7f36de0403d73df33a90e0f38ed4e76853332bc99d8dd5ed",
+    "wells2048_legacy_1/trajectory.json.gz": "3268ddbbb78b1744ef281a1a162817103e5e53f1b254578fdc8097a3ff7f1f13",
+    "wells512_batch_1/admission_policy.json": "3cc8cc576b7b30c525ca2123981f4533d90d2b78d32af20dfe781fa1dc9d3943",
+    "wells512_batch_1/progress.json": "f50dbbc88c511cd14fe0bf4edefd3aef224f15779f13290a3af56881ae11c009",
+    "wells512_batch_1/protocol.json": "6a0fd7c2763bb3e4f5873a2760682735f240c193162351d5113080f8ca137ced",
+    "wells512_batch_1/summary.json": "bc6856dbecc89cea1a9738fb10231e87649bb01a04ddf12baba3d948375b8e68",
+    "wells512_batch_1/trajectory.json.gz": "2574ff03c95ed70f8365aa42855c60354c1471fcaf0a476cdfd0ac8ff1c30614",
+    "wells512_batch_2/admission_policy.json": "3cc8cc576b7b30c525ca2123981f4533d90d2b78d32af20dfe781fa1dc9d3943",
+    "wells512_batch_2/progress.json": "f50dbbc88c511cd14fe0bf4edefd3aef224f15779f13290a3af56881ae11c009",
+    "wells512_batch_2/protocol.json": "6a0fd7c2763bb3e4f5873a2760682735f240c193162351d5113080f8ca137ced",
+    "wells512_batch_2/summary.json": "a2add6dd5d6df7963eb2e4f43e599874234e3a4a54ff47526bbb0159e4d938f2",
+    "wells512_batch_2/trajectory.json.gz": "de10700117b875a5395602520b169dee45db8055eaeaa18a5cff30cbdfb5f0c6",
+    "wells512_batch_3/admission_policy.json": "3cc8cc576b7b30c525ca2123981f4533d90d2b78d32af20dfe781fa1dc9d3943",
+    "wells512_batch_3/progress.json": "f50dbbc88c511cd14fe0bf4edefd3aef224f15779f13290a3af56881ae11c009",
+    "wells512_batch_3/protocol.json": "6a0fd7c2763bb3e4f5873a2760682735f240c193162351d5113080f8ca137ced",
+    "wells512_batch_3/summary.json": "9e7d1982c80483b9bc81a7716e39bf4bec0ed64323394b825a39e959a7e48535",
+    "wells512_batch_3/trajectory.json.gz": "9b2d395914f2325295053347f910f4a0f220683083d4152fff6900bdfa9f7a76",
+    "wells512_legacy_1/admission_policy.json": "b53e9e94aa4d6492f78652e122df0937db9fc67fb842ecb66a1a78843e08a8da",
+    "wells512_legacy_1/progress.json": "f50dbbc88c511cd14fe0bf4edefd3aef224f15779f13290a3af56881ae11c009",
+    "wells512_legacy_1/protocol.json": "6a0fd7c2763bb3e4f5873a2760682735f240c193162351d5113080f8ca137ced",
+    "wells512_legacy_1/summary.json": "28dc4bb50915ccc5b8f5fbd5a4c3449ae69adeeb85f8e1cca07deb9bb81393ee",
+    "wells512_legacy_1/trajectory.json.gz": "93fb1bab188dde13c1ebc73ff9375745997ef5d08e910b5d28247f0ff80371f4",
+    "wells512_legacy_2/admission_policy.json": "b53e9e94aa4d6492f78652e122df0937db9fc67fb842ecb66a1a78843e08a8da",
+    "wells512_legacy_2/progress.json": "f50dbbc88c511cd14fe0bf4edefd3aef224f15779f13290a3af56881ae11c009",
+    "wells512_legacy_2/protocol.json": "6a0fd7c2763bb3e4f5873a2760682735f240c193162351d5113080f8ca137ced",
+    "wells512_legacy_2/summary.json": "0e59fb280991527f4aef74af2ec656cae2e22447747c798ad624918b58ee1bd8",
+    "wells512_legacy_2/trajectory.json.gz": "fdcc38e75d74ffce9e9d2935c617ff2facc55271ce217a0ee84c90c83b543b20",
+    "wells512_legacy_3/admission_policy.json": "b53e9e94aa4d6492f78652e122df0937db9fc67fb842ecb66a1a78843e08a8da",
+    "wells512_legacy_3/progress.json": "f50dbbc88c511cd14fe0bf4edefd3aef224f15779f13290a3af56881ae11c009",
+    "wells512_legacy_3/protocol.json": "6a0fd7c2763bb3e4f5873a2760682735f240c193162351d5113080f8ca137ced",
+    "wells512_legacy_3/summary.json": "946967784632ff1b9bc457727cc3890e11d20e0e85a4dbe505033bf463c901f0",
+    "wells512_legacy_3/trajectory.json.gz": "d55ae3f1d86e8bd4351cf435f3e9ffc31f5d312a6dbb965da1e28db9324b30b0"
+  }
+}

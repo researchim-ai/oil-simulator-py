@@ -1,0 +1,37 @@
+{
+  "scope": "Synthetic ragged PVTO lookup timing; not a pipe or reservoir simulation.\n\nExact scalar interpolation ordering, two-column mixture and first derivatives.\nReports an actually allocated all-table matrix, not process peak/RSS savings.\n",
+  "source_sha256": {
+    "/home/user/workspace/oil-simulator-py-impes/src/surface/blackoil_pvto_batch.py": "1edf25ddabda669f187b0026fa605fbb15bfe26396444d057a9d3224fdf27843",
+    "/home/user/workspace/oil-simulator-py-impes/src/surface/blackoil_properties.py": "27f551c706cfe3aa79ee8da56e4f044ad5b8e4dcf99582637d728e010276f5e9",
+    "/home/user/workspace/oil-simulator-py-impes/scripts/benchmark_pvto_selection.py": "8d99d5f0a64c3512bb82f38f4b9d7fdbbb0833ce811eb41051ba5264a11a2e77",
+    "/home/user/workspace/oil-simulator-py-impes/scripts/pvto_reference.py": "c227dcc6f09d91294b4f318c6403c870c571e10eef564d5ff384f4d3b83401ce"
+  },
+  "sources_unchanged": true,
+  "samples_s": {
+    "all_tables": [
+      0.05718378099845722,
+      0.05788622500040219,
+      0.057690478999575134,
+      0.05538679899837007,
+      0.055892025000503054
+    ],
+    "selected": [
+      0.0015975489986885805,
+      0.0015259850006259512,
+      0.001498423000157345,
+      0.001481721999880392,
+      0.0014776650023122784
+    ]
+  },
+  "medians_s": {
+    "all_tables": 0.05718378099845722,
+    "selected": 0.001498423000157345
+  },
+  "speedup_ratio": 38.16264231959368,
+  "all_table_matrix_allocated_bytes": 8388608,
+  "selected_output_tensor_bytes": 131072,
+  "packed_property_payload_bytes": 11264,
+  "values_and_derivatives_accepted": true,
+  "scope_memory": "Matrix payloads only, not total allocator/autograd/process peak memory.",
+  "status": "complete"
+}

@@ -1,0 +1,394 @@
+[
+  {
+    "wells": 512,
+    "label": "wells512",
+    "repeat": 1,
+    "dense_s": 2.3730439460014168,
+    "compact_s": 1.5950349119993916,
+    "errors": {
+      "final_pressure_pa": 0.0,
+      "final_s_w": 0.0,
+      "final_s_g": 0.0,
+      "final_rs": 0.0,
+      "withdrawn_component_mass_kg": 0.0
+    },
+    "budgets": {
+      "final_pressure_pa": 0.1,
+      "final_s_w": 1e-08,
+      "final_s_g": 1e-08,
+      "final_rs": 1e-05,
+      "withdrawn_component_mass_kg": 0.01
+    },
+    "policy_statistics": [
+      {
+        "scope": "Same full FIM and pressure grid, dense versus compact quadrature points.\n\nDense retains every interval's Gauss nodes. Compact retains degenerate-span\nfirst/second AD contributions via midpoint samples; error budgets are unchanged.\n",
+        "policy": "dense",
+        "planning_calls": 96,
+        "quadrature_calls": 192,
+        "evaluated_property_points": 2949120,
+        "maximum_points_per_property_pass": 20480,
+        "source_sha256": {
+          "/home/user/workspace/oil-simulator-py-impes/scripts/run_compact_quadrature_forecast.py": "8baac86d4b44cf1fd6c605ec3e0ad66ba23243b66406d3848a718b54df0d56f4",
+          "/home/user/workspace/oil-simulator-py-impes/scripts/dense_quadrature_reference.py": "8269fae071fb4b5a34c0efb8103bce38fac5d92d486c63fbf535e72d10f65fe6"
+        },
+        "sources_unchanged": true
+      },
+      {
+        "scope": "Same full FIM and pressure grid, dense versus compact quadrature points.\n\nDense retains every interval's Gauss nodes. Compact retains degenerate-span\nfirst/second AD contributions via midpoint samples; error budgets are unchanged.\n",
+        "policy": "compact",
+        "planning_calls": 96,
+        "quadrature_calls": 192,
+        "evaluated_property_points": 712704,
+        "maximum_points_per_property_pass": 4736,
+        "source_sha256": {
+          "/home/user/workspace/oil-simulator-py-impes/scripts/run_compact_quadrature_forecast.py": "8baac86d4b44cf1fd6c605ec3e0ad66ba23243b66406d3848a718b54df0d56f4",
+          "/home/user/workspace/oil-simulator-py-impes/scripts/dense_quadrature_reference.py": "8269fae071fb4b5a34c0efb8103bce38fac5d92d486c63fbf535e72d10f65fe6"
+        },
+        "sources_unchanged": true
+      }
+    ],
+    "accepted_step_execution": {
+      "backend": "torch_batch",
+      "torch_batch_pipes": 512,
+      "scalar_retry_pipes": 0,
+      "scalar_pipes": 1
+    },
+    "accepted": true
+  },
+  {
+    "wells": 512,
+    "label": "wells512",
+    "repeat": 2,
+    "dense_s": 2.4227829500014195,
+    "compact_s": 1.6282081159988593,
+    "errors": {
+      "final_pressure_pa": 0.0,
+      "final_s_w": 0.0,
+      "final_s_g": 0.0,
+      "final_rs": 0.0,
+      "withdrawn_component_mass_kg": 0.0
+    },
+    "budgets": {
+      "final_pressure_pa": 0.1,
+      "final_s_w": 1e-08,
+      "final_s_g": 1e-08,
+      "final_rs": 1e-05,
+      "withdrawn_component_mass_kg": 0.01
+    },
+    "policy_statistics": [
+      {
+        "scope": "Same full FIM and pressure grid, dense versus compact quadrature points.\n\nDense retains every interval's Gauss nodes. Compact retains degenerate-span\nfirst/second AD contributions via midpoint samples; error budgets are unchanged.\n",
+        "policy": "dense",
+        "planning_calls": 96,
+        "quadrature_calls": 192,
+        "evaluated_property_points": 2949120,
+        "maximum_points_per_property_pass": 20480,
+        "source_sha256": {
+          "/home/user/workspace/oil-simulator-py-impes/scripts/run_compact_quadrature_forecast.py": "8baac86d4b44cf1fd6c605ec3e0ad66ba23243b66406d3848a718b54df0d56f4",
+          "/home/user/workspace/oil-simulator-py-impes/scripts/dense_quadrature_reference.py": "8269fae071fb4b5a34c0efb8103bce38fac5d92d486c63fbf535e72d10f65fe6"
+        },
+        "sources_unchanged": true
+      },
+      {
+        "scope": "Same full FIM and pressure grid, dense versus compact quadrature points.\n\nDense retains every interval's Gauss nodes. Compact retains degenerate-span\nfirst/second AD contributions via midpoint samples; error budgets are unchanged.\n",
+        "policy": "compact",
+        "planning_calls": 96,
+        "quadrature_calls": 192,
+        "evaluated_property_points": 712704,
+        "maximum_points_per_property_pass": 4736,
+        "source_sha256": {
+          "/home/user/workspace/oil-simulator-py-impes/scripts/run_compact_quadrature_forecast.py": "8baac86d4b44cf1fd6c605ec3e0ad66ba23243b66406d3848a718b54df0d56f4",
+          "/home/user/workspace/oil-simulator-py-impes/scripts/dense_quadrature_reference.py": "8269fae071fb4b5a34c0efb8103bce38fac5d92d486c63fbf535e72d10f65fe6"
+        },
+        "sources_unchanged": true
+      }
+    ],
+    "accepted_step_execution": {
+      "backend": "torch_batch",
+      "torch_batch_pipes": 512,
+      "scalar_retry_pipes": 0,
+      "scalar_pipes": 1
+    },
+    "accepted": true
+  },
+  {
+    "wells": 512,
+    "label": "wells512",
+    "repeat": 3,
+    "dense_s": 2.547596649001207,
+    "compact_s": 1.6245619219989749,
+    "errors": {
+      "final_pressure_pa": 0.0,
+      "final_s_w": 0.0,
+      "final_s_g": 0.0,
+      "final_rs": 0.0,
+      "withdrawn_component_mass_kg": 0.0
+    },
+    "budgets": {
+      "final_pressure_pa": 0.1,
+      "final_s_w": 1e-08,
+      "final_s_g": 1e-08,
+      "final_rs": 1e-05,
+      "withdrawn_component_mass_kg": 0.01
+    },
+    "policy_statistics": [
+      {
+        "scope": "Same full FIM and pressure grid, dense versus compact quadrature points.\n\nDense retains every interval's Gauss nodes. Compact retains degenerate-span\nfirst/second AD contributions via midpoint samples; error budgets are unchanged.\n",
+        "policy": "dense",
+        "planning_calls": 96,
+        "quadrature_calls": 192,
+        "evaluated_property_points": 2949120,
+        "maximum_points_per_property_pass": 20480,
+        "source_sha256": {
+          "/home/user/workspace/oil-simulator-py-impes/scripts/run_compact_quadrature_forecast.py": "8baac86d4b44cf1fd6c605ec3e0ad66ba23243b66406d3848a718b54df0d56f4",
+          "/home/user/workspace/oil-simulator-py-impes/scripts/dense_quadrature_reference.py": "8269fae071fb4b5a34c0efb8103bce38fac5d92d486c63fbf535e72d10f65fe6"
+        },
+        "sources_unchanged": true
+      },
+      {
+        "scope": "Same full FIM and pressure grid, dense versus compact quadrature points.\n\nDense retains every interval's Gauss nodes. Compact retains degenerate-span\nfirst/second AD contributions via midpoint samples; error budgets are unchanged.\n",
+        "policy": "compact",
+        "planning_calls": 96,
+        "quadrature_calls": 192,
+        "evaluated_property_points": 712704,
+        "maximum_points_per_property_pass": 4736,
+        "source_sha256": {
+          "/home/user/workspace/oil-simulator-py-impes/scripts/run_compact_quadrature_forecast.py": "8baac86d4b44cf1fd6c605ec3e0ad66ba23243b66406d3848a718b54df0d56f4",
+          "/home/user/workspace/oil-simulator-py-impes/scripts/dense_quadrature_reference.py": "8269fae071fb4b5a34c0efb8103bce38fac5d92d486c63fbf535e72d10f65fe6"
+        },
+        "sources_unchanged": true
+      }
+    ],
+    "accepted_step_execution": {
+      "backend": "torch_batch",
+      "torch_batch_pipes": 512,
+      "scalar_retry_pipes": 0,
+      "scalar_pipes": 1
+    },
+    "accepted": true
+  },
+  {
+    "wells": 2048,
+    "label": "wells2048",
+    "repeat": 1,
+    "dense_s": 7.942361083998549,
+    "compact_s": 4.968446254999435,
+    "errors": {
+      "final_pressure_pa": 0.0,
+      "final_s_w": 0.0,
+      "final_s_g": 0.0,
+      "final_rs": 0.0,
+      "withdrawn_component_mass_kg": 0.0
+    },
+    "budgets": {
+      "final_pressure_pa": 0.1,
+      "final_s_w": 1e-08,
+      "final_s_g": 1e-08,
+      "final_rs": 1e-05,
+      "withdrawn_component_mass_kg": 0.01
+    },
+    "policy_statistics": [
+      {
+        "scope": "Same full FIM and pressure grid, dense versus compact quadrature points.\n\nDense retains every interval's Gauss nodes. Compact retains degenerate-span\nfirst/second AD contributions via midpoint samples; error budgets are unchanged.\n",
+        "policy": "dense",
+        "planning_calls": 384,
+        "quadrature_calls": 768,
+        "evaluated_property_points": 11796480,
+        "maximum_points_per_property_pass": 20480,
+        "source_sha256": {
+          "/home/user/workspace/oil-simulator-py-impes/scripts/run_compact_quadrature_forecast.py": "8baac86d4b44cf1fd6c605ec3e0ad66ba23243b66406d3848a718b54df0d56f4",
+          "/home/user/workspace/oil-simulator-py-impes/scripts/dense_quadrature_reference.py": "8269fae071fb4b5a34c0efb8103bce38fac5d92d486c63fbf535e72d10f65fe6"
+        },
+        "sources_unchanged": true
+      },
+      {
+        "scope": "Same full FIM and pressure grid, dense versus compact quadrature points.\n\nDense retains every interval's Gauss nodes. Compact retains degenerate-span\nfirst/second AD contributions via midpoint samples; error budgets are unchanged.\n",
+        "policy": "compact",
+        "planning_calls": 384,
+        "quadrature_calls": 768,
+        "evaluated_property_points": 2850816,
+        "maximum_points_per_property_pass": 4736,
+        "source_sha256": {
+          "/home/user/workspace/oil-simulator-py-impes/scripts/run_compact_quadrature_forecast.py": "8baac86d4b44cf1fd6c605ec3e0ad66ba23243b66406d3848a718b54df0d56f4",
+          "/home/user/workspace/oil-simulator-py-impes/scripts/dense_quadrature_reference.py": "8269fae071fb4b5a34c0efb8103bce38fac5d92d486c63fbf535e72d10f65fe6"
+        },
+        "sources_unchanged": true
+      }
+    ],
+    "accepted_step_execution": {
+      "backend": "torch_batch",
+      "torch_batch_pipes": 2048,
+      "scalar_retry_pipes": 0,
+      "scalar_pipes": 1
+    },
+    "accepted": true
+  },
+  {
+    "wells": 2048,
+    "label": "wells2048",
+    "repeat": 2,
+    "dense_s": 8.12882221000109,
+    "compact_s": 4.9372711409996555,
+    "errors": {
+      "final_pressure_pa": 0.0,
+      "final_s_w": 0.0,
+      "final_s_g": 0.0,
+      "final_rs": 0.0,
+      "withdrawn_component_mass_kg": 0.0
+    },
+    "budgets": {
+      "final_pressure_pa": 0.1,
+      "final_s_w": 1e-08,
+      "final_s_g": 1e-08,
+      "final_rs": 1e-05,
+      "withdrawn_component_mass_kg": 0.01
+    },
+    "policy_statistics": [
+      {
+        "scope": "Same full FIM and pressure grid, dense versus compact quadrature points.\n\nDense retains every interval's Gauss nodes. Compact retains degenerate-span\nfirst/second AD contributions via midpoint samples; error budgets are unchanged.\n",
+        "policy": "dense",
+        "planning_calls": 384,
+        "quadrature_calls": 768,
+        "evaluated_property_points": 11796480,
+        "maximum_points_per_property_pass": 20480,
+        "source_sha256": {
+          "/home/user/workspace/oil-simulator-py-impes/scripts/run_compact_quadrature_forecast.py": "8baac86d4b44cf1fd6c605ec3e0ad66ba23243b66406d3848a718b54df0d56f4",
+          "/home/user/workspace/oil-simulator-py-impes/scripts/dense_quadrature_reference.py": "8269fae071fb4b5a34c0efb8103bce38fac5d92d486c63fbf535e72d10f65fe6"
+        },
+        "sources_unchanged": true
+      },
+      {
+        "scope": "Same full FIM and pressure grid, dense versus compact quadrature points.\n\nDense retains every interval's Gauss nodes. Compact retains degenerate-span\nfirst/second AD contributions via midpoint samples; error budgets are unchanged.\n",
+        "policy": "compact",
+        "planning_calls": 384,
+        "quadrature_calls": 768,
+        "evaluated_property_points": 2850816,
+        "maximum_points_per_property_pass": 4736,
+        "source_sha256": {
+          "/home/user/workspace/oil-simulator-py-impes/scripts/run_compact_quadrature_forecast.py": "8baac86d4b44cf1fd6c605ec3e0ad66ba23243b66406d3848a718b54df0d56f4",
+          "/home/user/workspace/oil-simulator-py-impes/scripts/dense_quadrature_reference.py": "8269fae071fb4b5a34c0efb8103bce38fac5d92d486c63fbf535e72d10f65fe6"
+        },
+        "sources_unchanged": true
+      }
+    ],
+    "accepted_step_execution": {
+      "backend": "torch_batch",
+      "torch_batch_pipes": 2048,
+      "scalar_retry_pipes": 0,
+      "scalar_pipes": 1
+    },
+    "accepted": true
+  },
+  {
+    "wells": 2048,
+    "label": "wells2048",
+    "repeat": 3,
+    "dense_s": 7.8803064260027895,
+    "compact_s": 4.876019010000164,
+    "errors": {
+      "final_pressure_pa": 0.0,
+      "final_s_w": 0.0,
+      "final_s_g": 0.0,
+      "final_rs": 0.0,
+      "withdrawn_component_mass_kg": 0.0
+    },
+    "budgets": {
+      "final_pressure_pa": 0.1,
+      "final_s_w": 1e-08,
+      "final_s_g": 1e-08,
+      "final_rs": 1e-05,
+      "withdrawn_component_mass_kg": 0.01
+    },
+    "policy_statistics": [
+      {
+        "scope": "Same full FIM and pressure grid, dense versus compact quadrature points.\n\nDense retains every interval's Gauss nodes. Compact retains degenerate-span\nfirst/second AD contributions via midpoint samples; error budgets are unchanged.\n",
+        "policy": "dense",
+        "planning_calls": 384,
+        "quadrature_calls": 768,
+        "evaluated_property_points": 11796480,
+        "maximum_points_per_property_pass": 20480,
+        "source_sha256": {
+          "/home/user/workspace/oil-simulator-py-impes/scripts/run_compact_quadrature_forecast.py": "8baac86d4b44cf1fd6c605ec3e0ad66ba23243b66406d3848a718b54df0d56f4",
+          "/home/user/workspace/oil-simulator-py-impes/scripts/dense_quadrature_reference.py": "8269fae071fb4b5a34c0efb8103bce38fac5d92d486c63fbf535e72d10f65fe6"
+        },
+        "sources_unchanged": true
+      },
+      {
+        "scope": "Same full FIM and pressure grid, dense versus compact quadrature points.\n\nDense retains every interval's Gauss nodes. Compact retains degenerate-span\nfirst/second AD contributions via midpoint samples; error budgets are unchanged.\n",
+        "policy": "compact",
+        "planning_calls": 384,
+        "quadrature_calls": 768,
+        "evaluated_property_points": 2850816,
+        "maximum_points_per_property_pass": 4736,
+        "source_sha256": {
+          "/home/user/workspace/oil-simulator-py-impes/scripts/run_compact_quadrature_forecast.py": "8baac86d4b44cf1fd6c605ec3e0ad66ba23243b66406d3848a718b54df0d56f4",
+          "/home/user/workspace/oil-simulator-py-impes/scripts/dense_quadrature_reference.py": "8269fae071fb4b5a34c0efb8103bce38fac5d92d486c63fbf535e72d10f65fe6"
+        },
+        "sources_unchanged": true
+      }
+    ],
+    "accepted_step_execution": {
+      "backend": "torch_batch",
+      "torch_batch_pipes": 2048,
+      "scalar_retry_pipes": 0,
+      "scalar_pipes": 1
+    },
+    "accepted": true
+  },
+  {
+    "wells": 64,
+    "label": "wells64_pvt65",
+    "repeat": 1,
+    "dense_s": 1.0472065770009067,
+    "compact_s": 0.8671692479983903,
+    "errors": {
+      "final_pressure_pa": 0.0,
+      "final_s_w": 0.0,
+      "final_s_g": 0.0,
+      "final_rs": 0.0,
+      "withdrawn_component_mass_kg": 0.0
+    },
+    "budgets": {
+      "final_pressure_pa": 0.1,
+      "final_s_w": 1e-08,
+      "final_s_g": 1e-08,
+      "final_rs": 1e-05,
+      "withdrawn_component_mass_kg": 0.01
+    },
+    "policy_statistics": [
+      {
+        "scope": "Same full FIM and pressure grid, dense versus compact quadrature points.\n\nDense retains every interval's Gauss nodes. Compact retains degenerate-span\nfirst/second AD contributions via midpoint samples; error budgets are unchanged.\n",
+        "policy": "dense",
+        "planning_calls": 48,
+        "quadrature_calls": 96,
+        "evaluated_property_points": 524160,
+        "maximum_points_per_property_pass": 14336,
+        "source_sha256": {
+          "/home/user/workspace/oil-simulator-py-impes/scripts/run_compact_quadrature_forecast.py": "8baac86d4b44cf1fd6c605ec3e0ad66ba23243b66406d3848a718b54df0d56f4",
+          "/home/user/workspace/oil-simulator-py-impes/scripts/dense_quadrature_reference.py": "8269fae071fb4b5a34c0efb8103bce38fac5d92d486c63fbf535e72d10f65fe6"
+        },
+        "sources_unchanged": true
+      },
+      {
+        "scope": "Same full FIM and pressure grid, dense versus compact quadrature points.\n\nDense retains every interval's Gauss nodes. Compact retains degenerate-span\nfirst/second AD contributions via midpoint samples; error budgets are unchanged.\n",
+        "policy": "compact",
+        "planning_calls": 48,
+        "quadrature_calls": 96,
+        "evaluated_property_points": 96720,
+        "maximum_points_per_property_pass": 2496,
+        "source_sha256": {
+          "/home/user/workspace/oil-simulator-py-impes/scripts/run_compact_quadrature_forecast.py": "8baac86d4b44cf1fd6c605ec3e0ad66ba23243b66406d3848a718b54df0d56f4",
+          "/home/user/workspace/oil-simulator-py-impes/scripts/dense_quadrature_reference.py": "8269fae071fb4b5a34c0efb8103bce38fac5d92d486c63fbf535e72d10f65fe6"
+        },
+        "sources_unchanged": true
+      }
+    ],
+    "accepted_step_execution": {
+      "backend": "torch_batch",
+      "torch_batch_pipes": 65,
+      "scalar_retry_pipes": 0,
+      "scalar_pipes": 0
+    },
+    "accepted": true
+  }
+]

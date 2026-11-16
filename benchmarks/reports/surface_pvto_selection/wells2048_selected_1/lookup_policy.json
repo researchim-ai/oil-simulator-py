@@ -1,0 +1,10 @@
+{
+  "scope": "Full current FIM: benchmark only all-table versus selected-table PVTO lookup.\n\nBoth modes retain batched admission, the same integral and physical model.\nReference builds the old all-table matrix once per column for both gathers.\n",
+  "policy": "selected",
+  "lookup_calls": 3584,
+  "source_sha256": {
+    "/home/user/workspace/oil-simulator-py-impes/scripts/run_pvto_selection_forecast.py": "9f0bc960ac83457778d698a161dfcd69dd109f7da5d8a2daeff4f3fac4babc11",
+    "/home/user/workspace/oil-simulator-py-impes/scripts/pvto_reference.py": "c227dcc6f09d91294b4f318c6403c870c571e10eef564d5ff384f4d3b83401ce"
+  },
+  "sources_unchanged": true
+}

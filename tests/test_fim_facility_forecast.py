@@ -152,6 +152,7 @@ def test_explicit_null_control_defaults_are_auditable():
     "policy",
     [
         {"sensitivity_backend": "tree_operator"},
+        {"hydraulic_backend": "torch_batch", "pipe_batch_size": 32},
         {"well_block_backend": "tree_structured", "structured_memory_budget_bytes": 1048576},
     ],
 )
@@ -163,7 +164,10 @@ def test_comparison_whitelists_tangent_policy_but_not_physics(forecast, tmp_path
     c, events, r = forecast
     base = {"config": c, "schedule": events, "requested_days": 1, "result": r}
     changed = copy.deepcopy(base)
-    changed["config"]["simulation"]["physical_surface_network"].update(policy)
+    target = changed["config"]["simulation"]["physical_surface_network"]
+    if "hydraulic_backend" in policy:
+        target = target["network"]
+    target.update(policy)
     a, b = tmp_path / "a.gz", tmp_path / "b.gz"
 
     def save(path, value):

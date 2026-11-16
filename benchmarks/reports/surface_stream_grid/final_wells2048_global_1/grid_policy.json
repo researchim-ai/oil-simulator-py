@@ -1,0 +1,11 @@
+{
+  "scope": "Full FIM reference comparison: global versus stream-local pressure knots.\n\nBoth variants use current PVTO lookup/admission and identical physical inputs.\nOnly the grid factory is changed in memory for the benchmark process.\n",
+  "policy": "global",
+  "factory_calls": 76,
+  "fixed_calls": 768,
+  "maximum_fixed_knots": 3,
+  "maximum_fixed_tensor_entries": 384,
+  "wrapper_source": "/home/user/workspace/oil-simulator-py-impes/scripts/run_pipe_grid_forecast.py",
+  "wrapper_sha256": "0ec97b17be9d67b09fe51bc9da65cb07bfbe260b6cb3d3c13330db82a13d4b6f",
+  "sources_unchanged": true
+}

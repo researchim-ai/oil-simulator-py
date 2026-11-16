@@ -1,0 +1,12 @@
+{
+  "nvidia_smi_exit_code": 9,
+  "kernel_driver_version": "NVRM version: NVIDIA UNIX x86_64 Kernel Module  570.211.01  Tue Nov 25 16:36:36 UTC 2025",
+  "proc_gpu_entries": 2,
+  "device_nodes_exist": {
+    "/dev/nvidiactl": false,
+    "/dev/nvidia-uvm": false,
+    "/dev/nvidia0": false,
+    "/dev/nvidia1": false
+  },
+  "scope": "Read-only observation inside this execution environment; no driver, device permission or running process was modified. GPU timing not qualified."
+}

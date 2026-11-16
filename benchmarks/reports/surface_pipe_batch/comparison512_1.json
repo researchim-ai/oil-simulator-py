@@ -1,0 +1,63 @@
+{
+  "accepted": true,
+  "scope": "Compare like-for-like producer forecasts, changing only pipe numerical policy.\n\nBoth trajectories must independently pass material/operating accounting. This\nis scalar-reference equivalence, not independent experimental validation.\n",
+  "errors": {
+    "final_s_g": 7.494005416219807e-16,
+    "final_rs": 4.263256414560601e-14,
+    "final_pressure_pa": 2.3283064365386963e-09,
+    "final_s_w": 2.220446049250313e-16,
+    "withdrawal_relative": 6.581127921560721e-14
+  },
+  "budgets": {
+    "final_pressure_pa": 0.1,
+    "final_s_w": 1e-08,
+    "final_s_g": 1e-08,
+    "final_rs": 1e-05,
+    "withdrawal_relative": 1e-06
+  },
+  "audits": [
+    {
+      "accepted": true,
+      "wells": 512,
+      "accepted_steps": 1,
+      "elapsed_days": 1.0,
+      "mode_samples": {
+        "surface": 512
+      },
+      "component_mass_residual_kg": [
+        -2.2798776626586914e-05,
+        2.6389025151729584e-05,
+        -3.528106026351452e-05
+      ],
+      "mass_atol_kg": 0.01,
+      "mass_rtol": 1e-08,
+      "well_block_backend": "tree_structured",
+      "scope": "Accepted producer-only FIM -> gathering material/operating audit.\n\nNo solver invocation or rescaling of requested production. This is accounting\nand constraint checking, not independent PVT/correlation validation.\n"
+    },
+    {
+      "accepted": true,
+      "wells": 512,
+      "accepted_steps": 1,
+      "elapsed_days": 1.0,
+      "mode_samples": {
+        "surface": 512
+      },
+      "component_mass_residual_kg": [
+        -2.2953376173973083e-05,
+        2.6085413992404938e-05,
+        -3.527523949742317e-05
+      ],
+      "mass_atol_kg": 0.01,
+      "mass_rtol": 1e-08,
+      "well_block_backend": "tree_structured",
+      "scope": "Accepted producer-only FIM -> gathering material/operating audit.\n\nNo solver invocation or rescaling of requested production. This is accounting\nand constraint checking, not independent PVT/correlation validation.\n"
+    }
+  ],
+  "accepted_step_pipe_counts": {
+    "torch_batch_pipes": 512,
+    "scalar_retry_pipes": 0,
+    "scalar_pipes": 1
+  },
+  "scalar": "benchmarks/reports/surface_pipe_batch/wells512_scalar_1/trajectory.json.gz",
+  "batch": "benchmarks/reports/surface_pipe_batch/wells512_torch_batch_1/trajectory.json.gz"
+}

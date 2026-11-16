@@ -1,0 +1,1062 @@
+{
+  "scope": "CPU-only full FIM/producer gathering comparison: global versus stream-local pressure knots and compact singleton trunk policy. Identical physical model within each pair, independent material audits.",
+  "runs": {
+    "final_wells2048_global_1": {
+      "final_version": true,
+      "source_differences_from_current": {},
+      "audit": {
+        "accepted": true,
+        "wells": 2048,
+        "accepted_steps": 1,
+        "elapsed_days": 1.0,
+        "mode_samples": {
+          "surface": 2048
+        },
+        "component_mass_residual_kg": [
+          1.4886260032653809e-05,
+          -5.640089511871338e-06,
+          -5.32250851392746e-07
+        ],
+        "mass_atol_kg": 0.01,
+        "mass_rtol": 1e-08,
+        "well_block_backend": "tree_structured",
+        "scope": "Accepted producer-only FIM -> gathering material/operating audit.\n\nNo solver invocation or rescaling of requested production. This is accounting\nand constraint checking, not independent PVT/correlation validation.\n"
+      },
+      "grid_policy": {
+        "scope": "Full FIM reference comparison: global versus stream-local pressure knots.\n\nBoth variants use current PVTO lookup/admission and identical physical inputs.\nOnly the grid factory is changed in memory for the benchmark process.\n",
+        "policy": "global",
+        "factory_calls": 76,
+        "fixed_calls": 768,
+        "maximum_fixed_knots": 3,
+        "maximum_fixed_tensor_entries": 384,
+        "wrapper_source": "/home/user/workspace/oil-simulator-py-impes/scripts/run_pipe_grid_forecast.py",
+        "wrapper_sha256": "0ec97b17be9d67b09fe51bc9da65cb07bfbe260b6cb3d3c13330db82a13d4b6f",
+        "sources_unchanged": true
+      }
+    },
+    "final_wells2048_global_2": {
+      "final_version": true,
+      "source_differences_from_current": {},
+      "audit": {
+        "accepted": true,
+        "wells": 2048,
+        "accepted_steps": 1,
+        "elapsed_days": 1.0,
+        "mode_samples": {
+          "surface": 2048
+        },
+        "component_mass_residual_kg": [
+          1.4886260032653809e-05,
+          -5.640089511871338e-06,
+          -5.32250851392746e-07
+        ],
+        "mass_atol_kg": 0.01,
+        "mass_rtol": 1e-08,
+        "well_block_backend": "tree_structured",
+        "scope": "Accepted producer-only FIM -> gathering material/operating audit.\n\nNo solver invocation or rescaling of requested production. This is accounting\nand constraint checking, not independent PVT/correlation validation.\n"
+      },
+      "grid_policy": {
+        "scope": "Full FIM reference comparison: global versus stream-local pressure knots.\n\nBoth variants use current PVTO lookup/admission and identical physical inputs.\nOnly the grid factory is changed in memory for the benchmark process.\n",
+        "policy": "global",
+        "factory_calls": 76,
+        "fixed_calls": 768,
+        "maximum_fixed_knots": 3,
+        "maximum_fixed_tensor_entries": 384,
+        "wrapper_source": "/home/user/workspace/oil-simulator-py-impes/scripts/run_pipe_grid_forecast.py",
+        "wrapper_sha256": "0ec97b17be9d67b09fe51bc9da65cb07bfbe260b6cb3d3c13330db82a13d4b6f",
+        "sources_unchanged": true
+      }
+    },
+    "final_wells2048_global_3": {
+      "final_version": true,
+      "source_differences_from_current": {},
+      "audit": {
+        "accepted": true,
+        "wells": 2048,
+        "accepted_steps": 1,
+        "elapsed_days": 1.0,
+        "mode_samples": {
+          "surface": 2048
+        },
+        "component_mass_residual_kg": [
+          1.4886260032653809e-05,
+          -5.640089511871338e-06,
+          -5.32250851392746e-07
+        ],
+        "mass_atol_kg": 0.01,
+        "mass_rtol": 1e-08,
+        "well_block_backend": "tree_structured",
+        "scope": "Accepted producer-only FIM -> gathering material/operating audit.\n\nNo solver invocation or rescaling of requested production. This is accounting\nand constraint checking, not independent PVT/correlation validation.\n"
+      },
+      "grid_policy": {
+        "scope": "Full FIM reference comparison: global versus stream-local pressure knots.\n\nBoth variants use current PVTO lookup/admission and identical physical inputs.\nOnly the grid factory is changed in memory for the benchmark process.\n",
+        "policy": "global",
+        "factory_calls": 76,
+        "fixed_calls": 768,
+        "maximum_fixed_knots": 3,
+        "maximum_fixed_tensor_entries": 384,
+        "wrapper_source": "/home/user/workspace/oil-simulator-py-impes/scripts/run_pipe_grid_forecast.py",
+        "wrapper_sha256": "0ec97b17be9d67b09fe51bc9da65cb07bfbe260b6cb3d3c13330db82a13d4b6f",
+        "sources_unchanged": true
+      }
+    },
+    "final_wells2048_stream_1": {
+      "final_version": true,
+      "source_differences_from_current": {},
+      "audit": {
+        "accepted": true,
+        "wells": 2048,
+        "accepted_steps": 1,
+        "elapsed_days": 1.0,
+        "mode_samples": {
+          "surface": 2048
+        },
+        "component_mass_residual_kg": [
+          1.4886260032653809e-05,
+          -5.640089511871338e-06,
+          -5.32250851392746e-07
+        ],
+        "mass_atol_kg": 0.01,
+        "mass_rtol": 1e-08,
+        "well_block_backend": "tree_structured",
+        "scope": "Accepted producer-only FIM -> gathering material/operating audit.\n\nNo solver invocation or rescaling of requested production. This is accounting\nand constraint checking, not independent PVT/correlation validation.\n"
+      },
+      "grid_policy": {
+        "scope": "Full FIM reference comparison: global versus stream-local pressure knots.\n\nBoth variants use current PVTO lookup/admission and identical physical inputs.\nOnly the grid factory is changed in memory for the benchmark process.\n",
+        "policy": "stream",
+        "factory_calls": 76,
+        "fixed_calls": 768,
+        "maximum_fixed_knots": 3,
+        "maximum_fixed_tensor_entries": 384,
+        "wrapper_source": "/home/user/workspace/oil-simulator-py-impes/scripts/run_pipe_grid_forecast.py",
+        "wrapper_sha256": "0ec97b17be9d67b09fe51bc9da65cb07bfbe260b6cb3d3c13330db82a13d4b6f",
+        "sources_unchanged": true
+      }
+    },
+    "final_wells2048_stream_2": {
+      "final_version": true,
+      "source_differences_from_current": {},
+      "audit": {
+        "accepted": true,
+        "wells": 2048,
+        "accepted_steps": 1,
+        "elapsed_days": 1.0,
+        "mode_samples": {
+          "surface": 2048
+        },
+        "component_mass_residual_kg": [
+          1.4886260032653809e-05,
+          -5.640089511871338e-06,
+          -5.32250851392746e-07
+        ],
+        "mass_atol_kg": 0.01,
+        "mass_rtol": 1e-08,
+        "well_block_backend": "tree_structured",
+        "scope": "Accepted producer-only FIM -> gathering material/operating audit.\n\nNo solver invocation or rescaling of requested production. This is accounting\nand constraint checking, not independent PVT/correlation validation.\n"
+      },
+      "grid_policy": {
+        "scope": "Full FIM reference comparison: global versus stream-local pressure knots.\n\nBoth variants use current PVTO lookup/admission and identical physical inputs.\nOnly the grid factory is changed in memory for the benchmark process.\n",
+        "policy": "stream",
+        "factory_calls": 76,
+        "fixed_calls": 768,
+        "maximum_fixed_knots": 3,
+        "maximum_fixed_tensor_entries": 384,
+        "wrapper_source": "/home/user/workspace/oil-simulator-py-impes/scripts/run_pipe_grid_forecast.py",
+        "wrapper_sha256": "0ec97b17be9d67b09fe51bc9da65cb07bfbe260b6cb3d3c13330db82a13d4b6f",
+        "sources_unchanged": true
+      }
+    },
+    "final_wells2048_stream_3": {
+      "final_version": true,
+      "source_differences_from_current": {},
+      "audit": {
+        "accepted": true,
+        "wells": 2048,
+        "accepted_steps": 1,
+        "elapsed_days": 1.0,
+        "mode_samples": {
+          "surface": 2048
+        },
+        "component_mass_residual_kg": [
+          1.4886260032653809e-05,
+          -5.640089511871338e-06,
+          -5.32250851392746e-07
+        ],
+        "mass_atol_kg": 0.01,
+        "mass_rtol": 1e-08,
+        "well_block_backend": "tree_structured",
+        "scope": "Accepted producer-only FIM -> gathering material/operating audit.\n\nNo solver invocation or rescaling of requested production. This is accounting\nand constraint checking, not independent PVT/correlation validation.\n"
+      },
+      "grid_policy": {
+        "scope": "Full FIM reference comparison: global versus stream-local pressure knots.\n\nBoth variants use current PVTO lookup/admission and identical physical inputs.\nOnly the grid factory is changed in memory for the benchmark process.\n",
+        "policy": "stream",
+        "factory_calls": 76,
+        "fixed_calls": 768,
+        "maximum_fixed_knots": 3,
+        "maximum_fixed_tensor_entries": 384,
+        "wrapper_source": "/home/user/workspace/oil-simulator-py-impes/scripts/run_pipe_grid_forecast.py",
+        "wrapper_sha256": "0ec97b17be9d67b09fe51bc9da65cb07bfbe260b6cb3d3c13330db82a13d4b6f",
+        "sources_unchanged": true
+      }
+    },
+    "final_wells64_global_1": {
+      "final_version": true,
+      "source_differences_from_current": {},
+      "audit": {
+        "accepted": true,
+        "wells": 64,
+        "accepted_steps": 1,
+        "elapsed_days": 1.0,
+        "mode_samples": {
+          "surface": 64
+        },
+        "component_mass_residual_kg": [
+          -7.613562047481537e-08,
+          -4.0780287235975266e-07,
+          1.0943040251731873e-07
+        ],
+        "mass_atol_kg": 0.01,
+        "mass_rtol": 1e-08,
+        "well_block_backend": "tree_structured",
+        "scope": "Accepted producer-only FIM -> gathering material/operating audit.\n\nNo solver invocation or rescaling of requested production. This is accounting\nand constraint checking, not independent PVT/correlation validation.\n"
+      },
+      "grid_policy": {
+        "scope": "Full FIM reference comparison: global versus stream-local pressure knots.\n\nBoth variants use current PVTO lookup/admission and identical physical inputs.\nOnly the grid factory is changed in memory for the benchmark process.\n",
+        "policy": "global",
+        "factory_calls": 16,
+        "fixed_calls": 48,
+        "maximum_fixed_knots": 68,
+        "maximum_fixed_tensor_entries": 4352,
+        "wrapper_source": "/home/user/workspace/oil-simulator-py-impes/scripts/run_pipe_grid_forecast.py",
+        "wrapper_sha256": "0ec97b17be9d67b09fe51bc9da65cb07bfbe260b6cb3d3c13330db82a13d4b6f",
+        "sources_unchanged": true
+      }
+    },
+    "final_wells64_global_2": {
+      "final_version": true,
+      "source_differences_from_current": {},
+      "audit": {
+        "accepted": true,
+        "wells": 64,
+        "accepted_steps": 1,
+        "elapsed_days": 1.0,
+        "mode_samples": {
+          "surface": 64
+        },
+        "component_mass_residual_kg": [
+          -7.613562047481537e-08,
+          -4.0780287235975266e-07,
+          1.0943040251731873e-07
+        ],
+        "mass_atol_kg": 0.01,
+        "mass_rtol": 1e-08,
+        "well_block_backend": "tree_structured",
+        "scope": "Accepted producer-only FIM -> gathering material/operating audit.\n\nNo solver invocation or rescaling of requested production. This is accounting\nand constraint checking, not independent PVT/correlation validation.\n"
+      },
+      "grid_policy": {
+        "scope": "Full FIM reference comparison: global versus stream-local pressure knots.\n\nBoth variants use current PVTO lookup/admission and identical physical inputs.\nOnly the grid factory is changed in memory for the benchmark process.\n",
+        "policy": "global",
+        "factory_calls": 16,
+        "fixed_calls": 48,
+        "maximum_fixed_knots": 68,
+        "maximum_fixed_tensor_entries": 4352,
+        "wrapper_source": "/home/user/workspace/oil-simulator-py-impes/scripts/run_pipe_grid_forecast.py",
+        "wrapper_sha256": "0ec97b17be9d67b09fe51bc9da65cb07bfbe260b6cb3d3c13330db82a13d4b6f",
+        "sources_unchanged": true
+      }
+    },
+    "final_wells64_global_3": {
+      "final_version": true,
+      "source_differences_from_current": {},
+      "audit": {
+        "accepted": true,
+        "wells": 64,
+        "accepted_steps": 1,
+        "elapsed_days": 1.0,
+        "mode_samples": {
+          "surface": 64
+        },
+        "component_mass_residual_kg": [
+          -7.613562047481537e-08,
+          -4.0780287235975266e-07,
+          1.0943040251731873e-07
+        ],
+        "mass_atol_kg": 0.01,
+        "mass_rtol": 1e-08,
+        "well_block_backend": "tree_structured",
+        "scope": "Accepted producer-only FIM -> gathering material/operating audit.\n\nNo solver invocation or rescaling of requested production. This is accounting\nand constraint checking, not independent PVT/correlation validation.\n"
+      },
+      "grid_policy": {
+        "scope": "Full FIM reference comparison: global versus stream-local pressure knots.\n\nBoth variants use current PVTO lookup/admission and identical physical inputs.\nOnly the grid factory is changed in memory for the benchmark process.\n",
+        "policy": "global",
+        "factory_calls": 16,
+        "fixed_calls": 48,
+        "maximum_fixed_knots": 68,
+        "maximum_fixed_tensor_entries": 4352,
+        "wrapper_source": "/home/user/workspace/oil-simulator-py-impes/scripts/run_pipe_grid_forecast.py",
+        "wrapper_sha256": "0ec97b17be9d67b09fe51bc9da65cb07bfbe260b6cb3d3c13330db82a13d4b6f",
+        "sources_unchanged": true
+      }
+    },
+    "final_wells64_stream_1": {
+      "final_version": true,
+      "source_differences_from_current": {},
+      "audit": {
+        "accepted": true,
+        "wells": 64,
+        "accepted_steps": 1,
+        "elapsed_days": 1.0,
+        "mode_samples": {
+          "surface": 64
+        },
+        "component_mass_residual_kg": [
+          -7.636845111846924e-08,
+          -4.079192876815796e-07,
+          1.0940129868686199e-07
+        ],
+        "mass_atol_kg": 0.01,
+        "mass_rtol": 1e-08,
+        "well_block_backend": "tree_structured",
+        "scope": "Accepted producer-only FIM -> gathering material/operating audit.\n\nNo solver invocation or rescaling of requested production. This is accounting\nand constraint checking, not independent PVT/correlation validation.\n"
+      },
+      "grid_policy": {
+        "scope": "Full FIM reference comparison: global versus stream-local pressure knots.\n\nBoth variants use current PVTO lookup/admission and identical physical inputs.\nOnly the grid factory is changed in memory for the benchmark process.\n",
+        "policy": "stream",
+        "factory_calls": 20,
+        "fixed_calls": 96,
+        "maximum_fixed_knots": 5,
+        "maximum_fixed_tensor_entries": 320,
+        "wrapper_source": "/home/user/workspace/oil-simulator-py-impes/scripts/run_pipe_grid_forecast.py",
+        "wrapper_sha256": "0ec97b17be9d67b09fe51bc9da65cb07bfbe260b6cb3d3c13330db82a13d4b6f",
+        "sources_unchanged": true
+      }
+    },
+    "final_wells64_stream_2": {
+      "final_version": true,
+      "source_differences_from_current": {},
+      "audit": {
+        "accepted": true,
+        "wells": 64,
+        "accepted_steps": 1,
+        "elapsed_days": 1.0,
+        "mode_samples": {
+          "surface": 64
+        },
+        "component_mass_residual_kg": [
+          -7.636845111846924e-08,
+          -4.079192876815796e-07,
+          1.0940129868686199e-07
+        ],
+        "mass_atol_kg": 0.01,
+        "mass_rtol": 1e-08,
+        "well_block_backend": "tree_structured",
+        "scope": "Accepted producer-only FIM -> gathering material/operating audit.\n\nNo solver invocation or rescaling of requested production. This is accounting\nand constraint checking, not independent PVT/correlation validation.\n"
+      },
+      "grid_policy": {
+        "scope": "Full FIM reference comparison: global versus stream-local pressure knots.\n\nBoth variants use current PVTO lookup/admission and identical physical inputs.\nOnly the grid factory is changed in memory for the benchmark process.\n",
+        "policy": "stream",
+        "factory_calls": 20,
+        "fixed_calls": 96,
+        "maximum_fixed_knots": 5,
+        "maximum_fixed_tensor_entries": 320,
+        "wrapper_source": "/home/user/workspace/oil-simulator-py-impes/scripts/run_pipe_grid_forecast.py",
+        "wrapper_sha256": "0ec97b17be9d67b09fe51bc9da65cb07bfbe260b6cb3d3c13330db82a13d4b6f",
+        "sources_unchanged": true
+      }
+    },
+    "final_wells64_stream_3": {
+      "final_version": true,
+      "source_differences_from_current": {},
+      "audit": {
+        "accepted": true,
+        "wells": 64,
+        "accepted_steps": 1,
+        "elapsed_days": 1.0,
+        "mode_samples": {
+          "surface": 64
+        },
+        "component_mass_residual_kg": [
+          -7.636845111846924e-08,
+          -4.079192876815796e-07,
+          1.0940129868686199e-07
+        ],
+        "mass_atol_kg": 0.01,
+        "mass_rtol": 1e-08,
+        "well_block_backend": "tree_structured",
+        "scope": "Accepted producer-only FIM -> gathering material/operating audit.\n\nNo solver invocation or rescaling of requested production. This is accounting\nand constraint checking, not independent PVT/correlation validation.\n"
+      },
+      "grid_policy": {
+        "scope": "Full FIM reference comparison: global versus stream-local pressure knots.\n\nBoth variants use current PVTO lookup/admission and identical physical inputs.\nOnly the grid factory is changed in memory for the benchmark process.\n",
+        "policy": "stream",
+        "factory_calls": 20,
+        "fixed_calls": 96,
+        "maximum_fixed_knots": 5,
+        "maximum_fixed_tensor_entries": 320,
+        "wrapper_source": "/home/user/workspace/oil-simulator-py-impes/scripts/run_pipe_grid_forecast.py",
+        "wrapper_sha256": "0ec97b17be9d67b09fe51bc9da65cb07bfbe260b6cb3d3c13330db82a13d4b6f",
+        "sources_unchanged": true
+      }
+    },
+    "wells2048_global_1": {
+      "final_version": false,
+      "source_differences_from_current": {
+        "/home/user/workspace/oil-simulator-py-impes/src/surface/blackoil_network.py": {
+          "recorded": "b738fcd6574bf160b9a5df84bb7705f2f65d2bd182111c3af24acea5f2d4d786",
+          "current": "9b062a9e9ce90b3ee560db4f5b0dec8bc764b109b8ee5d4eadbb8a72514a6bf5"
+        }
+      },
+      "audit": {
+        "accepted": true,
+        "wells": 2048,
+        "accepted_steps": 1,
+        "elapsed_days": 1.0,
+        "mode_samples": {
+          "surface": 2048
+        },
+        "component_mass_residual_kg": [
+          1.4886260032653809e-05,
+          -5.640089511871338e-06,
+          -5.32250851392746e-07
+        ],
+        "mass_atol_kg": 0.01,
+        "mass_rtol": 1e-08,
+        "well_block_backend": "tree_structured",
+        "scope": "Accepted producer-only FIM -> gathering material/operating audit.\n\nNo solver invocation or rescaling of requested production. This is accounting\nand constraint checking, not independent PVT/correlation validation.\n"
+      },
+      "grid_policy": {
+        "scope": "Full FIM reference comparison: global versus stream-local pressure knots.\n\nBoth variants use current PVTO lookup/admission and identical physical inputs.\nOnly the grid factory is changed in memory for the benchmark process.\n",
+        "policy": "global",
+        "factory_calls": 72,
+        "fixed_calls": 768,
+        "maximum_fixed_knots": 3,
+        "maximum_fixed_tensor_entries": 384,
+        "wrapper_source": "/home/user/workspace/oil-simulator-py-impes/scripts/run_pipe_grid_forecast.py",
+        "wrapper_sha256": "0ec97b17be9d67b09fe51bc9da65cb07bfbe260b6cb3d3c13330db82a13d4b6f",
+        "sources_unchanged": true
+      }
+    },
+    "wells2048_stream_1": {
+      "final_version": false,
+      "source_differences_from_current": {
+        "/home/user/workspace/oil-simulator-py-impes/src/surface/blackoil_network.py": {
+          "recorded": "b738fcd6574bf160b9a5df84bb7705f2f65d2bd182111c3af24acea5f2d4d786",
+          "current": "9b062a9e9ce90b3ee560db4f5b0dec8bc764b109b8ee5d4eadbb8a72514a6bf5"
+        }
+      },
+      "audit": {
+        "accepted": true,
+        "wells": 2048,
+        "accepted_steps": 1,
+        "elapsed_days": 1.0,
+        "mode_samples": {
+          "surface": 2048
+        },
+        "component_mass_residual_kg": [
+          1.4886260032653809e-05,
+          -5.640089511871338e-06,
+          -5.32250851392746e-07
+        ],
+        "mass_atol_kg": 0.01,
+        "mass_rtol": 1e-08,
+        "well_block_backend": "tree_structured",
+        "scope": "Accepted producer-only FIM -> gathering material/operating audit.\n\nNo solver invocation or rescaling of requested production. This is accounting\nand constraint checking, not independent PVT/correlation validation.\n"
+      },
+      "grid_policy": {
+        "scope": "Full FIM reference comparison: global versus stream-local pressure knots.\n\nBoth variants use current PVTO lookup/admission and identical physical inputs.\nOnly the grid factory is changed in memory for the benchmark process.\n",
+        "policy": "stream",
+        "factory_calls": 72,
+        "fixed_calls": 768,
+        "maximum_fixed_knots": 3,
+        "maximum_fixed_tensor_entries": 384,
+        "wrapper_source": "/home/user/workspace/oil-simulator-py-impes/scripts/run_pipe_grid_forecast.py",
+        "wrapper_sha256": "0ec97b17be9d67b09fe51bc9da65cb07bfbe260b6cb3d3c13330db82a13d4b6f",
+        "sources_unchanged": true
+      }
+    },
+    "wells64_global_1": {
+      "final_version": false,
+      "source_differences_from_current": {
+        "/home/user/workspace/oil-simulator-py-impes/src/surface/blackoil_network.py": {
+          "recorded": "b738fcd6574bf160b9a5df84bb7705f2f65d2bd182111c3af24acea5f2d4d786",
+          "current": "9b062a9e9ce90b3ee560db4f5b0dec8bc764b109b8ee5d4eadbb8a72514a6bf5"
+        }
+      },
+      "audit": {
+        "accepted": true,
+        "wells": 64,
+        "accepted_steps": 1,
+        "elapsed_days": 1.0,
+        "mode_samples": {
+          "surface": 64
+        },
+        "component_mass_residual_kg": [
+          -7.613562047481537e-08,
+          -4.0780287235975266e-07,
+          1.0943040251731873e-07
+        ],
+        "mass_atol_kg": 0.01,
+        "mass_rtol": 1e-08,
+        "well_block_backend": "tree_structured",
+        "scope": "Accepted producer-only FIM -> gathering material/operating audit.\n\nNo solver invocation or rescaling of requested production. This is accounting\nand constraint checking, not independent PVT/correlation validation.\n"
+      },
+      "grid_policy": {
+        "scope": "Full FIM reference comparison: global versus stream-local pressure knots.\n\nBoth variants use current PVTO lookup/admission and identical physical inputs.\nOnly the grid factory is changed in memory for the benchmark process.\n",
+        "policy": "global",
+        "factory_calls": 12,
+        "fixed_calls": 48,
+        "maximum_fixed_knots": 68,
+        "maximum_fixed_tensor_entries": 4352,
+        "wrapper_source": "/home/user/workspace/oil-simulator-py-impes/scripts/run_pipe_grid_forecast.py",
+        "wrapper_sha256": "0ec97b17be9d67b09fe51bc9da65cb07bfbe260b6cb3d3c13330db82a13d4b6f",
+        "sources_unchanged": true
+      }
+    },
+    "wells64_global_2": {
+      "final_version": false,
+      "source_differences_from_current": {
+        "/home/user/workspace/oil-simulator-py-impes/src/surface/blackoil_network.py": {
+          "recorded": "b738fcd6574bf160b9a5df84bb7705f2f65d2bd182111c3af24acea5f2d4d786",
+          "current": "9b062a9e9ce90b3ee560db4f5b0dec8bc764b109b8ee5d4eadbb8a72514a6bf5"
+        }
+      },
+      "audit": {
+        "accepted": true,
+        "wells": 64,
+        "accepted_steps": 1,
+        "elapsed_days": 1.0,
+        "mode_samples": {
+          "surface": 64
+        },
+        "component_mass_residual_kg": [
+          -7.613562047481537e-08,
+          -4.0780287235975266e-07,
+          1.0943040251731873e-07
+        ],
+        "mass_atol_kg": 0.01,
+        "mass_rtol": 1e-08,
+        "well_block_backend": "tree_structured",
+        "scope": "Accepted producer-only FIM -> gathering material/operating audit.\n\nNo solver invocation or rescaling of requested production. This is accounting\nand constraint checking, not independent PVT/correlation validation.\n"
+      },
+      "grid_policy": {
+        "scope": "Full FIM reference comparison: global versus stream-local pressure knots.\n\nBoth variants use current PVTO lookup/admission and identical physical inputs.\nOnly the grid factory is changed in memory for the benchmark process.\n",
+        "policy": "global",
+        "factory_calls": 12,
+        "fixed_calls": 48,
+        "maximum_fixed_knots": 68,
+        "maximum_fixed_tensor_entries": 4352,
+        "wrapper_source": "/home/user/workspace/oil-simulator-py-impes/scripts/run_pipe_grid_forecast.py",
+        "wrapper_sha256": "0ec97b17be9d67b09fe51bc9da65cb07bfbe260b6cb3d3c13330db82a13d4b6f",
+        "sources_unchanged": true
+      }
+    },
+    "wells64_global_3": {
+      "final_version": false,
+      "source_differences_from_current": {
+        "/home/user/workspace/oil-simulator-py-impes/src/surface/blackoil_network.py": {
+          "recorded": "b738fcd6574bf160b9a5df84bb7705f2f65d2bd182111c3af24acea5f2d4d786",
+          "current": "9b062a9e9ce90b3ee560db4f5b0dec8bc764b109b8ee5d4eadbb8a72514a6bf5"
+        }
+      },
+      "audit": {
+        "accepted": true,
+        "wells": 64,
+        "accepted_steps": 1,
+        "elapsed_days": 1.0,
+        "mode_samples": {
+          "surface": 64
+        },
+        "component_mass_residual_kg": [
+          -7.613562047481537e-08,
+          -4.0780287235975266e-07,
+          1.0943040251731873e-07
+        ],
+        "mass_atol_kg": 0.01,
+        "mass_rtol": 1e-08,
+        "well_block_backend": "tree_structured",
+        "scope": "Accepted producer-only FIM -> gathering material/operating audit.\n\nNo solver invocation or rescaling of requested production. This is accounting\nand constraint checking, not independent PVT/correlation validation.\n"
+      },
+      "grid_policy": {
+        "scope": "Full FIM reference comparison: global versus stream-local pressure knots.\n\nBoth variants use current PVTO lookup/admission and identical physical inputs.\nOnly the grid factory is changed in memory for the benchmark process.\n",
+        "policy": "global",
+        "factory_calls": 12,
+        "fixed_calls": 48,
+        "maximum_fixed_knots": 68,
+        "maximum_fixed_tensor_entries": 4352,
+        "wrapper_source": "/home/user/workspace/oil-simulator-py-impes/scripts/run_pipe_grid_forecast.py",
+        "wrapper_sha256": "0ec97b17be9d67b09fe51bc9da65cb07bfbe260b6cb3d3c13330db82a13d4b6f",
+        "sources_unchanged": true
+      }
+    },
+    "wells64_stream_1": {
+      "final_version": false,
+      "source_differences_from_current": {
+        "/home/user/workspace/oil-simulator-py-impes/src/surface/blackoil_network.py": {
+          "recorded": "b738fcd6574bf160b9a5df84bb7705f2f65d2bd182111c3af24acea5f2d4d786",
+          "current": "9b062a9e9ce90b3ee560db4f5b0dec8bc764b109b8ee5d4eadbb8a72514a6bf5"
+        }
+      },
+      "audit": {
+        "accepted": true,
+        "wells": 64,
+        "accepted_steps": 1,
+        "elapsed_days": 1.0,
+        "mode_samples": {
+          "surface": 64
+        },
+        "component_mass_residual_kg": [
+          -7.613562047481537e-08,
+          -4.0780287235975266e-07,
+          1.0943040251731873e-07
+        ],
+        "mass_atol_kg": 0.01,
+        "mass_rtol": 1e-08,
+        "well_block_backend": "tree_structured",
+        "scope": "Accepted producer-only FIM -> gathering material/operating audit.\n\nNo solver invocation or rescaling of requested production. This is accounting\nand constraint checking, not independent PVT/correlation validation.\n"
+      },
+      "grid_policy": {
+        "scope": "Full FIM reference comparison: global versus stream-local pressure knots.\n\nBoth variants use current PVTO lookup/admission and identical physical inputs.\nOnly the grid factory is changed in memory for the benchmark process.\n",
+        "policy": "stream",
+        "factory_calls": 12,
+        "fixed_calls": 48,
+        "maximum_fixed_knots": 5,
+        "maximum_fixed_tensor_entries": 320,
+        "wrapper_source": "/home/user/workspace/oil-simulator-py-impes/scripts/run_pipe_grid_forecast.py",
+        "wrapper_sha256": "0ec97b17be9d67b09fe51bc9da65cb07bfbe260b6cb3d3c13330db82a13d4b6f",
+        "sources_unchanged": true
+      }
+    },
+    "wells64_stream_2": {
+      "final_version": false,
+      "source_differences_from_current": {
+        "/home/user/workspace/oil-simulator-py-impes/src/surface/blackoil_network.py": {
+          "recorded": "b738fcd6574bf160b9a5df84bb7705f2f65d2bd182111c3af24acea5f2d4d786",
+          "current": "9b062a9e9ce90b3ee560db4f5b0dec8bc764b109b8ee5d4eadbb8a72514a6bf5"
+        }
+      },
+      "audit": {
+        "accepted": true,
+        "wells": 64,
+        "accepted_steps": 1,
+        "elapsed_days": 1.0,
+        "mode_samples": {
+          "surface": 64
+        },
+        "component_mass_residual_kg": [
+          -7.613562047481537e-08,
+          -4.0780287235975266e-07,
+          1.0943040251731873e-07
+        ],
+        "mass_atol_kg": 0.01,
+        "mass_rtol": 1e-08,
+        "well_block_backend": "tree_structured",
+        "scope": "Accepted producer-only FIM -> gathering material/operating audit.\n\nNo solver invocation or rescaling of requested production. This is accounting\nand constraint checking, not independent PVT/correlation validation.\n"
+      },
+      "grid_policy": {
+        "scope": "Full FIM reference comparison: global versus stream-local pressure knots.\n\nBoth variants use current PVTO lookup/admission and identical physical inputs.\nOnly the grid factory is changed in memory for the benchmark process.\n",
+        "policy": "stream",
+        "factory_calls": 12,
+        "fixed_calls": 48,
+        "maximum_fixed_knots": 5,
+        "maximum_fixed_tensor_entries": 320,
+        "wrapper_source": "/home/user/workspace/oil-simulator-py-impes/scripts/run_pipe_grid_forecast.py",
+        "wrapper_sha256": "0ec97b17be9d67b09fe51bc9da65cb07bfbe260b6cb3d3c13330db82a13d4b6f",
+        "sources_unchanged": true
+      }
+    },
+    "wells64_stream_3": {
+      "final_version": false,
+      "source_differences_from_current": {
+        "/home/user/workspace/oil-simulator-py-impes/src/surface/blackoil_network.py": {
+          "recorded": "b738fcd6574bf160b9a5df84bb7705f2f65d2bd182111c3af24acea5f2d4d786",
+          "current": "9b062a9e9ce90b3ee560db4f5b0dec8bc764b109b8ee5d4eadbb8a72514a6bf5"
+        }
+      },
+      "audit": {
+        "accepted": true,
+        "wells": 64,
+        "accepted_steps": 1,
+        "elapsed_days": 1.0,
+        "mode_samples": {
+          "surface": 64
+        },
+        "component_mass_residual_kg": [
+          -7.613562047481537e-08,
+          -4.0780287235975266e-07,
+          1.0943040251731873e-07
+        ],
+        "mass_atol_kg": 0.01,
+        "mass_rtol": 1e-08,
+        "well_block_backend": "tree_structured",
+        "scope": "Accepted producer-only FIM -> gathering material/operating audit.\n\nNo solver invocation or rescaling of requested production. This is accounting\nand constraint checking, not independent PVT/correlation validation.\n"
+      },
+      "grid_policy": {
+        "scope": "Full FIM reference comparison: global versus stream-local pressure knots.\n\nBoth variants use current PVTO lookup/admission and identical physical inputs.\nOnly the grid factory is changed in memory for the benchmark process.\n",
+        "policy": "stream",
+        "factory_calls": 12,
+        "fixed_calls": 48,
+        "maximum_fixed_knots": 5,
+        "maximum_fixed_tensor_entries": 320,
+        "wrapper_source": "/home/user/workspace/oil-simulator-py-impes/scripts/run_pipe_grid_forecast.py",
+        "wrapper_sha256": "0ec97b17be9d67b09fe51bc9da65cb07bfbe260b6cb3d3c13330db82a13d4b6f",
+        "sources_unchanged": true
+      }
+    }
+  },
+  "comparisons": [
+    {
+      "wells": 64,
+      "repeat": 1,
+      "global_s": 2.6312032589994487,
+      "stream_s": 1.060087965997809,
+      "errors": {
+        "final_pressure_pa": 4.656612873077393e-10,
+        "final_s_w": 5.551115123125783e-17,
+        "final_s_g": 1.5959455978986625e-16,
+        "final_rs": 1.4210854715202004e-14,
+        "withdrawn_component_mass_kg": 4.656612873077393e-10
+      },
+      "budgets": {
+        "final_pressure_pa": 0.1,
+        "final_s_w": 1e-08,
+        "final_s_g": 1e-08,
+        "final_rs": 1e-05,
+        "withdrawn_component_mass_kg": 0.01
+      },
+      "maximum_fixed_knots": [
+        68,
+        5
+      ],
+      "accepted_step_execution": [
+        {
+          "backend": "torch_batch",
+          "torch_batch_pipes": 64,
+          "scalar_retry_pipes": 0,
+          "scalar_pipes": 1
+        },
+        {
+          "backend": "torch_batch",
+          "torch_batch_pipes": 65,
+          "scalar_retry_pipes": 0,
+          "scalar_pipes": 0
+        }
+      ],
+      "accepted": true
+    },
+    {
+      "wells": 64,
+      "repeat": 2,
+      "global_s": 2.489553032999538,
+      "stream_s": 1.1217930399980105,
+      "errors": {
+        "final_pressure_pa": 4.656612873077393e-10,
+        "final_s_w": 5.551115123125783e-17,
+        "final_s_g": 1.5959455978986625e-16,
+        "final_rs": 1.4210854715202004e-14,
+        "withdrawn_component_mass_kg": 4.656612873077393e-10
+      },
+      "budgets": {
+        "final_pressure_pa": 0.1,
+        "final_s_w": 1e-08,
+        "final_s_g": 1e-08,
+        "final_rs": 1e-05,
+        "withdrawn_component_mass_kg": 0.01
+      },
+      "maximum_fixed_knots": [
+        68,
+        5
+      ],
+      "accepted_step_execution": [
+        {
+          "backend": "torch_batch",
+          "torch_batch_pipes": 64,
+          "scalar_retry_pipes": 0,
+          "scalar_pipes": 1
+        },
+        {
+          "backend": "torch_batch",
+          "torch_batch_pipes": 65,
+          "scalar_retry_pipes": 0,
+          "scalar_pipes": 0
+        }
+      ],
+      "accepted": true
+    },
+    {
+      "wells": 64,
+      "repeat": 3,
+      "global_s": 2.7096179770014714,
+      "stream_s": 1.0609596520007472,
+      "errors": {
+        "final_pressure_pa": 4.656612873077393e-10,
+        "final_s_w": 5.551115123125783e-17,
+        "final_s_g": 1.5959455978986625e-16,
+        "final_rs": 1.4210854715202004e-14,
+        "withdrawn_component_mass_kg": 4.656612873077393e-10
+      },
+      "budgets": {
+        "final_pressure_pa": 0.1,
+        "final_s_w": 1e-08,
+        "final_s_g": 1e-08,
+        "final_rs": 1e-05,
+        "withdrawn_component_mass_kg": 0.01
+      },
+      "maximum_fixed_knots": [
+        68,
+        5
+      ],
+      "accepted_step_execution": [
+        {
+          "backend": "torch_batch",
+          "torch_batch_pipes": 64,
+          "scalar_retry_pipes": 0,
+          "scalar_pipes": 1
+        },
+        {
+          "backend": "torch_batch",
+          "torch_batch_pipes": 65,
+          "scalar_retry_pipes": 0,
+          "scalar_pipes": 0
+        }
+      ],
+      "accepted": true
+    },
+    {
+      "wells": 2048,
+      "repeat": 1,
+      "global_s": 8.275914595997165,
+      "stream_s": 7.8793007519998355,
+      "errors": {
+        "final_pressure_pa": 0.0,
+        "final_s_w": 0.0,
+        "final_s_g": 0.0,
+        "final_rs": 0.0,
+        "withdrawn_component_mass_kg": 0.0
+      },
+      "budgets": {
+        "final_pressure_pa": 0.1,
+        "final_s_w": 1e-08,
+        "final_s_g": 1e-08,
+        "final_rs": 1e-05,
+        "withdrawn_component_mass_kg": 0.01
+      },
+      "maximum_fixed_knots": [
+        3,
+        3
+      ],
+      "accepted_step_execution": [
+        {
+          "backend": "torch_batch",
+          "torch_batch_pipes": 2048,
+          "scalar_retry_pipes": 0,
+          "scalar_pipes": 1
+        },
+        {
+          "backend": "torch_batch",
+          "torch_batch_pipes": 2048,
+          "scalar_retry_pipes": 0,
+          "scalar_pipes": 1
+        }
+      ],
+      "accepted": true
+    },
+    {
+      "wells": 2048,
+      "repeat": 2,
+      "global_s": 8.02070179400107,
+      "stream_s": 7.933309268999437,
+      "errors": {
+        "final_pressure_pa": 0.0,
+        "final_s_w": 0.0,
+        "final_s_g": 0.0,
+        "final_rs": 0.0,
+        "withdrawn_component_mass_kg": 0.0
+      },
+      "budgets": {
+        "final_pressure_pa": 0.1,
+        "final_s_w": 1e-08,
+        "final_s_g": 1e-08,
+        "final_rs": 1e-05,
+        "withdrawn_component_mass_kg": 0.01
+      },
+      "maximum_fixed_knots": [
+        3,
+        3
+      ],
+      "accepted_step_execution": [
+        {
+          "backend": "torch_batch",
+          "torch_batch_pipes": 2048,
+          "scalar_retry_pipes": 0,
+          "scalar_pipes": 1
+        },
+        {
+          "backend": "torch_batch",
+          "torch_batch_pipes": 2048,
+          "scalar_retry_pipes": 0,
+          "scalar_pipes": 1
+        }
+      ],
+      "accepted": true
+    },
+    {
+      "wells": 2048,
+      "repeat": 3,
+      "global_s": 7.875994129000901,
+      "stream_s": 8.359409654000046,
+      "errors": {
+        "final_pressure_pa": 0.0,
+        "final_s_w": 0.0,
+        "final_s_g": 0.0,
+        "final_rs": 0.0,
+        "withdrawn_component_mass_kg": 0.0
+      },
+      "budgets": {
+        "final_pressure_pa": 0.1,
+        "final_s_w": 1e-08,
+        "final_s_g": 1e-08,
+        "final_rs": 1e-05,
+        "withdrawn_component_mass_kg": 0.01
+      },
+      "maximum_fixed_knots": [
+        3,
+        3
+      ],
+      "accepted_step_execution": [
+        {
+          "backend": "torch_batch",
+          "torch_batch_pipes": 2048,
+          "scalar_retry_pipes": 0,
+          "scalar_pipes": 1
+        },
+        {
+          "backend": "torch_batch",
+          "torch_batch_pipes": 2048,
+          "scalar_retry_pipes": 0,
+          "scalar_pipes": 1
+        }
+      ],
+      "accepted": true
+    }
+  ],
+  "regression": {
+    "passed": 213,
+    "skipped": 12
+  },
+  "protected_source_sha256": {
+    "src/simulator/blackoil_fim.py": "658fde0e6119df6ae154c3c400ff24b8d2a519dfa9a33e612aeaa6bd51a16c3c",
+    "src/surface/torch_linear.py": "b7bda1aae66d9e979c147f821efba9990d6460d60b32a05c6fc5f9b873b752d5"
+  },
+  "cuda": {
+    "qualified": false,
+    "observed_command": "nvidia-smi -L",
+    "exit_code": 9
+  },
+  "evidence_sha256": {
+    "comparison_summary.json": "705784a216c1534b1b61fe0f3c87edd8473cf2570dbf10ec4606af22e256b8a2",
+    "cuda_status.txt": "1d58470512e583a0acfabf6896ee5f31e5b493b8231aed54b864f64eb275b02c",
+    "final_wells2048_global_1/grid_policy.json": "b0c2490cac9763c2df1dd77bc3dcbbe38afc0dcd23c84a0dd9218f79195adb41",
+    "final_wells2048_global_1/progress.json": "f50dbbc88c511cd14fe0bf4edefd3aef224f15779f13290a3af56881ae11c009",
+    "final_wells2048_global_1/protocol.json": "a49d9380ef2c0189ce311d6854c512e54fe9d540065dbb34620de1e4ee4df81d",
+    "final_wells2048_global_1/summary.json": "4c3a031dcd7452cc71bc68c99a0fc0ec16512e51a24387e20225e7204f437033",
+    "final_wells2048_global_1/trajectory.json.gz": "c9db97d72cb19609c9b7f71ecf6d3aa69d39df17c37c17fb627e12f45acd95ec",
+    "final_wells2048_global_2/grid_policy.json": "b0c2490cac9763c2df1dd77bc3dcbbe38afc0dcd23c84a0dd9218f79195adb41",
+    "final_wells2048_global_2/progress.json": "f50dbbc88c511cd14fe0bf4edefd3aef224f15779f13290a3af56881ae11c009",
+    "final_wells2048_global_2/protocol.json": "a49d9380ef2c0189ce311d6854c512e54fe9d540065dbb34620de1e4ee4df81d",
+    "final_wells2048_global_2/summary.json": "32e21227e1ef8d058a8d63c478e1aa0886f43a4bb27d98952c7327cc59266ad2",
+    "final_wells2048_global_2/trajectory.json.gz": "5bdd006d75551b5f87c8cd850d206f4a745d1f5bb9b42aae954652c462ee050f",
+    "final_wells2048_global_3/grid_policy.json": "b0c2490cac9763c2df1dd77bc3dcbbe38afc0dcd23c84a0dd9218f79195adb41",
+    "final_wells2048_global_3/progress.json": "f50dbbc88c511cd14fe0bf4edefd3aef224f15779f13290a3af56881ae11c009",
+    "final_wells2048_global_3/protocol.json": "a49d9380ef2c0189ce311d6854c512e54fe9d540065dbb34620de1e4ee4df81d",
+    "final_wells2048_global_3/summary.json": "4c5ded6d2add81d19a241db1a2d3f269114db4ed37d6d7de0090f2cf4ec6bd05",
+    "final_wells2048_global_3/trajectory.json.gz": "2a256f7b0913652a91979d71e9893f9237540cc98ddd3bf924272e45e7062dbc",
+    "final_wells2048_stream_1/grid_policy.json": "3778dc39e93ccbe8afa17ff8a0add33ec8f76eded45524259ec6581c98d0c636",
+    "final_wells2048_stream_1/progress.json": "f50dbbc88c511cd14fe0bf4edefd3aef224f15779f13290a3af56881ae11c009",
+    "final_wells2048_stream_1/protocol.json": "a49d9380ef2c0189ce311d6854c512e54fe9d540065dbb34620de1e4ee4df81d",
+    "final_wells2048_stream_1/summary.json": "dc40dcaa63d4c1643768b0bbc92b5fa9ef496e3528a1767143725e01b93230b1",
+    "final_wells2048_stream_1/trajectory.json.gz": "c9a281ea3c826917a98202182a12fa19e4d68d787cff077a14895e297a6d27d4",
+    "final_wells2048_stream_2/grid_policy.json": "3778dc39e93ccbe8afa17ff8a0add33ec8f76eded45524259ec6581c98d0c636",
+    "final_wells2048_stream_2/progress.json": "f50dbbc88c511cd14fe0bf4edefd3aef224f15779f13290a3af56881ae11c009",
+    "final_wells2048_stream_2/protocol.json": "a49d9380ef2c0189ce311d6854c512e54fe9d540065dbb34620de1e4ee4df81d",
+    "final_wells2048_stream_2/summary.json": "278169b536cfe5aacb0f214a1946aa98fa9e605a665753ac6137bfb70a6a21c9",
+    "final_wells2048_stream_2/trajectory.json.gz": "8f26a44cebdcd27884cc1958e418f0bcaf529298a66cafddfbe992714891603c",
+    "final_wells2048_stream_3/grid_policy.json": "3778dc39e93ccbe8afa17ff8a0add33ec8f76eded45524259ec6581c98d0c636",
+    "final_wells2048_stream_3/progress.json": "f50dbbc88c511cd14fe0bf4edefd3aef224f15779f13290a3af56881ae11c009",
+    "final_wells2048_stream_3/protocol.json": "a49d9380ef2c0189ce311d6854c512e54fe9d540065dbb34620de1e4ee4df81d",
+    "final_wells2048_stream_3/summary.json": "2a18236183900bcbeecc114f94b6c4ff3d9b46eebdc6580c08d7b1e9b0085e0c",
+    "final_wells2048_stream_3/trajectory.json.gz": "dca6babad2130d62cc043137d42a15d35bf876ca1162ef9b229694608881ce89",
+    "final_wells64_global_1/grid_policy.json": "08196e051b08905dbccefffaf64eebea0dafe92ec38ac24f870e67ac34dbacf4",
+    "final_wells64_global_1/progress.json": "f50dbbc88c511cd14fe0bf4edefd3aef224f15779f13290a3af56881ae11c009",
+    "final_wells64_global_1/protocol.json": "78f2a382f9d62d84d2a92a01b360af241f4919b26c161d8db9a7f1b5d24edf62",
+    "final_wells64_global_1/summary.json": "4f0d0e0dc77f49902f465202d24f65495d20f8aef45e00bff167bc51f0c82de6",
+    "final_wells64_global_1/trajectory.json.gz": "e5d7b30d8518610ecf757a0d5641dd497ff8b809b1d587555a7348df5f321b06",
+    "final_wells64_global_2/grid_policy.json": "08196e051b08905dbccefffaf64eebea0dafe92ec38ac24f870e67ac34dbacf4",
+    "final_wells64_global_2/progress.json": "f50dbbc88c511cd14fe0bf4edefd3aef224f15779f13290a3af56881ae11c009",
+    "final_wells64_global_2/protocol.json": "78f2a382f9d62d84d2a92a01b360af241f4919b26c161d8db9a7f1b5d24edf62",
+    "final_wells64_global_2/summary.json": "168f263d545d81c477f9eb39cb6298b398c1e3d6885be60ba8a1b297a3c5aa36",
+    "final_wells64_global_2/trajectory.json.gz": "401f83931d01abe73b7c6cb0209c2c6c32c8c24b800a95ab6b93627a051772df",
+    "final_wells64_global_3/grid_policy.json": "08196e051b08905dbccefffaf64eebea0dafe92ec38ac24f870e67ac34dbacf4",
+    "final_wells64_global_3/progress.json": "f50dbbc88c511cd14fe0bf4edefd3aef224f15779f13290a3af56881ae11c009",
+    "final_wells64_global_3/protocol.json": "78f2a382f9d62d84d2a92a01b360af241f4919b26c161d8db9a7f1b5d24edf62",
+    "final_wells64_global_3/summary.json": "6fd31bafc6b557d4f261de424619f5b2d47d1a06f46ae83642b155f54ad45f92",
+    "final_wells64_global_3/trajectory.json.gz": "de2a35b750fd0d6894a819baba2cdace068e82430bd771c19f8b830a8dbbeda2",
+    "final_wells64_stream_1/grid_policy.json": "24e2ea596af52df2f346c434748e7167f5774229958084b0e2e477812f512db7",
+    "final_wells64_stream_1/progress.json": "f50dbbc88c511cd14fe0bf4edefd3aef224f15779f13290a3af56881ae11c009",
+    "final_wells64_stream_1/protocol.json": "78f2a382f9d62d84d2a92a01b360af241f4919b26c161d8db9a7f1b5d24edf62",
+    "final_wells64_stream_1/summary.json": "18abfc3dc9e7f5738a4501ae27ccca467666df21d1b742066ba75d0344f90ce4",
+    "final_wells64_stream_1/trajectory.json.gz": "f66fa041492314a667c585bf12e89a12da80e4275769437507d96b828c9c6fe1",
+    "final_wells64_stream_2/grid_policy.json": "24e2ea596af52df2f346c434748e7167f5774229958084b0e2e477812f512db7",
+    "final_wells64_stream_2/progress.json": "f50dbbc88c511cd14fe0bf4edefd3aef224f15779f13290a3af56881ae11c009",
+    "final_wells64_stream_2/protocol.json": "78f2a382f9d62d84d2a92a01b360af241f4919b26c161d8db9a7f1b5d24edf62",
+    "final_wells64_stream_2/summary.json": "8668e61e742878bfe14e8f61aaae67f72658150a7c930ea8c829fd87ec31df95",
+    "final_wells64_stream_2/trajectory.json.gz": "b7abc67259e9f02a554309be81cac6892b2a487a5453b694cdf510842c6360d2",
+    "final_wells64_stream_3/grid_policy.json": "24e2ea596af52df2f346c434748e7167f5774229958084b0e2e477812f512db7",
+    "final_wells64_stream_3/progress.json": "f50dbbc88c511cd14fe0bf4edefd3aef224f15779f13290a3af56881ae11c009",
+    "final_wells64_stream_3/protocol.json": "78f2a382f9d62d84d2a92a01b360af241f4919b26c161d8db9a7f1b5d24edf62",
+    "final_wells64_stream_3/summary.json": "2d707385bd07b26e2a85f3c8ecc660d8ae474f49d886d024db85699baad75774",
+    "final_wells64_stream_3/trajectory.json.gz": "9affe28427a7183cce347420460340c4e715059d0260873478f87d08ec002037",
+    "lint.txt": "82b3e6a6c090a57601d22943bd23fca9218d1031dbe5a7b754092f9a156b4f18",
+    "pvt65.json": "8901b5415a43e970d44331a9d648d1b0de982d47e2adfd0ce9a8fc468f350a3d",
+    "regression.txt": "fe26134a6f12e7ab3ebeeab2be02a9b4e056306c023fddb9c84dd009152ed6c2",
+    "wells2048_global_1/grid_policy.json": "3e4720a112f2d0ec4cd3f7de556696185e645b92c3b153e603199f1a2b121c5f",
+    "wells2048_global_1/progress.json": "f50dbbc88c511cd14fe0bf4edefd3aef224f15779f13290a3af56881ae11c009",
+    "wells2048_global_1/protocol.json": "6bf5ab4ef86a2dcf1294086dbe334129de2447db1f8b564bdd3169ff09d4340c",
+    "wells2048_global_1/summary.json": "6bbda5ea59d892f680ea0ba7e0a3e8d95839502edf7e8a292793b62c7359defc",
+    "wells2048_global_1/trajectory.json.gz": "891913847e8538b69bbbbf7fc6e7fa78153c51babde93565d34b694cc16bd17e",
+    "wells2048_stream_1/grid_policy.json": "e389fd3f13528d092c393bd7c508744cdf0d256da367c804078b64c40c3c56e8",
+    "wells2048_stream_1/progress.json": "f50dbbc88c511cd14fe0bf4edefd3aef224f15779f13290a3af56881ae11c009",
+    "wells2048_stream_1/protocol.json": "6bf5ab4ef86a2dcf1294086dbe334129de2447db1f8b564bdd3169ff09d4340c",
+    "wells2048_stream_1/summary.json": "d7daf1857020b201cc795f4ceb5ded9f7f688317ed41f299e4b0647a7ec0db1f",
+    "wells2048_stream_1/trajectory.json.gz": "27fd4ebb7d1cdd14eb24d2f8d287bf9911b13e67eb2563d851a07d56191676b6",
+    "wells64_global_1/grid_policy.json": "02c787563e229f9166a63a605991008e8d366365b81b38bebd3c3ae447cf1b5e",
+    "wells64_global_1/progress.json": "f50dbbc88c511cd14fe0bf4edefd3aef224f15779f13290a3af56881ae11c009",
+    "wells64_global_1/protocol.json": "b342293d332d2bfb71a2eafb18991f9110625da9548fdb5506c83e0e8868bf0c",
+    "wells64_global_1/summary.json": "d72ed6808096af036990b1d5ddc9c474100cedcf108a7d655b60f9630d75cd56",
+    "wells64_global_1/trajectory.json.gz": "e5d0e119590a7e498b24903120e3c77eae4ea91078dd2a677705e594e69ec072",
+    "wells64_global_2/grid_policy.json": "02c787563e229f9166a63a605991008e8d366365b81b38bebd3c3ae447cf1b5e",
+    "wells64_global_2/progress.json": "f50dbbc88c511cd14fe0bf4edefd3aef224f15779f13290a3af56881ae11c009",
+    "wells64_global_2/protocol.json": "b342293d332d2bfb71a2eafb18991f9110625da9548fdb5506c83e0e8868bf0c",
+    "wells64_global_2/summary.json": "d1c68fd5a54012db4c6dfdb99554365a08e8756d7dcb90013e983a8bbcbd577e",
+    "wells64_global_2/trajectory.json.gz": "f33e8c9a1549e57f39b41373b7dbfc010e10cbdf62d489ba0b6ba48145e9f803",
+    "wells64_global_3/grid_policy.json": "02c787563e229f9166a63a605991008e8d366365b81b38bebd3c3ae447cf1b5e",
+    "wells64_global_3/progress.json": "f50dbbc88c511cd14fe0bf4edefd3aef224f15779f13290a3af56881ae11c009",
+    "wells64_global_3/protocol.json": "b342293d332d2bfb71a2eafb18991f9110625da9548fdb5506c83e0e8868bf0c",
+    "wells64_global_3/summary.json": "407d185fd37bbd6522e5f24ef0f1561168f6d7a406c26e8419c66ca4a6213b20",
+    "wells64_global_3/trajectory.json.gz": "cbca2578212cd70b6777bbc3788964c7b6791365e2dc80f7dd95ab26cb3cd52b",
+    "wells64_pvt65_input.json": "90c430911834ebfc406059fd612d97e1cd6db8df9c1beaf4f1b8484c01732d8a",
+    "wells64_stream_1/grid_policy.json": "c4c013465b5a5e8b5403d7d9a09e168c6c356cd9894dffc5a28c88e9ab50c587",
+    "wells64_stream_1/progress.json": "f50dbbc88c511cd14fe0bf4edefd3aef224f15779f13290a3af56881ae11c009",
+    "wells64_stream_1/protocol.json": "b342293d332d2bfb71a2eafb18991f9110625da9548fdb5506c83e0e8868bf0c",
+    "wells64_stream_1/summary.json": "e2d54d6104ebb73587c56e3457aded12953ac4edb15a98738ccac8c9a3a97826",
+    "wells64_stream_1/trajectory.json.gz": "749fcd607f660d22fc68c8ecfa29393c8f97992da43b37c742958d172e66a6db",
+    "wells64_stream_2/grid_policy.json": "c4c013465b5a5e8b5403d7d9a09e168c6c356cd9894dffc5a28c88e9ab50c587",
+    "wells64_stream_2/progress.json": "f50dbbc88c511cd14fe0bf4edefd3aef224f15779f13290a3af56881ae11c009",
+    "wells64_stream_2/protocol.json": "b342293d332d2bfb71a2eafb18991f9110625da9548fdb5506c83e0e8868bf0c",
+    "wells64_stream_2/summary.json": "03fa9bf8cff61ef8f6d40953644e720dc483f218aa01ddb190a1a408f94a76bb",
+    "wells64_stream_2/trajectory.json.gz": "bff37f42c32cb8fc3f5eb97f0b1302ecda9ef3d82b87aa56cb7c1464aa588db0",
+    "wells64_stream_3/grid_policy.json": "c4c013465b5a5e8b5403d7d9a09e168c6c356cd9894dffc5a28c88e9ab50c587",
+    "wells64_stream_3/progress.json": "f50dbbc88c511cd14fe0bf4edefd3aef224f15779f13290a3af56881ae11c009",
+    "wells64_stream_3/protocol.json": "b342293d332d2bfb71a2eafb18991f9110625da9548fdb5506c83e0e8868bf0c",
+    "wells64_stream_3/summary.json": "e02daf4dc132b65715e602bab1fe4b6f53f847883eae0ba72aa7d913375ed843",
+    "wells64_stream_3/trajectory.json.gz": "6104c3af4fb9452b6598bcd28dce26d15255ec086f499bd1c40a46ca4ba61f2a"
+  }
+}

@@ -1,0 +1,236 @@
+[
+  {
+    "wells": 64,
+    "repeat": 1,
+    "global_s": 2.6312032589994487,
+    "stream_s": 1.060087965997809,
+    "errors": {
+      "final_pressure_pa": 4.656612873077393e-10,
+      "final_s_w": 5.551115123125783e-17,
+      "final_s_g": 1.5959455978986625e-16,
+      "final_rs": 1.4210854715202004e-14,
+      "withdrawn_component_mass_kg": 4.656612873077393e-10
+    },
+    "budgets": {
+      "final_pressure_pa": 0.1,
+      "final_s_w": 1e-08,
+      "final_s_g": 1e-08,
+      "final_rs": 1e-05,
+      "withdrawn_component_mass_kg": 0.01
+    },
+    "maximum_fixed_knots": [
+      68,
+      5
+    ],
+    "accepted_step_execution": [
+      {
+        "backend": "torch_batch",
+        "torch_batch_pipes": 64,
+        "scalar_retry_pipes": 0,
+        "scalar_pipes": 1
+      },
+      {
+        "backend": "torch_batch",
+        "torch_batch_pipes": 65,
+        "scalar_retry_pipes": 0,
+        "scalar_pipes": 0
+      }
+    ],
+    "accepted": true
+  },
+  {
+    "wells": 64,
+    "repeat": 2,
+    "global_s": 2.489553032999538,
+    "stream_s": 1.1217930399980105,
+    "errors": {
+      "final_pressure_pa": 4.656612873077393e-10,
+      "final_s_w": 5.551115123125783e-17,
+      "final_s_g": 1.5959455978986625e-16,
+      "final_rs": 1.4210854715202004e-14,
+      "withdrawn_component_mass_kg": 4.656612873077393e-10
+    },
+    "budgets": {
+      "final_pressure_pa": 0.1,
+      "final_s_w": 1e-08,
+      "final_s_g": 1e-08,
+      "final_rs": 1e-05,
+      "withdrawn_component_mass_kg": 0.01
+    },
+    "maximum_fixed_knots": [
+      68,
+      5
+    ],
+    "accepted_step_execution": [
+      {
+        "backend": "torch_batch",
+        "torch_batch_pipes": 64,
+        "scalar_retry_pipes": 0,
+        "scalar_pipes": 1
+      },
+      {
+        "backend": "torch_batch",
+        "torch_batch_pipes": 65,
+        "scalar_retry_pipes": 0,
+        "scalar_pipes": 0
+      }
+    ],
+    "accepted": true
+  },
+  {
+    "wells": 64,
+    "repeat": 3,
+    "global_s": 2.7096179770014714,
+    "stream_s": 1.0609596520007472,
+    "errors": {
+      "final_pressure_pa": 4.656612873077393e-10,
+      "final_s_w": 5.551115123125783e-17,
+      "final_s_g": 1.5959455978986625e-16,
+      "final_rs": 1.4210854715202004e-14,
+      "withdrawn_component_mass_kg": 4.656612873077393e-10
+    },
+    "budgets": {
+      "final_pressure_pa": 0.1,
+      "final_s_w": 1e-08,
+      "final_s_g": 1e-08,
+      "final_rs": 1e-05,
+      "withdrawn_component_mass_kg": 0.01
+    },
+    "maximum_fixed_knots": [
+      68,
+      5
+    ],
+    "accepted_step_execution": [
+      {
+        "backend": "torch_batch",
+        "torch_batch_pipes": 64,
+        "scalar_retry_pipes": 0,
+        "scalar_pipes": 1
+      },
+      {
+        "backend": "torch_batch",
+        "torch_batch_pipes": 65,
+        "scalar_retry_pipes": 0,
+        "scalar_pipes": 0
+      }
+    ],
+    "accepted": true
+  },
+  {
+    "wells": 2048,
+    "repeat": 1,
+    "global_s": 8.275914595997165,
+    "stream_s": 7.8793007519998355,
+    "errors": {
+      "final_pressure_pa": 0.0,
+      "final_s_w": 0.0,
+      "final_s_g": 0.0,
+      "final_rs": 0.0,
+      "withdrawn_component_mass_kg": 0.0
+    },
+    "budgets": {
+      "final_pressure_pa": 0.1,
+      "final_s_w": 1e-08,
+      "final_s_g": 1e-08,
+      "final_rs": 1e-05,
+      "withdrawn_component_mass_kg": 0.01
+    },
+    "maximum_fixed_knots": [
+      3,
+      3
+    ],
+    "accepted_step_execution": [
+      {
+        "backend": "torch_batch",
+        "torch_batch_pipes": 2048,
+        "scalar_retry_pipes": 0,
+        "scalar_pipes": 1
+      },
+      {
+        "backend": "torch_batch",
+        "torch_batch_pipes": 2048,
+        "scalar_retry_pipes": 0,
+        "scalar_pipes": 1
+      }
+    ],
+    "accepted": true
+  },
+  {
+    "wells": 2048,
+    "repeat": 2,
+    "global_s": 8.02070179400107,
+    "stream_s": 7.933309268999437,
+    "errors": {
+      "final_pressure_pa": 0.0,
+      "final_s_w": 0.0,
+      "final_s_g": 0.0,
+      "final_rs": 0.0,
+      "withdrawn_component_mass_kg": 0.0
+    },
+    "budgets": {
+      "final_pressure_pa": 0.1,
+      "final_s_w": 1e-08,
+      "final_s_g": 1e-08,
+      "final_rs": 1e-05,
+      "withdrawn_component_mass_kg": 0.01
+    },
+    "maximum_fixed_knots": [
+      3,
+      3
+    ],
+    "accepted_step_execution": [
+      {
+        "backend": "torch_batch",
+        "torch_batch_pipes": 2048,
+        "scalar_retry_pipes": 0,
+        "scalar_pipes": 1
+      },
+      {
+        "backend": "torch_batch",
+        "torch_batch_pipes": 2048,
+        "scalar_retry_pipes": 0,
+        "scalar_pipes": 1
+      }
+    ],
+    "accepted": true
+  },
+  {
+    "wells": 2048,
+    "repeat": 3,
+    "global_s": 7.875994129000901,
+    "stream_s": 8.359409654000046,
+    "errors": {
+      "final_pressure_pa": 0.0,
+      "final_s_w": 0.0,
+      "final_s_g": 0.0,
+      "final_rs": 0.0,
+      "withdrawn_component_mass_kg": 0.0
+    },
+    "budgets": {
+      "final_pressure_pa": 0.1,
+      "final_s_w": 1e-08,
+      "final_s_g": 1e-08,
+      "final_rs": 1e-05,
+      "withdrawn_component_mass_kg": 0.01
+    },
+    "maximum_fixed_knots": [
+      3,
+      3
+    ],
+    "accepted_step_execution": [
+      {
+        "backend": "torch_batch",
+        "torch_batch_pipes": 2048,
+        "scalar_retry_pipes": 0,
+        "scalar_pipes": 1
+      },
+      {
+        "backend": "torch_batch",
+        "torch_batch_pipes": 2048,
+        "scalar_retry_pipes": 0,
+        "scalar_pipes": 1
+      }
+    ],
+    "accepted": true
+  }
+]

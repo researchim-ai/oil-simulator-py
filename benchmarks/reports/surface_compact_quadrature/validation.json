@@ -1,0 +1,1620 @@
+{
+  "scope": "CPU-only compact quadrature qualification: paired identical-physics FIM, independent material accounting, coincident-endpoint first/second AD tests, saved monthly facility reference. No GPU/Norne qualification.",
+  "runs": {
+    "coupled30_cpu": {
+      "final_version": false,
+      "source_differences_from_current": {
+        "/home/user/workspace/oil-simulator-py-impes/src/surface/blackoil_quadrature_plan.py": {
+          "recorded": "dc6d1f825af9f4f5a2d122399790a6fe296ee1eb2f43af3d45e2ac3cdb50d852",
+          "current": "0f7bb1f9dbbad0f7bac4f35b5eb2ab09d94bfc226405ae536ed9635c2a5ab852"
+        }
+      },
+      "audit": {
+        "accepted": true,
+        "checked_substeps": 6,
+        "elapsed_days": 30.0,
+        "minimum_step_s": 432000.0,
+        "maximum_step_s": 432000.0,
+        "capacity_evaluations": 56,
+        "operating_events": 0,
+        "mass_balance_error_kg": [
+          -7.128401193767786e-07,
+          2.2266613086685538e-07,
+          4.38558345194906e-08
+        ],
+        "maximum_surface_component_residual_kg_s": 3.469446951953614e-18,
+        "mass_atol_kg": 0.01,
+        "mass_rtol": 1e-08,
+        "scope": "Audit accepted forecast material and controls without running either solver.\n\nThis is an accounting/constraint audit, not independent validation of the PVT\nor homogeneous gathering closure. The production FIM CNV/MB remain required.\n"
+      },
+      "quadrature_policy": null
+    },
+    "final_coupled30_cpu": {
+      "final_version": true,
+      "source_differences_from_current": {},
+      "audit": {
+        "accepted": true,
+        "checked_substeps": 6,
+        "elapsed_days": 30.0,
+        "minimum_step_s": 432000.0,
+        "maximum_step_s": 432000.0,
+        "capacity_evaluations": 56,
+        "operating_events": 0,
+        "mass_balance_error_kg": [
+          -7.128401193767786e-07,
+          2.2266613086685538e-07,
+          4.38558345194906e-08
+        ],
+        "maximum_surface_component_residual_kg_s": 3.469446951953614e-18,
+        "mass_atol_kg": 0.01,
+        "mass_rtol": 1e-08,
+        "scope": "Audit accepted forecast material and controls without running either solver.\n\nThis is an accounting/constraint audit, not independent validation of the PVT\nor homogeneous gathering closure. The production FIM CNV/MB remain required.\n"
+      },
+      "quadrature_policy": null
+    },
+    "final_wells2048_compact_1": {
+      "final_version": true,
+      "source_differences_from_current": {},
+      "audit": {
+        "accepted": true,
+        "wells": 2048,
+        "accepted_steps": 1,
+        "elapsed_days": 1.0,
+        "mode_samples": {
+          "surface": 2048
+        },
+        "component_mass_residual_kg": [
+          1.4886260032653809e-05,
+          -5.640089511871338e-06,
+          -5.32250851392746e-07
+        ],
+        "mass_atol_kg": 0.01,
+        "mass_rtol": 1e-08,
+        "well_block_backend": "tree_structured",
+        "scope": "Accepted producer-only FIM -> gathering material/operating audit.\n\nNo solver invocation or rescaling of requested production. This is accounting\nand constraint checking, not independent PVT/correlation validation.\n"
+      },
+      "quadrature_policy": {
+        "scope": "Same full FIM and pressure grid, dense versus compact quadrature points.\n\nDense retains every interval's Gauss nodes. Compact retains degenerate-span\nfirst/second AD contributions via midpoint samples; error budgets are unchanged.\n",
+        "policy": "compact",
+        "planning_calls": 384,
+        "quadrature_calls": 768,
+        "evaluated_property_points": 2850816,
+        "maximum_points_per_property_pass": 4736,
+        "source_sha256": {
+          "/home/user/workspace/oil-simulator-py-impes/scripts/run_compact_quadrature_forecast.py": "8baac86d4b44cf1fd6c605ec3e0ad66ba23243b66406d3848a718b54df0d56f4",
+          "/home/user/workspace/oil-simulator-py-impes/scripts/dense_quadrature_reference.py": "8269fae071fb4b5a34c0efb8103bce38fac5d92d486c63fbf535e72d10f65fe6"
+        },
+        "sources_unchanged": true
+      }
+    },
+    "final_wells2048_compact_2": {
+      "final_version": true,
+      "source_differences_from_current": {},
+      "audit": {
+        "accepted": true,
+        "wells": 2048,
+        "accepted_steps": 1,
+        "elapsed_days": 1.0,
+        "mode_samples": {
+          "surface": 2048
+        },
+        "component_mass_residual_kg": [
+          1.4886260032653809e-05,
+          -5.640089511871338e-06,
+          -5.32250851392746e-07
+        ],
+        "mass_atol_kg": 0.01,
+        "mass_rtol": 1e-08,
+        "well_block_backend": "tree_structured",
+        "scope": "Accepted producer-only FIM -> gathering material/operating audit.\n\nNo solver invocation or rescaling of requested production. This is accounting\nand constraint checking, not independent PVT/correlation validation.\n"
+      },
+      "quadrature_policy": {
+        "scope": "Same full FIM and pressure grid, dense versus compact quadrature points.\n\nDense retains every interval's Gauss nodes. Compact retains degenerate-span\nfirst/second AD contributions via midpoint samples; error budgets are unchanged.\n",
+        "policy": "compact",
+        "planning_calls": 384,
+        "quadrature_calls": 768,
+        "evaluated_property_points": 2850816,
+        "maximum_points_per_property_pass": 4736,
+        "source_sha256": {
+          "/home/user/workspace/oil-simulator-py-impes/scripts/run_compact_quadrature_forecast.py": "8baac86d4b44cf1fd6c605ec3e0ad66ba23243b66406d3848a718b54df0d56f4",
+          "/home/user/workspace/oil-simulator-py-impes/scripts/dense_quadrature_reference.py": "8269fae071fb4b5a34c0efb8103bce38fac5d92d486c63fbf535e72d10f65fe6"
+        },
+        "sources_unchanged": true
+      }
+    },
+    "final_wells2048_compact_3": {
+      "final_version": true,
+      "source_differences_from_current": {},
+      "audit": {
+        "accepted": true,
+        "wells": 2048,
+        "accepted_steps": 1,
+        "elapsed_days": 1.0,
+        "mode_samples": {
+          "surface": 2048
+        },
+        "component_mass_residual_kg": [
+          1.4886260032653809e-05,
+          -5.640089511871338e-06,
+          -5.32250851392746e-07
+        ],
+        "mass_atol_kg": 0.01,
+        "mass_rtol": 1e-08,
+        "well_block_backend": "tree_structured",
+        "scope": "Accepted producer-only FIM -> gathering material/operating audit.\n\nNo solver invocation or rescaling of requested production. This is accounting\nand constraint checking, not independent PVT/correlation validation.\n"
+      },
+      "quadrature_policy": {
+        "scope": "Same full FIM and pressure grid, dense versus compact quadrature points.\n\nDense retains every interval's Gauss nodes. Compact retains degenerate-span\nfirst/second AD contributions via midpoint samples; error budgets are unchanged.\n",
+        "policy": "compact",
+        "planning_calls": 384,
+        "quadrature_calls": 768,
+        "evaluated_property_points": 2850816,
+        "maximum_points_per_property_pass": 4736,
+        "source_sha256": {
+          "/home/user/workspace/oil-simulator-py-impes/scripts/run_compact_quadrature_forecast.py": "8baac86d4b44cf1fd6c605ec3e0ad66ba23243b66406d3848a718b54df0d56f4",
+          "/home/user/workspace/oil-simulator-py-impes/scripts/dense_quadrature_reference.py": "8269fae071fb4b5a34c0efb8103bce38fac5d92d486c63fbf535e72d10f65fe6"
+        },
+        "sources_unchanged": true
+      }
+    },
+    "final_wells2048_dense_1": {
+      "final_version": true,
+      "source_differences_from_current": {},
+      "audit": {
+        "accepted": true,
+        "wells": 2048,
+        "accepted_steps": 1,
+        "elapsed_days": 1.0,
+        "mode_samples": {
+          "surface": 2048
+        },
+        "component_mass_residual_kg": [
+          1.4886260032653809e-05,
+          -5.640089511871338e-06,
+          -5.32250851392746e-07
+        ],
+        "mass_atol_kg": 0.01,
+        "mass_rtol": 1e-08,
+        "well_block_backend": "tree_structured",
+        "scope": "Accepted producer-only FIM -> gathering material/operating audit.\n\nNo solver invocation or rescaling of requested production. This is accounting\nand constraint checking, not independent PVT/correlation validation.\n"
+      },
+      "quadrature_policy": {
+        "scope": "Same full FIM and pressure grid, dense versus compact quadrature points.\n\nDense retains every interval's Gauss nodes. Compact retains degenerate-span\nfirst/second AD contributions via midpoint samples; error budgets are unchanged.\n",
+        "policy": "dense",
+        "planning_calls": 384,
+        "quadrature_calls": 768,
+        "evaluated_property_points": 11796480,
+        "maximum_points_per_property_pass": 20480,
+        "source_sha256": {
+          "/home/user/workspace/oil-simulator-py-impes/scripts/run_compact_quadrature_forecast.py": "8baac86d4b44cf1fd6c605ec3e0ad66ba23243b66406d3848a718b54df0d56f4",
+          "/home/user/workspace/oil-simulator-py-impes/scripts/dense_quadrature_reference.py": "8269fae071fb4b5a34c0efb8103bce38fac5d92d486c63fbf535e72d10f65fe6"
+        },
+        "sources_unchanged": true
+      }
+    },
+    "final_wells2048_dense_2": {
+      "final_version": true,
+      "source_differences_from_current": {},
+      "audit": {
+        "accepted": true,
+        "wells": 2048,
+        "accepted_steps": 1,
+        "elapsed_days": 1.0,
+        "mode_samples": {
+          "surface": 2048
+        },
+        "component_mass_residual_kg": [
+          1.4886260032653809e-05,
+          -5.640089511871338e-06,
+          -5.32250851392746e-07
+        ],
+        "mass_atol_kg": 0.01,
+        "mass_rtol": 1e-08,
+        "well_block_backend": "tree_structured",
+        "scope": "Accepted producer-only FIM -> gathering material/operating audit.\n\nNo solver invocation or rescaling of requested production. This is accounting\nand constraint checking, not independent PVT/correlation validation.\n"
+      },
+      "quadrature_policy": {
+        "scope": "Same full FIM and pressure grid, dense versus compact quadrature points.\n\nDense retains every interval's Gauss nodes. Compact retains degenerate-span\nfirst/second AD contributions via midpoint samples; error budgets are unchanged.\n",
+        "policy": "dense",
+        "planning_calls": 384,
+        "quadrature_calls": 768,
+        "evaluated_property_points": 11796480,
+        "maximum_points_per_property_pass": 20480,
+        "source_sha256": {
+          "/home/user/workspace/oil-simulator-py-impes/scripts/run_compact_quadrature_forecast.py": "8baac86d4b44cf1fd6c605ec3e0ad66ba23243b66406d3848a718b54df0d56f4",
+          "/home/user/workspace/oil-simulator-py-impes/scripts/dense_quadrature_reference.py": "8269fae071fb4b5a34c0efb8103bce38fac5d92d486c63fbf535e72d10f65fe6"
+        },
+        "sources_unchanged": true
+      }
+    },
+    "final_wells2048_dense_3": {
+      "final_version": true,
+      "source_differences_from_current": {},
+      "audit": {
+        "accepted": true,
+        "wells": 2048,
+        "accepted_steps": 1,
+        "elapsed_days": 1.0,
+        "mode_samples": {
+          "surface": 2048
+        },
+        "component_mass_residual_kg": [
+          1.4886260032653809e-05,
+          -5.640089511871338e-06,
+          -5.32250851392746e-07
+        ],
+        "mass_atol_kg": 0.01,
+        "mass_rtol": 1e-08,
+        "well_block_backend": "tree_structured",
+        "scope": "Accepted producer-only FIM -> gathering material/operating audit.\n\nNo solver invocation or rescaling of requested production. This is accounting\nand constraint checking, not independent PVT/correlation validation.\n"
+      },
+      "quadrature_policy": {
+        "scope": "Same full FIM and pressure grid, dense versus compact quadrature points.\n\nDense retains every interval's Gauss nodes. Compact retains degenerate-span\nfirst/second AD contributions via midpoint samples; error budgets are unchanged.\n",
+        "policy": "dense",
+        "planning_calls": 384,
+        "quadrature_calls": 768,
+        "evaluated_property_points": 11796480,
+        "maximum_points_per_property_pass": 20480,
+        "source_sha256": {
+          "/home/user/workspace/oil-simulator-py-impes/scripts/run_compact_quadrature_forecast.py": "8baac86d4b44cf1fd6c605ec3e0ad66ba23243b66406d3848a718b54df0d56f4",
+          "/home/user/workspace/oil-simulator-py-impes/scripts/dense_quadrature_reference.py": "8269fae071fb4b5a34c0efb8103bce38fac5d92d486c63fbf535e72d10f65fe6"
+        },
+        "sources_unchanged": true
+      }
+    },
+    "final_wells512_compact_1": {
+      "final_version": true,
+      "source_differences_from_current": {},
+      "audit": {
+        "accepted": true,
+        "wells": 512,
+        "accepted_steps": 1,
+        "elapsed_days": 1.0,
+        "mode_samples": {
+          "surface": 512
+        },
+        "component_mass_residual_kg": [
+          -2.2953376173973083e-05,
+          2.6085413992404938e-05,
+          -3.527523949742317e-05
+        ],
+        "mass_atol_kg": 0.01,
+        "mass_rtol": 1e-08,
+        "well_block_backend": "tree_structured",
+        "scope": "Accepted producer-only FIM -> gathering material/operating audit.\n\nNo solver invocation or rescaling of requested production. This is accounting\nand constraint checking, not independent PVT/correlation validation.\n"
+      },
+      "quadrature_policy": {
+        "scope": "Same full FIM and pressure grid, dense versus compact quadrature points.\n\nDense retains every interval's Gauss nodes. Compact retains degenerate-span\nfirst/second AD contributions via midpoint samples; error budgets are unchanged.\n",
+        "policy": "compact",
+        "planning_calls": 96,
+        "quadrature_calls": 192,
+        "evaluated_property_points": 712704,
+        "maximum_points_per_property_pass": 4736,
+        "source_sha256": {
+          "/home/user/workspace/oil-simulator-py-impes/scripts/run_compact_quadrature_forecast.py": "8baac86d4b44cf1fd6c605ec3e0ad66ba23243b66406d3848a718b54df0d56f4",
+          "/home/user/workspace/oil-simulator-py-impes/scripts/dense_quadrature_reference.py": "8269fae071fb4b5a34c0efb8103bce38fac5d92d486c63fbf535e72d10f65fe6"
+        },
+        "sources_unchanged": true
+      }
+    },
+    "final_wells512_compact_2": {
+      "final_version": true,
+      "source_differences_from_current": {},
+      "audit": {
+        "accepted": true,
+        "wells": 512,
+        "accepted_steps": 1,
+        "elapsed_days": 1.0,
+        "mode_samples": {
+          "surface": 512
+        },
+        "component_mass_residual_kg": [
+          -2.2953376173973083e-05,
+          2.6085413992404938e-05,
+          -3.527523949742317e-05
+        ],
+        "mass_atol_kg": 0.01,
+        "mass_rtol": 1e-08,
+        "well_block_backend": "tree_structured",
+        "scope": "Accepted producer-only FIM -> gathering material/operating audit.\n\nNo solver invocation or rescaling of requested production. This is accounting\nand constraint checking, not independent PVT/correlation validation.\n"
+      },
+      "quadrature_policy": {
+        "scope": "Same full FIM and pressure grid, dense versus compact quadrature points.\n\nDense retains every interval's Gauss nodes. Compact retains degenerate-span\nfirst/second AD contributions via midpoint samples; error budgets are unchanged.\n",
+        "policy": "compact",
+        "planning_calls": 96,
+        "quadrature_calls": 192,
+        "evaluated_property_points": 712704,
+        "maximum_points_per_property_pass": 4736,
+        "source_sha256": {
+          "/home/user/workspace/oil-simulator-py-impes/scripts/run_compact_quadrature_forecast.py": "8baac86d4b44cf1fd6c605ec3e0ad66ba23243b66406d3848a718b54df0d56f4",
+          "/home/user/workspace/oil-simulator-py-impes/scripts/dense_quadrature_reference.py": "8269fae071fb4b5a34c0efb8103bce38fac5d92d486c63fbf535e72d10f65fe6"
+        },
+        "sources_unchanged": true
+      }
+    },
+    "final_wells512_compact_3": {
+      "final_version": true,
+      "source_differences_from_current": {},
+      "audit": {
+        "accepted": true,
+        "wells": 512,
+        "accepted_steps": 1,
+        "elapsed_days": 1.0,
+        "mode_samples": {
+          "surface": 512
+        },
+        "component_mass_residual_kg": [
+          -2.2953376173973083e-05,
+          2.6085413992404938e-05,
+          -3.527523949742317e-05
+        ],
+        "mass_atol_kg": 0.01,
+        "mass_rtol": 1e-08,
+        "well_block_backend": "tree_structured",
+        "scope": "Accepted producer-only FIM -> gathering material/operating audit.\n\nNo solver invocation or rescaling of requested production. This is accounting\nand constraint checking, not independent PVT/correlation validation.\n"
+      },
+      "quadrature_policy": {
+        "scope": "Same full FIM and pressure grid, dense versus compact quadrature points.\n\nDense retains every interval's Gauss nodes. Compact retains degenerate-span\nfirst/second AD contributions via midpoint samples; error budgets are unchanged.\n",
+        "policy": "compact",
+        "planning_calls": 96,
+        "quadrature_calls": 192,
+        "evaluated_property_points": 712704,
+        "maximum_points_per_property_pass": 4736,
+        "source_sha256": {
+          "/home/user/workspace/oil-simulator-py-impes/scripts/run_compact_quadrature_forecast.py": "8baac86d4b44cf1fd6c605ec3e0ad66ba23243b66406d3848a718b54df0d56f4",
+          "/home/user/workspace/oil-simulator-py-impes/scripts/dense_quadrature_reference.py": "8269fae071fb4b5a34c0efb8103bce38fac5d92d486c63fbf535e72d10f65fe6"
+        },
+        "sources_unchanged": true
+      }
+    },
+    "final_wells512_dense_1": {
+      "final_version": true,
+      "source_differences_from_current": {},
+      "audit": {
+        "accepted": true,
+        "wells": 512,
+        "accepted_steps": 1,
+        "elapsed_days": 1.0,
+        "mode_samples": {
+          "surface": 512
+        },
+        "component_mass_residual_kg": [
+          -2.2953376173973083e-05,
+          2.6085413992404938e-05,
+          -3.527523949742317e-05
+        ],
+        "mass_atol_kg": 0.01,
+        "mass_rtol": 1e-08,
+        "well_block_backend": "tree_structured",
+        "scope": "Accepted producer-only FIM -> gathering material/operating audit.\n\nNo solver invocation or rescaling of requested production. This is accounting\nand constraint checking, not independent PVT/correlation validation.\n"
+      },
+      "quadrature_policy": {
+        "scope": "Same full FIM and pressure grid, dense versus compact quadrature points.\n\nDense retains every interval's Gauss nodes. Compact retains degenerate-span\nfirst/second AD contributions via midpoint samples; error budgets are unchanged.\n",
+        "policy": "dense",
+        "planning_calls": 96,
+        "quadrature_calls": 192,
+        "evaluated_property_points": 2949120,
+        "maximum_points_per_property_pass": 20480,
+        "source_sha256": {
+          "/home/user/workspace/oil-simulator-py-impes/scripts/run_compact_quadrature_forecast.py": "8baac86d4b44cf1fd6c605ec3e0ad66ba23243b66406d3848a718b54df0d56f4",
+          "/home/user/workspace/oil-simulator-py-impes/scripts/dense_quadrature_reference.py": "8269fae071fb4b5a34c0efb8103bce38fac5d92d486c63fbf535e72d10f65fe6"
+        },
+        "sources_unchanged": true
+      }
+    },
+    "final_wells512_dense_2": {
+      "final_version": true,
+      "source_differences_from_current": {},
+      "audit": {
+        "accepted": true,
+        "wells": 512,
+        "accepted_steps": 1,
+        "elapsed_days": 1.0,
+        "mode_samples": {
+          "surface": 512
+        },
+        "component_mass_residual_kg": [
+          -2.2953376173973083e-05,
+          2.6085413992404938e-05,
+          -3.527523949742317e-05
+        ],
+        "mass_atol_kg": 0.01,
+        "mass_rtol": 1e-08,
+        "well_block_backend": "tree_structured",
+        "scope": "Accepted producer-only FIM -> gathering material/operating audit.\n\nNo solver invocation or rescaling of requested production. This is accounting\nand constraint checking, not independent PVT/correlation validation.\n"
+      },
+      "quadrature_policy": {
+        "scope": "Same full FIM and pressure grid, dense versus compact quadrature points.\n\nDense retains every interval's Gauss nodes. Compact retains degenerate-span\nfirst/second AD contributions via midpoint samples; error budgets are unchanged.\n",
+        "policy": "dense",
+        "planning_calls": 96,
+        "quadrature_calls": 192,
+        "evaluated_property_points": 2949120,
+        "maximum_points_per_property_pass": 20480,
+        "source_sha256": {
+          "/home/user/workspace/oil-simulator-py-impes/scripts/run_compact_quadrature_forecast.py": "8baac86d4b44cf1fd6c605ec3e0ad66ba23243b66406d3848a718b54df0d56f4",
+          "/home/user/workspace/oil-simulator-py-impes/scripts/dense_quadrature_reference.py": "8269fae071fb4b5a34c0efb8103bce38fac5d92d486c63fbf535e72d10f65fe6"
+        },
+        "sources_unchanged": true
+      }
+    },
+    "final_wells512_dense_3": {
+      "final_version": true,
+      "source_differences_from_current": {},
+      "audit": {
+        "accepted": true,
+        "wells": 512,
+        "accepted_steps": 1,
+        "elapsed_days": 1.0,
+        "mode_samples": {
+          "surface": 512
+        },
+        "component_mass_residual_kg": [
+          -2.2953376173973083e-05,
+          2.6085413992404938e-05,
+          -3.527523949742317e-05
+        ],
+        "mass_atol_kg": 0.01,
+        "mass_rtol": 1e-08,
+        "well_block_backend": "tree_structured",
+        "scope": "Accepted producer-only FIM -> gathering material/operating audit.\n\nNo solver invocation or rescaling of requested production. This is accounting\nand constraint checking, not independent PVT/correlation validation.\n"
+      },
+      "quadrature_policy": {
+        "scope": "Same full FIM and pressure grid, dense versus compact quadrature points.\n\nDense retains every interval's Gauss nodes. Compact retains degenerate-span\nfirst/second AD contributions via midpoint samples; error budgets are unchanged.\n",
+        "policy": "dense",
+        "planning_calls": 96,
+        "quadrature_calls": 192,
+        "evaluated_property_points": 2949120,
+        "maximum_points_per_property_pass": 20480,
+        "source_sha256": {
+          "/home/user/workspace/oil-simulator-py-impes/scripts/run_compact_quadrature_forecast.py": "8baac86d4b44cf1fd6c605ec3e0ad66ba23243b66406d3848a718b54df0d56f4",
+          "/home/user/workspace/oil-simulator-py-impes/scripts/dense_quadrature_reference.py": "8269fae071fb4b5a34c0efb8103bce38fac5d92d486c63fbf535e72d10f65fe6"
+        },
+        "sources_unchanged": true
+      }
+    },
+    "final_wells64_pvt65_compact_1": {
+      "final_version": true,
+      "source_differences_from_current": {},
+      "audit": {
+        "accepted": true,
+        "wells": 64,
+        "accepted_steps": 1,
+        "elapsed_days": 1.0,
+        "mode_samples": {
+          "surface": 64
+        },
+        "component_mass_residual_kg": [
+          -7.636845111846924e-08,
+          -4.079192876815796e-07,
+          1.0940129868686199e-07
+        ],
+        "mass_atol_kg": 0.01,
+        "mass_rtol": 1e-08,
+        "well_block_backend": "tree_structured",
+        "scope": "Accepted producer-only FIM -> gathering material/operating audit.\n\nNo solver invocation or rescaling of requested production. This is accounting\nand constraint checking, not independent PVT/correlation validation.\n"
+      },
+      "quadrature_policy": {
+        "scope": "Same full FIM and pressure grid, dense versus compact quadrature points.\n\nDense retains every interval's Gauss nodes. Compact retains degenerate-span\nfirst/second AD contributions via midpoint samples; error budgets are unchanged.\n",
+        "policy": "compact",
+        "planning_calls": 48,
+        "quadrature_calls": 96,
+        "evaluated_property_points": 96720,
+        "maximum_points_per_property_pass": 2496,
+        "source_sha256": {
+          "/home/user/workspace/oil-simulator-py-impes/scripts/run_compact_quadrature_forecast.py": "8baac86d4b44cf1fd6c605ec3e0ad66ba23243b66406d3848a718b54df0d56f4",
+          "/home/user/workspace/oil-simulator-py-impes/scripts/dense_quadrature_reference.py": "8269fae071fb4b5a34c0efb8103bce38fac5d92d486c63fbf535e72d10f65fe6"
+        },
+        "sources_unchanged": true
+      }
+    },
+    "final_wells64_pvt65_dense_1": {
+      "final_version": true,
+      "source_differences_from_current": {},
+      "audit": {
+        "accepted": true,
+        "wells": 64,
+        "accepted_steps": 1,
+        "elapsed_days": 1.0,
+        "mode_samples": {
+          "surface": 64
+        },
+        "component_mass_residual_kg": [
+          -7.636845111846924e-08,
+          -4.079192876815796e-07,
+          1.0940129868686199e-07
+        ],
+        "mass_atol_kg": 0.01,
+        "mass_rtol": 1e-08,
+        "well_block_backend": "tree_structured",
+        "scope": "Accepted producer-only FIM -> gathering material/operating audit.\n\nNo solver invocation or rescaling of requested production. This is accounting\nand constraint checking, not independent PVT/correlation validation.\n"
+      },
+      "quadrature_policy": {
+        "scope": "Same full FIM and pressure grid, dense versus compact quadrature points.\n\nDense retains every interval's Gauss nodes. Compact retains degenerate-span\nfirst/second AD contributions via midpoint samples; error budgets are unchanged.\n",
+        "policy": "dense",
+        "planning_calls": 48,
+        "quadrature_calls": 96,
+        "evaluated_property_points": 524160,
+        "maximum_points_per_property_pass": 14336,
+        "source_sha256": {
+          "/home/user/workspace/oil-simulator-py-impes/scripts/run_compact_quadrature_forecast.py": "8baac86d4b44cf1fd6c605ec3e0ad66ba23243b66406d3848a718b54df0d56f4",
+          "/home/user/workspace/oil-simulator-py-impes/scripts/dense_quadrature_reference.py": "8269fae071fb4b5a34c0efb8103bce38fac5d92d486c63fbf535e72d10f65fe6"
+        },
+        "sources_unchanged": true
+      }
+    },
+    "wells2048_compact_1": {
+      "final_version": false,
+      "source_differences_from_current": {
+        "/home/user/workspace/oil-simulator-py-impes/src/surface/blackoil_quadrature_plan.py": {
+          "recorded": "dc6d1f825af9f4f5a2d122399790a6fe296ee1eb2f43af3d45e2ac3cdb50d852",
+          "current": "0f7bb1f9dbbad0f7bac4f35b5eb2ab09d94bfc226405ae536ed9635c2a5ab852"
+        }
+      },
+      "audit": {
+        "accepted": true,
+        "wells": 2048,
+        "accepted_steps": 1,
+        "elapsed_days": 1.0,
+        "mode_samples": {
+          "surface": 2048
+        },
+        "component_mass_residual_kg": [
+          1.4886260032653809e-05,
+          -5.640089511871338e-06,
+          -5.32250851392746e-07
+        ],
+        "mass_atol_kg": 0.01,
+        "mass_rtol": 1e-08,
+        "well_block_backend": "tree_structured",
+        "scope": "Accepted producer-only FIM -> gathering material/operating audit.\n\nNo solver invocation or rescaling of requested production. This is accounting\nand constraint checking, not independent PVT/correlation validation.\n"
+      },
+      "quadrature_policy": {
+        "scope": "Same full FIM and pressure grid, dense versus compact quadrature points.\n\nDense retains every interval's Gauss nodes. Compact retains degenerate-span\nfirst/second AD contributions via midpoint samples; error budgets are unchanged.\n",
+        "policy": "compact",
+        "planning_calls": 384,
+        "quadrature_calls": 768,
+        "evaluated_property_points": 2850816,
+        "maximum_points_per_property_pass": 4736,
+        "source_sha256": {
+          "/home/user/workspace/oil-simulator-py-impes/scripts/run_compact_quadrature_forecast.py": "8baac86d4b44cf1fd6c605ec3e0ad66ba23243b66406d3848a718b54df0d56f4",
+          "/home/user/workspace/oil-simulator-py-impes/scripts/dense_quadrature_reference.py": "8269fae071fb4b5a34c0efb8103bce38fac5d92d486c63fbf535e72d10f65fe6"
+        },
+        "sources_unchanged": true
+      }
+    },
+    "wells2048_compact_2": {
+      "final_version": false,
+      "source_differences_from_current": {
+        "/home/user/workspace/oil-simulator-py-impes/src/surface/blackoil_quadrature_plan.py": {
+          "recorded": "dc6d1f825af9f4f5a2d122399790a6fe296ee1eb2f43af3d45e2ac3cdb50d852",
+          "current": "0f7bb1f9dbbad0f7bac4f35b5eb2ab09d94bfc226405ae536ed9635c2a5ab852"
+        }
+      },
+      "audit": {
+        "accepted": true,
+        "wells": 2048,
+        "accepted_steps": 1,
+        "elapsed_days": 1.0,
+        "mode_samples": {
+          "surface": 2048
+        },
+        "component_mass_residual_kg": [
+          1.4886260032653809e-05,
+          -5.640089511871338e-06,
+          -5.32250851392746e-07
+        ],
+        "mass_atol_kg": 0.01,
+        "mass_rtol": 1e-08,
+        "well_block_backend": "tree_structured",
+        "scope": "Accepted producer-only FIM -> gathering material/operating audit.\n\nNo solver invocation or rescaling of requested production. This is accounting\nand constraint checking, not independent PVT/correlation validation.\n"
+      },
+      "quadrature_policy": {
+        "scope": "Same full FIM and pressure grid, dense versus compact quadrature points.\n\nDense retains every interval's Gauss nodes. Compact retains degenerate-span\nfirst/second AD contributions via midpoint samples; error budgets are unchanged.\n",
+        "policy": "compact",
+        "planning_calls": 384,
+        "quadrature_calls": 768,
+        "evaluated_property_points": 2850816,
+        "maximum_points_per_property_pass": 4736,
+        "source_sha256": {
+          "/home/user/workspace/oil-simulator-py-impes/scripts/run_compact_quadrature_forecast.py": "8baac86d4b44cf1fd6c605ec3e0ad66ba23243b66406d3848a718b54df0d56f4",
+          "/home/user/workspace/oil-simulator-py-impes/scripts/dense_quadrature_reference.py": "8269fae071fb4b5a34c0efb8103bce38fac5d92d486c63fbf535e72d10f65fe6"
+        },
+        "sources_unchanged": true
+      }
+    },
+    "wells2048_compact_3": {
+      "final_version": false,
+      "source_differences_from_current": {
+        "/home/user/workspace/oil-simulator-py-impes/src/surface/blackoil_quadrature_plan.py": {
+          "recorded": "dc6d1f825af9f4f5a2d122399790a6fe296ee1eb2f43af3d45e2ac3cdb50d852",
+          "current": "0f7bb1f9dbbad0f7bac4f35b5eb2ab09d94bfc226405ae536ed9635c2a5ab852"
+        }
+      },
+      "audit": {
+        "accepted": true,
+        "wells": 2048,
+        "accepted_steps": 1,
+        "elapsed_days": 1.0,
+        "mode_samples": {
+          "surface": 2048
+        },
+        "component_mass_residual_kg": [
+          1.4886260032653809e-05,
+          -5.640089511871338e-06,
+          -5.32250851392746e-07
+        ],
+        "mass_atol_kg": 0.01,
+        "mass_rtol": 1e-08,
+        "well_block_backend": "tree_structured",
+        "scope": "Accepted producer-only FIM -> gathering material/operating audit.\n\nNo solver invocation or rescaling of requested production. This is accounting\nand constraint checking, not independent PVT/correlation validation.\n"
+      },
+      "quadrature_policy": {
+        "scope": "Same full FIM and pressure grid, dense versus compact quadrature points.\n\nDense retains every interval's Gauss nodes. Compact retains degenerate-span\nfirst/second AD contributions via midpoint samples; error budgets are unchanged.\n",
+        "policy": "compact",
+        "planning_calls": 384,
+        "quadrature_calls": 768,
+        "evaluated_property_points": 2850816,
+        "maximum_points_per_property_pass": 4736,
+        "source_sha256": {
+          "/home/user/workspace/oil-simulator-py-impes/scripts/run_compact_quadrature_forecast.py": "8baac86d4b44cf1fd6c605ec3e0ad66ba23243b66406d3848a718b54df0d56f4",
+          "/home/user/workspace/oil-simulator-py-impes/scripts/dense_quadrature_reference.py": "8269fae071fb4b5a34c0efb8103bce38fac5d92d486c63fbf535e72d10f65fe6"
+        },
+        "sources_unchanged": true
+      }
+    },
+    "wells2048_dense_1": {
+      "final_version": false,
+      "source_differences_from_current": {
+        "/home/user/workspace/oil-simulator-py-impes/src/surface/blackoil_quadrature_plan.py": {
+          "recorded": "dc6d1f825af9f4f5a2d122399790a6fe296ee1eb2f43af3d45e2ac3cdb50d852",
+          "current": "0f7bb1f9dbbad0f7bac4f35b5eb2ab09d94bfc226405ae536ed9635c2a5ab852"
+        }
+      },
+      "audit": {
+        "accepted": true,
+        "wells": 2048,
+        "accepted_steps": 1,
+        "elapsed_days": 1.0,
+        "mode_samples": {
+          "surface": 2048
+        },
+        "component_mass_residual_kg": [
+          1.4886260032653809e-05,
+          -5.640089511871338e-06,
+          -5.32250851392746e-07
+        ],
+        "mass_atol_kg": 0.01,
+        "mass_rtol": 1e-08,
+        "well_block_backend": "tree_structured",
+        "scope": "Accepted producer-only FIM -> gathering material/operating audit.\n\nNo solver invocation or rescaling of requested production. This is accounting\nand constraint checking, not independent PVT/correlation validation.\n"
+      },
+      "quadrature_policy": {
+        "scope": "Same full FIM and pressure grid, dense versus compact quadrature points.\n\nDense retains every interval's Gauss nodes. Compact retains degenerate-span\nfirst/second AD contributions via midpoint samples; error budgets are unchanged.\n",
+        "policy": "dense",
+        "planning_calls": 384,
+        "quadrature_calls": 768,
+        "evaluated_property_points": 11796480,
+        "maximum_points_per_property_pass": 20480,
+        "source_sha256": {
+          "/home/user/workspace/oil-simulator-py-impes/scripts/run_compact_quadrature_forecast.py": "8baac86d4b44cf1fd6c605ec3e0ad66ba23243b66406d3848a718b54df0d56f4",
+          "/home/user/workspace/oil-simulator-py-impes/scripts/dense_quadrature_reference.py": "8269fae071fb4b5a34c0efb8103bce38fac5d92d486c63fbf535e72d10f65fe6"
+        },
+        "sources_unchanged": true
+      }
+    },
+    "wells2048_dense_2": {
+      "final_version": false,
+      "source_differences_from_current": {
+        "/home/user/workspace/oil-simulator-py-impes/src/surface/blackoil_quadrature_plan.py": {
+          "recorded": "dc6d1f825af9f4f5a2d122399790a6fe296ee1eb2f43af3d45e2ac3cdb50d852",
+          "current": "0f7bb1f9dbbad0f7bac4f35b5eb2ab09d94bfc226405ae536ed9635c2a5ab852"
+        }
+      },
+      "audit": {
+        "accepted": true,
+        "wells": 2048,
+        "accepted_steps": 1,
+        "elapsed_days": 1.0,
+        "mode_samples": {
+          "surface": 2048
+        },
+        "component_mass_residual_kg": [
+          1.4886260032653809e-05,
+          -5.640089511871338e-06,
+          -5.32250851392746e-07
+        ],
+        "mass_atol_kg": 0.01,
+        "mass_rtol": 1e-08,
+        "well_block_backend": "tree_structured",
+        "scope": "Accepted producer-only FIM -> gathering material/operating audit.\n\nNo solver invocation or rescaling of requested production. This is accounting\nand constraint checking, not independent PVT/correlation validation.\n"
+      },
+      "quadrature_policy": {
+        "scope": "Same full FIM and pressure grid, dense versus compact quadrature points.\n\nDense retains every interval's Gauss nodes. Compact retains degenerate-span\nfirst/second AD contributions via midpoint samples; error budgets are unchanged.\n",
+        "policy": "dense",
+        "planning_calls": 384,
+        "quadrature_calls": 768,
+        "evaluated_property_points": 11796480,
+        "maximum_points_per_property_pass": 20480,
+        "source_sha256": {
+          "/home/user/workspace/oil-simulator-py-impes/scripts/run_compact_quadrature_forecast.py": "8baac86d4b44cf1fd6c605ec3e0ad66ba23243b66406d3848a718b54df0d56f4",
+          "/home/user/workspace/oil-simulator-py-impes/scripts/dense_quadrature_reference.py": "8269fae071fb4b5a34c0efb8103bce38fac5d92d486c63fbf535e72d10f65fe6"
+        },
+        "sources_unchanged": true
+      }
+    },
+    "wells2048_dense_3": {
+      "final_version": false,
+      "source_differences_from_current": {
+        "/home/user/workspace/oil-simulator-py-impes/src/surface/blackoil_quadrature_plan.py": {
+          "recorded": "dc6d1f825af9f4f5a2d122399790a6fe296ee1eb2f43af3d45e2ac3cdb50d852",
+          "current": "0f7bb1f9dbbad0f7bac4f35b5eb2ab09d94bfc226405ae536ed9635c2a5ab852"
+        }
+      },
+      "audit": {
+        "accepted": true,
+        "wells": 2048,
+        "accepted_steps": 1,
+        "elapsed_days": 1.0,
+        "mode_samples": {
+          "surface": 2048
+        },
+        "component_mass_residual_kg": [
+          1.4886260032653809e-05,
+          -5.640089511871338e-06,
+          -5.32250851392746e-07
+        ],
+        "mass_atol_kg": 0.01,
+        "mass_rtol": 1e-08,
+        "well_block_backend": "tree_structured",
+        "scope": "Accepted producer-only FIM -> gathering material/operating audit.\n\nNo solver invocation or rescaling of requested production. This is accounting\nand constraint checking, not independent PVT/correlation validation.\n"
+      },
+      "quadrature_policy": {
+        "scope": "Same full FIM and pressure grid, dense versus compact quadrature points.\n\nDense retains every interval's Gauss nodes. Compact retains degenerate-span\nfirst/second AD contributions via midpoint samples; error budgets are unchanged.\n",
+        "policy": "dense",
+        "planning_calls": 384,
+        "quadrature_calls": 768,
+        "evaluated_property_points": 11796480,
+        "maximum_points_per_property_pass": 20480,
+        "source_sha256": {
+          "/home/user/workspace/oil-simulator-py-impes/scripts/run_compact_quadrature_forecast.py": "8baac86d4b44cf1fd6c605ec3e0ad66ba23243b66406d3848a718b54df0d56f4",
+          "/home/user/workspace/oil-simulator-py-impes/scripts/dense_quadrature_reference.py": "8269fae071fb4b5a34c0efb8103bce38fac5d92d486c63fbf535e72d10f65fe6"
+        },
+        "sources_unchanged": true
+      }
+    },
+    "wells512_compact_1": {
+      "final_version": false,
+      "source_differences_from_current": {
+        "/home/user/workspace/oil-simulator-py-impes/src/surface/blackoil_quadrature_plan.py": {
+          "recorded": "dc6d1f825af9f4f5a2d122399790a6fe296ee1eb2f43af3d45e2ac3cdb50d852",
+          "current": "0f7bb1f9dbbad0f7bac4f35b5eb2ab09d94bfc226405ae536ed9635c2a5ab852"
+        }
+      },
+      "audit": {
+        "accepted": true,
+        "wells": 512,
+        "accepted_steps": 1,
+        "elapsed_days": 1.0,
+        "mode_samples": {
+          "surface": 512
+        },
+        "component_mass_residual_kg": [
+          -2.2953376173973083e-05,
+          2.6085413992404938e-05,
+          -3.527523949742317e-05
+        ],
+        "mass_atol_kg": 0.01,
+        "mass_rtol": 1e-08,
+        "well_block_backend": "tree_structured",
+        "scope": "Accepted producer-only FIM -> gathering material/operating audit.\n\nNo solver invocation or rescaling of requested production. This is accounting\nand constraint checking, not independent PVT/correlation validation.\n"
+      },
+      "quadrature_policy": {
+        "scope": "Same full FIM and pressure grid, dense versus compact quadrature points.\n\nDense retains every interval's Gauss nodes. Compact retains degenerate-span\nfirst/second AD contributions via midpoint samples; error budgets are unchanged.\n",
+        "policy": "compact",
+        "planning_calls": 96,
+        "quadrature_calls": 192,
+        "evaluated_property_points": 712704,
+        "maximum_points_per_property_pass": 4736,
+        "source_sha256": {
+          "/home/user/workspace/oil-simulator-py-impes/scripts/run_compact_quadrature_forecast.py": "8baac86d4b44cf1fd6c605ec3e0ad66ba23243b66406d3848a718b54df0d56f4",
+          "/home/user/workspace/oil-simulator-py-impes/scripts/dense_quadrature_reference.py": "8269fae071fb4b5a34c0efb8103bce38fac5d92d486c63fbf535e72d10f65fe6"
+        },
+        "sources_unchanged": true
+      }
+    },
+    "wells512_compact_2": {
+      "final_version": false,
+      "source_differences_from_current": {
+        "/home/user/workspace/oil-simulator-py-impes/src/surface/blackoil_quadrature_plan.py": {
+          "recorded": "dc6d1f825af9f4f5a2d122399790a6fe296ee1eb2f43af3d45e2ac3cdb50d852",
+          "current": "0f7bb1f9dbbad0f7bac4f35b5eb2ab09d94bfc226405ae536ed9635c2a5ab852"
+        }
+      },
+      "audit": {
+        "accepted": true,
+        "wells": 512,
+        "accepted_steps": 1,
+        "elapsed_days": 1.0,
+        "mode_samples": {
+          "surface": 512
+        },
+        "component_mass_residual_kg": [
+          -2.2953376173973083e-05,
+          2.6085413992404938e-05,
+          -3.527523949742317e-05
+        ],
+        "mass_atol_kg": 0.01,
+        "mass_rtol": 1e-08,
+        "well_block_backend": "tree_structured",
+        "scope": "Accepted producer-only FIM -> gathering material/operating audit.\n\nNo solver invocation or rescaling of requested production. This is accounting\nand constraint checking, not independent PVT/correlation validation.\n"
+      },
+      "quadrature_policy": {
+        "scope": "Same full FIM and pressure grid, dense versus compact quadrature points.\n\nDense retains every interval's Gauss nodes. Compact retains degenerate-span\nfirst/second AD contributions via midpoint samples; error budgets are unchanged.\n",
+        "policy": "compact",
+        "planning_calls": 96,
+        "quadrature_calls": 192,
+        "evaluated_property_points": 712704,
+        "maximum_points_per_property_pass": 4736,
+        "source_sha256": {
+          "/home/user/workspace/oil-simulator-py-impes/scripts/run_compact_quadrature_forecast.py": "8baac86d4b44cf1fd6c605ec3e0ad66ba23243b66406d3848a718b54df0d56f4",
+          "/home/user/workspace/oil-simulator-py-impes/scripts/dense_quadrature_reference.py": "8269fae071fb4b5a34c0efb8103bce38fac5d92d486c63fbf535e72d10f65fe6"
+        },
+        "sources_unchanged": true
+      }
+    },
+    "wells512_compact_3": {
+      "final_version": false,
+      "source_differences_from_current": {
+        "/home/user/workspace/oil-simulator-py-impes/src/surface/blackoil_quadrature_plan.py": {
+          "recorded": "dc6d1f825af9f4f5a2d122399790a6fe296ee1eb2f43af3d45e2ac3cdb50d852",
+          "current": "0f7bb1f9dbbad0f7bac4f35b5eb2ab09d94bfc226405ae536ed9635c2a5ab852"
+        }
+      },
+      "audit": {
+        "accepted": true,
+        "wells": 512,
+        "accepted_steps": 1,
+        "elapsed_days": 1.0,
+        "mode_samples": {
+          "surface": 512
+        },
+        "component_mass_residual_kg": [
+          -2.2953376173973083e-05,
+          2.6085413992404938e-05,
+          -3.527523949742317e-05
+        ],
+        "mass_atol_kg": 0.01,
+        "mass_rtol": 1e-08,
+        "well_block_backend": "tree_structured",
+        "scope": "Accepted producer-only FIM -> gathering material/operating audit.\n\nNo solver invocation or rescaling of requested production. This is accounting\nand constraint checking, not independent PVT/correlation validation.\n"
+      },
+      "quadrature_policy": {
+        "scope": "Same full FIM and pressure grid, dense versus compact quadrature points.\n\nDense retains every interval's Gauss nodes. Compact retains degenerate-span\nfirst/second AD contributions via midpoint samples; error budgets are unchanged.\n",
+        "policy": "compact",
+        "planning_calls": 96,
+        "quadrature_calls": 192,
+        "evaluated_property_points": 712704,
+        "maximum_points_per_property_pass": 4736,
+        "source_sha256": {
+          "/home/user/workspace/oil-simulator-py-impes/scripts/run_compact_quadrature_forecast.py": "8baac86d4b44cf1fd6c605ec3e0ad66ba23243b66406d3848a718b54df0d56f4",
+          "/home/user/workspace/oil-simulator-py-impes/scripts/dense_quadrature_reference.py": "8269fae071fb4b5a34c0efb8103bce38fac5d92d486c63fbf535e72d10f65fe6"
+        },
+        "sources_unchanged": true
+      }
+    },
+    "wells512_dense_1": {
+      "final_version": false,
+      "source_differences_from_current": {
+        "/home/user/workspace/oil-simulator-py-impes/src/surface/blackoil_quadrature_plan.py": {
+          "recorded": "dc6d1f825af9f4f5a2d122399790a6fe296ee1eb2f43af3d45e2ac3cdb50d852",
+          "current": "0f7bb1f9dbbad0f7bac4f35b5eb2ab09d94bfc226405ae536ed9635c2a5ab852"
+        }
+      },
+      "audit": {
+        "accepted": true,
+        "wells": 512,
+        "accepted_steps": 1,
+        "elapsed_days": 1.0,
+        "mode_samples": {
+          "surface": 512
+        },
+        "component_mass_residual_kg": [
+          -2.2953376173973083e-05,
+          2.6085413992404938e-05,
+          -3.527523949742317e-05
+        ],
+        "mass_atol_kg": 0.01,
+        "mass_rtol": 1e-08,
+        "well_block_backend": "tree_structured",
+        "scope": "Accepted producer-only FIM -> gathering material/operating audit.\n\nNo solver invocation or rescaling of requested production. This is accounting\nand constraint checking, not independent PVT/correlation validation.\n"
+      },
+      "quadrature_policy": {
+        "scope": "Same full FIM and pressure grid, dense versus compact quadrature points.\n\nDense retains every interval's Gauss nodes. Compact retains degenerate-span\nfirst/second AD contributions via midpoint samples; error budgets are unchanged.\n",
+        "policy": "dense",
+        "planning_calls": 96,
+        "quadrature_calls": 192,
+        "evaluated_property_points": 2949120,
+        "maximum_points_per_property_pass": 20480,
+        "source_sha256": {
+          "/home/user/workspace/oil-simulator-py-impes/scripts/run_compact_quadrature_forecast.py": "8baac86d4b44cf1fd6c605ec3e0ad66ba23243b66406d3848a718b54df0d56f4",
+          "/home/user/workspace/oil-simulator-py-impes/scripts/dense_quadrature_reference.py": "8269fae071fb4b5a34c0efb8103bce38fac5d92d486c63fbf535e72d10f65fe6"
+        },
+        "sources_unchanged": true
+      }
+    },
+    "wells512_dense_2": {
+      "final_version": false,
+      "source_differences_from_current": {
+        "/home/user/workspace/oil-simulator-py-impes/src/surface/blackoil_quadrature_plan.py": {
+          "recorded": "dc6d1f825af9f4f5a2d122399790a6fe296ee1eb2f43af3d45e2ac3cdb50d852",
+          "current": "0f7bb1f9dbbad0f7bac4f35b5eb2ab09d94bfc226405ae536ed9635c2a5ab852"
+        }
+      },
+      "audit": {
+        "accepted": true,
+        "wells": 512,
+        "accepted_steps": 1,
+        "elapsed_days": 1.0,
+        "mode_samples": {
+          "surface": 512
+        },
+        "component_mass_residual_kg": [
+          -2.2953376173973083e-05,
+          2.6085413992404938e-05,
+          -3.527523949742317e-05
+        ],
+        "mass_atol_kg": 0.01,
+        "mass_rtol": 1e-08,
+        "well_block_backend": "tree_structured",
+        "scope": "Accepted producer-only FIM -> gathering material/operating audit.\n\nNo solver invocation or rescaling of requested production. This is accounting\nand constraint checking, not independent PVT/correlation validation.\n"
+      },
+      "quadrature_policy": {
+        "scope": "Same full FIM and pressure grid, dense versus compact quadrature points.\n\nDense retains every interval's Gauss nodes. Compact retains degenerate-span\nfirst/second AD contributions via midpoint samples; error budgets are unchanged.\n",
+        "policy": "dense",
+        "planning_calls": 96,
+        "quadrature_calls": 192,
+        "evaluated_property_points": 2949120,
+        "maximum_points_per_property_pass": 20480,
+        "source_sha256": {
+          "/home/user/workspace/oil-simulator-py-impes/scripts/run_compact_quadrature_forecast.py": "8baac86d4b44cf1fd6c605ec3e0ad66ba23243b66406d3848a718b54df0d56f4",
+          "/home/user/workspace/oil-simulator-py-impes/scripts/dense_quadrature_reference.py": "8269fae071fb4b5a34c0efb8103bce38fac5d92d486c63fbf535e72d10f65fe6"
+        },
+        "sources_unchanged": true
+      }
+    },
+    "wells512_dense_3": {
+      "final_version": false,
+      "source_differences_from_current": {
+        "/home/user/workspace/oil-simulator-py-impes/src/surface/blackoil_quadrature_plan.py": {
+          "recorded": "dc6d1f825af9f4f5a2d122399790a6fe296ee1eb2f43af3d45e2ac3cdb50d852",
+          "current": "0f7bb1f9dbbad0f7bac4f35b5eb2ab09d94bfc226405ae536ed9635c2a5ab852"
+        }
+      },
+      "audit": {
+        "accepted": true,
+        "wells": 512,
+        "accepted_steps": 1,
+        "elapsed_days": 1.0,
+        "mode_samples": {
+          "surface": 512
+        },
+        "component_mass_residual_kg": [
+          -2.2953376173973083e-05,
+          2.6085413992404938e-05,
+          -3.527523949742317e-05
+        ],
+        "mass_atol_kg": 0.01,
+        "mass_rtol": 1e-08,
+        "well_block_backend": "tree_structured",
+        "scope": "Accepted producer-only FIM -> gathering material/operating audit.\n\nNo solver invocation or rescaling of requested production. This is accounting\nand constraint checking, not independent PVT/correlation validation.\n"
+      },
+      "quadrature_policy": {
+        "scope": "Same full FIM and pressure grid, dense versus compact quadrature points.\n\nDense retains every interval's Gauss nodes. Compact retains degenerate-span\nfirst/second AD contributions via midpoint samples; error budgets are unchanged.\n",
+        "policy": "dense",
+        "planning_calls": 96,
+        "quadrature_calls": 192,
+        "evaluated_property_points": 2949120,
+        "maximum_points_per_property_pass": 20480,
+        "source_sha256": {
+          "/home/user/workspace/oil-simulator-py-impes/scripts/run_compact_quadrature_forecast.py": "8baac86d4b44cf1fd6c605ec3e0ad66ba23243b66406d3848a718b54df0d56f4",
+          "/home/user/workspace/oil-simulator-py-impes/scripts/dense_quadrature_reference.py": "8269fae071fb4b5a34c0efb8103bce38fac5d92d486c63fbf535e72d10f65fe6"
+        },
+        "sources_unchanged": true
+      }
+    },
+    "wells64_pvt65_compact_1": {
+      "final_version": false,
+      "source_differences_from_current": {
+        "/home/user/workspace/oil-simulator-py-impes/src/surface/blackoil_quadrature_plan.py": {
+          "recorded": "dc6d1f825af9f4f5a2d122399790a6fe296ee1eb2f43af3d45e2ac3cdb50d852",
+          "current": "0f7bb1f9dbbad0f7bac4f35b5eb2ab09d94bfc226405ae536ed9635c2a5ab852"
+        }
+      },
+      "audit": {
+        "accepted": true,
+        "wells": 64,
+        "accepted_steps": 1,
+        "elapsed_days": 1.0,
+        "mode_samples": {
+          "surface": 64
+        },
+        "component_mass_residual_kg": [
+          -7.636845111846924e-08,
+          -4.079192876815796e-07,
+          1.0940129868686199e-07
+        ],
+        "mass_atol_kg": 0.01,
+        "mass_rtol": 1e-08,
+        "well_block_backend": "tree_structured",
+        "scope": "Accepted producer-only FIM -> gathering material/operating audit.\n\nNo solver invocation or rescaling of requested production. This is accounting\nand constraint checking, not independent PVT/correlation validation.\n"
+      },
+      "quadrature_policy": {
+        "scope": "Same full FIM and pressure grid, dense versus compact quadrature points.\n\nDense retains every interval's Gauss nodes. Compact retains degenerate-span\nfirst/second AD contributions via midpoint samples; error budgets are unchanged.\n",
+        "policy": "compact",
+        "planning_calls": 48,
+        "quadrature_calls": 96,
+        "evaluated_property_points": 96720,
+        "maximum_points_per_property_pass": 2496,
+        "source_sha256": {
+          "/home/user/workspace/oil-simulator-py-impes/scripts/run_compact_quadrature_forecast.py": "8baac86d4b44cf1fd6c605ec3e0ad66ba23243b66406d3848a718b54df0d56f4",
+          "/home/user/workspace/oil-simulator-py-impes/scripts/dense_quadrature_reference.py": "8269fae071fb4b5a34c0efb8103bce38fac5d92d486c63fbf535e72d10f65fe6"
+        },
+        "sources_unchanged": true
+      }
+    },
+    "wells64_pvt65_dense_1": {
+      "final_version": false,
+      "source_differences_from_current": {
+        "/home/user/workspace/oil-simulator-py-impes/src/surface/blackoil_quadrature_plan.py": {
+          "recorded": "dc6d1f825af9f4f5a2d122399790a6fe296ee1eb2f43af3d45e2ac3cdb50d852",
+          "current": "0f7bb1f9dbbad0f7bac4f35b5eb2ab09d94bfc226405ae536ed9635c2a5ab852"
+        }
+      },
+      "audit": {
+        "accepted": true,
+        "wells": 64,
+        "accepted_steps": 1,
+        "elapsed_days": 1.0,
+        "mode_samples": {
+          "surface": 64
+        },
+        "component_mass_residual_kg": [
+          -7.636845111846924e-08,
+          -4.079192876815796e-07,
+          1.0940129868686199e-07
+        ],
+        "mass_atol_kg": 0.01,
+        "mass_rtol": 1e-08,
+        "well_block_backend": "tree_structured",
+        "scope": "Accepted producer-only FIM -> gathering material/operating audit.\n\nNo solver invocation or rescaling of requested production. This is accounting\nand constraint checking, not independent PVT/correlation validation.\n"
+      },
+      "quadrature_policy": {
+        "scope": "Same full FIM and pressure grid, dense versus compact quadrature points.\n\nDense retains every interval's Gauss nodes. Compact retains degenerate-span\nfirst/second AD contributions via midpoint samples; error budgets are unchanged.\n",
+        "policy": "dense",
+        "planning_calls": 48,
+        "quadrature_calls": 96,
+        "evaluated_property_points": 524160,
+        "maximum_points_per_property_pass": 14336,
+        "source_sha256": {
+          "/home/user/workspace/oil-simulator-py-impes/scripts/run_compact_quadrature_forecast.py": "8baac86d4b44cf1fd6c605ec3e0ad66ba23243b66406d3848a718b54df0d56f4",
+          "/home/user/workspace/oil-simulator-py-impes/scripts/dense_quadrature_reference.py": "8269fae071fb4b5a34c0efb8103bce38fac5d92d486c63fbf535e72d10f65fe6"
+        },
+        "sources_unchanged": true
+      }
+    }
+  },
+  "comparisons": [
+    {
+      "wells": 512,
+      "label": "wells512",
+      "repeat": 1,
+      "dense_s": 2.3859581450014957,
+      "compact_s": 1.673391920998256,
+      "errors": {
+        "final_pressure_pa": 0.0,
+        "final_s_w": 0.0,
+        "final_s_g": 0.0,
+        "final_rs": 0.0,
+        "withdrawn_component_mass_kg": 0.0
+      },
+      "budgets": {
+        "final_pressure_pa": 0.1,
+        "final_s_w": 1e-08,
+        "final_s_g": 1e-08,
+        "final_rs": 1e-05,
+        "withdrawn_component_mass_kg": 0.01
+      },
+      "point_evaluations": [
+        2949120,
+        712704
+      ],
+      "max_points_per_property_pass": [
+        20480,
+        4736
+      ],
+      "accepted_step_execution": [
+        {
+          "backend": "torch_batch",
+          "torch_batch_pipes": 512,
+          "scalar_retry_pipes": 0,
+          "scalar_pipes": 1
+        },
+        {
+          "backend": "torch_batch",
+          "torch_batch_pipes": 512,
+          "scalar_retry_pipes": 0,
+          "scalar_pipes": 1
+        }
+      ],
+      "accepted": true
+    },
+    {
+      "wells": 512,
+      "label": "wells512",
+      "repeat": 2,
+      "dense_s": 2.371445981996658,
+      "compact_s": 1.7193992080028693,
+      "errors": {
+        "final_pressure_pa": 0.0,
+        "final_s_w": 0.0,
+        "final_s_g": 0.0,
+        "final_rs": 0.0,
+        "withdrawn_component_mass_kg": 0.0
+      },
+      "budgets": {
+        "final_pressure_pa": 0.1,
+        "final_s_w": 1e-08,
+        "final_s_g": 1e-08,
+        "final_rs": 1e-05,
+        "withdrawn_component_mass_kg": 0.01
+      },
+      "point_evaluations": [
+        2949120,
+        712704
+      ],
+      "max_points_per_property_pass": [
+        20480,
+        4736
+      ],
+      "accepted_step_execution": [
+        {
+          "backend": "torch_batch",
+          "torch_batch_pipes": 512,
+          "scalar_retry_pipes": 0,
+          "scalar_pipes": 1
+        },
+        {
+          "backend": "torch_batch",
+          "torch_batch_pipes": 512,
+          "scalar_retry_pipes": 0,
+          "scalar_pipes": 1
+        }
+      ],
+      "accepted": true
+    },
+    {
+      "wells": 512,
+      "label": "wells512",
+      "repeat": 3,
+      "dense_s": 2.3241403530009848,
+      "compact_s": 1.5975849119968188,
+      "errors": {
+        "final_pressure_pa": 0.0,
+        "final_s_w": 0.0,
+        "final_s_g": 0.0,
+        "final_rs": 0.0,
+        "withdrawn_component_mass_kg": 0.0
+      },
+      "budgets": {
+        "final_pressure_pa": 0.1,
+        "final_s_w": 1e-08,
+        "final_s_g": 1e-08,
+        "final_rs": 1e-05,
+        "withdrawn_component_mass_kg": 0.01
+      },
+      "point_evaluations": [
+        2949120,
+        712704
+      ],
+      "max_points_per_property_pass": [
+        20480,
+        4736
+      ],
+      "accepted_step_execution": [
+        {
+          "backend": "torch_batch",
+          "torch_batch_pipes": 512,
+          "scalar_retry_pipes": 0,
+          "scalar_pipes": 1
+        },
+        {
+          "backend": "torch_batch",
+          "torch_batch_pipes": 512,
+          "scalar_retry_pipes": 0,
+          "scalar_pipes": 1
+        }
+      ],
+      "accepted": true
+    },
+    {
+      "wells": 2048,
+      "label": "wells2048",
+      "repeat": 1,
+      "dense_s": 7.856387469000765,
+      "compact_s": 4.808995149000111,
+      "errors": {
+        "final_pressure_pa": 0.0,
+        "final_s_w": 0.0,
+        "final_s_g": 0.0,
+        "final_rs": 0.0,
+        "withdrawn_component_mass_kg": 0.0
+      },
+      "budgets": {
+        "final_pressure_pa": 0.1,
+        "final_s_w": 1e-08,
+        "final_s_g": 1e-08,
+        "final_rs": 1e-05,
+        "withdrawn_component_mass_kg": 0.01
+      },
+      "point_evaluations": [
+        11796480,
+        2850816
+      ],
+      "max_points_per_property_pass": [
+        20480,
+        4736
+      ],
+      "accepted_step_execution": [
+        {
+          "backend": "torch_batch",
+          "torch_batch_pipes": 2048,
+          "scalar_retry_pipes": 0,
+          "scalar_pipes": 1
+        },
+        {
+          "backend": "torch_batch",
+          "torch_batch_pipes": 2048,
+          "scalar_retry_pipes": 0,
+          "scalar_pipes": 1
+        }
+      ],
+      "accepted": true
+    },
+    {
+      "wells": 2048,
+      "label": "wells2048",
+      "repeat": 2,
+      "dense_s": 7.967685332001565,
+      "compact_s": 4.7128960879999795,
+      "errors": {
+        "final_pressure_pa": 0.0,
+        "final_s_w": 0.0,
+        "final_s_g": 0.0,
+        "final_rs": 0.0,
+        "withdrawn_component_mass_kg": 0.0
+      },
+      "budgets": {
+        "final_pressure_pa": 0.1,
+        "final_s_w": 1e-08,
+        "final_s_g": 1e-08,
+        "final_rs": 1e-05,
+        "withdrawn_component_mass_kg": 0.01
+      },
+      "point_evaluations": [
+        11796480,
+        2850816
+      ],
+      "max_points_per_property_pass": [
+        20480,
+        4736
+      ],
+      "accepted_step_execution": [
+        {
+          "backend": "torch_batch",
+          "torch_batch_pipes": 2048,
+          "scalar_retry_pipes": 0,
+          "scalar_pipes": 1
+        },
+        {
+          "backend": "torch_batch",
+          "torch_batch_pipes": 2048,
+          "scalar_retry_pipes": 0,
+          "scalar_pipes": 1
+        }
+      ],
+      "accepted": true
+    },
+    {
+      "wells": 2048,
+      "label": "wells2048",
+      "repeat": 3,
+      "dense_s": 7.818981033997261,
+      "compact_s": 5.227649511998607,
+      "errors": {
+        "final_pressure_pa": 0.0,
+        "final_s_w": 0.0,
+        "final_s_g": 0.0,
+        "final_rs": 0.0,
+        "withdrawn_component_mass_kg": 0.0
+      },
+      "budgets": {
+        "final_pressure_pa": 0.1,
+        "final_s_w": 1e-08,
+        "final_s_g": 1e-08,
+        "final_rs": 1e-05,
+        "withdrawn_component_mass_kg": 0.01
+      },
+      "point_evaluations": [
+        11796480,
+        2850816
+      ],
+      "max_points_per_property_pass": [
+        20480,
+        4736
+      ],
+      "accepted_step_execution": [
+        {
+          "backend": "torch_batch",
+          "torch_batch_pipes": 2048,
+          "scalar_retry_pipes": 0,
+          "scalar_pipes": 1
+        },
+        {
+          "backend": "torch_batch",
+          "torch_batch_pipes": 2048,
+          "scalar_retry_pipes": 0,
+          "scalar_pipes": 1
+        }
+      ],
+      "accepted": true
+    },
+    {
+      "wells": 64,
+      "label": "wells64_pvt65",
+      "repeat": 1,
+      "dense_s": 1.021780643000966,
+      "compact_s": 0.9050301460010814,
+      "errors": {
+        "final_pressure_pa": 0.0,
+        "final_s_w": 0.0,
+        "final_s_g": 0.0,
+        "final_rs": 0.0,
+        "withdrawn_component_mass_kg": 0.0
+      },
+      "budgets": {
+        "final_pressure_pa": 0.1,
+        "final_s_w": 1e-08,
+        "final_s_g": 1e-08,
+        "final_rs": 1e-05,
+        "withdrawn_component_mass_kg": 0.01
+      },
+      "point_evaluations": [
+        524160,
+        96720
+      ],
+      "max_points_per_property_pass": [
+        14336,
+        2496
+      ],
+      "accepted_step_execution": [
+        {
+          "backend": "torch_batch",
+          "torch_batch_pipes": 65,
+          "scalar_retry_pipes": 0,
+          "scalar_pipes": 0
+        },
+        {
+          "backend": "torch_batch",
+          "torch_batch_pipes": 65,
+          "scalar_retry_pipes": 0,
+          "scalar_pipes": 0
+        }
+      ],
+      "accepted": true
+    }
+  ],
+  "coupled30_reference_comparison": {
+    "accepted": true,
+    "errors": {
+      "final_pressure_pa": 0.0,
+      "final_s_w": 0.0,
+      "final_s_g": 0.0,
+      "final_rs": 0.0,
+      "withdrawal_relative": 0.0
+    },
+    "budgets": {
+      "final_pressure_pa": 0.1,
+      "final_s_w": 1e-08,
+      "final_s_g": 1e-08,
+      "final_rs": 1e-05,
+      "withdrawal_relative": 1e-06
+    },
+    "coarse": "benchmarks/reports/surface_compact_quadrature/final_coupled30_cpu/trajectory.json.gz",
+    "fine": "benchmarks/reports/surface_pipe_batch/coupled_torch_batch_final_cpu/trajectory.json.gz",
+    "scope": "Compare completed operational forecasts at the final common report endpoint.\n\nBudgets must be supplied before inspecting the reference result. This is a\nstep-refinement check, not a proof that the finer trajectory is exact.\n",
+    "allowed_numerical_policy_differences": []
+  },
+  "regression": {
+    "passed": 222,
+    "skipped": 13
+  },
+  "protected_source_sha256": {
+    "src/simulator/blackoil_fim.py": "658fde0e6119df6ae154c3c400ff24b8d2a519dfa9a33e612aeaa6bd51a16c3c",
+    "src/surface/torch_linear.py": "b7bda1aae66d9e979c147f821efba9990d6460d60b32a05c6fc5f9b873b752d5"
+  },
+  "cuda_observations": {
+    "nvidia_smi_exit_code": 9,
+    "kernel_driver_version": "NVRM version: NVIDIA UNIX x86_64 Kernel Module  570.211.01  Tue Nov 25 16:36:36 UTC 2025",
+    "proc_gpu_entries": 2,
+    "device_nodes_exist": {
+      "/dev/nvidiactl": false,
+      "/dev/nvidia-uvm": false,
+      "/dev/nvidia0": false,
+      "/dev/nvidia1": false
+    },
+    "scope": "Read-only observation inside this execution environment; no driver, device permission or running process was modified. GPU timing not qualified."
+  },
+  "qualification_source_sha256": {
+    "src/surface/blackoil_quadrature_plan.py": "0f7bb1f9dbbad0f7bac4f35b5eb2ab09d94bfc226405ae536ed9635c2a5ab852",
+    "src/surface/blackoil_pipe_batch.py": "30cb309bc867fe0d0cc4d0beb5c783f918980605fe21f72874ecea31ebeb5cd5",
+    "tests/test_blackoil_quadrature_plan.py": "ed60020d7029f455b51ee972ea41bf5f0184d1c61389bad649c671d216e420ac"
+  },
+  "evidence_sha256": {
+    "comparison_summary.json": "850e437fc13a3145494c8e03264dbcdfff562583f5df6ef832df040fba0e75d3",
+    "comparison_summary_preliminary.json": "847ae53d038bd9e49a19e42a27bbd6031b53ebbb72274f7f77400c250255cb22",
+    "coupled30_comparison.json": "624deccc412ef046f0a946c61607e9f8001c4a642f0c64f03216fcde7535417e",
+    "coupled30_cpu/progress.json": "f50dbbc88c511cd14fe0bf4edefd3aef224f15779f13290a3af56881ae11c009",
+    "coupled30_cpu/protocol.json": "dc45ce8a2697ae8f7bb3f37704b520d93a1184b943a76515513053bfc7e1dde9",
+    "coupled30_cpu/summary.json": "c53af17f903849dc0cbdd41b70eb23e1873327369fc5b91bb7be9e9057783776",
+    "coupled30_cpu/trajectory.json.gz": "c5dc87f54dbdfb145281df64837cd86d7c26c1f9a941e7f76bedb989cf8958c9",
+    "cuda_access.json": "9aa8c5f34075435ef20c75a67cf7e80fb391014994df1cb950938dd99f2cb286",
+    "final_coupled30_comparison.json": "69d2bd1f2be16169cb4491a0aa709cc919fcf9c98ed97dfd94f82d29295456ee",
+    "final_coupled30_cpu/progress.json": "f50dbbc88c511cd14fe0bf4edefd3aef224f15779f13290a3af56881ae11c009",
+    "final_coupled30_cpu/protocol.json": "ba9258a13a1f6ce38d7a26cfac5ab2fce4e1be5d63138a466dbec88c5719f4be",
+    "final_coupled30_cpu/summary.json": "02539a365ec15d089b25d5d423e86d14a4da4e358545446f226882af0bb35b2d",
+    "final_coupled30_cpu/trajectory.json.gz": "127dc40640fd7d5d429ebc0142f7f8b6a2f25ccfda204591cf964f09136ac4f9",
+    "final_wells2048_compact_1/progress.json": "f50dbbc88c511cd14fe0bf4edefd3aef224f15779f13290a3af56881ae11c009",
+    "final_wells2048_compact_1/protocol.json": "1ff3dce6c6b8e699ced954a4f667a39b6835fcc659bffcdf651cfa039121c55b",
+    "final_wells2048_compact_1/quadrature_policy.json": "a26c386a4ab5f1fd9b53fdcd5ae4dde44af6e5a4ebb1b6048004571c27b39026",
+    "final_wells2048_compact_1/summary.json": "4b35909bcbfb0f20895de042c9c87faa7ae29a9134d82aae0d78ad0004c48391",
+    "final_wells2048_compact_1/trajectory.json.gz": "b89c51c8db3656b53b5a2f8bb26fff220d45cc468c552f4f75553fb89890bfcc",
+    "final_wells2048_compact_2/progress.json": "f50dbbc88c511cd14fe0bf4edefd3aef224f15779f13290a3af56881ae11c009",
+    "final_wells2048_compact_2/protocol.json": "1ff3dce6c6b8e699ced954a4f667a39b6835fcc659bffcdf651cfa039121c55b",
+    "final_wells2048_compact_2/quadrature_policy.json": "a26c386a4ab5f1fd9b53fdcd5ae4dde44af6e5a4ebb1b6048004571c27b39026",
+    "final_wells2048_compact_2/summary.json": "3aa8a04a34235ca37a359d895ab54fa9fe0348a67a801b5434be5b6afbe6301a",
+    "final_wells2048_compact_2/trajectory.json.gz": "27e507123abe6f80a0f5255bbbf2bd07526a129691c887e334aff826f622dea4",
+    "final_wells2048_compact_3/progress.json": "f50dbbc88c511cd14fe0bf4edefd3aef224f15779f13290a3af56881ae11c009",
+    "final_wells2048_compact_3/protocol.json": "1ff3dce6c6b8e699ced954a4f667a39b6835fcc659bffcdf651cfa039121c55b",
+    "final_wells2048_compact_3/quadrature_policy.json": "a26c386a4ab5f1fd9b53fdcd5ae4dde44af6e5a4ebb1b6048004571c27b39026",
+    "final_wells2048_compact_3/summary.json": "de308b3a05f3d9fbbe97c631c4626ff93bd3f158566d63bc845fe131148de6d3",
+    "final_wells2048_compact_3/trajectory.json.gz": "4b9e19dc1412c2f1e2b75a7d538db415dd50e1da48b789219a53d9e1befa85a5",
+    "final_wells2048_dense_1/progress.json": "f50dbbc88c511cd14fe0bf4edefd3aef224f15779f13290a3af56881ae11c009",
+    "final_wells2048_dense_1/protocol.json": "1ff3dce6c6b8e699ced954a4f667a39b6835fcc659bffcdf651cfa039121c55b",
+    "final_wells2048_dense_1/quadrature_policy.json": "bc82a22ba815a6b13c7bb9f06f6dcbf6809bd15124b9f8932576a046cdffa22e",
+    "final_wells2048_dense_1/summary.json": "2db9ecc1681e7866a18b7ea7038d78d80af72856f6c43317df94d54672874f34",
+    "final_wells2048_dense_1/trajectory.json.gz": "dac21f18875caa9fb944bf78cc24df2312146e75c8cf958a8c678c0380c96a58",
+    "final_wells2048_dense_2/progress.json": "f50dbbc88c511cd14fe0bf4edefd3aef224f15779f13290a3af56881ae11c009",
+    "final_wells2048_dense_2/protocol.json": "1ff3dce6c6b8e699ced954a4f667a39b6835fcc659bffcdf651cfa039121c55b",
+    "final_wells2048_dense_2/quadrature_policy.json": "bc82a22ba815a6b13c7bb9f06f6dcbf6809bd15124b9f8932576a046cdffa22e",
+    "final_wells2048_dense_2/summary.json": "79597e5d2745d78c446279fb0d0dd38305d02ac9bdfd8c24569e88c4e80a26ac",
+    "final_wells2048_dense_2/trajectory.json.gz": "27ffc235bffa8ef9d139ac5020f9832b422312cf0ba2f634b3baf401221025af",
+    "final_wells2048_dense_3/progress.json": "f50dbbc88c511cd14fe0bf4edefd3aef224f15779f13290a3af56881ae11c009",
+    "final_wells2048_dense_3/protocol.json": "1ff3dce6c6b8e699ced954a4f667a39b6835fcc659bffcdf651cfa039121c55b",
+    "final_wells2048_dense_3/quadrature_policy.json": "bc82a22ba815a6b13c7bb9f06f6dcbf6809bd15124b9f8932576a046cdffa22e",
+    "final_wells2048_dense_3/summary.json": "60e13a23f78b6bb274e745f2f4c80694acb732d9d5d5bd3d7b09fe088bf7ce6a",
+    "final_wells2048_dense_3/trajectory.json.gz": "7edfee3fb94a64e6332ae33620bdedbf0d49c170fd26ad22fd5411d3f38fbb2d",
+    "final_wells512_compact_1/progress.json": "f50dbbc88c511cd14fe0bf4edefd3aef224f15779f13290a3af56881ae11c009",
+    "final_wells512_compact_1/protocol.json": "8b816024d42327864218b124138e5bd6c092b08d8a273950469e42e95b8fd311",
+    "final_wells512_compact_1/quadrature_policy.json": "1bde35286304bb40fa316ed9d8dfb6ef9ec83d8a8532a9a32eb55ffa454c6f92",
+    "final_wells512_compact_1/summary.json": "4bd8d33cf7d2b5dee38aba14fa2c4409ba5f72aa02500688a980a637f675c042",
+    "final_wells512_compact_1/trajectory.json.gz": "3b7ccbf8508ee9cf9a5e10b78759f2b07f3b5c5e73379d308df995fda67a2c29",
+    "final_wells512_compact_2/progress.json": "f50dbbc88c511cd14fe0bf4edefd3aef224f15779f13290a3af56881ae11c009",
+    "final_wells512_compact_2/protocol.json": "8b816024d42327864218b124138e5bd6c092b08d8a273950469e42e95b8fd311",
+    "final_wells512_compact_2/quadrature_policy.json": "1bde35286304bb40fa316ed9d8dfb6ef9ec83d8a8532a9a32eb55ffa454c6f92",
+    "final_wells512_compact_2/summary.json": "3088ca6b11d456ddd0df7c98d6bd62cd68f81b9502dedba0e98e5dec86957ed7",
+    "final_wells512_compact_2/trajectory.json.gz": "37acf9506c6bc85beee0375a0160060a038795aaa01699df7d0c0883a4085e15",
+    "final_wells512_compact_3/progress.json": "f50dbbc88c511cd14fe0bf4edefd3aef224f15779f13290a3af56881ae11c009",
+    "final_wells512_compact_3/protocol.json": "8b816024d42327864218b124138e5bd6c092b08d8a273950469e42e95b8fd311",
+    "final_wells512_compact_3/quadrature_policy.json": "1bde35286304bb40fa316ed9d8dfb6ef9ec83d8a8532a9a32eb55ffa454c6f92",
+    "final_wells512_compact_3/summary.json": "40b0f17bf82dbd8c738e75e35a41feb92a39f1c509cb3c7970a5f8d3a0f6fb6f",
+    "final_wells512_compact_3/trajectory.json.gz": "635fcf70ad93b05af7445611af242c44c94d6e6d6f2caf1667a1c9ee425a2d2a",
+    "final_wells512_dense_1/progress.json": "f50dbbc88c511cd14fe0bf4edefd3aef224f15779f13290a3af56881ae11c009",
+    "final_wells512_dense_1/protocol.json": "8b816024d42327864218b124138e5bd6c092b08d8a273950469e42e95b8fd311",
+    "final_wells512_dense_1/quadrature_policy.json": "4765a013471df09293d9ad60b8f62f1fe98d9b2c5d420906bcfd4f5dab8c2505",
+    "final_wells512_dense_1/summary.json": "4cb554f445378dbfc9e6b98deb0dbf5cc0c62cfa8e08638b10a115576c885a28",
+    "final_wells512_dense_1/trajectory.json.gz": "636bb3c2ef1dff86224aee43959ab4904a4a4c9f24789830d0c225932a710ef4",
+    "final_wells512_dense_2/progress.json": "f50dbbc88c511cd14fe0bf4edefd3aef224f15779f13290a3af56881ae11c009",
+    "final_wells512_dense_2/protocol.json": "8b816024d42327864218b124138e5bd6c092b08d8a273950469e42e95b8fd311",
+    "final_wells512_dense_2/quadrature_policy.json": "4765a013471df09293d9ad60b8f62f1fe98d9b2c5d420906bcfd4f5dab8c2505",
+    "final_wells512_dense_2/summary.json": "64dcb3f123cb51de05bb7085fc89cade0d72e0b2f9bcd03cefed40c2265a9341",
+    "final_wells512_dense_2/trajectory.json.gz": "7aeb38e07b5b8fe177766d2504d98aa5730c9cce853a67091a26b3b6c9586cfe",
+    "final_wells512_dense_3/progress.json": "f50dbbc88c511cd14fe0bf4edefd3aef224f15779f13290a3af56881ae11c009",
+    "final_wells512_dense_3/protocol.json": "8b816024d42327864218b124138e5bd6c092b08d8a273950469e42e95b8fd311",
+    "final_wells512_dense_3/quadrature_policy.json": "4765a013471df09293d9ad60b8f62f1fe98d9b2c5d420906bcfd4f5dab8c2505",
+    "final_wells512_dense_3/summary.json": "53bce472fccaed702e446a038559c92a45336bdb2b4a7e0e4afe15b49fc0f186",
+    "final_wells512_dense_3/trajectory.json.gz": "ad763e343292d8e52e7836a3411374785d83e8bb2278ffbac50b3d7301ce2c21",
+    "final_wells64_pvt65_compact_1/progress.json": "f50dbbc88c511cd14fe0bf4edefd3aef224f15779f13290a3af56881ae11c009",
+    "final_wells64_pvt65_compact_1/protocol.json": "e6f3f67106c737a3f2c60feb75eba72577830af4de9b522acb106284d7a724d0",
+    "final_wells64_pvt65_compact_1/quadrature_policy.json": "a9d913d7a4696fb3fb8b6c7b8aec705874fa609443f0fa8c000a62eb6bc9e084",
+    "final_wells64_pvt65_compact_1/summary.json": "d6be7b1d3a413f1b51aebaa7e5c573e9d8f3dcde049dac423b17c5e55027340a",
+    "final_wells64_pvt65_compact_1/trajectory.json.gz": "a5486a68803808f18aec5df8b41a1f3ee3eccb465623e5d3d8f1cfdbb882191e",
+    "final_wells64_pvt65_dense_1/progress.json": "f50dbbc88c511cd14fe0bf4edefd3aef224f15779f13290a3af56881ae11c009",
+    "final_wells64_pvt65_dense_1/protocol.json": "e6f3f67106c737a3f2c60feb75eba72577830af4de9b522acb106284d7a724d0",
+    "final_wells64_pvt65_dense_1/quadrature_policy.json": "98f6ee30a40d8266bcd87a8a4a16a90cd06efea26d9e993127296c7e8bba76df",
+    "final_wells64_pvt65_dense_1/summary.json": "ad134f0c239999459abaf9a5f7093a828431d92db94949f8783ee2aef0c3c796",
+    "final_wells64_pvt65_dense_1/trajectory.json.gz": "bd8671d7bf6f93dfaf773b5ce430c04d117a4c703badc3e4dd6f666cb1b83663",
+    "lint.txt": "82b3e6a6c090a57601d22943bd23fca9218d1031dbe5a7b754092f9a156b4f18",
+    "regression.txt": "8c881aa987dec0f304efe09b9840aca5a24bd2030cfa1e2459944ecb8e1327c0",
+    "regression_preliminary.txt": "587bcfbced05eb8e857374a5f7d5d4f1541792e34423ba139e6ab55d766c5863",
+    "wells2048_compact_1/progress.json": "f50dbbc88c511cd14fe0bf4edefd3aef224f15779f13290a3af56881ae11c009",
+    "wells2048_compact_1/protocol.json": "4eae583c069c87e427b132e9bf0012e2a4177c5729b29ae66cbe7e3d0c30e502",
+    "wells2048_compact_1/quadrature_policy.json": "a26c386a4ab5f1fd9b53fdcd5ae4dde44af6e5a4ebb1b6048004571c27b39026",
+    "wells2048_compact_1/summary.json": "ede04dbd77866bdbe6431a3488b63971b8c588359a8239712f77391eb00df66b",
+    "wells2048_compact_1/trajectory.json.gz": "0cf50f5f95875bf3014d0e9a15582136634d3d6c63923be5a6cb9db749a05285",
+    "wells2048_compact_2/progress.json": "f50dbbc88c511cd14fe0bf4edefd3aef224f15779f13290a3af56881ae11c009",
+    "wells2048_compact_2/protocol.json": "4eae583c069c87e427b132e9bf0012e2a4177c5729b29ae66cbe7e3d0c30e502",
+    "wells2048_compact_2/quadrature_policy.json": "a26c386a4ab5f1fd9b53fdcd5ae4dde44af6e5a4ebb1b6048004571c27b39026",
+    "wells2048_compact_2/summary.json": "383a804e57b02163aedc76a999bf0750350d7489eb213c45b8197c8cf587fdcf",
+    "wells2048_compact_2/trajectory.json.gz": "718a1216e6a8dd32488ea7de672e710100889ebb2ae733e4c13e17d138c24caa",
+    "wells2048_compact_3/progress.json": "f50dbbc88c511cd14fe0bf4edefd3aef224f15779f13290a3af56881ae11c009",
+    "wells2048_compact_3/protocol.json": "4eae583c069c87e427b132e9bf0012e2a4177c5729b29ae66cbe7e3d0c30e502",
+    "wells2048_compact_3/quadrature_policy.json": "a26c386a4ab5f1fd9b53fdcd5ae4dde44af6e5a4ebb1b6048004571c27b39026",
+    "wells2048_compact_3/summary.json": "757a4880f9926688dade5916c8cb42f1224d045f1c0a34f6d0875c50e310a3a3",
+    "wells2048_compact_3/trajectory.json.gz": "858a5dc631ed716e69220f1080b2db4c406d2ce91067187594f6ff6dd47c8286",
+    "wells2048_dense_1/progress.json": "f50dbbc88c511cd14fe0bf4edefd3aef224f15779f13290a3af56881ae11c009",
+    "wells2048_dense_1/protocol.json": "4eae583c069c87e427b132e9bf0012e2a4177c5729b29ae66cbe7e3d0c30e502",
+    "wells2048_dense_1/quadrature_policy.json": "bc82a22ba815a6b13c7bb9f06f6dcbf6809bd15124b9f8932576a046cdffa22e",
+    "wells2048_dense_1/summary.json": "496aed4cdba2898c8635a5d8568b195bc15cf8f5d8546fa6a052edb4c2711204",
+    "wells2048_dense_1/trajectory.json.gz": "954ff6e4c16981ecb0bdcb67dc62a79b00fd07706ada19a24e4458c766c816f6",
+    "wells2048_dense_2/progress.json": "f50dbbc88c511cd14fe0bf4edefd3aef224f15779f13290a3af56881ae11c009",
+    "wells2048_dense_2/protocol.json": "4eae583c069c87e427b132e9bf0012e2a4177c5729b29ae66cbe7e3d0c30e502",
+    "wells2048_dense_2/quadrature_policy.json": "bc82a22ba815a6b13c7bb9f06f6dcbf6809bd15124b9f8932576a046cdffa22e",
+    "wells2048_dense_2/summary.json": "d1551b4930a53ff63ae02a0059d8a9e8a7ce496e44b2321f1818445c30f0bad7",
+    "wells2048_dense_2/trajectory.json.gz": "a2834394365db4d513c8132ea3e9daa075a0828d3c18f374b2a83b6ac6c96514",
+    "wells2048_dense_3/progress.json": "f50dbbc88c511cd14fe0bf4edefd3aef224f15779f13290a3af56881ae11c009",
+    "wells2048_dense_3/protocol.json": "4eae583c069c87e427b132e9bf0012e2a4177c5729b29ae66cbe7e3d0c30e502",
+    "wells2048_dense_3/quadrature_policy.json": "bc82a22ba815a6b13c7bb9f06f6dcbf6809bd15124b9f8932576a046cdffa22e",
+    "wells2048_dense_3/summary.json": "635a02a4406e79c9fe229551e4501d0aba36dd822dbf208b9203b6f172104a36",
+    "wells2048_dense_3/trajectory.json.gz": "2f148b0dbacfa5dbbf339c6a7129d7e680493a6049d0e7e9405f2b0d17923e2b",
+    "wells512_compact_1/progress.json": "f50dbbc88c511cd14fe0bf4edefd3aef224f15779f13290a3af56881ae11c009",
+    "wells512_compact_1/protocol.json": "7f752f3c76319da45b319641e709586fa9448e2f04b2b3769f45adcae630c296",
+    "wells512_compact_1/quadrature_policy.json": "1bde35286304bb40fa316ed9d8dfb6ef9ec83d8a8532a9a32eb55ffa454c6f92",
+    "wells512_compact_1/summary.json": "5218c816931bf3b7efc1c62224068989331b6e41c3ec9397ee0c91bdb44e4133",
+    "wells512_compact_1/trajectory.json.gz": "7e59e16f3da385a20d06d5ff413fc92b2998e55e9d813260e0ba6f2bfe828035",
+    "wells512_compact_2/progress.json": "f50dbbc88c511cd14fe0bf4edefd3aef224f15779f13290a3af56881ae11c009",
+    "wells512_compact_2/protocol.json": "7f752f3c76319da45b319641e709586fa9448e2f04b2b3769f45adcae630c296",
+    "wells512_compact_2/quadrature_policy.json": "1bde35286304bb40fa316ed9d8dfb6ef9ec83d8a8532a9a32eb55ffa454c6f92",
+    "wells512_compact_2/summary.json": "56a47ac3df45e9335e425a2db6a197023cd4b76d71ba1cfe37796c1f59d06785",
+    "wells512_compact_2/trajectory.json.gz": "c228b86312d9255754a9a2c1b5c24b233825a8b2dc9d3d05f19591bfd223abbe",
+    "wells512_compact_3/progress.json": "f50dbbc88c511cd14fe0bf4edefd3aef224f15779f13290a3af56881ae11c009",
+    "wells512_compact_3/protocol.json": "7f752f3c76319da45b319641e709586fa9448e2f04b2b3769f45adcae630c296",
+    "wells512_compact_3/quadrature_policy.json": "1bde35286304bb40fa316ed9d8dfb6ef9ec83d8a8532a9a32eb55ffa454c6f92",
+    "wells512_compact_3/summary.json": "8057026288cbcbb566ae6b7b556e44807910141c707862a17fecc9ad2717fd4e",
+    "wells512_compact_3/trajectory.json.gz": "2a481641f9b4b39de3d0c3c8a91bb03e83ce4269a659c50163dc2bfb95712dac",
+    "wells512_dense_1/progress.json": "f50dbbc88c511cd14fe0bf4edefd3aef224f15779f13290a3af56881ae11c009",
+    "wells512_dense_1/protocol.json": "7f752f3c76319da45b319641e709586fa9448e2f04b2b3769f45adcae630c296",
+    "wells512_dense_1/quadrature_policy.json": "4765a013471df09293d9ad60b8f62f1fe98d9b2c5d420906bcfd4f5dab8c2505",
+    "wells512_dense_1/summary.json": "f9a4f856324c38f330d3621706c212e0f2fd03524bb89a96ab3b163977588fc3",
+    "wells512_dense_1/trajectory.json.gz": "7bd590a48bbf0a439aacaa7a981e5e51e7d68c802c482774677c991e233f78f2",
+    "wells512_dense_2/progress.json": "f50dbbc88c511cd14fe0bf4edefd3aef224f15779f13290a3af56881ae11c009",
+    "wells512_dense_2/protocol.json": "7f752f3c76319da45b319641e709586fa9448e2f04b2b3769f45adcae630c296",
+    "wells512_dense_2/quadrature_policy.json": "4765a013471df09293d9ad60b8f62f1fe98d9b2c5d420906bcfd4f5dab8c2505",
+    "wells512_dense_2/summary.json": "b752774b1624bab835beee96aa8a75bd712b9f2b6c9ef069f999e1140a1e67c7",
+    "wells512_dense_2/trajectory.json.gz": "61ac58ab7639df1fa7deb785cc3d0a7c166746e7b20153e6dc2dcafc452cb7c0",
+    "wells512_dense_3/progress.json": "f50dbbc88c511cd14fe0bf4edefd3aef224f15779f13290a3af56881ae11c009",
+    "wells512_dense_3/protocol.json": "7f752f3c76319da45b319641e709586fa9448e2f04b2b3769f45adcae630c296",
+    "wells512_dense_3/quadrature_policy.json": "4765a013471df09293d9ad60b8f62f1fe98d9b2c5d420906bcfd4f5dab8c2505",
+    "wells512_dense_3/summary.json": "385052f4d072c300732d42c3db819ce70c19c667138db7b4cfa60e19030a0e6d",
+    "wells512_dense_3/trajectory.json.gz": "dd274a62e789b7b43253c889ef2b0b08263ab9385743c7f49c428bf72125fd18",
+    "wells64_pvt65_compact_1/progress.json": "f50dbbc88c511cd14fe0bf4edefd3aef224f15779f13290a3af56881ae11c009",
+    "wells64_pvt65_compact_1/protocol.json": "3a210a86e8c7eb9f0fb146f015e3865d37c94c2aae22b625110d8f5f8aeda184",
+    "wells64_pvt65_compact_1/quadrature_policy.json": "a9d913d7a4696fb3fb8b6c7b8aec705874fa609443f0fa8c000a62eb6bc9e084",
+    "wells64_pvt65_compact_1/summary.json": "b9fa0d0e7d1afcef04e5b49a4acbf63477928fb9e7786fd62102e021e48dbf6c",
+    "wells64_pvt65_compact_1/trajectory.json.gz": "70b44fa687e531f3a245616de650059c5702752074ad72e5a5ccb49f097daa7b",
+    "wells64_pvt65_dense_1/progress.json": "f50dbbc88c511cd14fe0bf4edefd3aef224f15779f13290a3af56881ae11c009",
+    "wells64_pvt65_dense_1/protocol.json": "3a210a86e8c7eb9f0fb146f015e3865d37c94c2aae22b625110d8f5f8aeda184",
+    "wells64_pvt65_dense_1/quadrature_policy.json": "98f6ee30a40d8266bcd87a8a4a16a90cd06efea26d9e993127296c7e8bba76df",
+    "wells64_pvt65_dense_1/summary.json": "af21083089994e276fadca60a93a27817bf2b1173490c09dd8d04a928309f41f",
+    "wells64_pvt65_dense_1/trajectory.json.gz": "2615e0a728d50d40df46af10920036d7c98ab4d0f0c8a3dccf8e3409ffabebba"
+  }
+}

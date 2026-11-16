@@ -86,9 +86,16 @@ class ProductionValve:
 
 
 class BlackOilProductionNetwork:
-    def __init__(self, model, nodes, pipes, valves=()):
+    def __init__(
+        self, model, nodes, pipes, valves=(), *, hydraulic_backend="scalar", pipe_batch_size=128
+    ):
         if not isinstance(model, BlackOilMixture):
             raise TypeError("Expected BlackOilMixture")
+        if hydraulic_backend not in ("scalar", "torch_batch"):
+            raise ValueError("hydraulic_backend must be scalar or torch_batch")
+        if type(pipe_batch_size) is not int or not 1 <= pipe_batch_size <= 256:
+            raise ValueError("pipe_batch_size must be an integer in [1, 256]")
+        self.hydraulic_backend, self.pipe_batch_size = hydraulic_backend, pipe_batch_size
         self.model = model
         self.nodes = tuple(nodes)
         pipe_items, valve_items = tuple(pipes), tuple(valves)
@@ -191,6 +198,15 @@ class BlackOilProductionNetwork:
             }
         return {
             "model": "homogeneous_blackoil_tree",
+            **(
+                {
+                    "hydraulic_backend": getattr(self, "hydraulic_backend", "scalar"),
+                    "pipe_batch_size": getattr(self, "pipe_batch_size", 128),
+                }
+                if getattr(self, "hydraulic_backend", "scalar") != "scalar"
+                or getattr(self, "pipe_batch_size", 128) != 128
+                else {}
+            ),
             "pvt": data,
             "stock_densities": asdict(self.model.densities),
             "nodes": [asdict(n) for n in self.nodes],
@@ -200,7 +216,16 @@ class BlackOilProductionNetwork:
 
     @classmethod
     def from_dict(cls, spec):
-        allowed = {"model", "pvt", "stock_densities", "nodes", "pipes", "valves"}
+        allowed = {
+            "model",
+            "pvt",
+            "stock_densities",
+            "nodes",
+            "pipes",
+            "valves",
+            "hydraulic_backend",
+            "pipe_batch_size",
+        }
         if set(spec) - allowed or spec.get("model") != "homogeneous_blackoil_tree":
             raise ValueError("Expected homogeneous_blackoil_tree specification")
         model = BlackOilMixture(spec["pvt"], StockDensities(**spec["stock_densities"]))
@@ -209,6 +234,8 @@ class BlackOilProductionNetwork:
             [ProductionNode(**n) for n in spec["nodes"]],
             [ProductionPipe(**p) for p in spec["pipes"]],
             [ProductionValve(**v) for v in spec.get("valves", [])],
+            hydraulic_backend=spec.get("hydraulic_backend", "scalar"),
+            pipe_batch_size=spec.get("pipe_batch_size", 128),
         )
 
     def with_controls(self, valve_openings=None):
@@ -236,7 +263,16 @@ class BlackOilProductionNetwork:
                 for p in self.edges
                 if isinstance(p, ProductionValve)
             ],
+            hydraulic_backend=getattr(self, "hydraulic_backend", "scalar"),
+            pipe_batch_size=getattr(self, "pipe_batch_size", 128),
         )
+
+    def _pressure_levels(self):
+        levels, current = [], [self.root]
+        while current:
+            levels.append(current)
+            current = [child for node in current for child in self.incoming[node]]
+        return levels[1:]
 
     def solve(self, sources, *, sensitivity_mode="dense"):
         if sensitivity_mode not in ("dense", "operator"):
@@ -274,38 +310,64 @@ class BlackOilProductionNetwork:
         valve_index = {name: i for i, name in enumerate(valve_names)}
         control_jac = {self.root: np.zeros(len(valve_names))} if dense else {}
         local_tangent = {}
-        for node in reversed(self.order):
-            if node == self.root:
-                continue
-            pipe = self.outgoing[node]
-            result = self.models[pipe.name].required_inlet(
-                pressure[pipe.end], masses[node], self.model
-            )
-            pressure[node] = result["inlet_pressure_pa"]
-            d = result["pressure_derivatives"]
-            local = np.array([d[c] for c in ("oil_kg_s", "water_kg_s", "gas_kg_s")])
-            if dense:
-                jac[node] = (
-                    d["boundary_pressure_pa"] * jac[pipe.end]
-                    + members[node][:, None] * local[None, :]
+        for level in self._pressure_levels():
+            prepared = {}
+            if getattr(self, "hydraulic_backend", "scalar") == "torch_batch":
+                from .blackoil_pipe_batch import get_pressure_grid, required_inlets
+
+                eligible = [
+                    n for n in level if isinstance(self.models[self.outgoing[n].name], BlackOilPipe)
+                ]
+                # Bound quadrature tensors as well as the number of pipes.
+                points = (get_pressure_grid(self.model).maximum_fixed_knots + 2) * 256
+                chunk = min(getattr(self, "pipe_batch_size", 128), max(1, 2_000_000 // points))
+                for start in range(0, len(eligible), chunk):
+                    selected = eligible[start : start + chunk]
+                    # Small uniform tables retain the cheap scalar singleton.
+                    # Rich PVTO can benefit from a stream-local trunk grid too.
+                    if len(selected) < 2 and get_pressure_grid(
+                        self.model
+                    ).maximum_fixed_knots >= len(self.model._fixed_values):
+                        continue
+                    rows = required_inlets(
+                        [self.models[self.outgoing[n].name] for n in selected],
+                        [pressure[self.outgoing[n].end] for n in selected],
+                        [masses[n] for n in selected],
+                        self.model,
+                    )
+                    prepared.update(zip(selected, rows))
+            for node in level:
+                pipe = self.outgoing[node]
+                result = prepared.get(node)
+                if result is None:
+                    result = self.models[pipe.name].required_inlet(
+                        pressure[pipe.end], masses[node], self.model
+                    )
+                pressure[node] = result["inlet_pressure_pa"]
+                d = result["pressure_derivatives"]
+                local = np.array([d[c] for c in ("oil_kg_s", "water_kg_s", "gas_kg_s")])
+                if dense:
+                    jac[node] = (
+                        d["boundary_pressure_pa"] * jac[pipe.end]
+                        + members[node][:, None] * local[None, :]
+                    )
+                outlet_derivative[node] = d["boundary_pressure_pa"] * outlet_derivative[pipe.end]
+                opening_coefficient = (
+                    d["loss_coefficient"] * -2 * pipe.loss_coefficient / pipe.valve_opening**3
+                    if pipe.name in valve_index
+                    else 0.0
                 )
-            outlet_derivative[node] = d["boundary_pressure_pa"] * outlet_derivative[pipe.end]
-            opening_coefficient = (
-                d["loss_coefficient"] * -2 * pipe.loss_coefficient / pipe.valve_opening**3
-                if pipe.name in valve_index
-                else 0.0
-            )
-            if not dense:
-                local_tangent[node] = (
-                    d["boundary_pressure_pa"],
-                    local.tolist(),
-                    opening_coefficient,
-                )
-            if dense:
-                control_jac[node] = d["boundary_pressure_pa"] * control_jac[pipe.end]
-                if pipe.name in valve_index:
-                    control_jac[node][valve_index[pipe.name]] += opening_coefficient
-            results[pipe.name] = result
+                if not dense:
+                    local_tangent[node] = (
+                        d["boundary_pressure_pa"],
+                        local.tolist(),
+                        opening_coefficient,
+                    )
+                if dense:
+                    control_jac[node] = d["boundary_pressure_pa"] * control_jac[pipe.end]
+                    if pipe.name in valve_index:
+                        control_jac[node][valve_index[pipe.name]] += opening_coefficient
+                results[pipe.name] = result
         residuals = {}
         for node in self.order:
             own = sources.get(node, ComponentStream()).mass_rates(self.model.densities)
@@ -323,6 +385,16 @@ class BlackOilProductionNetwork:
         return {
             "model": "homogeneous_blackoil_tree",
             "receiving_node": self.root,
+            "hydraulic_execution": {
+                "backend": getattr(self, "hydraulic_backend", "scalar"),
+                "torch_batch_pipes": sum(
+                    r.get("hydraulic_backend") == "torch_batch" for r in results.values()
+                ),
+                "scalar_retry_pipes": sum(
+                    r.get("hydraulic_backend") == "scalar_retry" for r in results.values()
+                ),
+                "scalar_pipes": sum("hydraulic_backend" not in r for r in results.values()),
+            },
             "node_pressures_pa": pressure,
             "pipes": {p.name: results[p.name] for p in self.pipes},
             "valves": {v.name: results[v.name] for v in self.valves},

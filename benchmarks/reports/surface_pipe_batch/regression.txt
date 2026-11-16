@@ -1,0 +1,20 @@
+...................................................s.................... [ 37%]
+.................................................s...............ss..... [ 75%]
+........................s..................ssss                          [100%]
+=============================== warnings summary ===============================
+tests/test_facility_time_control.py::test_production_rate_rejection_restores_material_and_report
+  /home/user/workspace/oil-simulator-py-impes/src/simulator/blackoil_fim.py:1109: UserWarning: index_reduce() is in beta and the API may change at any time. (Triggered internally at /pytorch/aten/src/ATen/native/TensorAdvancedIndexing.cpp:1531.)
+    self.p_cell_max = zeros.clone().index_reduce_(0, cw, v[I_P][c], "amax", include_self=False)
+
+tests/test_facility_time_control.py::test_production_rate_rejection_restores_material_and_report
+  /home/user/workspace/oil-simulator-py-impes/src/simulator/cpr_gpu.py:75: UserWarning: Sparse CSR tensor support is in beta state. If you miss a functionality in the sparse tensor support, please submit a feature request to https://github.com/pytorch/pytorch/issues. (Triggered internally at /pytorch/aten/src/ATen/SparseCsrTensorImpl.cpp:53.)
+    A_p = torch.sparse_csr_tensor(crow, col, data_p, size=(n_cells, n_cells))
+
+tests/test_fim_coupled_time_control.py::test_accepted_coupled_error_prevents_growth_rejection_and_tail_bridging[iteration]
+tests/test_fim_coupled_time_control.py::test_accepted_coupled_error_prevents_growth_rejection_and_tail_bridging[opm]
+tests/test_fim_coupled_time_control.py::test_disabled_prediction_keeps_accuracy_checks_and_reports_wasted_attempts
+  /home/user/workspace/oil-simulator-py-impes/src/simulator/reservoir.py:61: UserWarning: std(): degrees of freedom is <= 0. Correction should be strictly less than the reduction factor (input numel divided by output numel). (Triggered internally at /pytorch/aten/src/ATen/native/ReduceOps.cpp:1839.)
+    print(f"  Пористость: mean={float(self.porosity.mean()):.3f}, std={float(self.porosity.std()):.3f}")
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+182 passed, 9 skipped, 5 warnings in 66.42s (0:01:06)

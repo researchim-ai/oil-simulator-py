@@ -1,0 +1,13 @@
+{
+  "scope": "Same full FIM and pressure grid, dense versus compact quadrature points.\n\nDense retains every interval's Gauss nodes. Compact retains degenerate-span\nfirst/second AD contributions via midpoint samples; error budgets are unchanged.\n",
+  "policy": "dense",
+  "planning_calls": 384,
+  "quadrature_calls": 768,
+  "evaluated_property_points": 11796480,
+  "maximum_points_per_property_pass": 20480,
+  "source_sha256": {
+    "/home/user/workspace/oil-simulator-py-impes/scripts/run_compact_quadrature_forecast.py": "8baac86d4b44cf1fd6c605ec3e0ad66ba23243b66406d3848a718b54df0d56f4",
+    "/home/user/workspace/oil-simulator-py-impes/scripts/dense_quadrature_reference.py": "8269fae071fb4b5a34c0efb8103bce38fac5d92d486c63fbf535e72d10f65fe6"
+  },
+  "sources_unchanged": true
+}

@@ -1,0 +1,310 @@
+[
+  {
+    "wells": 512,
+    "label": "wells512",
+    "repeat": 1,
+    "dense_s": 2.3859581450014957,
+    "compact_s": 1.673391920998256,
+    "errors": {
+      "final_pressure_pa": 0.0,
+      "final_s_w": 0.0,
+      "final_s_g": 0.0,
+      "final_rs": 0.0,
+      "withdrawn_component_mass_kg": 0.0
+    },
+    "budgets": {
+      "final_pressure_pa": 0.1,
+      "final_s_w": 1e-08,
+      "final_s_g": 1e-08,
+      "final_rs": 1e-05,
+      "withdrawn_component_mass_kg": 0.01
+    },
+    "point_evaluations": [
+      2949120,
+      712704
+    ],
+    "max_points_per_property_pass": [
+      20480,
+      4736
+    ],
+    "accepted_step_execution": [
+      {
+        "backend": "torch_batch",
+        "torch_batch_pipes": 512,
+        "scalar_retry_pipes": 0,
+        "scalar_pipes": 1
+      },
+      {
+        "backend": "torch_batch",
+        "torch_batch_pipes": 512,
+        "scalar_retry_pipes": 0,
+        "scalar_pipes": 1
+      }
+    ],
+    "accepted": true
+  },
+  {
+    "wells": 512,
+    "label": "wells512",
+    "repeat": 2,
+    "dense_s": 2.371445981996658,
+    "compact_s": 1.7193992080028693,
+    "errors": {
+      "final_pressure_pa": 0.0,
+      "final_s_w": 0.0,
+      "final_s_g": 0.0,
+      "final_rs": 0.0,
+      "withdrawn_component_mass_kg": 0.0
+    },
+    "budgets": {
+      "final_pressure_pa": 0.1,
+      "final_s_w": 1e-08,
+      "final_s_g": 1e-08,
+      "final_rs": 1e-05,
+      "withdrawn_component_mass_kg": 0.01
+    },
+    "point_evaluations": [
+      2949120,
+      712704
+    ],
+    "max_points_per_property_pass": [
+      20480,
+      4736
+    ],
+    "accepted_step_execution": [
+      {
+        "backend": "torch_batch",
+        "torch_batch_pipes": 512,
+        "scalar_retry_pipes": 0,
+        "scalar_pipes": 1
+      },
+      {
+        "backend": "torch_batch",
+        "torch_batch_pipes": 512,
+        "scalar_retry_pipes": 0,
+        "scalar_pipes": 1
+      }
+    ],
+    "accepted": true
+  },
+  {
+    "wells": 512,
+    "label": "wells512",
+    "repeat": 3,
+    "dense_s": 2.3241403530009848,
+    "compact_s": 1.5975849119968188,
+    "errors": {
+      "final_pressure_pa": 0.0,
+      "final_s_w": 0.0,
+      "final_s_g": 0.0,
+      "final_rs": 0.0,
+      "withdrawn_component_mass_kg": 0.0
+    },
+    "budgets": {
+      "final_pressure_pa": 0.1,
+      "final_s_w": 1e-08,
+      "final_s_g": 1e-08,
+      "final_rs": 1e-05,
+      "withdrawn_component_mass_kg": 0.01
+    },
+    "point_evaluations": [
+      2949120,
+      712704
+    ],
+    "max_points_per_property_pass": [
+      20480,
+      4736
+    ],
+    "accepted_step_execution": [
+      {
+        "backend": "torch_batch",
+        "torch_batch_pipes": 512,
+        "scalar_retry_pipes": 0,
+        "scalar_pipes": 1
+      },
+      {
+        "backend": "torch_batch",
+        "torch_batch_pipes": 512,
+        "scalar_retry_pipes": 0,
+        "scalar_pipes": 1
+      }
+    ],
+    "accepted": true
+  },
+  {
+    "wells": 2048,
+    "label": "wells2048",
+    "repeat": 1,
+    "dense_s": 7.856387469000765,
+    "compact_s": 4.808995149000111,
+    "errors": {
+      "final_pressure_pa": 0.0,
+      "final_s_w": 0.0,
+      "final_s_g": 0.0,
+      "final_rs": 0.0,
+      "withdrawn_component_mass_kg": 0.0
+    },
+    "budgets": {
+      "final_pressure_pa": 0.1,
+      "final_s_w": 1e-08,
+      "final_s_g": 1e-08,
+      "final_rs": 1e-05,
+      "withdrawn_component_mass_kg": 0.01
+    },
+    "point_evaluations": [
+      11796480,
+      2850816
+    ],
+    "max_points_per_property_pass": [
+      20480,
+      4736
+    ],
+    "accepted_step_execution": [
+      {
+        "backend": "torch_batch",
+        "torch_batch_pipes": 2048,
+        "scalar_retry_pipes": 0,
+        "scalar_pipes": 1
+      },
+      {
+        "backend": "torch_batch",
+        "torch_batch_pipes": 2048,
+        "scalar_retry_pipes": 0,
+        "scalar_pipes": 1
+      }
+    ],
+    "accepted": true
+  },
+  {
+    "wells": 2048,
+    "label": "wells2048",
+    "repeat": 2,
+    "dense_s": 7.967685332001565,
+    "compact_s": 4.7128960879999795,
+    "errors": {
+      "final_pressure_pa": 0.0,
+      "final_s_w": 0.0,
+      "final_s_g": 0.0,
+      "final_rs": 0.0,
+      "withdrawn_component_mass_kg": 0.0
+    },
+    "budgets": {
+      "final_pressure_pa": 0.1,
+      "final_s_w": 1e-08,
+      "final_s_g": 1e-08,
+      "final_rs": 1e-05,
+      "withdrawn_component_mass_kg": 0.01
+    },
+    "point_evaluations": [
+      11796480,
+      2850816
+    ],
+    "max_points_per_property_pass": [
+      20480,
+      4736
+    ],
+    "accepted_step_execution": [
+      {
+        "backend": "torch_batch",
+        "torch_batch_pipes": 2048,
+        "scalar_retry_pipes": 0,
+        "scalar_pipes": 1
+      },
+      {
+        "backend": "torch_batch",
+        "torch_batch_pipes": 2048,
+        "scalar_retry_pipes": 0,
+        "scalar_pipes": 1
+      }
+    ],
+    "accepted": true
+  },
+  {
+    "wells": 2048,
+    "label": "wells2048",
+    "repeat": 3,
+    "dense_s": 7.818981033997261,
+    "compact_s": 5.227649511998607,
+    "errors": {
+      "final_pressure_pa": 0.0,
+      "final_s_w": 0.0,
+      "final_s_g": 0.0,
+      "final_rs": 0.0,
+      "withdrawn_component_mass_kg": 0.0
+    },
+    "budgets": {
+      "final_pressure_pa": 0.1,
+      "final_s_w": 1e-08,
+      "final_s_g": 1e-08,
+      "final_rs": 1e-05,
+      "withdrawn_component_mass_kg": 0.01
+    },
+    "point_evaluations": [
+      11796480,
+      2850816
+    ],
+    "max_points_per_property_pass": [
+      20480,
+      4736
+    ],
+    "accepted_step_execution": [
+      {
+        "backend": "torch_batch",
+        "torch_batch_pipes": 2048,
+        "scalar_retry_pipes": 0,
+        "scalar_pipes": 1
+      },
+      {
+        "backend": "torch_batch",
+        "torch_batch_pipes": 2048,
+        "scalar_retry_pipes": 0,
+        "scalar_pipes": 1
+      }
+    ],
+    "accepted": true
+  },
+  {
+    "wells": 64,
+    "label": "wells64_pvt65",
+    "repeat": 1,
+    "dense_s": 1.021780643000966,
+    "compact_s": 0.9050301460010814,
+    "errors": {
+      "final_pressure_pa": 0.0,
+      "final_s_w": 0.0,
+      "final_s_g": 0.0,
+      "final_rs": 0.0,
+      "withdrawn_component_mass_kg": 0.0
+    },
+    "budgets": {
+      "final_pressure_pa": 0.1,
+      "final_s_w": 1e-08,
+      "final_s_g": 1e-08,
+      "final_rs": 1e-05,
+      "withdrawn_component_mass_kg": 0.01
+    },
+    "point_evaluations": [
+      524160,
+      96720
+    ],
+    "max_points_per_property_pass": [
+      14336,
+      2496
+    ],
+    "accepted_step_execution": [
+      {
+        "backend": "torch_batch",
+        "torch_batch_pipes": 65,
+        "scalar_retry_pipes": 0,
+        "scalar_pipes": 0
+      },
+      {
+        "backend": "torch_batch",
+        "torch_batch_pipes": 65,
+        "scalar_retry_pipes": 0,
+        "scalar_pipes": 0
+      }
+    ],
+    "accepted": true
+  }
+]

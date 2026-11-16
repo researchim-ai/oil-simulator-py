@@ -1,0 +1,519 @@
+{
+  "scope": "CPU-only same-physics complete FIM and synthetic ragged PVTO lookup qualification. Current calculation source guards and exact endpoint comparisons; pre-lint wrapper archived byte-for-byte.",
+  "runs": {
+    "ragged64_cpu": {
+      "current_calculation_sources_match": true
+    },
+    "wells2048_all_tables_1": {
+      "current_calculation_sources_match": true,
+      "audit": {
+        "accepted": true,
+        "wells": 2048,
+        "accepted_steps": 1,
+        "elapsed_days": 1.0,
+        "mode_samples": {
+          "surface": 2048
+        },
+        "component_mass_residual_kg": [
+          1.4886260032653809e-05,
+          -5.640089511871338e-06,
+          -5.32250851392746e-07
+        ],
+        "mass_atol_kg": 0.01,
+        "mass_rtol": 1e-08,
+        "well_block_backend": "tree_structured",
+        "scope": "Accepted producer-only FIM -> gathering material/operating audit.\n\nNo solver invocation or rescaling of requested production. This is accounting\nand constraint checking, not independent PVT/correlation validation.\n"
+      },
+      "lookup_policy": "all_tables",
+      "wrapper_provenance": {
+        "/home/user/workspace/oil-simulator-py-impes/scripts/run_pvto_selection_forecast.py": "benchmarks/reports/surface_pvto_selection/run_pvto_selection_before_lint.txt",
+        "/home/user/workspace/oil-simulator-py-impes/scripts/pvto_reference.py": "current file"
+      }
+    },
+    "wells2048_all_tables_final": {
+      "current_calculation_sources_match": true,
+      "audit": {
+        "accepted": true,
+        "wells": 2048,
+        "accepted_steps": 1,
+        "elapsed_days": 1.0,
+        "mode_samples": {
+          "surface": 2048
+        },
+        "component_mass_residual_kg": [
+          1.4886260032653809e-05,
+          -5.640089511871338e-06,
+          -5.32250851392746e-07
+        ],
+        "mass_atol_kg": 0.01,
+        "mass_rtol": 1e-08,
+        "well_block_backend": "tree_structured",
+        "scope": "Accepted producer-only FIM -> gathering material/operating audit.\n\nNo solver invocation or rescaling of requested production. This is accounting\nand constraint checking, not independent PVT/correlation validation.\n"
+      },
+      "lookup_policy": "all_tables",
+      "wrapper_provenance": {
+        "/home/user/workspace/oil-simulator-py-impes/scripts/run_pvto_selection_forecast.py": "current file",
+        "/home/user/workspace/oil-simulator-py-impes/scripts/pvto_reference.py": "current file"
+      }
+    },
+    "wells2048_selected_1": {
+      "current_calculation_sources_match": true,
+      "audit": {
+        "accepted": true,
+        "wells": 2048,
+        "accepted_steps": 1,
+        "elapsed_days": 1.0,
+        "mode_samples": {
+          "surface": 2048
+        },
+        "component_mass_residual_kg": [
+          1.4886260032653809e-05,
+          -5.640089511871338e-06,
+          -5.32250851392746e-07
+        ],
+        "mass_atol_kg": 0.01,
+        "mass_rtol": 1e-08,
+        "well_block_backend": "tree_structured",
+        "scope": "Accepted producer-only FIM -> gathering material/operating audit.\n\nNo solver invocation or rescaling of requested production. This is accounting\nand constraint checking, not independent PVT/correlation validation.\n"
+      },
+      "lookup_policy": "selected",
+      "wrapper_provenance": {
+        "/home/user/workspace/oil-simulator-py-impes/scripts/run_pvto_selection_forecast.py": "benchmarks/reports/surface_pvto_selection/run_pvto_selection_before_lint.txt",
+        "/home/user/workspace/oil-simulator-py-impes/scripts/pvto_reference.py": "current file"
+      }
+    },
+    "wells2048_selected_final": {
+      "current_calculation_sources_match": true,
+      "audit": {
+        "accepted": true,
+        "wells": 2048,
+        "accepted_steps": 1,
+        "elapsed_days": 1.0,
+        "mode_samples": {
+          "surface": 2048
+        },
+        "component_mass_residual_kg": [
+          1.4886260032653809e-05,
+          -5.640089511871338e-06,
+          -5.32250851392746e-07
+        ],
+        "mass_atol_kg": 0.01,
+        "mass_rtol": 1e-08,
+        "well_block_backend": "tree_structured",
+        "scope": "Accepted producer-only FIM -> gathering material/operating audit.\n\nNo solver invocation or rescaling of requested production. This is accounting\nand constraint checking, not independent PVT/correlation validation.\n"
+      },
+      "lookup_policy": "selected",
+      "wrapper_provenance": {
+        "/home/user/workspace/oil-simulator-py-impes/scripts/run_pvto_selection_forecast.py": "current file",
+        "/home/user/workspace/oil-simulator-py-impes/scripts/pvto_reference.py": "current file"
+      }
+    },
+    "wells512_all_tables_1": {
+      "current_calculation_sources_match": true,
+      "audit": {
+        "accepted": true,
+        "wells": 512,
+        "accepted_steps": 1,
+        "elapsed_days": 1.0,
+        "mode_samples": {
+          "surface": 512
+        },
+        "component_mass_residual_kg": [
+          -2.2953376173973083e-05,
+          2.6085413992404938e-05,
+          -3.527523949742317e-05
+        ],
+        "mass_atol_kg": 0.01,
+        "mass_rtol": 1e-08,
+        "well_block_backend": "tree_structured",
+        "scope": "Accepted producer-only FIM -> gathering material/operating audit.\n\nNo solver invocation or rescaling of requested production. This is accounting\nand constraint checking, not independent PVT/correlation validation.\n"
+      },
+      "lookup_policy": "all_tables",
+      "wrapper_provenance": {
+        "/home/user/workspace/oil-simulator-py-impes/scripts/run_pvto_selection_forecast.py": "benchmarks/reports/surface_pvto_selection/run_pvto_selection_before_lint.txt",
+        "/home/user/workspace/oil-simulator-py-impes/scripts/pvto_reference.py": "current file"
+      }
+    },
+    "wells512_all_tables_2": {
+      "current_calculation_sources_match": true,
+      "audit": {
+        "accepted": true,
+        "wells": 512,
+        "accepted_steps": 1,
+        "elapsed_days": 1.0,
+        "mode_samples": {
+          "surface": 512
+        },
+        "component_mass_residual_kg": [
+          -2.2953376173973083e-05,
+          2.6085413992404938e-05,
+          -3.527523949742317e-05
+        ],
+        "mass_atol_kg": 0.01,
+        "mass_rtol": 1e-08,
+        "well_block_backend": "tree_structured",
+        "scope": "Accepted producer-only FIM -> gathering material/operating audit.\n\nNo solver invocation or rescaling of requested production. This is accounting\nand constraint checking, not independent PVT/correlation validation.\n"
+      },
+      "lookup_policy": "all_tables",
+      "wrapper_provenance": {
+        "/home/user/workspace/oil-simulator-py-impes/scripts/run_pvto_selection_forecast.py": "benchmarks/reports/surface_pvto_selection/run_pvto_selection_before_lint.txt",
+        "/home/user/workspace/oil-simulator-py-impes/scripts/pvto_reference.py": "current file"
+      }
+    },
+    "wells512_all_tables_3": {
+      "current_calculation_sources_match": true,
+      "audit": {
+        "accepted": true,
+        "wells": 512,
+        "accepted_steps": 1,
+        "elapsed_days": 1.0,
+        "mode_samples": {
+          "surface": 512
+        },
+        "component_mass_residual_kg": [
+          -2.2953376173973083e-05,
+          2.6085413992404938e-05,
+          -3.527523949742317e-05
+        ],
+        "mass_atol_kg": 0.01,
+        "mass_rtol": 1e-08,
+        "well_block_backend": "tree_structured",
+        "scope": "Accepted producer-only FIM -> gathering material/operating audit.\n\nNo solver invocation or rescaling of requested production. This is accounting\nand constraint checking, not independent PVT/correlation validation.\n"
+      },
+      "lookup_policy": "all_tables",
+      "wrapper_provenance": {
+        "/home/user/workspace/oil-simulator-py-impes/scripts/run_pvto_selection_forecast.py": "benchmarks/reports/surface_pvto_selection/run_pvto_selection_before_lint.txt",
+        "/home/user/workspace/oil-simulator-py-impes/scripts/pvto_reference.py": "current file"
+      }
+    },
+    "wells512_all_tables_final": {
+      "current_calculation_sources_match": true,
+      "audit": {
+        "accepted": true,
+        "wells": 512,
+        "accepted_steps": 1,
+        "elapsed_days": 1.0,
+        "mode_samples": {
+          "surface": 512
+        },
+        "component_mass_residual_kg": [
+          -2.2953376173973083e-05,
+          2.6085413992404938e-05,
+          -3.527523949742317e-05
+        ],
+        "mass_atol_kg": 0.01,
+        "mass_rtol": 1e-08,
+        "well_block_backend": "tree_structured",
+        "scope": "Accepted producer-only FIM -> gathering material/operating audit.\n\nNo solver invocation or rescaling of requested production. This is accounting\nand constraint checking, not independent PVT/correlation validation.\n"
+      },
+      "lookup_policy": "all_tables",
+      "wrapper_provenance": {
+        "/home/user/workspace/oil-simulator-py-impes/scripts/run_pvto_selection_forecast.py": "current file",
+        "/home/user/workspace/oil-simulator-py-impes/scripts/pvto_reference.py": "current file"
+      }
+    },
+    "wells512_selected_1": {
+      "current_calculation_sources_match": true,
+      "audit": {
+        "accepted": true,
+        "wells": 512,
+        "accepted_steps": 1,
+        "elapsed_days": 1.0,
+        "mode_samples": {
+          "surface": 512
+        },
+        "component_mass_residual_kg": [
+          -2.2953376173973083e-05,
+          2.6085413992404938e-05,
+          -3.527523949742317e-05
+        ],
+        "mass_atol_kg": 0.01,
+        "mass_rtol": 1e-08,
+        "well_block_backend": "tree_structured",
+        "scope": "Accepted producer-only FIM -> gathering material/operating audit.\n\nNo solver invocation or rescaling of requested production. This is accounting\nand constraint checking, not independent PVT/correlation validation.\n"
+      },
+      "lookup_policy": "selected",
+      "wrapper_provenance": {
+        "/home/user/workspace/oil-simulator-py-impes/scripts/run_pvto_selection_forecast.py": "benchmarks/reports/surface_pvto_selection/run_pvto_selection_before_lint.txt",
+        "/home/user/workspace/oil-simulator-py-impes/scripts/pvto_reference.py": "current file"
+      }
+    },
+    "wells512_selected_2": {
+      "current_calculation_sources_match": true,
+      "audit": {
+        "accepted": true,
+        "wells": 512,
+        "accepted_steps": 1,
+        "elapsed_days": 1.0,
+        "mode_samples": {
+          "surface": 512
+        },
+        "component_mass_residual_kg": [
+          -2.2953376173973083e-05,
+          2.6085413992404938e-05,
+          -3.527523949742317e-05
+        ],
+        "mass_atol_kg": 0.01,
+        "mass_rtol": 1e-08,
+        "well_block_backend": "tree_structured",
+        "scope": "Accepted producer-only FIM -> gathering material/operating audit.\n\nNo solver invocation or rescaling of requested production. This is accounting\nand constraint checking, not independent PVT/correlation validation.\n"
+      },
+      "lookup_policy": "selected",
+      "wrapper_provenance": {
+        "/home/user/workspace/oil-simulator-py-impes/scripts/run_pvto_selection_forecast.py": "benchmarks/reports/surface_pvto_selection/run_pvto_selection_before_lint.txt",
+        "/home/user/workspace/oil-simulator-py-impes/scripts/pvto_reference.py": "current file"
+      }
+    },
+    "wells512_selected_3": {
+      "current_calculation_sources_match": true,
+      "audit": {
+        "accepted": true,
+        "wells": 512,
+        "accepted_steps": 1,
+        "elapsed_days": 1.0,
+        "mode_samples": {
+          "surface": 512
+        },
+        "component_mass_residual_kg": [
+          -2.2953376173973083e-05,
+          2.6085413992404938e-05,
+          -3.527523949742317e-05
+        ],
+        "mass_atol_kg": 0.01,
+        "mass_rtol": 1e-08,
+        "well_block_backend": "tree_structured",
+        "scope": "Accepted producer-only FIM -> gathering material/operating audit.\n\nNo solver invocation or rescaling of requested production. This is accounting\nand constraint checking, not independent PVT/correlation validation.\n"
+      },
+      "lookup_policy": "selected",
+      "wrapper_provenance": {
+        "/home/user/workspace/oil-simulator-py-impes/scripts/run_pvto_selection_forecast.py": "benchmarks/reports/surface_pvto_selection/run_pvto_selection_before_lint.txt",
+        "/home/user/workspace/oil-simulator-py-impes/scripts/pvto_reference.py": "current file"
+      }
+    },
+    "wells512_selected_final": {
+      "current_calculation_sources_match": true,
+      "audit": {
+        "accepted": true,
+        "wells": 512,
+        "accepted_steps": 1,
+        "elapsed_days": 1.0,
+        "mode_samples": {
+          "surface": 512
+        },
+        "component_mass_residual_kg": [
+          -2.2953376173973083e-05,
+          2.6085413992404938e-05,
+          -3.527523949742317e-05
+        ],
+        "mass_atol_kg": 0.01,
+        "mass_rtol": 1e-08,
+        "well_block_backend": "tree_structured",
+        "scope": "Accepted producer-only FIM -> gathering material/operating audit.\n\nNo solver invocation or rescaling of requested production. This is accounting\nand constraint checking, not independent PVT/correlation validation.\n"
+      },
+      "lookup_policy": "selected",
+      "wrapper_provenance": {
+        "/home/user/workspace/oil-simulator-py-impes/scripts/run_pvto_selection_forecast.py": "current file",
+        "/home/user/workspace/oil-simulator-py-impes/scripts/pvto_reference.py": "current file"
+      }
+    }
+  },
+  "comparisons": [
+    {
+      "wells": 512,
+      "suffix": "1",
+      "all_tables_s": 2.5052149149996694,
+      "selected_s": 2.333476215997507,
+      "absolute_final_differences": {
+        "final_pressure_pa": 0.0,
+        "final_s_w": 0.0,
+        "final_s_g": 0.0,
+        "final_rs": 0.0,
+        "withdrawn_component_mass_kg": 0.0
+      },
+      "accepted_step_execution": {
+        "backend": "torch_batch",
+        "torch_batch_pipes": 512,
+        "scalar_retry_pipes": 0,
+        "scalar_pipes": 1
+      },
+      "accepted": true
+    },
+    {
+      "wells": 512,
+      "suffix": "2",
+      "all_tables_s": 2.560737114999938,
+      "selected_s": 2.34986936399946,
+      "absolute_final_differences": {
+        "final_pressure_pa": 0.0,
+        "final_s_w": 0.0,
+        "final_s_g": 0.0,
+        "final_rs": 0.0,
+        "withdrawn_component_mass_kg": 0.0
+      },
+      "accepted_step_execution": {
+        "backend": "torch_batch",
+        "torch_batch_pipes": 512,
+        "scalar_retry_pipes": 0,
+        "scalar_pipes": 1
+      },
+      "accepted": true
+    },
+    {
+      "wells": 512,
+      "suffix": "3",
+      "all_tables_s": 2.4897552310030733,
+      "selected_s": 2.205442108999705,
+      "absolute_final_differences": {
+        "final_pressure_pa": 0.0,
+        "final_s_w": 0.0,
+        "final_s_g": 0.0,
+        "final_rs": 0.0,
+        "withdrawn_component_mass_kg": 0.0
+      },
+      "accepted_step_execution": {
+        "backend": "torch_batch",
+        "torch_batch_pipes": 512,
+        "scalar_retry_pipes": 0,
+        "scalar_pipes": 1
+      },
+      "accepted": true
+    },
+    {
+      "wells": 512,
+      "suffix": "final",
+      "all_tables_s": 2.556191954001406,
+      "selected_s": 2.3806215500007966,
+      "absolute_final_differences": {
+        "final_pressure_pa": 0.0,
+        "final_s_w": 0.0,
+        "final_s_g": 0.0,
+        "final_rs": 0.0,
+        "withdrawn_component_mass_kg": 0.0
+      },
+      "accepted_step_execution": {
+        "backend": "torch_batch",
+        "torch_batch_pipes": 512,
+        "scalar_retry_pipes": 0,
+        "scalar_pipes": 1
+      },
+      "accepted": true
+    },
+    {
+      "wells": 2048,
+      "suffix": "1",
+      "all_tables_s": 8.476358219999383,
+      "selected_s": 7.771302803001163,
+      "absolute_final_differences": {
+        "final_pressure_pa": 0.0,
+        "final_s_w": 0.0,
+        "final_s_g": 0.0,
+        "final_rs": 0.0,
+        "withdrawn_component_mass_kg": 0.0
+      },
+      "accepted_step_execution": {
+        "backend": "torch_batch",
+        "torch_batch_pipes": 2048,
+        "scalar_retry_pipes": 0,
+        "scalar_pipes": 1
+      },
+      "accepted": true
+    },
+    {
+      "wells": 2048,
+      "suffix": "final",
+      "all_tables_s": 8.510720769001637,
+      "selected_s": 7.709781347999524,
+      "absolute_final_differences": {
+        "final_pressure_pa": 0.0,
+        "final_s_w": 0.0,
+        "final_s_g": 0.0,
+        "final_rs": 0.0,
+        "withdrawn_component_mass_kg": 0.0
+      },
+      "accepted_step_execution": {
+        "backend": "torch_batch",
+        "torch_batch_pipes": 2048,
+        "scalar_retry_pipes": 0,
+        "scalar_pipes": 1
+      },
+      "accepted": true
+    }
+  ],
+  "protected_source_sha256": {
+    "src/simulator/blackoil_fim.py": "658fde0e6119df6ae154c3c400ff24b8d2a519dfa9a33e612aeaa6bd51a16c3c",
+    "src/surface/torch_linear.py": "b7bda1aae66d9e979c147f821efba9990d6460d60b32a05c6fc5f9b873b752d5"
+  },
+  "regression": {
+    "passed": 207,
+    "skipped": 11
+  },
+  "cuda_qualified": false,
+  "evidence_sha256": {
+    "comparison_summary.json": "d16f515951abe9081bc6b17be79058102c81d0d87d043a1824d150c9cc10d524",
+    "lint.txt": "82b3e6a6c090a57601d22943bd23fca9218d1031dbe5a7b754092f9a156b4f18",
+    "ragged64_cpu/protocol.json": "f7e041a1135f4a72c409552bee514f263b4fd70fc2e59b7b3040d81f0bdc30b2",
+    "ragged64_cpu/summary.json": "b513a5bbfd3ed3801ab0bc43b4a45645e8dd706415cfe731937116fc894192e2",
+    "regression.txt": "b87ccb719d69e4aa637a52428aaa1d3d8382573d2d426234326b0d2e7cb0b490",
+    "run_pvto_selection_before_lint.txt": "9f0bc960ac83457778d698a161dfcd69dd109f7da5d8a2daeff4f3fac4babc11",
+    "wells2048_all_tables_1/lookup_policy.json": "a7b44b1f7972328cad5177c9236c4addb2f2a5d01be4aa09e78122077fbdcf13",
+    "wells2048_all_tables_1/progress.json": "f50dbbc88c511cd14fe0bf4edefd3aef224f15779f13290a3af56881ae11c009",
+    "wells2048_all_tables_1/protocol.json": "94ebaddb3fbd7ce07799b4bcbede7d156cab54b451ded7086c06ee093716d24c",
+    "wells2048_all_tables_1/summary.json": "14905d5542fe7b004ad1d17cd7aad915ec4f8b8bfdb36e1496f9ce590a969b26",
+    "wells2048_all_tables_1/trajectory.json.gz": "1b8ed9547820973af5419a920bea3d18c3a3ad8d372f1477a1da274dc60f34a8",
+    "wells2048_all_tables_final/lookup_policy.json": "0dacf850e94d045d5ff04858714a034ae62dfb6714a18fcf02a1a3805924e6e0",
+    "wells2048_all_tables_final/progress.json": "f50dbbc88c511cd14fe0bf4edefd3aef224f15779f13290a3af56881ae11c009",
+    "wells2048_all_tables_final/protocol.json": "94ebaddb3fbd7ce07799b4bcbede7d156cab54b451ded7086c06ee093716d24c",
+    "wells2048_all_tables_final/summary.json": "45052c7b7447256595e3cecef5928f7291eca55f3ebc2516c60718f278323808",
+    "wells2048_all_tables_final/trajectory.json.gz": "1ce2d1b61c2784e4964883e13e493f7efa75518ba14ea8310afa849858e76546",
+    "wells2048_selected_1/lookup_policy.json": "a2ceb6a3ce2a3c11238c0b707adc978589d2eecacec3e22f8bc9f15dd7d8bf9c",
+    "wells2048_selected_1/progress.json": "f50dbbc88c511cd14fe0bf4edefd3aef224f15779f13290a3af56881ae11c009",
+    "wells2048_selected_1/protocol.json": "94ebaddb3fbd7ce07799b4bcbede7d156cab54b451ded7086c06ee093716d24c",
+    "wells2048_selected_1/summary.json": "c739af1318785e05d9c6486ee8f127d0bbbcdb4ccb4ee16768d63fa8080e9634",
+    "wells2048_selected_1/trajectory.json.gz": "693eb0e8082a17a9656c6777f99b98863f2a1abcfc52391ce826668ab99f65c1",
+    "wells2048_selected_final/lookup_policy.json": "a95f4ee8102fc043056d6aede3fab75e30f69bbc4019bc5a6f19477d1ddd9ba9",
+    "wells2048_selected_final/progress.json": "f50dbbc88c511cd14fe0bf4edefd3aef224f15779f13290a3af56881ae11c009",
+    "wells2048_selected_final/protocol.json": "94ebaddb3fbd7ce07799b4bcbede7d156cab54b451ded7086c06ee093716d24c",
+    "wells2048_selected_final/summary.json": "830acf9a3e6803d13c1e5d083376c869f8b5bc6c28ec16a8741bfbaf5747159c",
+    "wells2048_selected_final/trajectory.json.gz": "b64441794f80ff64ab7124eeb6887b12fe8630911395722768e9b1252b166d42",
+    "wells512_all_tables_1/lookup_policy.json": "9dcac922ca67143e317f4b08a3cde0be7e3c1cc78f7b6a5fea833f07e943f046",
+    "wells512_all_tables_1/progress.json": "f50dbbc88c511cd14fe0bf4edefd3aef224f15779f13290a3af56881ae11c009",
+    "wells512_all_tables_1/protocol.json": "b2571229d95cea603dde63f3e8d115e579b859821fbe92a361d331fe22052d30",
+    "wells512_all_tables_1/summary.json": "08f527fc1bbae5c6195280e157cd4f928f3090b52f2203585358a2458f4a4d25",
+    "wells512_all_tables_1/trajectory.json.gz": "671e9d10ff1282bb7f719b643a553c38d57f66ffd739676a9aa6ad9c8120b100",
+    "wells512_all_tables_2/lookup_policy.json": "9dcac922ca67143e317f4b08a3cde0be7e3c1cc78f7b6a5fea833f07e943f046",
+    "wells512_all_tables_2/progress.json": "f50dbbc88c511cd14fe0bf4edefd3aef224f15779f13290a3af56881ae11c009",
+    "wells512_all_tables_2/protocol.json": "b2571229d95cea603dde63f3e8d115e579b859821fbe92a361d331fe22052d30",
+    "wells512_all_tables_2/summary.json": "b14acb410575f3b8ed6c6c4ce828e798e7fdd6688b872ec6ed63583f3f234c3e",
+    "wells512_all_tables_2/trajectory.json.gz": "1d3aede7b0627af0539cf55664b0d4c09086d36a2dbfe3b3046f8dd772247eae",
+    "wells512_all_tables_3/lookup_policy.json": "9dcac922ca67143e317f4b08a3cde0be7e3c1cc78f7b6a5fea833f07e943f046",
+    "wells512_all_tables_3/progress.json": "f50dbbc88c511cd14fe0bf4edefd3aef224f15779f13290a3af56881ae11c009",
+    "wells512_all_tables_3/protocol.json": "b2571229d95cea603dde63f3e8d115e579b859821fbe92a361d331fe22052d30",
+    "wells512_all_tables_3/summary.json": "819a2ab6e4ab0b487c6db197a42048f67da07429b8193797859eb777751eb4db",
+    "wells512_all_tables_3/trajectory.json.gz": "a7959eb34248e87fd18f2412ea52e8b9d8db4efa40fccd584b910cb5249965ab",
+    "wells512_all_tables_final/lookup_policy.json": "650bfe12c356462cc3f5116983abfdf8d3f26f3651e93436cd6d33d15d2a413f",
+    "wells512_all_tables_final/progress.json": "f50dbbc88c511cd14fe0bf4edefd3aef224f15779f13290a3af56881ae11c009",
+    "wells512_all_tables_final/protocol.json": "b2571229d95cea603dde63f3e8d115e579b859821fbe92a361d331fe22052d30",
+    "wells512_all_tables_final/summary.json": "a00752fd3c818b35cb6745ea2b72236735232258439ef3cc2a16372583d31987",
+    "wells512_all_tables_final/trajectory.json.gz": "40d3bd5a93ef4386802982f780c625c81f33fe27eb1610c51f262e21c204185a",
+    "wells512_selected_1/lookup_policy.json": "6afd4424e53bfd27de0b208991a4288ea2cd311bb79a4926c29bd22947f42091",
+    "wells512_selected_1/progress.json": "f50dbbc88c511cd14fe0bf4edefd3aef224f15779f13290a3af56881ae11c009",
+    "wells512_selected_1/protocol.json": "b2571229d95cea603dde63f3e8d115e579b859821fbe92a361d331fe22052d30",
+    "wells512_selected_1/summary.json": "7a6c62867af301d960c7294022a3eb77830df4ae83a5d577fac3b66c7722a256",
+    "wells512_selected_1/trajectory.json.gz": "96995e7030e944c2774822abd70d1e849dfc2e400cb17ea3641ae613238e796d",
+    "wells512_selected_2/lookup_policy.json": "6afd4424e53bfd27de0b208991a4288ea2cd311bb79a4926c29bd22947f42091",
+    "wells512_selected_2/progress.json": "f50dbbc88c511cd14fe0bf4edefd3aef224f15779f13290a3af56881ae11c009",
+    "wells512_selected_2/protocol.json": "b2571229d95cea603dde63f3e8d115e579b859821fbe92a361d331fe22052d30",
+    "wells512_selected_2/summary.json": "94773d1928265a8c44dd8c523c3edfb597a47a1469cc34b4f34f1b3c1f98c05a",
+    "wells512_selected_2/trajectory.json.gz": "2688f1d19bb9e848affa70c40383725f29d29378e5c911aef03cb20ca2081b40",
+    "wells512_selected_3/lookup_policy.json": "6afd4424e53bfd27de0b208991a4288ea2cd311bb79a4926c29bd22947f42091",
+    "wells512_selected_3/progress.json": "f50dbbc88c511cd14fe0bf4edefd3aef224f15779f13290a3af56881ae11c009",
+    "wells512_selected_3/protocol.json": "b2571229d95cea603dde63f3e8d115e579b859821fbe92a361d331fe22052d30",
+    "wells512_selected_3/summary.json": "f813c5f361c0dc803fd6f36bda7b50516451d049a7228b32cd52d160f3be3991",
+    "wells512_selected_3/trajectory.json.gz": "eba0e5fcd799b9a33d1640ef09840ee8abc2366c1c62627b90bed3ecf81ed7d8",
+    "wells512_selected_final/lookup_policy.json": "355efa05c456d7337540bf22badb6695d512f14e942906b3945a6555f467f8ce",
+    "wells512_selected_final/progress.json": "f50dbbc88c511cd14fe0bf4edefd3aef224f15779f13290a3af56881ae11c009",
+    "wells512_selected_final/protocol.json": "b2571229d95cea603dde63f3e8d115e579b859821fbe92a361d331fe22052d30",
+    "wells512_selected_final/summary.json": "bb3e883503c9ecb9d1b581b8edf122ad31e5dad6bbb25cea395691c0cc0b840a",
+    "wells512_selected_final/trajectory.json.gz": "d44c217157aa559aabc2f16b5755c5b6e7a0154fa7bda895fdd2553b52764380"
+  }
+}

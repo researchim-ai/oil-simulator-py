@@ -1,0 +1,12 @@
+........                                                                 [100%]
+=============================== warnings summary ===============================
+tests/test_pipe_batch_forecast_audit.py::test_real_batch_forecast_matches_scalar_and_passes_audits
+  /home/user/workspace/oil-simulator-py-impes/src/simulator/blackoil_fim.py:1109: UserWarning: index_reduce() is in beta and the API may change at any time. (Triggered internally at /pytorch/aten/src/ATen/native/TensorAdvancedIndexing.cpp:1531.)
+    self.p_cell_max = zeros.clone().index_reduce_(0, cw, v[I_P][c], "amax", include_self=False)
+
+tests/test_pipe_batch_forecast_audit.py::test_real_batch_forecast_matches_scalar_and_passes_audits
+  /home/user/workspace/oil-simulator-py-impes/src/simulator/cpr_gpu.py:75: UserWarning: Sparse CSR tensor support is in beta state. If you miss a functionality in the sparse tensor support, please submit a feature request to https://github.com/pytorch/pytorch/issues. (Triggered internally at /pytorch/aten/src/ATen/SparseCsrTensorImpl.cpp:53.)
+    A_p = torch.sparse_csr_tensor(crow, col, data_p, size=(n_cells, n_cells))
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+8 passed, 2 warnings in 2.21s

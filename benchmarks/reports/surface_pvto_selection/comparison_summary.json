@@ -1,0 +1,122 @@
+[
+  {
+    "wells": 512,
+    "suffix": "1",
+    "all_tables_s": 2.5052149149996694,
+    "selected_s": 2.333476215997507,
+    "absolute_final_differences": {
+      "final_pressure_pa": 0.0,
+      "final_s_w": 0.0,
+      "final_s_g": 0.0,
+      "final_rs": 0.0,
+      "withdrawn_component_mass_kg": 0.0
+    },
+    "accepted_step_execution": {
+      "backend": "torch_batch",
+      "torch_batch_pipes": 512,
+      "scalar_retry_pipes": 0,
+      "scalar_pipes": 1
+    },
+    "accepted": true
+  },
+  {
+    "wells": 512,
+    "suffix": "2",
+    "all_tables_s": 2.560737114999938,
+    "selected_s": 2.34986936399946,
+    "absolute_final_differences": {
+      "final_pressure_pa": 0.0,
+      "final_s_w": 0.0,
+      "final_s_g": 0.0,
+      "final_rs": 0.0,
+      "withdrawn_component_mass_kg": 0.0
+    },
+    "accepted_step_execution": {
+      "backend": "torch_batch",
+      "torch_batch_pipes": 512,
+      "scalar_retry_pipes": 0,
+      "scalar_pipes": 1
+    },
+    "accepted": true
+  },
+  {
+    "wells": 512,
+    "suffix": "3",
+    "all_tables_s": 2.4897552310030733,
+    "selected_s": 2.205442108999705,
+    "absolute_final_differences": {
+      "final_pressure_pa": 0.0,
+      "final_s_w": 0.0,
+      "final_s_g": 0.0,
+      "final_rs": 0.0,
+      "withdrawn_component_mass_kg": 0.0
+    },
+    "accepted_step_execution": {
+      "backend": "torch_batch",
+      "torch_batch_pipes": 512,
+      "scalar_retry_pipes": 0,
+      "scalar_pipes": 1
+    },
+    "accepted": true
+  },
+  {
+    "wells": 512,
+    "suffix": "final",
+    "all_tables_s": 2.556191954001406,
+    "selected_s": 2.3806215500007966,
+    "absolute_final_differences": {
+      "final_pressure_pa": 0.0,
+      "final_s_w": 0.0,
+      "final_s_g": 0.0,
+      "final_rs": 0.0,
+      "withdrawn_component_mass_kg": 0.0
+    },
+    "accepted_step_execution": {
+      "backend": "torch_batch",
+      "torch_batch_pipes": 512,
+      "scalar_retry_pipes": 0,
+      "scalar_pipes": 1
+    },
+    "accepted": true
+  },
+  {
+    "wells": 2048,
+    "suffix": "1",
+    "all_tables_s": 8.476358219999383,
+    "selected_s": 7.771302803001163,
+    "absolute_final_differences": {
+      "final_pressure_pa": 0.0,
+      "final_s_w": 0.0,
+      "final_s_g": 0.0,
+      "final_rs": 0.0,
+      "withdrawn_component_mass_kg": 0.0
+    },
+    "accepted_step_execution": {
+      "backend": "torch_batch",
+      "torch_batch_pipes": 2048,
+      "scalar_retry_pipes": 0,
+      "scalar_pipes": 1
+    },
+    "accepted": true
+  },
+  {
+    "wells": 2048,
+    "suffix": "final",
+    "all_tables_s": 8.510720769001637,
+    "selected_s": 7.709781347999524,
+    "absolute_final_differences": {
+      "final_pressure_pa": 0.0,
+      "final_s_w": 0.0,
+      "final_s_g": 0.0,
+      "final_rs": 0.0,
+      "withdrawn_component_mass_kg": 0.0
+    },
+    "accepted_step_execution": {
+      "backend": "torch_batch",
+      "torch_batch_pipes": 2048,
+      "scalar_retry_pipes": 0,
+      "scalar_pipes": 1
+    },
+    "accepted": true
+  }
+]

@@ -1,0 +1,8 @@
+{
+  "scope": "Like-for-like FIM benchmark of scalar versus batched PVT admission only.\n\nBoth modes run the current torch_batch pipe solver. 'legacy' restores just the\nprevious per-stream admission in this process, never a different pipe model.\nThe ordinary forecast driver supplies accounting and source guards; this\nwrapper additionally records its own source, selected policy and unchanged hash.\n",
+  "admission_policy": "legacy",
+  "wrapper_source": "/home/user/workspace/oil-simulator-py-impes/scripts/run_pipe_admission_forecast.py",
+  "wrapper_sha256": "2cca35e6175a5ec9ae87d17ff212969ffe3422bcd17585e6497d1062fe6e7608",
+  "wrapper_unchanged": true,
+  "admission_calls": 16
+}

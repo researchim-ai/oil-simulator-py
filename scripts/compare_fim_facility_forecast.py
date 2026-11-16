@@ -47,6 +47,13 @@ def compare(coarse_path, fine_path, budgets, *, allow_numerical_policy=False):
             memory = network.pop("structured_memory_budget_bytes", 256 * 1024**2)
             if type(memory) is not int or memory <= 0:
                 raise ValueError("Invalid structured memory budget")
+            hydraulics = network["network"]
+            backend = hydraulics.pop("hydraulic_backend", "scalar")
+            if backend not in ("scalar", "torch_batch"):
+                raise ValueError("Unknown pipe hydraulic backend")
+            size = hydraulics.pop("pipe_batch_size", 128)
+            if type(size) is not int or not 1 <= size <= 256:
+                raise ValueError("Invalid pipe batch size")
         return c
 
     if (
@@ -83,6 +90,8 @@ def compare(coarse_path, fine_path, budgets, *, allow_numerical_policy=False):
             "physical_surface_network.sensitivity_backend",
             "physical_surface_network.well_block_backend",
             "physical_surface_network.structured_memory_budget_bytes",
+            "physical_surface_network.network.hydraulic_backend",
+            "physical_surface_network.network.pipe_batch_size",
         ]
         if allow_numerical_policy
         else [],

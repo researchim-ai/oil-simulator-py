@@ -1,0 +1,17 @@
+{
+  "scope": "Synthetic ragged PVTO lookup timing; not a pipe or reservoir simulation.\n\nExact scalar interpolation ordering, two-column mixture and first derivatives.\nReports an actually allocated all-table matrix, not process peak/RSS savings.\n",
+  "source_sha256": {
+    "/home/user/workspace/oil-simulator-py-impes/src/surface/blackoil_pvto_batch.py": "1edf25ddabda669f187b0026fa605fbb15bfe26396444d057a9d3224fdf27843",
+    "/home/user/workspace/oil-simulator-py-impes/src/surface/blackoil_properties.py": "27f551c706cfe3aa79ee8da56e4f044ad5b8e4dcf99582637d728e010276f5e9",
+    "/home/user/workspace/oil-simulator-py-impes/scripts/benchmark_pvto_selection.py": "8d99d5f0a64c3512bb82f38f4b9d7fdbbb0833ce811eb41051ba5264a11a2e77",
+    "/home/user/workspace/oil-simulator-py-impes/scripts/pvto_reference.py": "c227dcc6f09d91294b4f318c6403c870c571e10eef564d5ff384f4d3b83401ce"
+  },
+  "seed": 73,
+  "device": "cpu",
+  "threads": 1,
+  "streams": 64,
+  "query_points_per_stream": 256,
+  "tables": 64,
+  "repeats": 5,
+  "synthetic_table_recipe": "axis linspace(1e5,5e6,3+i%5); Bo=1+i*.003+p*1e-9; mu=4-p*1e-8+i*.01"
+}

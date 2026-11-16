@@ -164,6 +164,13 @@ python scripts/run_surface_gathering.py configs/surface_gathering_facility.json 
 `feed_nodes` связывает каждый поток площадки с узлом дерева.
 Ручное управление ветвью регулятора отклоняется.
 
+Дополнительно для black-oil дерева: `hydraulic_backend` — `scalar`
+(по умолчанию) или `torch_batch`; `pipe_batch_size` — целое 1–256
+(по умолчанию 128). Это независимая пакетная гидравлика труб одного
+уровня с прежними физическими ограничениями и явным скалярным повтором
+при отказе пакета. Настройки входят в сам `network`, сохраняются при
+`with_controls` и сериализации. [Алгоритм и ограничения](BATCHED_BLACKOIL_HYDRAULICS.md).
+
 ## Расписание площадки
 
 Файл содержит `periods` и необязательный `capacity_control`.
