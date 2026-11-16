@@ -80,7 +80,7 @@ class Simulator:
             except ImportError:
                 from surface import SurfaceFacility
             spec = sim_params['coupled_facility']
-            if set(spec) - {'facility', 'control', 'energy_process', 'energy_controls'}:
+            if set(spec) - {'facility', 'control', 'energy_process', 'energy_controls', 'time_control'}:
                 raise ValueError('Unknown coupled_facility fields')
             energy_process = None
             if spec.get('energy_process') is not None:
@@ -89,7 +89,8 @@ class Simulator:
                     spec['energy_process'], device=self.device)
             self.facility_coupling = FacilityCoupledFIM(
                 self.fim_solver, SurfaceFacility.from_dict(spec['facility']), spec.get('control'),
-                energy_process=energy_process, energy_controls=spec.get('energy_controls'))
+                energy_process=energy_process, energy_controls=spec.get('energy_controls'),
+                time_control=spec.get('time_control'))
 
         # Инициализация проводимостей для IMPES схемы
         if self.solver_type == 'impes':
@@ -305,6 +306,10 @@ class Simulator:
                 proposed = limited
             return min(max(proposed, dt_min), dt_max)
 
+        initial_stepper = getattr(self, "facility_coupling", None) or self.fim_solver
+        initial_limiter = getattr(initial_stepper, "limit_initial_time_step_s", None)
+        if coupled_time_control and callable(initial_limiter):
+            h = limit_proposal(h, initial_limiter, False)
         cuts = 0
         restarted = False
         while self.current_time < t_end:

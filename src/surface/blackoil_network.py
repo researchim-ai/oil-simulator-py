@@ -238,7 +238,10 @@ class BlackOilProductionNetwork:
             ],
         )
 
-    def solve(self, sources):
+    def solve(self, sources, *, sensitivity_mode="dense"):
+        if sensitivity_mode not in ("dense", "operator"):
+            raise ValueError("sensitivity_mode must be dense or operator")
+        dense = sensitivity_mode == "dense"
         if not isinstance(sources, dict) or set(sources) - set(self.by_name):
             raise ValueError("Sources must map known production nodes to ComponentStreams")
         if not all(isinstance(s, ComponentStream) for s in sources.values()):
@@ -255,19 +258,22 @@ class BlackOilProductionNetwork:
                     for i, c in enumerate(("oil", "water", "gas"))
                 ]
             )
-            members[node] = np.array([float(n == node) for n in source_names])
-            for child in self.incoming[node]:
-                members[node] += members[child]
+            if dense:
+                members[node] = np.array([float(n == node) for n in source_names])
+                for child in self.incoming[node]:
+                    members[node] += members[child]
             if node != self.root and masses[node].sum() == 0:
                 raise PropertyModelError(
                     f"Zero-flow branch at {node}: static phase holdup is not defined"
                 )
         pressure = {self.root: self.by_name[self.root].pressure_pa}
-        jac = {self.root: np.zeros((count, 3))}
+        jac = {self.root: np.zeros((count, 3))} if dense else {}
         outlet_derivative = {self.root: 1.0}
         results = {}
         valve_names = tuple(p.name for p in self.edges if p.loss_coefficient > 0)
-        control_jac = {self.root: np.zeros(len(valve_names))}
+        valve_index = {name: i for i, name in enumerate(valve_names)}
+        control_jac = {self.root: np.zeros(len(valve_names))} if dense else {}
+        local_tangent = {}
         for node in reversed(self.order):
             if node == self.root:
                 continue
@@ -278,15 +284,27 @@ class BlackOilProductionNetwork:
             pressure[node] = result["inlet_pressure_pa"]
             d = result["pressure_derivatives"]
             local = np.array([d[c] for c in ("oil_kg_s", "water_kg_s", "gas_kg_s")])
-            jac[node] = (
-                d["boundary_pressure_pa"] * jac[pipe.end] + members[node][:, None] * local[None, :]
-            )
-            outlet_derivative[node] = d["boundary_pressure_pa"] * outlet_derivative[pipe.end]
-            control_jac[node] = d["boundary_pressure_pa"] * control_jac[pipe.end]
-            if pipe.name in valve_names:
-                control_jac[node][valve_names.index(pipe.name)] += (
-                    d["loss_coefficient"] * -2 * pipe.loss_coefficient / pipe.valve_opening**3
+            if dense:
+                jac[node] = (
+                    d["boundary_pressure_pa"] * jac[pipe.end]
+                    + members[node][:, None] * local[None, :]
                 )
+            outlet_derivative[node] = d["boundary_pressure_pa"] * outlet_derivative[pipe.end]
+            opening_coefficient = (
+                d["loss_coefficient"] * -2 * pipe.loss_coefficient / pipe.valve_opening**3
+                if pipe.name in valve_index
+                else 0.0
+            )
+            if not dense:
+                local_tangent[node] = (
+                    d["boundary_pressure_pa"],
+                    local.tolist(),
+                    opening_coefficient,
+                )
+            if dense:
+                control_jac[node] = d["boundary_pressure_pa"] * control_jac[pipe.end]
+                if pipe.name in valve_index:
+                    control_jac[node][valve_index[pipe.name]] += opening_coefficient
             results[pipe.name] = result
         residuals = {}
         for node in self.order:
@@ -317,22 +335,54 @@ class BlackOilProductionNetwork:
                 "gas_m3_s": total.gas_m3_s,
             },
             "node_component_mass_residuals_kg_s": residuals,
-            "pressure_derivatives_per_kg_s": {
-                n: {
-                    source: dict(zip(("oil", "water", "gas"), row.tolist()))
-                    for source, row in zip(source_names, jac[n])
+            **(
+                {
+                    "pressure_derivatives_per_kg_s": {
+                        n: {
+                            source: dict(zip(("oil", "water", "gas"), row.tolist()))
+                            for source, row in zip(source_names, jac[n])
+                        }
+                        for n in self.order
+                    }
                 }
-                for n in self.order
-            },
+                if dense
+                else {
+                    "pressure_linearization": {
+                        "model": "blackoil_tree_pressure_tangent_v1",
+                        "node_names": list(self.order),
+                        "parent_names": [
+                            self.outgoing[n].end if n != self.root else None for n in self.order
+                        ],
+                        "source_names": list(source_names),
+                        "pressure_coefficients": [
+                            local_tangent[n][0] if n != self.root else 0.0 for n in self.order
+                        ],
+                        "mass_coefficients": [
+                            local_tangent[n][1] if n != self.root else [0.0] * 3 for n in self.order
+                        ],
+                        "valve_names": list(valve_names),
+                        "valve_nodes": [p.start for p in self.edges if p.name in valve_index],
+                        "valve_coefficients": [
+                            local_tangent[p.start][2] for p in self.edges if p.name in valve_index
+                        ],
+                    }
+                }
+            ),
             "pressure_derivatives_receiving_pressure": outlet_derivative,
             "operating_controls": {
                 "valve_openings": {
                     p.name: p.valve_opening for p in self.edges if p.loss_coefficient > 0
                 }
             },
-            "pressure_derivatives_valve_opening": {
-                n: dict(zip(valve_names, control_jac[n].tolist())) for n in self.order
-            },
+            **(
+                {
+                    "pressure_derivatives_valve_opening": {
+                        n: dict(zip(valve_names, control_jac[n].tolist())) for n in self.order
+                    }
+                }
+                if dense
+                else {}
+            ),
             "friction_dissipation_w": math.fsum(
                 r["friction_dissipation_w"] for r in results.values()
             ),

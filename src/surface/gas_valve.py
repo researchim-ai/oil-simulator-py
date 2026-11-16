@@ -11,6 +11,22 @@ from dataclasses import asdict, dataclass
 from .liquid import EquipmentOperatingError, HydraulicConvergenceError, _name, _number
 
 
+class GasValveCapacityError(EquipmentOperatingError):
+    """A declared capacity residual, available without accepting excess flow."""
+
+    def __init__(self, name, capacity, requested):
+        self.name = name
+        self.capacity_kg_s = capacity
+        self.requested_kg_s = requested
+        self.normalized_margin = requested / capacity - 1 if capacity > 0 else None
+        super().__init__(
+            f"{name}: gas valve capacity {capacity:.9g} kg/s below requested {requested:.9g} kg/s"
+        )
+
+    def __reduce__(self):
+        return type(self), (self.name, self.capacity_kg_s, self.requested_kg_s)
+
+
 def ideal_gas_nozzle_flow(
     pressure_pa,
     temperature_k,
@@ -152,9 +168,7 @@ class GasExportValve:
         full = unit["mass_rate_kg_s"]
         capacity = full * self.max_opening
         if capacity <= 0 or inlet.mass_rate_kg_s > capacity:
-            raise EquipmentOperatingError(
-                f"{self.name}: gas valve capacity {capacity:.9g} kg/s below requested {inlet.mass_rate_kg_s:.9g} kg/s"
-            )
+            raise GasValveCapacityError(self.name, capacity, inlet.mass_rate_kg_s)
         opening = inlet.mass_rate_kg_s / full
         flow = ideal_gas_nozzle_flow(
             inlet.pressure_pa,

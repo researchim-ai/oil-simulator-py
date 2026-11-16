@@ -42,6 +42,7 @@ def audit(
     ):
         raise ValueError("Requested operating schedule was not completed")
     previous_event = -1.0
+    previous_rates, previous_controls = None, None
     for event in events:
         if not previous_event < event["time_days"] < report["elapsed_days"]:
             raise ValueError("Invalid forecast event order")
@@ -63,6 +64,8 @@ def audit(
         if step["facility_controls"] != controls:
             raise ValueError("Wrong controls on accepted reservoir interval")
         coupling = step["facility_coupling"]
+        if "operator_controls" in coupling and coupling["operator_controls"] != controls:
+            raise ValueError("Coupling reports the wrong operator controls")
         plant = coupling["facility"]
         if (
             not plant["feasible"]
@@ -73,6 +76,30 @@ def audit(
         close(coupling["dt_s"], dt, atol=1e-7)
         if not 0 < coupling["fraction"] <= 1:
             raise ValueError("Invalid rate-cap fraction")
+        if "capacity_bracket" in coupling:
+            bracket = coupling["capacity_bracket"]
+            if coupling["fraction"] == 1:
+                if bracket is not None:
+                    raise ValueError("Requested rate has an unexpected capacity bracket")
+            else:
+                if bracket is None:
+                    raise ValueError("Limited rate requires a solved capacity bracket")
+                low, high = bracket["feasible_fraction"], bracket["infeasible_fraction"]
+                tolerance = (config["simulation"]["coupled_facility"].get("control") or {}).get(
+                    "fraction_tolerance", 1e-4
+                )
+                close(low, coupling["fraction"], atol=0, rtol=0)
+                close(bracket["width"], high - low, atol=1e-15)
+                close(bracket["fraction_tolerance"], tolerance, atol=0, rtol=0)
+                if not 0 < low < high <= 1 or high - low > tolerance:
+                    raise ValueError("Unresolved rate-cap bracket")
+                if not any(t["fraction"] == high and not t["feasible"] for t in coupling["trace"]):
+                    raise ValueError("Upper capacity bracket was not solved")
+                if (
+                    not coupling["trace"][-1]["feasible"]
+                    or coupling["trace"][-1]["fraction"] != low
+                ):
+                    raise ValueError("Selected capacity was not replayed")
         for applied, well in zip(
             coupling["applied_rate_caps_m3_day"], config["wells"], strict=True
         ):
@@ -89,6 +116,31 @@ def audit(
                 raise ValueError("Configured equipment constraint violated")
         evaluations += coupling["evaluations"]
         wells = list(step["surface"]["wells"].values())
+        current_rates = [
+            math.fsum(w["component_mass_rates_kg_s"][i] for w in wells) for i in range(3)
+        ]
+        policy = config["simulation"]["coupled_facility"].get("time_control")
+        if policy is not None:
+            saved_indicator = coupling["rate_time_control"]["indicator"]
+            if previous_rates is None or previous_controls != controls:
+                if saved_indicator is not None or dt > policy.get(
+                    "startup_step_days", 1.0
+                ) * 86400 * (1 + 1e-12):
+                    raise ValueError("Invalid startup/event rate-control interval")
+            else:
+                indicator = max(
+                    0.5
+                    * abs(x - y)
+                    / (
+                        policy.get("rate_absolute_tolerance_kg_s", 1e-8)
+                        + policy.get("rate_relative_tolerance", 0.01) * max(abs(x), abs(y))
+                    )
+                    for x, y in zip(previous_rates, current_rates, strict=True)
+                )
+                close(indicator, saved_indicator, atol=1e-10)
+                if indicator > 1:
+                    raise ValueError("Unresolved accepted rate-change indicator")
+        previous_rates, previous_controls = current_rates, controls
         for i, component in enumerate(COMPONENTS):
             well_rate = math.fsum(w["component_mass_rates_kg_s"][i] for w in wells)
             feed_rate = plant["feed"][component + "_m3_s"] * rho[i]

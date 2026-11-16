@@ -1,0 +1,24 @@
+{
+  "accepted": true,
+  "errors": {
+    "final_pressure_pa": 57.579822291620076,
+    "final_s_w": 5.136451016796162e-06,
+    "final_s_g": 1.8551795631704948e-05,
+    "final_rs": 0.0008636973343669752,
+    "withdrawal_relative": 0.001619070623795719
+  },
+  "budgets": {
+    "final_pressure_pa": 1000.0,
+    "final_s_w": 0.001,
+    "final_s_g": 0.001,
+    "final_rs": 0.01,
+    "withdrawal_relative": 0.01
+  },
+  "coarse": "benchmarks/reports/surface_capacity_search/adaptive_final_cpu/trajectory.json.gz",
+  "fine": "benchmarks/reports/surface_operational_forecast/month_daily_coverage_cpu/trajectory.json.gz",
+  "scope": "Compare completed operational forecasts at the final common report endpoint.\n\nBudgets must be supplied before inspecting the reference result. This is a\nstep-refinement check, not a proof that the finer trajectory is exact.\n",
+  "allowed_numerical_policy_differences": [
+    "coupled_facility.time_control",
+    "coupled_facility.control.search_method"
+  ]
+}

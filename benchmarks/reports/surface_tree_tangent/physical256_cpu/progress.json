@@ -1,0 +1,58 @@
+{
+  "status": "incomplete",
+  "runs": [
+    {
+      "pair": 0,
+      "mode": "dense",
+      "elapsed_s": 2.2580337230010628,
+      "archive": "pair0_dense.json.gz",
+      "sha256": "35f0b14a8550c0d8b6d7f353aa83f34ff5fcd25dbfcd18d258629f55b540a883",
+      "maximum_component_residual_kg_s": 0.0
+    },
+    {
+      "pair": 0,
+      "mode": "operator",
+      "elapsed_s": 2.234581077000257,
+      "archive": "pair0_operator.json.gz",
+      "sha256": "9468a1003a744a6d586250530654e718a82f5af8201b5df6ab1ef8d4fdf0ae61",
+      "maximum_component_residual_kg_s": 0.0,
+      "operator_tensor_bytes": 24896
+    },
+    {
+      "pair": 1,
+      "mode": "operator",
+      "elapsed_s": 2.184458518999236,
+      "archive": "pair1_operator.json.gz",
+      "sha256": "0fb9674c4d2e307a843ef079a0298bc69ebbf88293367e03b76585fd5c831471",
+      "maximum_component_residual_kg_s": 0.0,
+      "operator_tensor_bytes": 24896
+    },
+    {
+      "pair": 1,
+      "mode": "dense",
+      "elapsed_s": 2.276270324999132,
+      "archive": "pair1_dense.json.gz",
+      "sha256": "6715fcee4b66c1e42c413cccbc12edccf73557e8baac5f0fe27e2eddc2c3b534",
+      "maximum_component_residual_kg_s": 0.0
+    }
+  ],
+  "comparisons": [
+    {
+      "pair": 0,
+      "accepted": true,
+      "pressures_identical": true,
+      "selected_rows_maximum_absolute_difference": 0.0,
+      "relative_budget": 1e-11,
+      "absolute_budget": 1e-07
+    },
+    {
+      "pair": 1,
+      "accepted": true,
+      "pressures_identical": true,
+      "selected_rows_maximum_absolute_difference": 0.0,
+      "relative_budget": 1e-11,
+      "absolute_budget": 1e-07
+    }
+  ],
+  "audit_certificates": {}
+}

@@ -17,6 +17,8 @@ from .blackoil_fim import I_P, BlackOilWells
 from .device_exchange import HostReturnPacket
 from .fim_wells import DAY
 from .full_well_schur import FullWellSchur
+from .surface_well_blocks import assemble_surface_blocks
+from .tree_well_system import TreeWellSystem
 
 try:
     from ..surface import (
@@ -26,6 +28,7 @@ try:
         PropertyModelError,
     )
     from ..surface.liquid import HydraulicConvergenceError
+    from ..surface.tree_pressure_tangent import TreePressureTangent
 except ImportError:
     from surface import (
         BlackOilPressureControl,
@@ -34,14 +37,45 @@ except ImportError:
         PropertyModelError,
     )
     from surface.liquid import HydraulicConvergenceError
+    from surface.tree_pressure_tangent import TreePressureTangent
 
 
 class SurfaceCoupledBlackOilWells(FullWellSchur, BlackOilWells):
+    maximum_surface_product_entries = 1_048_576
+
     def __init__(self, well_manager, reservoir, fluid, dims, device, spec):
         super().__init__(well_manager, reservoir, fluid, dims, device)
-        if set(spec) - {"network", "well_nodes", "network_backend", "controls", "pressure_control"}:
+        if set(spec) - {
+            "network",
+            "well_nodes",
+            "network_backend",
+            "controls",
+            "pressure_control",
+            "sensitivity_backend",
+            "well_block_backend",
+            "structured_memory_budget_bytes",
+        }:
             raise ValueError("Unknown physical_surface_network fields")
         self.network_backend = spec.get("network_backend", "cpu_reference")
+        self.well_block_backend = spec.get("well_block_backend", "dense")
+        if self.well_block_backend not in ("dense", "tree_structured"):
+            raise ValueError("well_block_backend must be dense or tree_structured")
+        structured = self.well_block_backend == "tree_structured"
+        self.sensitivity_backend = spec.get(
+            "sensitivity_backend", "tree_operator" if structured else "dense"
+        )
+        if structured and self.sensitivity_backend != "tree_operator":
+            raise PropertyModelError("Structured wells require tree_operator sensitivities")
+        self.structured_memory_budget_bytes = spec.get(
+            "structured_memory_budget_bytes", 256 * 1024**2
+        )
+        if (
+            type(self.structured_memory_budget_bytes) is not int
+            or self.structured_memory_budget_bytes <= 0
+        ):
+            raise ValueError("Positive integer structured memory budget required")
+        if self.sensitivity_backend not in ("dense", "tree_operator"):
+            raise ValueError("sensitivity_backend must be dense or tree_operator")
         if self.network_backend not in ("cpu_reference", "torch_device"):
             raise ValueError("network_backend must be cpu_reference or torch_device")
         self.surface_network = BlackOilProductionNetwork.from_dict(spec["network"])
@@ -79,8 +113,18 @@ class SurfaceCoupledBlackOilWells(FullWellSchur, BlackOilWells):
             raise ValueError("First black-oil physical coupling requires all wells bound producers")
         self.surface_nodes = tuple(bindings[w.name] for w in self.wells)
         self.surface_well_indices = tuple(range(self.n_w))
-        if self.n_w > 128 or self.conn_cell.numel() > 10000:
+        if not structured and (self.n_w > 128 or self.conn_cell.numel() > 10000):
             raise ValueError("Dense physical coupling supports <=128 wells and <=10000 connections")
+        nodes = len(self.surface_network.nodes)
+        estimated = 8 * (
+            nodes * (64 + 16 * max(1, nodes.bit_length()))
+            + 32 * self.n_w
+            + 48 * self.conn_cell.numel()
+        )
+        if structured and estimated > self.structured_memory_budget_bytes:
+            raise ValueError(
+                f"Structured well/tree estimate {estimated} bytes exceeds its configured budget"
+            )
         for i, (w, node) in enumerate(zip(self.wells, self.surface_nodes)):
             if w.type != "producer" or w.control_type != "rate" or getattr(w, "stopped", False):
                 raise PropertyModelError(
@@ -113,7 +157,9 @@ class SurfaceCoupledBlackOilWells(FullWellSchur, BlackOilWells):
         self.surface_report = None
         self._surface_flow_linearization = None
         self._surface_return_packet = HostReturnPacket()
-        self._surface_eye = torch.eye(self.n_w, dtype=torch.float64, device=self.device)
+        self._surface_eye = (
+            None if structured else torch.eye(self.n_w, dtype=torch.float64, device=self.device)
+        )
         self._surface_connection_index = torch.arange(self.conn_cell.numel(), device=self.device)
 
     def set_surface_controls(self, valve_openings=None):
@@ -131,6 +177,10 @@ class SurfaceCoupledBlackOilWells(FullWellSchur, BlackOilWells):
         if isinstance(control, dict):
             control = BlackOilPressureControl(**control)
         if control is not None:
+            if getattr(self, "sensitivity_backend", "dense") == "tree_operator":
+                raise PropertyModelError(
+                    "Tree sensitivity backend does not yet support active pressure regulation"
+                )
             if not isinstance(control, BlackOilPressureControl):
                 raise TypeError("Expected BlackOilPressureControl or None")
             control.validate_network(self.surface_network)
@@ -249,20 +299,34 @@ class SurfaceCoupledBlackOilWells(FullWellSchur, BlackOilWells):
             stream = ComponentStream.from_mass_rates(*rate, self.surface_network.model.densities)
             sources[node] = ComponentStream.mix([sources.get(node, ComponentStream()), stream])
         control = self.surface_pressure_control
-        result = (
-            self.surface_network.solve(sources)
-            if control is None
-            else control.solve(self.surface_network, sources)
-        )
-        host_K = np.array(
-            [
+        sensitivity_backend = getattr(self, "sensitivity_backend", "dense")
+        well_block_backend = getattr(self, "well_block_backend", "dense")
+        structured = well_block_backend == "tree_structured"
+        if sensitivity_backend == "tree_operator":
+            if control is not None:
+                raise PropertyModelError("Tree sensitivity backend requires fixed branch controls")
+            result = self.surface_network.solve(sources, sensitivity_mode="operator")
+            # Host orchestration is unchanged: extract only the bounded well
+            # block here, without a node-by-source table or GPU round trip.
+            if not structured:
+                tangent = TreePressureTangent(result["pressure_linearization"])
+                columns = [tangent.source_names.index(node) for node in self.surface_nodes]
+                host_K = tangent.jacobian_rows(self.surface_nodes)[:, columns].detach().numpy()
+        else:
+            result = (
+                self.surface_network.solve(sources)
+                if control is None
+                else control.solve(self.surface_network, sources)
+            )
+            host_K = np.array(
                 [
-                    list(result["pressure_derivatives_per_kg_s"][node][source].values())
-                    for source in self.surface_nodes
+                    [
+                        list(result["pressure_derivatives_per_kg_s"][node][source].values())
+                        for source in self.surface_nodes
+                    ]
+                    for node in self.surface_nodes
                 ]
-                for node in self.surface_nodes
-            ]
-        )
+            )
         required = []
         upper = []
         is_rate = []
@@ -294,34 +358,50 @@ class SurfaceCoupledBlackOilWells(FullWellSchur, BlackOilWells):
         exchange = getattr(self, "_surface_return_packet", None)
         if exchange is None:
             exchange = self._surface_return_packet = HostReturnPacket()
-        packed = exchange.upload(
-            np.concatenate([host_K.reshape(-1), required, upper, is_rate, is_surface]), q
-        )
-        offset = 3 * self.n_w * self.n_w
-        K = packed[:offset].view(self.n_w, self.n_w, 3)
+        arrays = [required, upper, is_rate, is_surface]
+        if not structured:
+            arrays.insert(0, host_K.reshape(-1))
+        packed = exchange.upload(np.concatenate(arrays), q)
+        offset = 0 if structured else 3 * self.n_w * self.n_w
         targets = packed[offset : offset + self.n_w]
         caps = packed[offset + self.n_w : offset + 2 * self.n_w]
         rate_mask = packed[offset + 2 * self.n_w : offset + 3 * self.n_w].bool()
         surface_mask = packed[offset + 3 * self.n_w :].bool()
-        grad_conn = K[:, cw, :]
-        Bnet = -(grad_conn[:, :, :, None] * dq[None, :, :, :]).sum(2)
-        eye = self._surface_eye
-        Dnet = eye.clone().index_add_(1, cw, -(grad_conn * Cv[None, :, :]).sum(2))
-        Brate = torch.zeros_like(Bnet)
-        B_rate = (self.conn_a[:, :, None] * dq).sum(1)
-        Brate[cw, self._surface_connection_index] = B_rate
-        Drate = torch.diag(q.new_zeros(self.n_w).index_add_(0, cw, (self.conn_a * Cv).sum(1)))
+        if structured:
+            operator = TreeWellSystem(
+                result["pressure_linearization"],
+                self.surface_nodes,
+                cw,
+                self.conn_cell,
+                dq,
+                Cv,
+                self.conn_a,
+                rate_mask,
+                surface_mask,
+                has_surface=any(is_surface),
+            )
+            sys["_surface_operator"] = operator
+            B_rate = operator.B_rate
+            sys["D"] = operator.diagonal
+        else:
+            K = packed[:offset].view(self.n_w, self.n_w, 3)
+            B, D, B_rate = assemble_surface_blocks(
+                K,
+                cw,
+                dq,
+                Cv,
+                self.conn_a,
+                rate_mask,
+                surface_mask,
+                maximum_product_entries=self.maximum_surface_product_entries,
+                identity=self._surface_eye,
+            )
+            sys["B_full"], sys["D_full"] = B, D
+            sys["D"] = torch.diagonal(D)
         sys["Bv"] = torch.where(rate_mask[cw, None], B_rate, 0.0)
-        B = torch.where(
-            rate_mask[:, None, None], Brate, torch.where(surface_mask[:, None, None], Bnet, 0.0)
-        )
-        D = torch.where(rate_mask[:, None], Drate, torch.where(surface_mask[:, None], Dnet, eye))
         sys["r_w"] = torch.where(rate_mask, sys["q_surf"] - caps, p_bh - targets)
         sys["is_rate"] = rate_mask
         sys["target"] = torch.where(rate_mask, caps, targets)
-        sys["B_full"] = B
-        sys["D_full"] = D
-        sys["D"] = torch.diagonal(D)
         # Its status joins the convergence packet. Only a requested linear
         # solve checks it, preserving converged-step acceptance semantics.
         self.factor_well_block(sys)
@@ -332,6 +412,10 @@ class SurfaceCoupledBlackOilWells(FullWellSchur, BlackOilWells):
                 "reservoir_device": str(q.device),
                 "network_device": str(self.surface_network.model.rho.device),
                 "backend": self.network_backend,
+                "sensitivity_backend": sensitivity_backend,
+                "well_block_backend": well_block_backend,
+                "dense_B_stored": "B_full" in sys,
+                "dense_D_stored": "D_full" in sys,
             },
         }
         return sys

@@ -1,0 +1,236 @@
+{
+  "scope": "Conservative sampled capacity search, bounded Schur RHS and optional endpoint-rate timestep heuristic. Not a complete huge-well/multi-GPU qualification.",
+  "current_measured_sources_match": true,
+  "gpu_measured": false,
+  "gpu_status": "nvidia-smi exit 9: NVIDIA driver unavailable",
+  "paired_speedup": 2.1672027812457353,
+  "median_elapsed_s": {
+    "bisect": 22.898414732000674,
+    "safeguarded": 10.565884710999853
+  },
+  "trajectory_certificates": [
+    {
+      "trajectory": "grid32_final_cpu/pair0_bisect.json.gz",
+      "audit": {
+        "accepted": true,
+        "checked_substeps": 6,
+        "elapsed_days": 30.0,
+        "minimum_step_s": 432000.0,
+        "maximum_step_s": 432000.0,
+        "capacity_evaluations": 120,
+        "operating_events": 3,
+        "mass_balance_error_kg": [
+          -0.00020648445934057236,
+          -0.0003201782383257523,
+          0.00027786348709923914
+        ],
+        "maximum_surface_component_residual_kg_s": 3.469446951953614e-18,
+        "mass_atol_kg": 0.01,
+        "mass_rtol": 1e-08,
+        "scope": "Audit accepted forecast material and controls without running either solver.\n\nThis is an accounting/constraint audit, not independent validation of the PVT\nor homogeneous gathering closure. The production FIM CNV/MB remain required.\n"
+      },
+      "sha256": "e2a91a6345a2b32c9d452deb797e6d76bcf910788c6d310e610964d59abf8409"
+    },
+    {
+      "trajectory": "grid32_final_cpu/pair0_safeguarded.json.gz",
+      "audit": {
+        "accepted": true,
+        "checked_substeps": 6,
+        "elapsed_days": 30.0,
+        "minimum_step_s": 432000.0,
+        "maximum_step_s": 432000.0,
+        "capacity_evaluations": 57,
+        "operating_events": 3,
+        "mass_balance_error_kg": [
+          -0.00020605559984687716,
+          -0.0003203233063686639,
+          0.00027765695722337114
+        ],
+        "maximum_surface_component_residual_kg_s": 3.469446951953614e-18,
+        "mass_atol_kg": 0.01,
+        "mass_rtol": 1e-08,
+        "scope": "Audit accepted forecast material and controls without running either solver.\n\nThis is an accounting/constraint audit, not independent validation of the PVT\nor homogeneous gathering closure. The production FIM CNV/MB remain required.\n"
+      },
+      "sha256": "8c701c3b3b2493b7f740ec5991172d0129fbe50555fce8886b8bd649959a9a96"
+    },
+    {
+      "trajectory": "grid32_final_cpu/pair1_safeguarded.json.gz",
+      "audit": {
+        "accepted": true,
+        "checked_substeps": 6,
+        "elapsed_days": 30.0,
+        "minimum_step_s": 432000.0,
+        "maximum_step_s": 432000.0,
+        "capacity_evaluations": 57,
+        "operating_events": 3,
+        "mass_balance_error_kg": [
+          -0.00020605559984687716,
+          -0.0003203233063686639,
+          0.00027765695722337114
+        ],
+        "maximum_surface_component_residual_kg_s": 3.469446951953614e-18,
+        "mass_atol_kg": 0.01,
+        "mass_rtol": 1e-08,
+        "scope": "Audit accepted forecast material and controls without running either solver.\n\nThis is an accounting/constraint audit, not independent validation of the PVT\nor homogeneous gathering closure. The production FIM CNV/MB remain required.\n"
+      },
+      "sha256": "e30865904a0e2eab653cba81707ec074b5cbdb5920b38f9bf82931ce0ea1987a"
+    },
+    {
+      "trajectory": "grid32_final_cpu/pair1_bisect.json.gz",
+      "audit": {
+        "accepted": true,
+        "checked_substeps": 6,
+        "elapsed_days": 30.0,
+        "minimum_step_s": 432000.0,
+        "maximum_step_s": 432000.0,
+        "capacity_evaluations": 120,
+        "operating_events": 3,
+        "mass_balance_error_kg": [
+          -0.00020648445934057236,
+          -0.0003201782383257523,
+          0.00027786348709923914
+        ],
+        "maximum_surface_component_residual_kg_s": 3.469446951953614e-18,
+        "mass_atol_kg": 0.01,
+        "mass_rtol": 1e-08,
+        "scope": "Audit accepted forecast material and controls without running either solver.\n\nThis is an accounting/constraint audit, not independent validation of the PVT\nor homogeneous gathering closure. The production FIM CNV/MB remain required.\n"
+      },
+      "sha256": "eba43c3967d4658964c8e1475bac451960b69383d792e1cd884948881f90b780"
+    },
+    {
+      "trajectory": "grid32_final_cpu/pair2_bisect.json.gz",
+      "audit": {
+        "accepted": true,
+        "checked_substeps": 6,
+        "elapsed_days": 30.0,
+        "minimum_step_s": 432000.0,
+        "maximum_step_s": 432000.0,
+        "capacity_evaluations": 120,
+        "operating_events": 3,
+        "mass_balance_error_kg": [
+          -0.00020648445934057236,
+          -0.0003201782383257523,
+          0.00027786348709923914
+        ],
+        "maximum_surface_component_residual_kg_s": 3.469446951953614e-18,
+        "mass_atol_kg": 0.01,
+        "mass_rtol": 1e-08,
+        "scope": "Audit accepted forecast material and controls without running either solver.\n\nThis is an accounting/constraint audit, not independent validation of the PVT\nor homogeneous gathering closure. The production FIM CNV/MB remain required.\n"
+      },
+      "sha256": "8607c8161b45353ce08d82965592b1ac6b1d38dbba2ea7e4567684fcdaf11ed2"
+    },
+    {
+      "trajectory": "grid32_final_cpu/pair2_safeguarded.json.gz",
+      "audit": {
+        "accepted": true,
+        "checked_substeps": 6,
+        "elapsed_days": 30.0,
+        "minimum_step_s": 432000.0,
+        "maximum_step_s": 432000.0,
+        "capacity_evaluations": 57,
+        "operating_events": 3,
+        "mass_balance_error_kg": [
+          -0.00020605559984687716,
+          -0.0003203233063686639,
+          0.00027765695722337114
+        ],
+        "maximum_surface_component_residual_kg_s": 3.469446951953614e-18,
+        "mass_atol_kg": 0.01,
+        "mass_rtol": 1e-08,
+        "scope": "Audit accepted forecast material and controls without running either solver.\n\nThis is an accounting/constraint audit, not independent validation of the PVT\nor homogeneous gathering closure. The production FIM CNV/MB remain required.\n"
+      },
+      "sha256": "f843559bdb10e57368f36e9fcf85f396652513972f3c7aae61951b014e5b8b52"
+    },
+    {
+      "trajectory": "grid128_final_cpu/trajectory.json.gz",
+      "audit": {
+        "accepted": true,
+        "checked_substeps": 6,
+        "elapsed_days": 30.0,
+        "minimum_step_s": 432000.0,
+        "maximum_step_s": 432000.0,
+        "capacity_evaluations": 57,
+        "operating_events": 3,
+        "mass_balance_error_kg": [
+          3.6509387427940965e-05,
+          -0.0001797631848603487,
+          0.00028448470038711093
+        ],
+        "maximum_surface_component_residual_kg_s": 3.469446951953614e-18,
+        "mass_atol_kg": 0.01,
+        "mass_rtol": 1e-08,
+        "scope": "Audit accepted forecast material and controls without running either solver.\n\nThis is an accounting/constraint audit, not independent validation of the PVT\nor homogeneous gathering closure. The production FIM CNV/MB remain required.\n"
+      },
+      "sha256": "6988f0fce810b4baeb7d6f0df6fe1ab6887b44b720e06d9f39cdaf0442b7e963"
+    },
+    {
+      "trajectory": "adaptive_final_cpu/trajectory.json.gz",
+      "audit": {
+        "accepted": true,
+        "checked_substeps": 17,
+        "elapsed_days": 30.0,
+        "minimum_step_s": 86400.0,
+        "maximum_step_s": 367200.0,
+        "capacity_evaluations": 147,
+        "operating_events": 3,
+        "mass_balance_error_kg": [
+          5.8367004385218024e-06,
+          2.90147727355361e-06,
+          5.484753273776732e-07
+        ],
+        "maximum_surface_component_residual_kg_s": 3.469446951953614e-18,
+        "mass_atol_kg": 0.01,
+        "mass_rtol": 1e-08,
+        "scope": "Audit accepted forecast material and controls without running either solver.\n\nThis is an accounting/constraint audit, not independent validation of the PVT\nor homogeneous gathering closure. The production FIM CNV/MB remain required.\n"
+      },
+      "sha256": "81f8e731e111ac6565baf6aa479d69331fe2f56afd41b7fff9428ae383994da4"
+    }
+  ],
+  "adaptive_accuracy": {
+    "accepted": true,
+    "errors": {
+      "final_pressure_pa": 57.579822291620076,
+      "final_s_w": 5.136451016796162e-06,
+      "final_s_g": 1.8551795631704948e-05,
+      "final_rs": 0.0008636973343669752,
+      "withdrawal_relative": 0.001619070623795719
+    },
+    "budgets": {
+      "final_pressure_pa": 1000.0,
+      "final_s_w": 0.001,
+      "final_s_g": 0.001,
+      "final_rs": 0.01,
+      "withdrawal_relative": 0.01
+    },
+    "coarse": "benchmarks/reports/surface_capacity_search/adaptive_final_cpu/trajectory.json.gz",
+    "fine": "benchmarks/reports/surface_operational_forecast/month_daily_coverage_cpu/trajectory.json.gz",
+    "scope": "Compare completed operational forecasts at the final common report endpoint.\n\nBudgets must be supplied before inspecting the reference result. This is a\nstep-refinement check, not a proof that the finer trajectory is exact.\n",
+    "allowed_numerical_policy_differences": [
+      "coupled_facility.time_control",
+      "coupled_facility.control.search_method"
+    ]
+  },
+  "reference_provenance": {
+    "summary_sha256": "89e6bebcd23990105ab8e3cad59de2f1d10f31939021f4af9383aa81bb31552a",
+    "trajectory_sha256": "d753497361c4c7735ae4b755df1b9511ab85dd65d8cd436b5864640364e8bd0d",
+    "historical_reference_recomputed": false
+  },
+  "regression": {
+    "passed": 106,
+    "skipped": 1,
+    "wall_s": 43.56
+  },
+  "protected_sources": {
+    "src/simulator/blackoil_fim.py": "658fde0e6119df6ae154c3c400ff24b8d2a519dfa9a33e612aeaa6bd51a16c3c",
+    "src/surface/torch_linear.py": "b7bda1aae66d9e979c147f821efba9990d6460d60b32a05c6fc5f9b873b752d5"
+  },
+  "artifact_sha256": {
+    "grid32_final_cpu/summary.json": "f09003ed32e7c415e2b0a2264570fbc1b0a53c2d1e94649df44c381fa58eda40",
+    "grid128_final_cpu/summary.json": "21fd689fa483dc48dcae59f09f1692f5f364946847379f12f02be9df87a9c212",
+    "adaptive_final_cpu/summary.json": "42e216765f2eaebe8c93e6e33c25a780a9b3161a16650368b860a6f344c2fc2f",
+    "adaptive_final_vs_daily.json": "f6a75626cd1dd54ef3cac794e55abcbf65bd8cb01c553ae97f42114a820230df",
+    "regression.txt": "fcd25585a7fefabf281b0fbb3920d985c069ae50f824620a7f4efb3c034feca0",
+    "grid128_input.json": "f4d1985105c32dfe3125f43ce165d847f913a51c290fb327740971a9919dfdb8",
+    "adaptive_input.json": "71eb94b7cbdad78207269f19689a9b522963507670931406d68997f0c4fd6c8b"
+  }
+}

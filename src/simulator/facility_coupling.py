@@ -6,13 +6,14 @@ This is an outer constrained solve, not a monolithic facility Jacobian.
 """
 
 import math
-from copy import copy
+from copy import copy, deepcopy
 from dataclasses import dataclass
 
 import numpy as np
 import torch
 
 from .blackoil_surface_coupling import SurfaceCoupledBlackOilWells
+from .facility_time_control import FacilityTimeControl
 from .fim_transaction import _StepState
 
 try:
@@ -25,6 +26,8 @@ try:
         SurfaceFacility,
     )
     from ..surface.blackoil_pipe import PipePressureCoverageError
+    from ..surface.capacity_bracket import CapacityBracket, facility_constraint_margin
+    from ..surface.gas_valve import GasValveCapacityError
     from ..surface.liquid import InvalidPressureError
 except ImportError:
     from surface import (
@@ -36,6 +39,8 @@ except ImportError:
         SurfaceFacility,
     )
     from surface.blackoil_pipe import PipePressureCoverageError
+    from surface.capacity_bracket import CapacityBracket, facility_constraint_margin
+    from surface.gas_valve import GasValveCapacityError
     from surface.liquid import InvalidPressureError
 
 
@@ -45,8 +50,11 @@ class CoupledFacilityControl:
     fraction_tolerance: float = 1e-4
     scan_points: int = 9
     max_evaluations: int = 60
+    search_method: str = "safeguarded"
 
     def __post_init__(self):
+        if self.search_method not in ("safeguarded", "bisect"):
+            raise ValueError("search_method must be safeguarded or bisect")
         if not 0 < self.min_fraction <= 1 or not math.isfinite(self.min_fraction):
             raise ValueError("min_fraction must be in (0,1]")
         if not 0 < self.fraction_tolerance < 1 or not math.isfinite(self.fraction_tolerance):
@@ -72,7 +80,14 @@ class FacilityCoupledFIM:
     )
 
     def __init__(
-        self, solver, facility, control=None, *, energy_process=None, energy_controls=None
+        self,
+        solver,
+        facility,
+        control=None,
+        *,
+        energy_process=None,
+        energy_controls=None,
+        time_control=None,
     ):
         if not isinstance(solver.wells, SurfaceCoupledBlackOilWells):
             raise PropertyModelError(
@@ -113,6 +128,11 @@ class FacilityCoupledFIM:
             if not isinstance(energy_process, AcceptedWellEnergyProcess):
                 raise TypeError("Expected AcceptedWellEnergyProcess")
         self.energy_process = energy_process
+        self.time_control = (
+            FacilityTimeControl(**time_control) if isinstance(time_control, dict) else time_control
+        )
+        if self.time_control is not None and not isinstance(self.time_control, FacilityTimeControl):
+            raise TypeError("Expected FacilityTimeControl")
         self.energy_controls = {} if energy_controls is None else dict(energy_controls)
         self.solver, self.facility = solver, facility
         self.control = (
@@ -125,6 +145,37 @@ class FacilityCoupledFIM:
         self.report = None
         self.last_attempt = None
         self.controls = {}
+
+    def _continuous_controls(self):
+        return self.report is not None and self.report.get("operator_controls") == self.controls
+
+    def limit_initial_time_step_s(self, proposed_s, *, clipped=False):
+        return self._limit_time_step_s(proposed_s, clipped=clipped)
+
+    def _limit_time_step_s(self, proposed_s, *, clipped=False):
+        policy = getattr(self, "time_control", None)
+        if policy is None:
+            return proposed_s
+        row = (self.report or {}).get("rate_time_control") if self._continuous_controls() else None
+        if row is None:
+            return policy.limit(proposed_s)
+        return policy.limit(proposed_s, self.report["dt_s"], row["indicator"], clipped=clipped)
+
+    @property
+    def limit_next_time_step_s(self):
+        return self._limit_time_step_s if getattr(self, "time_control", None) is not None else None
+
+    def _limit_time_step_s(self, proposed_s, *, clipped=False):
+        policy = getattr(self, "time_control", None)
+        if policy is None:
+            return proposed_s
+        row = self.report.get("rate_time_control") if self._continuous_controls() else None
+        return policy.limit(
+            proposed_s,
+            None if row is None else self.report["dt_s"],
+            None if row is None else row["indicator"],
+            clipped=clipped,
+        )
 
     def _inventory(self):
         """Reduce on the reservoir device; transfer only three component totals."""
@@ -203,6 +254,18 @@ class FacilityCoupledFIM:
             raise ValueError("dt must be positive and finite")
         if set(self.controls) - self.control_fields:
             raise ValueError("Unsupported coupled facility controls; feed scaling is forbidden")
+        policy = getattr(self, "time_control", None)
+        if (
+            policy is not None
+            and not self._continuous_controls()
+            and dt > policy.startup_step_days * 86400 * (1 + 1e-12)
+        ):
+            self.last_attempt = {
+                "success": False,
+                "reason": "Facility startup/event time-step limit",
+                "trace": [],
+            }
+            return False
         if getattr(self, "energy_controls", {}) and getattr(self, "energy_process", None) is None:
             raise PropertyModelError("Caloric controls require an explicit energy process")
         solver = self.solver
@@ -251,6 +314,7 @@ class FacilityCoupledFIM:
                         "fraction": fraction,
                         "feasible": False,
                         "reason": [{"pipe_pressure_coverage": str(error)}],
+                        "normalized_margin": None,
                     }
                 )
                 return False, None
@@ -267,6 +331,7 @@ class FacilityCoupledFIM:
             ]
             plant = copy(self.facility)
             plant.feeds = tuple(streams)
+            margin = None
             try:
                 running = (
                     ()
@@ -285,16 +350,29 @@ class FacilityCoupledFIM:
                     )
                 feasible = result["feasible"]
                 reason = result["violations"]
+                margin = facility_constraint_margin(result)
             except PropertyModelError:
                 raise
+            except GasValveCapacityError as error:
+                feasible, result = False, None
+                reason = [{"physical_domain": str(error)}]
+                margin = error.normalized_margin
             except (EquipmentOperatingError, InvalidPressureError) as error:
                 feasible = False
                 result = None
                 reason = [{"physical_domain": str(error)}]
-            trace.append({"fraction": fraction, "feasible": feasible, "reason": reason})
+            trace.append(
+                {
+                    "fraction": fraction,
+                    "feasible": feasible,
+                    "reason": reason,
+                    "normalized_margin": margin,
+                }
+            )
             return feasible, result
 
         try:
+            final_bracket = None
             ok, plant = trial(1.0)
             chosen = 1.0
             if not ok:
@@ -316,18 +394,46 @@ class FacilityCoupledFIM:
                 i = good[-1]
                 low = grid[i]
                 high = grid[i + 1] if i + 1 < len(grid) else 1.0
-                while high - low > self.control.fraction_tolerance:
-                    mid = (low + high) / 2
-                    if trial(mid)[0]:
-                        low = mid
-                    else:
-                        high = mid
-                chosen = low
+                margins = {row["fraction"]: row["normalized_margin"] for row in trace}
+                bracket = CapacityBracket(
+                    low, high, self.control.fraction_tolerance, margins[low], margins[high]
+                )
+                if self.control.search_method == "safeguarded" and previous is not None:
+                    warm = previous["fraction"]
+                    if not bracket.complete and bracket.low < warm < bracket.high:
+                        status, _ = trial(warm)
+                        bracket.update(warm, status, trace[-1]["normalized_margin"])
+                while not bracket.complete:
+                    mid = (
+                        (bracket.low + bracket.high) / 2
+                        if self.control.search_method == "bisect"
+                        else bracket.proposal()
+                    )
+                    status, _ = trial(mid)
+                    bracket.update(mid, status, trace[-1]["normalized_margin"])
+                chosen = bracket.low
+                final_bracket = {
+                    "feasible_fraction": bracket.low,
+                    "infeasible_fraction": bracket.high,
+                    "width": bracket.high - bracket.low,
+                    "fraction_tolerance": self.control.fraction_tolerance,
+                }
                 # Commit a fresh solve at the selected cap, never a scaled copy
                 # or a cached intermediate reservoir state from another trial.
                 ok, plant = trial(chosen)
                 if not ok:
                     raise HydraulicConvergenceError("Selected coupled facility mode failed replay")
+            rate_indicator = None
+            if policy is not None and self._continuous_controls():
+                before_rates = ComponentStream(**previous["facility"]["feed"]).mass_rates(
+                    self.facility.densities
+                )
+                after_rates = ComponentStream(**plant["feed"]).mass_rates(self.facility.densities)
+                rate_indicator = policy.indicator(before_rates.values(), after_rates.values())
+                if not math.isfinite(rate_indicator) or rate_indicator > 1:
+                    raise HydraulicConvergenceError(
+                        f"Facility rate-change indicator {rate_indicator:g} exceeds 1"
+                    )
             material_account = self._material_account(inventory_before, plant, dt)
             energy = None
             if getattr(self, "energy_process", None) is not None:
@@ -343,11 +449,21 @@ class FacilityCoupledFIM:
                 "dt_s": dt,
                 "evaluations": len(trace),
                 "trace": trace,
+                "search_method": self.control.search_method,
+                "capacity_bracket": final_bracket,
+                "operator_controls": deepcopy(self.controls),
                 "facility": plant,
                 "material_account": material_account,
                 "applied_rate_caps_m3_day": [cap * chosen for cap in caps],
                 "scope": "Common producer rate-cap multiplier; each trial solves the same FIM step. No monolithic facility Jacobian.",
             }
+            if policy is not None:
+                self.report["rate_time_control"] = {
+                    "indicator": rate_indicator,
+                    "rate_relative_tolerance": policy.rate_relative_tolerance,
+                    "rate_absolute_tolerance_kg_s": policy.rate_absolute_tolerance_kg_s,
+                    "scope": "Endpoint-rate variation heuristic; requires independent time refinement",
+                }
             if energy is not None:
                 self.report["energy_process"] = energy
             self.last_attempt = {"success": True, "evaluations": len(trace)}

@@ -52,7 +52,17 @@ def test_real_daily_forecast_hits_events_and_exports_actual_well_material(foreca
 
 @pytest.mark.parametrize(
     "mutation",
-    ["product", "feed", "withdrawal", "event", "controls", "duration", "cap", "constraint"],
+    [
+        "product",
+        "feed",
+        "withdrawal",
+        "event",
+        "controls",
+        "duration",
+        "cap",
+        "constraint",
+        "bracket",
+    ],
 )
 def test_independent_forecast_audit_rejects_corrupt_results(forecast, mutation):
     c, events, original = forecast
@@ -73,6 +83,8 @@ def test_independent_forecast_audit_rejects_corrupt_results(forecast, mutation):
         r["elapsed_days"] = 0.5
     elif mutation == "cap":
         s["facility_coupling"]["applied_rate_caps_m3_day"][0] *= 2
+    elif mutation == "bracket":
+        s["facility_coupling"]["capacity_bracket"]["infeasible_fraction"] = 1.0
     elif mutation == "constraint":
         limit = c["simulation"]["coupled_facility"]["facility"]["limits"][0]
         plant["measurements"][limit["metric"]]["value"] = limit["maximum"] * 2
@@ -127,3 +139,50 @@ def test_refinement_compares_fields_and_cannot_change_model(forecast, tmp_path):
         compare(a, b, budgets)
     with pytest.raises(ValueError, match="Finite"):
         compare(a, a, {**budgets, "final_pressure_pa": float("inf")})
+
+
+def test_explicit_null_control_defaults_are_auditable():
+    c = config()
+    c["simulation"]["coupled_facility"]["control"] = None
+    r = run_case(c, 1e6, 1, 1)
+    assert audit(c, r, expected_schedule=[], expected_days=1)["accepted"]
+
+
+@pytest.mark.parametrize(
+    "policy",
+    [
+        {"sensitivity_backend": "tree_operator"},
+        {"well_block_backend": "tree_structured", "structured_memory_budget_bytes": 1048576},
+    ],
+)
+def test_comparison_whitelists_tangent_policy_but_not_physics(forecast, tmp_path, policy):
+    import gzip
+
+    from compare_fim_facility_forecast import compare
+
+    c, events, r = forecast
+    base = {"config": c, "schedule": events, "requested_days": 1, "result": r}
+    changed = copy.deepcopy(base)
+    changed["config"]["simulation"]["physical_surface_network"].update(policy)
+    a, b = tmp_path / "a.gz", tmp_path / "b.gz"
+
+    def save(path, value):
+        with gzip.open(path, "wt") as handle:
+            json.dump(value, handle)
+
+    save(a, base)
+    save(b, changed)
+    budgets = {
+        "final_pressure_pa": 0.1,
+        "final_s_w": 1e-8,
+        "final_s_g": 1e-8,
+        "final_rs": 1e-5,
+        "withdrawal_relative": 1e-6,
+    }
+    with pytest.raises(ValueError, match="same model"):
+        compare(a, b, budgets)
+    assert compare(a, b, budgets, allow_numerical_policy=True)["accepted"]
+    changed["config"]["reservoir"]["porosity"] = 0.3
+    save(b, changed)
+    with pytest.raises(ValueError, match="same model"):
+        compare(a, b, budgets, allow_numerical_policy=True)

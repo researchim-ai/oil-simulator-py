@@ -1,0 +1,58 @@
+{
+  "status": "incomplete",
+  "runs": [
+    {
+      "pair": 0,
+      "mode": "dense",
+      "elapsed_s": 2.179109464001158,
+      "archive": "pair0_dense.json.gz",
+      "sha256": "20123e44776fa042129f3e252101b7ec7a402f6baa4d4372403a907fa743bd43",
+      "maximum_component_residual_kg_s": 0.0
+    },
+    {
+      "pair": 0,
+      "mode": "operator",
+      "elapsed_s": 2.113715790999777,
+      "archive": "pair0_operator.json.gz",
+      "sha256": "6ff0c259a59835464dc364a1b43bd1f1f0578a27bc8f8792a4c618de97355e1a",
+      "maximum_component_residual_kg_s": 0.0,
+      "operator_tensor_bytes": 24896
+    },
+    {
+      "pair": 1,
+      "mode": "operator",
+      "elapsed_s": 2.227790531998835,
+      "archive": "pair1_operator.json.gz",
+      "sha256": "e0b1462a7b0d9405447255b8519cee994b7fa0b6d0709b0a8a8dd241f6f91dc7",
+      "maximum_component_residual_kg_s": 0.0,
+      "operator_tensor_bytes": 24896
+    },
+    {
+      "pair": 1,
+      "mode": "dense",
+      "elapsed_s": 2.1592701859990484,
+      "archive": "pair1_dense.json.gz",
+      "sha256": "4ab8fcc20e9298b998bec5a2d63f4d3a49cf202ecfbb45b15d9c65951e6b5834",
+      "maximum_component_residual_kg_s": 0.0
+    }
+  ],
+  "comparisons": [
+    {
+      "pair": 0,
+      "accepted": true,
+      "pressures_identical": true,
+      "selected_rows_maximum_absolute_difference": 0.0,
+      "relative_budget": 1e-11,
+      "absolute_budget": 1e-07
+    },
+    {
+      "pair": 1,
+      "accepted": true,
+      "pressures_identical": true,
+      "selected_rows_maximum_absolute_difference": 0.0,
+      "relative_budget": 1e-11,
+      "absolute_budget": 1e-07
+    }
+  ],
+  "audit_certificates": {}
+}

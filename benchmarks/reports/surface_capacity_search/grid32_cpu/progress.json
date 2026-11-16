@@ -1,0 +1,191 @@
+{
+  "status": "incomplete",
+  "runs": [
+    {
+      "pair": 0,
+      "mode": "bisect",
+      "elapsed_s": 23.143949018000058,
+      "audit": {
+        "accepted": true,
+        "checked_substeps": 6,
+        "elapsed_days": 30.0,
+        "minimum_step_s": 432000.0,
+        "maximum_step_s": 432000.0,
+        "capacity_evaluations": 120,
+        "operating_events": 3,
+        "mass_balance_error_kg": [
+          -0.00020648445934057236,
+          -0.0003201782383257523,
+          0.00027786348709923914
+        ],
+        "maximum_surface_component_residual_kg_s": 3.469446951953614e-18,
+        "mass_atol_kg": 0.01,
+        "mass_rtol": 1e-08,
+        "scope": "Audit accepted forecast material and controls without running either solver.\n\nThis is an accounting/constraint audit, not independent validation of the PVT\nor homogeneous gathering closure. The production FIM CNV/MB remain required.\n"
+      },
+      "trajectory": "pair0_bisect.json.gz",
+      "sha256": "8095198087a8c163cf705e8a2789a02c6b3567c6fb4ac9904a854213c88417ae"
+    },
+    {
+      "pair": 0,
+      "mode": "safeguarded",
+      "elapsed_s": 10.545112612000594,
+      "audit": {
+        "accepted": true,
+        "checked_substeps": 6,
+        "elapsed_days": 30.0,
+        "minimum_step_s": 432000.0,
+        "maximum_step_s": 432000.0,
+        "capacity_evaluations": 57,
+        "operating_events": 3,
+        "mass_balance_error_kg": [
+          -0.00020605559984687716,
+          -0.0003203233063686639,
+          0.00027765695722337114
+        ],
+        "maximum_surface_component_residual_kg_s": 3.469446951953614e-18,
+        "mass_atol_kg": 0.01,
+        "mass_rtol": 1e-08,
+        "scope": "Audit accepted forecast material and controls without running either solver.\n\nThis is an accounting/constraint audit, not independent validation of the PVT\nor homogeneous gathering closure. The production FIM CNV/MB remain required.\n"
+      },
+      "trajectory": "pair0_safeguarded.json.gz",
+      "sha256": "58059a3f8746dfaefa11b517a190628e351a864b006204c0fa31146226752f34"
+    },
+    {
+      "pair": 1,
+      "mode": "safeguarded",
+      "elapsed_s": 10.766627107999739,
+      "audit": {
+        "accepted": true,
+        "checked_substeps": 6,
+        "elapsed_days": 30.0,
+        "minimum_step_s": 432000.0,
+        "maximum_step_s": 432000.0,
+        "capacity_evaluations": 57,
+        "operating_events": 3,
+        "mass_balance_error_kg": [
+          -0.00020605559984687716,
+          -0.0003203233063686639,
+          0.00027765695722337114
+        ],
+        "maximum_surface_component_residual_kg_s": 3.469446951953614e-18,
+        "mass_atol_kg": 0.01,
+        "mass_rtol": 1e-08,
+        "scope": "Audit accepted forecast material and controls without running either solver.\n\nThis is an accounting/constraint audit, not independent validation of the PVT\nor homogeneous gathering closure. The production FIM CNV/MB remain required.\n"
+      },
+      "trajectory": "pair1_safeguarded.json.gz",
+      "sha256": "9eaf4ba4e0cced9092f70bb77ade92d4fb45085bf88d5e3a9849ba65f8b825cb"
+    },
+    {
+      "pair": 1,
+      "mode": "bisect",
+      "elapsed_s": 24.272400629999538,
+      "audit": {
+        "accepted": true,
+        "checked_substeps": 6,
+        "elapsed_days": 30.0,
+        "minimum_step_s": 432000.0,
+        "maximum_step_s": 432000.0,
+        "capacity_evaluations": 120,
+        "operating_events": 3,
+        "mass_balance_error_kg": [
+          -0.00020648445934057236,
+          -0.0003201782383257523,
+          0.00027786348709923914
+        ],
+        "maximum_surface_component_residual_kg_s": 3.469446951953614e-18,
+        "mass_atol_kg": 0.01,
+        "mass_rtol": 1e-08,
+        "scope": "Audit accepted forecast material and controls without running either solver.\n\nThis is an accounting/constraint audit, not independent validation of the PVT\nor homogeneous gathering closure. The production FIM CNV/MB remain required.\n"
+      },
+      "trajectory": "pair1_bisect.json.gz",
+      "sha256": "4c05860730c78eb70ef67076b4aec91382363a2d8eab649b22129a855c655219"
+    },
+    {
+      "pair": 2,
+      "mode": "bisect",
+      "elapsed_s": 23.783474318000117,
+      "audit": {
+        "accepted": true,
+        "checked_substeps": 6,
+        "elapsed_days": 30.0,
+        "minimum_step_s": 432000.0,
+        "maximum_step_s": 432000.0,
+        "capacity_evaluations": 120,
+        "operating_events": 3,
+        "mass_balance_error_kg": [
+          -0.00020648445934057236,
+          -0.0003201782383257523,
+          0.00027786348709923914
+        ],
+        "maximum_surface_component_residual_kg_s": 3.469446951953614e-18,
+        "mass_atol_kg": 0.01,
+        "mass_rtol": 1e-08,
+        "scope": "Audit accepted forecast material and controls without running either solver.\n\nThis is an accounting/constraint audit, not independent validation of the PVT\nor homogeneous gathering closure. The production FIM CNV/MB remain required.\n"
+      },
+      "trajectory": "pair2_bisect.json.gz",
+      "sha256": "f0f4d26e5a4b8a1b7c9e9b6f030df9eb6727186c2cbb5f63a425e3deb96a4626"
+    },
+    {
+      "pair": 2,
+      "mode": "safeguarded",
+      "elapsed_s": 11.056221420999464,
+      "audit": {
+        "accepted": true,
+        "checked_substeps": 6,
+        "elapsed_days": 30.0,
+        "minimum_step_s": 432000.0,
+        "maximum_step_s": 432000.0,
+        "capacity_evaluations": 57,
+        "operating_events": 3,
+        "mass_balance_error_kg": [
+          -0.00020605559984687716,
+          -0.0003203233063686639,
+          0.00027765695722337114
+        ],
+        "maximum_surface_component_residual_kg_s": 3.469446951953614e-18,
+        "mass_atol_kg": 0.01,
+        "mass_rtol": 1e-08,
+        "scope": "Audit accepted forecast material and controls without running either solver.\n\nThis is an accounting/constraint audit, not independent validation of the PVT\nor homogeneous gathering closure. The production FIM CNV/MB remain required.\n"
+      },
+      "trajectory": "pair2_safeguarded.json.gz",
+      "sha256": "b0716d9734d1dd841e2b26f284f1818c0d3c0430ced69f32dec526cc08a4843a"
+    }
+  ],
+  "comparisons": [
+    {
+      "pair": 0,
+      "errors": {
+        "final_pressure_pa": 2.1267582778818905,
+        "final_s_w": 2.1410109118935594e-07,
+        "final_s_g": 8.240380819715676e-07,
+        "final_rs": 3.190137417163896e-05,
+        "withdrawal_relative": 0.00021874870487006106
+      },
+      "accepted": true
+    },
+    {
+      "pair": 1,
+      "errors": {
+        "final_pressure_pa": 2.1267582778818905,
+        "final_s_w": 2.1410109118935594e-07,
+        "final_s_g": 8.240380819715676e-07,
+        "final_rs": 3.190137417163896e-05,
+        "withdrawal_relative": 0.00021874870487006106
+      },
+      "accepted": true
+    },
+    {
+      "pair": 2,
+      "errors": {
+        "final_pressure_pa": 2.1267582778818905,
+        "final_s_w": 2.1410109118935594e-07,
+        "final_s_g": 8.240380819715676e-07,
+        "final_rs": 3.190137417163896e-05,
+        "withdrawal_relative": 0.00021874870487006106
+      },
+      "accepted": true
+    }
+  ],
+  "audit_certificates": {}
+}

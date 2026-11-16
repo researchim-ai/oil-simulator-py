@@ -1,0 +1,261 @@
+{
+  "scope": "CPU-only structured gathering-well qualification, independent accounting re-audit and dense/closed-form algebra references; no experimental PVT or GPU qualification.",
+  "runs": {
+    "wells129_cpu": {
+      "audit": {
+        "accepted": true,
+        "wells": 129,
+        "accepted_steps": 1,
+        "elapsed_days": 1.0,
+        "mode_samples": {
+          "surface": 129
+        },
+        "component_mass_residual_kg": [
+          -2.0926818251609802e-06,
+          -6.963964551687241e-07,
+          2.3860455257818103e-05
+        ],
+        "mass_atol_kg": 0.01,
+        "mass_rtol": 1e-08,
+        "well_block_backend": "tree_structured",
+        "scope": "Accepted producer-only FIM -> gathering material/operating audit.\n\nNo solver invocation or rescaling of requested production. This is accounting\nand constraint checking, not independent PVT/correlation validation.\n"
+      },
+      "solve_wall_s": 6.275351657001011,
+      "trajectory_sha256": "ea1fbfbeb9d54d1925f846ee22d9e3a98a1d770a712743ae543055ca76c07768",
+      "sources_unchanged_during_run": true,
+      "matches_current_recorded_sources": false,
+      "subsequently_changed_sources": [
+        "/home/user/workspace/oil-simulator-py-impes/src/simulator/tree_well_system.py",
+        "/home/user/workspace/oil-simulator-py-impes/scripts/check_fim_well_forecast.py"
+      ]
+    },
+    "wells512_cpu": {
+      "audit": {
+        "accepted": true,
+        "wells": 512,
+        "accepted_steps": 1,
+        "elapsed_days": 1.0,
+        "mode_samples": {
+          "surface": 512
+        },
+        "component_mass_residual_kg": [
+          -2.2798776626586914e-05,
+          2.6389025151729584e-05,
+          -3.528106026351452e-05
+        ],
+        "mass_atol_kg": 0.01,
+        "mass_rtol": 1e-08,
+        "well_block_backend": "tree_structured",
+        "scope": "Accepted producer-only FIM -> gathering material/operating audit.\n\nNo solver invocation or rescaling of requested production. This is accounting\nand constraint checking, not independent PVT/correlation validation.\n"
+      },
+      "solve_wall_s": 22.94444687200121,
+      "trajectory_sha256": "20c3cbf7cdf1fe878c17748cba570d57e0f85ef9ff691007693f9813c4859cb0",
+      "sources_unchanged_during_run": true,
+      "matches_current_recorded_sources": true,
+      "subsequently_changed_sources": []
+    },
+    "wells2048_cpu": {
+      "audit": {
+        "accepted": true,
+        "wells": 2048,
+        "accepted_steps": 1,
+        "elapsed_days": 1.0,
+        "mode_samples": {
+          "surface": 2048
+        },
+        "component_mass_residual_kg": [
+          1.539289951324463e-05,
+          -4.474073648452759e-06,
+          -4.4517219066619873e-07
+        ],
+        "mass_atol_kg": 0.01,
+        "mass_rtol": 1e-08,
+        "well_block_backend": "tree_structured",
+        "scope": "Accepted producer-only FIM -> gathering material/operating audit.\n\nNo solver invocation or rescaling of requested production. This is accounting\nand constraint checking, not independent PVT/correlation validation.\n"
+      },
+      "solve_wall_s": 90.06723730199883,
+      "trajectory_sha256": "b738bd788133c3967eabe2c0de28ddb6d06db3484b7e29bd7a3e1af297ebfbbe",
+      "sources_unchanged_during_run": true,
+      "matches_current_recorded_sources": true,
+      "subsequently_changed_sources": []
+    },
+    "coupled_dense_cpu": {
+      "audit": {
+        "accepted": true,
+        "checked_substeps": 6,
+        "elapsed_days": 30.0,
+        "minimum_step_s": 432000.0,
+        "maximum_step_s": 432000.0,
+        "capacity_evaluations": 56,
+        "operating_events": 0,
+        "mass_balance_error_kg": [
+          -7.05200363881886e-07,
+          2.2193853510543704e-07,
+          3.964396455558017e-08
+        ],
+        "maximum_surface_component_residual_kg_s": 3.469446951953614e-18,
+        "mass_atol_kg": 0.01,
+        "mass_rtol": 1e-08,
+        "scope": "Audit accepted forecast material and controls without running either solver.\n\nThis is an accounting/constraint audit, not independent validation of the PVT\nor homogeneous gathering closure. The production FIM CNV/MB remain required.\n"
+      },
+      "solve_wall_s": 11.33218394800133,
+      "trajectory_sha256": "80823552a4a403f07b7d8bbe33b8fa929a37036be9f09095dd952eafb09418b7",
+      "sources_unchanged_during_run": true,
+      "matches_current_recorded_sources": true,
+      "subsequently_changed_sources": []
+    },
+    "coupled_structured_cpu": {
+      "audit": {
+        "accepted": true,
+        "checked_substeps": 6,
+        "elapsed_days": 30.0,
+        "minimum_step_s": 432000.0,
+        "maximum_step_s": 432000.0,
+        "capacity_evaluations": 56,
+        "operating_events": 0,
+        "mass_balance_error_kg": [
+          -7.110938895493746e-07,
+          2.207234501838684e-07,
+          4.279900167603046e-08
+        ],
+        "maximum_surface_component_residual_kg_s": 0.0,
+        "mass_atol_kg": 0.01,
+        "mass_rtol": 1e-08,
+        "scope": "Audit accepted forecast material and controls without running either solver.\n\nThis is an accounting/constraint audit, not independent validation of the PVT\nor homogeneous gathering closure. The production FIM CNV/MB remain required.\n"
+      },
+      "solve_wall_s": 11.997878860000128,
+      "trajectory_sha256": "6b759c694e908de4fa0f7ea742713e5fb96854c7e5b44519d97b3cea7f383f19",
+      "sources_unchanged_during_run": true,
+      "matches_current_recorded_sources": true,
+      "subsequently_changed_sources": []
+    },
+    "wells512_profile_cpu": {
+      "audit": {
+        "accepted": true,
+        "wells": 512,
+        "accepted_steps": 1,
+        "elapsed_days": 1.0,
+        "mode_samples": {
+          "surface": 512
+        },
+        "component_mass_residual_kg": [
+          -2.2798776626586914e-05,
+          2.6389025151729584e-05,
+          -3.528106026351452e-05
+        ],
+        "mass_atol_kg": 0.01,
+        "mass_rtol": 1e-08,
+        "well_block_backend": "tree_structured",
+        "scope": "Accepted producer-only FIM -> gathering material/operating audit.\n\nNo solver invocation or rescaling of requested production. This is accounting\nand constraint checking, not independent PVT/correlation validation.\n"
+      },
+      "solve_wall_s": 31.063722812999913,
+      "trajectory_sha256": "780ee0302448ae4ff68ee3409091ab203a2c18dba5817fe7c575b98970dd5b04",
+      "sources_unchanged_during_run": true,
+      "matches_current_recorded_sources": true,
+      "subsequently_changed_sources": []
+    }
+  },
+  "algebra": {
+    "scope": "Large algebraic well block, checked against a closed-form rank-one inverse.\n\nNo PVT, reservoir integration or dense reference matrices are allocated here.\nActual producing-well qualifications are separate run_structured_well_forecast runs.\n",
+    "sources_unchanged": true,
+    "wells": 4096,
+    "perforations": 65536,
+    "nodes": 4098,
+    "constructor_and_admission_s": 0.02905388699946343,
+    "median_solve_plus_Bx_s": 0.006404142000064894,
+    "samples_s": [
+      0.007203192999440944,
+      0.006299058999502449,
+      0.006345065999994404,
+      0.006100915999923018,
+      0.0065781249995779945,
+      0.006864744998893002,
+      0.005927168998823618,
+      0.00590591900072468,
+      0.006498095001006732,
+      0.0064632180001353845
+    ],
+    "tensor_payload_bytes_including_borrowed_inputs": 13083187,
+    "hypothetical_dense_B_and_D_bytes": 6576668672,
+    "dense_B_D_allocated": false,
+    "closed_form_inverse_accepted": true,
+    "closed_form_Bx_accepted": true,
+    "iterative_fallback": false,
+    "factor_bad": false,
+    "maximum_scaled_residual": 4.167402051616819e-11,
+    "status": "complete"
+  },
+  "coupled_comparison": {
+    "accepted": true,
+    "errors": {
+      "final_pressure_pa": 1.7695128917694092e-08,
+      "final_s_w": 1.3877787807814457e-15,
+      "final_s_g": 5.773159728050814e-15,
+      "final_rs": 2.6290081223123707e-13,
+      "withdrawal_relative": 4.237830745320174e-14
+    },
+    "budgets": {
+      "final_pressure_pa": 0.1,
+      "final_s_w": 1e-08,
+      "final_s_g": 1e-08,
+      "final_rs": 1e-05,
+      "withdrawal_relative": 1e-06
+    },
+    "coarse": "/home/user/workspace/oil-simulator-py-impes/benchmarks/reports/surface_structured_wells/coupled_structured_cpu/trajectory.json.gz",
+    "fine": "/home/user/workspace/oil-simulator-py-impes/benchmarks/reports/surface_structured_wells/coupled_dense_cpu/trajectory.json.gz",
+    "scope": "Compare completed operational forecasts at the final common report endpoint.\n\nBudgets must be supplied before inspecting the reference result. This is a\nstep-refinement check, not a proof that the finer trajectory is exact.\n",
+    "allowed_numerical_policy_differences": [
+      "coupled_facility.time_control",
+      "coupled_facility.control.search_method",
+      "physical_surface_network.sensitivity_backend",
+      "physical_surface_network.well_block_backend",
+      "physical_surface_network.structured_memory_budget_bytes"
+    ]
+  },
+  "regression": {
+    "passed": 156,
+    "skipped": 4,
+    "log_sha256": "7c112dba68c2b01c84eb23e6d9afd3e4d549ddd41dfff6d383115fdc8c8bd028"
+  },
+  "protected_source_sha256": {
+    "src/simulator/blackoil_fim.py": "658fde0e6119df6ae154c3c400ff24b8d2a519dfa9a33e612aeaa6bd51a16c3c",
+    "src/surface/torch_linear.py": "b7bda1aae66d9e979c147f821efba9990d6460d60b32a05c6fc5f9b873b752d5"
+  },
+  "evidence_sha256": {
+    "algebra4096_cpu/protocol.json": "38cf3689ed5406a7937930bacc40554472095598441b00e790b73906b7d0e0ba",
+    "algebra4096_cpu/summary.json": "7b8a9c08f7eb234a0bf5469b883695e8bd88b93e8fea4659d8f57f275e3af6ce",
+    "coupled_comparison.json": "7e20582f52bcd5a5e5d81fcc25b23223e0c61755cbe9b94b2c30615a1f9b28e6",
+    "coupled_comparison_budgets.json": "3f45e215f34c7191941859f7a9468f1e76ef4993644f1609df889df66d66e9b0",
+    "coupled_dense_cpu/progress.json": "f50dbbc88c511cd14fe0bf4edefd3aef224f15779f13290a3af56881ae11c009",
+    "coupled_dense_cpu/protocol.json": "357220ae5e1c8027ce0aa0af481e69885eb6a7b48b0f1dd126551b26551c3f2d",
+    "coupled_dense_cpu/summary.json": "21260356a5c6adefd48bd17a27d21a015d04e1d9fcafbb85baeb2ad0420cd1f9",
+    "coupled_dense_cpu/trajectory.json.gz": "80823552a4a403f07b7d8bbe33b8fa929a37036be9f09095dd952eafb09418b7",
+    "coupled_dense_input.json": "7c3d33c5caef745570c7c76cd8cdc27b7064bbd00670d551140cf5276c40d41c",
+    "coupled_structured_cpu/progress.json": "f50dbbc88c511cd14fe0bf4edefd3aef224f15779f13290a3af56881ae11c009",
+    "coupled_structured_cpu/protocol.json": "7a989e4f74793c84bd0221d60ce1009bc745fe26d689837703846d2a297a4437",
+    "coupled_structured_cpu/summary.json": "9e19f5bd9fd0ff8c7ceb87c462db8b623e7eac0336c0fb199c80a0f91ce53d81",
+    "coupled_structured_cpu/trajectory.json.gz": "6b759c694e908de4fa0f7ea742713e5fb96854c7e5b44519d97b3cea7f383f19",
+    "coupled_structured_input.json": "5242fbbf8f63bdf28578a0f27dfd3c3ae67245135451743c1fa4e2104902e0b6",
+    "cpu_profile512.json": "5c1cbaabbfcb2cb5ad6336bcfc50b32d03a1fa5a606a7055e6d6976c48157da9",
+    "regression.txt": "7c112dba68c2b01c84eb23e6d9afd3e4d549ddd41dfff6d383115fdc8c8bd028",
+    "wells129_cpu/progress.json": "f50dbbc88c511cd14fe0bf4edefd3aef224f15779f13290a3af56881ae11c009",
+    "wells129_cpu/protocol.json": "5e6259634ab4f93f788d5caa5789f58edf68c12ba2c21d63ffa2905a3a37b572",
+    "wells129_cpu/summary.json": "547eb597a797f2742e7599a2292bdedc63064af14b9164647cccf78dba1f79de",
+    "wells129_cpu/trajectory.json.gz": "ea1fbfbeb9d54d1925f846ee22d9e3a98a1d770a712743ae543055ca76c07768",
+    "wells129_input.json": "bcd8c99e2a5f9c28e5fa0a1beff223ccf30b65d5a8b8db47e8231abe3956a166",
+    "wells2048_cpu/progress.json": "f50dbbc88c511cd14fe0bf4edefd3aef224f15779f13290a3af56881ae11c009",
+    "wells2048_cpu/protocol.json": "15fa4a050a7dcdc4cdbbb1f3b5333bda4c77ac49ab4bf137b2c2e965920cf287",
+    "wells2048_cpu/summary.json": "007ba98d7307f1df53915839f08ff1121f94db5e68003b1f0fd2bb2ea2910d6a",
+    "wells2048_cpu/trajectory.json.gz": "b738bd788133c3967eabe2c0de28ddb6d06db3484b7e29bd7a3e1af297ebfbbe",
+    "wells2048_input.json": "17b0898f2dc56253ad0462e5799d2b041d97d75d3c52d4df48137cf7057aeb1f",
+    "wells512_cpu/progress.json": "f50dbbc88c511cd14fe0bf4edefd3aef224f15779f13290a3af56881ae11c009",
+    "wells512_cpu/protocol.json": "6c79d29d059e75d0aa5207439c57f2e6b74a8e602ba6a2f905b7fede87c90adb",
+    "wells512_cpu/summary.json": "9db47f23dda87c578b20bc88e38be356dbbf1d678c748a235f0df125c5208445",
+    "wells512_cpu/trajectory.json.gz": "20c3cbf7cdf1fe878c17748cba570d57e0f85ef9ff691007693f9813c4859cb0",
+    "wells512_input.json": "2addb71c45e14a918bb5b313f318aa3dc0777a2cfc4dd4a71f4bf344dc6a4d80",
+    "wells512_profile_cpu/progress.json": "f50dbbc88c511cd14fe0bf4edefd3aef224f15779f13290a3af56881ae11c009",
+    "wells512_profile_cpu/protocol.json": "24717069f5c9f9f36639a3b02fdfe46b5df81ccca61dc70a20cf14679cd82b74",
+    "wells512_profile_cpu/summary.json": "33579ba69fac2bf9d7eed4436779e8369f7fa3fb99789764f55aba8f27eb7575",
+    "wells512_profile_cpu/trajectory.json.gz": "780ee0302448ae4ff68ee3409091ab203a2c18dba5817fe7c575b98970dd5b04"
+  }
+}

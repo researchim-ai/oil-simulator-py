@@ -1,0 +1,110 @@
+{
+  "scope": "Compact frozen tree tangent, bounded derivative products and same-physics FIM integration. Dense well-block limit remains.",
+  "physical_tree_sources": 256,
+  "physical_comparison_pairs": 2,
+  "deep_probe": {
+    "scope": "Algebra only, no PVT solve or reservoir integration",
+    "nodes": 4096,
+    "sources": 4096,
+    "tensor_storage_bytes": 1376272,
+    "hypothetical_dense_float64_bytes": 402653184,
+    "dense_allocated": false,
+    "construction_s": 0.014021594000951154,
+    "median_jvp_plus_vjp_s": 0.0010799079991556937,
+    "closed_form_and_adjoint_accepted": true
+  },
+  "fim_audits": {
+    "dense": {
+      "accepted": true,
+      "checked_substeps": 6,
+      "elapsed_days": 30.0,
+      "minimum_step_s": 432000.0,
+      "maximum_step_s": 432000.0,
+      "capacity_evaluations": 57,
+      "operating_events": 3,
+      "mass_balance_error_kg": [
+        -0.00020605559984687716,
+        -0.0003203233063686639,
+        0.00027765695722337114
+      ],
+      "maximum_surface_component_residual_kg_s": 3.469446951953614e-18,
+      "mass_atol_kg": 0.01,
+      "mass_rtol": 1e-08,
+      "scope": "Audit accepted forecast material and controls without running either solver.\n\nThis is an accounting/constraint audit, not independent validation of the PVT\nor homogeneous gathering closure. The production FIM CNV/MB remain required.\n"
+    },
+    "operator": {
+      "accepted": true,
+      "checked_substeps": 6,
+      "elapsed_days": 30.0,
+      "minimum_step_s": 432000.0,
+      "maximum_step_s": 432000.0,
+      "capacity_evaluations": 57,
+      "operating_events": 3,
+      "mass_balance_error_kg": [
+        -0.00020605559984687716,
+        -0.0003203233063686639,
+        0.00027765695722337114
+      ],
+      "maximum_surface_component_residual_kg_s": 3.469446951953614e-18,
+      "mass_atol_kg": 0.01,
+      "mass_rtol": 1e-08,
+      "scope": "Audit accepted forecast material and controls without running either solver.\n\nThis is an accounting/constraint audit, not independent validation of the PVT\nor homogeneous gathering closure. The production FIM CNV/MB remain required.\n"
+    }
+  },
+  "fim_equivalence": {
+    "accepted": true,
+    "errors": {
+      "final_pressure_pa": 0.0,
+      "final_s_w": 0.0,
+      "final_s_g": 0.0,
+      "final_rs": 0.0,
+      "withdrawal_relative": 0.0
+    },
+    "budgets": {
+      "final_pressure_pa": 0.1,
+      "final_s_w": 1e-08,
+      "final_s_g": 1e-08,
+      "final_rs": 1e-05,
+      "withdrawal_relative": 1e-06
+    },
+    "coarse": "benchmarks/reports/surface_tree_tangent/fim_operator_cpu/trajectory.json.gz",
+    "fine": "benchmarks/reports/surface_tree_tangent/fim_dense_cpu/trajectory.json.gz",
+    "scope": "Compare completed operational forecasts at the final common report endpoint.\n\nBudgets must be supplied before inspecting the reference result. This is a\nstep-refinement check, not a proof that the finer trajectory is exact.\n",
+    "allowed_numerical_policy_differences": [
+      "coupled_facility.time_control",
+      "coupled_facility.control.search_method",
+      "physical_surface_network.sensitivity_backend"
+    ]
+  },
+  "final_measured_sources_match": true,
+  "regression": {
+    "main_passed": 132,
+    "main_skipped": 4,
+    "main_wall_s": 45.99,
+    "additional_passed": 1,
+    "unique_passed": 133
+  },
+  "gpu_qualified": false,
+  "gpu_status": "nvidia-smi cannot communicate with NVIDIA driver (exit 9)",
+  "production_well_limit": 128,
+  "production_connection_limit": 10000,
+  "protected_source_sha256": {
+    "src/simulator/blackoil_fim.py": "658fde0e6119df6ae154c3c400ff24b8d2a519dfa9a33e612aeaa6bd51a16c3c",
+    "src/surface/torch_linear.py": "b7bda1aae66d9e979c147f821efba9990d6460d60b32a05c6fc5f9b873b752d5"
+  },
+  "artifact_sha256": {
+    "physical256_final_cpu/pair0_dense.json.gz": "20123e44776fa042129f3e252101b7ec7a402f6baa4d4372403a907fa743bd43",
+    "physical256_final_cpu/pair0_operator.json.gz": "6ff0c259a59835464dc364a1b43bd1f1f0578a27bc8f8792a4c618de97355e1a",
+    "physical256_final_cpu/pair1_operator.json.gz": "e0b1462a7b0d9405447255b8519cee994b7fa0b6d0709b0a8a8dd241f6f91dc7",
+    "physical256_final_cpu/pair1_dense.json.gz": "4ab8fcc20e9298b998bec5a2d63f4d3a49cf202ecfbb45b15d9c65951e6b5834",
+    "fim_dense_cpu/trajectory.json.gz": "454fb2b07f9202a1d2e6ad67a17ffaa0300c19e24da39aa688c750067a72981d",
+    "fim_operator_cpu/trajectory.json.gz": "bf04ff9a98f989418bf7529f2e5c04eae2801df7da0e1065246353e4003c59f3",
+    "physical256_final_cpu/summary.json": "9ea7960651c922315e9e7397c9c429d70cc01da6b4048eb8c86a59f609829dac",
+    "fim_dense_cpu/summary.json": "8013b283c29a4dcf6e3e65e750bcc72425272243c85c4748cf913a904b949833",
+    "fim_operator_cpu/summary.json": "22dbf49c34af38df5510e733fc90f0aac32a1e095d2ea841d6d0b08c2f1acb00",
+    "fim_equivalence.json": "70a817a3a8b36336ab63e8e2124b8e1a24d70afecca06eff11ea701cc1cce1aa",
+    "fim_equivalence_budgets.json": "3f45e215f34c7191941859f7a9468f1e76ef4993644f1609df889df66d66e9b0",
+    "regression.txt": "2d2eea1b0ac434af6cfc96ffa248dc3ef8c51a6a5bf7c86e5b995e0142972f1b",
+    "policy_regression.txt": "e0e9bbeabb8eb374cfb46f28adce630cdd74695a0fcce355ae4cbe0526cba7c0"
+  }
+}
