@@ -22,6 +22,7 @@ from .cuda_graphs import capture
 from .fim_wells import FIMWells, G, DAY
 from .manual_assembly_solver import ManualFIMSolver
 from .fim_transaction import atomic_fim_step
+from .fim_initial_cell_cache import initial_cell_state
 from .surface_coupling import surface_step_failure
 from .sparse_utils import SparseMatrixBuilder
 
@@ -1926,7 +1927,7 @@ class BlackOilFIMSolver(ManualFIMSolver):
         mass_total = acc_old.sum(dim=1).tolist() if dbg.enabled else None
 
         p, sw, x, sat, ug = p_old.clone(), sw_old.clone(), x_old.clone(), sat_old.clone(), ug_old.clone()
-        state = self.cell_state(p, sw, x, sat, ug)
+        state = initial_cell_state(self, dt, current_time, p, sw, x, sat, ug)
         if self.wells.n_w:
             self._update_resv_averages(p, sw)
             self.wells.begin_step(state[0], state[1], t_days)

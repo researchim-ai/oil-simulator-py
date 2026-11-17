@@ -6,6 +6,7 @@ This is an outer constrained solve, not a monolithic facility Jacobian.
 """
 
 import math
+from contextlib import nullcontext
 from copy import copy, deepcopy
 from dataclasses import dataclass
 
@@ -13,9 +14,11 @@ import numpy as np
 import torch
 
 from .blackoil_surface_coupling import SurfaceCoupledBlackOilWells
-from .facility_time_control import FacilityTimeControl
 from .facility_temporal_control import FacilityTemporalControl, temporal_step
+from .facility_time_control import FacilityTimeControl
+from .fim_initial_cell_cache import InitialCellStateCache
 from .fim_transaction import _StepState
+from .rate_cap_invariance import certificate_covers, make_inactive_cap_certificate
 
 try:
     from ..surface import (
@@ -27,7 +30,11 @@ try:
         SurfaceFacility,
     )
     from ..surface.blackoil_pipe import PipePressureCoverageError
-    from ..surface.capacity_bracket import CapacityBracket, facility_constraint_margin, facility_constraint_margins
+    from ..surface.capacity_bracket import (
+        CapacityBracket,
+        facility_constraint_margin,
+        facility_constraint_margins,
+    )
     from ..surface.gas_valve import GasValveCapacityError
     from ..surface.liquid import InvalidPressureError
 except ImportError:
@@ -40,7 +47,11 @@ except ImportError:
         SurfaceFacility,
     )
     from surface.blackoil_pipe import PipePressureCoverageError
-    from surface.capacity_bracket import CapacityBracket, facility_constraint_margin, facility_constraint_margins
+    from surface.capacity_bracket import (
+        CapacityBracket,
+        facility_constraint_margin,
+        facility_constraint_margins,
+    )
     from surface.gas_valve import GasValveCapacityError
     from surface.liquid import InvalidPressureError
 
@@ -53,8 +64,17 @@ class CoupledFacilityControl:
     max_evaluations: int = 60
     search_method: str = "safeguarded"
     commit_method: str = "replay"
+    reuse_inactive_caps: bool = False
+    reuse_initial_cell_state: bool = False
+    initial_cell_state_cache_bytes: int = 64 * 1024**2
 
     def __post_init__(self):
+        if type(self.reuse_initial_cell_state) is not bool:
+            raise ValueError('reuse_initial_cell_state must be boolean')
+        if type(self.initial_cell_state_cache_bytes) is not int or self.initial_cell_state_cache_bytes <= 0:
+            raise ValueError('initial_cell_state_cache_bytes must be a positive integer')
+        if type(self.reuse_inactive_caps) is not bool:
+            raise ValueError("reuse_inactive_caps must be boolean")
         if self.commit_method not in ("replay", "state_restore"):
             raise ValueError("commit_method must be replay or state_restore")
         if self.search_method not in ("safeguarded", "facet_safeguarded", "bisect"):
@@ -316,6 +336,11 @@ class FacilityCoupledFIM:
         caps = [w.control_value for w in solver.wells.wells]
         trace = []
         trial_calls = 0
+        sample_calls = 0
+        inactive_sources = []
+        initial_cells = (InitialCellStateCache(solver, dt, current_time,
+                        self.control.initial_cell_state_cache_bytes)
+                         if self.control.reuse_initial_cell_state else None)
         selected_state = None
         accepted = False
 
@@ -325,15 +350,29 @@ class FacilityCoupledFIM:
             initial = _StepState(solver)
 
         def trial(fraction):
-            nonlocal trial_calls, selected_state
+            nonlocal trial_calls, sample_calls, selected_state
             if len(trace) >= self.control.max_evaluations:
                 raise HydraulicConvergenceError("Coupled facility evaluation budget exhausted")
+            sample_calls += 1
+            if getattr(self.control, "reuse_inactive_caps", False):
+                for source_index in inactive_sources:
+                    source = trace[source_index]
+                    if certificate_covers(source['inactive_cap_certificate'], fraction):
+                        trace.append({
+                            'fraction': fraction, 'feasible': False,
+                            'reason': deepcopy(source['reason']),
+                            'normalized_margin': source['normalized_margin'],
+                            'constraint_margins': deepcopy(source.get('constraint_margins')),
+                            'certified_from_trace_index': source_index,
+                        })
+                        return False, None
             reset()
             trial_calls += 1
             for w, cap in zip(solver.wells.wells, caps):
                 w.control_value = cap * fraction
             try:
-                converged = solver.step(dt, current_time=current_time)
+                with initial_cells.installed() if initial_cells is not None else nullcontext():
+                    converged = solver.step(dt, current_time=current_time)
             except PipePressureCoverageError as error:
                 # Reject only this declared operating-envelope violation.
                 # Invalid PVT tables and other PropertyModelError instances
@@ -402,6 +441,17 @@ class FacilityCoupledFIM:
                     "constraint_margins": constraint_margins,
                 }
             )
+            if not feasible and getattr(self.control, "reuse_inactive_caps", False):
+                proof = make_inactive_cap_certificate(
+                    report,
+                    {w.name: solver.wells.step_targets[i] for i, w in enumerate(solver.wells.wells)},
+                    {w.name: cap for w, cap in zip(solver.wells.wells, caps)},
+                    {w.name: solver.wells.bhp_limit(w) for w in solver.wells.wells},
+                    fraction,
+                )
+                if proof is not None:
+                    trace[-1]['inactive_cap_certificate'] = proof
+                    inactive_sources.append(len(trace) - 1)
             if (feasible and fraction < 1 and self.control.commit_method == "state_restore"
                     and (selected_state is None or fraction > selected_state[0])):
                 selected_state = (fraction, _StepState(solver), result, len(trace) - 1,
@@ -502,6 +552,8 @@ class FacilityCoupledFIM:
                 "fraction": chosen,
                 "dt_s": dt,
                 "evaluations": len(trace),
+                "reservoir_evaluations": trial_calls,
+                "certified_evaluations": len(trace) - trial_calls,
                 "trace": trace,
                 "search_method": self.control.search_method,
                 "capacity_bracket": final_bracket,
@@ -509,10 +561,17 @@ class FacilityCoupledFIM:
                 "facility": plant,
                 "material_account": material_account,
                 "applied_rate_caps_m3_day": [cap * chosen for cap in caps],
-                "scope": "Common producer rate-cap multiplier; each trial solves the same FIM step. No monolithic facility Jacobian.",
+                "scope": (
+                    "Common producer rate-cap multiplier; converged infeasible states may certify "
+                    "other inactive caps within the same FIM step. No monolithic facility Jacobian."
+                    if self.control.reuse_inactive_caps else
+                    "Common producer rate-cap multiplier; each trial solves the same FIM step. No monolithic facility Jacobian."
+                ),
             }
             if capacity_commit is not None:
                 self.report["capacity_commit"] = capacity_commit
+            if initial_cells is not None:
+                self.report['initial_cell_state_cache'] = initial_cells.report()
             if policy is not None:
                 self.report["rate_time_control"] = {
                     "indicator": rate_indicator,
@@ -522,16 +581,17 @@ class FacilityCoupledFIM:
                 }
             if energy is not None:
                 self.report["energy_process"] = energy
-            self.last_attempt = {"success": True, "evaluations": len(trace)}
+            self.last_attempt = {"success": True, "evaluations": len(trace),
+                                 "reservoir_evaluations": trial_calls}
             accepted = True
             return True
         except HydraulicConvergenceError as error:
             self.last_attempt = {"success": False, "reason": str(error), "trace": trace,
-                                 "evaluations": trial_calls}
+                                 "evaluations": sample_calls, "reservoir_evaluations": trial_calls}
             return False
         except Exception as error:
             self.last_attempt = {"success": False, "reason": str(error), "trace": trace,
-                                 "evaluations": trial_calls}
+                                 "evaluations": sample_calls, "reservoir_evaluations": trial_calls}
             raise
         finally:
             if not accepted:

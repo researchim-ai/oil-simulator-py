@@ -1,0 +1,10 @@
+{
+  "final_pressure_pa": 0.1,
+  "final_s_w": 1e-08,
+  "final_s_g": 1e-08,
+  "final_rs": 1e-05,
+  "withdrawal_relative": 1e-07,
+  "bhp_abs_pa": 0.1,
+  "component_rate_scaled": 1e-07,
+  "cumulative_mass_relative": 1e-07
+}

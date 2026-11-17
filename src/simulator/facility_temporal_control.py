@@ -137,16 +137,19 @@ def temporal_step(coupled, dt, current_time=None):
     old_fields = _fields(s)
     old_metrics = {k: getattr(s, k) for k in ('last_newton_iters', 'last_max_dp', 'last_max_dsw') if hasattr(s, k)}
     accepted, total_evaluations, solves = False, 0, 0
+    reservoir_evaluations = 0
     coupled.accepted_stages = ()
     def solve(duration, time):
-        nonlocal total_evaluations, solves
+        nonlocal total_evaluations, reservoir_evaluations, solves
         solves += 1
         coupled.last_attempt = None
         try:
             ok = coupled._step_once(duration, current_time=time)
         finally:
-            total_evaluations += (coupled.last_attempt or {}).get('evaluations',
-                                len((coupled.last_attempt or {}).get('trace', [])))
+            attempt = coupled.last_attempt or {}
+            evaluations = attempt.get('evaluations', len(attempt.get('trace', [])))
+            total_evaluations += evaluations
+            reservoir_evaluations += attempt.get('reservoir_evaluations', evaluations)
         if not ok:
             raise HydraulicConvergenceError((coupled.last_attempt or {}).get('reason', 'Coupled step failed'))
     try:
@@ -183,6 +186,7 @@ def temporal_step(coupled, dt, current_time=None):
             return False
         metadata = {'indicator': ratio, 'errors': errors, 'macro_dt_s': dt,
                     'total_capacity_evaluations': total_evaluations,
+                    'total_reservoir_evaluations': reservoir_evaluations,
                     'scope': 'Local full-step/two-half-step BE defect; accepted two half steps; requires independent global refinement'}
         if coarse_bhp is not None:
             metadata['coarse_well_bhp_pa'] = coarse_bhp
@@ -207,6 +211,8 @@ def temporal_step(coupled, dt, current_time=None):
         coupled.last_attempt = {'success': False, 'reason': str(exc), 'evaluations': total_evaluations}
         raise
     finally:
+        if coupled.last_attempt is not None:
+            coupled.last_attempt['reservoir_evaluations'] = reservoir_evaluations
         work = getattr(coupled, 'temporal_work', None)
         if work is None:
             work = coupled.temporal_work = {'macro_attempts': 0, 'rejected_macro_steps': 0,
@@ -215,6 +221,7 @@ def temporal_step(coupled, dt, current_time=None):
         work['rejected_macro_steps'] += int(not accepted)
         work['coupled_solves'] += solves
         work['capacity_evaluations'] += total_evaluations
+        work['reservoir_evaluations'] = work.get('reservoir_evaluations', 0) + reservoir_evaluations
         if not accepted:
             initial.restore()
             coupled.report = previous

@@ -1,0 +1,12 @@
+{
+  "baseline": {
+    "cell_function_calls": 528,
+    "cell_function_cumulative_s": 7.4894742700000005,
+    "profile_total_s": 31.860734366999797
+  },
+  "cached": {
+    "cell_function_calls": 387,
+    "cell_function_cumulative_s": 5.502402481000001,
+    "profile_total_s": 29.647588735999907
+  }
+}

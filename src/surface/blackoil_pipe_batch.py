@@ -107,11 +107,13 @@ class PipeBatch:
     def _integrand(self, p, point_widths, masses, resistance):
         model = self.model
         length, diameter, dz, rough = self.geometry.unbind(1)
-        if not p.requires_grad:
-            p.requires_grad_(True)
-        state = tensor_state(model, p, masses, pvto=self.pvto)
-        v, mu = state["specific_volume"], state["viscosity_pa_s"]
-        vp = torch.autograd.grad(v.sum(), p, create_graph=True)[0]
+        differentiate = torch.is_grad_enabled()
+        with torch.enable_grad():
+            if not p.requires_grad:
+                p.requires_grad_(True)
+            state = tensor_state(model, p, masses, pvto=self.pvto)
+            v, mu = state["specific_volume"], state["viscosity_pa_s"]
+            vp = torch.autograd.grad(v.sum(), p, create_graph=differentiate)[0]
         flux = masses.sum(1) / (math.pi * diameter.square() / 4)
         f = _darcy(
             flux[:, None, None] * diameter[:, None, None] / mu, (rough / diameter)[:, None, None]
@@ -140,7 +142,11 @@ class PipeBatch:
         previous = None
         plan = make_quadrature_plan(self._pressure_points(lower, upper, masses))
         for order in (16, 32, 64, 128, 256):
-            result = self.integral(lower, upper, masses, resistance, order, plan=plan)
+            if previous is None:
+                with torch.no_grad():
+                    result = self.integral(lower, upper, masses, resistance, order, plan=plan)
+            else:
+                result = self.integral(lower, upper, masses, resistance, order, plan=plan)
             detached = result.detach()
             if not bool(torch.isfinite(detached).all()):
                 raise HydraulicConvergenceError("Nonfinite batch quadrature")
@@ -175,7 +181,8 @@ class PipeBatch:
         high = (boundary + increment).clamp_max(model.pressure_bounds_pa[1])
         calls = 0
         for _ in range(64):
-            value, _, _ = self.checked(boundary, high, masses, resistance)
+            with torch.no_grad():
+                value, _, _ = self.checked(boundary, high, masses, resistance)
             calls += 1
             found = value[:, 0].detach() >= length
             if bool(found.all()):
@@ -205,7 +212,6 @@ class PipeBatch:
             trial = trial.detach().requires_grad_(True)
             value, _, _ = self.checked(boundary, trial, masses, resistance)
             residual = value[:, 0] - length
-            deriv = torch.autograd.grad(value[:, 0].sum(), trial)[0]
             calls += 1
             okay = residual.detach().abs() <= torch.maximum(
                 length * 1e-10, length.new_full((n,), 1e-8)
@@ -213,9 +219,15 @@ class PipeBatch:
             done |= okay
             if bool(done.all()):
                 root = trial.detach()
+                # Release the unused trial tape before the final sensitivity
+                # graph; skipping backward must not increase peak memory.
+                del value, residual
                 break
             high = torch.where(~done & (residual.detach() > 0), trial.detach(), high)
             low = torch.where(~done & (residual.detach() <= 0), trial.detach(), low)
+            # A converged root needs no next Newton proposal. Final implicit
+            # sensitivities are computed independently below for all inputs.
+            deriv = torch.autograd.grad(value[:, 0].sum(), trial)[0]
             newton = trial.detach() - residual.detach() / deriv.detach()
             safe = torch.isfinite(newton) & (newton > low) & (newton < high)
             trial = torch.where(done, trial.detach(), torch.where(safe, newton, (low + high) / 2))

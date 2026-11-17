@@ -4,7 +4,14 @@
   "initial_month_pair_accepted": false,
   "initial_month_bhp_budget_passed": true,
   "initial_month_rejection": "Sg difference 2.167517333273583e-5 exceeds declared 2e-5 budget. Other compared quantities pass.",
-  "working_policy": "The prior refined policy is now the working candidate; another factor-two refinement is running.",
-  "working_policy_full_month_refinement_accepted": false,
-  "working_policy_status": "Pending independent reference; not yet qualified."
+  "working_policy": "Validated cumulative-error/BHP policy; all declared 30-day refinement budgets passed.",
+  "working_policy_full_month_refinement_accepted": true,
+  "working_policy_status": "Complete: all declared budgets passed",
+  "accepted_candidate": "/home/user/workspace/oil-simulator-py-impes/.scratch/cumulative_month_reference",
+  "accepted_reference": "/home/user/workspace/oil-simulator-py-impes/.scratch/cumulative_month_qualified_reference",
+  "status": "complete",
+  "accepted": true,
+  "published_config": "configs/fim_blackoil_facility_depletion_adaptive.json",
+  "published_candidate": "accepted_candidate",
+  "published_reference": "accepted_reference"
 }

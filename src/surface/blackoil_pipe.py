@@ -96,11 +96,15 @@ class BlackOilPipe:
         for a, b in zip(pieces, pieces[1:]):
             half = (b - a) / 2
             p = (a + b) / 2 + half * nodes
-            if not p.requires_grad:
-                p.requires_grad_(True)
-            state = model.tensor_state(p, masses)
-            v, mu = state["specific_volume"], state["viscosity_pa_s"]
-            vp = torch.autograd.grad(v.sum(), p, create_graph=True)[0]
+            differentiate = torch.is_grad_enabled()
+            # The momentum equation always needs dv/dp. Value-only bracket
+            # probes do not need a graph through that derivative.
+            with torch.enable_grad():
+                if not p.requires_grad:
+                    p.requires_grad_(True)
+                state = model.tensor_state(p, masses)
+                v, mu = state["specific_volume"], state["viscosity_pa_s"]
+                vp = torch.autograd.grad(v.sum(), p, create_graph=differentiate)[0]
             flux = masses.sum() / (math.pi * self.diameter_m**2 / 4)
             f = _darcy(flux * self.diameter_m / mu, self.roughness_m / self.diameter_m)
             margin = 1 + flux.square() * vp
@@ -117,7 +121,13 @@ class BlackOilPipe:
     def _checked_integral(self, lower, upper, masses, model, depth=0, resistance=None):
         previous = None
         for order in (16, 32, 64, 128, 256):
-            result = self._integral(lower, upper, masses, model, order, resistance)
+            if previous is None:
+                # This first order only estimates quadrature error and is
+                # never returned as the differentiated accepted integral.
+                with torch.no_grad():
+                    result = self._integral(lower, upper, masses, model, order, resistance)
+            else:
+                result = self._integral(lower, upper, masses, model, order, resistance)
             values = [float(r.detach()) for r in result]
             value = values[0]
             if not all(math.isfinite(v) for v in values):
@@ -162,7 +172,8 @@ class BlackOilPipe:
             if a == b:
                 value = 0.0
             else:
-                integral, _, _ = self._checked_integral(scalar(a), scalar(b), masses, model)
+                with torch.no_grad():
+                    integral, _, _ = self._checked_integral(scalar(a), scalar(b), masses, model)
                 value = float(integral[0].detach())
             distance_cache[other] = value
             return value

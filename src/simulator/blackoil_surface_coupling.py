@@ -15,11 +15,11 @@ import torch
 
 from .blackoil_fim import I_P, BlackOilWells
 from .device_exchange import HostReturnPacket
-from .fim_wells import DAY
 from .full_well_schur import FullWellSchur
+from .rate_cap_invariance import rate_cap_switch_value
+from .surface_seed import initial_network_seed
 from .surface_well_blocks import assemble_surface_blocks
 from .tree_well_system import TreeWellSystem
-from .surface_seed import initial_network_seed
 
 try:
     from ..surface import (
@@ -390,7 +390,7 @@ class SurfaceCoupledBlackOilWells(FullWellSchur, BlackOilWells):
             target = max(network_p, floor)
             cap = self.step_targets[i][1]
             rate = host_control[i]
-            trial = rate + max(abs(rate), 0.01 / DAY) / max(target, 1e5) * (host_bhp[i] - target)
+            trial = rate_cap_switch_value(rate, host_bhp[i], target)
             active = bool(trial >= cap)
             mode = "rate" if active else ("surface" if network_p >= floor else "bhp_limit")
             self.step_mode[i] = mode

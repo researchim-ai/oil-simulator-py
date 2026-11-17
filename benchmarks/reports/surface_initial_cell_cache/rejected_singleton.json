@@ -1,0 +1,19 @@
+{
+  "reason": "No observed CPU speed benefit; not promoted",
+  "times": {
+    "scalar_trunk": 22.881543319002958,
+    "batch_trunk": 24.78586339299727
+  },
+  "fields": {
+    "final_pressure_pa": 0.0,
+    "final_s_w": 0.0,
+    "final_s_g": 0.0,
+    "final_rs": 0.0,
+    "withdrawal_relative": 0.0
+  },
+  "wells": {
+    "bhp_abs_pa": 0.0,
+    "component_rate_scaled": 0.0,
+    "cumulative_mass_relative": 0.0
+  }
+}

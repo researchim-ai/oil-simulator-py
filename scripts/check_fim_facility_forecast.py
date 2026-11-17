@@ -7,7 +7,12 @@ or homogeneous gathering closure. The production FIM CNV/MB remain required.
 import argparse
 import json
 import math
+import sys
 from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'src'))
+from simulator.fim_initial_cell_cache import audit_initial_cell_cache
+from simulator.rate_cap_invariance import audit_inactive_cap_trace
 
 COMPONENTS = ("oil", "water", "gas")
 
@@ -37,6 +42,9 @@ def audit(
     withdrawn = [0.0] * 3
     max_surface_residual = 0.0
     evaluations = 0
+    reservoir_evaluations = 0
+    initial_cell_evaluations = initial_cell_hits = 0
+    estimator_reservoir_evaluations = 0
     estimator_evaluations = 0
     events = report.get("facility_control_events", [])
     if expected_days is not None:
@@ -81,6 +89,14 @@ def audit(
             or not all(x["passed"] for x in plant["limits"])
         ):
             raise ValueError("Infeasible plant was accepted")
+        reuse = (config['simulation']['coupled_facility'].get('control') or {}).get('reuse_inactive_caps', False)
+        if type(reuse) is not bool:
+            raise ValueError('Invalid inactive-cap reuse policy')
+        reservoir_evaluations += audit_inactive_cap_trace(coupling, config['wells'], reuse)
+        cell_evaluations, cell_hits = audit_initial_cell_cache(
+            coupling, config['simulation']['coupled_facility'].get('control') or {})
+        initial_cell_evaluations += cell_evaluations
+        initial_cell_hits += cell_hits
         close(coupling["dt_s"], dt, atol=1e-7)
         if config["simulation"]["coupled_facility"].get("temporal_control") is not None and step_index % 2 == 1:
             # Every accepted macro interval must publish both actual half
@@ -142,6 +158,13 @@ def audit(
             if type(total) is not int or total < fine + 1:
                 raise ValueError("Missing discarded coarse-solve work")
             estimator_evaluations += total - fine
+            actual_total = temporal.get('total_reservoir_evaluations', total)
+            actual_fine = sum(s['facility_coupling'].get('reservoir_evaluations',
+                              s['facility_coupling']['evaluations']) for s in (first, step))
+            if (type(actual_total) is not int or not actual_fine + 1 <= actual_total <= total
+                    or reuse and 'total_reservoir_evaluations' not in temporal):
+                raise ValueError('Invalid temporal reservoir evaluation accounting')
+            estimator_reservoir_evaluations += actual_total - actual_fine
         if not 0 < coupling["fraction"] <= 1:
             raise ValueError("Invalid rate-cap fraction")
         if "capacity_bracket" in coupling:
@@ -255,6 +278,10 @@ def audit(
         "minimum_step_s": min(s["dt_s"] for s in steps),
         "maximum_step_s": max(s["dt_s"] for s in steps),
         "capacity_evaluations": evaluations,
+        "reservoir_evaluations": reservoir_evaluations,
+        "accepted_initial_cell_evaluations": initial_cell_evaluations,
+        "accepted_initial_cell_reuses": initial_cell_hits,
+        "accepted_macro_estimator_reservoir_evaluations": estimator_reservoir_evaluations,
         "accepted_macro_estimator_capacity_evaluations": estimator_evaluations,
         "operating_events": len(events),
         "mass_balance_error_kg": residuals,

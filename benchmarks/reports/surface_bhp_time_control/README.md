@@ -77,11 +77,49 @@ CPU-набор: 52 passed / 2 skipped. Отдельный CUDA-опыт с ма�
 Sw/Sg 2,5e-6, Rs/Rv 5e-4, накопительный относительный допуск 0,001 и
 абсолютный 5e-6 кг. Её полный 30-суточный расчёт уже завершён;
 [исходный результат](month_working_candidate/summary.json).
-Для приёмки запущен ещё один референс с уменьшением всех шести допусков
-вдвое. Пока нет этого сравнения, полный горизонт не считается закрытым.
+Повторная приёмка с уменьшением всех шести локальных допусков вдвое
+**пройдена на полных 30 сутках и 60 общих отчётных датах**:
+BHP 41,65 Па / бюджет 100 Па; конечное давление 36,41 Па / 100 Па;
+Sw 4,687e-6 и Sg 1,863e-5 / 2e-5; Rs 5,462e-4 / 0,01;
+компонентные отборы 0,02052% / 0,2%. Истории дебитов и накоплений
+также проходят бюджеты; несовпадений режимов скважин нет.
+[Полный протокол](qualified_month_refinement.json).
+
+Приняты 1128/1594 фактических половинных стадий. Время рабочего расчёта
+2381,50 с (39 мин 41 с), референса — 3307,62 с (55 мин 8 с).
+Итоговый RSS — около 789/853 MiB, swap 0. Максимальный остаток
+материального баланса в паре — менее 1,3e-6 кг.
+Это высокая точность данного опыта, не время произвольной модели.
 Наблюдаемые времена относятся к общему CPU-хосту; чистое аппаратное
 ускорение по этой серии не установлено.
 
 `executed_sources.tar.gz` содержит исполнявшиеся Python-исходники и
 конфиги. Абсолютные пути исходного запуска сохранены в manifests;
 на другой машине путь к PVT заменяют, сохраняя её содержимое.
+
+## Воспроизведение принятой конфигурации
+
+`configs/fim_blackoil_facility_depletion_adaptive.json` совпадает с
+принятым конфигом после разрешения относительного пути PVT. Python-код
+рабочей копии проверен против manifest исполнявшегося снимка: различий нет.
+Для новых моделей локальные допуски требуют отдельной проверки; прежний
+режим нормировки и настройки по умолчанию сохранены.
+
+```bash
+CUDA_VISIBLE_DEVICES='' OMP_NUM_THREADS=1 MKL_NUM_THREADS=1 PYTHONPATH=src:scripts \
+python scripts/run_fim_facility_forecast.py \
+  --config configs/fim_blackoil_facility_depletion_adaptive.json \
+  --days 30 --report-days .5 --device cpu --host-memory-limit-mib 2048 \
+  --output /tmp/facility_depletion_adaptive30
+
+PYTHONPATH=src:scripts python scripts/check_facility_refinement_pair.py \
+  benchmarks/reports/surface_bhp_time_control/accepted_candidate \
+  benchmarks/reports/surface_bhp_time_control/accepted_reference \
+  --budgets benchmarks/reports/surface_bhp_time_control/field_budgets.json \
+  --output /tmp/facility_depletion_refinement.json
+```
+
+
+## Завершённая приёмка полного горизонта
+
+[Итог последнего уточнения](FULL_HORIZON_RESULT.md). Предшествующая отвергнутая пара сохранена как диагностическое свидетельство.

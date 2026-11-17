@@ -1,0 +1,116 @@
+--- a/src/surface/blackoil_pipe.py
++++ b/src/surface/blackoil_pipe.py
+@@ -96,11 +96,15 @@
+         for a, b in zip(pieces, pieces[1:]):
+             half = (b - a) / 2
+             p = (a + b) / 2 + half * nodes
+-            if not p.requires_grad:
+-                p.requires_grad_(True)
+-            state = model.tensor_state(p, masses)
+-            v, mu = state["specific_volume"], state["viscosity_pa_s"]
+-            vp = torch.autograd.grad(v.sum(), p, create_graph=True)[0]
++            differentiate = torch.is_grad_enabled()
++            # The momentum equation always needs dv/dp. Value-only bracket
++            # probes do not need a graph through that derivative.
++            with torch.enable_grad():
++                if not p.requires_grad:
++                    p.requires_grad_(True)
++                state = model.tensor_state(p, masses)
++                v, mu = state["specific_volume"], state["viscosity_pa_s"]
++                vp = torch.autograd.grad(v.sum(), p, create_graph=differentiate)[0]
+             flux = masses.sum() / (math.pi * self.diameter_m**2 / 4)
+             f = _darcy(flux * self.diameter_m / mu, self.roughness_m / self.diameter_m)
+             margin = 1 + flux.square() * vp
+@@ -117,7 +121,13 @@
+     def _checked_integral(self, lower, upper, masses, model, depth=0, resistance=None):
+         previous = None
+         for order in (16, 32, 64, 128, 256):
+-            result = self._integral(lower, upper, masses, model, order, resistance)
++            if previous is None:
++                # This first order only estimates quadrature error and is
++                # never returned as the differentiated accepted integral.
++                with torch.no_grad():
++                    result = self._integral(lower, upper, masses, model, order, resistance)
++            else:
++                result = self._integral(lower, upper, masses, model, order, resistance)
+             values = [float(r.detach()) for r in result]
+             value = values[0]
+             if not all(math.isfinite(v) for v in values):
+@@ -162,7 +172,8 @@
+             if a == b:
+                 value = 0.0
+             else:
+-                integral, _, _ = self._checked_integral(scalar(a), scalar(b), masses, model)
++                with torch.no_grad():
++                    integral, _, _ = self._checked_integral(scalar(a), scalar(b), masses, model)
+                 value = float(integral[0].detach())
+             distance_cache[other] = value
+             return value
+--- a/src/surface/blackoil_pipe_batch.py
++++ b/src/surface/blackoil_pipe_batch.py
+@@ -107,11 +107,13 @@
+     def _integrand(self, p, point_widths, masses, resistance):
+         model = self.model
+         length, diameter, dz, rough = self.geometry.unbind(1)
+-        if not p.requires_grad:
+-            p.requires_grad_(True)
+-        state = tensor_state(model, p, masses, pvto=self.pvto)
+-        v, mu = state["specific_volume"], state["viscosity_pa_s"]
+-        vp = torch.autograd.grad(v.sum(), p, create_graph=True)[0]
++        differentiate = torch.is_grad_enabled()
++        with torch.enable_grad():
++            if not p.requires_grad:
++                p.requires_grad_(True)
++            state = tensor_state(model, p, masses, pvto=self.pvto)
++            v, mu = state["specific_volume"], state["viscosity_pa_s"]
++            vp = torch.autograd.grad(v.sum(), p, create_graph=differentiate)[0]
+         flux = masses.sum(1) / (math.pi * diameter.square() / 4)
+         f = _darcy(
+             flux[:, None, None] * diameter[:, None, None] / mu, (rough / diameter)[:, None, None]
+@@ -140,7 +142,11 @@
+         previous = None
+         plan = make_quadrature_plan(self._pressure_points(lower, upper, masses))
+         for order in (16, 32, 64, 128, 256):
+-            result = self.integral(lower, upper, masses, resistance, order, plan=plan)
++            if previous is None:
++                with torch.no_grad():
++                    result = self.integral(lower, upper, masses, resistance, order, plan=plan)
++            else:
++                result = self.integral(lower, upper, masses, resistance, order, plan=plan)
+             detached = result.detach()
+             if not bool(torch.isfinite(detached).all()):
+                 raise HydraulicConvergenceError("Nonfinite batch quadrature")
+@@ -175,7 +181,8 @@
+         high = (boundary + increment).clamp_max(model.pressure_bounds_pa[1])
+         calls = 0
+         for _ in range(64):
+-            value, _, _ = self.checked(boundary, high, masses, resistance)
++            with torch.no_grad():
++                value, _, _ = self.checked(boundary, high, masses, resistance)
+             calls += 1
+             found = value[:, 0].detach() >= length
+             if bool(found.all()):
+@@ -205,7 +212,6 @@
+             trial = trial.detach().requires_grad_(True)
+             value, _, _ = self.checked(boundary, trial, masses, resistance)
+             residual = value[:, 0] - length
+-            deriv = torch.autograd.grad(value[:, 0].sum(), trial)[0]
+             calls += 1
+             okay = residual.detach().abs() <= torch.maximum(
+                 length * 1e-10, length.new_full((n,), 1e-8)
+@@ -213,9 +219,15 @@
+             done |= okay
+             if bool(done.all()):
+                 root = trial.detach()
++                # Release the unused trial tape before the final sensitivity
++                # graph; skipping backward must not increase peak memory.
++                del value, residual
+                 break
+             high = torch.where(~done & (residual.detach() > 0), trial.detach(), high)
+             low = torch.where(~done & (residual.detach() <= 0), trial.detach(), low)
++            # A converged root needs no next Newton proposal. Final implicit
++            # sensitivities are computed independently below for all inputs.
++            deriv = torch.autograd.grad(value[:, 0].sum(), trial)[0]
+             newton = trial.detach() - residual.detach() / deriv.detach()
+             safe = torch.isfinite(newton) & (newton > low) & (newton < high)
+             trial = torch.where(done, trial.detach(), torch.where(safe, newton, (low + high) / 2))

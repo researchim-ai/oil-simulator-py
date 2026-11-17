@@ -25,6 +25,13 @@ def physical_config(bundle, *, allow_numerical_policy=False):
         facility.pop("time_control", None)
         facility.pop("temporal_control", None)
         if facility.get("control") is not None:
+            initial_cache = facility['control'].pop('reuse_initial_cell_state', False)
+            initial_budget = facility['control'].pop('initial_cell_state_cache_bytes', 64 * 1024**2)
+            if type(initial_cache) is not bool or type(initial_budget) is not int or initial_budget <= 0:
+                raise ValueError('Invalid initial cell state cache policy')
+            reuse = facility['control'].pop('reuse_inactive_caps', False)
+            if type(reuse) is not bool:
+                raise ValueError('Invalid inactive-cap reuse policy')
             facility["control"].pop("search_method", None)
             commit = facility["control"].pop("commit_method", "replay")
             if commit not in ("replay", "state_restore"):
@@ -114,6 +121,9 @@ def compare(coarse_path, fine_path, budgets, *, allow_numerical_policy=False):
             "coupled_facility.temporal_control",
             "coupled_facility.control.search_method",
             "coupled_facility.control.commit_method",
+            "coupled_facility.control.reuse_inactive_caps",
+            "coupled_facility.control.reuse_initial_cell_state",
+            "coupled_facility.control.initial_cell_state_cache_bytes",
             "physical_surface_network.sensitivity_backend",
             "physical_surface_network.network_backend",
             "physical_surface_network.bhp_initialization",
