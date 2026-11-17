@@ -1,0 +1,11 @@
+{
+  "pressure_abs_pa": 100.0,
+  "saturation_abs": 2e-05,
+  "rs_abs": 0.01,
+  "withdrawal_relative": 0.002,
+  "well_bhp_abs_pa": 100.0,
+  "well_rate_scaled": 0.002,
+  "cumulative_mass_relative": 0.002,
+  "mode_mismatches": 0,
+  "scope": "Fixed qualification budgets for these synthetic cases; not universal accuracy claims."
+}

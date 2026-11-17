@@ -1,0 +1,9 @@
+{
+  "checkpoint_path": "/home/user/workspace/oil-simulator-py-impes/.scratch/norne_cpu_validation/probe25_checkpoint.pt",
+  "sha256": "c8b7edd759270cc7ed7240e4a927bc0d9853f31424634d75e61cf14f079e69f3",
+  "bytes": 95857295,
+  "reason": "Keep the 92 MiB restart outside versioned benchmark reports; file is preserved for an explicit continuation.",
+  "checkpoint_t_days": 25.0,
+  "checkpoint_t_unit": "days",
+  "summary_time_days": 25.0
+}

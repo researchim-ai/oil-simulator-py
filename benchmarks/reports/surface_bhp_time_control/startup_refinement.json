@@ -1,0 +1,71 @@
+{
+  "scope": "Release gate for completed, source-guarded time refinement on a declared horizon.\n\nAudits material and controls, end fields and well histories at common reports.\nIt does not establish experimental calibration or global error against truth.\n",
+  "accepted": true,
+  "required_days": 0.5,
+  "same_python_and_pvt": true,
+  "refinement_family": "local_BE_defect_tolerances",
+  "accepted_stages": {
+    "candidate": 272,
+    "reference": 380
+  },
+  "final_fields": {
+    "accepted": true,
+    "errors": {
+      "final_pressure_pa": 15.095226763281971,
+      "final_s_w": 1.7405886041932384e-06,
+      "final_s_g": 6.6697420528644136e-06,
+      "final_rs": 0.00022642840144726506,
+      "withdrawal_relative": 6.24018184493569e-06
+    },
+    "budgets": {
+      "final_pressure_pa": 100.0,
+      "final_s_w": 2e-05,
+      "final_s_g": 2e-05,
+      "final_rs": 0.01,
+      "withdrawal_relative": 0.002
+    },
+    "coarse": ".scratch/cumulative_operational_startup/trajectory.json.gz",
+    "fine": ".scratch/cumulative_operational_reference/trajectory.json.gz",
+    "scope": "Compare completed operational forecasts at the final common report endpoint.\n\nBudgets must be supplied before inspecting the reference result. This is a\nstep-refinement check, not a proof that the finer trajectory is exact.\n",
+    "allowed_numerical_policy_differences": [
+      "simulation.max_time_step_days",
+      "simulation.initial_time_step_days",
+      "coupled_facility.time_control",
+      "coupled_facility.temporal_control",
+      "coupled_facility.control.search_method",
+      "coupled_facility.control.commit_method",
+      "physical_surface_network.sensitivity_backend",
+      "physical_surface_network.network_backend",
+      "physical_surface_network.bhp_initialization",
+      "physical_surface_network.well_block_backend",
+      "physical_surface_network.structured_memory_budget_bytes",
+      "physical_surface_network.network.hydraulic_backend",
+      "physical_surface_network.network.pipe_batch_size"
+    ]
+  },
+  "well_trajectories": {
+    "scope": "Compare actual well rates/BHP and cumulative mass at coarse report endpoints.\n\nBoth bundles must independently pass full facility accounting first. This is\nstep refinement, not a proof that either trajectory is exact or calibrated.\n",
+    "accepted": true,
+    "matched_endpoints_days": [
+      0.5
+    ],
+    "mode_mismatches": 0,
+    "errors": {
+      "bhp_abs_pa": 14.091942952014506,
+      "component_rate_scaled": 3.692245440812996e-05,
+      "cumulative_mass_relative": 6.240181845355919e-06
+    },
+    "budgets": {
+      "bhp_abs_pa": 100.0,
+      "component_rate_scaled": 0.002,
+      "cumulative_mass_relative": 0.002
+    },
+    "component_rate_floor_kg_s": 1e-08,
+    "allow_numerical_policy": true
+  },
+  "observed_solve_wall_s": {
+    "candidate": 583.2472977569996,
+    "reference": 832.8834478290009
+  },
+  "timing_scope": "Shared host observations, not an isolated speed benchmark"
+}

@@ -1,0 +1,9 @@
+{
+  "scope": "Before production-well warm-start fix; failed depleted synthetic case. Diagnostic monkeypatch logged the unchanged solver failure only.",
+  "source_sha256": "7ce2c04098dc0ad7e493489ec01759386e06913695085ee87fd9f577d918be07",
+  "failure_day": 5.0,
+  "cause": "Black-oil physical Newton iterate leaves producing-flow domain",
+  "requested_days": 10,
+  "config_sha256": "af341c7e323cf82791089c3d48043310ad99181e8e0d474c88898d0f19fbffcf",
+  "strict_tolerances_unchanged": true
+}

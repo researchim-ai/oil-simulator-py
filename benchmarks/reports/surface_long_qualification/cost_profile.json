@@ -1,0 +1,321 @@
+{
+  "scope": "cProfile: first 0.25 day of 1024-cell/16-well depleted model with memory fix. Nested cumulative times overlap; instrumentation/shared-host overhead, not benchmark timing.",
+  "total_profile_s": 28.19842354200001,
+  "rows": [
+    {
+      "file": ".scratch/depletion30_fixed_source/src/surface/blackoil_network.py",
+      "line": 277,
+      "function": "solve",
+      "primitive_calls": 447,
+      "total_calls": 447,
+      "self_s": 0.09319102700000001,
+      "cumulative_s": 12.680182002
+    },
+    {
+      "file": ".scratch/depletion30_fixed_source/src/simulator/blackoil_fim.py",
+      "line": 1707,
+      "function": "assemble_bo",
+      "primitive_calls": 447,
+      "total_calls": 447,
+      "self_s": 0.293251231,
+      "cumulative_s": 10.752311079
+    },
+    {
+      "file": ".scratch/depletion30_fixed_source/src/simulator/blackoil_surface_coupling.py",
+      "line": 292,
+      "function": "assemble",
+      "primitive_calls": 447,
+      "total_calls": 447,
+      "self_s": 0.092838418,
+      "cumulative_s": 10.340117597
+    },
+    {
+      "file": ".scratch/depletion30_fixed_source/src/surface/blackoil_pipe_batch.py",
+      "line": 311,
+      "function": "required_inlets",
+      "primitive_calls": 447,
+      "total_calls": 447,
+      "self_s": 0.0029228310000000003,
+      "cumulative_s": 7.813972820000001
+    },
+    {
+      "file": ".scratch/depletion30_fixed_source/src/surface/blackoil_pipe_batch.py",
+      "line": 154,
+      "function": "solve",
+      "primitive_calls": 447,
+      "total_calls": 447,
+      "self_s": 0.218918879,
+      "cumulative_s": 7.717647364
+    },
+    {
+      "file": ".scratch/depletion30_fixed_source/src/simulator/blackoil_fim.py",
+      "line": 1603,
+      "function": "fn",
+      "primitive_calls": 447,
+      "total_calls": 447,
+      "self_s": 0.185197155,
+      "cumulative_s": 6.158575718000001
+    },
+    {
+      "file": ".scratch/depletion30_fixed_source/src/surface/blackoil_pipe_batch.py",
+      "line": 139,
+      "function": "checked",
+      "primitive_calls": 2235,
+      "total_calls": 2235,
+      "self_s": 0.159664198,
+      "cumulative_s": 4.900097576
+    },
+    {
+      "file": ".scratch/depletion30_fixed_source/src/simulator/blackoil_surface_coupling.py",
+      "line": 214,
+      "function": "begin_step",
+      "primitive_calls": 113,
+      "total_calls": 113,
+      "self_s": 0.002234954,
+      "cumulative_s": 4.637176844
+    },
+    {
+      "file": ".scratch/depletion30_fixed_source/src/surface/blackoil_pipe.py",
+      "line": 310,
+      "function": "required_inlet",
+      "primitive_calls": 447,
+      "total_calls": 447,
+      "self_s": 0.000702011,
+      "cumulative_s": 4.526168373
+    },
+    {
+      "file": ".scratch/depletion30_fixed_source/src/surface/blackoil_pipe.py",
+      "line": 142,
+      "function": "_solve",
+      "primitive_calls": 447,
+      "total_calls": 447,
+      "self_s": 0.053823332,
+      "cumulative_s": 4.496083464000001
+    },
+    {
+      "file": ".scratch/depletion30_fixed_source/src/surface/blackoil_pipe_batch.py",
+      "line": 133,
+      "function": "integral",
+      "primitive_calls": 4470,
+      "total_calls": 4470,
+      "self_s": 0.03262595,
+      "cumulative_s": 4.266696367000001
+    },
+    {
+      "file": ".scratch/depletion30_fixed_source/src/surface/blackoil_quadrature_plan.py",
+      "line": 33,
+      "function": "evaluate",
+      "primitive_calls": 4470,
+      "total_calls": 4470,
+      "self_s": 0.31199646200000003,
+      "cumulative_s": 4.234070417
+    },
+    {
+      "file": ".scratch/depletion30_fixed_source/src/simulator/blackoil_fim.py",
+      "line": 1558,
+      "function": "_phase_state",
+      "primitive_calls": 590,
+      "total_calls": 590,
+      "self_s": 0.09140845700000001,
+      "cumulative_s": 4.0611900620000005
+    },
+    {
+      "file": ".scratch/depletion30_fixed_source/src/surface/blackoil_pipe_batch.py",
+      "line": 107,
+      "function": "_integrand",
+      "primitive_calls": 4470,
+      "total_calls": 4470,
+      "self_s": 0.31372973000000004,
+      "cumulative_s": 3.628805605
+    },
+    {
+      "file": ".scratch/depletion30_fixed_source/src/simulator/blackoil_surface_coupling.py",
+      "line": 251,
+      "function": "_rate_network_initial_bhp",
+      "primitive_calls": 113,
+      "total_calls": 113,
+      "self_s": 0.007314274000000001,
+      "cumulative_s": 3.380192726
+    },
+    {
+      "file": ".scratch/depletion30_fixed_source/src/simulator/surface_seed.py",
+      "line": 14,
+      "function": "initial_network_seed",
+      "primitive_calls": 113,
+      "total_calls": 113,
+      "self_s": 0.007924715,
+      "cumulative_s": 3.351566108
+    },
+    {
+      "file": ".scratch/depletion30_fixed_source/src/surface/blackoil_pipe.py",
+      "line": 117,
+      "function": "_checked_integral",
+      "primitive_calls": 2682,
+      "total_calls": 2682,
+      "self_s": 0.13783761900000002,
+      "cumulative_s": 3.1285226560000003
+    },
+    {
+      "file": ".scratch/depletion30_fixed_source/src/simulator/manual_assembly_solver.py",
+      "line": 503,
+      "function": "solve_linear",
+      "primitive_calls": 334,
+      "total_calls": 334,
+      "self_s": 0.036741357,
+      "cumulative_s": 3.09032651
+    },
+    {
+      "file": ".scratch/depletion30_fixed_source/src/surface/blackoil_pipe.py",
+      "line": 89,
+      "function": "_integral",
+      "primitive_calls": 5364,
+      "total_calls": 5364,
+      "self_s": 0.306196544,
+      "cumulative_s": 2.961586177
+    },
+    {
+      "file": ".scratch/depletion30_fixed_source/src/simulator/blackoil_props.py",
+      "line": 20,
+      "function": "interp1",
+      "primitive_calls": 30006,
+      "total_calls": 30006,
+      "self_s": 0.5712665690000001,
+      "cumulative_s": 2.642626441
+    },
+    {
+      "file": ".scratch/depletion30_fixed_source/src/surface/blackoil_pipe.py",
+      "line": 152,
+      "function": "distance",
+      "primitive_calls": 2682,
+      "total_calls": 2682,
+      "self_s": 0.0059492220000000005,
+      "cumulative_s": 2.618934014
+    },
+    {
+      "file": ".scratch/depletion30_fixed_source/src/simulator/blackoil_props.py",
+      "line": 368,
+      "function": "oil",
+      "primitive_calls": 4206,
+      "total_calls": 4206,
+      "self_s": 0.157954379,
+      "cumulative_s": 2.2587905040000003
+    },
+    {
+      "file": ".scratch/depletion30_fixed_source/src/surface/blackoil_pipe.py",
+      "line": 221,
+      "function": "<lambda>",
+      "primitive_calls": 2235,
+      "total_calls": 2235,
+      "self_s": 0.057285541,
+      "cumulative_s": 2.107585919
+    },
+    {
+      "file": ".scratch/depletion30_fixed_source/src/surface/blackoil_pipe_batch.py",
+      "line": 21,
+      "function": "tensor_state",
+      "primitive_calls": 5364,
+      "total_calls": 5364,
+      "self_s": 0.487177719,
+      "cumulative_s": 1.9856489430000002
+    },
+    {
+      "file": ".scratch/depletion30_fixed_source/src/surface/blackoil_pipe.py",
+      "line": 49,
+      "function": "_darcy",
+      "primitive_calls": 10728,
+      "total_calls": 10728,
+      "self_s": 1.1618452460000002,
+      "cumulative_s": 1.6811266040000001
+    },
+    {
+      "file": ".scratch/depletion30_fixed_source/src/simulator/cpr_gpu.py",
+      "line": 31,
+      "function": "__init__",
+      "primitive_calls": 334,
+      "total_calls": 334,
+      "self_s": 0.03151271,
+      "cumulative_s": 1.498953683
+    },
+    {
+      "file": ".scratch/depletion30_fixed_source/src/surface/blackoil_properties.py",
+      "line": 199,
+      "function": "tensor_state",
+      "primitive_calls": 7152,
+      "total_calls": 7152,
+      "self_s": 0.239919916,
+      "cumulative_s": 1.417361686
+    },
+    {
+      "file": ".scratch/depletion30_fixed_source/src/simulator/blackoil_fim.py",
+      "line": 1052,
+      "function": "begin_step",
+      "primitive_calls": 113,
+      "total_calls": 113,
+      "self_s": 0.017718744,
+      "cumulative_s": 1.2516731
+    },
+    {
+      "file": ".scratch/depletion30_fixed_source/src/surface/blackoil_properties.py",
+      "line": 112,
+      "function": "interpolate",
+      "primitive_calls": 62064,
+      "total_calls": 62064,
+      "self_s": 0.991585229,
+      "cumulative_s": 1.2222790700000001
+    },
+    {
+      "file": ".scratch/depletion30_fixed_source/src/simulator/blackoil_fim.py",
+      "line": 1173,
+      "function": "_flash_heads",
+      "primitive_calls": 113,
+      "total_calls": 113,
+      "self_s": 0.142839492,
+      "cumulative_s": 1.198321631
+    },
+    {
+      "file": ".scratch/depletion30_fixed_source/src/solver/fgmres.py",
+      "line": 4,
+      "function": "fgmres",
+      "primitive_calls": 334,
+      "total_calls": 334,
+      "self_s": 0.037951338,
+      "cumulative_s": 1.125279369
+    },
+    {
+      "file": ".scratch/depletion30_fixed_source/src/simulator/blackoil_props.py",
+      "line": 497,
+      "function": "__call__",
+      "primitive_calls": 447,
+      "total_calls": 447,
+      "self_s": 0.045696994000000005,
+      "cumulative_s": 1.073380049
+    },
+    {
+      "file": ".scratch/depletion30_fixed_source/src/surface/blackoil_properties.py",
+      "line": 202,
+      "function": "<lambda>",
+      "primitive_calls": 50064,
+      "total_calls": 50064,
+      "self_s": 0.019082931,
+      "cumulative_s": 1.045126087
+    },
+    {
+      "file": ".scratch/depletion30_fixed_source/src/simulator/blackoil_fim.py",
+      "line": 53,
+      "function": "surface_to_reservoir",
+      "primitive_calls": 3616,
+      "total_calls": 3616,
+      "self_s": 0.066556114,
+      "cumulative_s": 0.9961657930000001
+    },
+    {
+      "file": ".scratch/depletion30_fixed_source/src/simulator/blackoil_props.py",
+      "line": 391,
+      "function": "evaluate",
+      "primitive_calls": 8412,
+      "total_calls": 8412,
+      "self_s": 0.303315952,
+      "cumulative_s": 0.9160128930000001
+    }
+  ]
+}

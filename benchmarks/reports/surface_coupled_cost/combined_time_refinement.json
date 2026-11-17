@@ -1,0 +1,56 @@
+{
+  "fields": {
+    "accepted": true,
+    "errors": {
+      "final_pressure_pa": 9.690633032470942,
+      "final_s_w": 1.8746150405868356e-06,
+      "final_s_g": 7.041484892965355e-06,
+      "final_rs": 0.00014535949549099314,
+      "withdrawal_relative": 0.0001381210702780551
+    },
+    "budgets": {
+      "final_pressure_pa": 100.0,
+      "final_s_w": 2e-05,
+      "final_s_g": 2e-05,
+      "final_rs": 0.01,
+      "withdrawal_relative": 0.002
+    },
+    "coarse": "benchmarks/reports/surface_coupled_cost/combined/trajectory.json.gz",
+    "fine": "benchmarks/reports/surface_time_accuracy/depletion_reference_short/trajectory.json.gz",
+    "scope": "Compare completed operational forecasts at the final common report endpoint.\n\nBudgets must be supplied before inspecting the reference result. This is a\nstep-refinement check, not a proof that the finer trajectory is exact.\n",
+    "allowed_numerical_policy_differences": [
+      "coupled_facility.time_control",
+      "coupled_facility.temporal_control",
+      "coupled_facility.control.search_method",
+      "coupled_facility.control.commit_method",
+      "physical_surface_network.sensitivity_backend",
+      "physical_surface_network.network_backend",
+      "physical_surface_network.bhp_initialization",
+      "physical_surface_network.well_block_backend",
+      "physical_surface_network.structured_memory_budget_bytes",
+      "physical_surface_network.network.hydraulic_backend",
+      "physical_surface_network.network.pipe_batch_size"
+    ]
+  },
+  "trajectory": {
+    "scope": "Compare actual well rates/BHP and cumulative mass at coarse report endpoints.\n\nBoth bundles must independently pass full facility accounting first. This is\nstep refinement, not a proof that either trajectory is exact or calibrated.\n",
+    "accepted": true,
+    "matched_endpoints_days": [
+      0.01,
+      0.02
+    ],
+    "mode_mismatches": 0,
+    "errors": {
+      "bhp_abs_pa": 8.343499730806798,
+      "component_rate_scaled": 0.00011290206181132235,
+      "cumulative_mass_relative": 0.00016580245411569293
+    },
+    "budgets": {
+      "bhp_abs_pa": 100.0,
+      "component_rate_scaled": 0.002,
+      "cumulative_mass_relative": 0.002
+    },
+    "component_rate_floor_kg_s": 1e-08,
+    "allow_numerical_policy": true
+  }
+}

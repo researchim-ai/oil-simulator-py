@@ -1,0 +1,44 @@
+{
+  "scope": "Compare only initial pressure proposal on the same solved physical cases. CPU float64, seven repetitions, shared host; no universal speed claim.",
+  "rows": [
+    {
+      "case": "water",
+      "median_s": {
+        "midpoint": 0.015539682999587967,
+        "known_port": 0.0124380730003395
+      },
+      "pressure_evaluations": {
+        "midpoint": 4,
+        "known_port": 3
+      },
+      "inlet_delta_pa": 0.0,
+      "maximum_derivative_abs_delta": 0.0
+    },
+    {
+      "case": "phase",
+      "median_s": {
+        "midpoint": 0.018233836000035808,
+        "known_port": 0.01472278599976562
+      },
+      "pressure_evaluations": {
+        "midpoint": 5,
+        "known_port": 4
+      },
+      "inlet_delta_pa": 6.984919309616089e-08,
+      "maximum_derivative_abs_delta": 1.6763806343078613e-08
+    },
+    {
+      "case": "gas",
+      "median_s": {
+        "midpoint": 0.015908038999441487,
+        "known_port": 0.015425712999785901
+      },
+      "pressure_evaluations": {
+        "midpoint": 4,
+        "known_port": 4
+      },
+      "inlet_delta_pa": 5.506444722414017e-07,
+      "maximum_derivative_abs_delta": 3.0865558073855937e-06
+    }
+  ]
+}

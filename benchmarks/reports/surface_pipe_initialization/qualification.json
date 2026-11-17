@@ -1,0 +1,15 @@
+{
+  "scope": "Numerical initialization of existing isothermal black-oil pipe model; no change of physical closure or integration tolerance.",
+  "short_coupled_equivalence_accepted": true,
+  "expected_only_source_difference": true,
+  "month_65536_cells_64_wells_regression_accepted": true,
+  "checks": {
+    "cpu_initial_physics": "39 passed, 4 skipped",
+    "cpu_with_analytical_water": "10 passed, 1 skipped",
+    "cuda": "2 passed",
+    "coupling_accounting_restart": "18 passed, 2 skipped"
+  },
+  "timing_scope": "Single sequential CPU pair on shared host; observed short-run reduction ~7%, not isolated hardware or general speed guarantee.",
+  "open_validation": "Completed strong-depletion 30-day comparison passes fields, rates and cumulative budgets but still exceeds BHP budget; optional new BHP control needs separate long qualification.",
+  "scalar_reuse_short_equivalence_accepted": true
+}

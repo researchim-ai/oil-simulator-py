@@ -1,0 +1,5 @@
+{
+  "raw_run": "/home/user/workspace/oil-simulator-py-impes/.scratch/norne_gpu_only_20261116/run",
+  "checkpoint": "/home/user/workspace/oil-simulator-py-impes/.scratch/norne_gpu_only_20261116/run/latest_checkpoint.pt",
+  "scope": "Completed reservoir-only Norne; surface network qualification is separate."
+}

@@ -31,7 +31,13 @@ def run_case(
     device_name="cpu",
     initial_rs=None,
     facility_schedule=None,
+    progress_callback=None,
+    accepted_progress_callback=None,
 ):
+    if progress_callback is not None and not callable(progress_callback):
+        raise TypeError("progress_callback must be callable")
+    if accepted_progress_callback is not None and not callable(accepted_progress_callback):
+        raise TypeError("accepted_progress_callback must be callable")
     if any(
         isinstance(v, bool) or not math.isfinite(v * 86400) or v <= 0 for v in (days, report_days)
     ):
@@ -69,6 +75,8 @@ def run_case(
         raise ValueError("Expected one production receiver")
     boundaries[0]["pressure_pa"] = outlet_pa
     device = torch.device(device_name)
+    if device.type == "cuda":
+        torch.cuda.reset_peak_memory_stats(device)
     log = io.StringIO()
     steps = []
     interval_timings = []
@@ -114,10 +122,24 @@ def run_case(
         reservoir_hook = accepted
 
         def accepted_with_facility(time_days):
-            reservoir_hook(time_days)
-            if sim.facility_coupling is not None:
-                steps[-1]["facility_coupling"] = copy.deepcopy(sim.facility_coupling.report)
-                steps[-1]["facility_controls"] = copy.deepcopy(sim.facility_coupling.controls)
+            stages = getattr(sim.facility_coupling, "accepted_stages", ())
+            if stages:
+                # Preserve each actual implicit stage and its own flow integral.
+                # The coarse error-estimator solve never enters the ledger.
+                steps.extend(copy.deepcopy(stages))
+                previous[0] = time_days
+            else:
+                reservoir_hook(time_days)
+                if sim.facility_coupling is not None:
+                    steps[-1]["facility_coupling"] = copy.deepcopy(sim.facility_coupling.report)
+                    steps[-1]["facility_controls"] = copy.deepcopy(sim.facility_coupling.controls)
+            if accepted_progress_callback is not None:
+                accepted_progress_callback({
+                    "time_days": time_days, "requested_days": days,
+                    "solve_wall_s": time.perf_counter() - started,
+                    "accepted_substeps": len(steps), "last_interval": None,
+                    "temporal_work": copy.deepcopy(getattr(sim.facility_coupling, "temporal_work", None)),
+                })
 
         sim.substep_hook = accepted_with_facility
         end = days * 86400
@@ -140,7 +162,10 @@ def run_case(
                 target = min(target, events[event_index]["time_days"] * 86400)
             interval_start = time.perf_counter()
             if not sim.run_step(target - sim.current_time):
-                raise RuntimeError("Physical black-oil interval failed")
+                raise RuntimeError(
+                    f"Physical black-oil interval failed at {sim.current_time / 86400:g} days; "
+                    f"target={target / 86400:g} days\n{log.getvalue()[-12000:]}"
+                )
             if device.type == "cuda":
                 torch.cuda.synchronize(device)
             interval_timings.append(
@@ -150,6 +175,17 @@ def run_case(
                     "time_step_statistics": copy.deepcopy(sim.last_fim_interval_stats),
                 }
             )
+            if progress_callback is not None:
+                progress_callback(
+                    {
+                        "time_days": sim.current_time / 86400,
+                        "requested_days": days,
+                        "solve_wall_s": time.perf_counter() - started,
+                        "accepted_substeps": len(steps),
+                        "last_interval": copy.deepcopy(interval_timings[-1]),
+                        "applied_events": len(applied_events),
+                    }
+                )
         if device.type == "cuda":
             torch.cuda.synchronize(device)
         elapsed = time.perf_counter() - started
@@ -162,7 +198,18 @@ def run_case(
         "initial_rs_m3_m3": initial_rs,
         "reservoir_device": str(device),
         "solve_wall_s": elapsed,
+        "execution": {
+            "torch_version": torch.__version__,
+            "torch_threads": torch.get_num_threads(),
+            "device_name": torch.cuda.get_device_name(device) if device.type == "cuda" else "cpu",
+            "cuda_peak_allocated_bytes": torch.cuda.max_memory_allocated(device) if device.type == "cuda" else None,
+            "cuda_peak_reserved_bytes": torch.cuda.max_memory_reserved(device) if device.type == "cuda" else None,
+            "memory_scope": "PyTorch allocator peak from before model construction through the forecast; excludes CUDA context and other processes",
+            "gathering_backend": s.wells.network_backend,
+            "hydraulic_backend": s.wells.surface_network.hydraulic_backend,
+        },
         "interval_timings": interval_timings,
+        "temporal_work": copy.deepcopy(getattr(sim.facility_coupling, "temporal_work", None)),
         "field_graphs_active": s._graphs is not None if device.type == "cuda" else False,
         "field_graph_cache_entries": len(s._graphs) if s._graphs is not None else 0,
         "elapsed_days": sim.current_time / 86400,

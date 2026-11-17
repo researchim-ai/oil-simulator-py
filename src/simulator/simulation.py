@@ -80,7 +80,7 @@ class Simulator:
             except ImportError:
                 from surface import SurfaceFacility
             spec = sim_params['coupled_facility']
-            if set(spec) - {'facility', 'control', 'energy_process', 'energy_controls', 'time_control'}:
+            if set(spec) - {'facility', 'control', 'energy_process', 'energy_controls', 'time_control', 'temporal_control'}:
                 raise ValueError('Unknown coupled_facility fields')
             energy_process = None
             if spec.get('energy_process') is not None:
@@ -90,7 +90,7 @@ class Simulator:
             self.facility_coupling = FacilityCoupledFIM(
                 self.fim_solver, SurfaceFacility.from_dict(spec['facility']), spec.get('control'),
                 energy_process=energy_process, energy_controls=spec.get('energy_controls'),
-                time_control=spec.get('time_control'))
+                time_control=spec.get('time_control'), temporal_control=spec.get('temporal_control'))
 
         # Инициализация проводимостей для IMPES схемы
         if self.solver_type == 'impes':
@@ -361,6 +361,12 @@ class Simulator:
             restarted = True
             cuts += 1
             h_new = h_try / cut
+            reject_limiter = getattr(stepper, "limit_rejected_time_step_s", None)
+            if coupled_time_control and callable(reject_limiter):
+                limited = reject_limiter(h_new, failed_dt_s=h_try)
+                if isinstance(limited, bool) or not math.isfinite(limited) or limited <= 0 or limited > h_new:
+                    raise ValueError("Coupled rejection limiter returned an invalid proposal")
+                h_new = limited
             dbg.dt_chop(cuts, h_try, h_new)
             if verbose:
                 if stepper is not self.fim_solver:
@@ -369,7 +375,9 @@ class Simulator:
                 else:
                     print(f"  ✖ Ньютон не сошёлся, dt: {h_try/86400:.4g} → {h_new/86400:.4g} сут")
             if h_new < dt_min or cuts > max_cuts:
-                print("Не удалось добиться сходимости даже с минимальным шагом. Симуляция остановлена.")
+                reason = ("Достигнут минимальный шаг" if h_new < dt_min else
+                          "Исчерпан лимит последовательных сокращений шага")
+                print(f"{reason}. Симуляция остановлена.")
                 self._fim_dt = h_new
                 return False
             h = h_new

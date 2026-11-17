@@ -19,6 +19,7 @@ from .fim_wells import DAY
 from .full_well_schur import FullWellSchur
 from .surface_well_blocks import assemble_surface_blocks
 from .tree_well_system import TreeWellSystem
+from .surface_seed import initial_network_seed
 
 try:
     from ..surface import (
@@ -54,9 +55,13 @@ class SurfaceCoupledBlackOilWells(FullWellSchur, BlackOilWells):
             "sensitivity_backend",
             "well_block_backend",
             "structured_memory_budget_bytes",
+            "bhp_initialization",
         }:
             raise ValueError("Unknown physical_surface_network fields")
         self.network_backend = spec.get("network_backend", "cpu_reference")
+        self.bhp_initialization = spec.get("bhp_initialization", "previous")
+        if self.bhp_initialization not in ("previous", "rate_network"):
+            raise ValueError("bhp_initialization must be previous or rate_network")
         self.well_block_backend = spec.get("well_block_backend", "dense")
         if self.well_block_backend not in ("dense", "tree_structured"):
             raise ValueError("well_block_backend must be dense or tree_structured")
@@ -207,6 +212,7 @@ class SurfaceCoupledBlackOilWells(FullWellSchur, BlackOilWells):
         return result
 
     def begin_step(self, v, d, t_days):
+        self._initial_surface_result = None
         if self.network is not None or self.groups is not None or self.liftopt is not None:
             raise PropertyModelError(
                 "Physical gathering cannot be combined with VFP network/groups/gas lift"
@@ -226,17 +232,58 @@ class SurfaceCoupledBlackOilWells(FullWellSchur, BlackOilWells):
             raise PropertyModelError(
                 "Physical black-oil coupling requires positive rate upper bounds"
             )
+        if getattr(self, "bhp_initialization", "previous") == "rate_network":
+            self._rate_network_initial_bhp(v, d, previous)
+            return
         for i in self.surface_well_indices:
             ceiling = (
                 v[I_P][self.conn_cell[self.conn_well == i]] - self.conn_head[self.conn_well == i]
             ).min()
-            # Start in the producing domain; no artificial source is supplied
-            # to a zero-flow network to invent its static phase distribution.
-            self.p_bh[i] = (
-                0.95 * float(ceiling)
-                if previous is None
-                else min(float(previous[i]), 0.95 * float(ceiling))
-            )
+            # Keep an accepted producing pressure, including near-closed rate
+            # caps. Forcing another 5% drawdown on every capacity trial can
+            # make Newton overshoot into backflow independently of dt.
+            # Use the interior seed only when no valid warm start exists;
+            # no source or static phase distribution is invented at zero flow.
+            upper = float(ceiling)
+            prior = None if previous is None else float(previous[i])
+            self.p_bh[i] = prior if prior is not None and 0 < prior < upper else 0.95 * upper
+
+    def _rate_network_initial_bhp(self, v, d, previous):
+        """Frozen-cell affine rate root, bounded by a network pressure guess.
+
+        Production connection laws are affine in BHP at fixed cell properties.
+        This predicts a starting point only: the reservoir, active set and
+        actual network are still solved and checked without altered targets.
+        All reductions stay on the reservoir device; no per-well D2H reads.
+        """
+        cw = self.conn_well
+        ceiling = self.p_bh.new_full((self.n_w,), float("inf"))
+        ceiling.scatter_reduce_(0, cw, v[I_P][self.conn_cell] - self.conn_head,
+                                reduce="amin", include_self=True)
+        base = .95 * ceiling
+        if previous is not None:
+            valid = torch.isfinite(previous) & (previous > 0) & (previous < ceiling)
+            base = torch.where(valid, previous, base)
+        q, _, derivative, *_ = self._production_connection_flows(v, d, base)
+        rate = base.new_zeros(self.n_w).index_add_(0, cw, (self.conn_a * q).sum(1))
+        slope = base.new_zeros(self.n_w).index_add_(0, cw, (self.conn_a * derivative).sum(1))
+        receiver = self.surface_network.by_name[self.surface_network.root].pressure_pa
+        history = {} if self.surface_report is None else self.surface_report["wells"]
+        packet = base.new_tensor([
+            [target for _, target in self.step_targets],
+            [max(receiver, self.bhp_limit(w), history.get(w.name, {}).get(
+                "network_reference_pressure_pa", receiver)) for w in self.wells],
+        ])
+        rate_pressure = base + (packet[0] - rate) / torch.where(slope < 0, slope, torch.ones_like(slope))
+        guess = torch.maximum(rate_pressure, packet[1])
+        valid = (slope < 0) & torch.isfinite(guess) & (guess > 0) & (guess < ceiling)
+        proposed = torch.where(valid, guess, base)
+        # A pressure lower bound is not a hydraulic solution: a high-flow
+        # guess can choke a narrow pipe or exceed its PVT pressure coverage.
+        # Validate it, and reuse that exact network evaluation in assembly.
+        selected, cached = initial_network_seed(self, v, d, proposed, base)
+        self.p_bh.copy_(selected)
+        self._initial_surface_result = cached
 
     def update_controls(self, p_bh, q_surf):
         # The exact network/rate/BHP active set is assembled simultaneously.
@@ -299,13 +346,18 @@ class SurfaceCoupledBlackOilWells(FullWellSchur, BlackOilWells):
             stream = ComponentStream.from_mass_rates(*rate, self.surface_network.model.densities)
             sources[node] = ComponentStream.mix([sources.get(node, ComponentStream()), stream])
         control = self.surface_pressure_control
+        cached = getattr(self, "_initial_surface_result", None)
+        self._initial_surface_result = None
+        cached_result = (cached[2] if cached is not None and cached[0] is self.surface_network
+                         and np.array_equal(cached[1], host_rates) else None)
         sensitivity_backend = getattr(self, "sensitivity_backend", "dense")
         well_block_backend = getattr(self, "well_block_backend", "dense")
         structured = well_block_backend == "tree_structured"
         if sensitivity_backend == "tree_operator":
             if control is not None:
                 raise PropertyModelError("Tree sensitivity backend requires fixed branch controls")
-            result = self.surface_network.solve(sources, sensitivity_mode="operator")
+            result = (cached_result if cached_result is not None else
+                      self.surface_network.solve(sources, sensitivity_mode="operator"))
             # Host orchestration is unchanged: extract only the bounded well
             # block here, without a node-by-source table or GPU round trip.
             if not structured:
@@ -313,7 +365,7 @@ class SurfaceCoupledBlackOilWells(FullWellSchur, BlackOilWells):
                 columns = [tangent.source_names.index(node) for node in self.surface_nodes]
                 host_K = tangent.jacobian_rows(self.surface_nodes)[:, columns].detach().numpy()
         else:
-            result = (
+            result = cached_result if cached_result is not None else (
                 self.surface_network.solve(sources)
                 if control is None
                 else control.solve(self.surface_network, sources)

@@ -1,0 +1,55 @@
+{
+  "scope": "Sparse RAP equivalence/cost probe. Shared host; never creates a dense matrix.",
+  "torch": "2.7.0+cu126",
+  "threads": 1,
+  "rows": [
+    {
+      "cells": 1024,
+      "input_nnz": 4992,
+      "coarse_nnz": 1216,
+      "algebra_equal": true,
+      "timing": {
+        "native_csr": {
+          "median_s": 8.446600008937821e-05,
+          "rss_growth_bytes": 1372160
+        },
+        "safe_coo": {
+          "median_s": 7.926149987724784e-05,
+          "rss_growth_bytes": 0
+        }
+      }
+    },
+    {
+      "cells": 16384,
+      "input_nnz": 81408,
+      "coarse_nnz": 20224,
+      "algebra_equal": true,
+      "timing": {
+        "native_csr": {
+          "median_s": 0.0006762189998426038,
+          "rss_growth_bytes": 9965568
+        },
+        "safe_coo": {
+          "median_s": 0.0010863365000659542,
+          "rss_growth_bytes": 0
+        }
+      }
+    },
+    {
+      "cells": 65536,
+      "input_nnz": 326656,
+      "coarse_nnz": 81408,
+      "algebra_equal": true,
+      "timing": {
+        "native_csr": {
+          "median_s": 0.002711852500169698,
+          "rss_growth_bytes": 37949440
+        },
+        "safe_coo": {
+          "median_s": 0.004741260499940836,
+          "rss_growth_bytes": 0
+        }
+      }
+    }
+  ]
+}

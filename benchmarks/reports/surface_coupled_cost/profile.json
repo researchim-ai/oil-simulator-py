@@ -1,0 +1,61 @@
+{
+  "scope": "cProfile short .001-day depletion run, state_restore, pre-reduction 10-iteration Colebrook. Inclusive times overlap and must not be summed. Not a hardware benchmark.",
+  "rows": [
+    {
+      "file": "blackoil_pipe_batch.py",
+      "function": "solve",
+      "calls": 468,
+      "self_s": 0.38922146,
+      "cumulative_s": 11.354501437000001
+    },
+    {
+      "file": "fim_transaction.py",
+      "function": "restore",
+      "calls": 199,
+      "self_s": 0.010147594000000001,
+      "cumulative_s": 0.042698801
+    },
+    {
+      "file": "fim_transaction.py",
+      "function": "__init__",
+      "calls": 467,
+      "self_s": 0.051339583,
+      "cumulative_s": 0.31062514700000005
+    },
+    {
+      "file": "blackoil_pipe.py",
+      "function": "_darcy",
+      "calls": 11228,
+      "self_s": 2.3220677220000003,
+      "cumulative_s": 3.2459613810000003
+    },
+    {
+      "file": "surface_seed.py",
+      "function": "initial_network_seed",
+      "calls": 175,
+      "self_s": 0.016770565,
+      "cumulative_s": 7.153370184000001
+    },
+    {
+      "file": "blackoil_network.py",
+      "function": "__init__",
+      "calls": 2,
+      "self_s": 9.940300000000001e-05,
+      "cumulative_s": 0.000630177
+    },
+    {
+      "file": "blackoil_network.py",
+      "function": "solve",
+      "calls": 468,
+      "self_s": 0.127323099,
+      "cumulative_s": 18.644731067000002
+    },
+    {
+      "file": "blackoil_pipe_batch.py",
+      "function": "__init__",
+      "calls": 468,
+      "self_s": 0.0051572680000000004,
+      "cumulative_s": 0.046199380000000005
+    }
+  ]
+}

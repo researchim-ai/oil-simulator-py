@@ -1,0 +1,68 @@
+{
+  "scope": "Isothermal reservoir/producing wells/steady facility. Short depletion transition plus separate 30-day 65536-cell case. Shared-host times; no isolated general speedup guarantee.",
+  "accepted": true,
+  "all_130_stages_exact_physical_equivalence": true,
+  "compared_stage_data": [
+    "time_days",
+    "dt_s",
+    "withdrawn_component_mass_kg",
+    "newton_iterations",
+    "surface",
+    "facility_coupling.fraction",
+    "facility_coupling.dt_s",
+    "facility_coupling.operator_controls",
+    "facility_coupling.facility",
+    "facility_coupling.material_account",
+    "facility_coupling.applied_rate_caps_m3_day"
+  ],
+  "combined_refinement_accepted": true,
+  "scale64k_30d_accepted": true,
+  "scope_horizon_days": 0.02,
+  "fine_policy": "../surface_time_accuracy/depletion_fine_state_restore.json",
+  "capacity_evaluations": {
+    "replay_current": 1609,
+    "state_restore": 1414,
+    "combined": 1414
+  },
+  "observed_wall_s": {
+    "replay_current": 336.73865569199916,
+    "state_restore": 309.07368742499966,
+    "combined": 270.73152104900146,
+    "scale64k_combined": 109.09659176799869
+  },
+  "commit_default": "replay",
+  "enabled_option": "coupled_facility.control.commit_method=state_restore",
+  "colebrook_fixed_newton_updates_before": 10,
+  "colebrook_fixed_newton_updates_now": 6,
+  "long_depleted_forecast_qualified": false,
+  "large_cuda_peak_memory_qualified": false,
+  "cuda_correctness_checks": "3 passed; derivative and actual capacity state restore checks on RTX 3090 Ti",
+  "overlapping_test_suites_do_not_sum_counts": true,
+  "test_suites": {
+    "coupling_regressions": {
+      "passed": 65,
+      "skipped": 2
+    },
+    "colebrook_batch_and_state": {
+      "passed": 16,
+      "skipped": 3
+    },
+    "scalar_hydraulics_grid_bracket": {
+      "passed": 32,
+      "skipped": 1
+    },
+    "cuda_targeted": {
+      "passed": 3
+    }
+  },
+  "current_source_sha256": {
+    "src/simulator/facility_coupling.py": "6df744acedf26d5d4b8d766254a859bea21e3d65a2b59b5dbc21c6f5f4d39ae3",
+    "src/surface/blackoil_pipe.py": "998d7fe5713b5d1120e9f789a91e3893d9e6032c06c082b67d1e3e97340bd713",
+    "scripts/check_fim_facility_forecast.py": "7532f1287104fda8387ae57c68af55cc862ab69fe8e2b6c94f6278e34c3c1a76",
+    "scripts/compare_fim_facility_forecast.py": "a586a63f3992ba94de1e5b6870ab1d7c037acdf09447c8204bb15b0c9cb4550d"
+  },
+  "protected_source_sha256": {
+    "src/simulator/blackoil_fim.py": "658fde0e6119df6ae154c3c400ff24b8d2a519dfa9a33e612aeaa6bd51a16c3c",
+    "src/surface/torch_linear.py": "b7bda1aae66d9e979c147f821efba9990d6460d60b32a05c6fc5f9b873b752d5"
+  }
+}

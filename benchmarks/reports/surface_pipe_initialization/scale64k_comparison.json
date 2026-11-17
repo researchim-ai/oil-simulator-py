@@ -1,0 +1,51 @@
+{
+  "fields": {
+    "accepted": true,
+    "errors": {
+      "final_pressure_pa": 1.3969838619232178e-09,
+      "final_s_w": 3.3306690738754696e-16,
+      "final_s_g": 1.3808398868775384e-15,
+      "final_rs": 2.842170943040401e-14,
+      "withdrawal_relative": 3.8723518818365066e-16
+    },
+    "budgets": {
+      "final_pressure_pa": 0.1,
+      "final_s_w": 1e-08,
+      "final_s_g": 1e-08,
+      "final_rs": 1e-05,
+      "withdrawal_relative": 1e-07
+    },
+    "coarse": ".scratch/field256_restore_colebrook6/trajectory.json.gz",
+    "fine": ".scratch/pipe_seed_scale64k/trajectory.json.gz",
+    "scope": "Compare completed operational forecasts at the final common report endpoint.\n\nBudgets must be supplied before inspecting the reference result. This is a\nstep-refinement check, not a proof that the finer trajectory is exact.\n",
+    "allowed_numerical_policy_differences": []
+  },
+  "wells": {
+    "scope": "Compare actual well rates/BHP and cumulative mass at coarse report endpoints.\n\nBoth bundles must independently pass full facility accounting first. This is\nstep refinement, not a proof that either trajectory is exact or calibrated.\n",
+    "accepted": true,
+    "matched_endpoints_days": [
+      5.0,
+      10.0,
+      15.0,
+      20.0,
+      25.0,
+      30.0
+    ],
+    "mode_mismatches": 0,
+    "errors": {
+      "bhp_abs_pa": 9.057112038135529e-08,
+      "component_rate_scaled": 1.201758178809467e-13,
+      "cumulative_mass_relative": 1.1615752776178924e-15
+    },
+    "budgets": {
+      "bhp_abs_pa": 100.0,
+      "component_rate_scaled": 0.002,
+      "cumulative_mass_relative": 0.002
+    },
+    "component_rate_floor_kg_s": 1e-08,
+    "allow_numerical_policy": false
+  },
+  "scope": "30-day, 65536-cell/64-well weak-depletion regression. Historical baseline also uses old CPU CSR RAP; strict time accuracy and clean timing are not established by this pair.",
+  "same_stage_clocks": true,
+  "accepted": true
+}

@@ -5,6 +5,7 @@
     NORNE_DIR=opm-tests/norne NORNE_OUT=results/norne python scripts/run_norne.py [сутки]
 
 NORNE_DEVICE=cuda:0   — устройство (по умолчанию cuda, если есть);
+NORNE_THREADS=4      — потоки PyTorch; без явных настроек CPU использует до 4, GPU — 1;
 NORNE_SNAP_AT=1272,1637 — дополнительные снимки полей в эти сутки (например, в даты рестартов OPM);
 NORNE_CKPT=путь      — сохранять полное состояние после каждых NORNE_CKPT_EVERY (1) отчётных шагов;
 NORNE_RESUME=путь    — продолжить расчёт с такого файла (история подшагов/полей подхватывается из NORNE_OUT).
@@ -21,6 +22,7 @@ import torch
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "src"))
 import simulator.blackoil_fim as B  # noqa: E402
 from simulator.eclipse_run import run_deck  # noqa: E402
+from simulator.norne_execution import configure_norne_threads  # noqa: E402
 
 OUT = os.environ.get("NORNE_OUT", "results/norne")
 os.makedirs(OUT, exist_ok=True)
@@ -45,6 +47,8 @@ if RESUME:
         if H["snap_t"]:
             H["next_snap"] = H["snap_t"][-1] + 182.0
 
+# Resumed runs retain historical rows, which do not belong to this wall time.
+invocation_first_substep = len(H["sub"])
 orig_init, orig_step = B.BlackOilFIMSolver.__init__, B.BlackOilFIMSolver.step
 
 
@@ -94,7 +98,13 @@ def save_fields():
 def save_meta(info=None):
     sol = H["solver"]
     s = H["summary"]
-    meta = {"status": H["status"], "error": H["error"], "wall_s": time.time() - t0,
+    elapsed = time.time() - t0
+    new_rows = H["sub"][invocation_first_substep:]
+    solver_s = sum(row[4] for row in new_rows)
+    meta = {"status": H["status"], "error": H["error"], "wall_s": elapsed,
+            "invocation_solver_s": solver_s,
+            "invocation_outside_solver_s": elapsed - solver_s,
+            "invocation_substeps": len(new_rows), "thread_policy": thread_policy,
             "cells_total": int(np.prod(full_dims(sol))), "dims": list(full_dims(sol)), "cells_computed": sol.n_cells,
             "cells_active": int((H["pv"] > 0).sum()) if H["pv"] is not None else None,
             "wells": len(sol.wells.wells),
@@ -150,6 +160,7 @@ def progress(n, t, s):
 
 B.BlackOilFIMSolver.__init__, B.BlackOilFIMSolver.step = init, step
 DEV = torch.device(os.environ.get("NORNE_DEVICE", "cuda:0" if torch.cuda.is_available() else "cpu"))
+thread_policy = configure_norne_threads(DEV)
 try:
     s, info = run_deck(DECK, device=DEV, progress=progress, quiet=False,
                        sim_overrides={"convergence_profile": PROFILE},

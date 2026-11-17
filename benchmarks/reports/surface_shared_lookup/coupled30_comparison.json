@@ -1,0 +1,21 @@
+{
+  "accepted": true,
+  "errors": {
+    "final_pressure_pa": 0.0,
+    "final_s_w": 0.0,
+    "final_s_g": 0.0,
+    "final_rs": 0.0,
+    "withdrawal_relative": 0.0
+  },
+  "budgets": {
+    "final_pressure_pa": 0.1,
+    "final_s_w": 1e-08,
+    "final_s_g": 1e-08,
+    "final_rs": 1e-05,
+    "withdrawal_relative": 1e-06
+  },
+  "coarse": "benchmarks/reports/surface_shared_lookup/coupled30_cpu/trajectory.json.gz",
+  "fine": "benchmarks/reports/surface_compact_quadrature/final_coupled30_cpu/trajectory.json.gz",
+  "scope": "Compare completed operational forecasts at the final common report endpoint.\n\nBudgets must be supplied before inspecting the reference result. This is a\nstep-refinement check, not a proof that the finer trajectory is exact.\n",
+  "allowed_numerical_policy_differences": []
+}

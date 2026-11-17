@@ -5,11 +5,12 @@ TRUE RS-AMG с:
 - Strong connections по отрицательным внедиагоналям с диагональным масштабированием
 - MIS coarsening по графу сильных связей
 - 1-point interpolation к сильным C-соседям
-- Эффективный RAP через scatter (без SpGEMM/плотнения!)
+- Разреженный RAP без плотной пластовой матрицы; CPU SpGEMM через COO
 """
 
 import math
 import torch
+from .sparse_product import sparse_product
 import numpy as np
 import scipy.sparse as sp
 from typing import Tuple, Optional
@@ -809,14 +810,12 @@ def _drop_small_entries_csr(A_csr: torch.Tensor, tol: float) -> torch.Tensor:
 
 def _csr_spmm_torch(left: torch.Tensor, right: torch.Tensor) -> torch.Tensor:
     """
-    Быстрое умножение разреженных матриц через нативный PyTorch.
-    PyTorch >= 2.0 поддерживает CSR @ CSR (хотя и в beta).
+    Разреженное произведение: COO SpGEMM на CPU, нативное на CUDA.
     """
     try:
-        # Попытка использовать нативный matmul
-        return torch.matmul(left, right)
+        return sparse_product(left, right)
     except Exception as e:
-        print(f"[WARNING] Native CSR matmul failed: {e}. Using slow fallback.")
+        print(f"[WARNING] Sparse product failed: {e}. Using slow fallback.")
         return _csr_spmm(left, right) # Старая медленная функция
 
 def rap_torch(A_csr: torch.Tensor, P_csr: torch.Tensor, device: torch.device, drop_tol: float = 0.0) -> torch.Tensor:
@@ -824,16 +823,16 @@ def rap_torch(A_csr: torch.Tensor, P_csr: torch.Tensor, device: torch.device, dr
     Вычисляет Ac = P^T * A * P максимально эффективно.
     """
     try:
-        AP = torch.matmul(A_csr, P_csr)
+        AP = sparse_product(A_csr, P_csr)
     except RuntimeError:
         torch.cuda.empty_cache()
-        AP = torch.matmul(A_csr, P_csr)
+        AP = sparse_product(A_csr, P_csr)
 
     PT = P_csr.transpose(0, 1) # CSR transpose is tricky in older torch, returns COO or fails?
     if PT.layout != torch.sparse_csr:
         PT = PT.to_sparse_csr()
         
-    Ac = torch.matmul(PT, AP)
+    Ac = sparse_product(PT, AP)
     
     if drop_tol > 0.0:
         Ac = _drop_small_entries_csr(Ac, drop_tol)

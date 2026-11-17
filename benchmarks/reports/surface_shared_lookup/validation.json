@@ -1,0 +1,963 @@
+{
+  "scope": "CPU-only shared pressure search equivalence, actual FIM accounting and retained-forward-storage measurement. No peak process/GPU or Norne qualification.",
+  "runs": {
+    "coupled30_cpu": {
+      "sources_match_current": true,
+      "audit": {
+        "accepted": true,
+        "checked_substeps": 6,
+        "elapsed_days": 30.0,
+        "minimum_step_s": 432000.0,
+        "maximum_step_s": 432000.0,
+        "capacity_evaluations": 56,
+        "operating_events": 0,
+        "mass_balance_error_kg": [
+          -7.128401193767786e-07,
+          2.2266613086685538e-07,
+          4.38558345194906e-08
+        ],
+        "maximum_surface_component_residual_kg_s": 3.469446951953614e-18,
+        "mass_atol_kg": 0.01,
+        "mass_rtol": 1e-08,
+        "scope": "Audit accepted forecast material and controls without running either solver.\n\nThis is an accounting/constraint audit, not independent validation of the PVT\nor homogeneous gathering closure. The production FIM CNV/MB remain required.\n"
+      }
+    },
+    "retained_storage_cpu": {
+      "sources_match_current": true
+    },
+    "wells2048_repeated_1": {
+      "sources_match_current": true,
+      "audit": {
+        "accepted": true,
+        "wells": 2048,
+        "accepted_steps": 1,
+        "elapsed_days": 1.0,
+        "mode_samples": {
+          "surface": 2048
+        },
+        "component_mass_residual_kg": [
+          1.4886260032653809e-05,
+          -5.640089511871338e-06,
+          -5.32250851392746e-07
+        ],
+        "mass_atol_kg": 0.01,
+        "mass_rtol": 1e-08,
+        "well_block_backend": "tree_structured",
+        "scope": "Accepted producer-only FIM -> gathering material/operating audit.\n\nNo solver invocation or rescaling of requested production. This is accounting\nand constraint checking, not independent PVT/correlation validation.\n"
+      },
+      "policy": {
+        "scope": "Same complete FIM: repeated versus shared pressure-interval searches.\n\nProperty arithmetic, knots, quadrature and physical tolerances are identical.\nOnly pressure search reuse within one property evaluation changes in memory.\n",
+        "policy": "repeated",
+        "pressure_interval_searches": 9856,
+        "property_column_queries": 9856,
+        "wrapper_source": "/home/user/workspace/oil-simulator-py-impes/scripts/run_shared_lookup_forecast.py",
+        "wrapper_sha256": "6f157fec4bb329883fe54f7e8b1991122c48981563d49519b1f9a872aae0aa58",
+        "sources_unchanged": true
+      }
+    },
+    "wells2048_repeated_2": {
+      "sources_match_current": true,
+      "audit": {
+        "accepted": true,
+        "wells": 2048,
+        "accepted_steps": 1,
+        "elapsed_days": 1.0,
+        "mode_samples": {
+          "surface": 2048
+        },
+        "component_mass_residual_kg": [
+          1.4886260032653809e-05,
+          -5.640089511871338e-06,
+          -5.32250851392746e-07
+        ],
+        "mass_atol_kg": 0.01,
+        "mass_rtol": 1e-08,
+        "well_block_backend": "tree_structured",
+        "scope": "Accepted producer-only FIM -> gathering material/operating audit.\n\nNo solver invocation or rescaling of requested production. This is accounting\nand constraint checking, not independent PVT/correlation validation.\n"
+      },
+      "policy": {
+        "scope": "Same complete FIM: repeated versus shared pressure-interval searches.\n\nProperty arithmetic, knots, quadrature and physical tolerances are identical.\nOnly pressure search reuse within one property evaluation changes in memory.\n",
+        "policy": "repeated",
+        "pressure_interval_searches": 9856,
+        "property_column_queries": 9856,
+        "wrapper_source": "/home/user/workspace/oil-simulator-py-impes/scripts/run_shared_lookup_forecast.py",
+        "wrapper_sha256": "6f157fec4bb329883fe54f7e8b1991122c48981563d49519b1f9a872aae0aa58",
+        "sources_unchanged": true
+      }
+    },
+    "wells2048_repeated_3": {
+      "sources_match_current": true,
+      "audit": {
+        "accepted": true,
+        "wells": 2048,
+        "accepted_steps": 1,
+        "elapsed_days": 1.0,
+        "mode_samples": {
+          "surface": 2048
+        },
+        "component_mass_residual_kg": [
+          1.4886260032653809e-05,
+          -5.640089511871338e-06,
+          -5.32250851392746e-07
+        ],
+        "mass_atol_kg": 0.01,
+        "mass_rtol": 1e-08,
+        "well_block_backend": "tree_structured",
+        "scope": "Accepted producer-only FIM -> gathering material/operating audit.\n\nNo solver invocation or rescaling of requested production. This is accounting\nand constraint checking, not independent PVT/correlation validation.\n"
+      },
+      "policy": {
+        "scope": "Same complete FIM: repeated versus shared pressure-interval searches.\n\nProperty arithmetic, knots, quadrature and physical tolerances are identical.\nOnly pressure search reuse within one property evaluation changes in memory.\n",
+        "policy": "repeated",
+        "pressure_interval_searches": 9856,
+        "property_column_queries": 9856,
+        "wrapper_source": "/home/user/workspace/oil-simulator-py-impes/scripts/run_shared_lookup_forecast.py",
+        "wrapper_sha256": "6f157fec4bb329883fe54f7e8b1991122c48981563d49519b1f9a872aae0aa58",
+        "sources_unchanged": true
+      }
+    },
+    "wells2048_shared_1": {
+      "sources_match_current": true,
+      "audit": {
+        "accepted": true,
+        "wells": 2048,
+        "accepted_steps": 1,
+        "elapsed_days": 1.0,
+        "mode_samples": {
+          "surface": 2048
+        },
+        "component_mass_residual_kg": [
+          1.4886260032653809e-05,
+          -5.640089511871338e-06,
+          -5.32250851392746e-07
+        ],
+        "mass_atol_kg": 0.01,
+        "mass_rtol": 1e-08,
+        "well_block_backend": "tree_structured",
+        "scope": "Accepted producer-only FIM -> gathering material/operating audit.\n\nNo solver invocation or rescaling of requested production. This is accounting\nand constraint checking, not independent PVT/correlation validation.\n"
+      },
+      "policy": {
+        "scope": "Same complete FIM: repeated versus shared pressure-interval searches.\n\nProperty arithmetic, knots, quadrature and physical tolerances are identical.\nOnly pressure search reuse within one property evaluation changes in memory.\n",
+        "policy": "shared",
+        "pressure_interval_searches": 2688,
+        "property_column_queries": 9856,
+        "wrapper_source": "/home/user/workspace/oil-simulator-py-impes/scripts/run_shared_lookup_forecast.py",
+        "wrapper_sha256": "6f157fec4bb329883fe54f7e8b1991122c48981563d49519b1f9a872aae0aa58",
+        "sources_unchanged": true
+      }
+    },
+    "wells2048_shared_2": {
+      "sources_match_current": true,
+      "audit": {
+        "accepted": true,
+        "wells": 2048,
+        "accepted_steps": 1,
+        "elapsed_days": 1.0,
+        "mode_samples": {
+          "surface": 2048
+        },
+        "component_mass_residual_kg": [
+          1.4886260032653809e-05,
+          -5.640089511871338e-06,
+          -5.32250851392746e-07
+        ],
+        "mass_atol_kg": 0.01,
+        "mass_rtol": 1e-08,
+        "well_block_backend": "tree_structured",
+        "scope": "Accepted producer-only FIM -> gathering material/operating audit.\n\nNo solver invocation or rescaling of requested production. This is accounting\nand constraint checking, not independent PVT/correlation validation.\n"
+      },
+      "policy": {
+        "scope": "Same complete FIM: repeated versus shared pressure-interval searches.\n\nProperty arithmetic, knots, quadrature and physical tolerances are identical.\nOnly pressure search reuse within one property evaluation changes in memory.\n",
+        "policy": "shared",
+        "pressure_interval_searches": 2688,
+        "property_column_queries": 9856,
+        "wrapper_source": "/home/user/workspace/oil-simulator-py-impes/scripts/run_shared_lookup_forecast.py",
+        "wrapper_sha256": "6f157fec4bb329883fe54f7e8b1991122c48981563d49519b1f9a872aae0aa58",
+        "sources_unchanged": true
+      }
+    },
+    "wells2048_shared_3": {
+      "sources_match_current": true,
+      "audit": {
+        "accepted": true,
+        "wells": 2048,
+        "accepted_steps": 1,
+        "elapsed_days": 1.0,
+        "mode_samples": {
+          "surface": 2048
+        },
+        "component_mass_residual_kg": [
+          1.4886260032653809e-05,
+          -5.640089511871338e-06,
+          -5.32250851392746e-07
+        ],
+        "mass_atol_kg": 0.01,
+        "mass_rtol": 1e-08,
+        "well_block_backend": "tree_structured",
+        "scope": "Accepted producer-only FIM -> gathering material/operating audit.\n\nNo solver invocation or rescaling of requested production. This is accounting\nand constraint checking, not independent PVT/correlation validation.\n"
+      },
+      "policy": {
+        "scope": "Same complete FIM: repeated versus shared pressure-interval searches.\n\nProperty arithmetic, knots, quadrature and physical tolerances are identical.\nOnly pressure search reuse within one property evaluation changes in memory.\n",
+        "policy": "shared",
+        "pressure_interval_searches": 2688,
+        "property_column_queries": 9856,
+        "wrapper_source": "/home/user/workspace/oil-simulator-py-impes/scripts/run_shared_lookup_forecast.py",
+        "wrapper_sha256": "6f157fec4bb329883fe54f7e8b1991122c48981563d49519b1f9a872aae0aa58",
+        "sources_unchanged": true
+      }
+    },
+    "wells512_repeated_1": {
+      "sources_match_current": true,
+      "audit": {
+        "accepted": true,
+        "wells": 512,
+        "accepted_steps": 1,
+        "elapsed_days": 1.0,
+        "mode_samples": {
+          "surface": 512
+        },
+        "component_mass_residual_kg": [
+          -2.2953376173973083e-05,
+          2.6085413992404938e-05,
+          -3.527523949742317e-05
+        ],
+        "mass_atol_kg": 0.01,
+        "mass_rtol": 1e-08,
+        "well_block_backend": "tree_structured",
+        "scope": "Accepted producer-only FIM -> gathering material/operating audit.\n\nNo solver invocation or rescaling of requested production. This is accounting\nand constraint checking, not independent PVT/correlation validation.\n"
+      },
+      "policy": {
+        "scope": "Same complete FIM: repeated versus shared pressure-interval searches.\n\nProperty arithmetic, knots, quadrature and physical tolerances are identical.\nOnly pressure search reuse within one property evaluation changes in memory.\n",
+        "policy": "repeated",
+        "pressure_interval_searches": 2464,
+        "property_column_queries": 2464,
+        "wrapper_source": "/home/user/workspace/oil-simulator-py-impes/scripts/run_shared_lookup_forecast.py",
+        "wrapper_sha256": "6f157fec4bb329883fe54f7e8b1991122c48981563d49519b1f9a872aae0aa58",
+        "sources_unchanged": true
+      }
+    },
+    "wells512_repeated_2": {
+      "sources_match_current": true,
+      "audit": {
+        "accepted": true,
+        "wells": 512,
+        "accepted_steps": 1,
+        "elapsed_days": 1.0,
+        "mode_samples": {
+          "surface": 512
+        },
+        "component_mass_residual_kg": [
+          -2.2953376173973083e-05,
+          2.6085413992404938e-05,
+          -3.527523949742317e-05
+        ],
+        "mass_atol_kg": 0.01,
+        "mass_rtol": 1e-08,
+        "well_block_backend": "tree_structured",
+        "scope": "Accepted producer-only FIM -> gathering material/operating audit.\n\nNo solver invocation or rescaling of requested production. This is accounting\nand constraint checking, not independent PVT/correlation validation.\n"
+      },
+      "policy": {
+        "scope": "Same complete FIM: repeated versus shared pressure-interval searches.\n\nProperty arithmetic, knots, quadrature and physical tolerances are identical.\nOnly pressure search reuse within one property evaluation changes in memory.\n",
+        "policy": "repeated",
+        "pressure_interval_searches": 2464,
+        "property_column_queries": 2464,
+        "wrapper_source": "/home/user/workspace/oil-simulator-py-impes/scripts/run_shared_lookup_forecast.py",
+        "wrapper_sha256": "6f157fec4bb329883fe54f7e8b1991122c48981563d49519b1f9a872aae0aa58",
+        "sources_unchanged": true
+      }
+    },
+    "wells512_repeated_3": {
+      "sources_match_current": true,
+      "audit": {
+        "accepted": true,
+        "wells": 512,
+        "accepted_steps": 1,
+        "elapsed_days": 1.0,
+        "mode_samples": {
+          "surface": 512
+        },
+        "component_mass_residual_kg": [
+          -2.2953376173973083e-05,
+          2.6085413992404938e-05,
+          -3.527523949742317e-05
+        ],
+        "mass_atol_kg": 0.01,
+        "mass_rtol": 1e-08,
+        "well_block_backend": "tree_structured",
+        "scope": "Accepted producer-only FIM -> gathering material/operating audit.\n\nNo solver invocation or rescaling of requested production. This is accounting\nand constraint checking, not independent PVT/correlation validation.\n"
+      },
+      "policy": {
+        "scope": "Same complete FIM: repeated versus shared pressure-interval searches.\n\nProperty arithmetic, knots, quadrature and physical tolerances are identical.\nOnly pressure search reuse within one property evaluation changes in memory.\n",
+        "policy": "repeated",
+        "pressure_interval_searches": 2464,
+        "property_column_queries": 2464,
+        "wrapper_source": "/home/user/workspace/oil-simulator-py-impes/scripts/run_shared_lookup_forecast.py",
+        "wrapper_sha256": "6f157fec4bb329883fe54f7e8b1991122c48981563d49519b1f9a872aae0aa58",
+        "sources_unchanged": true
+      }
+    },
+    "wells512_shared_1": {
+      "sources_match_current": true,
+      "audit": {
+        "accepted": true,
+        "wells": 512,
+        "accepted_steps": 1,
+        "elapsed_days": 1.0,
+        "mode_samples": {
+          "surface": 512
+        },
+        "component_mass_residual_kg": [
+          -2.2953376173973083e-05,
+          2.6085413992404938e-05,
+          -3.527523949742317e-05
+        ],
+        "mass_atol_kg": 0.01,
+        "mass_rtol": 1e-08,
+        "well_block_backend": "tree_structured",
+        "scope": "Accepted producer-only FIM -> gathering material/operating audit.\n\nNo solver invocation or rescaling of requested production. This is accounting\nand constraint checking, not independent PVT/correlation validation.\n"
+      },
+      "policy": {
+        "scope": "Same complete FIM: repeated versus shared pressure-interval searches.\n\nProperty arithmetic, knots, quadrature and physical tolerances are identical.\nOnly pressure search reuse within one property evaluation changes in memory.\n",
+        "policy": "shared",
+        "pressure_interval_searches": 672,
+        "property_column_queries": 2464,
+        "wrapper_source": "/home/user/workspace/oil-simulator-py-impes/scripts/run_shared_lookup_forecast.py",
+        "wrapper_sha256": "6f157fec4bb329883fe54f7e8b1991122c48981563d49519b1f9a872aae0aa58",
+        "sources_unchanged": true
+      }
+    },
+    "wells512_shared_2": {
+      "sources_match_current": true,
+      "audit": {
+        "accepted": true,
+        "wells": 512,
+        "accepted_steps": 1,
+        "elapsed_days": 1.0,
+        "mode_samples": {
+          "surface": 512
+        },
+        "component_mass_residual_kg": [
+          -2.2953376173973083e-05,
+          2.6085413992404938e-05,
+          -3.527523949742317e-05
+        ],
+        "mass_atol_kg": 0.01,
+        "mass_rtol": 1e-08,
+        "well_block_backend": "tree_structured",
+        "scope": "Accepted producer-only FIM -> gathering material/operating audit.\n\nNo solver invocation or rescaling of requested production. This is accounting\nand constraint checking, not independent PVT/correlation validation.\n"
+      },
+      "policy": {
+        "scope": "Same complete FIM: repeated versus shared pressure-interval searches.\n\nProperty arithmetic, knots, quadrature and physical tolerances are identical.\nOnly pressure search reuse within one property evaluation changes in memory.\n",
+        "policy": "shared",
+        "pressure_interval_searches": 672,
+        "property_column_queries": 2464,
+        "wrapper_source": "/home/user/workspace/oil-simulator-py-impes/scripts/run_shared_lookup_forecast.py",
+        "wrapper_sha256": "6f157fec4bb329883fe54f7e8b1991122c48981563d49519b1f9a872aae0aa58",
+        "sources_unchanged": true
+      }
+    },
+    "wells512_shared_3": {
+      "sources_match_current": true,
+      "audit": {
+        "accepted": true,
+        "wells": 512,
+        "accepted_steps": 1,
+        "elapsed_days": 1.0,
+        "mode_samples": {
+          "surface": 512
+        },
+        "component_mass_residual_kg": [
+          -2.2953376173973083e-05,
+          2.6085413992404938e-05,
+          -3.527523949742317e-05
+        ],
+        "mass_atol_kg": 0.01,
+        "mass_rtol": 1e-08,
+        "well_block_backend": "tree_structured",
+        "scope": "Accepted producer-only FIM -> gathering material/operating audit.\n\nNo solver invocation or rescaling of requested production. This is accounting\nand constraint checking, not independent PVT/correlation validation.\n"
+      },
+      "policy": {
+        "scope": "Same complete FIM: repeated versus shared pressure-interval searches.\n\nProperty arithmetic, knots, quadrature and physical tolerances are identical.\nOnly pressure search reuse within one property evaluation changes in memory.\n",
+        "policy": "shared",
+        "pressure_interval_searches": 672,
+        "property_column_queries": 2464,
+        "wrapper_source": "/home/user/workspace/oil-simulator-py-impes/scripts/run_shared_lookup_forecast.py",
+        "wrapper_sha256": "6f157fec4bb329883fe54f7e8b1991122c48981563d49519b1f9a872aae0aa58",
+        "sources_unchanged": true
+      }
+    },
+    "wells64_pvt65_repeated_1": {
+      "sources_match_current": true,
+      "audit": {
+        "accepted": true,
+        "wells": 64,
+        "accepted_steps": 1,
+        "elapsed_days": 1.0,
+        "mode_samples": {
+          "surface": 64
+        },
+        "component_mass_residual_kg": [
+          -7.636845111846924e-08,
+          -4.079192876815796e-07,
+          1.0940129868686199e-07
+        ],
+        "mass_atol_kg": 0.01,
+        "mass_rtol": 1e-08,
+        "well_block_backend": "tree_structured",
+        "scope": "Accepted producer-only FIM -> gathering material/operating audit.\n\nNo solver invocation or rescaling of requested production. This is accounting\nand constraint checking, not independent PVT/correlation validation.\n"
+      },
+      "policy": {
+        "scope": "Same complete FIM: repeated versus shared pressure-interval searches.\n\nProperty arithmetic, knots, quadrature and physical tolerances are identical.\nOnly pressure search reuse within one property evaluation changes in memory.\n",
+        "policy": "repeated",
+        "pressure_interval_searches": 1232,
+        "property_column_queries": 1232,
+        "wrapper_source": "/home/user/workspace/oil-simulator-py-impes/scripts/run_shared_lookup_forecast.py",
+        "wrapper_sha256": "6f157fec4bb329883fe54f7e8b1991122c48981563d49519b1f9a872aae0aa58",
+        "sources_unchanged": true
+      }
+    },
+    "wells64_pvt65_repeated_2": {
+      "sources_match_current": true,
+      "audit": {
+        "accepted": true,
+        "wells": 64,
+        "accepted_steps": 1,
+        "elapsed_days": 1.0,
+        "mode_samples": {
+          "surface": 64
+        },
+        "component_mass_residual_kg": [
+          -7.636845111846924e-08,
+          -4.079192876815796e-07,
+          1.0940129868686199e-07
+        ],
+        "mass_atol_kg": 0.01,
+        "mass_rtol": 1e-08,
+        "well_block_backend": "tree_structured",
+        "scope": "Accepted producer-only FIM -> gathering material/operating audit.\n\nNo solver invocation or rescaling of requested production. This is accounting\nand constraint checking, not independent PVT/correlation validation.\n"
+      },
+      "policy": {
+        "scope": "Same complete FIM: repeated versus shared pressure-interval searches.\n\nProperty arithmetic, knots, quadrature and physical tolerances are identical.\nOnly pressure search reuse within one property evaluation changes in memory.\n",
+        "policy": "repeated",
+        "pressure_interval_searches": 1232,
+        "property_column_queries": 1232,
+        "wrapper_source": "/home/user/workspace/oil-simulator-py-impes/scripts/run_shared_lookup_forecast.py",
+        "wrapper_sha256": "6f157fec4bb329883fe54f7e8b1991122c48981563d49519b1f9a872aae0aa58",
+        "sources_unchanged": true
+      }
+    },
+    "wells64_pvt65_repeated_3": {
+      "sources_match_current": true,
+      "audit": {
+        "accepted": true,
+        "wells": 64,
+        "accepted_steps": 1,
+        "elapsed_days": 1.0,
+        "mode_samples": {
+          "surface": 64
+        },
+        "component_mass_residual_kg": [
+          -7.636845111846924e-08,
+          -4.079192876815796e-07,
+          1.0940129868686199e-07
+        ],
+        "mass_atol_kg": 0.01,
+        "mass_rtol": 1e-08,
+        "well_block_backend": "tree_structured",
+        "scope": "Accepted producer-only FIM -> gathering material/operating audit.\n\nNo solver invocation or rescaling of requested production. This is accounting\nand constraint checking, not independent PVT/correlation validation.\n"
+      },
+      "policy": {
+        "scope": "Same complete FIM: repeated versus shared pressure-interval searches.\n\nProperty arithmetic, knots, quadrature and physical tolerances are identical.\nOnly pressure search reuse within one property evaluation changes in memory.\n",
+        "policy": "repeated",
+        "pressure_interval_searches": 1232,
+        "property_column_queries": 1232,
+        "wrapper_source": "/home/user/workspace/oil-simulator-py-impes/scripts/run_shared_lookup_forecast.py",
+        "wrapper_sha256": "6f157fec4bb329883fe54f7e8b1991122c48981563d49519b1f9a872aae0aa58",
+        "sources_unchanged": true
+      }
+    },
+    "wells64_pvt65_shared_1": {
+      "sources_match_current": true,
+      "audit": {
+        "accepted": true,
+        "wells": 64,
+        "accepted_steps": 1,
+        "elapsed_days": 1.0,
+        "mode_samples": {
+          "surface": 64
+        },
+        "component_mass_residual_kg": [
+          -7.636845111846924e-08,
+          -4.079192876815796e-07,
+          1.0940129868686199e-07
+        ],
+        "mass_atol_kg": 0.01,
+        "mass_rtol": 1e-08,
+        "well_block_backend": "tree_structured",
+        "scope": "Accepted producer-only FIM -> gathering material/operating audit.\n\nNo solver invocation or rescaling of requested production. This is accounting\nand constraint checking, not independent PVT/correlation validation.\n"
+      },
+      "policy": {
+        "scope": "Same complete FIM: repeated versus shared pressure-interval searches.\n\nProperty arithmetic, knots, quadrature and physical tolerances are identical.\nOnly pressure search reuse within one property evaluation changes in memory.\n",
+        "policy": "shared",
+        "pressure_interval_searches": 336,
+        "property_column_queries": 1232,
+        "wrapper_source": "/home/user/workspace/oil-simulator-py-impes/scripts/run_shared_lookup_forecast.py",
+        "wrapper_sha256": "6f157fec4bb329883fe54f7e8b1991122c48981563d49519b1f9a872aae0aa58",
+        "sources_unchanged": true
+      }
+    },
+    "wells64_pvt65_shared_2": {
+      "sources_match_current": true,
+      "audit": {
+        "accepted": true,
+        "wells": 64,
+        "accepted_steps": 1,
+        "elapsed_days": 1.0,
+        "mode_samples": {
+          "surface": 64
+        },
+        "component_mass_residual_kg": [
+          -7.636845111846924e-08,
+          -4.079192876815796e-07,
+          1.0940129868686199e-07
+        ],
+        "mass_atol_kg": 0.01,
+        "mass_rtol": 1e-08,
+        "well_block_backend": "tree_structured",
+        "scope": "Accepted producer-only FIM -> gathering material/operating audit.\n\nNo solver invocation or rescaling of requested production. This is accounting\nand constraint checking, not independent PVT/correlation validation.\n"
+      },
+      "policy": {
+        "scope": "Same complete FIM: repeated versus shared pressure-interval searches.\n\nProperty arithmetic, knots, quadrature and physical tolerances are identical.\nOnly pressure search reuse within one property evaluation changes in memory.\n",
+        "policy": "shared",
+        "pressure_interval_searches": 336,
+        "property_column_queries": 1232,
+        "wrapper_source": "/home/user/workspace/oil-simulator-py-impes/scripts/run_shared_lookup_forecast.py",
+        "wrapper_sha256": "6f157fec4bb329883fe54f7e8b1991122c48981563d49519b1f9a872aae0aa58",
+        "sources_unchanged": true
+      }
+    },
+    "wells64_pvt65_shared_3": {
+      "sources_match_current": true,
+      "audit": {
+        "accepted": true,
+        "wells": 64,
+        "accepted_steps": 1,
+        "elapsed_days": 1.0,
+        "mode_samples": {
+          "surface": 64
+        },
+        "component_mass_residual_kg": [
+          -7.636845111846924e-08,
+          -4.079192876815796e-07,
+          1.0940129868686199e-07
+        ],
+        "mass_atol_kg": 0.01,
+        "mass_rtol": 1e-08,
+        "well_block_backend": "tree_structured",
+        "scope": "Accepted producer-only FIM -> gathering material/operating audit.\n\nNo solver invocation or rescaling of requested production. This is accounting\nand constraint checking, not independent PVT/correlation validation.\n"
+      },
+      "policy": {
+        "scope": "Same complete FIM: repeated versus shared pressure-interval searches.\n\nProperty arithmetic, knots, quadrature and physical tolerances are identical.\nOnly pressure search reuse within one property evaluation changes in memory.\n",
+        "policy": "shared",
+        "pressure_interval_searches": 336,
+        "property_column_queries": 1232,
+        "wrapper_source": "/home/user/workspace/oil-simulator-py-impes/scripts/run_shared_lookup_forecast.py",
+        "wrapper_sha256": "6f157fec4bb329883fe54f7e8b1991122c48981563d49519b1f9a872aae0aa58",
+        "sources_unchanged": true
+      }
+    }
+  },
+  "comparisons": [
+    {
+      "wells": 512,
+      "repeat": 1,
+      "repeated_s": 1.7431286589999218,
+      "shared_s": 1.5793214500008617,
+      "pressure_searches": [
+        2464,
+        672
+      ],
+      "property_queries": [
+        2464,
+        2464
+      ],
+      "errors": {
+        "final_pressure_pa": 0.0,
+        "final_s_w": 0.0,
+        "final_s_g": 0.0,
+        "final_rs": 0.0,
+        "withdrawn_component_mass_kg": 0.0
+      },
+      "budgets": {
+        "final_pressure_pa": 0.1,
+        "final_s_w": 1e-08,
+        "final_s_g": 1e-08,
+        "final_rs": 1e-05,
+        "withdrawn_component_mass_kg": 0.01
+      },
+      "accepted": true
+    },
+    {
+      "wells": 512,
+      "repeat": 2,
+      "repeated_s": 1.645284289999836,
+      "shared_s": 1.5372771540023678,
+      "pressure_searches": [
+        2464,
+        672
+      ],
+      "property_queries": [
+        2464,
+        2464
+      ],
+      "errors": {
+        "final_pressure_pa": 0.0,
+        "final_s_w": 0.0,
+        "final_s_g": 0.0,
+        "final_rs": 0.0,
+        "withdrawn_component_mass_kg": 0.0
+      },
+      "budgets": {
+        "final_pressure_pa": 0.1,
+        "final_s_w": 1e-08,
+        "final_s_g": 1e-08,
+        "final_rs": 1e-05,
+        "withdrawn_component_mass_kg": 0.01
+      },
+      "accepted": true
+    },
+    {
+      "wells": 512,
+      "repeat": 3,
+      "repeated_s": 1.6201086260007287,
+      "shared_s": 1.6232555530004902,
+      "pressure_searches": [
+        2464,
+        672
+      ],
+      "property_queries": [
+        2464,
+        2464
+      ],
+      "errors": {
+        "final_pressure_pa": 0.0,
+        "final_s_w": 0.0,
+        "final_s_g": 0.0,
+        "final_rs": 0.0,
+        "withdrawn_component_mass_kg": 0.0
+      },
+      "budgets": {
+        "final_pressure_pa": 0.1,
+        "final_s_w": 1e-08,
+        "final_s_g": 1e-08,
+        "final_rs": 1e-05,
+        "withdrawn_component_mass_kg": 0.01
+      },
+      "accepted": true
+    },
+    {
+      "wells": 2048,
+      "repeat": 1,
+      "repeated_s": 5.164246821001143,
+      "shared_s": 4.537906992998614,
+      "pressure_searches": [
+        9856,
+        2688
+      ],
+      "property_queries": [
+        9856,
+        9856
+      ],
+      "errors": {
+        "final_pressure_pa": 0.0,
+        "final_s_w": 0.0,
+        "final_s_g": 0.0,
+        "final_rs": 0.0,
+        "withdrawn_component_mass_kg": 0.0
+      },
+      "budgets": {
+        "final_pressure_pa": 0.1,
+        "final_s_w": 1e-08,
+        "final_s_g": 1e-08,
+        "final_rs": 1e-05,
+        "withdrawn_component_mass_kg": 0.01
+      },
+      "accepted": true
+    },
+    {
+      "wells": 2048,
+      "repeat": 2,
+      "repeated_s": 4.764345249001053,
+      "shared_s": 4.50327450199984,
+      "pressure_searches": [
+        9856,
+        2688
+      ],
+      "property_queries": [
+        9856,
+        9856
+      ],
+      "errors": {
+        "final_pressure_pa": 0.0,
+        "final_s_w": 0.0,
+        "final_s_g": 0.0,
+        "final_rs": 0.0,
+        "withdrawn_component_mass_kg": 0.0
+      },
+      "budgets": {
+        "final_pressure_pa": 0.1,
+        "final_s_w": 1e-08,
+        "final_s_g": 1e-08,
+        "final_rs": 1e-05,
+        "withdrawn_component_mass_kg": 0.01
+      },
+      "accepted": true
+    },
+    {
+      "wells": 2048,
+      "repeat": 3,
+      "repeated_s": 4.73041701299735,
+      "shared_s": 4.616671796000446,
+      "pressure_searches": [
+        9856,
+        2688
+      ],
+      "property_queries": [
+        9856,
+        9856
+      ],
+      "errors": {
+        "final_pressure_pa": 0.0,
+        "final_s_w": 0.0,
+        "final_s_g": 0.0,
+        "final_rs": 0.0,
+        "withdrawn_component_mass_kg": 0.0
+      },
+      "budgets": {
+        "final_pressure_pa": 0.1,
+        "final_s_w": 1e-08,
+        "final_s_g": 1e-08,
+        "final_rs": 1e-05,
+        "withdrawn_component_mass_kg": 0.01
+      },
+      "accepted": true
+    },
+    {
+      "wells": 64,
+      "repeat": 1,
+      "repeated_s": 0.8670347749975917,
+      "shared_s": 0.8834338029992068,
+      "pressure_searches": [
+        1232,
+        336
+      ],
+      "property_queries": [
+        1232,
+        1232
+      ],
+      "errors": {
+        "final_pressure_pa": 0.0,
+        "final_s_w": 0.0,
+        "final_s_g": 0.0,
+        "final_rs": 0.0,
+        "withdrawn_component_mass_kg": 0.0
+      },
+      "budgets": {
+        "final_pressure_pa": 0.1,
+        "final_s_w": 1e-08,
+        "final_s_g": 1e-08,
+        "final_rs": 1e-05,
+        "withdrawn_component_mass_kg": 0.01
+      },
+      "accepted": true
+    },
+    {
+      "wells": 64,
+      "repeat": 2,
+      "repeated_s": 0.8835919539997121,
+      "shared_s": 0.8791065529985644,
+      "pressure_searches": [
+        1232,
+        336
+      ],
+      "property_queries": [
+        1232,
+        1232
+      ],
+      "errors": {
+        "final_pressure_pa": 0.0,
+        "final_s_w": 0.0,
+        "final_s_g": 0.0,
+        "final_rs": 0.0,
+        "withdrawn_component_mass_kg": 0.0
+      },
+      "budgets": {
+        "final_pressure_pa": 0.1,
+        "final_s_w": 1e-08,
+        "final_s_g": 1e-08,
+        "final_rs": 1e-05,
+        "withdrawn_component_mass_kg": 0.01
+      },
+      "accepted": true
+    },
+    {
+      "wells": 64,
+      "repeat": 3,
+      "repeated_s": 0.8987577890002285,
+      "shared_s": 0.8785105889983242,
+      "pressure_searches": [
+        1232,
+        336
+      ],
+      "property_queries": [
+        1232,
+        1232
+      ],
+      "errors": {
+        "final_pressure_pa": 0.0,
+        "final_s_w": 0.0,
+        "final_s_g": 0.0,
+        "final_rs": 0.0,
+        "withdrawn_component_mass_kg": 0.0
+      },
+      "budgets": {
+        "final_pressure_pa": 0.1,
+        "final_s_w": 1e-08,
+        "final_s_g": 1e-08,
+        "final_rs": 1e-05,
+        "withdrawn_component_mass_kg": 0.01
+      },
+      "accepted": true
+    }
+  ],
+  "coupled30_comparison": {
+    "accepted": true,
+    "errors": {
+      "final_pressure_pa": 0.0,
+      "final_s_w": 0.0,
+      "final_s_g": 0.0,
+      "final_rs": 0.0,
+      "withdrawal_relative": 0.0
+    },
+    "budgets": {
+      "final_pressure_pa": 0.1,
+      "final_s_w": 1e-08,
+      "final_s_g": 1e-08,
+      "final_rs": 1e-05,
+      "withdrawal_relative": 1e-06
+    },
+    "coarse": "benchmarks/reports/surface_shared_lookup/coupled30_cpu/trajectory.json.gz",
+    "fine": "benchmarks/reports/surface_compact_quadrature/final_coupled30_cpu/trajectory.json.gz",
+    "scope": "Compare completed operational forecasts at the final common report endpoint.\n\nBudgets must be supplied before inspecting the reference result. This is a\nstep-refinement check, not a proof that the finer trajectory is exact.\n",
+    "allowed_numerical_policy_differences": []
+  },
+  "regression": {
+    "passed": 229,
+    "skipped": 14
+  },
+  "protected_source_sha256": {
+    "src/simulator/blackoil_fim.py": "658fde0e6119df6ae154c3c400ff24b8d2a519dfa9a33e612aeaa6bd51a16c3c",
+    "src/surface/torch_linear.py": "b7bda1aae66d9e979c147f821efba9990d6460d60b32a05c6fc5f9b873b752d5"
+  },
+  "evidence_sha256": {
+    "comparison_summary.json": "3f0919a779550b36b1d56da982fb60318429d1bad0f256ff77e6edee98c2495a",
+    "coupled30_comparison.json": "da1e9949b5f6eef2c5f9c60083a68685941d61693ed1b7c00980ee97b4fc7a5e",
+    "coupled30_cpu/progress.json": "f50dbbc88c511cd14fe0bf4edefd3aef224f15779f13290a3af56881ae11c009",
+    "coupled30_cpu/protocol.json": "0d7190de6b35062924aed26bbdf3e3d732cabd6a7618cbf0a35d8da9fc5459b2",
+    "coupled30_cpu/summary.json": "eabcf704daf04400a64681f03c705845b4738bc8e74fa0690902e6b85e68fbef",
+    "coupled30_cpu/trajectory.json.gz": "45db1fcdaf0f4fef5838f496b0edbce71bd5dd9e238dca470f601f6047b049a0",
+    "lint.txt": "82b3e6a6c090a57601d22943bd23fca9218d1031dbe5a7b754092f9a156b4f18",
+    "regression.txt": "b7ed50d1c44247031dcfe930ae3170b1020d4411a2dce3eabe3f66d25841bc53",
+    "retained_storage_cpu/protocol.json": "73a9012ff50c3c8ff3a2b0cff7fa3afbc8aa5892c7f181ba8f3df3b13ede690a",
+    "retained_storage_cpu/summary.json": "195d6e0cd88155e4157e02973cf50802b91045a968d71c11640deaf80b403f39",
+    "wells2048_repeated_1/lookup_policy.json": "f2448947a941ddc4a2212433262a345df788d9f9b679bae6f11ff88de452a15b",
+    "wells2048_repeated_1/progress.json": "f50dbbc88c511cd14fe0bf4edefd3aef224f15779f13290a3af56881ae11c009",
+    "wells2048_repeated_1/protocol.json": "5d958975c5ddc215eb2bb6e07ddb53554649e5b2bf4245140987a966f50eab0b",
+    "wells2048_repeated_1/summary.json": "c8af36db357926d069e06fe1b300282a0cc4cd4a8fbe75765dece6ff56f9c756",
+    "wells2048_repeated_1/trajectory.json.gz": "5fdeff77e68858f35f59ba91c52b8c4dbce7c74a2359823e8df6183d943ad725",
+    "wells2048_repeated_2/lookup_policy.json": "f2448947a941ddc4a2212433262a345df788d9f9b679bae6f11ff88de452a15b",
+    "wells2048_repeated_2/progress.json": "f50dbbc88c511cd14fe0bf4edefd3aef224f15779f13290a3af56881ae11c009",
+    "wells2048_repeated_2/protocol.json": "5d958975c5ddc215eb2bb6e07ddb53554649e5b2bf4245140987a966f50eab0b",
+    "wells2048_repeated_2/summary.json": "591341641d5d1cde694826ff3fc1e5048ae7910badfd027aeaf9c042afa260ff",
+    "wells2048_repeated_2/trajectory.json.gz": "faf7b9901deafb9b3ca29271326fbc1cf41676d71e770c664d73f1ffd973d765",
+    "wells2048_repeated_3/lookup_policy.json": "f2448947a941ddc4a2212433262a345df788d9f9b679bae6f11ff88de452a15b",
+    "wells2048_repeated_3/progress.json": "f50dbbc88c511cd14fe0bf4edefd3aef224f15779f13290a3af56881ae11c009",
+    "wells2048_repeated_3/protocol.json": "5d958975c5ddc215eb2bb6e07ddb53554649e5b2bf4245140987a966f50eab0b",
+    "wells2048_repeated_3/summary.json": "3364c86e2437042a9fc3683d8662fcba22e71c4ebb6b61811409e02899391ed6",
+    "wells2048_repeated_3/trajectory.json.gz": "675d95c80a258dea73b280dd5972de4db1ea5801b3e74e24e14569124db379e4",
+    "wells2048_shared_1/lookup_policy.json": "6504c061e67cdeb9e133675ed6fcca1728408ab807c5428ae29c1f5212955ab2",
+    "wells2048_shared_1/progress.json": "f50dbbc88c511cd14fe0bf4edefd3aef224f15779f13290a3af56881ae11c009",
+    "wells2048_shared_1/protocol.json": "5d958975c5ddc215eb2bb6e07ddb53554649e5b2bf4245140987a966f50eab0b",
+    "wells2048_shared_1/summary.json": "243b9a2d66ec0a1c0421566517e8c8fee44c30cb8b485bf4dec6cb5d99d33b2f",
+    "wells2048_shared_1/trajectory.json.gz": "9f6063ebd9a0ac2cd983207ee0f1e7f491886060acc9b3ca2b2f4e8258df454a",
+    "wells2048_shared_2/lookup_policy.json": "6504c061e67cdeb9e133675ed6fcca1728408ab807c5428ae29c1f5212955ab2",
+    "wells2048_shared_2/progress.json": "f50dbbc88c511cd14fe0bf4edefd3aef224f15779f13290a3af56881ae11c009",
+    "wells2048_shared_2/protocol.json": "5d958975c5ddc215eb2bb6e07ddb53554649e5b2bf4245140987a966f50eab0b",
+    "wells2048_shared_2/summary.json": "9451f4744082584f85e8a5e0a160c93ca0d40721157bede3dcaffbd2f2f12f77",
+    "wells2048_shared_2/trajectory.json.gz": "1582af8cc9584ce89c8e3c6ed2f765f665d99d4e003d01fd3baddbe2741e2105",
+    "wells2048_shared_3/lookup_policy.json": "6504c061e67cdeb9e133675ed6fcca1728408ab807c5428ae29c1f5212955ab2",
+    "wells2048_shared_3/progress.json": "f50dbbc88c511cd14fe0bf4edefd3aef224f15779f13290a3af56881ae11c009",
+    "wells2048_shared_3/protocol.json": "5d958975c5ddc215eb2bb6e07ddb53554649e5b2bf4245140987a966f50eab0b",
+    "wells2048_shared_3/summary.json": "31d6b59cb99b0332e87509ce7a6be2c2f1bdbed478327a89d6ef9b0378897733",
+    "wells2048_shared_3/trajectory.json.gz": "a9404bb48157f494620214cfd193884fe55b1b21a2fa94944725c6b19f07cf86",
+    "wells512_repeated_1/lookup_policy.json": "5bf73edabde6640d644dbc2c041c9c4dc3ff8ca8118b44b1216d7cb1fe478c8f",
+    "wells512_repeated_1/progress.json": "f50dbbc88c511cd14fe0bf4edefd3aef224f15779f13290a3af56881ae11c009",
+    "wells512_repeated_1/protocol.json": "d8d87fd9012da2922c9677fca86e05fe51b6f5d7212560039860bd72bdd62f25",
+    "wells512_repeated_1/summary.json": "643890918ab096813e2808dea0f4a436be98ff0d49f8a94776c38019bcae1c71",
+    "wells512_repeated_1/trajectory.json.gz": "88edbc8d7a043bd4587ff38aa5b2749c6676fa2fe2327463db815d3f6549da3b",
+    "wells512_repeated_2/lookup_policy.json": "5bf73edabde6640d644dbc2c041c9c4dc3ff8ca8118b44b1216d7cb1fe478c8f",
+    "wells512_repeated_2/progress.json": "f50dbbc88c511cd14fe0bf4edefd3aef224f15779f13290a3af56881ae11c009",
+    "wells512_repeated_2/protocol.json": "d8d87fd9012da2922c9677fca86e05fe51b6f5d7212560039860bd72bdd62f25",
+    "wells512_repeated_2/summary.json": "9403af50d581058452b115ae5ce79b719c1d746e54851540b2d56fc3f9f76c13",
+    "wells512_repeated_2/trajectory.json.gz": "da3977a2da2f01858a3d6e310ada14f158d5623e46b0d4ca51203f0e29414cff",
+    "wells512_repeated_3/lookup_policy.json": "5bf73edabde6640d644dbc2c041c9c4dc3ff8ca8118b44b1216d7cb1fe478c8f",
+    "wells512_repeated_3/progress.json": "f50dbbc88c511cd14fe0bf4edefd3aef224f15779f13290a3af56881ae11c009",
+    "wells512_repeated_3/protocol.json": "d8d87fd9012da2922c9677fca86e05fe51b6f5d7212560039860bd72bdd62f25",
+    "wells512_repeated_3/summary.json": "60f38d08bef8f833b6ae4a23f42a5e8ccb16c4d935306937768ac1278643bc37",
+    "wells512_repeated_3/trajectory.json.gz": "9ec8ca252d0c8628435e99b34d6831864727b607a859edce5128756f53ce8875",
+    "wells512_shared_1/lookup_policy.json": "c78e64068ec97e2b77f87fbe9ae2a0c18cd05552236df1aa4902a29639aebe65",
+    "wells512_shared_1/progress.json": "f50dbbc88c511cd14fe0bf4edefd3aef224f15779f13290a3af56881ae11c009",
+    "wells512_shared_1/protocol.json": "d8d87fd9012da2922c9677fca86e05fe51b6f5d7212560039860bd72bdd62f25",
+    "wells512_shared_1/summary.json": "4037e9238ca7a9aa6e52f67311dd2a333ff136a8e1212292c98d5440e92af09f",
+    "wells512_shared_1/trajectory.json.gz": "f2472d8471ee34ca41ffecc71d2e5c1ce44809de2eb6ae70e6917e1c6beb8c06",
+    "wells512_shared_2/lookup_policy.json": "c78e64068ec97e2b77f87fbe9ae2a0c18cd05552236df1aa4902a29639aebe65",
+    "wells512_shared_2/progress.json": "f50dbbc88c511cd14fe0bf4edefd3aef224f15779f13290a3af56881ae11c009",
+    "wells512_shared_2/protocol.json": "d8d87fd9012da2922c9677fca86e05fe51b6f5d7212560039860bd72bdd62f25",
+    "wells512_shared_2/summary.json": "9e0cbf42367ef0cff35e8ec7488128890618ebb05c38e3c45c672f0a2a6eae5a",
+    "wells512_shared_2/trajectory.json.gz": "6e7036aeb481aad5a8ecbf35b56a71a10d1272ac1db2cbc15596089b3bb31c6a",
+    "wells512_shared_3/lookup_policy.json": "c78e64068ec97e2b77f87fbe9ae2a0c18cd05552236df1aa4902a29639aebe65",
+    "wells512_shared_3/progress.json": "f50dbbc88c511cd14fe0bf4edefd3aef224f15779f13290a3af56881ae11c009",
+    "wells512_shared_3/protocol.json": "d8d87fd9012da2922c9677fca86e05fe51b6f5d7212560039860bd72bdd62f25",
+    "wells512_shared_3/summary.json": "0253ad30da459a56e412d7ef0d5014f150e8daa352e83633c2a2b6b30b78918d",
+    "wells512_shared_3/trajectory.json.gz": "33659ae094bbbfa959a4cfeaf2d186e253a39b9bbc4e902fda444252810cdba6",
+    "wells64_pvt65_repeated_1/lookup_policy.json": "d67b9f8fb5bebb63e6c2a62fb1426accbc4b50397d6bf6f4d699d578114b56b7",
+    "wells64_pvt65_repeated_1/progress.json": "f50dbbc88c511cd14fe0bf4edefd3aef224f15779f13290a3af56881ae11c009",
+    "wells64_pvt65_repeated_1/protocol.json": "8d8801b171cbe4ae98148ed24f7b63f9e7a5d02dd284d599279423b23280ded2",
+    "wells64_pvt65_repeated_1/summary.json": "c789502e07518117be35bb607921e47005d3d69e0c63f620a6926f581db02d75",
+    "wells64_pvt65_repeated_1/trajectory.json.gz": "c45a0e58a2b676e6811a127321afe6eab3f4a095c7dd6b8efb69b0dc788fc2a6",
+    "wells64_pvt65_repeated_2/lookup_policy.json": "d67b9f8fb5bebb63e6c2a62fb1426accbc4b50397d6bf6f4d699d578114b56b7",
+    "wells64_pvt65_repeated_2/progress.json": "f50dbbc88c511cd14fe0bf4edefd3aef224f15779f13290a3af56881ae11c009",
+    "wells64_pvt65_repeated_2/protocol.json": "8d8801b171cbe4ae98148ed24f7b63f9e7a5d02dd284d599279423b23280ded2",
+    "wells64_pvt65_repeated_2/summary.json": "2c41184148191b312d37fa45b7be5597974bbf25e6a37a91c133eecfe0764912",
+    "wells64_pvt65_repeated_2/trajectory.json.gz": "b63cf1c945efd52f8141e67ddc3900f872059eeb836b95eb1044121c485b85b4",
+    "wells64_pvt65_repeated_3/lookup_policy.json": "d67b9f8fb5bebb63e6c2a62fb1426accbc4b50397d6bf6f4d699d578114b56b7",
+    "wells64_pvt65_repeated_3/progress.json": "f50dbbc88c511cd14fe0bf4edefd3aef224f15779f13290a3af56881ae11c009",
+    "wells64_pvt65_repeated_3/protocol.json": "8d8801b171cbe4ae98148ed24f7b63f9e7a5d02dd284d599279423b23280ded2",
+    "wells64_pvt65_repeated_3/summary.json": "924d594e8304e29266e15d772dcdc4fc80399e0bd18b5a6becf742e51d8c1179",
+    "wells64_pvt65_repeated_3/trajectory.json.gz": "cbd7ce416f74b8329e1577ab8f57283be54f6a83db9fb4eb24eb704d2ca30dfc",
+    "wells64_pvt65_shared_1/lookup_policy.json": "253e31e64aa47bc648a1a0a241b6320db2c7dd7106e438d38e4bfcb32cce60cd",
+    "wells64_pvt65_shared_1/progress.json": "f50dbbc88c511cd14fe0bf4edefd3aef224f15779f13290a3af56881ae11c009",
+    "wells64_pvt65_shared_1/protocol.json": "8d8801b171cbe4ae98148ed24f7b63f9e7a5d02dd284d599279423b23280ded2",
+    "wells64_pvt65_shared_1/summary.json": "4157a6acbd0bd6869d0e7df3af67a02e14be437af6ee67df2463da17e7bb92b5",
+    "wells64_pvt65_shared_1/trajectory.json.gz": "2e4030b6be39a806032b5263ed58539601751ff5324c3022bebb7fe99349d612",
+    "wells64_pvt65_shared_2/lookup_policy.json": "253e31e64aa47bc648a1a0a241b6320db2c7dd7106e438d38e4bfcb32cce60cd",
+    "wells64_pvt65_shared_2/progress.json": "f50dbbc88c511cd14fe0bf4edefd3aef224f15779f13290a3af56881ae11c009",
+    "wells64_pvt65_shared_2/protocol.json": "8d8801b171cbe4ae98148ed24f7b63f9e7a5d02dd284d599279423b23280ded2",
+    "wells64_pvt65_shared_2/summary.json": "35f3a9d3a06c9b94265d87bd6d02cb5a2a0026877e757a02553ecfdba880404c",
+    "wells64_pvt65_shared_2/trajectory.json.gz": "4bd1fb53e3e0f7ee52401bc0bc8ccd22ad779d8ff1687158b7e887b86f518d50",
+    "wells64_pvt65_shared_3/lookup_policy.json": "253e31e64aa47bc648a1a0a241b6320db2c7dd7106e438d38e4bfcb32cce60cd",
+    "wells64_pvt65_shared_3/progress.json": "f50dbbc88c511cd14fe0bf4edefd3aef224f15779f13290a3af56881ae11c009",
+    "wells64_pvt65_shared_3/protocol.json": "8d8801b171cbe4ae98148ed24f7b63f9e7a5d02dd284d599279423b23280ded2",
+    "wells64_pvt65_shared_3/summary.json": "5ddb4b9afa702d9f9a025e2d9a952cfb738371da4fd7cbfac71f785d5b856d98",
+    "wells64_pvt65_shared_3/trajectory.json.gz": "4a682b766488b337ff68706aa73f03a06f95bc3307f3abfc339924f7a3d46e4a"
+  }
+}

@@ -1,0 +1,261 @@
+{
+  "scope": "Two complete synthetic 365-day reservoir/gathering/quasi-steady-facility CPU forecasts, step refinement and accounting audits; separate bounded actual Norne CPU feasibility probe. No full Norne or GPU qualification.",
+  "runs": {
+    "pilot10_cpu": {
+      "audit": {
+        "accepted": true,
+        "checked_substeps": 8,
+        "elapsed_days": 10.0,
+        "minimum_step_s": 86400.0,
+        "maximum_step_s": 172800.0,
+        "capacity_evaluations": 93,
+        "operating_events": 4,
+        "mass_balance_error_kg": [
+          -1.183307176688686e-06,
+          -3.8917460187803954e-07,
+          -9.147379387286492e-08
+        ],
+        "maximum_surface_component_residual_kg_s": 3.469446951953614e-18,
+        "mass_atol_kg": 0.01,
+        "mass_rtol": 1e-08,
+        "scope": "Audit accepted forecast material and controls without running either solver.\n\nThis is an accounting/constraint audit, not independent validation of the PVT\nor homogeneous gathering closure. The production FIM CNV/MB remain required.\n"
+      },
+      "current_source_differences": {
+        "/home/user/workspace/oil-simulator-py-impes/scripts/run_fim_facility_forecast.py": {
+          "recorded": "9ec0df6047b62a9007e8348a0db26885547954455665b3de80d69697f5b44c30",
+          "current": "3ac248501766cc7cb685c9e8a9c754676e0bdcc7d375f7a8f9fbce2f6c8b317a"
+        }
+      }
+    },
+    "mixed_pilot4_cpu": {
+      "audit": {
+        "accepted": true,
+        "checked_substeps": 2,
+        "elapsed_days": 4.0,
+        "minimum_step_s": 172800.0,
+        "maximum_step_s": 172800.0,
+        "capacity_evaluations": 40,
+        "operating_events": 0,
+        "mass_balance_error_kg": [
+          -7.412698323605582e-06,
+          -9.073510227608494e-06,
+          4.969870360582718e-06
+        ],
+        "maximum_surface_component_residual_kg_s": 3.469446951953614e-18,
+        "mass_atol_kg": 0.01,
+        "mass_rtol": 1e-08,
+        "scope": "Audit accepted forecast material and controls without running either solver.\n\nThis is an accounting/constraint audit, not independent validation of the PVT\nor homogeneous gathering closure. The production FIM CNV/MB remain required.\n"
+      },
+      "current_source_differences": {}
+    },
+    "year_10d_cpu": {
+      "audit": {
+        "accepted": true,
+        "checked_substeps": 37,
+        "elapsed_days": 365.0,
+        "minimum_step_s": 432000.0,
+        "maximum_step_s": 864000.0,
+        "capacity_evaluations": 303,
+        "operating_events": 6,
+        "mass_balance_error_kg": [
+          0.0015072979731485248,
+          0.0001771249808371067,
+          0.0011082409182563424
+        ],
+        "maximum_surface_component_residual_kg_s": 3.469446951953614e-18,
+        "mass_atol_kg": 0.01,
+        "mass_rtol": 1e-08,
+        "scope": "Audit accepted forecast material and controls without running either solver.\n\nThis is an accounting/constraint audit, not independent validation of the PVT\nor homogeneous gathering closure. The production FIM CNV/MB remain required.\n"
+      },
+      "current_source_differences": {}
+    },
+    "year_5d_cpu": {
+      "audit": {
+        "accepted": true,
+        "checked_substeps": 73,
+        "elapsed_days": 365.0,
+        "minimum_step_s": 432000.0,
+        "maximum_step_s": 432000.0,
+        "capacity_evaluations": 525,
+        "operating_events": 6,
+        "mass_balance_error_kg": [
+          0.0006549584213644266,
+          7.852900307625532e-05,
+          0.0005359555725590326
+        ],
+        "maximum_surface_component_residual_kg_s": 3.469446951953614e-18,
+        "mass_atol_kg": 0.01,
+        "mass_rtol": 1e-08,
+        "scope": "Audit accepted forecast material and controls without running either solver.\n\nThis is an accounting/constraint audit, not independent validation of the PVT\nor homogeneous gathering closure. The production FIM CNV/MB remain required.\n"
+      },
+      "current_source_differences": {}
+    }
+  },
+  "endpoint_refinement": {
+    "accepted": true,
+    "errors": {
+      "final_pressure_pa": 1.4573699785396457,
+      "final_s_w": 1.8086734787647885e-07,
+      "final_s_g": 6.892376992265192e-07,
+      "final_rs": 2.1860549672680918e-05,
+      "withdrawal_relative": 7.3548991139058926e-06
+    },
+    "budgets": {
+      "final_pressure_pa": 100.0,
+      "final_s_w": 2e-05,
+      "final_s_g": 2e-05,
+      "final_rs": 0.01,
+      "withdrawal_relative": 0.002
+    },
+    "coarse": "benchmarks/reports/surface_year_forecast/year_10d_cpu/trajectory.json.gz",
+    "fine": "benchmarks/reports/surface_year_forecast/year_5d_cpu/trajectory.json.gz",
+    "scope": "Compare completed operational forecasts at the final common report endpoint.\n\nBudgets must be supplied before inspecting the reference result. This is a\nstep-refinement check, not a proof that the finer trajectory is exact.\n",
+    "allowed_numerical_policy_differences": []
+  },
+  "common_report_refinement": {
+    "scope": "Compare actual well rates/BHP and cumulative mass at coarse report endpoints.\n\nBoth bundles must independently pass full facility accounting first. This is\nstep refinement, not a proof that either trajectory is exact or calibrated.\n",
+    "accepted": true,
+    "matched_endpoints_days": [
+      10.0,
+      20.0,
+      30.0,
+      40.0,
+      50.0,
+      60.0,
+      70.0,
+      80.0,
+      90.0,
+      100.0,
+      110.0,
+      120.0,
+      130.0,
+      140.0,
+      150.0,
+      160.0,
+      170.0,
+      180.0,
+      190.0,
+      200.0,
+      210.0,
+      220.0,
+      230.0,
+      240.0,
+      250.0,
+      260.0,
+      270.0,
+      280.0,
+      290.0,
+      300.0,
+      310.0,
+      320.0,
+      330.0,
+      340.0,
+      350.0,
+      360.0,
+      365.0
+    ],
+    "mode_mismatches": 0,
+    "errors": {
+      "bhp_abs_pa": 41.732588313519955,
+      "component_rate_scaled": 0.0002129961377514046,
+      "cumulative_mass_relative": 0.00018107850173456846
+    },
+    "budgets": {
+      "bhp_abs_pa": 100.0,
+      "component_rate_scaled": 0.002,
+      "cumulative_mass_relative": 0.002
+    },
+    "component_rate_floor_kg_s": 1e-08
+  },
+  "norne_probe": {
+    "scope": "Bounded CPU feasibility probe of the actual Norne deck, not a full Norne result or an Eclipse/OPM comparison.",
+    "requested_day_cap": 30.0,
+    "actual_last_deck_report_day": 25.0,
+    "cap_semantics": "run_deck stops before a deck report that would exceed max_days; it does not synthesize an extra report at day 30.",
+    "reported_meta": {
+      "status": "done",
+      "error": null,
+      "wall_s": 32.47312116622925,
+      "cells_total": 113344,
+      "dims": [
+        46,
+        112,
+        22
+      ],
+      "cells_computed": 44431,
+      "cells_active": 44431,
+      "wells": 36,
+      "substeps": 5,
+      "failed_substeps": 0,
+      "newton_iters": 22,
+      "days": 25.0,
+      "cpu": "AMD Ryzen 9 9900X 12-Core Processor",
+      "threads": 1,
+      "device": "cpu",
+      "torch": "2.7.0+cu126",
+      "python": "3.12.9",
+      "convergence": {
+        "tol_cnv": 0.001,
+        "tol_mb": 1e-07,
+        "max_strict_iter": 8,
+        "relaxed_max_pv_fraction": 0.0,
+        "tol_cnv_relaxed": 1.0,
+        "tol_mb_relaxed": 1e-06
+      },
+      "well_events": []
+    },
+    "checkpoint": {
+      "checkpoint_path": "/home/user/workspace/oil-simulator-py-impes/.scratch/norne_cpu_validation/probe25_checkpoint.pt",
+      "sha256": "c8b7edd759270cc7ed7240e4a927bc0d9853f31424634d75e61cf14f079e69f3",
+      "bytes": 95857295,
+      "reason": "Keep the 92 MiB restart outside versioned benchmark reports; file is preserved for an explicit continuation.",
+      "checkpoint_t_days": 25.0,
+      "checkpoint_t_unit": "days",
+      "summary_time_days": 25.0
+    },
+    "input_deck": "/home/user/workspace/oil-simulator-py-impes/.scratch/ot2/norne/NORNE_ATW2013.DATA",
+    "input_main_deck_sha256": "c9c3b9a027b9fe73df99b6ae354b1b2b1f0fb9e037befa794fafec7a840441a6",
+    "driver_source_sha256_at_report_time": "13b140f1e68c974eb3bad0854c6d6b2aec2a90b728594997536744ce72a57532",
+    "cuda_qualified": false
+  },
+  "protected_source_sha256": {
+    "src/simulator/blackoil_fim.py": "658fde0e6119df6ae154c3c400ff24b8d2a519dfa9a33e612aeaa6bd51a16c3c",
+    "src/surface/torch_linear.py": "b7bda1aae66d9e979c147f821efba9990d6460d60b32a05c6fc5f9b873b752d5"
+  },
+  "targeted_tests_passed": 21,
+  "validator_source_sha256": "4c89951c78aceb8d7c7aa3a11b784e806995b3ab71ac9844dad072c41163ba3c",
+  "evidence_sha256": {
+    "driver_tests.txt": "4b470d5028ee15861ed97bd449a2c0f238846725d218bb278a394fa68f6206af",
+    "field32_wells16_input.json": "d957a56d77913a7b75011b520df5bb267e4baf0d8cf06f5729f419ec0bae637e",
+    "field32_wells16_mixed_input.json": "bf5ad82e1d79ff78f7444e8bff91fa184379208a53562e34af051689261dbb1e",
+    "lint.txt": "82b3e6a6c090a57601d22943bd23fca9218d1031dbe5a7b754092f9a156b4f18",
+    "mixed_pilot4_cpu/progress.json": "7c224d331c9509005a8b80b54fe8deff6b359cd6a7e11b13f2c2a02db711ce9c",
+    "mixed_pilot4_cpu/protocol.json": "44f3df3225056336213cfb2442f082b30adae6da575a406499233640dfdc08f3",
+    "mixed_pilot4_cpu/summary.json": "4b077f8d1f1b0230e812040479150776f99c683a820417070a8a23f5299a5214",
+    "mixed_pilot4_cpu/trajectory.json.gz": "e827e23e14030e2dad6d608fff1ae356c55b226136cad285421a46f7806eefd7",
+    "norne_probe30_cpu/checkpoint_location.json": "7e4f8bad24d37f835a766247a9a0ebcf7e5b24a674776a815762e401fb6c9f61",
+    "norne_probe30_cpu/fields.npz": "21c6360c08f07435a78510d4ab18bc0306d650dec21afe7b18f46f503d6e65ae",
+    "norne_probe30_cpu/meta.json": "0b8cb6323e2b5e0f799afc44866a560e82392bd07fab47c3e78d9e65485aaf48",
+    "norne_probe30_cpu/probe_observations.json": "52a127b6bf1dd248a28c4f17db1907f1dd8623406c4fbcce0399dd7e2f571c76",
+    "norne_probe30_cpu/substeps.npz": "b2e0f8be108f3e12ae4bcdf660f1d276ecb63161466e564ad5bcd0c2603f79b2",
+    "norne_probe30_cpu/summary.npz": "6823b880ead9310c4374d23fc202cd88c85ed1f6d014098953c6cef46a05ef9c",
+    "pilot10_cpu/progress.json": "e3d36fd7a694b4325e0ca9de326bc485bc4958985392b438aefea1a283cf1cc6",
+    "pilot10_cpu/protocol.json": "d4f411c7e31f873b3de51ea1b5d9e3b2e8763b7000274243ead7730ce376ad5c",
+    "pilot10_cpu/summary.json": "630163f41c83501d2467e6ce06820a8530f76160e0747cc30a90c3c68dd90295",
+    "pilot10_cpu/trajectory.json.gz": "dd38c6f2c93a97bcb4f29410b21f9da493bc986f4afadd665a8a0e0befdc6f86",
+    "pilot_schedule.json": "dacb134a2d653a47e3418215f7a1598121d024f9d61fbde5fed75c39bd53ac19",
+    "refinement_budgets.json": "84bb23d92c69d3f177842ed4a5d0f1ac4a10bc67db9c9f27f5985b8adeb5e9fa",
+    "year_10d_cpu/progress.json": "713d5e3a285215ef2d742723dbbccd56a865a0f2a1e4491133244869690b9202",
+    "year_10d_cpu/protocol.json": "33422e088e535d1f1706ef36c55b1b564a7462e3805d21851c008b5b56c2eab0",
+    "year_10d_cpu/summary.json": "66772faab9f4e8a03e3245c9d267758e5c89e9126badbf6a549ee0594f3fe622",
+    "year_10d_cpu/trajectory.json.gz": "74cd6eb299368c4f3f517fb9e3323b537c57fe809c4241c4c01addb28060298c",
+    "year_5d_cpu/progress.json": "026c2a077e3435abd6d850a3a3bcaf89e388c980f544ad975cee225fc2f182e8",
+    "year_5d_cpu/protocol.json": "7aea35cdd66d260b62cd39bfb13231b88a031d53edf41c012390d599a37c12f6",
+    "year_5d_cpu/summary.json": "c396949eff88ef2787c9d7b7d36b649cc19befd0c0a38985377a523f7220a07e",
+    "year_5d_cpu/trajectory.json.gz": "6ff091c3b0847ffdd8590f162f4f6a9d06e3ffdd99637e7d0cb7061b92e22d25",
+    "year_refinement.json": "f63ac0d57b6bfbb001bd88d6459716ddfb9e07aa0c0eb34cd35e243eab764d9f",
+    "year_report_endpoint_comparison.json": "5580538ff9aae12b8ed75950380f6d3b01ee7744b1b3668e789096c4804b32d2",
+    "year_schedule.json": "9561b77c2e7e33b70dd9e966fbd03a41d398f5539a84476fdeba72b57c940f5c",
+    "year_trajectory_comparison.json": "2119da10a18b7e250a0fd6cfdef378b27fe3d7b7f0ccff2fefda8f1b9e43c78c"
+  }
+}

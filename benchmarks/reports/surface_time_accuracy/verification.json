@@ -1,0 +1,31 @@
+{
+  "overlapping_suites_do_not_sum_counts": true,
+  "regression_suite": {
+    "passed": 72,
+    "status": "passed"
+  },
+  "final_targeted_cpu_suite": {
+    "passed": 22,
+    "skipped": 1,
+    "status": "passed"
+  },
+  "final_cpu_cuda_defect_checks": {
+    "passed": 2,
+    "status": "passed"
+  },
+  "restart_check": {
+    "passed": 1,
+    "status": "passed"
+  },
+  "diff_whitespace_check": "passed",
+  "current_source_sha256": {
+    "src/simulator/facility_temporal_control.py": "f7ce7e063b5901352586f861ed26146b3c30ea855b0b5f38725d710a020d902b",
+    "src/simulator/facility_coupling.py": "5be51cd809705f4da1180b6e3687bdfebd2f4e2040be2470c9c3dcef8346dab1",
+    "src/simulator/blackoil_surface_coupling.py": "a82e7ecb6f940dec459992b8128ce224a895271b486b02ac75cc8be39d82303b",
+    "src/simulator/surface_seed.py": "3fd41a92d2268b48099a3156671279fab58172c4fda678f79bfdf0ce0f1921c0",
+    "src/simulator/simulation.py": "118c7d354adef59ef9d569e386af39c88324af9daa0fea3e3c57a00089e0c45b",
+    "scripts/run_fim_blackoil_surface.py": "9484365f48afd9e6c3673eef7e91e83d1b667185155520848773066d3cfc0b37",
+    "scripts/run_fim_facility_forecast.py": "eb3e7aa6db6ba8afe58918a42c0260eb64be527a48eff5a2e10f97713dfd40bb",
+    "scripts/check_fim_facility_forecast.py": "b63e65aedc2d253dcd24f025b0fa5c0bd06d15d30a96a2fecf915ecbc5f87be5"
+  }
+}

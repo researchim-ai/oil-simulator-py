@@ -1,0 +1,48 @@
+{
+  "fields": {
+    "accepted": false,
+    "errors": {
+      "final_pressure_pa": 5752.259577036835,
+      "final_s_w": 0.0005967893203760455,
+      "final_s_g": 0.002453336208357429,
+      "final_rs": 0.08628389365556188,
+      "withdrawal_relative": 0.034528728937417076
+    },
+    "budgets": {
+      "final_pressure_pa": 100.0,
+      "final_s_w": 2e-05,
+      "final_s_g": 2e-05,
+      "final_rs": 0.01,
+      "withdrawal_relative": 0.002
+    },
+    "coarse": "benchmarks/reports/surface_gpu_year/depletion_cpu30/trajectory.json.gz",
+    "fine": "benchmarks/reports/surface_gpu_year/depletion_cpu30_fine/trajectory.json.gz",
+    "scope": "Compare completed operational forecasts at the final common report endpoint.\n\nBudgets must be supplied before inspecting the reference result. This is a\nstep-refinement check, not a proof that the finer trajectory is exact.\n",
+    "allowed_numerical_policy_differences": []
+  },
+  "trajectory": {
+    "scope": "Compare actual well rates/BHP and cumulative mass at coarse report endpoints.\n\nBoth bundles must independently pass full facility accounting first. This is\nstep refinement, not a proof that either trajectory is exact or calibrated.\n",
+    "accepted": false,
+    "matched_endpoints_days": [
+      5.0,
+      10.0,
+      15.0,
+      20.0,
+      25.0,
+      30.0
+    ],
+    "mode_mismatches": 0,
+    "errors": {
+      "bhp_abs_pa": 9306.161342091858,
+      "component_rate_scaled": 0.06474095934186357,
+      "cumulative_mass_relative": 0.07434459344644304
+    },
+    "budgets": {
+      "bhp_abs_pa": 100.0,
+      "component_rate_scaled": 0.002,
+      "cumulative_mass_relative": 0.002
+    },
+    "component_rate_floor_kg_s": 1e-08,
+    "allow_numerical_policy": false
+  }
+}

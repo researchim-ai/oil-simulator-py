@@ -1,0 +1,259 @@
+"""Actual CPU/CUDA black-oil FIM → producing wells ↔ physical gathering tree.
+
+Pressure counterfactuals start from the same reservoir state. No Eclipse or
+Norne benchmark is implied; rejected substeps are handled by Simulator.
+"""
+
+import argparse
+import contextlib
+import copy
+import io
+import json
+import math
+import sys
+import time
+from pathlib import Path
+
+import torch
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
+from simulator.fluid import Fluid
+from simulator.reservoir import Reservoir
+from simulator.simulation import Simulator
+from simulator.well import WellManager
+
+
+def run_case(
+    config,
+    outlet_pa,
+    days,
+    report_days=1.0,
+    device_name="cpu",
+    initial_rs=None,
+    facility_schedule=None,
+    progress_callback=None,
+):
+    if progress_callback is not None and not callable(progress_callback):
+        raise TypeError("progress_callback must be callable")
+    if any(
+        isinstance(v, bool) or not math.isfinite(v * 86400) or v <= 0 for v in (days, report_days)
+    ):
+        raise ValueError("days and report_days must be positive and finite")
+    c = copy.deepcopy(config)
+    events = copy.deepcopy([] if facility_schedule is None else facility_schedule)
+    if not isinstance(events, list):
+        raise TypeError("facility_schedule must be a list")
+    if events and c["simulation"].get("coupled_facility") is None:
+        raise ValueError("Facility schedule requires coupled_facility")
+    from simulator.facility_coupling import FacilityCoupledFIM
+
+    previous_time = -1.0
+    for event in events:
+        if not isinstance(event, dict) or set(event) != {"time_days", "controls"}:
+            raise ValueError("Each facility event requires time_days and controls")
+        when = event["time_days"]
+        if (
+            isinstance(when, bool)
+            or not isinstance(when, (int, float))
+            or not math.isfinite(when)
+            or not previous_time < when < days
+            or when < 0
+        ):
+            raise ValueError("Facility events must be strictly ordered within [0, days)")
+        if (
+            not isinstance(event["controls"], dict)
+            or set(event["controls"]) - FacilityCoupledFIM.control_fields
+        ):
+            raise ValueError("Unsupported facility controls; feed scaling is forbidden")
+        previous_time = when
+    network = c["simulation"]["physical_surface_network"]["network"]
+    boundaries = [node for node in network["nodes"] if node.get("pressure_pa") is not None]
+    if len(boundaries) != 1:
+        raise ValueError("Expected one production receiver")
+    boundaries[0]["pressure_pa"] = outlet_pa
+    device = torch.device(device_name)
+    if device.type == "cuda":
+        torch.cuda.reset_peak_memory_stats(device)
+    log = io.StringIO()
+    steps = []
+    interval_timings = []
+    applied_events = []
+    with contextlib.redirect_stdout(log):
+        r = Reservoir(c["reservoir"], device=device)
+        f = Fluid(c["fluid"], r, device=device)
+        if initial_rs is not None:
+            if not math.isfinite(initial_rs) or initial_rs < 0 or bool((f.s_g != 0).any()):
+                raise ValueError(
+                    "initial_rs requires finite nonnegative Rs and zero initial free gas"
+                )
+            f.rs = torch.full_like(f.pressure, initial_rs, dtype=torch.float64)
+        sim = Simulator(r, f, WellManager(c["wells"], r), c["simulation"], device=device)
+        s = sim.fim_solver
+        if initial_rs is not None and bool((f.rs - initial_rs).abs().gt(1e-8).any()):
+            raise ValueError("initial_rs exceeds initial saturated Rs")
+
+        def mass():
+            return s.masses(f.pressure.flatten(), f.s_w.flatten(), s.x, s.sat, s.ug).sum(1)
+
+        old = mass().detach().cpu()
+        previous = [0.0]
+
+        def accepted(time_days):
+            dt = (time_days - previous[0]) * 86400
+            previous[0] = time_days
+            report = copy.deepcopy(s.wells.surface_report)
+            rates = torch.tensor(
+                [w["component_mass_rates_kg_s"] for w in report["wells"].values()],
+                dtype=torch.float64,
+            ).sum(0)
+            steps.append(
+                {
+                    "time_days": time_days,
+                    "dt_s": dt,
+                    "withdrawn_component_mass_kg": (rates * dt).tolist(),
+                    "newton_iterations": s.last_newton_iters,
+                    "surface": report,
+                }
+            )
+
+        reservoir_hook = accepted
+
+        def accepted_with_facility(time_days):
+            reservoir_hook(time_days)
+            if sim.facility_coupling is not None:
+                steps[-1]["facility_coupling"] = copy.deepcopy(sim.facility_coupling.report)
+                steps[-1]["facility_controls"] = copy.deepcopy(sim.facility_coupling.controls)
+
+        sim.substep_hook = accepted_with_facility
+        end = days * 86400
+        if device.type == "cuda":
+            torch.cuda.synchronize(device)
+        started = time.perf_counter()
+        event_index = 0
+        while sim.current_time < end:
+            while (
+                event_index < len(events)
+                and events[event_index]["time_days"] * 86400 <= sim.current_time
+            ):
+                event = events[event_index]
+                # Complete replacement: an empty dictionary restores operator defaults.
+                sim.facility_coupling.controls = copy.deepcopy(event["controls"])
+                applied_events.append({**event, "applied_time_days": sim.current_time / 86400})
+                event_index += 1
+            target = min(sim.current_time + report_days * 86400, end)
+            if event_index < len(events):
+                target = min(target, events[event_index]["time_days"] * 86400)
+            interval_start = time.perf_counter()
+            if not sim.run_step(target - sim.current_time):
+                raise RuntimeError(
+                    f"Physical black-oil interval failed at {sim.current_time / 86400:g} days; "
+                    f"target={target / 86400:g} days\n{log.getvalue()[-12000:]}"
+                )
+            if device.type == "cuda":
+                torch.cuda.synchronize(device)
+            interval_timings.append(
+                {
+                    "time_days": sim.current_time / 86400,
+                    "wall_s": time.perf_counter() - interval_start,
+                    "time_step_statistics": copy.deepcopy(sim.last_fim_interval_stats),
+                }
+            )
+            if progress_callback is not None:
+                progress_callback(
+                    {
+                        "time_days": sim.current_time / 86400,
+                        "requested_days": days,
+                        "solve_wall_s": time.perf_counter() - started,
+                        "accepted_substeps": len(steps),
+                        "last_interval": copy.deepcopy(interval_timings[-1]),
+                        "applied_events": len(applied_events),
+                    }
+                )
+        if device.type == "cuda":
+            torch.cuda.synchronize(device)
+        elapsed = time.perf_counter() - started
+        new = mass().detach().cpu()
+    withdrawn = torch.tensor(
+        [step["withdrawn_component_mass_kg"] for step in steps], dtype=torch.float64
+    ).sum(0)
+    return {
+        "outlet_pressure_pa": outlet_pa,
+        "initial_rs_m3_m3": initial_rs,
+        "reservoir_device": str(device),
+        "solve_wall_s": elapsed,
+        "execution": {
+            "torch_version": torch.__version__,
+            "torch_threads": torch.get_num_threads(),
+            "device_name": torch.cuda.get_device_name(device) if device.type == "cuda" else "cpu",
+            "cuda_peak_allocated_bytes": torch.cuda.max_memory_allocated(device) if device.type == "cuda" else None,
+            "cuda_peak_reserved_bytes": torch.cuda.max_memory_reserved(device) if device.type == "cuda" else None,
+            "memory_scope": "PyTorch allocator peak from before model construction through the forecast; excludes CUDA context and other processes",
+            "gathering_backend": s.wells.network_backend,
+            "hydraulic_backend": s.wells.surface_network.hydraulic_backend,
+        },
+        "interval_timings": interval_timings,
+        "field_graphs_active": s._graphs is not None if device.type == "cuda" else False,
+        "field_graph_cache_entries": len(s._graphs) if s._graphs is not None else 0,
+        "elapsed_days": sim.current_time / 86400,
+        "component_order": ["oil", "water", "gas"],
+        "initial_component_mass_kg": old.tolist(),
+        "final_component_mass_kg": new.tolist(),
+        "withdrawn_component_mass_kg": withdrawn.tolist(),
+        "mass_balance_error_kg": (old - new - withdrawn).tolist(),
+        "accepted_substeps": steps,
+        "facility_control_events": applied_events,
+        "final_pressure_pa": f.pressure.flatten().tolist(),
+        "final_s_w": f.s_w.flatten().tolist(),
+        "final_s_g": f.s_g.flatten().tolist(),
+        "final_rs": f.rs.flatten().tolist(),
+        "solver_log": log.getvalue(),
+    }
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("config", type=Path)
+    parser.add_argument("--outlet-mpa", type=float, nargs="+", default=[0.8, 1.0, 1.2])
+    parser.add_argument(
+        "--initial-rs",
+        type=float,
+        help="Explicit dissolved gas ratio; requires zero initial free gas",
+    )
+    parser.add_argument("--days", type=float, default=1)
+    parser.add_argument("--report-days", type=float, default=1.0)
+    parser.add_argument("--output", type=Path, required=True)
+    parser.add_argument("--device", choices=["cpu", "cuda"], default="cpu")
+    parser.add_argument(
+        "--network-backend", choices=["cpu_reference", "torch_device"], default="cpu_reference"
+    )
+    args = parser.parse_args()
+    try:
+        if (
+            not math.isfinite(args.days)
+            or not math.isfinite(args.report_days)
+            or not args.days > 0
+            or not args.report_days > 0
+        ):
+            raise ValueError("days must be positive")
+        c = json.loads(args.config.read_text())
+        c["simulation"]["physical_surface_network"]["network_backend"] = args.network_backend
+        p = Path(c["fluid"]["pvt_path"])
+        if not p.is_absolute():
+            c["fluid"]["pvt_path"] = str(Path(__file__).resolve().parents[1] / p)
+        result = {
+            "model": "coupled_blackoil_fim_homogeneous_gathering",
+            "device": args.device,
+            "network_backend": args.network_backend,
+            "cases": [
+                run_case(c, p * 1e6, args.days, args.report_days, args.device, args.initial_rs)
+                for p in args.outlet_mpa
+            ],
+        }
+        args.output.parent.mkdir(parents=True, exist_ok=True)
+        args.output.write_text(json.dumps(result, indent=2, allow_nan=False) + "\n")
+    except (OSError, KeyError, TypeError, ValueError, RuntimeError) as error:
+        parser.exit(2, f"{error}\n")
+
+
+if __name__ == "__main__":
+    main()

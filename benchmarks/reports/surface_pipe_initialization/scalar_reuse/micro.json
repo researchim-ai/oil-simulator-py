@@ -1,0 +1,57 @@
+{
+  "scope": "Exact per-solve scalar integral reuse, CPU float64; shared-host microprobe.",
+  "rows": [
+    {
+      "case": "water",
+      "direction": "run",
+      "physical_report_exact": true,
+      "pressure_evaluations": {
+        "before": 5,
+        "memo": 4
+      },
+      "median_s": {
+        "before": 0.008424986000136414,
+        "memo": 0.007463433999873814
+      }
+    },
+    {
+      "case": "water",
+      "direction": "required_inlet",
+      "physical_report_exact": true,
+      "pressure_evaluations": {
+        "before": 6,
+        "memo": 5
+      },
+      "median_s": {
+        "before": 0.009695742999610957,
+        "memo": 0.008401832999879844
+      }
+    },
+    {
+      "case": "phase",
+      "direction": "run",
+      "physical_report_exact": true,
+      "pressure_evaluations": {
+        "before": 7,
+        "memo": 6
+      },
+      "median_s": {
+        "before": 0.01930349299982481,
+        "memo": 0.017117749999670195
+      }
+    },
+    {
+      "case": "phase",
+      "direction": "required_inlet",
+      "physical_report_exact": true,
+      "pressure_evaluations": {
+        "before": 6,
+        "memo": 5
+      },
+      "median_s": {
+        "before": 0.011228397999730078,
+        "memo": 0.010190805999627628
+      }
+    }
+  ]
+}

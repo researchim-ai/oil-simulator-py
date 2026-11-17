@@ -88,6 +88,37 @@ def test_single_liquid_laminar_pressure_and_composition_endpoints():
     assert back["inlet_pressure_pa"] == pytest.approx(2.4e6, abs=0.001)
 
 
+@pytest.mark.parametrize("from_outlet", [False, True])
+@pytest.mark.parametrize("device", ["cpu", "cuda"])
+def test_repeated_bracket_endpoint_is_integrated_once_per_solve(monkeypatch, from_outlet, device):
+    import torch
+
+    if device == "cuda" and not torch.cuda.is_available():
+        pytest.skip("CUDA unavailable")
+    original = BlackOilPipe._checked_integral
+    points = []
+
+    def counted(self, lower, upper, masses, m, depth=0, resistance=None):
+        if depth == 0 and resistance is None:
+            points.append((float(lower.detach()), float(upper.detach())))
+        return original(self, lower, upper, masses, m, depth, resistance)
+
+    monkeypatch.setattr(BlackOilPipe, "_checked_integral", counted)
+    pipe, m = BlackOilPipe("water", 100, 0.01), model().to(device)
+    solve = pipe.required_inlet if from_outlet else pipe.run
+    pressures = []
+    key = "inlet_pressure_pa" if from_outlet else "outlet_pressure_pa"
+    for water in (0.001, 0.002):
+        points.clear()
+        row = solve(2.4e6, [0, water, 0], m)
+        assert points and len(points) == len(set(points))
+        pressures.append(row[key])
+        assert abs(row["length_residual_m"]) < 1e-5
+    # A different flow gets its own fresh integrations, rather than cached
+    # results from the preceding operating state.
+    assert pressures[1] > pressures[0] if from_outlet else pressures[1] < pressures[0]
+
+
 def test_choking_is_physical_capacity_and_numerical_failure_is_not_hidden(monkeypatch):
     from surface.blackoil_pipe import ChokedFlowError
     from surface.liquid import EquipmentOperatingError, HydraulicConvergenceError

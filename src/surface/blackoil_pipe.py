@@ -53,7 +53,10 @@ def _darcy(reynolds, relative_roughness):
     # its valid domain: zero blend does not suppress NaN in autograd.
     turbulent_r = r.clamp_min(2000.0)
     u = torch.full_like(r, 7.0)
-    for _ in range(10):
+    # Six fixed Newton updates resolve the same Colebrook root, including
+    # first/second sensitivities, without scalar GPU convergence polling.
+    # Keep the laminar/transition closure and original starting value.
+    for _ in range(6):
         arg = relative_roughness / 3.7 + 2.51 * u / turbulent_r
         value = u + 2 * torch.log10(arg)
         derivative = 1 + 2 / math.log(10) * (2.51 / turbulent_r) / arg
@@ -145,15 +148,24 @@ class BlackOilPipe:
         low, high = model.pressure_bounds_pa
         scalar = lambda p: torch.tensor(p, dtype=torch.float64, device=masses.device)
         calls = 0
+        # Bracketing and Brent can request the exact same pressure. Cache
+        # detached scalar lengths only within this solve, never AD tensors or
+        # results from another boundary/composition/equipment state.
+        distance_cache = {}
 
         def distance(other):
             nonlocal calls
+            if other in distance_cache:
+                return distance_cache[other]
             calls += 1
             a, b = (boundary, other) if from_outlet else (other, boundary)
             if a == b:
-                return 0.0
-            integral, _, _ = self._checked_integral(scalar(a), scalar(b), masses, model)
-            return float(integral[0].detach())
+                value = 0.0
+            else:
+                integral, _, _ = self._checked_integral(scalar(a), scalar(b), masses, model)
+                value = float(integral[0].detach())
+            distance_cache[other] = value
+            return value
 
         # Grow the pressure interval, rather than evaluating an inadmissible
         # low-pressure endpoint before finding a valid subcritical solution.

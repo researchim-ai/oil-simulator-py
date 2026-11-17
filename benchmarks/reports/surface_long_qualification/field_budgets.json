@@ -1,0 +1,7 @@
+{
+  "final_pressure_pa": 100.0,
+  "final_s_w": 2e-05,
+  "final_s_g": 2e-05,
+  "final_rs": 0.01,
+  "withdrawal_relative": 0.002
+}

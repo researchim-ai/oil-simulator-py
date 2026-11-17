@@ -1,0 +1,51 @@
+{
+  "scope": "Bounded CPU feasibility probe of the actual Norne deck, not a full Norne result or an Eclipse/OPM comparison.",
+  "requested_day_cap": 30.0,
+  "actual_last_deck_report_day": 25.0,
+  "cap_semantics": "run_deck stops before a deck report that would exceed max_days; it does not synthesize an extra report at day 30.",
+  "reported_meta": {
+    "status": "done",
+    "error": null,
+    "wall_s": 32.47312116622925,
+    "cells_total": 113344,
+    "dims": [
+      46,
+      112,
+      22
+    ],
+    "cells_computed": 44431,
+    "cells_active": 44431,
+    "wells": 36,
+    "substeps": 5,
+    "failed_substeps": 0,
+    "newton_iters": 22,
+    "days": 25.0,
+    "cpu": "AMD Ryzen 9 9900X 12-Core Processor",
+    "threads": 1,
+    "device": "cpu",
+    "torch": "2.7.0+cu126",
+    "python": "3.12.9",
+    "convergence": {
+      "tol_cnv": 0.001,
+      "tol_mb": 1e-07,
+      "max_strict_iter": 8,
+      "relaxed_max_pv_fraction": 0.0,
+      "tol_cnv_relaxed": 1.0,
+      "tol_mb_relaxed": 1e-06
+    },
+    "well_events": []
+  },
+  "checkpoint": {
+    "checkpoint_path": "/home/user/workspace/oil-simulator-py-impes/.scratch/norne_cpu_validation/probe25_checkpoint.pt",
+    "sha256": "c8b7edd759270cc7ed7240e4a927bc0d9853f31424634d75e61cf14f079e69f3",
+    "bytes": 95857295,
+    "reason": "Keep the 92 MiB restart outside versioned benchmark reports; file is preserved for an explicit continuation.",
+    "checkpoint_t_days": 25.0,
+    "checkpoint_t_unit": "days",
+    "summary_time_days": 25.0
+  },
+  "input_deck": "/home/user/workspace/oil-simulator-py-impes/.scratch/ot2/norne/NORNE_ATW2013.DATA",
+  "input_main_deck_sha256": "c9c3b9a027b9fe73df99b6ae354b1b2b1f0fb9e037befa794fafec7a840441a6",
+  "driver_source_sha256_at_report_time": "13b140f1e68c974eb3bad0854c6d6b2aec2a90b728594997536744ce72a57532",
+  "cuda_qualified": false
+}

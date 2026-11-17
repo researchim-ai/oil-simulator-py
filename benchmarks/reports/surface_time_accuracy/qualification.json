@@ -1,0 +1,82 @@
+{
+  "scope": "Isothermal black-oil reservoir, producing wells, steady gathering and facility; short temporal refinement and separate 30-day scale check. No long depleted forecast or thermal PR qualification.",
+  "fixed_step_predictor_accepted": true,
+  "scale64k_30d_predictor_accepted": true,
+  "adaptive_predictor_speedup_at_fixed_accuracy_accepted": false,
+  "initial_temporal_policy_accepted": false,
+  "refined_temporal_policy_accepted": true,
+  "refined_policy_config": "depletion_defect_control_fine.json",
+  "reference_config": "depletion_defect_control_reference.json",
+  "temporal_horizon_days": 0.02,
+  "temporal_pair_same_sources_and_pvt_except_config": true,
+  "cpu_cuda_two_well_temporal_accepted": true,
+  "long_depletion_temporal_accuracy_accepted": false,
+  "budgets": {
+    "final_pressure_pa": 100.0,
+    "final_s_w": 2e-05,
+    "final_s_g": 2e-05,
+    "final_rs": 0.01,
+    "withdrawal_relative": 0.002
+  },
+  "temporal_runs": {
+    "depletion_coarse_short": {
+      "solve_wall_s": 105.33888000100069,
+      "accepted_stages": 48,
+      "sources_unchanged": true,
+      "temporal_work": {
+        "macro_attempts": 24,
+        "rejected_macro_steps": 0,
+        "coupled_solves": 72,
+        "capacity_evaluations": 680
+      },
+      "minimum_half_step_s": 0.9861358850499755,
+      "maximum_half_step_s": 59.638198335720745,
+      "component_balance_residual_kg": [
+        1.457158859352603e-06,
+        -1.337368864540167e-07,
+        -2.5967599537324304e-07
+      ]
+    },
+    "depletion_fine_short": {
+      "solve_wall_s": 252.523829965,
+      "accepted_stages": 130,
+      "sources_unchanged": true,
+      "temporal_work": {
+        "macro_attempts": 65,
+        "rejected_macro_steps": 0,
+        "coupled_solves": 195,
+        "capacity_evaluations": 1609
+      },
+      "minimum_half_step_s": 2.16,
+      "maximum_half_step_s": 15.451281440773073,
+      "component_balance_residual_kg": [
+        5.167027954655623e-05,
+        -1.6241777345271657e-06,
+        -4.259287664787337e-07
+      ]
+    },
+    "depletion_reference_short": {
+      "solve_wall_s": 421.0972268509995,
+      "accepted_stages": 248,
+      "sources_unchanged": true,
+      "temporal_work": {
+        "macro_attempts": 124,
+        "rejected_macro_steps": 0,
+        "coupled_solves": 372,
+        "capacity_evaluations": 3024
+      },
+      "minimum_half_step_s": 1.08,
+      "maximum_half_step_s": 7.837569801529071,
+      "component_balance_residual_kg": [
+        9.682880329364707e-05,
+        -3.5648968434998096e-06,
+        -7.665746653451322e-06
+      ]
+    }
+  },
+  "implementation_note": "Guarded integration used executed_sources/facility_temporal_control.py. Subsequent changes only pack the same field defect scalars into one D2H transfer and improve unexpected-exception diagnostics/counters; targeted CPU/CUDA and rollback checks cover these changes.",
+  "protected_source_sha256": {
+    "/home/user/workspace/oil-simulator-py-impes/src/simulator/blackoil_fim.py": "658fde0e6119df6ae154c3c400ff24b8d2a519dfa9a33e612aeaa6bd51a16c3c",
+    "/home/user/workspace/oil-simulator-py-impes/src/surface/torch_linear.py": "b7bda1aae66d9e979c147f821efba9990d6460d60b32a05c6fc5f9b873b752d5"
+  }
+}

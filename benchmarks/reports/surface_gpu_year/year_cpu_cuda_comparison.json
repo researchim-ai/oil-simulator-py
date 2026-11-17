@@ -1,0 +1,111 @@
+{
+  "scope": "Qualify completed CPU/CUDA facility forecasts using existing independent audits.\n\nChecks both final reservoir fields and well trajectories at common report dates.\nElapsed times on a shared host are observations, not an isolated speedup test.\n",
+  "accepted": true,
+  "cpu": "benchmarks/reports/surface_gpu_year/cpu_conservative_10d",
+  "cuda": "benchmarks/reports/surface_gpu_year/gpu_conservative_10d",
+  "sources_config_and_pvt_identical": true,
+  "final_fields": {
+    "accepted": true,
+    "errors": {
+      "final_pressure_pa": 1.0570511221885681e-07,
+      "final_s_w": 1.2934098236883074e-14,
+      "final_s_g": 5.083780618697631e-14,
+      "final_rs": 1.5845103007450234e-12,
+      "withdrawal_relative": 3.4645466381316173e-15
+    },
+    "budgets": {
+      "final_pressure_pa": 100.0,
+      "final_s_w": 2e-05,
+      "final_s_g": 2e-05,
+      "final_rs": 0.01,
+      "withdrawal_relative": 0.002
+    },
+    "coarse": "benchmarks/reports/surface_gpu_year/cpu_conservative_10d/trajectory.json.gz",
+    "fine": "benchmarks/reports/surface_gpu_year/gpu_conservative_10d/trajectory.json.gz",
+    "scope": "Compare completed operational forecasts at the final common report endpoint.\n\nBudgets must be supplied before inspecting the reference result. This is a\nstep-refinement check, not a proof that the finer trajectory is exact.\n",
+    "allowed_numerical_policy_differences": []
+  },
+  "report_endpoint_trajectory": {
+    "scope": "Compare actual well rates/BHP and cumulative mass at coarse report endpoints.\n\nBoth bundles must independently pass full facility accounting first. This is\nstep refinement, not a proof that either trajectory is exact or calibrated.\n",
+    "accepted": true,
+    "matched_endpoints_days": [
+      10.0,
+      20.0,
+      30.0,
+      40.0,
+      50.0,
+      60.0,
+      70.0,
+      80.0,
+      90.0,
+      100.0,
+      110.0,
+      120.0,
+      130.0,
+      140.0,
+      150.0,
+      160.0,
+      170.0,
+      180.0,
+      190.0,
+      200.0,
+      210.0,
+      220.0,
+      230.0,
+      240.0,
+      250.0,
+      260.0,
+      270.0,
+      280.0,
+      290.0,
+      300.0,
+      310.0,
+      320.0,
+      330.0,
+      340.0,
+      350.0,
+      360.0,
+      365.0
+    ],
+    "mode_mismatches": 0,
+    "errors": {
+      "bhp_abs_pa": 9.918585419654846e-08,
+      "component_rate_scaled": 4.1863434775013754e-13,
+      "cumulative_mass_relative": 1.475924927097418e-14
+    },
+    "budgets": {
+      "bhp_abs_pa": 100.0,
+      "component_rate_scaled": 0.002,
+      "cumulative_mass_relative": 0.002
+    },
+    "component_rate_floor_kg_s": 1e-08,
+    "allow_numerical_policy": false
+  },
+  "devices": [
+    {
+      "torch_version": "2.7.0+cu126",
+      "torch_threads": 1,
+      "device_name": "cpu",
+      "cuda_peak_allocated_bytes": null,
+      "cuda_peak_reserved_bytes": null,
+      "memory_scope": "PyTorch allocator peak from before model construction through the forecast; excludes CUDA context and other processes",
+      "gathering_backend": "torch_device",
+      "hydraulic_backend": "torch_batch"
+    },
+    {
+      "torch_version": "2.7.0+cu126",
+      "torch_threads": 1,
+      "device_name": "NVIDIA GeForce RTX 3090 Ti",
+      "cuda_peak_allocated_bytes": 73530880,
+      "cuda_peak_reserved_bytes": 100663296,
+      "memory_scope": "PyTorch allocator peak from before model construction through the forecast; excludes CUDA context and other processes",
+      "gathering_backend": "torch_device",
+      "hydraulic_backend": "torch_batch"
+    }
+  ],
+  "observed_solve_wall_s": [
+    81.21735281199972,
+    184.58755334599982
+  ],
+  "timing_scope": "Shared host; concurrent CPU/CUDA qualification is not a clean hardware speed comparison"
+}

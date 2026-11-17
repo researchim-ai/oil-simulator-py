@@ -14,6 +14,47 @@ from pathlib import Path
 from check_fim_facility_forecast import audit
 
 
+def physical_config(bundle, *, allow_numerical_policy=False):
+    c = copy.deepcopy(bundle["config"])
+    if allow_numerical_policy:
+        for key in ("max_time_step_days", "initial_time_step_days"):
+            value = c["simulation"].pop(key, None)
+            if value is not None and (isinstance(value, bool) or not math.isfinite(value) or value <= 0):
+                raise ValueError(f"Invalid numerical time-step policy: {key}")
+        facility = c["simulation"]["coupled_facility"]
+        facility.pop("time_control", None)
+        facility.pop("temporal_control", None)
+        if facility.get("control") is not None:
+            facility["control"].pop("search_method", None)
+            commit = facility["control"].pop("commit_method", "replay")
+            if commit not in ("replay", "state_restore"):
+                raise ValueError("Unknown capacity commit method")
+        network = c["simulation"]["physical_surface_network"]
+        initialization = network.pop("bhp_initialization", "previous")
+        if initialization not in ("previous", "rate_network"):
+            raise ValueError("Unknown numerical BHP initialization")
+        execution = network.pop("network_backend", "cpu_reference")
+        if execution not in ("cpu_reference", "torch_device"):
+            raise ValueError("Unknown numerical gathering backend")
+        sensitivity = network.pop("sensitivity_backend", "dense")
+        if sensitivity not in ("dense", "tree_operator"):
+            raise ValueError("Unknown numerical sensitivity backend")
+        well_backend = network.pop("well_block_backend", "dense")
+        if well_backend not in ("dense", "tree_structured"):
+            raise ValueError("Unknown well block backend")
+        memory = network.pop("structured_memory_budget_bytes", 256 * 1024**2)
+        if type(memory) is not int or memory <= 0:
+            raise ValueError("Invalid structured memory budget")
+        hydraulics = network["network"]
+        backend = hydraulics.pop("hydraulic_backend", "scalar")
+        if backend not in ("scalar", "torch_batch"):
+            raise ValueError("Unknown pipe hydraulic backend")
+        size = hydraulics.pop("pipe_batch_size", 128)
+        if type(size) is not int or not 1 <= size <= 256:
+            raise ValueError("Invalid pipe batch size")
+    return c
+
+
 def compare(coarse_path, fine_path, budgets, *, allow_numerical_policy=False):
     if any(isinstance(v, bool) or not math.isfinite(v) or v < 0 for v in budgets.values()):
         raise ValueError("Finite nonnegative refinement budgets required")
@@ -30,42 +71,24 @@ def compare(coarse_path, fine_path, budgets, *, allow_numerical_policy=False):
         bundles.append(b)
     a, b = bundles
 
-    def physical_config(bundle):
-        c = copy.deepcopy(bundle["config"])
-        if allow_numerical_policy:
-            facility = c["simulation"]["coupled_facility"]
-            facility.pop("time_control", None)
-            if facility.get("control") is not None:
-                facility["control"].pop("search_method", None)
-            network = c["simulation"]["physical_surface_network"]
-            sensitivity = network.pop("sensitivity_backend", "dense")
-            if sensitivity not in ("dense", "tree_operator"):
-                raise ValueError("Unknown numerical sensitivity backend")
-            well_backend = network.pop("well_block_backend", "dense")
-            if well_backend not in ("dense", "tree_structured"):
-                raise ValueError("Unknown well block backend")
-            memory = network.pop("structured_memory_budget_bytes", 256 * 1024**2)
-            if type(memory) is not int or memory <= 0:
-                raise ValueError("Invalid structured memory budget")
-            hydraulics = network["network"]
-            backend = hydraulics.pop("hydraulic_backend", "scalar")
-            if backend not in ("scalar", "torch_batch"):
-                raise ValueError("Unknown pipe hydraulic backend")
-            size = hydraulics.pop("pipe_batch_size", 128)
-            if type(size) is not int or not 1 <= size <= 256:
-                raise ValueError("Invalid pipe batch size")
-        return c
 
     if (
-        physical_config(a) != physical_config(b)
+        physical_config(a, allow_numerical_policy=allow_numerical_policy)
+        != physical_config(b, allow_numerical_policy=allow_numerical_policy)
         or a["schedule"] != b["schedule"]
         or a["requested_days"] != b["requested_days"]
     ):
         raise ValueError("Refinement requires the same model, controls and horizon")
     errors = {}
     for key in ("final_pressure_pa", "final_s_w", "final_s_g", "final_rs"):
+        fields = [x["result"][key] for x in (a, b)]
+        if any(
+            not values or any(isinstance(v, bool) or not math.isfinite(v) for v in values)
+            for values in fields
+        ):
+            raise ValueError(f"Nonempty finite final field required: {key}")
         errors[key] = max(
-            abs(x - y) for x, y in zip(a["result"][key], b["result"][key], strict=True)
+            abs(x - y) for x, y in zip(*fields, strict=True)
         )
     errors["withdrawal_relative"] = max(
         abs(x - y) / max(abs(y), 1.0)
@@ -85,9 +108,15 @@ def compare(coarse_path, fine_path, budgets, *, allow_numerical_policy=False):
         "fine": str(fine_path),
         "scope": __doc__,
         "allowed_numerical_policy_differences": [
+            "simulation.max_time_step_days",
+            "simulation.initial_time_step_days",
             "coupled_facility.time_control",
+            "coupled_facility.temporal_control",
             "coupled_facility.control.search_method",
+            "coupled_facility.control.commit_method",
             "physical_surface_network.sensitivity_backend",
+            "physical_surface_network.network_backend",
+            "physical_surface_network.bhp_initialization",
             "physical_surface_network.well_block_backend",
             "physical_surface_network.structured_memory_budget_bytes",
             "physical_surface_network.network.hydraulic_backend",

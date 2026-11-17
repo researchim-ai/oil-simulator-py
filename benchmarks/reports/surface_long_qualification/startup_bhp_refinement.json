@@ -1,0 +1,26 @@
+{
+  "scope": "Only report day 0.5, same source/config except maximum time step. Not full-horizon qualification.",
+  "pairs": [
+    {
+      "max_dt_days": [
+        0.0625,
+        0.03125
+      ],
+      "bhp_delta_pa_at_day_0_5": 286.4257627441548
+    },
+    {
+      "max_dt_days": [
+        0.03125,
+        0.015625
+      ],
+      "bhp_delta_pa_at_day_0_5": 167.60062211658806
+    },
+    {
+      "max_dt_days": [
+        0.015625,
+        0.0078125
+      ],
+      "bhp_delta_pa_at_day_0_5": 92.32760077854618
+    }
+  ]
+}

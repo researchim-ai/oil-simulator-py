@@ -8,6 +8,8 @@ No node/point by all-Rs-table tensor is materialized.
 import torch
 from torch.nn.utils.rnn import pad_sequence
 
+from .blackoil_pressure_lookup import PressureLookup
+
 
 class PackedPVTO:
     def __init__(self, model):
@@ -22,15 +24,13 @@ class PackedPVTO:
             [len(t[0]) for t in tables], dtype=torch.long, device=model.rho.device
         )
 
-    def interpolate(self, pressure, indices, column):
+    def prepare_lookup(self, pressure, indices):
+        return PressureLookup(pressure, self.axis[indices], self.lengths[indices])
+
+    def interpolate(self, pressure, indices, column, *, lookup=None):
         count = pressure.shape[0]
         if indices.shape != (count,) or indices.dtype != torch.long or column not in (1, 2):
             raise ValueError("One long table index per stream and column 1/2 required")
-        axis = self.axis[indices]
-        values = self.columns[column - 1][indices]
-        p = pressure.reshape(count, -1).contiguous()
-        i = (torch.searchsorted(axis, p, right=True) - 1).clamp_min(0)
-        i = torch.minimum(i, self.lengths[indices, None] - 2)
-        a, b = axis.gather(1, i), axis.gather(1, i + 1)
-        lo, hi = values.gather(1, i), values.gather(1, i + 1)
-        return (lo + (p - a) * (hi - lo) / (b - a)).reshape_as(pressure)
+        if lookup is None:
+            lookup = self.prepare_lookup(pressure, indices)
+        return lookup.interpolate(self.columns[column - 1][indices])

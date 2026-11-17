@@ -26,12 +26,18 @@ def audit(
     density = config["simulation"]["coupled_facility"]["facility"]["stock_densities"]
     rho = [density[c + "_kg_m3"] for c in COMPONENTS]
     steps = report["accepted_substeps"]
+    maximum_days = config["simulation"].get("max_time_step_days")
+    if maximum_days is not None and (isinstance(maximum_days, bool) or not math.isfinite(maximum_days)
+                                     or maximum_days <= 0):
+        raise ValueError("Invalid configured maximum time step")
+    maximum_s = math.inf if maximum_days is None else maximum_days * 86400
     if not steps:
         raise ValueError("No accepted coupled steps")
     clock = 0.0
     withdrawn = [0.0] * 3
     max_surface_residual = 0.0
     evaluations = 0
+    estimator_evaluations = 0
     events = report.get("facility_control_events", [])
     if expected_days is not None:
         close(report["elapsed_days"], expected_days, atol=1e-12, rtol=0)
@@ -48,10 +54,12 @@ def audit(
             raise ValueError("Invalid forecast event order")
         close(event["applied_time_days"], event["time_days"], atol=1e-12, rtol=0)
         previous_event = event["time_days"]
-    for step in steps:
+    for step_index, step in enumerate(steps):
         dt = step["dt_s"]
         if not math.isfinite(dt) or dt <= 0:
             raise ValueError("Invalid accepted duration")
+        if dt > maximum_s + 1e-7:
+            raise ValueError("Accepted stage exceeds configured maximum time step")
         end = step["time_days"] * 86400
         close(end, clock + dt, atol=1e-7, rtol=1e-12)
         controls = {}
@@ -74,6 +82,66 @@ def audit(
         ):
             raise ValueError("Infeasible plant was accepted")
         close(coupling["dt_s"], dt, atol=1e-7)
+        if config["simulation"]["coupled_facility"].get("temporal_control") is not None and step_index % 2 == 1:
+            # Every accepted macro interval must publish both actual half
+            # stages. The discarded coarse solve contributes work, not mass.
+            temporal = coupling["temporal_control"]
+            errors = temporal["errors"]
+            bhp_tol = config["simulation"]["coupled_facility"]["temporal_control"].get("well_bhp_tolerance_pa")
+            if bhp_tol is not None:
+                if isinstance(bhp_tol, bool) or not math.isfinite(bhp_tol) or bhp_tol <= 0:
+                    raise ValueError("Invalid temporal well BHP tolerance")
+                coarse = temporal.get("coarse_well_bhp_pa", {})
+                fine_bhp = {k: w["bhp_pa"] for k, w in step["surface"]["wells"].items()}
+                if not isinstance(coarse, dict) or set(coarse) != set(fine_bhp) or "well_bhp" not in errors:
+                    raise ValueError("Missing temporal well BHP evidence")
+                if any(isinstance(v, bool) or not isinstance(v, (int, float)) or not math.isfinite(v)
+                       for v in [*coarse.values(), *fine_bhp.values()]):
+                    raise ValueError("Nonfinite temporal well BHP evidence")
+                actual = max((abs(coarse[k] - fine_bhp[k]) for k in coarse), default=0.) / bhp_tol
+                close(errors["well_bhp"], actual, atol=1e-12)
+            if not errors or any(not math.isfinite(v) or v < 0 or v > 1 for v in errors.values()):
+                raise ValueError("Unresolved accepted temporal defect")
+            close(temporal["indicator"], max(errors.values()), atol=0, rtol=0)
+            first = steps[step_index - 1]
+            policy = config["simulation"]["coupled_facility"]["temporal_control"]
+            scaling = policy.get("withdrawal_error_scale", "increment")
+            if scaling not in ("increment", "cumulative"):
+                raise ValueError("Invalid withdrawal error scaling")
+            if scaling == "cumulative":
+                coarse_inc = temporal.get("coarse_withdrawal_kg")
+                coarse_total = temporal.get("coarse_withdrawn_total_kg")
+                if temporal.get("withdrawal_error_scale") != scaling or any(
+                    not isinstance(v, list) or len(v) != 3 for v in (coarse_inc, coarse_total)
+                ):
+                    raise ValueError("Missing cumulative withdrawal error evidence")
+                if any(isinstance(v, bool) or not isinstance(v, (int, float)) or not math.isfinite(v)
+                       for v in [*coarse_inc, *coarse_total]):
+                    raise ValueError("Nonfinite cumulative withdrawal evidence")
+                atol = policy.get("withdrawal_absolute_tolerance_kg", 1e-5)
+                rtol = policy.get("withdrawal_relative_tolerance", .002)
+                if any(isinstance(v, bool) or not math.isfinite(v) or v <= 0 for v in (atol, rtol)):
+                    raise ValueError("Invalid withdrawal error budget")
+                ratios = []
+                for i in range(3):
+                    base = withdrawn[i] - first["withdrawn_component_mass_kg"][i]
+                    fine_inc = first["withdrawn_component_mass_kg"][i] + step["withdrawn_component_mass_kg"][i]
+                    close(coarse_total[i], base + coarse_inc[i])
+                    scale = atol + rtol * max(abs(coarse_total[i]), abs(base + fine_inc))
+                    ratios.append(abs(coarse_inc[i] - fine_inc) / scale)
+                close(errors["withdrawal"], max(ratios), atol=1e-9)
+            elif temporal.get("withdrawal_error_scale", "increment") != "increment":
+                raise ValueError("Unexpected cumulative withdrawal error evidence")
+            close(temporal["macro_dt_s"], first["dt_s"] + dt, atol=1e-7)
+            if temporal["macro_dt_s"] > maximum_s + 1e-7:
+                raise ValueError("Temporal macro interval exceeds configured maximum time step")
+            if first["facility_controls"] != controls:
+                raise ValueError("Temporal macro step crossed an operating event")
+            total = temporal["total_capacity_evaluations"]
+            fine = first["facility_coupling"]["evaluations"] + coupling["evaluations"]
+            if type(total) is not int or total < fine + 1:
+                raise ValueError("Missing discarded coarse-solve work")
+            estimator_evaluations += total - fine
         if not 0 < coupling["fraction"] <= 1:
             raise ValueError("Invalid rate-cap fraction")
         if "capacity_bracket" in coupling:
@@ -95,11 +163,18 @@ def audit(
                     raise ValueError("Unresolved rate-cap bracket")
                 if not any(t["fraction"] == high and not t["feasible"] for t in coupling["trace"]):
                     raise ValueError("Upper capacity bracket was not solved")
-                if (
-                    not coupling["trace"][-1]["feasible"]
-                    or coupling["trace"][-1]["fraction"] != low
-                ):
-                    raise ValueError("Selected capacity was not replayed")
+                method = (config["simulation"]["coupled_facility"].get("control") or {}).get("commit_method", "replay")
+                index = -1
+                if method == "state_restore":
+                    commit = coupling["capacity_commit"]
+                    index = commit["solved_trace_index"]
+                    if (commit["method"] != method or type(index) is not int
+                            or not 0 <= index < len(coupling["trace"])):
+                        raise ValueError("Invalid selected capacity state reference")
+                elif method != "replay":
+                    raise ValueError("Unknown capacity commit method")
+                if not coupling["trace"][index]["feasible"] or coupling["trace"][index]["fraction"] != low:
+                    raise ValueError("Selected capacity has no matching solved feasible trial")
         for applied, well in zip(
             coupling["applied_rate_caps_m3_day"], config["wells"], strict=True
         ):
@@ -158,6 +233,8 @@ def audit(
             close(account["elapsed_s"], end, atol=1e-7)
         clock = end
     close(clock, report["elapsed_days"] * 86400, atol=1e-7)
+    if config["simulation"]["coupled_facility"].get("temporal_control") is not None and len(steps) % 2:
+        raise ValueError("Incomplete temporal stage pair")
     residuals = []
     for i in range(3):
         close(report["withdrawn_component_mass_kg"][i], withdrawn[i])
@@ -178,6 +255,7 @@ def audit(
         "minimum_step_s": min(s["dt_s"] for s in steps),
         "maximum_step_s": max(s["dt_s"] for s in steps),
         "capacity_evaluations": evaluations,
+        "accepted_macro_estimator_capacity_evaluations": estimator_evaluations,
         "operating_events": len(events),
         "mass_balance_error_kg": residuals,
         "maximum_surface_component_residual_kg_s": max_surface_residual,

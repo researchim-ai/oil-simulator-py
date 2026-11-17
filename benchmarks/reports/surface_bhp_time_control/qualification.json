@@ -1,0 +1,10 @@
+{
+  "scope": "1024-cell/16-well coupled isothermal black-oil test; independent numerical refinement.",
+  "startup_half_day_refinement_accepted": true,
+  "initial_month_pair_accepted": false,
+  "initial_month_bhp_budget_passed": true,
+  "initial_month_rejection": "Sg difference 2.167517333273583e-5 exceeds declared 2e-5 budget. Other compared quantities pass.",
+  "working_policy": "The prior refined policy is now the working candidate; another factor-two refinement is running.",
+  "working_policy_full_month_refinement_accepted": false,
+  "working_policy_status": "Pending independent reference; not yet qualified."
+}

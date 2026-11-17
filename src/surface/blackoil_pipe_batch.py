@@ -12,6 +12,7 @@ import torch
 from .blackoil_batch_admission import validate_inputs
 from .blackoil_pipe import BlackOilPipe, _darcy, _gauss
 from .blackoil_pipe_grid import get_pressure_grid
+from .blackoil_pressure_lookup import PressureLookup
 from .blackoil_pvto_batch import PackedPVTO
 from .blackoil_quadrature_plan import make_quadrature_plan
 from .liquid import HydraulicConvergenceError
@@ -23,7 +24,8 @@ def tensor_state(model, pressure, masses, *, pvto=None):
     q = masses / model.rho
     oil, water, gas = (q[:, i].reshape(shape) for i in range(3))
     ratio = torch.where(oil > 0, gas / torch.where(oil > 0, oil, torch.ones_like(oil)), oil * 0)
-    interp = lambda key: model.interpolate(pressure, model.pressures, model.columns[key])
+    lookup = PressureLookup(pressure, model.pressures)
+    interp = lambda key: lookup.interpolate(model.columns[key])
     sat_rs = interp("Rs")
     saturated = torch.where(oil > 0, sat_rs <= ratio, (gas > 0) | (len(model.oil_rs) < 2))
     rs = torch.where(oil > 0, torch.minimum(sat_rs, ratio), pressure * 0)
@@ -35,10 +37,17 @@ def tensor_state(model, pressure, masses, *, pvto=None):
         weight = (ratio - model.oil_rs[index]) / (model.oil_rs[index + 1] - model.oil_rs[index])
         packed = PackedPVTO(model) if pvto is None else pvto
         selected = index.reshape(len(masses))
+        shared = hasattr(packed, "prepare_lookup")
+        lo_lookup = packed.prepare_lookup(pressure, selected) if shared else None
+        hi_lookup = packed.prepare_lookup(pressure, selected + 1) if shared else None
         values = []
         for column in (1, 2):
-            lo = packed.interpolate(pressure, selected, column)
-            hi = packed.interpolate(pressure, selected + 1, column)
+            if shared:
+                lo = packed.interpolate(pressure, selected, column, lookup=lo_lookup)
+                hi = packed.interpolate(pressure, selected + 1, column, lookup=hi_lookup)
+            else:
+                lo = packed.interpolate(pressure, selected, column)
+                hi = packed.interpolate(pressure, selected + 1, column)
             values.append(lo * (1 - weight) + hi * weight)
         bo, muo = torch.where(saturated, bo, values[0]), torch.where(saturated, muo, values[1])
     dissolved = oil * rs
@@ -180,7 +189,15 @@ class PipeBatch:
         else:
             raise HydraulicConvergenceError("Batch bracket budget exhausted")
         low = boundary.clone()
-        trial = (low + high) / 2
+        # Reuse the known-port momentum slope already computed for bracketing.
+        # This is a proposal only: the full integral and original tolerances
+        # still decide convergence. Invalid/out-of-bracket seeds use bisection.
+        estimate = boundary + length * slope.detach()
+        trial = torch.where(
+            torch.isfinite(estimate) & (estimate > low) & (estimate < high),
+            estimate,
+            (low + high) / 2,
+        )
         # Safeguarded Newton uses the exact endpoint integrand dL/dp, keeping
         # the full pressure-coordinate integral as the acceptance equation.
         done = torch.zeros(n, dtype=torch.bool, device=boundary.device)

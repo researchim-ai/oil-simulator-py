@@ -60,6 +60,28 @@ def test_real_physical_choking_is_not_hidden_by_scalar_retry():
         required_inlets([BlackOilPipe("choked", 100, 0.01)], [2e6], [[0, 0, 1]], model())
 
 
+def test_known_port_predictor_solves_constant_water_against_poiseuille():
+    import math
+
+    from test_surface_blackoil_properties import DENSITIES, pvt_data
+
+    from surface.blackoil_properties import BlackOilMixture
+
+    data = pvt_data()
+    data["Bw"] = [1.0] * len(data["pressure_MPa"])
+    m = BlackOilMixture(data, DENSITIES)
+    pipe = BlackOilPipe("laminar", 80, 0.05)
+    boundary, water = 2.4e6, 0.01
+    # Independent constant-density laminar limit: Hagen-Poiseuille.
+    tangent = 128 * 0.001 * pipe.length_m / (math.pi * 1000 * pipe.diameter_m**4)
+    row = PipeBatch([pipe], m).solve([boundary], [[0, water, 0]])[0]
+    assert row["inlet_pressure_pa"] == pytest.approx(boundary + tangent * water, abs=1e-8)
+    assert row["pressure_derivatives"]["water_kg_s"] == pytest.approx(tangent, rel=1e-9)
+    assert row["pressure_derivatives"]["boundary_pressure_pa"] == pytest.approx(1.0, abs=1e-12)
+    assert abs(row["length_residual_m"]) < 1e-8
+    assert row["pressure_evaluations"] == 2  # Bracket and verified physical root.
+
+
 def test_scalar_retry_is_explicit_when_batch_budget_fails(monkeypatch):
     from surface.liquid import HydraulicConvergenceError
 

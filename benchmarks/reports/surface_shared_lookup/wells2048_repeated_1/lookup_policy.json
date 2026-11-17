@@ -1,0 +1,9 @@
+{
+  "scope": "Same complete FIM: repeated versus shared pressure-interval searches.\n\nProperty arithmetic, knots, quadrature and physical tolerances are identical.\nOnly pressure search reuse within one property evaluation changes in memory.\n",
+  "policy": "repeated",
+  "pressure_interval_searches": 9856,
+  "property_column_queries": 9856,
+  "wrapper_source": "/home/user/workspace/oil-simulator-py-impes/scripts/run_shared_lookup_forecast.py",
+  "wrapper_sha256": "6f157fec4bb329883fe54f7e8b1991122c48981563d49519b1f9a872aae0aa58",
+  "sources_unchanged": true
+}

@@ -1,0 +1,36 @@
+{
+  "scope": "Isothermal black-oil coupled forecast and CPU sparse RAP. Not complete thermal PR-surface or experimental qualification.",
+  "phase_appearance_30_day_refinement_accepted": true,
+  "phase_appearance_commit_stage_equivalence_accepted": true,
+  "depletion_same_grid_sparse_backend_equivalence_accepted": true,
+  "depletion_30_day_memory_guard_accepted": true,
+  "depletion_coarse_temporal_refinement_accepted": false,
+  "depletion_coarse_rejection_reasons": [
+    "final_s_g exceeds 2e-5",
+    "report-endpoint BHP exceeds 100 Pa"
+  ],
+  "finer_reference_qualification": "Completed 30-day reference at maximum dt=0.015625 days; the global comparison still fails the BHP budget.",
+  "timing_scope": "Shared host, strict CNV=1e-9 / MB=1e-12 and small time steps; not clean hardware scaling or comparison with default Norne controls.",
+  "not_established": [
+    "Global time accuracy of the larger depleted case",
+    "Experimental calibration",
+    "Full thermal PR surface-network validation",
+    "Isolated hardware speedup"
+  ],
+  "depletion_fine_temporal_refinement_accepted": false,
+  "depletion_fine_rejection_reasons": [
+    "report-endpoint BHP 167.60 Pa exceeds 100 Pa; other declared field/well budgets pass"
+  ],
+  "optional_local_bhp_control": {
+    "cli_accounting_audit_accepted": true,
+    "scope": "0.1-day small-model CLI, CPU/CUDA rollback and corrupted-evidence rejection; no new full depleted 30-day qualification."
+  },
+  "optional_bhp_local_control": {
+    "default": "disabled",
+    "short_cli_audit_passed": true,
+    "actual_rejection_and_rollback_cpu_cuda_passed": true,
+    "restart_passed": true,
+    "global_30_day_refinement_accepted": false,
+    "global_status": "Not yet qualified for the new optional controller; local acceptance is not a global certificate."
+  }
+}

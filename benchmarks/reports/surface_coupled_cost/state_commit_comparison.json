@@ -1,0 +1,23 @@
+{
+  "accepted": true,
+  "same_python_sources": true,
+  "all_130_accepted_stage_physical_reports_identical": true,
+  "base_wall_s": 336.73865569199916,
+  "restore_wall_s": 309.07368742499966,
+  "observed_wall_reduction_fraction": 0.08215560583666248,
+  "base_work": {
+    "macro_attempts": 65,
+    "rejected_macro_steps": 0,
+    "coupled_solves": 195,
+    "capacity_evaluations": 1609
+  },
+  "restore_work": {
+    "macro_attempts": 65,
+    "rejected_macro_steps": 0,
+    "coupled_solves": 195,
+    "capacity_evaluations": 1414
+  },
+  "capacity_evaluation_reduction_fraction": 0.1211932877563704,
+  "horizon_days": 0.02,
+  "timing_scope": "one overlapping CPU pair, shared host, one Torch thread; no isolated hardware speedup claim"
+}

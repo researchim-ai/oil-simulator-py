@@ -1,0 +1,263 @@
+[
+  {
+    "wells": 512,
+    "repeat": 1,
+    "repeated_s": 1.7431286589999218,
+    "shared_s": 1.5793214500008617,
+    "pressure_searches": [
+      2464,
+      672
+    ],
+    "property_queries": [
+      2464,
+      2464
+    ],
+    "errors": {
+      "final_pressure_pa": 0.0,
+      "final_s_w": 0.0,
+      "final_s_g": 0.0,
+      "final_rs": 0.0,
+      "withdrawn_component_mass_kg": 0.0
+    },
+    "budgets": {
+      "final_pressure_pa": 0.1,
+      "final_s_w": 1e-08,
+      "final_s_g": 1e-08,
+      "final_rs": 1e-05,
+      "withdrawn_component_mass_kg": 0.01
+    },
+    "accepted": true
+  },
+  {
+    "wells": 512,
+    "repeat": 2,
+    "repeated_s": 1.645284289999836,
+    "shared_s": 1.5372771540023678,
+    "pressure_searches": [
+      2464,
+      672
+    ],
+    "property_queries": [
+      2464,
+      2464
+    ],
+    "errors": {
+      "final_pressure_pa": 0.0,
+      "final_s_w": 0.0,
+      "final_s_g": 0.0,
+      "final_rs": 0.0,
+      "withdrawn_component_mass_kg": 0.0
+    },
+    "budgets": {
+      "final_pressure_pa": 0.1,
+      "final_s_w": 1e-08,
+      "final_s_g": 1e-08,
+      "final_rs": 1e-05,
+      "withdrawn_component_mass_kg": 0.01
+    },
+    "accepted": true
+  },
+  {
+    "wells": 512,
+    "repeat": 3,
+    "repeated_s": 1.6201086260007287,
+    "shared_s": 1.6232555530004902,
+    "pressure_searches": [
+      2464,
+      672
+    ],
+    "property_queries": [
+      2464,
+      2464
+    ],
+    "errors": {
+      "final_pressure_pa": 0.0,
+      "final_s_w": 0.0,
+      "final_s_g": 0.0,
+      "final_rs": 0.0,
+      "withdrawn_component_mass_kg": 0.0
+    },
+    "budgets": {
+      "final_pressure_pa": 0.1,
+      "final_s_w": 1e-08,
+      "final_s_g": 1e-08,
+      "final_rs": 1e-05,
+      "withdrawn_component_mass_kg": 0.01
+    },
+    "accepted": true
+  },
+  {
+    "wells": 2048,
+    "repeat": 1,
+    "repeated_s": 5.164246821001143,
+    "shared_s": 4.537906992998614,
+    "pressure_searches": [
+      9856,
+      2688
+    ],
+    "property_queries": [
+      9856,
+      9856
+    ],
+    "errors": {
+      "final_pressure_pa": 0.0,
+      "final_s_w": 0.0,
+      "final_s_g": 0.0,
+      "final_rs": 0.0,
+      "withdrawn_component_mass_kg": 0.0
+    },
+    "budgets": {
+      "final_pressure_pa": 0.1,
+      "final_s_w": 1e-08,
+      "final_s_g": 1e-08,
+      "final_rs": 1e-05,
+      "withdrawn_component_mass_kg": 0.01
+    },
+    "accepted": true
+  },
+  {
+    "wells": 2048,
+    "repeat": 2,
+    "repeated_s": 4.764345249001053,
+    "shared_s": 4.50327450199984,
+    "pressure_searches": [
+      9856,
+      2688
+    ],
+    "property_queries": [
+      9856,
+      9856
+    ],
+    "errors": {
+      "final_pressure_pa": 0.0,
+      "final_s_w": 0.0,
+      "final_s_g": 0.0,
+      "final_rs": 0.0,
+      "withdrawn_component_mass_kg": 0.0
+    },
+    "budgets": {
+      "final_pressure_pa": 0.1,
+      "final_s_w": 1e-08,
+      "final_s_g": 1e-08,
+      "final_rs": 1e-05,
+      "withdrawn_component_mass_kg": 0.01
+    },
+    "accepted": true
+  },
+  {
+    "wells": 2048,
+    "repeat": 3,
+    "repeated_s": 4.73041701299735,
+    "shared_s": 4.616671796000446,
+    "pressure_searches": [
+      9856,
+      2688
+    ],
+    "property_queries": [
+      9856,
+      9856
+    ],
+    "errors": {
+      "final_pressure_pa": 0.0,
+      "final_s_w": 0.0,
+      "final_s_g": 0.0,
+      "final_rs": 0.0,
+      "withdrawn_component_mass_kg": 0.0
+    },
+    "budgets": {
+      "final_pressure_pa": 0.1,
+      "final_s_w": 1e-08,
+      "final_s_g": 1e-08,
+      "final_rs": 1e-05,
+      "withdrawn_component_mass_kg": 0.01
+    },
+    "accepted": true
+  },
+  {
+    "wells": 64,
+    "repeat": 1,
+    "repeated_s": 0.8670347749975917,
+    "shared_s": 0.8834338029992068,
+    "pressure_searches": [
+      1232,
+      336
+    ],
+    "property_queries": [
+      1232,
+      1232
+    ],
+    "errors": {
+      "final_pressure_pa": 0.0,
+      "final_s_w": 0.0,
+      "final_s_g": 0.0,
+      "final_rs": 0.0,
+      "withdrawn_component_mass_kg": 0.0
+    },
+    "budgets": {
+      "final_pressure_pa": 0.1,
+      "final_s_w": 1e-08,
+      "final_s_g": 1e-08,
+      "final_rs": 1e-05,
+      "withdrawn_component_mass_kg": 0.01
+    },
+    "accepted": true
+  },
+  {
+    "wells": 64,
+    "repeat": 2,
+    "repeated_s": 0.8835919539997121,
+    "shared_s": 0.8791065529985644,
+    "pressure_searches": [
+      1232,
+      336
+    ],
+    "property_queries": [
+      1232,
+      1232
+    ],
+    "errors": {
+      "final_pressure_pa": 0.0,
+      "final_s_w": 0.0,
+      "final_s_g": 0.0,
+      "final_rs": 0.0,
+      "withdrawn_component_mass_kg": 0.0
+    },
+    "budgets": {
+      "final_pressure_pa": 0.1,
+      "final_s_w": 1e-08,
+      "final_s_g": 1e-08,
+      "final_rs": 1e-05,
+      "withdrawn_component_mass_kg": 0.01
+    },
+    "accepted": true
+  },
+  {
+    "wells": 64,
+    "repeat": 3,
+    "repeated_s": 0.8987577890002285,
+    "shared_s": 0.8785105889983242,
+    "pressure_searches": [
+      1232,
+      336
+    ],
+    "property_queries": [
+      1232,
+      1232
+    ],
+    "errors": {
+      "final_pressure_pa": 0.0,
+      "final_s_w": 0.0,
+      "final_s_g": 0.0,
+      "final_rs": 0.0,
+      "withdrawn_component_mass_kg": 0.0
+    },
+    "budgets": {
+      "final_pressure_pa": 0.1,
+      "final_s_w": 1e-08,
+      "final_s_g": 1e-08,
+      "final_rs": 1e-05,
+      "withdrawn_component_mass_kg": 0.01
+    },
+    "accepted": true
+  }
+]

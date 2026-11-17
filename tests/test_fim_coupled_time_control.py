@@ -94,3 +94,25 @@ def test_disabled_prediction_keeps_accuracy_checks_and_reports_wasted_attempts()
     assert sim.last_fim_interval_stats["rejected_steps"] == len(coupled.rejected)
     assert sim.last_fim_interval_stats["time_error_limited_proposals"] == 0
     assert sim.current_time == 2.1
+
+
+def test_rejection_feedback_skips_known_oversized_proposals():
+    sim = make(maximum=10.)
+    sim.sim_params.update(initial_time_step_days=10. / 86400, newton_target_iter=100)
+    coupled = ErrorControlledStepper(sim.fim_solver)
+    coupled.limit_rejected_time_step_s = lambda proposed_s, *, failed_dt_s: min(proposed_s, .9)
+    sim.facility_coupling = coupled
+    assert sim.run_step(10.)
+    assert coupled.rejected == [10.]
+    assert sim.current_time == 10.
+
+
+@pytest.mark.parametrize('bad', [0., -1., math.nan, 6., True])
+def test_invalid_rejection_feedback_is_rejected(bad):
+    sim = make(maximum=10.)
+    sim.sim_params.update(initial_time_step_days=10. / 86400)
+    coupled = ErrorControlledStepper(sim.fim_solver)
+    coupled.limit_rejected_time_step_s = lambda *args, **kwargs: bad
+    sim.facility_coupling = coupled
+    with pytest.raises(ValueError, match='rejection limiter'):
+        sim.run_step(10.)

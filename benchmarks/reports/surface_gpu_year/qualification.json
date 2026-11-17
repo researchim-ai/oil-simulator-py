@@ -1,0 +1,137 @@
+{
+  "status": "device_qualification_complete",
+  "scope": "Synthetic black-oil FIM plus quasi-steady gathering/separators/water/gas facility, one shared PVT region. Not full dynamic PR surface or Norne plus facilities. CPU/CUDA agreement does not establish temporal or experimental accuracy.",
+  "cases": {
+    "year_cpu_cuda_comparison": {
+      "accepted": true,
+      "field_errors": {
+        "final_pressure_pa": 1.0570511221885681e-07,
+        "final_s_w": 1.2934098236883074e-14,
+        "final_s_g": 5.083780618697631e-14,
+        "final_rs": 1.5845103007450234e-12,
+        "withdrawal_relative": 3.4645466381316173e-15
+      },
+      "trajectory_errors": {
+        "bhp_abs_pa": 9.918585419654846e-08,
+        "component_rate_scaled": 4.1863434775013754e-13,
+        "cumulative_mass_relative": 1.475924927097418e-14
+      },
+      "mode_mismatches": 0,
+      "solve_wall_s": [
+        81.21735281199972,
+        184.58755334599982
+      ],
+      "gpu_execution": {
+        "torch_version": "2.7.0+cu126",
+        "torch_threads": 1,
+        "device_name": "NVIDIA GeForce RTX 3090 Ti",
+        "cuda_peak_allocated_bytes": 73530880,
+        "cuda_peak_reserved_bytes": 100663296,
+        "memory_scope": "PyTorch allocator peak from before model construction through the forecast; excludes CUDA context and other processes",
+        "gathering_backend": "torch_device",
+        "hydraulic_backend": "torch_batch"
+      }
+    },
+    "depletion_cpu_cuda_comparison": {
+      "accepted": true,
+      "field_errors": {
+        "final_pressure_pa": 4.537869244813919e-06,
+        "final_s_w": 1.1519118991998312e-12,
+        "final_s_g": 3.571420936765435e-12,
+        "final_rs": 6.806288865846e-11,
+        "withdrawal_relative": 5.232278139927531e-12
+      },
+      "trajectory_errors": {
+        "bhp_abs_pa": 8.753500878810883e-06,
+        "component_rate_scaled": 2.024758560659026e-10,
+        "cumulative_mass_relative": 7.67166568247798e-12
+      },
+      "mode_mismatches": 0,
+      "solve_wall_s": [
+        28.555358036000143,
+        69.45063469600018
+      ],
+      "gpu_execution": {
+        "torch_version": "2.7.0+cu126",
+        "torch_threads": 1,
+        "device_name": "NVIDIA GeForce RTX 3090 Ti",
+        "cuda_peak_allocated_bytes": 73431552,
+        "cuda_peak_reserved_bytes": 100663296,
+        "memory_scope": "PyTorch allocator peak from before model construction through the forecast; excludes CUDA context and other processes",
+        "gathering_backend": "torch_device",
+        "hydraulic_backend": "torch_batch"
+      }
+    },
+    "large_cpu_cuda_comparison": {
+      "accepted": true,
+      "field_errors": {
+        "final_pressure_pa": 5.140900611877441e-07,
+        "final_s_w": 2.0922152899061075e-13,
+        "final_s_g": 7.475409180557335e-13,
+        "final_rs": 7.716494110354688e-12,
+        "withdrawal_relative": 5.16765361256298e-12
+      },
+      "trajectory_errors": {
+        "bhp_abs_pa": 1.9972212612628937e-06,
+        "component_rate_scaled": 4.4711352420210945e-10,
+        "cumulative_mass_relative": 5.1672663773728286e-12
+      },
+      "mode_mismatches": 0,
+      "solve_wall_s": [
+        32.447559287999866,
+        45.52017164500012
+      ],
+      "gpu_execution": {
+        "torch_version": "2.7.0+cu126",
+        "torch_threads": 1,
+        "device_name": "NVIDIA GeForce RTX 3090 Ti",
+        "cuda_peak_allocated_bytes": 165690880,
+        "cuda_peak_reserved_bytes": 241172480,
+        "memory_scope": "PyTorch allocator peak from before model construction through the forecast; excludes CUDA context and other processes",
+        "gathering_backend": "torch_device",
+        "hydraulic_backend": "torch_batch"
+      }
+    },
+    "scale64k_cpu_cuda_comparison": {
+      "accepted": true,
+      "field_errors": {
+        "final_pressure_pa": 5.434267222881317e-07,
+        "final_s_w": 2.327027459614328e-13,
+        "final_s_g": 8.345962809741536e-13,
+        "final_rs": 8.149925179168349e-12,
+        "withdrawal_relative": 8.436305850811017e-12
+      },
+      "trajectory_errors": {
+        "bhp_abs_pa": 1.5101395547389984e-06,
+        "component_rate_scaled": 2.897075149438259e-10,
+        "cumulative_mass_relative": 8.436112233215984e-12
+      },
+      "mode_mismatches": 0,
+      "solve_wall_s": [
+        92.24551765000024,
+        52.374782893999964
+      ],
+      "gpu_execution": {
+        "torch_version": "2.7.0+cu126",
+        "torch_threads": 1,
+        "device_name": "NVIDIA GeForce RTX 3090 Ti",
+        "cuda_peak_allocated_bytes": 462169600,
+        "cuda_peak_reserved_bytes": 771751936,
+        "memory_scope": "PyTorch allocator peak from before model construction through the forecast; excludes CUDA context and other processes",
+        "gathering_backend": "torch_device",
+        "hydraulic_backend": "torch_batch"
+      }
+    }
+  },
+  "coarse_depletion_time_refinement": "depletion_time_refinement.json",
+  "coarse_depletion_time_accuracy_accepted": false,
+  "adaptive_time_refinement_status": "incomplete_diagnostic_stopped",
+  "tests": {
+    "coupled_regressions": "47 passed, 2 skipped (CPU run)",
+    "cuda_enabled_hydraulics_and_schur": "49 passed",
+    "forecast_time_control_driver": "32 passed",
+    "artifact_rejection": "4 passed"
+  },
+  "timing_scope": "One Torch CPU thread versus RTX 3090 Ti, shared host. First loaded GPU pilots excluded from performance conclusions.",
+  "adaptive_time_refinement_note": "Short adaptive probes exposed excessive substeps/operating-domain retries. They were stopped and are not accepted evidence. A trial fraction-to-boundary limiter gave no gain over the first 5 days (58 accepted substeps, 132.6 vs 130.3 s) and was removed."
+}

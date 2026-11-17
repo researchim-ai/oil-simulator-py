@@ -1,0 +1,16 @@
+{
+  "status": "failed",
+  "stage": "post_run_accounting_audit",
+  "days": 365,
+  "reason": "Reservoir-to-export mass budget exceeded; complete time integration is not accepted evidence.",
+  "mass_balance_error_kg": [
+    0.05266049120109528,
+    0.024944494653027505,
+    0.005015150469262153
+  ],
+  "mass_budget_kg": [
+    0.018400472993540504,
+    0.014064332471845641,
+    0.010624008108828806
+  ]
+}

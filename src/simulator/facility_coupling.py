@@ -14,6 +14,7 @@ import torch
 
 from .blackoil_surface_coupling import SurfaceCoupledBlackOilWells
 from .facility_time_control import FacilityTimeControl
+from .facility_temporal_control import FacilityTemporalControl, temporal_step
 from .fim_transaction import _StepState
 
 try:
@@ -26,7 +27,7 @@ try:
         SurfaceFacility,
     )
     from ..surface.blackoil_pipe import PipePressureCoverageError
-    from ..surface.capacity_bracket import CapacityBracket, facility_constraint_margin
+    from ..surface.capacity_bracket import CapacityBracket, facility_constraint_margin, facility_constraint_margins
     from ..surface.gas_valve import GasValveCapacityError
     from ..surface.liquid import InvalidPressureError
 except ImportError:
@@ -39,7 +40,7 @@ except ImportError:
         SurfaceFacility,
     )
     from surface.blackoil_pipe import PipePressureCoverageError
-    from surface.capacity_bracket import CapacityBracket, facility_constraint_margin
+    from surface.capacity_bracket import CapacityBracket, facility_constraint_margin, facility_constraint_margins
     from surface.gas_valve import GasValveCapacityError
     from surface.liquid import InvalidPressureError
 
@@ -51,10 +52,13 @@ class CoupledFacilityControl:
     scan_points: int = 9
     max_evaluations: int = 60
     search_method: str = "safeguarded"
+    commit_method: str = "replay"
 
     def __post_init__(self):
-        if self.search_method not in ("safeguarded", "bisect"):
-            raise ValueError("search_method must be safeguarded or bisect")
+        if self.commit_method not in ("replay", "state_restore"):
+            raise ValueError("commit_method must be replay or state_restore")
+        if self.search_method not in ("safeguarded", "facet_safeguarded", "bisect"):
+            raise ValueError("search_method must be safeguarded, facet_safeguarded or bisect")
         if not 0 < self.min_fraction <= 1 or not math.isfinite(self.min_fraction):
             raise ValueError("min_fraction must be in (0,1]")
         if not 0 < self.fraction_tolerance < 1 or not math.isfinite(self.fraction_tolerance):
@@ -88,6 +92,7 @@ class FacilityCoupledFIM:
         energy_process=None,
         energy_controls=None,
         time_control=None,
+        temporal_control=None,
     ):
         if not isinstance(solver.wells, SurfaceCoupledBlackOilWells):
             raise PropertyModelError(
@@ -133,6 +138,16 @@ class FacilityCoupledFIM:
         )
         if self.time_control is not None and not isinstance(self.time_control, FacilityTimeControl):
             raise TypeError("Expected FacilityTimeControl")
+        self.temporal_control = (
+            FacilityTemporalControl(**temporal_control) if isinstance(temporal_control, dict) else temporal_control
+        )
+        if self.temporal_control is not None and not isinstance(self.temporal_control, FacilityTemporalControl):
+            raise TypeError("Expected FacilityTemporalControl")
+        if self.temporal_control is not None and self.time_control is not None:
+            raise ValueError("Choose temporal_control or endpoint-rate time_control")
+        self.accepted_stages = ()
+        self.temporal_work = {"macro_attempts": 0, "rejected_macro_steps": 0,
+                              "coupled_solves": 0, "capacity_evaluations": 0}
         self.energy_controls = {} if energy_controls is None else dict(energy_controls)
         self.solver, self.facility = solver, facility
         self.control = (
@@ -152,20 +167,24 @@ class FacilityCoupledFIM:
     def limit_initial_time_step_s(self, proposed_s, *, clipped=False):
         return self._limit_time_step_s(proposed_s, clipped=clipped)
 
-    def _limit_time_step_s(self, proposed_s, *, clipped=False):
-        policy = getattr(self, "time_control", None)
-        if policy is None:
+    def limit_rejected_time_step_s(self, proposed_s, *, failed_dt_s):
+        policy = getattr(self, "temporal_control", None)
+        errors = (self.last_attempt or {}).get("temporal_errors")
+        if policy is None or not errors:
             return proposed_s
-        row = (self.report or {}).get("rate_time_control") if self._continuous_controls() else None
-        if row is None:
-            return policy.limit(proposed_s)
-        return policy.limit(proposed_s, self.report["dt_s"], row["indicator"], clipped=clipped)
+        return policy.rejected_step(proposed_s, failed_dt_s, max(errors.values()))
 
     @property
     def limit_next_time_step_s(self):
-        return self._limit_time_step_s if getattr(self, "time_control", None) is not None else None
+        return self._limit_time_step_s if (getattr(self, "time_control", None) is not None
+                                          or getattr(self, "temporal_control", None) is not None) else None
 
     def _limit_time_step_s(self, proposed_s, *, clipped=False):
+        temporal = getattr(self, "temporal_control", None)
+        if temporal is not None:
+            row = self.report.get("temporal_control") if self._continuous_controls() else None
+            return temporal.limit(proposed_s, None if row is None else row["macro_dt_s"],
+                                  None if row is None else row["indicator"], clipped=clipped)
         policy = getattr(self, "time_control", None)
         if policy is None:
             return proposed_s
@@ -250,6 +269,12 @@ class FacilityCoupledFIM:
         }
 
     def step(self, dt, current_time=None):
+        if getattr(self, "temporal_control", None) is not None:
+            return temporal_step(self, dt, current_time)
+        self.accepted_stages = ()
+        return self._step_once(dt, current_time)
+
+    def _step_once(self, dt, current_time=None):
         if isinstance(dt, bool) or not math.isfinite(dt) or dt <= 0:
             raise ValueError("dt must be positive and finite")
         if set(self.controls) - self.control_fields:
@@ -290,6 +315,8 @@ class FacilityCoupledFIM:
         inventory_before = self._inventory()
         caps = [w.control_value for w in solver.wells.wells]
         trace = []
+        trial_calls = 0
+        selected_state = None
         accepted = False
 
         def reset():
@@ -298,9 +325,11 @@ class FacilityCoupledFIM:
             initial = _StepState(solver)
 
         def trial(fraction):
+            nonlocal trial_calls, selected_state
             if len(trace) >= self.control.max_evaluations:
                 raise HydraulicConvergenceError("Coupled facility evaluation budget exhausted")
             reset()
+            trial_calls += 1
             for w, cap in zip(solver.wells.wells, caps):
                 w.control_value = cap * fraction
             try:
@@ -332,6 +361,7 @@ class FacilityCoupledFIM:
             plant = copy(self.facility)
             plant.feeds = tuple(streams)
             margin = None
+            constraint_margins = None
             try:
                 running = (
                     ()
@@ -351,12 +381,14 @@ class FacilityCoupledFIM:
                 feasible = result["feasible"]
                 reason = result["violations"]
                 margin = facility_constraint_margin(result)
+                constraint_margins = facility_constraint_margins(result)
             except PropertyModelError:
                 raise
             except GasValveCapacityError as error:
                 feasible, result = False, None
                 reason = [{"physical_domain": str(error)}]
                 margin = error.normalized_margin
+                constraint_margins = {"gas_export.valve": margin}
             except (EquipmentOperatingError, InvalidPressureError) as error:
                 feasible = False
                 result = None
@@ -367,12 +399,18 @@ class FacilityCoupledFIM:
                     "feasible": feasible,
                     "reason": reason,
                     "normalized_margin": margin,
+                    "constraint_margins": constraint_margins,
                 }
             )
+            if (feasible and fraction < 1 and self.control.commit_method == "state_restore"
+                    and (selected_state is None or fraction > selected_state[0])):
+                selected_state = (fraction, _StepState(solver), result, len(trace) - 1,
+                                  getattr(getattr(solver, "debug", None), "step_rec", None))
             return feasible, result
 
         try:
             final_bracket = None
+            capacity_commit = None
             ok, plant = trial(1.0)
             chosen = 1.0
             if not ok:
@@ -395,14 +433,18 @@ class FacilityCoupledFIM:
                 low = grid[i]
                 high = grid[i + 1] if i + 1 < len(grid) else 1.0
                 margins = {row["fraction"]: row["normalized_margin"] for row in trace}
+                facets = ({row["fraction"]: row.get("constraint_margins") for row in trace}
+                          if self.control.search_method == "facet_safeguarded" else {})
                 bracket = CapacityBracket(
-                    low, high, self.control.fraction_tolerance, margins[low], margins[high]
+                    low, high, self.control.fraction_tolerance, margins[low], margins[high],
+                    low_margins=facets.get(low), high_margins=facets.get(high)
                 )
-                if self.control.search_method == "safeguarded" and previous is not None:
+                if self.control.search_method != "bisect" and previous is not None:
                     warm = previous["fraction"]
                     if not bracket.complete and bracket.low < warm < bracket.high:
                         status, _ = trial(warm)
-                        bracket.update(warm, status, trace[-1]["normalized_margin"])
+                        bracket.update(warm, status, trace[-1]["normalized_margin"],
+                                       margins=trace[-1].get("constraint_margins") if facets else None)
                 while not bracket.complete:
                     mid = (
                         (bracket.low + bracket.high) / 2
@@ -410,7 +452,8 @@ class FacilityCoupledFIM:
                         else bracket.proposal()
                     )
                     status, _ = trial(mid)
-                    bracket.update(mid, status, trace[-1]["normalized_margin"])
+                    bracket.update(mid, status, trace[-1]["normalized_margin"],
+                                   margins=trace[-1].get("constraint_margins") if facets else None)
                 chosen = bracket.low
                 final_bracket = {
                     "feasible_fraction": bracket.low,
@@ -418,11 +461,22 @@ class FacilityCoupledFIM:
                     "width": bracket.high - bracket.low,
                     "fraction_tolerance": self.control.fraction_tolerance,
                 }
-                # Commit a fresh solve at the selected cap, never a scaled copy
-                # or a cached intermediate reservoir state from another trial.
-                ok, plant = trial(chosen)
-                if not ok:
-                    raise HydraulicConvergenceError("Selected coupled facility mode failed replay")
+                if self.control.commit_method == "state_restore":
+                    # Each saved endpoint was independently converged from
+                    # this SAME old-time state at exactly this rate cap.
+                    # Restore its fields, phase flags, well cumulatives and
+                    # reports, never scale another trial's flows or fields.
+                    if selected_state is None or selected_state[0] != chosen:
+                        raise RuntimeError("Missing solved state for selected rate cap")
+                    selected_state[1].restore()
+                    if getattr(solver, "debug", None) is not None:
+                        solver.debug.step_rec = selected_state[4]
+                    plant = selected_state[2]
+                    capacity_commit = {"method": "state_restore", "solved_trace_index": selected_state[3]}
+                else:
+                    ok, plant = trial(chosen)
+                    if not ok:
+                        raise HydraulicConvergenceError("Selected coupled facility mode failed replay")
             rate_indicator = None
             if policy is not None and self._continuous_controls():
                 before_rates = ComponentStream(**previous["facility"]["feed"]).mass_rates(
@@ -457,6 +511,8 @@ class FacilityCoupledFIM:
                 "applied_rate_caps_m3_day": [cap * chosen for cap in caps],
                 "scope": "Common producer rate-cap multiplier; each trial solves the same FIM step. No monolithic facility Jacobian.",
             }
+            if capacity_commit is not None:
+                self.report["capacity_commit"] = capacity_commit
             if policy is not None:
                 self.report["rate_time_control"] = {
                     "indicator": rate_indicator,
@@ -470,10 +526,12 @@ class FacilityCoupledFIM:
             accepted = True
             return True
         except HydraulicConvergenceError as error:
-            self.last_attempt = {"success": False, "reason": str(error), "trace": trace}
+            self.last_attempt = {"success": False, "reason": str(error), "trace": trace,
+                                 "evaluations": trial_calls}
             return False
         except Exception as error:
-            self.last_attempt = {"success": False, "reason": str(error), "trace": trace}
+            self.last_attempt = {"success": False, "reason": str(error), "trace": trace,
+                                 "evaluations": trial_calls}
             raise
         finally:
             if not accepted:

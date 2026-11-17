@@ -1,0 +1,134 @@
+[
+  {
+    "accepted": 1,
+    "time_days": 5e-05,
+    "rss_before": 727695360,
+    "rss_after_gc": 727695360,
+    "rss_after_trim": 723906560,
+    "python_bytes": 71875082,
+    "gc_collected": 17,
+    "tensor_objects": 225,
+    "tensor_logical_bytes": 15987620,
+    "flags": {
+      "pressure": {
+        "grad": false,
+        "fn": "None"
+      },
+      "s_w": {
+        "grad": false,
+        "fn": "None"
+      },
+      "s_g": {
+        "grad": false,
+        "fn": "None"
+      },
+      "rs": {
+        "grad": false,
+        "fn": "None"
+      },
+      "rv": {
+        "grad": false,
+        "fn": "None"
+      }
+    }
+  },
+  {
+    "accepted": 5,
+    "time_days": 0.0015500000000000002,
+    "rss_before": 727048192,
+    "rss_after_gc": 727048192,
+    "rss_after_trim": 724709376,
+    "python_bytes": 72397453,
+    "gc_collected": 107,
+    "tensor_objects": 225,
+    "tensor_logical_bytes": 15987620,
+    "flags": {
+      "pressure": {
+        "grad": false,
+        "fn": "None"
+      },
+      "s_w": {
+        "grad": false,
+        "fn": "None"
+      },
+      "s_g": {
+        "grad": false,
+        "fn": "None"
+      },
+      "rs": {
+        "grad": false,
+        "fn": "None"
+      },
+      "rv": {
+        "grad": false,
+        "fn": "None"
+      }
+    }
+  },
+  {
+    "accepted": 10,
+    "time_days": 0.05115000000000003,
+    "rss_before": 727113728,
+    "rss_after_gc": 727113728,
+    "rss_after_trim": 724512768,
+    "python_bytes": 73041295,
+    "gc_collected": 197,
+    "tensor_objects": 225,
+    "tensor_logical_bytes": 15921812,
+    "flags": {
+      "pressure": {
+        "grad": false,
+        "fn": "None"
+      },
+      "s_w": {
+        "grad": false,
+        "fn": "None"
+      },
+      "s_g": {
+        "grad": false,
+        "fn": "None"
+      },
+      "rs": {
+        "grad": false,
+        "fn": "None"
+      },
+      "rv": {
+        "grad": false,
+        "fn": "None"
+      }
+    }
+  },
+  {
+    "accepted": 15,
+    "time_days": 0.2074,
+    "rss_before": 727990272,
+    "rss_after_gc": 727990272,
+    "rss_after_trim": 724934656,
+    "python_bytes": 73662176,
+    "gc_collected": 197,
+    "tensor_objects": 225,
+    "tensor_logical_bytes": 15921716,
+    "flags": {
+      "pressure": {
+        "grad": false,
+        "fn": "None"
+      },
+      "s_w": {
+        "grad": false,
+        "fn": "None"
+      },
+      "s_g": {
+        "grad": false,
+        "fn": "None"
+      },
+      "rs": {
+        "grad": false,
+        "fn": "None"
+      },
+      "rv": {
+        "grad": false,
+        "fn": "None"
+      }
+    }
+  }
+]

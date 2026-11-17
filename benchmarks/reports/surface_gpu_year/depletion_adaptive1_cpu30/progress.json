@@ -1,0 +1,28 @@
+{
+  "status": "incomplete",
+  "runs": [
+    {
+      "time_days": 10.0,
+      "requested_days": 30.0,
+      "solve_wall_s": 429.1991522450003,
+      "accepted_substeps": 199,
+      "last_interval": {
+        "time_days": 10.0,
+        "wall_s": 298.70271122199983,
+        "time_step_statistics": {
+          "start_time_s": 432000.0,
+          "requested_duration_s": 432000.0,
+          "integrated_duration_s": 432000.0,
+          "accepted_steps": 141,
+          "rejected_steps": 141,
+          "minimum_accepted_step_s": 1459.5807153050555,
+          "maximum_accepted_step_s": 7628.103796789306,
+          "time_error_limited_proposals": 0
+        }
+      },
+      "applied_events": 0
+    }
+  ],
+  "comparisons": [],
+  "audit_certificates": {}
+}

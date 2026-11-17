@@ -1,0 +1,18 @@
+{
+  "absolute_mass_kg": 0.01,
+  "relative_to_withdrawal": 1e-08,
+  "report_intervals": 37,
+  "pore_volume_m3": 6553600,
+  "stock_densities_kg_m3": [
+    850,
+    1000,
+    1.2
+  ],
+  "selected_mb": 5e-14,
+  "worst_sum_of_step_mb_mass_bounds_kg": [
+    0.010305536,
+    0.01212416,
+    1.4548992e-05
+  ],
+  "reason": "The previous MB=1e-10 per-step criterion did not guarantee the stricter aggregate export accounting budget. Keep the existing mass audit; tighten numerical convergence, without changing PVT or physical equations."
+}
