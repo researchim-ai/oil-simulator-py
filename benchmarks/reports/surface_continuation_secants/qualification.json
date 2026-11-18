@@ -1,0 +1,20 @@
+{
+  "accepted": true,
+  "fresh_pair_identical_config_and_schedule": true,
+  "source_guards_and_mass_audits_passed": [
+    "before",
+    "after",
+    "small"
+  ],
+  "comparisons": [
+    "comparison.json",
+    "finest_comparison.json",
+    "small_comparison.json",
+    "small_finest_comparison.json"
+  ],
+  "tests": {
+    "passed": 106,
+    "skipped": 2
+  },
+  "scope": "Synthetic black-oil plus quasi-steady surface; shared-host timing, not experimental validation."
+}

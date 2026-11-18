@@ -35,6 +35,7 @@ try:
     from ..surface.capacity_bracket import (
         CapacityBracket,
         capacity_history_slopes,
+        continuation_slopes,
         facility_constraint_margin,
         facility_constraint_margins,
         local_capacity_bracket,
@@ -54,6 +55,7 @@ except ImportError:
     from surface.capacity_bracket import (
         CapacityBracket,
         capacity_history_slopes,
+        continuation_slopes,
         facility_constraint_margin,
         facility_constraint_margins,
         local_capacity_bracket,
@@ -526,8 +528,7 @@ class FacilityCoupledFIM:
                     and self.control.min_fraction < previous['fraction'] < 1):
                 age = previous.get('capacity_continuation', {}).get('age', 0)
                 if age < self.control.continuation_scan_interval - 1:
-                    slopes = capacity_history_slopes(previous['trace'], previous['fraction'],
-                                                     self.control.fraction_tolerance)
+                    slopes = continuation_slopes(previous, self.control.fraction_tolerance)
                     def evaluate_local(fraction):
                         trial(fraction)
                         return trace[-1]

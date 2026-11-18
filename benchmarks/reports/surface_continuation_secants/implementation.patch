@@ -1,0 +1,154 @@
+diff --git a/src/simulator/facility_coupling.py b/src/simulator/facility_coupling.py
+index 6489e0d..8174ca3 100644
+--- a/src/simulator/facility_coupling.py
++++ b/src/simulator/facility_coupling.py
+@@ -35,6 +35,7 @@ try:
+     from ..surface.capacity_bracket import (
+         CapacityBracket,
+         capacity_history_slopes,
++        continuation_slopes,
+         facility_constraint_margin,
+         facility_constraint_margins,
+         local_capacity_bracket,
+@@ -54,6 +55,7 @@ except ImportError:
+     from surface.capacity_bracket import (
+         CapacityBracket,
+         capacity_history_slopes,
++        continuation_slopes,
+         facility_constraint_margin,
+         facility_constraint_margins,
+         local_capacity_bracket,
+@@ -526,8 +528,7 @@ class FacilityCoupledFIM:
+                     and self.control.min_fraction < previous['fraction'] < 1):
+                 age = previous.get('capacity_continuation', {}).get('age', 0)
+                 if age < self.control.continuation_scan_interval - 1:
+-                    slopes = capacity_history_slopes(previous['trace'], previous['fraction'],
+-                                                     self.control.fraction_tolerance)
++                    slopes = continuation_slopes(previous, self.control.fraction_tolerance)
+                     def evaluate_local(fraction):
+                         trial(fraction)
+                         return trace[-1]
+diff --git a/src/surface/capacity_bracket.py b/src/surface/capacity_bracket.py
+index c1765c6..d049481 100644
+--- a/src/surface/capacity_bracket.py
++++ b/src/surface/capacity_bracket.py
+@@ -77,6 +77,44 @@ def capacity_history_slopes(trace, fraction, tolerance):
+     return slopes
+ 
+ 
++def continuation_slopes(report, tolerance):
++    """Prefer wide secants; fall back to the previous resolved bracket.
++
++    The width tolerance controls search termination, not floating-point
++    resolution. A narrow, physically solved bracket can still give a useful
++    proposal. These slopes never certify feasibility or carry reservoir state.
++    """
++    slopes = capacity_history_slopes(report['trace'], report['fraction'], tolerance)
++    if slopes:
++        return slopes
++    bracket = report.get('capacity_bracket')
++    if not bracket:
++        return {}
++    low, high = bracket['feasible_fraction'], bracket['infeasible_fraction']
++    if not (math.isfinite(low) and math.isfinite(high) and 0 < low < high <= 1
++            and low == report['fraction']):
++        return {}
++    width = high-low
++    if width <= 32*max(math.ulp(low), math.ulp(high)):
++        return {}
++    points = {r['fraction']: r for r in report['trace']
++              if 'certified_from_trace_index' not in r}
++    a, b = points.get(low), points.get(high)
++    if a is None or b is None or a.get('feasible') is not True or b.get('feasible') is not False:
++        return {}
++    for key, va in (a.get('constraint_margins') or {}).items():
++        vb = (b.get('constraint_margins') or {}).get(key)
++        if va is None or vb is None or not all(math.isfinite(v) for v in (va, vb)):
++            continue
++        signal = vb-va
++        if signal <= 64*math.ulp(max(1., abs(va), abs(vb))):
++            continue
++        slope = signal/width
++        if math.isfinite(slope) and slope > 0:
++            slopes[key] = slope
++    return slopes
++
++
+ @dataclass
+ class CapacityBracket:
+     low: float
+diff --git a/tests/test_capacity_continuation.py b/tests/test_capacity_continuation.py
+index 932620c..8e6c7ce 100644
+--- a/tests/test_capacity_continuation.py
++++ b/tests/test_capacity_continuation.py
+@@ -86,3 +86,70 @@ def test_audit_rejects_missing_full_scan_or_stale_continuation():
+     with pytest.raises(ValueError,match='stale controls'):audit_capacity_continuation(local,control,full)
+     local['operator_controls']={};local['capacity_continuation']['age']=3
+     with pytest.raises(ValueError,match='invalid continuation'):audit_capacity_continuation(local,control,full)
++
++
++def narrow_report():
++    low, high = .003, .0030005
++    return {'fraction': low,
++            'capacity_bracket': {'feasible_fraction': low, 'infeasible_fraction': high},
++            'trace': [
++                {'fraction': low, 'feasible': True, 'constraint_margins': {'gas': -.0003}},
++                {'fraction': high, 'feasible': False, 'constraint_margins': {'gas': .00035}}]}
++
++
++def test_resolved_narrow_bracket_tracks_next_operating_point():
++    from surface.capacity_bracket import capacity_history_slopes, continuation_slopes
++
++    report = narrow_report()
++    assert not capacity_history_slopes(report['trace'], report['fraction'], 1e-6)
++    slopes = continuation_slopes(report, 1e-6)
++    evaluated = []
++    root = .003002
++    def evaluate(x):
++        evaluated.append(x)
++        margin = 1300*(x-root)
++        return {'fraction': x, 'feasible': margin <= 0,
++                'constraint_margins': {'gas': margin}}
++    pair = local_capacity_bracket(evaluate, report['fraction'], slopes, .0001, 1e-6)
++    assert pair is not None
++    assert pair[0]['fraction'] <= root < pair[1]['fraction']
++    assert all(row['fraction'] in evaluated for row in pair)
++
++
++@pytest.mark.parametrize('case', ['missing', 'certificate', 'wrong_feasibility',
++                                  'roundoff_width', 'roundoff_signal', 'negative', 'nan'])
++def test_narrow_continuation_rejects_unresolved_evidence(case):
++    import math
++
++    from surface.capacity_bracket import continuation_slopes
++
++    report = narrow_report()
++    high = report['trace'][1]
++    if case == 'missing':
++        report['trace'].pop()
++    elif case == 'certificate':
++        high['certified_from_trace_index'] = 0
++    elif case == 'wrong_feasibility':
++        high['feasible'] = True
++    elif case == 'roundoff_width':
++        high['fraction'] = math.nextafter(report['fraction'], 1.)
++        report['capacity_bracket']['infeasible_fraction'] = high['fraction']
++    elif case == 'roundoff_signal':
++        report['trace'][0]['constraint_margins']['gas'] = -1e-16
++        high['constraint_margins']['gas'] = 1e-16
++    elif case == 'negative':
++        high['constraint_margins']['gas'] = -.001
++    else:
++        high['constraint_margins']['gas'] = float('nan')
++    assert continuation_slopes(report, 1e-6) == {}
++
++
++def test_continuation_preserves_existing_wide_history_proposal():
++    from surface.capacity_bracket import capacity_history_slopes, continuation_slopes
++
++    report = narrow_report()
++    report['trace'].append({'fraction': .00302, 'feasible': False,
++                            'constraint_margins': {'gas': .018}})
++    expected = capacity_history_slopes(report['trace'], report['fraction'], 1e-6)
++    assert expected
++    assert continuation_slopes(report, 1e-6) == expected

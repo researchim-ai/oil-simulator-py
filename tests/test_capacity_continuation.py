@@ -86,3 +86,70 @@ def test_audit_rejects_missing_full_scan_or_stale_continuation():
     with pytest.raises(ValueError,match='stale controls'):audit_capacity_continuation(local,control,full)
     local['operator_controls']={};local['capacity_continuation']['age']=3
     with pytest.raises(ValueError,match='invalid continuation'):audit_capacity_continuation(local,control,full)
+
+
+def narrow_report():
+    low, high = .003, .0030005
+    return {'fraction': low,
+            'capacity_bracket': {'feasible_fraction': low, 'infeasible_fraction': high},
+            'trace': [
+                {'fraction': low, 'feasible': True, 'constraint_margins': {'gas': -.0003}},
+                {'fraction': high, 'feasible': False, 'constraint_margins': {'gas': .00035}}]}
+
+
+def test_resolved_narrow_bracket_tracks_next_operating_point():
+    from surface.capacity_bracket import capacity_history_slopes, continuation_slopes
+
+    report = narrow_report()
+    assert not capacity_history_slopes(report['trace'], report['fraction'], 1e-6)
+    slopes = continuation_slopes(report, 1e-6)
+    evaluated = []
+    root = .003002
+    def evaluate(x):
+        evaluated.append(x)
+        margin = 1300*(x-root)
+        return {'fraction': x, 'feasible': margin <= 0,
+                'constraint_margins': {'gas': margin}}
+    pair = local_capacity_bracket(evaluate, report['fraction'], slopes, .0001, 1e-6)
+    assert pair is not None
+    assert pair[0]['fraction'] <= root < pair[1]['fraction']
+    assert all(row['fraction'] in evaluated for row in pair)
+
+
+@pytest.mark.parametrize('case', ['missing', 'certificate', 'wrong_feasibility',
+                                  'roundoff_width', 'roundoff_signal', 'negative', 'nan'])
+def test_narrow_continuation_rejects_unresolved_evidence(case):
+    import math
+
+    from surface.capacity_bracket import continuation_slopes
+
+    report = narrow_report()
+    high = report['trace'][1]
+    if case == 'missing':
+        report['trace'].pop()
+    elif case == 'certificate':
+        high['certified_from_trace_index'] = 0
+    elif case == 'wrong_feasibility':
+        high['feasible'] = True
+    elif case == 'roundoff_width':
+        high['fraction'] = math.nextafter(report['fraction'], 1.)
+        report['capacity_bracket']['infeasible_fraction'] = high['fraction']
+    elif case == 'roundoff_signal':
+        report['trace'][0]['constraint_margins']['gas'] = -1e-16
+        high['constraint_margins']['gas'] = 1e-16
+    elif case == 'negative':
+        high['constraint_margins']['gas'] = -.001
+    else:
+        high['constraint_margins']['gas'] = float('nan')
+    assert continuation_slopes(report, 1e-6) == {}
+
+
+def test_continuation_preserves_existing_wide_history_proposal():
+    from surface.capacity_bracket import capacity_history_slopes, continuation_slopes
+
+    report = narrow_report()
+    report['trace'].append({'fraction': .00302, 'feasible': False,
+                            'constraint_margins': {'gas': .018}})
+    expected = capacity_history_slopes(report['trace'], report['fraction'], 1e-6)
+    assert expected
+    assert continuation_slopes(report, 1e-6) == expected

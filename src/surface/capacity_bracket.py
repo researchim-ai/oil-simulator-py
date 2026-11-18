@@ -77,6 +77,44 @@ def capacity_history_slopes(trace, fraction, tolerance):
     return slopes
 
 
+def continuation_slopes(report, tolerance):
+    """Prefer wide secants; fall back to the previous resolved bracket.
+
+    The width tolerance controls search termination, not floating-point
+    resolution. A narrow, physically solved bracket can still give a useful
+    proposal. These slopes never certify feasibility or carry reservoir state.
+    """
+    slopes = capacity_history_slopes(report['trace'], report['fraction'], tolerance)
+    if slopes:
+        return slopes
+    bracket = report.get('capacity_bracket')
+    if not bracket:
+        return {}
+    low, high = bracket['feasible_fraction'], bracket['infeasible_fraction']
+    if not (math.isfinite(low) and math.isfinite(high) and 0 < low < high <= 1
+            and low == report['fraction']):
+        return {}
+    width = high-low
+    if width <= 32*max(math.ulp(low), math.ulp(high)):
+        return {}
+    points = {r['fraction']: r for r in report['trace']
+              if 'certified_from_trace_index' not in r}
+    a, b = points.get(low), points.get(high)
+    if a is None or b is None or a.get('feasible') is not True or b.get('feasible') is not False:
+        return {}
+    for key, va in (a.get('constraint_margins') or {}).items():
+        vb = (b.get('constraint_margins') or {}).get(key)
+        if va is None or vb is None or not all(math.isfinite(v) for v in (va, vb)):
+            continue
+        signal = vb-va
+        if signal <= 64*math.ulp(max(1., abs(va), abs(vb))):
+            continue
+        slope = signal/width
+        if math.isfinite(slope) and slope > 0:
+            slopes[key] = slope
+    return slopes
+
+
 @dataclass
 class CapacityBracket:
     low: float
