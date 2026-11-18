@@ -23,6 +23,7 @@ from .fim_wells import FIMWells, G, DAY
 from .manual_assembly_solver import ManualFIMSolver
 from .fim_transaction import atomic_fim_step
 from .fim_initial_cell_cache import initial_cell_state
+from .facility_tangent import capture_facility_tangent
 from .surface_coupling import surface_step_failure
 from .sparse_utils import SparseMatrixBuilder
 
@@ -2022,6 +2023,7 @@ class BlackOilFIMSolver(ManualFIMSolver):
                     self.wells.commit(p_bh)
                     self._store_well_results(wsys, p_bh, dt)
                 self._p_bh_cur = None
+                capture_facility_tangent(self, J, wsys)
                 dbg.end_step(True, "converged", p.view(shp), sw.view(shp))
                 log("  Converged!")
                 return True
@@ -2036,8 +2038,24 @@ class BlackOilFIMSolver(ManualFIMSolver):
             prev_norm = norm
             rel = max(crit["cnv"]) / initial_cnv * lin_scale
             with timer('linear'):
+                amg_scope = getattr(self, '_capacity_amg_scope', None)
+                carry = amg_scope.reuse(self, dt, current_time, k) if amg_scope is not None else False
+                rebuild = (k == 0 and not carry) or self.amg_rebuild == 'iteration'
+                retry_fresh = amg_scope is not None and amg_scope.enabled and not rebuild and self._amg is not None
                 sol = self.solve_linear(J, R, wsys, newton_rel=rel,
-                                        rebuild_amg=(k == 0 or self.amg_rebuild == 'iteration'))
+                                        rebuild_amg=rebuild)
+                if amg_scope is not None:
+                    amg_scope.ready = self._amg is not None
+                    amg_scope.record(self._last_linear_stats)
+                if sol is None and retry_fresh:
+                    # solve_linear modifies J by Schur elimination/scaling.
+                    # Reassemble the SAME iterate instead of retaining a
+                    # reservoir-sized backup solely for a rare retry.
+                    amg_scope.retries += 1
+                    R, J, wsys = self.assemble_bo(p, sw, x, sat, acc_old, dt, p_bh, state, ug)
+                    sol = self.solve_linear(J, R, wsys, newton_rel=rel, rebuild_amg=True)
+                    amg_scope.record(self._last_linear_stats)
+                    amg_scope.ready = self._amg is not None
             dbg.linear(self._last_linear_stats)
             if sol is None:
                 dbg.end_iter(timer.t if dbg.enabled else {})

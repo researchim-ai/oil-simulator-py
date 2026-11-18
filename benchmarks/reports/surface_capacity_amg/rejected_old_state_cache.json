@@ -1,0 +1,19 @@
+{
+  "deployed": false,
+  "reason": "No observed speedup in three alternating pairs per device; prototype removed. Not used as release qualification.",
+  "cpu": {
+    "median_s": {
+      "False": 20.205792073999874,
+      "True": 20.27010110500032
+    },
+    "observed_ratio": 0.9968273946603757
+  },
+  "cuda": {
+    "median_s": {
+      "False": 17.80376698500004,
+      "True": 17.929749334999542
+    },
+    "observed_ratio": 0.992973557652946
+  },
+  "scope": "Different pilot windows: CPU .003 days, CUDA .00005 days; do not compare devices via these horizons."
+}

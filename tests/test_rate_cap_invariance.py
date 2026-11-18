@@ -32,6 +32,23 @@ def test_only_deep_inactive_domain_is_certified():
     with pytest.raises(ValueError):certificate_covers(bad,.5)
 
 
+def test_version_two_reserve_still_implies_the_exact_inactive_inequality():
+    from simulator.rate_cap_invariance import minimum_invariant_fraction, rate_cap_switch_value
+    p=proof()
+    p['wells']['P']['rate_m3_s']=.36*p['wells']['P']['cap_m3_s']
+    p['minimum_fraction']=minimum_invariant_fraction(p)
+    assert not certificate_covers(p,.5)
+    p['version']=2
+    p['minimum_fraction']=minimum_invariant_fraction(p)
+    assert certificate_covers(p,.5)
+    row=p['wells']['P']
+    for fraction in (p['minimum_fraction'],.5,1.):
+        switch=rate_cap_switch_value(row['rate_m3_s'],row['bhp_pa'],row['network_pressure_pa'])
+        assert switch < row['cap_m3_s']*fraction/p['source_fraction']
+    p['version']=3
+    with pytest.raises(ValueError):minimum_invariant_fraction(p)
+
+
 def case(reuse, device='cpu'):
     c=build(device=device)
     for w in c.solver.wells.wells:w.control_value*=100

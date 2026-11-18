@@ -84,6 +84,27 @@ class CapacityBracket:
             self.high_margins = margins
         self.slow_updates = self.slow_updates + 1 if self.high - self.low > 0.8 * old_width else 0
 
+    def tangent_proposal(self, derivatives, high_derivatives=None):
+        """Use the closer facet endpoint; physical solve still mandatory."""
+        if self.complete or self.slow_updates >= 2:
+            return None
+        candidates = []
+        for key, high in (self.high_margins or {}).items():
+            low = (self.low_margins or {}).get(key)
+            from_high = abs(high or 0) < abs(low or 0) and key in (high_derivatives or {})
+            slope = ((high_derivatives or {}) if from_high else (derivatives or {})).get(key)
+            if (high is None or low is None or slope is None
+                    or not all(math.isfinite(x) for x in (high, low, slope))
+                    or high <= 0 or low > 0 or slope <= 0):
+                continue
+            root = self.high - high / slope if from_high else self.low - low / slope
+            if self.low <= root < self.high:
+                candidates.append(root)
+        if not candidates:
+            return None
+        root = min(candidates)
+        return max(self.low + self.tolerance/2, min(self.high-self.tolerance/2, root))
+
 
 def facility_constraint_margin(report):
     """Dimensionless signed measured constraints; positive means violated."""

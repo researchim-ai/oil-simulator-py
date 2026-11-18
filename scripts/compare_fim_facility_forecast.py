@@ -25,6 +25,11 @@ def physical_config(bundle, *, allow_numerical_policy=False):
         facility.pop("time_control", None)
         facility.pop("temporal_control", None)
         if facility.get("control") is not None:
+            if type(facility['control'].pop('reuse_capacity_amg', False)) is not bool:
+                raise ValueError('Invalid capacity AMG reuse policy')
+            sparse_budget = facility['control'].pop('sensitivity_sparse_budget_bytes', 256 * 1024**2)
+            if type(sparse_budget) is not int or sparse_budget <= 0:
+                raise ValueError('Invalid sensitivity sparse memory budget')
             initial_cache = facility['control'].pop('reuse_initial_cell_state', False)
             initial_budget = facility['control'].pop('initial_cell_state_cache_bytes', 64 * 1024**2)
             if type(initial_cache) is not bool or type(initial_budget) is not int or initial_budget <= 0:
@@ -120,10 +125,12 @@ def compare(coarse_path, fine_path, budgets, *, allow_numerical_policy=False):
             "coupled_facility.time_control",
             "coupled_facility.temporal_control",
             "coupled_facility.control.search_method",
+            "coupled_facility.control.sensitivity_sparse_budget_bytes",
             "coupled_facility.control.commit_method",
             "coupled_facility.control.reuse_inactive_caps",
             "coupled_facility.control.reuse_initial_cell_state",
             "coupled_facility.control.initial_cell_state_cache_bytes",
+            "coupled_facility.control.reuse_capacity_amg",
             "physical_surface_network.sensitivity_backend",
             "physical_surface_network.network_backend",
             "physical_surface_network.bhp_initialization",

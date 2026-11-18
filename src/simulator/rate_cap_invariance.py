@@ -2,7 +2,7 @@
 
 Only an already solved INFEASIBLE state is reused. Every well row must remain
 independent of its rate cap. The deliberately conservative domain leaves a
-factor-two gap to each switching threshold. No extrapolated flows are used.
+an explicit gap to each switching threshold. No extrapolated flows are used.
 """
 
 import math
@@ -15,7 +15,7 @@ def rate_cap_switch_value(rate, bhp, pressure_target):
 
 
 def minimum_invariant_fraction(proof):
-    if proof.get('version') != 1:
+    if type(proof.get('version')) is not int or proof['version'] not in (1, 2):
         raise ValueError('Unsupported inactive-cap certificate')
     source = proof['source_fraction']
     if isinstance(source, bool) or not math.isfinite(source) or not 0 < source <= 1:
@@ -39,10 +39,14 @@ def minimum_invariant_fraction(proof):
         if row['mode'] != expected or shadow >= cap:
             raise ValueError('Inactive-cap source has an inconsistent active set')
         threshold = max(threshold, max(0., shadow) / cap * source)
-    return max(2 * threshold, 32 * math.ulp(source))
+    # Both versions imply the exact inactive-row inequality. Version 2 keeps
+    # a 25% reserve; archived version-1 certificates retain their original 2x
+    # bound. Neither permits reuse at or across an active-set threshold.
+    reserve = 2 if proof['version'] == 1 else 1.25
+    return max(reserve * threshold, 32 * math.ulp(source))
 
 
-def make_inactive_cap_certificate(report, targets, base_caps, floors, fraction):
+def make_inactive_cap_certificate(report, targets, base_caps, floors, fraction, *, version=1):
     wells = report['wells']
     if set(wells) != set(base_caps) or set(wells) != set(targets):
         return None
@@ -57,7 +61,7 @@ def make_inactive_cap_certificate(report, targets, base_caps, floors, fraction):
             'cap_m3_s': cap, 'bhp_pa': row['bhp_pa'],
             'network_pressure_pa': row['network_reference_pressure_pa'], 'floor_pa': floors[name],
         }
-    proof = {'version': 1, 'source_fraction': fraction, 'wells': rows}
+    proof = {'version': version, 'source_fraction': fraction, 'wells': rows}
     try:
         minimum = minimum_invariant_fraction(proof)
     except ValueError:

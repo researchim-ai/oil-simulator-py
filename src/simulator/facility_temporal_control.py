@@ -138,9 +138,12 @@ def temporal_step(coupled, dt, current_time=None):
     old_metrics = {k: getattr(s, k) for k in ('last_newton_iters', 'last_max_dp', 'last_max_dsw') if hasattr(s, k)}
     accepted, total_evaluations, solves = False, 0, 0
     reservoir_evaluations = 0
+    amg_work = {key: 0 for key in ('fresh_requests', 'reuse_requests', 'retries', 'builds', 'updates', 'linear_attempts')}
+    sensitivity_linear_solves = sensitivity_plant_evaluations = 0
     coupled.accepted_stages = ()
     def solve(duration, time):
         nonlocal total_evaluations, reservoir_evaluations, solves
+        nonlocal sensitivity_linear_solves, sensitivity_plant_evaluations
         solves += 1
         coupled.last_attempt = None
         try:
@@ -150,6 +153,11 @@ def temporal_step(coupled, dt, current_time=None):
             evaluations = attempt.get('evaluations', len(attempt.get('trace', [])))
             total_evaluations += evaluations
             reservoir_evaluations += attempt.get('reservoir_evaluations', evaluations)
+            sensitivity_work = attempt.get('sensitivity_work') or {}
+            sensitivity_linear_solves += sensitivity_work.get('linear_solves', 0)
+            sensitivity_plant_evaluations += sensitivity_work.get('plant_evaluations', 0)
+            for key, value in (attempt.get('capacity_amg_work') or {}).items():
+                amg_work[key] += value
         if not ok:
             raise HydraulicConvergenceError((coupled.last_attempt or {}).get('reason', 'Coupled step failed'))
     try:
@@ -187,6 +195,9 @@ def temporal_step(coupled, dt, current_time=None):
         metadata = {'indicator': ratio, 'errors': errors, 'macro_dt_s': dt,
                     'total_capacity_evaluations': total_evaluations,
                     'total_reservoir_evaluations': reservoir_evaluations,
+                    'total_capacity_amg_work': dict(amg_work),
+                    'total_sensitivity_linear_solves': sensitivity_linear_solves,
+                    'total_sensitivity_plant_evaluations': sensitivity_plant_evaluations,
                     'scope': 'Local full-step/two-half-step BE defect; accepted two half steps; requires independent global refinement'}
         if coarse_bhp is not None:
             metadata['coarse_well_bhp_pa'] = coarse_bhp
@@ -222,6 +233,11 @@ def temporal_step(coupled, dt, current_time=None):
         work['coupled_solves'] += solves
         work['capacity_evaluations'] += total_evaluations
         work['reservoir_evaluations'] = work.get('reservoir_evaluations', 0) + reservoir_evaluations
+        total_amg = work.setdefault('capacity_amg_work', {key: 0 for key in amg_work})
+        for key, value in amg_work.items():
+            total_amg[key] += value
+        work['sensitivity_linear_solves'] = work.get('sensitivity_linear_solves', 0) + sensitivity_linear_solves
+        work['sensitivity_plant_evaluations'] = work.get('sensitivity_plant_evaluations', 0) + sensitivity_plant_evaluations
         if not accepted:
             initial.restore()
             coupled.report = previous

@@ -30,7 +30,10 @@ def tensor_state(model, pressure, masses, *, pvto=None):
     saturated = torch.where(oil > 0, sat_rs <= ratio, (gas > 0) | (len(model.oil_rs) < 2))
     rs = torch.where(oil > 0, torch.minimum(sat_rs, ratio), pressure * 0)
     bo, muo = interp("Bo"), interp("mu_o")
-    if len(model.oil_rs) >= 2:
+    # Saturated rows already use the main PVT column. CPU can omit both
+    # unused undersaturated table interpolations when every point selects it.
+    # Keep the CUDA path free of an extra device-to-host status read.
+    if len(model.oil_rs) >= 2 and (pressure.is_cuda or not bool(saturated.all())):
         index = (
             torch.searchsorted(model.oil_rs, ratio.detach().contiguous(), right=True) - 1
         ).clamp(0, len(model.oil_rs) - 2)

@@ -1,0 +1,460 @@
+{
+  "accepted": true,
+  "scope": "Three alternating CPU pairs on a shared host; 1024 cells, 16 wells, 0.003 days. Fixed strict regression budgets, unchanged FIM/time policy.",
+  "rows": [
+    {
+      "repeat": 0,
+      "candidate": false,
+      "solve_wall_s": 20.77379055399797,
+      "directory": "/home/user/workspace/oil-simulator-py-impes/.scratch/facility_tangent/final_pair0_reference",
+      "audit": {
+        "accepted": true,
+        "checked_substeps": 16,
+        "elapsed_days": 0.003,
+        "minimum_step_s": 2.16,
+        "maximum_step_s": 28.969584797962,
+        "capacity_evaluations": 109,
+        "reservoir_evaluations": 109,
+        "accepted_initial_cell_evaluations": 16,
+        "accepted_initial_cell_reuses": 93,
+        "accepted_sensitivity_linear_solves": 0,
+        "accepted_sensitivity_plant_evaluations": 0,
+        "accepted_macro_estimator_reservoir_evaluations": 56,
+        "accepted_macro_estimator_capacity_evaluations": 56,
+        "operating_events": 0,
+        "mass_balance_error_kg": [
+          -2.0837909175952518e-10,
+          -5.482059250994098e-11,
+          -9.424239166833104e-12
+        ],
+        "maximum_surface_component_residual_kg_s": 3.469446951953614e-18,
+        "mass_atol_kg": 0.01,
+        "mass_rtol": 1e-08,
+        "scope": "Audit accepted forecast material and controls without running either solver.\n\nThis is an accounting/constraint audit, not independent validation of the PVT\nor homogeneous gathering closure. The production FIM CNV/MB remain required.\n"
+      }
+    },
+    {
+      "repeat": 0,
+      "candidate": true,
+      "solve_wall_s": 16.85254868300035,
+      "directory": "/home/user/workspace/oil-simulator-py-impes/.scratch/facility_tangent/final_pair0_candidate",
+      "audit": {
+        "accepted": true,
+        "checked_substeps": 16,
+        "elapsed_days": 0.003,
+        "minimum_step_s": 2.16,
+        "maximum_step_s": 28.969584811558775,
+        "capacity_evaluations": 108,
+        "reservoir_evaluations": 92,
+        "accepted_initial_cell_evaluations": 16,
+        "accepted_initial_cell_reuses": 76,
+        "accepted_sensitivity_linear_solves": 4,
+        "accepted_sensitivity_plant_evaluations": 16,
+        "accepted_macro_estimator_reservoir_evaluations": 47,
+        "accepted_macro_estimator_capacity_evaluations": 55,
+        "operating_events": 0,
+        "mass_balance_error_kg": [
+          -2.1382451365070665e-10,
+          -8.061995515618037e-11,
+          -3.93707288992573e-12
+        ],
+        "maximum_surface_component_residual_kg_s": 3.469446951953614e-18,
+        "mass_atol_kg": 0.01,
+        "mass_rtol": 1e-08,
+        "scope": "Audit accepted forecast material and controls without running either solver.\n\nThis is an accounting/constraint audit, not independent validation of the PVT\nor homogeneous gathering closure. The production FIM CNV/MB remain required.\n"
+      }
+    },
+    {
+      "repeat": 1,
+      "candidate": true,
+      "solve_wall_s": 17.39573936799934,
+      "directory": "/home/user/workspace/oil-simulator-py-impes/.scratch/facility_tangent/final_pair1_candidate",
+      "audit": {
+        "accepted": true,
+        "checked_substeps": 16,
+        "elapsed_days": 0.003,
+        "minimum_step_s": 2.16,
+        "maximum_step_s": 28.969584811558775,
+        "capacity_evaluations": 108,
+        "reservoir_evaluations": 92,
+        "accepted_initial_cell_evaluations": 16,
+        "accepted_initial_cell_reuses": 76,
+        "accepted_sensitivity_linear_solves": 4,
+        "accepted_sensitivity_plant_evaluations": 16,
+        "accepted_macro_estimator_reservoir_evaluations": 47,
+        "accepted_macro_estimator_capacity_evaluations": 55,
+        "operating_events": 0,
+        "mass_balance_error_kg": [
+          -2.1382451365070665e-10,
+          -8.061995515618037e-11,
+          -3.93707288992573e-12
+        ],
+        "maximum_surface_component_residual_kg_s": 3.469446951953614e-18,
+        "mass_atol_kg": 0.01,
+        "mass_rtol": 1e-08,
+        "scope": "Audit accepted forecast material and controls without running either solver.\n\nThis is an accounting/constraint audit, not independent validation of the PVT\nor homogeneous gathering closure. The production FIM CNV/MB remain required.\n"
+      }
+    },
+    {
+      "repeat": 1,
+      "candidate": false,
+      "solve_wall_s": 22.19060234800054,
+      "directory": "/home/user/workspace/oil-simulator-py-impes/.scratch/facility_tangent/final_pair1_reference",
+      "audit": {
+        "accepted": true,
+        "checked_substeps": 16,
+        "elapsed_days": 0.003,
+        "minimum_step_s": 2.16,
+        "maximum_step_s": 28.969584797962,
+        "capacity_evaluations": 109,
+        "reservoir_evaluations": 109,
+        "accepted_initial_cell_evaluations": 16,
+        "accepted_initial_cell_reuses": 93,
+        "accepted_sensitivity_linear_solves": 0,
+        "accepted_sensitivity_plant_evaluations": 0,
+        "accepted_macro_estimator_reservoir_evaluations": 56,
+        "accepted_macro_estimator_capacity_evaluations": 56,
+        "operating_events": 0,
+        "mass_balance_error_kg": [
+          -2.0837909175952518e-10,
+          -5.482059250994098e-11,
+          -9.424239166833104e-12
+        ],
+        "maximum_surface_component_residual_kg_s": 3.469446951953614e-18,
+        "mass_atol_kg": 0.01,
+        "mass_rtol": 1e-08,
+        "scope": "Audit accepted forecast material and controls without running either solver.\n\nThis is an accounting/constraint audit, not independent validation of the PVT\nor homogeneous gathering closure. The production FIM CNV/MB remain required.\n"
+      }
+    },
+    {
+      "repeat": 2,
+      "candidate": false,
+      "solve_wall_s": 23.698144723999576,
+      "directory": "/home/user/workspace/oil-simulator-py-impes/.scratch/facility_tangent/final_pair2_reference",
+      "audit": {
+        "accepted": true,
+        "checked_substeps": 16,
+        "elapsed_days": 0.003,
+        "minimum_step_s": 2.16,
+        "maximum_step_s": 28.969584797962,
+        "capacity_evaluations": 109,
+        "reservoir_evaluations": 109,
+        "accepted_initial_cell_evaluations": 16,
+        "accepted_initial_cell_reuses": 93,
+        "accepted_sensitivity_linear_solves": 0,
+        "accepted_sensitivity_plant_evaluations": 0,
+        "accepted_macro_estimator_reservoir_evaluations": 56,
+        "accepted_macro_estimator_capacity_evaluations": 56,
+        "operating_events": 0,
+        "mass_balance_error_kg": [
+          -2.0837909175952518e-10,
+          -5.482059250994098e-11,
+          -9.424239166833104e-12
+        ],
+        "maximum_surface_component_residual_kg_s": 3.469446951953614e-18,
+        "mass_atol_kg": 0.01,
+        "mass_rtol": 1e-08,
+        "scope": "Audit accepted forecast material and controls without running either solver.\n\nThis is an accounting/constraint audit, not independent validation of the PVT\nor homogeneous gathering closure. The production FIM CNV/MB remain required.\n"
+      }
+    },
+    {
+      "repeat": 2,
+      "candidate": true,
+      "solve_wall_s": 19.03666754799997,
+      "directory": "/home/user/workspace/oil-simulator-py-impes/.scratch/facility_tangent/final_pair2_candidate",
+      "audit": {
+        "accepted": true,
+        "checked_substeps": 16,
+        "elapsed_days": 0.003,
+        "minimum_step_s": 2.16,
+        "maximum_step_s": 28.969584811558775,
+        "capacity_evaluations": 108,
+        "reservoir_evaluations": 92,
+        "accepted_initial_cell_evaluations": 16,
+        "accepted_initial_cell_reuses": 76,
+        "accepted_sensitivity_linear_solves": 4,
+        "accepted_sensitivity_plant_evaluations": 16,
+        "accepted_macro_estimator_reservoir_evaluations": 47,
+        "accepted_macro_estimator_capacity_evaluations": 55,
+        "operating_events": 0,
+        "mass_balance_error_kg": [
+          -2.1382451365070665e-10,
+          -8.061995515618037e-11,
+          -3.93707288992573e-12
+        ],
+        "maximum_surface_component_residual_kg_s": 3.469446951953614e-18,
+        "mass_atol_kg": 0.01,
+        "mass_rtol": 1e-08,
+        "scope": "Audit accepted forecast material and controls without running either solver.\n\nThis is an accounting/constraint audit, not independent validation of the PVT\nor homogeneous gathering closure. The production FIM CNV/MB remain required.\n"
+      }
+    }
+  ],
+  "checks": [
+    {
+      "scope": "Regression for capacity-search changes with fixed, predeclared error budgets.\n\nOnly the search method and auxiliary sparse-value budget may differ. This is\nnot independent physical validation or exact execution equivalence.\n",
+      "accepted": true,
+      "fewer_fim_solves": true,
+      "required_days": 0.003,
+      "fields": {
+        "accepted": true,
+        "errors": {
+          "final_pressure_pa": 4.332046955823898e-06,
+          "final_s_w": 5.214162435152048e-13,
+          "final_s_g": 1.989478026764857e-12,
+          "final_rs": 6.497913318526116e-11,
+          "withdrawal_relative": 1.3350694672400343e-09
+        },
+        "budgets": {
+          "final_pressure_pa": 0.1,
+          "final_s_w": 1e-08,
+          "final_s_g": 1e-08,
+          "final_rs": 1e-05,
+          "withdrawal_relative": 1e-07
+        },
+        "coarse": "/home/user/workspace/oil-simulator-py-impes/.scratch/facility_tangent/final_pair0_reference/trajectory.json.gz",
+        "fine": "/home/user/workspace/oil-simulator-py-impes/.scratch/facility_tangent/final_pair0_candidate/trajectory.json.gz",
+        "scope": "Compare completed operational forecasts at the final common report endpoint.\n\nBudgets must be supplied before inspecting the reference result. This is a\nstep-refinement check, not a proof that the finer trajectory is exact.\n",
+        "allowed_numerical_policy_differences": [
+          "simulation.max_time_step_days",
+          "simulation.initial_time_step_days",
+          "coupled_facility.time_control",
+          "coupled_facility.temporal_control",
+          "coupled_facility.control.search_method",
+          "coupled_facility.control.sensitivity_sparse_budget_bytes",
+          "coupled_facility.control.commit_method",
+          "coupled_facility.control.reuse_inactive_caps",
+          "coupled_facility.control.reuse_initial_cell_state",
+          "coupled_facility.control.initial_cell_state_cache_bytes",
+          "physical_surface_network.sensitivity_backend",
+          "physical_surface_network.network_backend",
+          "physical_surface_network.bhp_initialization",
+          "physical_surface_network.well_block_backend",
+          "physical_surface_network.structured_memory_budget_bytes",
+          "physical_surface_network.network.hydraulic_backend",
+          "physical_surface_network.network.pipe_batch_size"
+        ]
+      },
+      "wells": {
+        "scope": "Compare actual well rates/BHP and cumulative mass at coarse report endpoints.\n\nBoth bundles must independently pass full facility accounting first. This is\nstep refinement, not a proof that either trajectory is exact or calibrated.\n",
+        "accepted": true,
+        "matched_endpoints_days": [
+          0.003
+        ],
+        "mode_mismatches": 0,
+        "errors": {
+          "bhp_abs_pa": 4.107598215341568e-06,
+          "component_rate_scaled": 2.0697769439299017e-11,
+          "cumulative_mass_relative": 1.3350694672400343e-09
+        },
+        "budgets": {
+          "bhp_abs_pa": 0.1,
+          "component_rate_scaled": 1e-07,
+          "cumulative_mass_relative": 1e-07
+        },
+        "component_rate_floor_kg_s": 1e-08,
+        "allow_numerical_policy": true
+      },
+      "reference_work": {
+        "macro_attempts": 8,
+        "rejected_macro_steps": 0,
+        "coupled_solves": 24,
+        "capacity_evaluations": 165,
+        "reservoir_evaluations": 165,
+        "sensitivity_linear_solves": 0,
+        "sensitivity_plant_evaluations": 0
+      },
+      "candidate_work": {
+        "macro_attempts": 8,
+        "rejected_macro_steps": 0,
+        "coupled_solves": 24,
+        "capacity_evaluations": 163,
+        "reservoir_evaluations": 139,
+        "sensitivity_linear_solves": 8,
+        "sensitivity_plant_evaluations": 32
+      },
+      "reference_solve_wall_s": 20.77379055399797,
+      "candidate_solve_wall_s": 16.85254868300035,
+      "observed_ratio": 1.232679456665987,
+      "timing_scope": "Shared host; these are observations, not isolated hardware speedups."
+    },
+    {
+      "scope": "Regression for capacity-search changes with fixed, predeclared error budgets.\n\nOnly the search method and auxiliary sparse-value budget may differ. This is\nnot independent physical validation or exact execution equivalence.\n",
+      "accepted": true,
+      "fewer_fim_solves": true,
+      "required_days": 0.003,
+      "fields": {
+        "accepted": true,
+        "errors": {
+          "final_pressure_pa": 4.332046955823898e-06,
+          "final_s_w": 5.214162435152048e-13,
+          "final_s_g": 1.989478026764857e-12,
+          "final_rs": 6.497913318526116e-11,
+          "withdrawal_relative": 1.3350694672400343e-09
+        },
+        "budgets": {
+          "final_pressure_pa": 0.1,
+          "final_s_w": 1e-08,
+          "final_s_g": 1e-08,
+          "final_rs": 1e-05,
+          "withdrawal_relative": 1e-07
+        },
+        "coarse": "/home/user/workspace/oil-simulator-py-impes/.scratch/facility_tangent/final_pair1_reference/trajectory.json.gz",
+        "fine": "/home/user/workspace/oil-simulator-py-impes/.scratch/facility_tangent/final_pair1_candidate/trajectory.json.gz",
+        "scope": "Compare completed operational forecasts at the final common report endpoint.\n\nBudgets must be supplied before inspecting the reference result. This is a\nstep-refinement check, not a proof that the finer trajectory is exact.\n",
+        "allowed_numerical_policy_differences": [
+          "simulation.max_time_step_days",
+          "simulation.initial_time_step_days",
+          "coupled_facility.time_control",
+          "coupled_facility.temporal_control",
+          "coupled_facility.control.search_method",
+          "coupled_facility.control.sensitivity_sparse_budget_bytes",
+          "coupled_facility.control.commit_method",
+          "coupled_facility.control.reuse_inactive_caps",
+          "coupled_facility.control.reuse_initial_cell_state",
+          "coupled_facility.control.initial_cell_state_cache_bytes",
+          "physical_surface_network.sensitivity_backend",
+          "physical_surface_network.network_backend",
+          "physical_surface_network.bhp_initialization",
+          "physical_surface_network.well_block_backend",
+          "physical_surface_network.structured_memory_budget_bytes",
+          "physical_surface_network.network.hydraulic_backend",
+          "physical_surface_network.network.pipe_batch_size"
+        ]
+      },
+      "wells": {
+        "scope": "Compare actual well rates/BHP and cumulative mass at coarse report endpoints.\n\nBoth bundles must independently pass full facility accounting first. This is\nstep refinement, not a proof that either trajectory is exact or calibrated.\n",
+        "accepted": true,
+        "matched_endpoints_days": [
+          0.003
+        ],
+        "mode_mismatches": 0,
+        "errors": {
+          "bhp_abs_pa": 4.107598215341568e-06,
+          "component_rate_scaled": 2.0697769439299017e-11,
+          "cumulative_mass_relative": 1.3350694672400343e-09
+        },
+        "budgets": {
+          "bhp_abs_pa": 0.1,
+          "component_rate_scaled": 1e-07,
+          "cumulative_mass_relative": 1e-07
+        },
+        "component_rate_floor_kg_s": 1e-08,
+        "allow_numerical_policy": true
+      },
+      "reference_work": {
+        "macro_attempts": 8,
+        "rejected_macro_steps": 0,
+        "coupled_solves": 24,
+        "capacity_evaluations": 165,
+        "reservoir_evaluations": 165,
+        "sensitivity_linear_solves": 0,
+        "sensitivity_plant_evaluations": 0
+      },
+      "candidate_work": {
+        "macro_attempts": 8,
+        "rejected_macro_steps": 0,
+        "coupled_solves": 24,
+        "capacity_evaluations": 163,
+        "reservoir_evaluations": 139,
+        "sensitivity_linear_solves": 8,
+        "sensitivity_plant_evaluations": 32
+      },
+      "reference_solve_wall_s": 22.19060234800054,
+      "candidate_solve_wall_s": 17.39573936799934,
+      "observed_ratio": 1.2756343308305527,
+      "timing_scope": "Shared host; these are observations, not isolated hardware speedups."
+    },
+    {
+      "scope": "Regression for capacity-search changes with fixed, predeclared error budgets.\n\nOnly the search method and auxiliary sparse-value budget may differ. This is\nnot independent physical validation or exact execution equivalence.\n",
+      "accepted": true,
+      "fewer_fim_solves": true,
+      "required_days": 0.003,
+      "fields": {
+        "accepted": true,
+        "errors": {
+          "final_pressure_pa": 4.332046955823898e-06,
+          "final_s_w": 5.214162435152048e-13,
+          "final_s_g": 1.989478026764857e-12,
+          "final_rs": 6.497913318526116e-11,
+          "withdrawal_relative": 1.3350694672400343e-09
+        },
+        "budgets": {
+          "final_pressure_pa": 0.1,
+          "final_s_w": 1e-08,
+          "final_s_g": 1e-08,
+          "final_rs": 1e-05,
+          "withdrawal_relative": 1e-07
+        },
+        "coarse": "/home/user/workspace/oil-simulator-py-impes/.scratch/facility_tangent/final_pair2_reference/trajectory.json.gz",
+        "fine": "/home/user/workspace/oil-simulator-py-impes/.scratch/facility_tangent/final_pair2_candidate/trajectory.json.gz",
+        "scope": "Compare completed operational forecasts at the final common report endpoint.\n\nBudgets must be supplied before inspecting the reference result. This is a\nstep-refinement check, not a proof that the finer trajectory is exact.\n",
+        "allowed_numerical_policy_differences": [
+          "simulation.max_time_step_days",
+          "simulation.initial_time_step_days",
+          "coupled_facility.time_control",
+          "coupled_facility.temporal_control",
+          "coupled_facility.control.search_method",
+          "coupled_facility.control.sensitivity_sparse_budget_bytes",
+          "coupled_facility.control.commit_method",
+          "coupled_facility.control.reuse_inactive_caps",
+          "coupled_facility.control.reuse_initial_cell_state",
+          "coupled_facility.control.initial_cell_state_cache_bytes",
+          "physical_surface_network.sensitivity_backend",
+          "physical_surface_network.network_backend",
+          "physical_surface_network.bhp_initialization",
+          "physical_surface_network.well_block_backend",
+          "physical_surface_network.structured_memory_budget_bytes",
+          "physical_surface_network.network.hydraulic_backend",
+          "physical_surface_network.network.pipe_batch_size"
+        ]
+      },
+      "wells": {
+        "scope": "Compare actual well rates/BHP and cumulative mass at coarse report endpoints.\n\nBoth bundles must independently pass full facility accounting first. This is\nstep refinement, not a proof that either trajectory is exact or calibrated.\n",
+        "accepted": true,
+        "matched_endpoints_days": [
+          0.003
+        ],
+        "mode_mismatches": 0,
+        "errors": {
+          "bhp_abs_pa": 4.107598215341568e-06,
+          "component_rate_scaled": 2.0697769439299017e-11,
+          "cumulative_mass_relative": 1.3350694672400343e-09
+        },
+        "budgets": {
+          "bhp_abs_pa": 0.1,
+          "component_rate_scaled": 1e-07,
+          "cumulative_mass_relative": 1e-07
+        },
+        "component_rate_floor_kg_s": 1e-08,
+        "allow_numerical_policy": true
+      },
+      "reference_work": {
+        "macro_attempts": 8,
+        "rejected_macro_steps": 0,
+        "coupled_solves": 24,
+        "capacity_evaluations": 165,
+        "reservoir_evaluations": 165,
+        "sensitivity_linear_solves": 0,
+        "sensitivity_plant_evaluations": 0
+      },
+      "candidate_work": {
+        "macro_attempts": 8,
+        "rejected_macro_steps": 0,
+        "coupled_solves": 24,
+        "capacity_evaluations": 163,
+        "reservoir_evaluations": 139,
+        "sensitivity_linear_solves": 8,
+        "sensitivity_plant_evaluations": 32
+      },
+      "reference_solve_wall_s": 23.698144723999576,
+      "candidate_solve_wall_s": 19.03666754799997,
+      "observed_ratio": 1.2448683397052522,
+      "timing_scope": "Shared host; these are observations, not isolated hardware speedups."
+    }
+  ],
+  "median_s": {
+    "False": 22.19060234800054,
+    "True": 17.39573936799934
+  },
+  "observed_ratio": 1.2756343308305527
+}

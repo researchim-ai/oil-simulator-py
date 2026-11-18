@@ -1,0 +1,17 @@
+[
+  {
+    "repeat": 0,
+    "same_accepted_wells_facility_and_time": true,
+    "accepted_stages": 2
+  },
+  {
+    "repeat": 1,
+    "same_accepted_wells_facility_and_time": true,
+    "accepted_stages": 2
+  },
+  {
+    "repeat": 2,
+    "same_accepted_wells_facility_and_time": true,
+    "accepted_stages": 2
+  }
+]

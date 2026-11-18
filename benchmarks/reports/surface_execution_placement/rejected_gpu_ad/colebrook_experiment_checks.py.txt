@@ -1,0 +1,65 @@
+"""Colebrook equation, mixed broadcasting, and both AD orders."""
+
+import pytest
+import torch
+
+from surface.blackoil_pipe import _darcy
+from surface.colebrook_autograd import ColebrookRoot
+
+
+@pytest.mark.parametrize(
+    "reynolds,roughness", [(2000.0, 0.0), (1e4, 1e-4), (1e7, 0.01), (1e12, 0.0)]
+)
+def test_root_solves_equation_and_two_order_numerical_gradcheck(reynolds, roughness):
+    r = torch.tensor([reynolds], dtype=torch.float64, requires_grad=True)
+    e = torch.tensor([roughness], dtype=torch.float64, requires_grad=True)
+    u = ColebrookRoot.apply(r, e)
+    residual = u + 2 * torch.log10(e / 3.7 + 2.51 * u / r)
+    assert residual.abs().max() < 1e-12
+    # Scale inputs for a well-conditioned finite-difference comparison.
+    x = torch.tensor([1.0, roughness * 1000], dtype=torch.float64, requires_grad=True)
+    fn = lambda x: ColebrookRoot.apply(x[:1] * reynolds, x[1:] / 1000)
+    # At zero roughness the domain has a boundary; perturb Reynolds only.
+    # A negative roughness perturbation can leave the logarithm domain at
+    # high Re and is not a valid central finite difference.
+    if roughness == 0:
+        fn = lambda z: ColebrookRoot.apply(z * reynolds, 0.0)
+        inputs = (x[:1],)
+    else:
+        inputs = (x,)
+    root = ColebrookRoot.apply(x[:1] * reynolds, x[1:] / 1000)
+    residual = root + 2 * torch.log10(x[1:] / 1000 / 3.7 + 2.51 * root / (x[:1] * reynolds))
+    assert float(residual.abs().max()) < 1e-12
+    assert torch.autograd.gradcheck(fn, inputs, eps=1e-6, atol=1e-7, rtol=1e-5)
+    assert torch.autograd.gradgradcheck(fn, inputs, eps=1e-6, atol=1e-6, rtol=1e-4)
+
+
+def test_broadcast_root_derivatives_and_signed_roots():
+    r = torch.tensor([[2000.0, 1e4], [1e5, 1e7]], dtype=torch.float64, requires_grad=True)
+    e = torch.tensor([1e-4, 0.01], dtype=torch.float64, requires_grad=True)
+    assert torch.autograd.gradcheck(ColebrookRoot.apply, (r, e), eps=1e-5, atol=1e-6)
+    # Do not reconstruct u from sqrt(f): signed roots are part of the
+    # original algebra even for an extreme roughness outside typical use.
+    u = ColebrookRoot.apply(r, 10.0)
+    assert bool((u < 0).all())
+    a = torch.autograd.grad(u.sum(), r)[0]
+    assert bool(torch.isfinite(a).all())
+
+
+@pytest.mark.skipif(not torch.cuda.is_available(), reason="CUDA required")
+def test_cuda_friction_matches_cpu_forward_gradient_and_hessian():
+    x = torch.tensor(
+        [100.0, 1999.999, 2000.0, 2000.001, 3000.0, 4000.0, 1e5, 1e12], dtype=torch.float64
+    )
+    rough = torch.full_like(x, 1e-4)
+
+    def run(device):
+        re = x.to(device).requires_grad_()
+        eps = rough.to(device).requires_grad_()
+        y = _darcy(re, eps)
+        first = torch.autograd.grad(y.sum(), (re, eps), create_graph=True)
+        second = torch.autograd.grad(sum(a.sum() for a in first), (re, eps))
+        return [a.detach().cpu() for a in (y, *first, *second)]
+
+    for cpu, gpu in zip(run("cpu"), run("cuda"), strict=True):
+        torch.testing.assert_close(cpu, gpu, rtol=1e-11, atol=1e-11)

@@ -11,6 +11,8 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'src'))
+from simulator.capacity_amg_reuse import audit_capacity_amg
+from simulator.capacity_sensitivity_audit import audit_capacity_sensitivity
 from simulator.fim_initial_cell_cache import audit_initial_cell_cache
 from simulator.rate_cap_invariance import audit_inactive_cap_trace
 
@@ -44,6 +46,7 @@ def audit(
     evaluations = 0
     reservoir_evaluations = 0
     initial_cell_evaluations = initial_cell_hits = 0
+    accepted_sensitivity_linear = accepted_sensitivity_plant = 0
     estimator_reservoir_evaluations = 0
     estimator_evaluations = 0
     events = report.get("facility_control_events", [])
@@ -80,6 +83,7 @@ def audit(
         if step["facility_controls"] != controls:
             raise ValueError("Wrong controls on accepted reservoir interval")
         coupling = step["facility_coupling"]
+        audit_capacity_amg(coupling, config['simulation']['coupled_facility'].get('control') or {})
         if "operator_controls" in coupling and coupling["operator_controls"] != controls:
             raise ValueError("Coupling reports the wrong operator controls")
         plant = coupling["facility"]
@@ -97,6 +101,12 @@ def audit(
             coupling, config['simulation']['coupled_facility'].get('control') or {})
         initial_cell_evaluations += cell_evaluations
         initial_cell_hits += cell_hits
+        if ((config['simulation']['coupled_facility'].get('control') or {}).get('search_method')
+                == 'sensitivity_safeguarded' and coupling.get('search_method') != 'sensitivity_safeguarded'):
+            raise ValueError('Sensitivity execution policy differs from config')
+        sensitivity_linear, sensitivity_plant = audit_capacity_sensitivity(coupling)
+        accepted_sensitivity_linear += sensitivity_linear
+        accepted_sensitivity_plant += sensitivity_plant
         close(coupling["dt_s"], dt, atol=1e-7)
         if config["simulation"]["coupled_facility"].get("temporal_control") is not None and step_index % 2 == 1:
             # Every accepted macro interval must publish both actual half
@@ -165,6 +175,24 @@ def audit(
                     or reuse and 'total_reservoir_evaluations' not in temporal):
                 raise ValueError('Invalid temporal reservoir evaluation accounting')
             estimator_reservoir_evaluations += actual_total - actual_fine
+            amg_control = config['simulation']['coupled_facility'].get('control') or {}
+            if amg_control.get('reuse_capacity_amg', False):
+                total_amg = temporal.get('total_capacity_amg_work')
+                audit_capacity_amg({'evaluations': actual_total, 'capacity_amg_work': total_amg}, amg_control)
+                fine_amg = [audit_capacity_amg(s['facility_coupling'], amg_control) for s in (first, step)]
+                if any(total_amg[key] < sum(w[key] for w in fine_amg) for key in total_amg):
+                    raise ValueError('Missing discarded coarse AMG work')
+            if coupling.get('search_method') == 'sensitivity_safeguarded':
+                fine_linear = fine_plant = 0
+                for stage in (first, step):
+                    nl, np = audit_capacity_sensitivity(stage['facility_coupling'])
+                    fine_linear += nl
+                    fine_plant += np
+                total_linear = temporal.get('total_sensitivity_linear_solves')
+                total_plant = temporal.get('total_sensitivity_plant_evaluations')
+                if (type(total_linear) is not int or not fine_linear <= total_linear <= actual_total
+                        or type(total_plant) is not int or not fine_plant <= total_plant <= 4*total_linear):
+                    raise ValueError('Invalid discarded-stage sensitivity work')
         if not 0 < coupling["fraction"] <= 1:
             raise ValueError("Invalid rate-cap fraction")
         if "capacity_bracket" in coupling:
@@ -256,6 +284,16 @@ def audit(
             close(account["elapsed_s"], end, atol=1e-7)
         clock = end
     close(clock, report["elapsed_days"] * 86400, atol=1e-7)
+    facility_control = config['simulation']['coupled_facility'].get('control') or {}
+    if config['simulation']['coupled_facility'].get('temporal_control') is not None and facility_control.get('reuse_capacity_amg', False):
+        work = report.get('temporal_work') or {}
+        actual = work.get('reservoir_evaluations')
+        if type(actual) is not int or actual < reservoir_evaluations:
+            raise ValueError('Invalid total AMG reservoir work')
+        total_amg = audit_capacity_amg({'evaluations': actual, 'capacity_amg_work': work.get('capacity_amg_work')}, facility_control)
+        fine_amg = [audit_capacity_amg(s['facility_coupling'], facility_control) for s in steps]
+        if any(total_amg[key] < sum(w[key] for w in fine_amg) for key in total_amg):
+            raise ValueError('Missing accepted AMG work')
     if config["simulation"]["coupled_facility"].get("temporal_control") is not None and len(steps) % 2:
         raise ValueError("Incomplete temporal stage pair")
     residuals = []
@@ -281,6 +319,8 @@ def audit(
         "reservoir_evaluations": reservoir_evaluations,
         "accepted_initial_cell_evaluations": initial_cell_evaluations,
         "accepted_initial_cell_reuses": initial_cell_hits,
+        "accepted_sensitivity_linear_solves": accepted_sensitivity_linear,
+        "accepted_sensitivity_plant_evaluations": accepted_sensitivity_plant,
         "accepted_macro_estimator_reservoir_evaluations": estimator_reservoir_evaluations,
         "accepted_macro_estimator_capacity_evaluations": estimator_evaluations,
         "operating_events": len(events),

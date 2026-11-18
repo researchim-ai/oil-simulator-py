@@ -439,3 +439,25 @@ API `solve()` принимает переопределения источник
 [STRATIFIED_PR_NETWORK.md](STRATIFIED_PR_NETWORK.md).
 Горизонтальные трубы с собственными N/U+PE, стенками и Darcy-скоростями:
 [PR_LINEPACK.md](PR_LINEPACK.md), пример `configs/surface_pr_linepack.json`.
+
+### Гибридный связанный прогноз
+
+`configs/fim_blackoil_facility_depletion_gpu_hybrid.json` сохраняет
+физику, FIM- и временные допуски `fim_blackoil_facility_depletion_fast.json`.
+Единственное отличие —
+`simulation.physical_surface_network.network_backend: "cpu_reference"`.
+При запуске с `--device cuda` пласт и СЛАУ остаются на GPU, небольшая
+сборная сеть считается на CPU. Значение `"torch_device"` использует
+устройство пласта также для гидравлики сети. Выбор не является
+автоматическим; подробности и границы приёмки —
+[OPERATIONAL_FORECAST.md](OPERATIONAL_FORECAST.md#размещение-небольшой-сборной-сети-при-gpu-пласте).
+
+`simulation.coupled_facility.control.reuse_capacity_amg` — bool,
+по умолчанию `false`. При `true` переиспользует иерархию AMG только между
+FIM-пробами одного поиска ограничений, обновляя текущие коэффициенты.
+Неудачное линейное решение повторяется на свежей сборке; точность и
+режим `amg_rebuild=iteration` сохраняются. Готовый opt-in конфиг —
+`configs/fim_blackoil_facility_depletion_gpu_hybrid_amg.json`. От прежнего
+hybrid-конфига отличается только этим флагом. Подтверждены короткие
+GPU-окна на 1024 и 262 144 ячейках; ускорение полного месяца/Norne
+не измерено. [Подробности](OPERATIONAL_FORECAST.md#иерархия-amg-между-пробами-одного-ограничения).

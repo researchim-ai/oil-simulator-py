@@ -1,0 +1,13 @@
+{
+  "scope": "One ablation run, not a timing distribution; sensitivity sparse budget=1 byte, so only the wider exact inactive certificate is used.",
+  "temporal_work": {
+    "macro_attempts": 8,
+    "rejected_macro_steps": 0,
+    "coupled_solves": 24,
+    "capacity_evaluations": 165,
+    "reservoir_evaluations": 141,
+    "sensitivity_linear_solves": 0,
+    "sensitivity_plant_evaluations": 0
+  },
+  "solve_wall_s": 19.668699764999474
+}

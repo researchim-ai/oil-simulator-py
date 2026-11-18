@@ -1,0 +1,496 @@
+{
+  "accepted": true,
+  "scope": "Three alternating source-guarded GPU gathering vs CPU gathering pairs, reservoir/linear system on RTX3090Ti, allocator8%, shared/busy device; 1024cells,16wells,.00005days. Unchanged physics/FIM/time/search. Fixed strict regression budgets; not full-month/Norne or isolated GPU scaling.",
+  "rows": [
+    {
+      "repeat": 0,
+      "candidate": false,
+      "solve_wall_s": 29.478025187000185,
+      "audit": {
+        "accepted": true,
+        "checked_substeps": 2,
+        "elapsed_days": 5e-05,
+        "minimum_step_s": 2.16,
+        "maximum_step_s": 2.16,
+        "capacity_evaluations": 13,
+        "reservoir_evaluations": 13,
+        "accepted_initial_cell_evaluations": 2,
+        "accepted_initial_cell_reuses": 11,
+        "accepted_sensitivity_linear_solves": 0,
+        "accepted_sensitivity_plant_evaluations": 0,
+        "accepted_macro_estimator_reservoir_evaluations": 7,
+        "accepted_macro_estimator_capacity_evaluations": 7,
+        "operating_events": 0,
+        "mass_balance_error_kg": [
+          -3.049338559435455e-12,
+          4.4220183070819985e-13,
+          -2.7935813384782904e-12
+        ],
+        "maximum_surface_component_residual_kg_s": 4.336808689942018e-19,
+        "mass_atol_kg": 0.01,
+        "mass_rtol": 1e-08,
+        "scope": "Audit accepted forecast material and controls without running either solver.\n\nThis is an accounting/constraint audit, not independent validation of the PVT\nor homogeneous gathering closure. The production FIM CNV/MB remain required.\n"
+      },
+      "execution": {
+        "torch_version": "2.7.0+cu126",
+        "torch_threads": 1,
+        "device_name": "NVIDIA GeForce RTX 3090 Ti",
+        "cuda_peak_allocated_bytes": 73979904,
+        "cuda_peak_reserved_bytes": 100663296,
+        "memory_scope": "PyTorch allocator peak from before model construction through the forecast; excludes CUDA context and other processes",
+        "gathering_backend": "torch_device",
+        "hydraulic_backend": "torch_batch"
+      },
+      "temporal_work": {
+        "macro_attempts": 1,
+        "rejected_macro_steps": 0,
+        "coupled_solves": 3,
+        "capacity_evaluations": 20,
+        "reservoir_evaluations": 20,
+        "sensitivity_linear_solves": 0,
+        "sensitivity_plant_evaluations": 0
+      }
+    },
+    {
+      "repeat": 0,
+      "candidate": true,
+      "solve_wall_s": 13.232262781999907,
+      "audit": {
+        "accepted": true,
+        "checked_substeps": 2,
+        "elapsed_days": 5e-05,
+        "minimum_step_s": 2.16,
+        "maximum_step_s": 2.16,
+        "capacity_evaluations": 13,
+        "reservoir_evaluations": 13,
+        "accepted_initial_cell_evaluations": 2,
+        "accepted_initial_cell_reuses": 11,
+        "accepted_sensitivity_linear_solves": 0,
+        "accepted_sensitivity_plant_evaluations": 0,
+        "accepted_macro_estimator_reservoir_evaluations": 7,
+        "accepted_macro_estimator_capacity_evaluations": 7,
+        "operating_events": 0,
+        "mass_balance_error_kg": [
+          -3.049338559435455e-12,
+          4.4220183070819985e-13,
+          -2.7935813384782904e-12
+        ],
+        "maximum_surface_component_residual_kg_s": 4.336808689942018e-19,
+        "mass_atol_kg": 0.01,
+        "mass_rtol": 1e-08,
+        "scope": "Audit accepted forecast material and controls without running either solver.\n\nThis is an accounting/constraint audit, not independent validation of the PVT\nor homogeneous gathering closure. The production FIM CNV/MB remain required.\n"
+      },
+      "execution": {
+        "torch_version": "2.7.0+cu126",
+        "torch_threads": 1,
+        "device_name": "NVIDIA GeForce RTX 3090 Ti",
+        "cuda_peak_allocated_bytes": 73966592,
+        "cuda_peak_reserved_bytes": 100663296,
+        "memory_scope": "PyTorch allocator peak from before model construction through the forecast; excludes CUDA context and other processes",
+        "gathering_backend": "cpu_reference",
+        "hydraulic_backend": "torch_batch"
+      },
+      "temporal_work": {
+        "macro_attempts": 1,
+        "rejected_macro_steps": 0,
+        "coupled_solves": 3,
+        "capacity_evaluations": 20,
+        "reservoir_evaluations": 20,
+        "sensitivity_linear_solves": 0,
+        "sensitivity_plant_evaluations": 0
+      }
+    },
+    {
+      "repeat": 1,
+      "candidate": true,
+      "solve_wall_s": 13.23994805500024,
+      "audit": {
+        "accepted": true,
+        "checked_substeps": 2,
+        "elapsed_days": 5e-05,
+        "minimum_step_s": 2.16,
+        "maximum_step_s": 2.16,
+        "capacity_evaluations": 13,
+        "reservoir_evaluations": 13,
+        "accepted_initial_cell_evaluations": 2,
+        "accepted_initial_cell_reuses": 11,
+        "accepted_sensitivity_linear_solves": 0,
+        "accepted_sensitivity_plant_evaluations": 0,
+        "accepted_macro_estimator_reservoir_evaluations": 7,
+        "accepted_macro_estimator_capacity_evaluations": 7,
+        "operating_events": 0,
+        "mass_balance_error_kg": [
+          -3.049338559435455e-12,
+          4.4220183070819985e-13,
+          -2.7935813384782904e-12
+        ],
+        "maximum_surface_component_residual_kg_s": 4.336808689942018e-19,
+        "mass_atol_kg": 0.01,
+        "mass_rtol": 1e-08,
+        "scope": "Audit accepted forecast material and controls without running either solver.\n\nThis is an accounting/constraint audit, not independent validation of the PVT\nor homogeneous gathering closure. The production FIM CNV/MB remain required.\n"
+      },
+      "execution": {
+        "torch_version": "2.7.0+cu126",
+        "torch_threads": 1,
+        "device_name": "NVIDIA GeForce RTX 3090 Ti",
+        "cuda_peak_allocated_bytes": 73966592,
+        "cuda_peak_reserved_bytes": 100663296,
+        "memory_scope": "PyTorch allocator peak from before model construction through the forecast; excludes CUDA context and other processes",
+        "gathering_backend": "cpu_reference",
+        "hydraulic_backend": "torch_batch"
+      },
+      "temporal_work": {
+        "macro_attempts": 1,
+        "rejected_macro_steps": 0,
+        "coupled_solves": 3,
+        "capacity_evaluations": 20,
+        "reservoir_evaluations": 20,
+        "sensitivity_linear_solves": 0,
+        "sensitivity_plant_evaluations": 0
+      }
+    },
+    {
+      "repeat": 1,
+      "candidate": false,
+      "solve_wall_s": 28.847814763000315,
+      "audit": {
+        "accepted": true,
+        "checked_substeps": 2,
+        "elapsed_days": 5e-05,
+        "minimum_step_s": 2.16,
+        "maximum_step_s": 2.16,
+        "capacity_evaluations": 13,
+        "reservoir_evaluations": 13,
+        "accepted_initial_cell_evaluations": 2,
+        "accepted_initial_cell_reuses": 11,
+        "accepted_sensitivity_linear_solves": 0,
+        "accepted_sensitivity_plant_evaluations": 0,
+        "accepted_macro_estimator_reservoir_evaluations": 7,
+        "accepted_macro_estimator_capacity_evaluations": 7,
+        "operating_events": 0,
+        "mass_balance_error_kg": [
+          -3.049338559435455e-12,
+          4.4220183070819985e-13,
+          -2.7935813384782904e-12
+        ],
+        "maximum_surface_component_residual_kg_s": 4.336808689942018e-19,
+        "mass_atol_kg": 0.01,
+        "mass_rtol": 1e-08,
+        "scope": "Audit accepted forecast material and controls without running either solver.\n\nThis is an accounting/constraint audit, not independent validation of the PVT\nor homogeneous gathering closure. The production FIM CNV/MB remain required.\n"
+      },
+      "execution": {
+        "torch_version": "2.7.0+cu126",
+        "torch_threads": 1,
+        "device_name": "NVIDIA GeForce RTX 3090 Ti",
+        "cuda_peak_allocated_bytes": 73979904,
+        "cuda_peak_reserved_bytes": 100663296,
+        "memory_scope": "PyTorch allocator peak from before model construction through the forecast; excludes CUDA context and other processes",
+        "gathering_backend": "torch_device",
+        "hydraulic_backend": "torch_batch"
+      },
+      "temporal_work": {
+        "macro_attempts": 1,
+        "rejected_macro_steps": 0,
+        "coupled_solves": 3,
+        "capacity_evaluations": 20,
+        "reservoir_evaluations": 20,
+        "sensitivity_linear_solves": 0,
+        "sensitivity_plant_evaluations": 0
+      }
+    },
+    {
+      "repeat": 2,
+      "candidate": false,
+      "solve_wall_s": 28.491741145000105,
+      "audit": {
+        "accepted": true,
+        "checked_substeps": 2,
+        "elapsed_days": 5e-05,
+        "minimum_step_s": 2.16,
+        "maximum_step_s": 2.16,
+        "capacity_evaluations": 13,
+        "reservoir_evaluations": 13,
+        "accepted_initial_cell_evaluations": 2,
+        "accepted_initial_cell_reuses": 11,
+        "accepted_sensitivity_linear_solves": 0,
+        "accepted_sensitivity_plant_evaluations": 0,
+        "accepted_macro_estimator_reservoir_evaluations": 7,
+        "accepted_macro_estimator_capacity_evaluations": 7,
+        "operating_events": 0,
+        "mass_balance_error_kg": [
+          -3.049338559435455e-12,
+          4.4220183070819985e-13,
+          -2.7935813384782904e-12
+        ],
+        "maximum_surface_component_residual_kg_s": 4.336808689942018e-19,
+        "mass_atol_kg": 0.01,
+        "mass_rtol": 1e-08,
+        "scope": "Audit accepted forecast material and controls without running either solver.\n\nThis is an accounting/constraint audit, not independent validation of the PVT\nor homogeneous gathering closure. The production FIM CNV/MB remain required.\n"
+      },
+      "execution": {
+        "torch_version": "2.7.0+cu126",
+        "torch_threads": 1,
+        "device_name": "NVIDIA GeForce RTX 3090 Ti",
+        "cuda_peak_allocated_bytes": 73979904,
+        "cuda_peak_reserved_bytes": 100663296,
+        "memory_scope": "PyTorch allocator peak from before model construction through the forecast; excludes CUDA context and other processes",
+        "gathering_backend": "torch_device",
+        "hydraulic_backend": "torch_batch"
+      },
+      "temporal_work": {
+        "macro_attempts": 1,
+        "rejected_macro_steps": 0,
+        "coupled_solves": 3,
+        "capacity_evaluations": 20,
+        "reservoir_evaluations": 20,
+        "sensitivity_linear_solves": 0,
+        "sensitivity_plant_evaluations": 0
+      }
+    },
+    {
+      "repeat": 2,
+      "candidate": true,
+      "solve_wall_s": 13.134583016000306,
+      "audit": {
+        "accepted": true,
+        "checked_substeps": 2,
+        "elapsed_days": 5e-05,
+        "minimum_step_s": 2.16,
+        "maximum_step_s": 2.16,
+        "capacity_evaluations": 13,
+        "reservoir_evaluations": 13,
+        "accepted_initial_cell_evaluations": 2,
+        "accepted_initial_cell_reuses": 11,
+        "accepted_sensitivity_linear_solves": 0,
+        "accepted_sensitivity_plant_evaluations": 0,
+        "accepted_macro_estimator_reservoir_evaluations": 7,
+        "accepted_macro_estimator_capacity_evaluations": 7,
+        "operating_events": 0,
+        "mass_balance_error_kg": [
+          -3.049338559435455e-12,
+          4.4220183070819985e-13,
+          -2.7935813384782904e-12
+        ],
+        "maximum_surface_component_residual_kg_s": 4.336808689942018e-19,
+        "mass_atol_kg": 0.01,
+        "mass_rtol": 1e-08,
+        "scope": "Audit accepted forecast material and controls without running either solver.\n\nThis is an accounting/constraint audit, not independent validation of the PVT\nor homogeneous gathering closure. The production FIM CNV/MB remain required.\n"
+      },
+      "execution": {
+        "torch_version": "2.7.0+cu126",
+        "torch_threads": 1,
+        "device_name": "NVIDIA GeForce RTX 3090 Ti",
+        "cuda_peak_allocated_bytes": 73966592,
+        "cuda_peak_reserved_bytes": 100663296,
+        "memory_scope": "PyTorch allocator peak from before model construction through the forecast; excludes CUDA context and other processes",
+        "gathering_backend": "cpu_reference",
+        "hydraulic_backend": "torch_batch"
+      },
+      "temporal_work": {
+        "macro_attempts": 1,
+        "rejected_macro_steps": 0,
+        "coupled_solves": 3,
+        "capacity_evaluations": 20,
+        "reservoir_evaluations": 20,
+        "sensitivity_linear_solves": 0,
+        "sensitivity_plant_evaluations": 0
+      }
+    }
+  ],
+  "checks": [
+    {
+      "repeat": 0,
+      "fields": {
+        "accepted": true,
+        "errors": {
+          "final_pressure_pa": 0.0,
+          "final_s_w": 0.0,
+          "final_s_g": 0.0,
+          "final_rs": 0.0,
+          "withdrawal_relative": 0.0
+        },
+        "budgets": {
+          "final_pressure_pa": 0.1,
+          "final_s_w": 1e-08,
+          "final_s_g": 1e-08,
+          "final_rs": 1e-05,
+          "withdrawal_relative": 1e-07
+        },
+        "coarse": "/home/user/workspace/oil-simulator-py-impes/.scratch/surface_next/release_placement0_reference/trajectory.json.gz",
+        "fine": "/home/user/workspace/oil-simulator-py-impes/.scratch/surface_next/release_placement0_candidate/trajectory.json.gz",
+        "scope": "Compare completed operational forecasts at the final common report endpoint.\n\nBudgets must be supplied before inspecting the reference result. This is a\nstep-refinement check, not a proof that the finer trajectory is exact.\n",
+        "allowed_numerical_policy_differences": [
+          "simulation.max_time_step_days",
+          "simulation.initial_time_step_days",
+          "coupled_facility.time_control",
+          "coupled_facility.temporal_control",
+          "coupled_facility.control.search_method",
+          "coupled_facility.control.sensitivity_sparse_budget_bytes",
+          "coupled_facility.control.commit_method",
+          "coupled_facility.control.reuse_inactive_caps",
+          "coupled_facility.control.reuse_initial_cell_state",
+          "coupled_facility.control.initial_cell_state_cache_bytes",
+          "physical_surface_network.sensitivity_backend",
+          "physical_surface_network.network_backend",
+          "physical_surface_network.bhp_initialization",
+          "physical_surface_network.well_block_backend",
+          "physical_surface_network.structured_memory_budget_bytes",
+          "physical_surface_network.network.hydraulic_backend",
+          "physical_surface_network.network.pipe_batch_size"
+        ]
+      },
+      "wells": {
+        "scope": "Compare actual well rates/BHP and cumulative mass at coarse report endpoints.\n\nBoth bundles must independently pass full facility accounting first. This is\nstep refinement, not a proof that either trajectory is exact or calibrated.\n",
+        "accepted": true,
+        "matched_endpoints_days": [
+          5e-05
+        ],
+        "mode_mismatches": 0,
+        "errors": {
+          "bhp_abs_pa": 0.0,
+          "component_rate_scaled": 0.0,
+          "cumulative_mass_relative": 0.0
+        },
+        "budgets": {
+          "bhp_abs_pa": 0.1,
+          "component_rate_scaled": 1e-07,
+          "cumulative_mass_relative": 1e-07
+        },
+        "component_rate_floor_kg_s": 1e-08,
+        "allow_numerical_policy": true
+      },
+      "accepted": true
+    },
+    {
+      "repeat": 1,
+      "fields": {
+        "accepted": true,
+        "errors": {
+          "final_pressure_pa": 0.0,
+          "final_s_w": 0.0,
+          "final_s_g": 0.0,
+          "final_rs": 0.0,
+          "withdrawal_relative": 0.0
+        },
+        "budgets": {
+          "final_pressure_pa": 0.1,
+          "final_s_w": 1e-08,
+          "final_s_g": 1e-08,
+          "final_rs": 1e-05,
+          "withdrawal_relative": 1e-07
+        },
+        "coarse": "/home/user/workspace/oil-simulator-py-impes/.scratch/surface_next/release_placement1_reference/trajectory.json.gz",
+        "fine": "/home/user/workspace/oil-simulator-py-impes/.scratch/surface_next/release_placement1_candidate/trajectory.json.gz",
+        "scope": "Compare completed operational forecasts at the final common report endpoint.\n\nBudgets must be supplied before inspecting the reference result. This is a\nstep-refinement check, not a proof that the finer trajectory is exact.\n",
+        "allowed_numerical_policy_differences": [
+          "simulation.max_time_step_days",
+          "simulation.initial_time_step_days",
+          "coupled_facility.time_control",
+          "coupled_facility.temporal_control",
+          "coupled_facility.control.search_method",
+          "coupled_facility.control.sensitivity_sparse_budget_bytes",
+          "coupled_facility.control.commit_method",
+          "coupled_facility.control.reuse_inactive_caps",
+          "coupled_facility.control.reuse_initial_cell_state",
+          "coupled_facility.control.initial_cell_state_cache_bytes",
+          "physical_surface_network.sensitivity_backend",
+          "physical_surface_network.network_backend",
+          "physical_surface_network.bhp_initialization",
+          "physical_surface_network.well_block_backend",
+          "physical_surface_network.structured_memory_budget_bytes",
+          "physical_surface_network.network.hydraulic_backend",
+          "physical_surface_network.network.pipe_batch_size"
+        ]
+      },
+      "wells": {
+        "scope": "Compare actual well rates/BHP and cumulative mass at coarse report endpoints.\n\nBoth bundles must independently pass full facility accounting first. This is\nstep refinement, not a proof that either trajectory is exact or calibrated.\n",
+        "accepted": true,
+        "matched_endpoints_days": [
+          5e-05
+        ],
+        "mode_mismatches": 0,
+        "errors": {
+          "bhp_abs_pa": 0.0,
+          "component_rate_scaled": 0.0,
+          "cumulative_mass_relative": 0.0
+        },
+        "budgets": {
+          "bhp_abs_pa": 0.1,
+          "component_rate_scaled": 1e-07,
+          "cumulative_mass_relative": 1e-07
+        },
+        "component_rate_floor_kg_s": 1e-08,
+        "allow_numerical_policy": true
+      },
+      "accepted": true
+    },
+    {
+      "repeat": 2,
+      "fields": {
+        "accepted": true,
+        "errors": {
+          "final_pressure_pa": 0.0,
+          "final_s_w": 0.0,
+          "final_s_g": 0.0,
+          "final_rs": 0.0,
+          "withdrawal_relative": 0.0
+        },
+        "budgets": {
+          "final_pressure_pa": 0.1,
+          "final_s_w": 1e-08,
+          "final_s_g": 1e-08,
+          "final_rs": 1e-05,
+          "withdrawal_relative": 1e-07
+        },
+        "coarse": "/home/user/workspace/oil-simulator-py-impes/.scratch/surface_next/release_placement2_reference/trajectory.json.gz",
+        "fine": "/home/user/workspace/oil-simulator-py-impes/.scratch/surface_next/release_placement2_candidate/trajectory.json.gz",
+        "scope": "Compare completed operational forecasts at the final common report endpoint.\n\nBudgets must be supplied before inspecting the reference result. This is a\nstep-refinement check, not a proof that the finer trajectory is exact.\n",
+        "allowed_numerical_policy_differences": [
+          "simulation.max_time_step_days",
+          "simulation.initial_time_step_days",
+          "coupled_facility.time_control",
+          "coupled_facility.temporal_control",
+          "coupled_facility.control.search_method",
+          "coupled_facility.control.sensitivity_sparse_budget_bytes",
+          "coupled_facility.control.commit_method",
+          "coupled_facility.control.reuse_inactive_caps",
+          "coupled_facility.control.reuse_initial_cell_state",
+          "coupled_facility.control.initial_cell_state_cache_bytes",
+          "physical_surface_network.sensitivity_backend",
+          "physical_surface_network.network_backend",
+          "physical_surface_network.bhp_initialization",
+          "physical_surface_network.well_block_backend",
+          "physical_surface_network.structured_memory_budget_bytes",
+          "physical_surface_network.network.hydraulic_backend",
+          "physical_surface_network.network.pipe_batch_size"
+        ]
+      },
+      "wells": {
+        "scope": "Compare actual well rates/BHP and cumulative mass at coarse report endpoints.\n\nBoth bundles must independently pass full facility accounting first. This is\nstep refinement, not a proof that either trajectory is exact or calibrated.\n",
+        "accepted": true,
+        "matched_endpoints_days": [
+          5e-05
+        ],
+        "mode_mismatches": 0,
+        "errors": {
+          "bhp_abs_pa": 0.0,
+          "component_rate_scaled": 0.0,
+          "cumulative_mass_relative": 0.0
+        },
+        "budgets": {
+          "bhp_abs_pa": 0.1,
+          "component_rate_scaled": 1e-07,
+          "cumulative_mass_relative": 1e-07
+        },
+        "component_rate_floor_kg_s": 1e-08,
+        "allow_numerical_policy": true
+      },
+      "accepted": true
+    }
+  ],
+  "median_s": {
+    "False": 28.847814763000315,
+    "True": 13.232262781999907
+  },
+  "observed_ratio": 2.180111991294681
+}

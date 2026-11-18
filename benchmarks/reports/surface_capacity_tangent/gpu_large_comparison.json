@@ -1,0 +1,87 @@
+{
+  "scope": "Regression for capacity-search changes with fixed, predeclared error budgets.\n\nOnly the search method and auxiliary sparse-value budget may differ. This is\nnot independent physical validation or exact execution equivalence.\n",
+  "accepted": true,
+  "fewer_fim_solves": true,
+  "required_days": 5e-05,
+  "fields": {
+    "accepted": true,
+    "errors": {
+      "final_pressure_pa": 4.537403583526611e-06,
+      "final_s_w": 5.634936961484982e-13,
+      "final_s_g": 2.146928468338416e-12,
+      "final_rs": 6.806288865846e-11,
+      "withdrawal_relative": 1.0443951231620119e-08
+    },
+    "budgets": {
+      "final_pressure_pa": 0.1,
+      "final_s_w": 1e-08,
+      "final_s_g": 1e-08,
+      "final_rs": 1e-05,
+      "withdrawal_relative": 1e-07
+    },
+    "coarse": ".scratch/facility_tangent/gpu_large_reference/trajectory.json.gz",
+    "fine": ".scratch/facility_tangent/gpu_large_candidate/trajectory.json.gz",
+    "scope": "Compare completed operational forecasts at the final common report endpoint.\n\nBudgets must be supplied before inspecting the reference result. This is a\nstep-refinement check, not a proof that the finer trajectory is exact.\n",
+    "allowed_numerical_policy_differences": [
+      "simulation.max_time_step_days",
+      "simulation.initial_time_step_days",
+      "coupled_facility.time_control",
+      "coupled_facility.temporal_control",
+      "coupled_facility.control.search_method",
+      "coupled_facility.control.sensitivity_sparse_budget_bytes",
+      "coupled_facility.control.commit_method",
+      "coupled_facility.control.reuse_inactive_caps",
+      "coupled_facility.control.reuse_initial_cell_state",
+      "coupled_facility.control.initial_cell_state_cache_bytes",
+      "physical_surface_network.sensitivity_backend",
+      "physical_surface_network.network_backend",
+      "physical_surface_network.bhp_initialization",
+      "physical_surface_network.well_block_backend",
+      "physical_surface_network.structured_memory_budget_bytes",
+      "physical_surface_network.network.hydraulic_backend",
+      "physical_surface_network.network.pipe_batch_size"
+    ]
+  },
+  "wells": {
+    "scope": "Compare actual well rates/BHP and cumulative mass at coarse report endpoints.\n\nBoth bundles must independently pass full facility accounting first. This is\nstep refinement, not a proof that either trajectory is exact or calibrated.\n",
+    "accepted": true,
+    "matched_endpoints_days": [
+      5e-05
+    ],
+    "mode_mismatches": 0,
+    "errors": {
+      "bhp_abs_pa": 4.030764102935791e-06,
+      "component_rate_scaled": 3.8148209780094434e-11,
+      "cumulative_mass_relative": 1.0443951231620119e-08
+    },
+    "budgets": {
+      "bhp_abs_pa": 0.1,
+      "component_rate_scaled": 1e-07,
+      "cumulative_mass_relative": 1e-07
+    },
+    "component_rate_floor_kg_s": 1e-08,
+    "allow_numerical_policy": true
+  },
+  "reference_work": {
+    "macro_attempts": 1,
+    "rejected_macro_steps": 0,
+    "coupled_solves": 3,
+    "capacity_evaluations": 20,
+    "reservoir_evaluations": 20,
+    "sensitivity_linear_solves": 0,
+    "sensitivity_plant_evaluations": 0
+  },
+  "candidate_work": {
+    "macro_attempts": 1,
+    "rejected_macro_steps": 0,
+    "coupled_solves": 3,
+    "capacity_evaluations": 18,
+    "reservoir_evaluations": 15,
+    "sensitivity_linear_solves": 8,
+    "sensitivity_plant_evaluations": 32
+  },
+  "reference_solve_wall_s": 34.064759321001475,
+  "candidate_solve_wall_s": 25.2113770199976,
+  "observed_ratio": 1.3511661538352862,
+  "timing_scope": "Shared host; these are observations, not isolated hardware speedups."
+}

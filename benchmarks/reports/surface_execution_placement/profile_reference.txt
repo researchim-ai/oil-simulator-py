@@ -1,0 +1,50 @@
+Wed Nov 18 12:36:58 2026    /home/user/workspace/oil-simulator-py-impes/.scratch/surface_next/baseline.prof
+
+         33652266 function calls (32881138 primitive calls) in 25.384 seconds
+
+   Ordered by: cumulative time
+   List reduced from 6062 to 40 due to restriction <40>
+
+   ncalls  tottime  percall  cumtime  percall filename:lineno(function)
+4826/2714    0.098    0.000   11.054    0.004 _contextlib.py:113(decorate_context)
+      528    0.099    0.000   11.042    0.021 blackoil_network.py:277(solve)
+    39/37    0.000    0.000   10.526    0.284 _ops.py:316(fallthrough)
+      528    0.337    0.001    9.064    0.017 blackoil_fim.py:1709(assemble_bo)
+      528    0.096    0.000    8.589    0.016 blackoil_surface_coupling.py:292(assemble)
+      528    0.003    0.000    6.431    0.012 blackoil_pipe_batch.py:331(required_inlets)
+      528    0.202    0.000    6.349    0.012 blackoil_pipe_batch.py:160(solve)
+      165    0.002    0.000    5.394    0.033 blackoil_surface_coupling.py:214(begin_step)
+      387    0.154    0.000    5.115    0.013 blackoil_fim.py:1605(fn)
+      528    0.001    0.000    4.236    0.008 blackoil_pipe.py:330(required_inlet)
+      528    0.042    0.000    4.201    0.008 blackoil_pipe.py:152(_solve)
+     2112    0.042    0.000    4.179    0.002 blackoil_pipe_batch.py:141(checked)
+    49923    0.050    0.000    3.940    0.000 wrappers.py:287(_fn)
+    49923    0.023    0.000    3.868    0.000 _compile.py:41(inner)
+    49923    0.085    0.000    3.838    0.000 eval_frame.py:829(_fn)
+     4224    0.043    0.000    3.696    0.001 blackoil_pipe_batch.py:135(integral)
+    49923    0.184    0.000    3.682    0.000 wrappers.py:126(_fn)
+     4224    0.283    0.000    3.653    0.001 blackoil_quadrature_plan.py:33(evaluate)
+      165    0.009    0.000    3.650    0.022 blackoil_surface_coupling.py:251(_rate_network_initial_bhp)
+      165    0.010    0.000    3.610    0.022 surface_seed.py:14(initial_network_seed)
+      602    0.078    0.000    3.417    0.006 blackoil_fim.py:1560(_phase_state)
+     4224    0.279    0.000    3.128    0.001 blackoil_pipe_batch.py:107(_integrand)
+      363    0.036    0.000    3.097    0.009 manual_assembly_solver.py:503(solve_linear)
+    13728    0.075    0.000    2.870    0.000 __init__.py:364(grad)
+    13728    0.019    0.000    2.663    0.000 graph.py:815(_engine_run_backward)
+     2640    0.069    0.000    2.656    0.001 blackoil_pipe.py:121(_checked_integral)
+    13728    2.640    0.000    2.640    0.000 {method 'run_backward' of 'torch._C._EngineBase' objects}
+     5280    0.253    0.000    2.551    0.000 blackoil_pipe.py:89(_integral)
+    41871    0.627    0.000    2.529    0.000 blackoil_props.py:20(interp1)
+     5882    0.181    0.000    2.164    0.000 blackoil_props.py:368(oil)
+     3168    0.010    0.000    2.125    0.001 blackoil_pipe.py:166(distance)
+      121    0.002    0.000    1.922    0.016 __init__.py:1(<module>)
+     5280    0.454    0.000    1.830    0.000 blackoil_pipe_batch.py:21(tensor_state)
+      363    0.034    0.000    1.740    0.005 cpr_gpu.py:31(__init__)
+      165    0.023    0.000    1.739    0.011 blackoil_fim.py:1054(begin_step)
+      165    0.200    0.001    1.668    0.010 blackoil_fim.py:1175(_flash_heads)
+    25/20    0.000    0.000    1.584    0.079 _ops.py:296(py_impl)
+      834    0.003    0.000    1.574    0.002 _zeros_py.py:679(brentq)
+      834    0.004    0.000    1.570    0.002 {built-in method scipy.optimize._zeros._brentq}
+    29025    0.045    0.000    1.567    0.000 __init__.py:1104(add)
+
+

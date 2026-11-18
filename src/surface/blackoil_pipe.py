@@ -49,6 +49,12 @@ def _gauss(order, device="cpu"):
 def _darcy(reynolds, relative_roughness):
     """Differentiable Colebrook root and declared laminar/transition closure."""
     r = reynolds.clamp_min(1e-15)
+    # On CPU, an all-laminar packet has identically zero turbulent blend.
+    # Keep equality at Re=2000 on the original path: the chosen AD second
+    # derivative at that boundary includes the transition closure. CUDA
+    # retains its branch-free path, with no new host synchronization.
+    if not r.is_cuda and bool((r < 2000).all()):
+        return 64 / r + relative_roughness * 0
     # The turbulent root is inactive below Re=2000. Evaluate it only in
     # its valid domain: zero blend does not suppress NaN in autograd.
     turbulent_r = r.clamp_min(2000.0)

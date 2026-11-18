@@ -14,6 +14,8 @@ import numpy as np
 import torch
 
 from .blackoil_surface_coupling import SurfaceCoupledBlackOilWells
+from .capacity_amg_reuse import CapacityAMGReuse
+from .facility_tangent import FacilityTangentCapture, plant_margin_tangent
 from .facility_temporal_control import FacilityTemporalControl, temporal_step
 from .facility_time_control import FacilityTimeControl
 from .fim_initial_cell_cache import InitialCellStateCache
@@ -67,8 +69,14 @@ class CoupledFacilityControl:
     reuse_inactive_caps: bool = False
     reuse_initial_cell_state: bool = False
     initial_cell_state_cache_bytes: int = 64 * 1024**2
+    reuse_capacity_amg: bool = False
+    sensitivity_sparse_budget_bytes: int = 256 * 1024**2
 
     def __post_init__(self):
+        if type(self.reuse_capacity_amg) is not bool:
+            raise ValueError('reuse_capacity_amg must be boolean')
+        if type(self.sensitivity_sparse_budget_bytes) is not int or self.sensitivity_sparse_budget_bytes <= 0:
+            raise ValueError('sensitivity_sparse_budget_bytes must be a positive integer')
         if type(self.reuse_initial_cell_state) is not bool:
             raise ValueError('reuse_initial_cell_state must be boolean')
         if type(self.initial_cell_state_cache_bytes) is not int or self.initial_cell_state_cache_bytes <= 0:
@@ -77,8 +85,8 @@ class CoupledFacilityControl:
             raise ValueError("reuse_inactive_caps must be boolean")
         if self.commit_method not in ("replay", "state_restore"):
             raise ValueError("commit_method must be replay or state_restore")
-        if self.search_method not in ("safeguarded", "facet_safeguarded", "bisect"):
-            raise ValueError("search_method must be safeguarded, facet_safeguarded or bisect")
+        if self.search_method not in ("safeguarded", "facet_safeguarded", "sensitivity_safeguarded", "bisect"):
+            raise ValueError("Unknown capacity search_method")
         if not 0 < self.min_fraction <= 1 or not math.isfinite(self.min_fraction):
             raise ValueError("min_fraction must be in (0,1]")
         if not 0 < self.fraction_tolerance < 1 or not math.isfinite(self.fraction_tolerance):
@@ -338,10 +346,17 @@ class FacilityCoupledFIM:
         trial_calls = 0
         sample_calls = 0
         inactive_sources = []
+        sensitivities = {}
+        tangent_work = {'linear_solves': 0, 'plant_evaluations': 0, 'proposals': 0}
+        # Smooth continuing intervals already have a close warm endpoint.
+        # Spend auxiliary solves at startup/events, or after slow search.
+        request_tangent = (not self._continuous_controls()
+                           or previous.get('requested_rate_caps_m3_day') != caps)
         initial_cells = (InitialCellStateCache(solver, dt, current_time,
                         self.control.initial_cell_state_cache_bytes)
                          if self.control.reuse_initial_cell_state else None)
         selected_state = None
+        amg_scope = CapacityAMGReuse(solver, dt, current_time, enabled=self.control.reuse_capacity_amg)
         accepted = False
 
         def reset():
@@ -370,8 +385,13 @@ class FacilityCoupledFIM:
             trial_calls += 1
             for w, cap in zip(solver.wells.wells, caps):
                 w.control_value = cap * fraction
+            capture = (FacilityTangentCapture(solver, caps, self.control.sensitivity_sparse_budget_bytes,
+                                             fraction=fraction)
+                       if self.control.search_method == 'sensitivity_safeguarded' and request_tangent else None)
             try:
-                with initial_cells.installed() if initial_cells is not None else nullcontext():
+                with (initial_cells.installed() if initial_cells is not None else nullcontext()), \
+                     (amg_scope.installed() if amg_scope is not None else nullcontext()), \
+                     (capture.installed() if capture is not None else nullcontext()):
                     converged = solver.step(dt, current_time=current_time)
             except PipePressureCoverageError as error:
                 # Reject only this declared operating-envelope violation.
@@ -441,6 +461,21 @@ class FacilityCoupledFIM:
                     "constraint_margins": constraint_margins,
                 }
             )
+            if capture is not None and fraction < 1:
+                response = None
+                try:
+                    response = capture.response()
+                except (HydraulicConvergenceError, torch.cuda.OutOfMemoryError):
+                    capture.reason = 'auxiliary_linear_failure'
+                tangent_work['linear_solves'] += capture.linear_solves
+                slopes, count, reason = ({}, 0, capture.reason)
+                if response is not None:
+                    slopes, count, reason = plant_margin_tangent(
+                        plant, response, fraction, self.controls, running)
+                tangent_work['plant_evaluations'] += count
+                sensitivities[fraction] = slopes
+                trace[-1]['capacity_sensitivity'] = {'derivatives': slopes, 'reason': reason,
+                    'linear_solves': capture.linear_solves, 'plant_evaluations': count}
             if not feasible and getattr(self.control, "reuse_inactive_caps", False):
                 proof = make_inactive_cap_certificate(
                     report,
@@ -448,6 +483,7 @@ class FacilityCoupledFIM:
                     {w.name: cap for w, cap in zip(solver.wells.wells, caps)},
                     {w.name: solver.wells.bhp_limit(w) for w in solver.wells.wells},
                     fraction,
+                    version=2 if self.control.search_method == 'sensitivity_safeguarded' else 1,
                 )
                 if proof is not None:
                     trace[-1]['inactive_cap_certificate'] = proof
@@ -484,7 +520,7 @@ class FacilityCoupledFIM:
                 high = grid[i + 1] if i + 1 < len(grid) else 1.0
                 margins = {row["fraction"]: row["normalized_margin"] for row in trace}
                 facets = ({row["fraction"]: row.get("constraint_margins") for row in trace}
-                          if self.control.search_method == "facet_safeguarded" else {})
+                          if self.control.search_method in ('facet_safeguarded', 'sensitivity_safeguarded') else {})
                 bracket = CapacityBracket(
                     low, high, self.control.fraction_tolerance, margins[low], margins[high],
                     low_margins=facets.get(low), high_margins=facets.get(high)
@@ -496,12 +532,20 @@ class FacilityCoupledFIM:
                         bracket.update(warm, status, trace[-1]["normalized_margin"],
                                        margins=trace[-1].get("constraint_margins") if facets else None)
                 while not bracket.complete:
+                    predicted = (bracket.tangent_proposal(sensitivities.get(bracket.low), sensitivities.get(bracket.high))
+                                 if self.control.search_method == 'sensitivity_safeguarded' else None)
+                    tangent_work['proposals'] += int(predicted is not None)
                     mid = (
                         (bracket.low + bracket.high) / 2
                         if self.control.search_method == "bisect"
-                        else bracket.proposal()
+                        else predicted if predicted is not None else bracket.proposal()
                     )
+                    request_tangent = request_tangent or bracket.slow_updates >= 2
+                    prediction_bracket = (bracket.low, bracket.high)
                     status, _ = trial(mid)
+                    if predicted is not None:
+                        trace[-1]['capacity_proposal'] = {'low_fraction': prediction_bracket[0],
+                                                         'high_fraction': prediction_bracket[1]}
                     bracket.update(mid, status, trace[-1]["normalized_margin"],
                                    margins=trace[-1].get("constraint_margins") if facets else None)
                 chosen = bracket.low
@@ -561,6 +605,7 @@ class FacilityCoupledFIM:
                 "facility": plant,
                 "material_account": material_account,
                 "applied_rate_caps_m3_day": [cap * chosen for cap in caps],
+                "requested_rate_caps_m3_day": list(caps),
                 "scope": (
                     "Common producer rate-cap multiplier; converged infeasible states may certify "
                     "other inactive caps within the same FIM step. No monolithic facility Jacobian."
@@ -570,8 +615,12 @@ class FacilityCoupledFIM:
             }
             if capacity_commit is not None:
                 self.report["capacity_commit"] = capacity_commit
+            if self.control.search_method == 'sensitivity_safeguarded':
+                self.report['sensitivity_work'] = tangent_work
             if initial_cells is not None:
                 self.report['initial_cell_state_cache'] = initial_cells.report()
+            if amg_scope is not None:
+                self.report['capacity_amg_work'] = amg_scope.report()
             if policy is not None:
                 self.report["rate_time_control"] = {
                     "indicator": rate_indicator,
@@ -582,18 +631,22 @@ class FacilityCoupledFIM:
             if energy is not None:
                 self.report["energy_process"] = energy
             self.last_attempt = {"success": True, "evaluations": len(trace),
-                                 "reservoir_evaluations": trial_calls}
+                                 "reservoir_evaluations": trial_calls, "sensitivity_work": dict(tangent_work)}
             accepted = True
             return True
         except HydraulicConvergenceError as error:
             self.last_attempt = {"success": False, "reason": str(error), "trace": trace,
-                                 "evaluations": sample_calls, "reservoir_evaluations": trial_calls}
+                                 "evaluations": sample_calls, "reservoir_evaluations": trial_calls,
+                                 "sensitivity_work": dict(tangent_work)}
             return False
         except Exception as error:
             self.last_attempt = {"success": False, "reason": str(error), "trace": trace,
-                                 "evaluations": sample_calls, "reservoir_evaluations": trial_calls}
+                                 "evaluations": sample_calls, "reservoir_evaluations": trial_calls,
+                                 "sensitivity_work": dict(tangent_work)}
             raise
         finally:
+            if amg_scope is not None and self.last_attempt is not None:
+                self.last_attempt['capacity_amg_work'] = amg_scope.report()
             if not accepted:
                 reset()
                 self.report = previous
