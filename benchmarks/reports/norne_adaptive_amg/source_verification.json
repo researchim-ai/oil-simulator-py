@@ -1,0 +1,10 @@
+{
+  "identical_sources": true,
+  "production_solver_matches": true,
+  "late_verified_after_run": [
+    "late_optimized_0",
+    "late_optimized_1",
+    "late_reference_0",
+    "late_reference_1"
+  ]
+}

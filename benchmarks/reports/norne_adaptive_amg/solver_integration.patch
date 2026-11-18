@@ -1,0 +1,60 @@
+--- a/src/simulator/blackoil_fim.py
++++ b/src/simulator/blackoil_fim.py
+@@ -2069,23 +2069,41 @@
+             rel = max(crit["cnv"]) / initial_cnv * lin_scale
+             with timer('linear'):
+                 amg_scope = getattr(self, '_capacity_amg_scope', None)
+-                carry = amg_scope.reuse(self, dt, current_time, k) if amg_scope is not None else False
+-                rebuild = (k == 0 and not carry) or self.amg_rebuild == 'iteration'
+-                retry_fresh = amg_scope is not None and amg_scope.enabled and not rebuild and self._amg is not None
++                adaptive = None
++                if amg_scope is not None:
++                    self._adaptive_amg_policy = None
++                elif self.amg_rebuild == 'adaptive':
++                    from .adaptive_amg import AdaptiveAMG
++                    adaptive = getattr(self, '_adaptive_amg_policy', None)
++                    if adaptive is None:
++                        adaptive = self._adaptive_amg_policy = AdaptiveAMG()
++                carry = (amg_scope.reuse(self, dt, current_time, k) if amg_scope is not None
++                         else adaptive.reuse(self, dt, current_time, k) if adaptive is not None else False)
++                rebuild = ((k == 0 and not carry) or self.amg_rebuild == 'iteration'
++                           or (adaptive is not None and adaptive.refresh))
++                retry_fresh = ((amg_scope is not None and amg_scope.enabled) or adaptive is not None) and not rebuild and self._amg is not None
+                 sol = self.solve_linear(J, R, wsys, newton_rel=rel,
+                                         rebuild_amg=rebuild)
+                 if amg_scope is not None:
+                     amg_scope.ready = self._amg is not None
+                     amg_scope.record(self._last_linear_stats)
++                if adaptive is not None:
++                    adaptive.record(self, self._last_linear_stats, sol is not None)
+                 if sol is None and retry_fresh:
+                     # solve_linear modifies J by Schur elimination/scaling.
+                     # Reassemble the SAME iterate instead of retaining a
+                     # reservoir-sized backup solely for a rare retry.
+-                    amg_scope.retries += 1
++                    if amg_scope is not None:
++                        amg_scope.retries += 1
++                    if adaptive is not None:
++                        adaptive.retries += 1
+                     R, J, wsys = self.assemble_bo(p, sw, x, sat, acc_old, dt, p_bh, state, ug)
+                     sol = self.solve_linear(J, R, wsys, newton_rel=rel, rebuild_amg=True)
+-                    amg_scope.record(self._last_linear_stats)
+-                    amg_scope.ready = self._amg is not None
++                    if amg_scope is not None:
++                        amg_scope.record(self._last_linear_stats)
++                        amg_scope.ready = self._amg is not None
++                    if adaptive is not None:
++                        adaptive.record(self, self._last_linear_stats, sol is not None)
+             dbg.linear(self._last_linear_stats)
+             if sol is None:
+                 dbg.end_iter(timer.t if dbg.enabled else {})
+--- a/src/simulator/manual_assembly_solver.py
++++ b/src/simulator/manual_assembly_solver.py
+@@ -92,6 +92,7 @@
+         # CUDA pool handles belong to a process/context; recreate after checkpoint load.
+         state["_cpr_graph_pool"] = None
+         state["_cpr_replay_workspace"] = None
++        state["_adaptive_amg_policy"] = None
+         return state
+ 
+     def _init_params(self, params):

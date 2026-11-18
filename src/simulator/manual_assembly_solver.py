@@ -92,6 +92,7 @@ class ManualFIMSolver:
         # CUDA pool handles belong to a process/context; recreate after checkpoint load.
         state["_cpr_graph_pool"] = None
         state["_cpr_replay_workspace"] = None
+        state["_adaptive_amg_policy"] = None
         return state
 
     def _init_params(self, params):

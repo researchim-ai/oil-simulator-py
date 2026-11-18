@@ -32,6 +32,7 @@ def main():
     parser.add_argument('--eclipse-grid', help='Align steps to accepted times printed in an Eclipse PRT (rounded)')
     parser.add_argument('--debug-timings', action='store_true', help='Record synchronized solver stage timings')
     parser.add_argument('--device', default='cuda:0')
+    parser.add_argument('--amg-rebuild', choices=['step', 'iteration', 'adaptive'])
     args = parser.parse_args()
     if not math.isfinite(args.end) or args.end <= 0:
         parser.error('--end must be finite and positive')
@@ -80,6 +81,9 @@ def main():
                           max_days=args.end, context=context, yield_start=True)
         _, start, summary = next(steps)
         solver, sim = context['solver'], context['sim']
+        if args.amg_rebuild is not None:
+            solver.amg_rebuild = args.amg_rebuild
+            solver._adaptive_amg_policy = None
         manifest['execution_options'] = dict(
             deterministic=torch.are_deterministic_algorithms_enabled(),
             warn_only=torch.is_deterministic_algorithms_warn_only_enabled(),
@@ -137,6 +141,8 @@ def main():
             status.update(day=day, wall_s=time.monotonic() - started,
                           accepted=sum(r[2] for r in samples), failed=sum(1-r[2] for r in samples),
                           last_criteria=criteria)
+            policy = getattr(solver, '_adaptive_amg_policy', None)
+            status['adaptive_amg'] = policy.report() if policy is not None else None
             np.savez_compressed(out / 'summary.npz', **summary)
             np.savez_compressed(out / 'substeps.npz', data=np.asarray(samples))
             (out / 'status.json').write_text(json.dumps(status, indent=2))

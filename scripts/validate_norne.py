@@ -74,6 +74,7 @@ manifest = {
     "cublas_workspace_config": os.environ.get("CUBLAS_WORKSPACE_CONFIG"),
     "requested_days": requested_days, "thread_policy": thread_policy,
     "cpr_reuse_graph": os.environ.get("NORNE_CPR_REUSE_GRAPH", "0"),
+    "amg_rebuild": os.environ.get("NORNE_AMG_REBUILD", "step"),
     "scope": "isothermal Norne reservoir deck; no additional physical surface network",
 }
 manifest_path.write_text(json.dumps(manifest, indent=2))

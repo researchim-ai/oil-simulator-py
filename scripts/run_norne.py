@@ -34,6 +34,9 @@ PROFILE = os.environ.get("NORNE_CONVERGENCE_PROFILE", "strict")
 REPLAY = os.environ.get("NORNE_CPR_REUSE_GRAPH", "0")
 if REPLAY not in ("0", "1"):
     raise ValueError("NORNE_CPR_REUSE_GRAPH must be 0 or 1")
+AMG_REBUILD = os.environ.get("NORNE_AMG_REBUILD", "step")
+if AMG_REBUILD not in ("step", "iteration", "adaptive"):
+    raise ValueError("Invalid NORNE_AMG_REBUILD")
 t0 = time.time()
 H = {"solver": None, "sub": [], "snap_t": [], "snap": {k: [] for k in ("p", "sw", "sg", "so", "rs")},
      "next_snap": 0.0, "summary": None, "pv": None, "status": "running", "error": None}
@@ -61,6 +64,9 @@ def init(self, *a, **k):
 
 
 def step(self, dt, current_time=None):
+    if RESUME and H["solver"] is None and "NORNE_AMG_REBUILD" in os.environ:
+        self.amg_rebuild = AMG_REBUILD
+        self._adaptive_amg_policy = None
     H["solver"] = self
     w0 = time.time()
     ok = orig_step(self, dt, current_time)
@@ -122,6 +128,9 @@ def save_meta(info=None):
                             "relaxed_max_pv_fraction": sol.relaxed_max_pv_fraction,
                             "tol_cnv_relaxed": sol.tol_cnv_relaxed, "tol_mb_relaxed": sol.tol_mb_relaxed},
             "well_events": [list(map(str, e)) for e in (info or {}).get("well_events", [])]}
+    policy = getattr(sol, "_adaptive_amg_policy", None)
+    meta["adaptive_amg"] = policy.report() if policy is not None else None
+    meta["amg_rebuild"] = sol.amg_rebuild
     try:
         meta["cpu"] = next(l.split(":", 1)[1].strip() for l in open("/proc/cpuinfo") if l.startswith("model name"))
     except (OSError, StopIteration):
@@ -166,7 +175,7 @@ DEV = torch.device(os.environ.get("NORNE_DEVICE", "cuda:0" if torch.cuda.is_avai
 thread_policy = configure_norne_threads(DEV)
 try:
     s, info = run_deck(DECK, device=DEV, progress=progress, quiet=False,
-                       sim_overrides={"convergence_profile": PROFILE, "cpr_reuse_graph": REPLAY == "1"},
+                       sim_overrides={"convergence_profile": PROFILE, "cpr_reuse_graph": REPLAY == "1", "amg_rebuild": AMG_REBUILD},
                        max_days=float(sys.argv[1]) if len(sys.argv) > 1 else None,
                        checkpoint=CKPT, checkpoint_every=int(os.environ.get("NORNE_CKPT_EVERY", "1")),
                        resume=RESUME)

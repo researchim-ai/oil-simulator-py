@@ -1,0 +1,36 @@
+import json,shutil
+from pathlib import Path
+import numpy as np
+r=Path('.scratch/norne_adaptive_amg');out=Path('benchmarks/reports/norne_adaptive_amg')
+results={}
+for window in ['early','late']:
+ rows=[]
+ for repeat in range(2):
+  a,b=[r/f'{window}_{tag}_{repeat}' for tag in ['reference','optimized']]
+  if not (b/'substeps.npz').exists() or not (a/'substeps.npz').exists():continue
+  x,y=[np.load(d/'substeps.npz')['data'] for d in (a,b)]
+  name='fields.npz' if window=='early' else 'final_fields.npz'
+  if not all((d/name).exists() for d in (a,b)):continue
+  u,v=[np.load(d/name) for d in (a,b)]
+  fields={k:float(np.max(np.abs(u[k].astype(float)-v[k].astype(float)))) for k in ['p','sw','sg','so','rs']}
+  if window=='early':fields['p']*=1e5
+  su,sv=[np.load(d/'summary.npz') for d in (a,b)]
+  assert np.array_equal(su['TIME'],sv['TIME'])
+  rates={}
+  for k in su.files:
+   if k.split(':')[0] not in ['FOPR','FWPR','FGPR','FWIR','FGIR','WOPR','WWPR','WGPR','WWIR','WGIR']:continue
+   mask=np.isfinite(su[k])&np.isfinite(sv[k])
+   assert np.array_equal(np.isfinite(su[k]),np.isfinite(sv[k]))
+   if mask.any():rates[k]=float(np.max(np.abs(su[k][mask]-sv[k][mask]))/max(1.,float(np.max(np.abs(su[k][mask])))))
+  worst=max(rates,key=rates.get)
+  quality=fields['p']<=1000 and max(fields[k] for k in ['sw','sg','so'])<=1e-5 and rates[worst]<=1e-3
+  meta=json.loads((b/('meta.json' if window=='early' else 'status.json')).read_text())
+  rows.append(dict(reference_s=float(x[:,-1].sum()),adaptive_s=float(y[:,-1].sum()),reference_work=x[:,:4].tolist(),adaptive_work=y[:,:4].tolist(),max_field_differences=fields,worst_rate=worst,worst_rate_relative=rates[worst],screening_passed=quality,adaptive_amg=meta.get('adaptive_amg')))
+  for d in (a,b):
+   target=out/d.name;target.mkdir(exist_ok=True)
+   for name in ['substeps.npz','summary.npz','fields.npz','final_fields.npz','status.json','audit_status.json','manifest.json','meta.json','accepted_substeps.csv']:
+    if (d/name).exists():shutil.copyfile(d/name,target/name)
+ results[window]=rows
+(out/'results.json').write_text(json.dumps(results,indent=2)+'\n')
+for w,rows in results.items():
+ for row in rows:print(w,{k:v for k,v in row.items() if 'work' not in k})
