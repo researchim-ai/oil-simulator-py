@@ -1,0 +1,937 @@
+{
+  "scope": "30-day source-guarded BE time refinement with two operating events; synthetic isothermal black-oil and quasi-steady facility, not full transient PR network or Norne.",
+  "budgets": {
+    "fields": {
+      "final_pressure_pa": 1000.0,
+      "final_s_w": 0.0002,
+      "final_s_g": 0.0002,
+      "final_rs": 0.05,
+      "withdrawal_relative": 0.002
+    },
+    "wells": {
+      "bhp_abs_pa": 1000.0,
+      "component_rate_scaled": 0.002,
+      "cumulative_mass_relative": 0.002
+    },
+    "scope": "Predeclared numerical refinement targets for these synthetic models; not universal industrial tolerances or experimental validation."
+  },
+  "runs": [
+    {
+      "case": "large",
+      "level": 0,
+      "max_step_days": 5.0,
+      "solve_wall_s": 93.31911301200125,
+      "accepted_steps": 9,
+      "rejected_steps": 0,
+      "accepted_fim_evaluations": 57,
+      "accepted_linear_attempts": 185,
+      "execution": {
+        "torch_version": "2.7.0+cu126",
+        "torch_threads": 1,
+        "device_name": "NVIDIA GeForce RTX 3090 Ti",
+        "cuda_peak_allocated_bytes": 409289728,
+        "cuda_peak_reserved_bytes": 679477248,
+        "memory_scope": "PyTorch allocator peak from before model construction through the forecast; excludes CUDA context and other processes",
+        "gathering_backend": "cpu_reference",
+        "hydraulic_backend": "torch_batch"
+      },
+      "final_pressure_min_pa": 2999828.4496123483,
+      "final_pressure_max_pa": 3000000.0000000014,
+      "mass_balance_error_kg": [
+        0.00022561693913303316,
+        4.712131340056658e-05,
+        2.7578198569244705e-05
+      ]
+    },
+    {
+      "case": "large",
+      "level": 1,
+      "max_step_days": 2.5,
+      "solve_wall_s": 122.92721165000148,
+      "accepted_steps": 13,
+      "rejected_steps": 0,
+      "accepted_fim_evaluations": 80,
+      "accepted_linear_attempts": 246,
+      "execution": {
+        "torch_version": "2.7.0+cu126",
+        "torch_threads": 1,
+        "device_name": "NVIDIA GeForce RTX 3090 Ti",
+        "cuda_peak_allocated_bytes": 400153088,
+        "cuda_peak_reserved_bytes": 677380096,
+        "memory_scope": "PyTorch allocator peak from before model construction through the forecast; excludes CUDA context and other processes",
+        "gathering_backend": "cpu_reference",
+        "hydraulic_backend": "torch_batch"
+      },
+      "final_pressure_min_pa": 2999826.2834357633,
+      "final_pressure_max_pa": 3000000.000000002,
+      "mass_balance_error_kg": [
+        8.662175969220698e-05,
+        -1.8149876268580556e-06,
+        1.5639790944987908e-05
+      ]
+    },
+    {
+      "case": "large",
+      "level": 2,
+      "max_step_days": 1.25,
+      "solve_wall_s": 235.82539228599853,
+      "accepted_steps": 25,
+      "rejected_steps": 0,
+      "accepted_fim_evaluations": 152,
+      "accepted_linear_attempts": 490,
+      "execution": {
+        "torch_version": "2.7.0+cu126",
+        "torch_threads": 1,
+        "device_name": "NVIDIA GeForce RTX 3090 Ti",
+        "cuda_peak_allocated_bytes": 402520064,
+        "cuda_peak_reserved_bytes": 725614592,
+        "memory_scope": "PyTorch allocator peak from before model construction through the forecast; excludes CUDA context and other processes",
+        "gathering_backend": "cpu_reference",
+        "hydraulic_backend": "torch_batch"
+      },
+      "final_pressure_min_pa": 2999824.881854132,
+      "final_pressure_max_pa": 3000000.000000003,
+      "mass_balance_error_kg": [
+        5.03584451507777e-05,
+        2.481014234945178e-06,
+        1.262129626411479e-05
+      ]
+    },
+    {
+      "case": "depletion",
+      "level": 0,
+      "max_step_days": 0.5,
+      "solve_wall_s": 79.6831576679997,
+      "accepted_steps": 73,
+      "rejected_steps": 0,
+      "accepted_fim_evaluations": 525,
+      "accepted_linear_attempts": 1770,
+      "execution": {
+        "torch_version": "2.7.0+cu126",
+        "torch_threads": 1,
+        "device_name": "cpu",
+        "cuda_peak_allocated_bytes": null,
+        "cuda_peak_reserved_bytes": null,
+        "memory_scope": "PyTorch allocator peak from before model construction through the forecast; excludes CUDA context and other processes",
+        "gathering_backend": "cpu_reference",
+        "hydraulic_backend": "torch_batch"
+      },
+      "final_pressure_min_pa": 2260752.78170674,
+      "final_pressure_max_pa": 2323791.15010629,
+      "mass_balance_error_kg": [
+        -1.8754508346319199e-07,
+        -1.3563476386480033e-07,
+        -3.8776306610088795e-08
+      ]
+    },
+    {
+      "case": "depletion",
+      "level": 1,
+      "max_step_days": 0.25,
+      "solve_wall_s": 140.6790302169993,
+      "accepted_steps": 132,
+      "rejected_steps": 0,
+      "accepted_fim_evaluations": 894,
+      "accepted_linear_attempts": 3238,
+      "execution": {
+        "torch_version": "2.7.0+cu126",
+        "torch_threads": 1,
+        "device_name": "cpu",
+        "cuda_peak_allocated_bytes": null,
+        "cuda_peak_reserved_bytes": null,
+        "memory_scope": "PyTorch allocator peak from before model construction through the forecast; excludes CUDA context and other processes",
+        "gathering_backend": "cpu_reference",
+        "hydraulic_backend": "torch_batch"
+      },
+      "final_pressure_min_pa": 2261346.0565977897,
+      "final_pressure_max_pa": 2324115.7490434055,
+      "mass_balance_error_kg": [
+        -1.3998578651808202e-07,
+        -1.2733653420582414e-07,
+        -3.127934178337455e-08
+      ]
+    },
+    {
+      "case": "depletion",
+      "level": 2,
+      "max_step_days": 0.125,
+      "solve_wall_s": 241.076035185999,
+      "accepted_steps": 251,
+      "rejected_steps": 0,
+      "accepted_fim_evaluations": 1662,
+      "accepted_linear_attempts": 5514,
+      "execution": {
+        "torch_version": "2.7.0+cu126",
+        "torch_threads": 1,
+        "device_name": "cpu",
+        "cuda_peak_allocated_bytes": null,
+        "cuda_peak_reserved_bytes": null,
+        "memory_scope": "PyTorch allocator peak from before model construction through the forecast; excludes CUDA context and other processes",
+        "gathering_backend": "cpu_reference",
+        "hydraulic_backend": "torch_batch"
+      },
+      "final_pressure_min_pa": 2261643.806909391,
+      "final_pressure_max_pa": 2324282.307281853,
+      "mass_balance_error_kg": [
+        -2.7443456929177046e-07,
+        -1.2787131709046662e-07,
+        -1.5815930964890867e-07
+      ]
+    },
+    {
+      "case": "depletion",
+      "level": 3,
+      "max_step_days": 0.0625,
+      "solve_wall_s": 451.6320833709997,
+      "accepted_steps": 490,
+      "rejected_steps": 0,
+      "accepted_fim_evaluations": 3106,
+      "accepted_linear_attempts": 10485,
+      "execution": {
+        "torch_version": "2.7.0+cu126",
+        "torch_threads": 1,
+        "device_name": "cpu",
+        "cuda_peak_allocated_bytes": null,
+        "cuda_peak_reserved_bytes": null,
+        "memory_scope": "PyTorch allocator peak from before model construction through the forecast; excludes CUDA context and other processes",
+        "gathering_backend": "cpu_reference",
+        "hydraulic_backend": "torch_batch"
+      },
+      "final_pressure_min_pa": 2261792.7823200338,
+      "final_pressure_max_pa": 2324366.1879493413,
+      "mass_balance_error_kg": [
+        -6.14600139670074e-08,
+        -1.0177609510719776e-07,
+        -2.3668781068408862e-07
+      ]
+    },
+    {
+      "case": "depletion",
+      "level": 4,
+      "max_step_days": 0.03125,
+      "solve_wall_s": 865.6175799979992,
+      "accepted_steps": 969,
+      "rejected_steps": 0,
+      "accepted_fim_evaluations": 5838,
+      "accepted_linear_attempts": 19591,
+      "execution": {
+        "torch_version": "2.7.0+cu126",
+        "torch_threads": 1,
+        "device_name": "cpu",
+        "cuda_peak_allocated_bytes": null,
+        "cuda_peak_reserved_bytes": null,
+        "memory_scope": "PyTorch allocator peak from before model construction through the forecast; excludes CUDA context and other processes",
+        "gathering_backend": "cpu_reference",
+        "hydraulic_backend": "torch_batch"
+      },
+      "final_pressure_min_pa": 2261867.2833211166,
+      "final_pressure_max_pa": 2324408.2678668024,
+      "mass_balance_error_kg": [
+        -1.7088677850551903e-07,
+        -1.2356940715108067e-07,
+        -2.1929736249148846e-08
+      ]
+    }
+  ],
+  "checks_against_finest": {
+    "large": [
+      {
+        "scope": "Time-refinement qualification against explicitly declared engineering budgets.\n\nReuses the strict source/PVT/configuration and conservation checks. This is\nnumerical qualification of a declared model, not experimental validation.\n",
+        "accepted": true,
+        "required_days": 30.0,
+        "same_python_and_pvt": true,
+        "refinement_family": "maximum_time_step",
+        "accepted_stages": {
+          "candidate": 9,
+          "reference": 25
+        },
+        "final_fields": {
+          "accepted": true,
+          "errors": {
+            "final_pressure_pa": 3.5677586691454053,
+            "final_s_w": 4.440151140649995e-07,
+            "final_s_g": 1.6917804189046926e-06,
+            "final_rs": 5.351638003503467e-05,
+            "withdrawal_relative": 5.1634237255025726e-05
+          },
+          "budgets": {
+            "final_pressure_pa": 1000.0,
+            "final_s_w": 0.0002,
+            "final_s_g": 0.0002,
+            "final_rs": 0.05,
+            "withdrawal_relative": 0.002
+          },
+          "coarse": "/home/user/workspace/oil-simulator-py-impes/.scratch/engineering_profile/large_run0/trajectory.json.gz",
+          "fine": "/home/user/workspace/oil-simulator-py-impes/.scratch/engineering_profile/large_run2/trajectory.json.gz",
+          "scope": "Compare completed operational forecasts at the final common report endpoint.\n\nBudgets must be supplied before inspecting the reference result. This is a\nstep-refinement check, not a proof that the finer trajectory is exact.\n",
+          "allowed_numerical_policy_differences": [
+            "simulation.max_time_step_days",
+            "simulation.initial_time_step_days",
+            "coupled_facility.time_control",
+            "coupled_facility.temporal_control",
+            "coupled_facility.control.search_method",
+            "coupled_facility.control.sensitivity_sparse_budget_bytes",
+            "coupled_facility.control.commit_method",
+            "coupled_facility.control.reuse_inactive_caps",
+            "coupled_facility.control.inactive_cap_certificate_version",
+            "coupled_facility.control.reuse_initial_cell_state",
+            "coupled_facility.control.initial_cell_state_cache_bytes",
+            "coupled_facility.control.reuse_capacity_amg",
+            "physical_surface_network.sensitivity_backend",
+            "physical_surface_network.network_backend",
+            "physical_surface_network.bhp_initialization",
+            "physical_surface_network.well_block_backend",
+            "physical_surface_network.structured_memory_budget_bytes",
+            "physical_surface_network.network.hydraulic_backend",
+            "physical_surface_network.network.pipe_batch_size"
+          ]
+        },
+        "well_trajectories": {
+          "scope": "Compare actual well rates/BHP and cumulative mass at coarse report endpoints.\n\nBoth bundles must independently pass full facility accounting first. This is\nstep refinement, not a proof that either trajectory is exact or calibrated.\n",
+          "accepted": true,
+          "matched_endpoints_days": [
+            5.0,
+            10.0,
+            15.0,
+            20.0,
+            25.0,
+            30.0
+          ],
+          "mode_mismatches": 0,
+          "errors": {
+            "bhp_abs_pa": 5.994338823016733,
+            "component_rate_scaled": 0.0007777994785234027,
+            "cumulative_mass_relative": 0.00021602656492595342
+          },
+          "budgets": {
+            "bhp_abs_pa": 1000.0,
+            "component_rate_scaled": 0.002,
+            "cumulative_mass_relative": 0.002
+          },
+          "component_rate_floor_kg_s": 1e-08,
+          "allow_numerical_policy": true
+        },
+        "observed_solve_wall_s": {
+          "candidate": 93.31911301200125,
+          "reference": 235.82539228599853
+        },
+        "timing_scope": "Shared host observations, not an isolated speed benchmark",
+        "declared_budgets": {
+          "fields": {
+            "final_pressure_pa": 1000.0,
+            "final_s_w": 0.0002,
+            "final_s_g": 0.0002,
+            "final_rs": 0.05,
+            "withdrawal_relative": 0.002
+          },
+          "wells": {
+            "bhp_abs_pa": 1000.0,
+            "component_rate_scaled": 0.002,
+            "cumulative_mass_relative": 0.002
+          },
+          "scope": "Predeclared numerical refinement targets for these synthetic models; not universal industrial tolerances or experimental validation."
+        },
+        "accuracy_scope": "Final reservoir fields and well histories at common report dates; two discretizations, not a bound against the exact solution.",
+        "candidate_level": 0
+      },
+      {
+        "scope": "Time-refinement qualification against explicitly declared engineering budgets.\n\nReuses the strict source/PVT/configuration and conservation checks. This is\nnumerical qualification of a declared model, not experimental validation.\n",
+        "accepted": true,
+        "required_days": 30.0,
+        "same_python_and_pvt": true,
+        "refinement_family": "maximum_time_step",
+        "accepted_stages": {
+          "candidate": 13,
+          "reference": 25
+        },
+        "final_fields": {
+          "accepted": true,
+          "errors": {
+            "final_pressure_pa": 1.401581795886159,
+            "final_s_w": 1.7453604833628233e-07,
+            "final_s_g": 6.649942946301834e-07,
+            "final_rs": 2.1023726930025077e-05,
+            "withdrawal_relative": 5.976022326210993e-06
+          },
+          "budgets": {
+            "final_pressure_pa": 1000.0,
+            "final_s_w": 0.0002,
+            "final_s_g": 0.0002,
+            "final_rs": 0.05,
+            "withdrawal_relative": 0.002
+          },
+          "coarse": "/home/user/workspace/oil-simulator-py-impes/.scratch/engineering_profile/large_run1/trajectory.json.gz",
+          "fine": "/home/user/workspace/oil-simulator-py-impes/.scratch/engineering_profile/large_run2/trajectory.json.gz",
+          "scope": "Compare completed operational forecasts at the final common report endpoint.\n\nBudgets must be supplied before inspecting the reference result. This is a\nstep-refinement check, not a proof that the finer trajectory is exact.\n",
+          "allowed_numerical_policy_differences": [
+            "simulation.max_time_step_days",
+            "simulation.initial_time_step_days",
+            "coupled_facility.time_control",
+            "coupled_facility.temporal_control",
+            "coupled_facility.control.search_method",
+            "coupled_facility.control.sensitivity_sparse_budget_bytes",
+            "coupled_facility.control.commit_method",
+            "coupled_facility.control.reuse_inactive_caps",
+            "coupled_facility.control.inactive_cap_certificate_version",
+            "coupled_facility.control.reuse_initial_cell_state",
+            "coupled_facility.control.initial_cell_state_cache_bytes",
+            "coupled_facility.control.reuse_capacity_amg",
+            "physical_surface_network.sensitivity_backend",
+            "physical_surface_network.network_backend",
+            "physical_surface_network.bhp_initialization",
+            "physical_surface_network.well_block_backend",
+            "physical_surface_network.structured_memory_budget_bytes",
+            "physical_surface_network.network.hydraulic_backend",
+            "physical_surface_network.network.pipe_batch_size"
+          ]
+        },
+        "well_trajectories": {
+          "scope": "Compare actual well rates/BHP and cumulative mass at coarse report endpoints.\n\nBoth bundles must independently pass full facility accounting first. This is\nstep refinement, not a proof that either trajectory is exact or calibrated.\n",
+          "accepted": true,
+          "matched_endpoints_days": [
+            5.0,
+            10.0,
+            15.0,
+            20.0,
+            25.0,
+            30.0
+          ],
+          "mode_mismatches": 0,
+          "errors": {
+            "bhp_abs_pa": 2.769546580966562,
+            "component_rate_scaled": 0.0008093861927544881,
+            "cumulative_mass_relative": 0.00013514083470315274
+          },
+          "budgets": {
+            "bhp_abs_pa": 1000.0,
+            "component_rate_scaled": 0.002,
+            "cumulative_mass_relative": 0.002
+          },
+          "component_rate_floor_kg_s": 1e-08,
+          "allow_numerical_policy": true
+        },
+        "observed_solve_wall_s": {
+          "candidate": 122.92721165000148,
+          "reference": 235.82539228599853
+        },
+        "timing_scope": "Shared host observations, not an isolated speed benchmark",
+        "declared_budgets": {
+          "fields": {
+            "final_pressure_pa": 1000.0,
+            "final_s_w": 0.0002,
+            "final_s_g": 0.0002,
+            "final_rs": 0.05,
+            "withdrawal_relative": 0.002
+          },
+          "wells": {
+            "bhp_abs_pa": 1000.0,
+            "component_rate_scaled": 0.002,
+            "cumulative_mass_relative": 0.002
+          },
+          "scope": "Predeclared numerical refinement targets for these synthetic models; not universal industrial tolerances or experimental validation."
+        },
+        "accuracy_scope": "Final reservoir fields and well histories at common report dates; two discretizations, not a bound against the exact solution.",
+        "candidate_level": 1
+      }
+    ],
+    "depletion": [
+      {
+        "scope": "Time-refinement qualification against explicitly declared engineering budgets.\n\nReuses the strict source/PVT/configuration and conservation checks. This is\nnumerical qualification of a declared model, not experimental validation.\n",
+        "accepted": false,
+        "required_days": 30.0,
+        "same_python_and_pvt": true,
+        "refinement_family": "maximum_time_step",
+        "accepted_stages": {
+          "candidate": 73,
+          "reference": 969
+        },
+        "final_fields": {
+          "accepted": false,
+          "errors": {
+            "final_pressure_pa": 1114.5016143964604,
+            "final_s_w": 0.00013659816725564156,
+            "final_s_g": 0.0005479500438500817,
+            "final_rs": 0.016717524215948742,
+            "withdrawal_relative": 0.006825640373607708
+          },
+          "budgets": {
+            "final_pressure_pa": 1000.0,
+            "final_s_w": 0.0002,
+            "final_s_g": 0.0002,
+            "final_rs": 0.05,
+            "withdrawal_relative": 0.002
+          },
+          "coarse": "/home/user/workspace/oil-simulator-py-impes/.scratch/engineering_profile/depletion_run0/trajectory.json.gz",
+          "fine": "/home/user/workspace/oil-simulator-py-impes/.scratch/engineering_profile/depletion_run4/trajectory.json.gz",
+          "scope": "Compare completed operational forecasts at the final common report endpoint.\n\nBudgets must be supplied before inspecting the reference result. This is a\nstep-refinement check, not a proof that the finer trajectory is exact.\n",
+          "allowed_numerical_policy_differences": [
+            "simulation.max_time_step_days",
+            "simulation.initial_time_step_days",
+            "coupled_facility.time_control",
+            "coupled_facility.temporal_control",
+            "coupled_facility.control.search_method",
+            "coupled_facility.control.sensitivity_sparse_budget_bytes",
+            "coupled_facility.control.commit_method",
+            "coupled_facility.control.reuse_inactive_caps",
+            "coupled_facility.control.inactive_cap_certificate_version",
+            "coupled_facility.control.reuse_initial_cell_state",
+            "coupled_facility.control.initial_cell_state_cache_bytes",
+            "coupled_facility.control.reuse_capacity_amg",
+            "physical_surface_network.sensitivity_backend",
+            "physical_surface_network.network_backend",
+            "physical_surface_network.bhp_initialization",
+            "physical_surface_network.well_block_backend",
+            "physical_surface_network.structured_memory_budget_bytes",
+            "physical_surface_network.network.hydraulic_backend",
+            "physical_surface_network.network.pipe_batch_size"
+          ]
+        },
+        "well_trajectories": {
+          "scope": "Compare actual well rates/BHP and cumulative mass at coarse report endpoints.\n\nBoth bundles must independently pass full facility accounting first. This is\nstep refinement, not a proof that either trajectory is exact or calibrated.\n",
+          "accepted": false,
+          "matched_endpoints_days": [
+            1.0,
+            2.0,
+            3.0,
+            4.0,
+            5.0,
+            6.0,
+            7.0,
+            8.0,
+            9.0,
+            10.0,
+            11.0,
+            12.0,
+            13.0,
+            14.0,
+            15.0,
+            16.0,
+            17.0,
+            18.0,
+            19.0,
+            20.0,
+            21.0,
+            22.0,
+            23.0,
+            24.0,
+            25.0,
+            26.0,
+            27.0,
+            28.0,
+            29.0,
+            30.0
+          ],
+          "mode_mismatches": 0,
+          "errors": {
+            "bhp_abs_pa": 2378.6487250640057,
+            "component_rate_scaled": 0.014607712469878575,
+            "cumulative_mass_relative": 0.016091769428721567
+          },
+          "budgets": {
+            "bhp_abs_pa": 1000.0,
+            "component_rate_scaled": 0.002,
+            "cumulative_mass_relative": 0.002
+          },
+          "component_rate_floor_kg_s": 1e-08,
+          "allow_numerical_policy": true
+        },
+        "observed_solve_wall_s": {
+          "candidate": 79.6831576679997,
+          "reference": 865.6175799979992
+        },
+        "timing_scope": "Shared host observations, not an isolated speed benchmark",
+        "declared_budgets": {
+          "fields": {
+            "final_pressure_pa": 1000.0,
+            "final_s_w": 0.0002,
+            "final_s_g": 0.0002,
+            "final_rs": 0.05,
+            "withdrawal_relative": 0.002
+          },
+          "wells": {
+            "bhp_abs_pa": 1000.0,
+            "component_rate_scaled": 0.002,
+            "cumulative_mass_relative": 0.002
+          },
+          "scope": "Predeclared numerical refinement targets for these synthetic models; not universal industrial tolerances or experimental validation."
+        },
+        "accuracy_scope": "Final reservoir fields and well histories at common report dates; two discretizations, not a bound against the exact solution.",
+        "candidate_level": 0
+      },
+      {
+        "scope": "Time-refinement qualification against explicitly declared engineering budgets.\n\nReuses the strict source/PVT/configuration and conservation checks. This is\nnumerical qualification of a declared model, not experimental validation.\n",
+        "accepted": false,
+        "required_days": 30.0,
+        "same_python_and_pvt": true,
+        "refinement_family": "maximum_time_step",
+        "accepted_stages": {
+          "candidate": 132,
+          "reference": 969
+        },
+        "final_fields": {
+          "accepted": false,
+          "errors": {
+            "final_pressure_pa": 521.2267233468592,
+            "final_s_w": 6.561506001800943e-05,
+            "final_s_g": 0.0002629438993814598,
+            "final_rs": 0.007818400850212015,
+            "withdrawal_relative": 0.0032115564555203332
+          },
+          "budgets": {
+            "final_pressure_pa": 1000.0,
+            "final_s_w": 0.0002,
+            "final_s_g": 0.0002,
+            "final_rs": 0.05,
+            "withdrawal_relative": 0.002
+          },
+          "coarse": "/home/user/workspace/oil-simulator-py-impes/.scratch/engineering_profile/depletion_run1/trajectory.json.gz",
+          "fine": "/home/user/workspace/oil-simulator-py-impes/.scratch/engineering_profile/depletion_run4/trajectory.json.gz",
+          "scope": "Compare completed operational forecasts at the final common report endpoint.\n\nBudgets must be supplied before inspecting the reference result. This is a\nstep-refinement check, not a proof that the finer trajectory is exact.\n",
+          "allowed_numerical_policy_differences": [
+            "simulation.max_time_step_days",
+            "simulation.initial_time_step_days",
+            "coupled_facility.time_control",
+            "coupled_facility.temporal_control",
+            "coupled_facility.control.search_method",
+            "coupled_facility.control.sensitivity_sparse_budget_bytes",
+            "coupled_facility.control.commit_method",
+            "coupled_facility.control.reuse_inactive_caps",
+            "coupled_facility.control.inactive_cap_certificate_version",
+            "coupled_facility.control.reuse_initial_cell_state",
+            "coupled_facility.control.initial_cell_state_cache_bytes",
+            "coupled_facility.control.reuse_capacity_amg",
+            "physical_surface_network.sensitivity_backend",
+            "physical_surface_network.network_backend",
+            "physical_surface_network.bhp_initialization",
+            "physical_surface_network.well_block_backend",
+            "physical_surface_network.structured_memory_budget_bytes",
+            "physical_surface_network.network.hydraulic_backend",
+            "physical_surface_network.network.pipe_batch_size"
+          ]
+        },
+        "well_trajectories": {
+          "scope": "Compare actual well rates/BHP and cumulative mass at coarse report endpoints.\n\nBoth bundles must independently pass full facility accounting first. This is\nstep refinement, not a proof that either trajectory is exact or calibrated.\n",
+          "accepted": false,
+          "matched_endpoints_days": [
+            1.0,
+            2.0,
+            3.0,
+            4.0,
+            5.0,
+            6.0,
+            7.0,
+            8.0,
+            9.0,
+            10.0,
+            11.0,
+            12.0,
+            13.0,
+            14.0,
+            15.0,
+            16.0,
+            17.0,
+            18.0,
+            19.0,
+            20.0,
+            21.0,
+            22.0,
+            23.0,
+            24.0,
+            25.0,
+            26.0,
+            27.0,
+            28.0,
+            29.0,
+            30.0
+          ],
+          "mode_mismatches": 0,
+          "errors": {
+            "bhp_abs_pa": 1144.039333825931,
+            "component_rate_scaled": 0.006909604840097626,
+            "cumulative_mass_relative": 0.007842237078967485
+          },
+          "budgets": {
+            "bhp_abs_pa": 1000.0,
+            "component_rate_scaled": 0.002,
+            "cumulative_mass_relative": 0.002
+          },
+          "component_rate_floor_kg_s": 1e-08,
+          "allow_numerical_policy": true
+        },
+        "observed_solve_wall_s": {
+          "candidate": 140.6790302169993,
+          "reference": 865.6175799979992
+        },
+        "timing_scope": "Shared host observations, not an isolated speed benchmark",
+        "declared_budgets": {
+          "fields": {
+            "final_pressure_pa": 1000.0,
+            "final_s_w": 0.0002,
+            "final_s_g": 0.0002,
+            "final_rs": 0.05,
+            "withdrawal_relative": 0.002
+          },
+          "wells": {
+            "bhp_abs_pa": 1000.0,
+            "component_rate_scaled": 0.002,
+            "cumulative_mass_relative": 0.002
+          },
+          "scope": "Predeclared numerical refinement targets for these synthetic models; not universal industrial tolerances or experimental validation."
+        },
+        "accuracy_scope": "Final reservoir fields and well histories at common report dates; two discretizations, not a bound against the exact solution.",
+        "candidate_level": 1
+      },
+      {
+        "scope": "Time-refinement qualification against explicitly declared engineering budgets.\n\nReuses the strict source/PVT/configuration and conservation checks. This is\nnumerical qualification of a declared model, not experimental validation.\n",
+        "accepted": false,
+        "required_days": 30.0,
+        "same_python_and_pvt": true,
+        "refinement_family": "maximum_time_step",
+        "accepted_stages": {
+          "candidate": 251,
+          "reference": 969
+        },
+        "final_fields": {
+          "accepted": true,
+          "errors": {
+            "final_pressure_pa": 223.47641172539443,
+            "final_s_w": 2.8459700758598494e-05,
+            "final_s_g": 0.00011398924526047349,
+            "final_rs": 0.0033521461758851956,
+            "withdrawal_relative": 0.0013802255211080342
+          },
+          "budgets": {
+            "final_pressure_pa": 1000.0,
+            "final_s_w": 0.0002,
+            "final_s_g": 0.0002,
+            "final_rs": 0.05,
+            "withdrawal_relative": 0.002
+          },
+          "coarse": "/home/user/workspace/oil-simulator-py-impes/.scratch/engineering_profile/depletion_run2/trajectory.json.gz",
+          "fine": "/home/user/workspace/oil-simulator-py-impes/.scratch/engineering_profile/depletion_run4/trajectory.json.gz",
+          "scope": "Compare completed operational forecasts at the final common report endpoint.\n\nBudgets must be supplied before inspecting the reference result. This is a\nstep-refinement check, not a proof that the finer trajectory is exact.\n",
+          "allowed_numerical_policy_differences": [
+            "simulation.max_time_step_days",
+            "simulation.initial_time_step_days",
+            "coupled_facility.time_control",
+            "coupled_facility.temporal_control",
+            "coupled_facility.control.search_method",
+            "coupled_facility.control.sensitivity_sparse_budget_bytes",
+            "coupled_facility.control.commit_method",
+            "coupled_facility.control.reuse_inactive_caps",
+            "coupled_facility.control.inactive_cap_certificate_version",
+            "coupled_facility.control.reuse_initial_cell_state",
+            "coupled_facility.control.initial_cell_state_cache_bytes",
+            "coupled_facility.control.reuse_capacity_amg",
+            "physical_surface_network.sensitivity_backend",
+            "physical_surface_network.network_backend",
+            "physical_surface_network.bhp_initialization",
+            "physical_surface_network.well_block_backend",
+            "physical_surface_network.structured_memory_budget_bytes",
+            "physical_surface_network.network.hydraulic_backend",
+            "physical_surface_network.network.pipe_batch_size"
+          ]
+        },
+        "well_trajectories": {
+          "scope": "Compare actual well rates/BHP and cumulative mass at coarse report endpoints.\n\nBoth bundles must independently pass full facility accounting first. This is\nstep refinement, not a proof that either trajectory is exact or calibrated.\n",
+          "accepted": false,
+          "matched_endpoints_days": [
+            1.0,
+            2.0,
+            3.0,
+            4.0,
+            5.0,
+            6.0,
+            7.0,
+            8.0,
+            9.0,
+            10.0,
+            11.0,
+            12.0,
+            13.0,
+            14.0,
+            15.0,
+            16.0,
+            17.0,
+            18.0,
+            19.0,
+            20.0,
+            21.0,
+            22.0,
+            23.0,
+            24.0,
+            25.0,
+            26.0,
+            27.0,
+            28.0,
+            29.0,
+            30.0
+          ],
+          "mode_mismatches": 0,
+          "errors": {
+            "bhp_abs_pa": 496.00552210584283,
+            "component_rate_scaled": 0.0029547976464360548,
+            "cumulative_mass_relative": 0.003386449103729947
+          },
+          "budgets": {
+            "bhp_abs_pa": 1000.0,
+            "component_rate_scaled": 0.002,
+            "cumulative_mass_relative": 0.002
+          },
+          "component_rate_floor_kg_s": 1e-08,
+          "allow_numerical_policy": true
+        },
+        "observed_solve_wall_s": {
+          "candidate": 241.076035185999,
+          "reference": 865.6175799979992
+        },
+        "timing_scope": "Shared host observations, not an isolated speed benchmark",
+        "declared_budgets": {
+          "fields": {
+            "final_pressure_pa": 1000.0,
+            "final_s_w": 0.0002,
+            "final_s_g": 0.0002,
+            "final_rs": 0.05,
+            "withdrawal_relative": 0.002
+          },
+          "wells": {
+            "bhp_abs_pa": 1000.0,
+            "component_rate_scaled": 0.002,
+            "cumulative_mass_relative": 0.002
+          },
+          "scope": "Predeclared numerical refinement targets for these synthetic models; not universal industrial tolerances or experimental validation."
+        },
+        "accuracy_scope": "Final reservoir fields and well histories at common report dates; two discretizations, not a bound against the exact solution.",
+        "candidate_level": 2
+      },
+      {
+        "scope": "Time-refinement qualification against explicitly declared engineering budgets.\n\nReuses the strict source/PVT/configuration and conservation checks. This is\nnumerical qualification of a declared model, not experimental validation.\n",
+        "accepted": true,
+        "required_days": 30.0,
+        "same_python_and_pvt": true,
+        "refinement_family": "maximum_time_step",
+        "accepted_stages": {
+          "candidate": 490,
+          "reference": 969
+        },
+        "final_fields": {
+          "accepted": true,
+          "errors": {
+            "final_pressure_pa": 74.5010010828264,
+            "final_s_w": 9.55241227029724e-06,
+            "final_s_g": 3.82499920638657e-05,
+            "final_rs": 0.0011175150162472391,
+            "withdrawal_relative": 0.00046075787793547113
+          },
+          "budgets": {
+            "final_pressure_pa": 1000.0,
+            "final_s_w": 0.0002,
+            "final_s_g": 0.0002,
+            "final_rs": 0.05,
+            "withdrawal_relative": 0.002
+          },
+          "coarse": "/home/user/workspace/oil-simulator-py-impes/.scratch/engineering_profile/depletion_run3/trajectory.json.gz",
+          "fine": "/home/user/workspace/oil-simulator-py-impes/.scratch/engineering_profile/depletion_run4/trajectory.json.gz",
+          "scope": "Compare completed operational forecasts at the final common report endpoint.\n\nBudgets must be supplied before inspecting the reference result. This is a\nstep-refinement check, not a proof that the finer trajectory is exact.\n",
+          "allowed_numerical_policy_differences": [
+            "simulation.max_time_step_days",
+            "simulation.initial_time_step_days",
+            "coupled_facility.time_control",
+            "coupled_facility.temporal_control",
+            "coupled_facility.control.search_method",
+            "coupled_facility.control.sensitivity_sparse_budget_bytes",
+            "coupled_facility.control.commit_method",
+            "coupled_facility.control.reuse_inactive_caps",
+            "coupled_facility.control.inactive_cap_certificate_version",
+            "coupled_facility.control.reuse_initial_cell_state",
+            "coupled_facility.control.initial_cell_state_cache_bytes",
+            "coupled_facility.control.reuse_capacity_amg",
+            "physical_surface_network.sensitivity_backend",
+            "physical_surface_network.network_backend",
+            "physical_surface_network.bhp_initialization",
+            "physical_surface_network.well_block_backend",
+            "physical_surface_network.structured_memory_budget_bytes",
+            "physical_surface_network.network.hydraulic_backend",
+            "physical_surface_network.network.pipe_batch_size"
+          ]
+        },
+        "well_trajectories": {
+          "scope": "Compare actual well rates/BHP and cumulative mass at coarse report endpoints.\n\nBoth bundles must independently pass full facility accounting first. This is\nstep refinement, not a proof that either trajectory is exact or calibrated.\n",
+          "accepted": true,
+          "matched_endpoints_days": [
+            1.0,
+            2.0,
+            3.0,
+            4.0,
+            5.0,
+            6.0,
+            7.0,
+            8.0,
+            9.0,
+            10.0,
+            11.0,
+            12.0,
+            13.0,
+            14.0,
+            15.0,
+            16.0,
+            17.0,
+            18.0,
+            19.0,
+            20.0,
+            21.0,
+            22.0,
+            23.0,
+            24.0,
+            25.0,
+            26.0,
+            27.0,
+            28.0,
+            29.0,
+            30.0
+          ],
+          "mode_mismatches": 0,
+          "errors": {
+            "bhp_abs_pa": 166.24712436040863,
+            "component_rate_scaled": 0.0009819808284755778,
+            "cumulative_mass_relative": 0.0011304427507314592
+          },
+          "budgets": {
+            "bhp_abs_pa": 1000.0,
+            "component_rate_scaled": 0.002,
+            "cumulative_mass_relative": 0.002
+          },
+          "component_rate_floor_kg_s": 1e-08,
+          "allow_numerical_policy": true
+        },
+        "observed_solve_wall_s": {
+          "candidate": 451.6320833709997,
+          "reference": 865.6175799979992
+        },
+        "timing_scope": "Shared host observations, not an isolated speed benchmark",
+        "declared_budgets": {
+          "fields": {
+            "final_pressure_pa": 1000.0,
+            "final_s_w": 0.0002,
+            "final_s_g": 0.0002,
+            "final_rs": 0.05,
+            "withdrawal_relative": 0.002
+          },
+          "wells": {
+            "bhp_abs_pa": 1000.0,
+            "component_rate_scaled": 0.002,
+            "cumulative_mass_relative": 0.002
+          },
+          "scope": "Predeclared numerical refinement targets for these synthetic models; not universal industrial tolerances or experimental validation."
+        },
+        "accuracy_scope": "Final reservoir fields and well histories at common report dates; two discretizations, not a bound against the exact solution.",
+        "candidate_level": 3
+      }
+    ]
+  },
+  "selected_levels": {
+    "large": 0,
+    "depletion": 3
+  },
+  "timing_scope": "Shared host/GPU. CPU and GPU cases and some CPU refinement levels overlap. Integration time excludes model construction, Python import and final artifact audit. No isolated acceleration claim."
+}

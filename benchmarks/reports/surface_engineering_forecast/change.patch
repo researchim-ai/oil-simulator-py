@@ -1,0 +1,390 @@
+--- before/src/simulator/facility_coupling.py
++++ after/src/simulator/facility_coupling.py
+@@ -37,6 +37,7 @@
+         capacity_history_slopes,
+         facility_constraint_margin,
+         facility_constraint_margins,
++        local_capacity_bracket,
+     )
+     from ..surface.gas_valve import GasValveCapacityError
+     from ..surface.liquid import InvalidPressureError
+@@ -55,6 +56,7 @@
+         capacity_history_slopes,
+         facility_constraint_margin,
+         facility_constraint_margins,
++        local_capacity_bracket,
+     )
+     from surface.gas_valve import GasValveCapacityError
+     from surface.liquid import InvalidPressureError
+@@ -74,9 +76,12 @@
+     initial_cell_state_cache_bytes: int = 64 * 1024**2
+     reuse_capacity_amg: bool = False
+     reuse_capacity_history: bool = False
++    continuation_scan_interval: int = 16
+     sensitivity_sparse_budget_bytes: int = 256 * 1024**2
+ 
+     def __post_init__(self):
++        if type(self.continuation_scan_interval) is not int or self.continuation_scan_interval < 1:
++            raise ValueError('continuation_scan_interval must be a positive integer')
+         if type(self.reuse_capacity_history) is not bool:
+             raise ValueError('reuse_capacity_history must be boolean')
+         if (type(self.inactive_cap_certificate_version) is not int
+@@ -94,7 +99,7 @@
+             raise ValueError("reuse_inactive_caps must be boolean")
+         if self.commit_method not in ("replay", "state_restore"):
+             raise ValueError("commit_method must be replay or state_restore")
+-        if self.search_method not in ("safeguarded", "facet_safeguarded", "sensitivity_safeguarded", "bisect"):
++        if self.search_method not in ("safeguarded", "facet_safeguarded", "sensitivity_safeguarded", "continuation_safeguarded", "bisect"):
+             raise ValueError("Unknown capacity search_method")
+         if not 0 < self.min_fraction <= 1 or not math.isfinite(self.min_fraction):
+             raise ValueError("min_fraction must be in (0,1]")
+@@ -512,35 +517,63 @@
+         try:
+             final_bracket = None
+             capacity_commit = None
+-            ok, plant = trial(1.0)
++            local = None
++            continuation_age = 0
++            continuation_reason = 'full_scan'
++            if (self.control.search_method == 'continuation_safeguarded'
++                    and self._continuous_controls()
++                    and previous.get('requested_rate_caps_m3_day') == caps
++                    and self.control.min_fraction < previous['fraction'] < 1):
++                age = previous.get('capacity_continuation', {}).get('age', 0)
++                if age < self.control.continuation_scan_interval - 1:
++                    slopes = capacity_history_slopes(previous['trace'], previous['fraction'],
++                                                     self.control.fraction_tolerance)
++                    def evaluate_local(fraction):
++                        trial(fraction)
++                        return trace[-1]
++                    if slopes:
++                        local = local_capacity_bracket(evaluate_local, previous['fraction'], slopes,
++                                                       self.control.min_fraction, self.control.fraction_tolerance)
++                    continuation_reason = 'local_bracket' if local is not None else 'probe_fallback'
++                    if local is not None:
++                        continuation_age = age + 1
++                else:
++                    continuation_reason = 'periodic_scan'
++            ok, plant = trial(1.0) if local is None else (False, None)
+             chosen = 1.0
+             if not ok:
+-                grid = [
+-                    self.control.min_fraction
+-                    + (1 - self.control.min_fraction) * i / (self.control.scan_points - 1)
+-                    for i in range(self.control.scan_points - 1)
+-                ]
+-                outcomes = [trial(f)[0] for f in grid]
+-                good = [i for i, x in enumerate(outcomes) if x]
+-                if not good:
+-                    raise EquipmentOperatingError(
+-                        "No sampled feasible coupled reservoir/facility rate cap"
+-                    )
+-                if good != list(range(good[0], good[-1] + 1)):
+-                    raise EquipmentOperatingError(
+-                        "Disconnected feasible rate-cap regions require a different optimizer"
+-                    )
+-                i = good[-1]
+-                low = grid[i]
+-                high = grid[i + 1] if i + 1 < len(grid) else 1.0
++                if local is None:
++                    grid = [
++                        self.control.min_fraction
++                        + (1 - self.control.min_fraction) * i / (self.control.scan_points - 1)
++                        for i in range(self.control.scan_points - 1)
++                    ]
++                    for fraction in grid:
++                        trial(fraction)
++                    # Include any local fallback probes in the sampled-domain
++                    # consistency check and in selection of the best endpoint.
++                    samples = {row['fraction']: row for row in trace}
++                    points = sorted(samples)
++                    good = [i for i,x in enumerate(points) if samples[x]['feasible']]
++                    if not good:
++                        raise EquipmentOperatingError(
++                            "No sampled feasible coupled reservoir/facility rate cap"
++                        )
++                    if good != list(range(good[0], good[-1] + 1)):
++                        raise EquipmentOperatingError(
++                            "Disconnected feasible rate-cap regions require a different optimizer"
++                        )
++                    low, high = points[good[-1]], points[good[-1]+1]
++                else:
++                    low, high = local[0]['fraction'], local[1]['fraction']
+                 margins = {row["fraction"]: row["normalized_margin"] for row in trace}
+                 facets = ({row["fraction"]: row.get("constraint_margins") for row in trace}
+-                          if self.control.search_method in ('facet_safeguarded', 'sensitivity_safeguarded') else {})
++                          if self.control.search_method in ('facet_safeguarded', 'sensitivity_safeguarded', 'continuation_safeguarded') else {})
+                 bracket = CapacityBracket(
+                     low, high, self.control.fraction_tolerance, margins[low], margins[high],
+                     low_margins=facets.get(low), high_margins=facets.get(high)
+                 )
+-                if self.control.search_method != "bisect" and previous is not None:
++                if self.control.search_method != "bisect" and previous is not None and local is None:
+                     warm = previous["fraction"]
+                     anchor = previous.get('capacity_history_anchor')
+                     if (history_slopes and anchor is not None
+@@ -572,6 +605,13 @@
+                         if self.control.search_method == "bisect"
+                         else predicted if predicted is not None else bracket.proposal()
+                     )
++                    if self.control.search_method == 'continuation_safeguarded' and local is not None:
++                        # Probe slightly above the predicted crossing to close
++                        # the bracket instead of repeatedly improving only its
++                        # feasible end. Every proposal is still solved, and
++                        # the original bracket-width tolerance is unchanged.
++                        mid = min(bracket.high-self.control.fraction_tolerance/4,
++                                  mid+self.control.fraction_tolerance/4)
+                     request_tangent = request_tangent or bracket.slow_updates >= 2
+                     prediction_bracket = (bracket.low, bracket.high)
+                     status, _ = trial(mid)
+@@ -660,6 +700,12 @@
+             }
+             if capacity_commit is not None:
+                 self.report["capacity_commit"] = capacity_commit
++            if self.control.search_method == 'continuation_safeguarded':
++                self.report['capacity_continuation'] = {
++                    'used': local is not None, 'age': continuation_age,
++                    'scan_interval': self.control.continuation_scan_interval,
++                    'reason': continuation_reason,
++                    'scope': 'Local operating branch with periodic full sampling, not a global optimum certificate.'}
+             if self.control.reuse_capacity_history:
+                 self.report['capacity_history_proposals'] = history_proposals
+                 self.report['capacity_history_anchor'] = (
+--- before/src/surface/capacity_bracket.py
++++ after/src/surface/capacity_bracket.py
+@@ -8,6 +8,47 @@
+ 
+ import math
+ from dataclasses import dataclass
++
++
++def local_capacity_bracket(evaluate, fraction, slopes, minimum, tolerance):
++    """Track a nearby operating branch using only evaluated endpoints.
++
++    No global optimum is certified. Missing slopes, a remote root or four
++    unsuccessful probes request the caller's full domain scan instead.
++    """
++    rows = []
++    point = fraction
++    lower, upper = max(minimum, .8*fraction), min(1., 1.2*fraction)
++    for _ in range(4):
++        if any(point == r['fraction'] for r in rows):
++            return None
++        row = evaluate(point)
++        rows.append(row)
++        feasible = [r for r in rows if r['feasible']]
++        infeasible = [r for r in rows if not r['feasible']]
++        if feasible and infeasible:
++            low = max(feasible, key=lambda r:r['fraction'])
++            high = min(infeasible, key=lambda r:r['fraction'])
++            return (low, high) if low['fraction'] < high['fraction'] else None
++        margins = row.get('constraint_margins') or {}
++        if not margins or any(v is None or not math.isfinite(v) for v in margins.values()):
++            return None
++        if any(v > 0 and k not in slopes for k,v in margins.items()):
++            return None
++        roots = [point-v/slopes[k] for k,v in margins.items()
++                 if k in slopes and math.isfinite(slopes[k]) and slopes[k] > 0]
++        if not roots:
++            return None
++        root = min(roots)
++        proposed = root + (tolerance/2 if row['feasible'] else -tolerance/2)
++        if row['feasible']:
++            proposed = max(point+tolerance, proposed)
++        else:
++            proposed = min(point-tolerance, proposed)
++        if not lower <= proposed <= upper or proposed == point:
++            return None
++        point = proposed
++    return None
+ 
+ 
+ def capacity_history_slopes(trace, fraction, tolerance):
+--- before/src/simulator/capacity_continuation_audit.py
++++ after/src/simulator/capacity_continuation_audit.py
+@@ -0,0 +1,34 @@
++"""Audit local-branch continuation and mandatory full-scan evidence."""
++
++def audit_capacity_continuation(report, control, previous=None):
++    if control.get('search_method') != 'continuation_safeguarded':
++        return
++    if report.get('search_method') != 'continuation_safeguarded':
++        raise ValueError('Continuation policy differs from execution')
++    interval=control.get('continuation_scan_interval',16)
++    if type(interval) is not int or interval<1:
++        raise ValueError('Invalid continuation scan interval')
++    record=report.get('capacity_continuation') or {}
++    used,age=record.get('used'),record.get('age')
++    if (type(used) is not bool or type(age) is not int or not 0<=age<interval
++            or record.get('scan_interval')!=interval):
++        raise ValueError('Missing or invalid continuation evidence')
++    if used:
++        before=None if previous is None else previous.get('capacity_continuation',{}).get('age',0)
++        if (previous is None or before is None or age!=before+1 or record.get('reason')!='local_bracket'
++                or previous.get('operator_controls')!=report.get('operator_controls')
++                or previous.get('requested_rate_caps_m3_day')!=report.get('requested_rate_caps_m3_day')):
++            raise ValueError('Continuation reused stale controls or exceeded scan cadence')
++        if not control.get('min_fraction',.001)<previous['fraction']<1:
++            raise ValueError('Continuation requires a previously constrained branch')
++    else:
++        if age!=0 or record.get('reason') not in ('full_scan','periodic_scan','probe_fallback'):
++            raise ValueError('Invalid full-scan continuation reset')
++        samples={r['fraction']:r for r in report['trace']}
++        if 1. not in samples:
++            raise ValueError('Full scan omitted unrestricted trial')
++        if report['fraction']!=1.:
++            minimum=control.get('min_fraction',.001);count=control.get('scan_points',9)
++            expected=[minimum+(1-minimum)*i/(count-1) for i in range(count-1)]
++            if any(x not in samples for x in expected):
++                raise ValueError('Full scan omitted domain samples')
+--- before/scripts/check_fim_facility_forecast.py
++++ after/scripts/check_fim_facility_forecast.py
+@@ -12,6 +12,7 @@
+ 
+ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'src'))
+ from simulator.capacity_amg_reuse import audit_capacity_amg
++from simulator.capacity_continuation_audit import audit_capacity_continuation
+ from simulator.capacity_sensitivity_audit import audit_capacity_sensitivity
+ from simulator.fim_initial_cell_cache import audit_initial_cell_cache
+ from simulator.rate_cap_invariance import audit_inactive_cap_trace
+@@ -97,6 +98,8 @@
+         if type(reuse) is not bool:
+             raise ValueError('Invalid inactive-cap reuse policy')
+         capacity_policy = config['simulation']['coupled_facility'].get('control') or {}
++        audit_capacity_continuation(coupling, capacity_policy,
++            None if step_index == 0 else steps[step_index-1]['facility_coupling'])
+         certificate_version = capacity_policy.get('inactive_cap_certificate_version', 1)
+         if type(certificate_version) is not int or certificate_version not in (1, 2):
+             raise ValueError('Invalid inactive-cap certificate version')
+--- before/scripts/compare_fim_facility_forecast.py
++++ after/scripts/compare_fim_facility_forecast.py
+@@ -13,10 +13,17 @@
+ 
+ from check_fim_facility_forecast import audit
+ 
++NEWTON_TOLERANCES = {'newton_tol_cnv': 1e-3, 'newton_tol_mb': 1e-7,
++                     'newton_tol_well_bhp': 10., 'newton_tol_well_rate': 1e-5}
++
+ 
+ def physical_config(bundle, *, allow_numerical_policy=False):
+     c = copy.deepcopy(bundle["config"])
+     if allow_numerical_policy:
++        for key, default in NEWTON_TOLERANCES.items():
++            value = c['simulation'].pop(key, default)
++            if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value) or value <= 0:
++                raise ValueError('Invalid nonlinear convergence tolerance')
+         for key in ("max_time_step_days", "initial_time_step_days"):
+             value = c["simulation"].pop(key, None)
+             if value is not None and (isinstance(value, bool) or not math.isfinite(value) or value <= 0):
+@@ -25,6 +32,12 @@
+         facility.pop("time_control", None)
+         facility.pop("temporal_control", None)
+         if facility.get("control") is not None:
++            value = facility['control'].pop('fraction_tolerance', 1e-4)
++            if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value) or not 0 < value < 1:
++                raise ValueError('Invalid capacity fraction tolerance')
++            interval = facility['control'].pop('continuation_scan_interval', 16)
++            if type(interval) is not int or interval < 1:
++                raise ValueError('Invalid continuation scan interval')
+             if type(facility['control'].pop('reuse_capacity_history', False)) is not bool:
+                 raise ValueError('Invalid capacity history policy')
+             if type(facility['control'].pop('reuse_capacity_amg', False)) is not bool:
+@@ -125,6 +138,9 @@
+         "fine": str(fine_path),
+         "scope": __doc__,
+         "allowed_numerical_policy_differences": [
++            *('simulation.' + k for k in NEWTON_TOLERANCES),
++            "coupled_facility.control.fraction_tolerance",
++            "coupled_facility.control.continuation_scan_interval",
+             "simulation.max_time_step_days",
+             "simulation.initial_time_step_days",
+             "coupled_facility.time_control",
+--- before/scripts/check_facility_tolerance_pair.py
++++ after/scripts/check_facility_tolerance_pair.py
+@@ -0,0 +1,86 @@
++"""Engineering accuracy gate for declared convergence/search policies.
++
++Keeps the independent mass audit at its existing 0.01 kg + 1e-8 of production.
++Changing that audit or any physical configuration is not permitted here.
++"""
++import argparse
++import copy
++import json
++import math
++from pathlib import Path
++
++from check_facility_engineering_profile import validate_budgets
++from check_facility_refinement_pair import completed
++from check_long_facility_trajectory import compare as compare_wells
++from compare_fim_facility_forecast import NEWTON_TOLERANCES
++from compare_fim_facility_forecast import compare as compare_fields
++
++
++def policy_config(config, time_refinement):
++    c=copy.deepcopy(config);s=c['simulation']
++    for key,default in NEWTON_TOLERANCES.items():
++        value=s.pop(key,default)
++        if type(value) not in (int,float) or not math.isfinite(value) or value<=0:
++            raise ValueError('Invalid nonlinear tolerance')
++    if time_refinement:
++        for key in ('max_time_step_days','initial_time_step_days'):
++            value=s.pop(key,None)
++            if type(value) not in (int,float) or not math.isfinite(value) or value<=0:
++                raise ValueError('Explicit positive time-step bounds required')
++    control=s['coupled_facility']['control']
++    if control.pop('reuse_capacity_history',False) is not False:
++        raise ValueError('Historical polishing is outside this declared policy comparison')
++    method=control.pop('search_method','safeguarded')
++    if method not in ('facet_safeguarded','continuation_safeguarded'):
++        raise ValueError('Undeclared search method in tolerance comparison')
++    tol=control.pop('fraction_tolerance',1e-4)
++    if type(tol) not in (int,float) or not math.isfinite(tol) or not 0<tol<1:
++        raise ValueError('Invalid fraction tolerance')
++    interval=control.pop('continuation_scan_interval',16)
++    if type(interval) is not int or interval<1:
++        raise ValueError('Invalid scan period')
++    return c
++
++
++def compare(reference,candidate,budgets,days,*,time_refinement=False):
++    validate_budgets(budgets)
++    sa,a,pa=completed(reference,days);sb,b,pb=completed(candidate,days)
++    if policy_config(a['config'],time_refinement)!=policy_config(b['config'],time_refinement):
++        raise ValueError('Only declared convergence/search policies may differ')
++    if a['schedule']!=b['schedule'] or sa['device']!=sb['device']:
++        raise ValueError('Identical schedule and device required')
++    protocols=[json.loads((Path(p)/'protocol.json').read_text()) for p in (reference,candidate)]
++    for key in ('cuda_visible_devices','cuda_memory_fraction','report_days'):
++        if protocols[0].get(key)!=protocols[1].get(key):
++            raise ValueError('Identical execution protocol required')
++    for key in ('torch_version','torch_threads','device_name','gathering_backend','hydraulic_backend'):
++        if sa['execution'][key]!=sb['execution'][key]:
++            raise ValueError('Identical execution backend required')
++    pvt=str(Path(a['config']['fluid']['pvt_path']).resolve())
++    digests=[p['source_sha256'].get(pvt) for p in protocols]
++    if digests[0] is None or digests[0]!=digests[1]:
++        raise ValueError('Identical PVT contents required')
++    fields=compare_fields(pa,pb,budgets['fields'],allow_numerical_policy=True)
++    wells=compare_wells(pa,pb,allow_numerical_policy=True)
++    wells['budgets']=budgets['wells']
++    wells['accepted']=wells['mode_mismatches']==0 and all(math.isfinite(wells['errors'][k]) and wells['errors'][k]<=v for k,v in budgets['wells'].items())
++    work=[]
++    for bundle,summary in ((a,sa),(b,sb)):
++        stages=bundle['result']['accepted_substeps']
++        work.append({'fim':sum(s['facility_coupling']['reservoir_evaluations'] for s in stages),
++                     'linear':sum(s['facility_coupling']['capacity_amg_work']['linear_attempts'] for s in stages),
++                     'accepted_steps':len(stages),'rejected_steps':sum(t['time_step_statistics']['rejected_steps'] for t in bundle['result']['interval_timings']),
++                     'solve_wall_s':summary['solve_wall_s']})
++    return {'accepted':fields['accepted'] and wells['accepted'],'fields':fields,'wells':wells,'work':work,
++            'time_refinement':time_refinement,'declared_budgets':budgets,
++            'scope':'Final fields and wells at common report dates; unchanged strict independent mass audit. Shared-host timings, not an exact-solution error bound.'}
++
++
++if __name__=='__main__':
++    p=argparse.ArgumentParser(description=__doc__)
++    p.add_argument('reference',type=Path);p.add_argument('candidate',type=Path)
++    p.add_argument('--budgets',type=Path,required=True);p.add_argument('--days',type=float,required=True)
++    p.add_argument('--time-refinement',action='store_true');p.add_argument('--output',type=Path,required=True)
++    args=p.parse_args();r=compare(args.reference,args.candidate,json.loads(args.budgets.read_text()),args.days,time_refinement=args.time_refinement)
++    with args.output.open('x') as f:json.dump(r,f,indent=2,allow_nan=False)
++    print(json.dumps(r,indent=2));raise SystemExit(0 if r['accepted'] else 1)

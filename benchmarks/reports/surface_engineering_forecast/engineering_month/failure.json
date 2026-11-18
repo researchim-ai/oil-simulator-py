@@ -1,0 +1,7 @@
+{
+  "status": "failed",
+  "exception": "ValueError",
+  "stage": "accounting_audit",
+  "reason": "Reservoir-to-export mass budget exceeded",
+  "requested_days": 30.0
+}

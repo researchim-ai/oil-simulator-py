@@ -12,6 +12,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'src'))
 from simulator.capacity_amg_reuse import audit_capacity_amg
+from simulator.capacity_continuation_audit import audit_capacity_continuation
 from simulator.capacity_sensitivity_audit import audit_capacity_sensitivity
 from simulator.fim_initial_cell_cache import audit_initial_cell_cache
 from simulator.rate_cap_invariance import audit_inactive_cap_trace
@@ -97,6 +98,8 @@ def audit(
         if type(reuse) is not bool:
             raise ValueError('Invalid inactive-cap reuse policy')
         capacity_policy = config['simulation']['coupled_facility'].get('control') or {}
+        audit_capacity_continuation(coupling, capacity_policy,
+            None if step_index == 0 else steps[step_index-1]['facility_coupling'])
         certificate_version = capacity_policy.get('inactive_cap_certificate_version', 1)
         if type(certificate_version) is not int or certificate_version not in (1, 2):
             raise ValueError('Invalid inactive-cap certificate version')

@@ -10,6 +10,73 @@ import math
 from dataclasses import dataclass
 
 
+def local_capacity_bracket(evaluate, fraction, slopes, minimum, tolerance):
+    """Track a nearby operating branch using only evaluated endpoints.
+
+    No global optimum is certified. Missing slopes, a remote root or four
+    unsuccessful probes request the caller's full domain scan instead.
+    """
+    rows = []
+    point = fraction
+    lower, upper = max(minimum, .8*fraction), min(1., 1.2*fraction)
+    for _ in range(4):
+        if any(point == r['fraction'] for r in rows):
+            return None
+        row = evaluate(point)
+        rows.append(row)
+        feasible = [r for r in rows if r['feasible']]
+        infeasible = [r for r in rows if not r['feasible']]
+        if feasible and infeasible:
+            low = max(feasible, key=lambda r:r['fraction'])
+            high = min(infeasible, key=lambda r:r['fraction'])
+            return (low, high) if low['fraction'] < high['fraction'] else None
+        margins = row.get('constraint_margins') or {}
+        if not margins or any(v is None or not math.isfinite(v) for v in margins.values()):
+            return None
+        if any(v > 0 and k not in slopes for k,v in margins.items()):
+            return None
+        roots = [point-v/slopes[k] for k,v in margins.items()
+                 if k in slopes and math.isfinite(slopes[k]) and slopes[k] > 0]
+        if not roots:
+            return None
+        root = min(roots)
+        proposed = root + (tolerance/2 if row['feasible'] else -tolerance/2)
+        if row['feasible']:
+            proposed = max(point+tolerance, proposed)
+        else:
+            proposed = min(point-tolerance, proposed)
+        if not lower <= proposed <= upper or proposed == point:
+            return None
+        point = proposed
+    return None
+
+
+def capacity_history_slopes(trace, fraction, tolerance):
+    """Local secants from solved points; proposals only, never certificates.
+
+    Exclude tiny final brackets (cancellation) and remote saturated caps.
+    One previous search is sufficient; no reservoir tensors are retained.
+    """
+    rows = [r for r in trace if 'certified_from_trace_index' not in r
+            and abs(r['fraction'] - fraction) <= .1 * fraction
+            and r.get('constraint_margins')]
+    slopes, distances = {}, {}
+    for i, a in enumerate(rows):
+        for b in rows[i+1:]:
+            dx = b['fraction'] - a['fraction']
+            if abs(dx) < 8 * tolerance:
+                continue
+            for key, va in a['constraint_margins'].items():
+                vb = b['constraint_margins'].get(key)
+                if va is None or vb is None or not all(math.isfinite(v) for v in (va, vb)):
+                    continue
+                slope = (vb - va) / dx
+                distance = max(abs(a['fraction']-fraction), abs(b['fraction']-fraction))
+                if math.isfinite(slope) and slope > 0 and distance < distances.get(key, math.inf):
+                    slopes[key], distances[key] = slope, distance
+    return slopes
+
+
 @dataclass
 class CapacityBracket:
     low: float

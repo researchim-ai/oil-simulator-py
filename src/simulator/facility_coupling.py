@@ -34,8 +34,10 @@ try:
     from ..surface.blackoil_pipe import PipePressureCoverageError
     from ..surface.capacity_bracket import (
         CapacityBracket,
+        capacity_history_slopes,
         facility_constraint_margin,
         facility_constraint_margins,
+        local_capacity_bracket,
     )
     from ..surface.gas_valve import GasValveCapacityError
     from ..surface.liquid import InvalidPressureError
@@ -51,8 +53,10 @@ except ImportError:
     from surface.blackoil_pipe import PipePressureCoverageError
     from surface.capacity_bracket import (
         CapacityBracket,
+        capacity_history_slopes,
         facility_constraint_margin,
         facility_constraint_margins,
+        local_capacity_bracket,
     )
     from surface.gas_valve import GasValveCapacityError
     from surface.liquid import InvalidPressureError
@@ -71,9 +75,15 @@ class CoupledFacilityControl:
     reuse_initial_cell_state: bool = False
     initial_cell_state_cache_bytes: int = 64 * 1024**2
     reuse_capacity_amg: bool = False
+    reuse_capacity_history: bool = False
+    continuation_scan_interval: int = 16
     sensitivity_sparse_budget_bytes: int = 256 * 1024**2
 
     def __post_init__(self):
+        if type(self.continuation_scan_interval) is not int or self.continuation_scan_interval < 1:
+            raise ValueError('continuation_scan_interval must be a positive integer')
+        if type(self.reuse_capacity_history) is not bool:
+            raise ValueError('reuse_capacity_history must be boolean')
         if (type(self.inactive_cap_certificate_version) is not int
                 or self.inactive_cap_certificate_version not in (1, 2)):
             raise ValueError('inactive_cap_certificate_version must be 1 or 2')
@@ -89,7 +99,7 @@ class CoupledFacilityControl:
             raise ValueError("reuse_inactive_caps must be boolean")
         if self.commit_method not in ("replay", "state_restore"):
             raise ValueError("commit_method must be replay or state_restore")
-        if self.search_method not in ("safeguarded", "facet_safeguarded", "sensitivity_safeguarded", "bisect"):
+        if self.search_method not in ("safeguarded", "facet_safeguarded", "sensitivity_safeguarded", "continuation_safeguarded", "bisect"):
             raise ValueError("Unknown capacity search_method")
         if not 0 < self.min_fraction <= 1 or not math.isfinite(self.min_fraction):
             raise ValueError("min_fraction must be in (0,1]")
@@ -340,8 +350,8 @@ class FacilityCoupledFIM:
             raise PropertyModelError(
                 "Coupled producer control changed outside supported rate-cap mode"
             )
-        # A new capture after each restore keeps the saved well arrays from
-        # becoming the live mutable arrays of the next trial.
+        # Reusable restore isolates mutable well arrays without recopying all
+        # reservoir fields for every capacity probe.
         initial = _StepState(solver)
         previous = self.report
         inventory_before = self._inventory()
@@ -352,6 +362,13 @@ class FacilityCoupledFIM:
         inactive_sources = []
         sensitivities = {}
         tangent_work = {'linear_solves': 0, 'plant_evaluations': 0, 'proposals': 0}
+        history_proposals = 0
+        history_slopes = (capacity_history_slopes(previous['trace'], previous['fraction'],
+                                                 self.control.fraction_tolerance)
+                          if self.control.reuse_capacity_history and self._continuous_controls()
+                          and previous.get('requested_rate_caps_m3_day') == caps
+                          and self.control.search_method == 'facet_safeguarded'
+                          else {})
         # Smooth continuing intervals already have a close warm endpoint.
         # Spend auxiliary solves at startup/events, or after slow search.
         request_tangent = (not self._continuous_controls()
@@ -364,9 +381,7 @@ class FacilityCoupledFIM:
         accepted = False
 
         def reset():
-            nonlocal initial
-            initial.restore()
-            initial = _StepState(solver)
+            initial.restore(reusable=True)
 
         def trial(fraction):
             nonlocal trial_calls, sample_calls, selected_state
@@ -502,36 +517,75 @@ class FacilityCoupledFIM:
         try:
             final_bracket = None
             capacity_commit = None
-            ok, plant = trial(1.0)
+            local = None
+            continuation_age = 0
+            continuation_reason = 'full_scan'
+            if (self.control.search_method == 'continuation_safeguarded'
+                    and self._continuous_controls()
+                    and previous.get('requested_rate_caps_m3_day') == caps
+                    and self.control.min_fraction < previous['fraction'] < 1):
+                age = previous.get('capacity_continuation', {}).get('age', 0)
+                if age < self.control.continuation_scan_interval - 1:
+                    slopes = capacity_history_slopes(previous['trace'], previous['fraction'],
+                                                     self.control.fraction_tolerance)
+                    def evaluate_local(fraction):
+                        trial(fraction)
+                        return trace[-1]
+                    if slopes:
+                        local = local_capacity_bracket(evaluate_local, previous['fraction'], slopes,
+                                                       self.control.min_fraction, self.control.fraction_tolerance)
+                    continuation_reason = 'local_bracket' if local is not None else 'probe_fallback'
+                    if local is not None:
+                        continuation_age = age + 1
+                else:
+                    continuation_reason = 'periodic_scan'
+            ok, plant = trial(1.0) if local is None else (False, None)
             chosen = 1.0
             if not ok:
-                grid = [
-                    self.control.min_fraction
-                    + (1 - self.control.min_fraction) * i / (self.control.scan_points - 1)
-                    for i in range(self.control.scan_points - 1)
-                ]
-                outcomes = [trial(f)[0] for f in grid]
-                good = [i for i, x in enumerate(outcomes) if x]
-                if not good:
-                    raise EquipmentOperatingError(
-                        "No sampled feasible coupled reservoir/facility rate cap"
-                    )
-                if good != list(range(good[0], good[-1] + 1)):
-                    raise EquipmentOperatingError(
-                        "Disconnected feasible rate-cap regions require a different optimizer"
-                    )
-                i = good[-1]
-                low = grid[i]
-                high = grid[i + 1] if i + 1 < len(grid) else 1.0
+                if local is None:
+                    grid = [
+                        self.control.min_fraction
+                        + (1 - self.control.min_fraction) * i / (self.control.scan_points - 1)
+                        for i in range(self.control.scan_points - 1)
+                    ]
+                    for fraction in grid:
+                        trial(fraction)
+                    # Include any local fallback probes in the sampled-domain
+                    # consistency check and in selection of the best endpoint.
+                    samples = {row['fraction']: row for row in trace}
+                    points = sorted(samples)
+                    good = [i for i,x in enumerate(points) if samples[x]['feasible']]
+                    if not good:
+                        raise EquipmentOperatingError(
+                            "No sampled feasible coupled reservoir/facility rate cap"
+                        )
+                    if good != list(range(good[0], good[-1] + 1)):
+                        raise EquipmentOperatingError(
+                            "Disconnected feasible rate-cap regions require a different optimizer"
+                        )
+                    low, high = points[good[-1]], points[good[-1]+1]
+                else:
+                    low, high = local[0]['fraction'], local[1]['fraction']
                 margins = {row["fraction"]: row["normalized_margin"] for row in trace}
                 facets = ({row["fraction"]: row.get("constraint_margins") for row in trace}
-                          if self.control.search_method in ('facet_safeguarded', 'sensitivity_safeguarded') else {})
+                          if self.control.search_method in ('facet_safeguarded', 'sensitivity_safeguarded', 'continuation_safeguarded') else {})
                 bracket = CapacityBracket(
                     low, high, self.control.fraction_tolerance, margins[low], margins[high],
                     low_margins=facets.get(low), high_margins=facets.get(high)
                 )
-                if self.control.search_method != "bisect" and previous is not None:
+                if self.control.search_method != "bisect" and previous is not None and local is None:
                     warm = previous["fraction"]
+                    anchor = previous.get('capacity_history_anchor')
+                    if (history_slopes and anchor is not None
+                            and math.isclose(dt, previous['dt_s'], rel_tol=1e-10)
+                            and math.isclose(dt, anchor['dt_s'], rel_tol=1e-10)):
+                        delta = warm - anchor['fraction']
+                        extrapolated = warm + delta
+                        if anchor.get('delta') is not None:
+                            extrapolated += delta - anchor['delta']
+                        if (bracket.low < extrapolated < bracket.high
+                                and abs(extrapolated-warm) <= .1*warm):
+                            warm = extrapolated
                     if not bracket.complete and bracket.low < warm < bracket.high:
                         status, _ = trial(warm)
                         bracket.update(warm, status, trace[-1]["normalized_margin"],
@@ -540,11 +594,24 @@ class FacilityCoupledFIM:
                     predicted = (bracket.tangent_proposal(sensitivities.get(bracket.low), sensitivities.get(bracket.high))
                                  if self.control.search_method == 'sensitivity_safeguarded' else None)
                     tangent_work['proposals'] += int(predicted is not None)
+                    if history_slopes:
+                        predicted = bracket.tangent_proposal(history_slopes, history_slopes)
+                        history_proposals += int(predicted is not None)
+                        # At most one historical proposal per search. Every
+                        # endpoint still comes from this step's physical solve.
+                        history_slopes = {}
                     mid = (
                         (bracket.low + bracket.high) / 2
                         if self.control.search_method == "bisect"
                         else predicted if predicted is not None else bracket.proposal()
                     )
+                    if self.control.search_method == 'continuation_safeguarded' and local is not None:
+                        # Probe slightly above the predicted crossing to close
+                        # the bracket instead of repeatedly improving only its
+                        # feasible end. Every proposal is still solved, and
+                        # the original bracket-width tolerance is unchanged.
+                        mid = min(bracket.high-self.control.fraction_tolerance/4,
+                                  mid+self.control.fraction_tolerance/4)
                     request_tangent = request_tangent or bracket.slow_updates >= 2
                     prediction_bracket = (bracket.low, bracket.high)
                     status, _ = trial(mid)
@@ -553,6 +620,19 @@ class FacilityCoupledFIM:
                                                          'high_fraction': prediction_bracket[1]}
                     bracket.update(mid, status, trace[-1]["normalized_margin"],
                                    margins=trace[-1].get("constraint_margins") if facets else None)
+                # A historical proposal can close the interval with a less
+                # accurate feasible endpoint. Polish its residual once rather
+                # than accepting a systematic downward bias in production.
+                # This is an additional physical solve, never flow scaling.
+                if (self.control.reuse_capacity_history and history_proposals
+                        and bracket.low_margin is not None and bracket.high_margin is not None
+                        and bracket.low_margin < -1e-8):
+                    ratio = -bracket.low_margin / (bracket.high_margin - bracket.low_margin)
+                    point = bracket.low + ratio * (bracket.high - bracket.low)
+                    if bracket.low < point < bracket.high:
+                        status, _ = trial(point)
+                        bracket.update(point, status, trace[-1]['normalized_margin'],
+                                       margins=trace[-1].get('constraint_margins') if facets else None)
                 chosen = bracket.low
                 final_bracket = {
                     "feasible_fraction": bracket.low,
@@ -620,6 +700,23 @@ class FacilityCoupledFIM:
             }
             if capacity_commit is not None:
                 self.report["capacity_commit"] = capacity_commit
+            if self.control.search_method == 'continuation_safeguarded':
+                self.report['capacity_continuation'] = {
+                    'used': local is not None, 'age': continuation_age,
+                    'scan_interval': self.control.continuation_scan_interval,
+                    'reason': continuation_reason,
+                    'scope': 'Local operating branch with periodic full sampling, not a global optimum certificate.'}
+            if self.control.reuse_capacity_history:
+                self.report['capacity_history_proposals'] = history_proposals
+                self.report['capacity_history_anchor'] = (
+                    {'fraction': previous['fraction'], 'dt_s': previous['dt_s'],
+                     'delta': (previous['fraction'] - previous['capacity_history_anchor']['fraction']
+                               if previous.get('capacity_history_anchor') is not None
+                               and math.isclose(previous['dt_s'],
+                                   previous['capacity_history_anchor']['dt_s'], rel_tol=1e-10)
+                               else None)}
+                    if previous is not None and previous.get('operator_controls') == self.controls
+                    and previous.get('requested_rate_caps_m3_day') == caps else None)
             if self.control.search_method == 'sensitivity_safeguarded':
                 self.report['sensitivity_work'] = tangent_work
             if initial_cells is not None:

@@ -1,0 +1,68 @@
+diff --git a/src/simulator/facility_coupling.py b/src/simulator/facility_coupling.py
+index 145c73d..4f8c27e 100644
+--- a/src/simulator/facility_coupling.py
++++ b/src/simulator/facility_coupling.py
+@@ -340,8 +340,8 @@ class FacilityCoupledFIM:
+             raise PropertyModelError(
+                 "Coupled producer control changed outside supported rate-cap mode"
+             )
+-        # A new capture after each restore keeps the saved well arrays from
+-        # becoming the live mutable arrays of the next trial.
++        # Reusable restore isolates mutable well arrays without recopying all
++        # reservoir fields for every capacity probe.
+         initial = _StepState(solver)
+         previous = self.report
+         inventory_before = self._inventory()
+@@ -364,9 +364,7 @@ class FacilityCoupledFIM:
+         accepted = False
+ 
+         def reset():
+-            nonlocal initial
+-            initial.restore()
+-            initial = _StepState(solver)
++            initial.restore(reusable=True)
+ 
+         def trial(fraction):
+             nonlocal trial_calls, sample_calls, selected_state
+diff --git a/src/simulator/fim_transaction.py b/src/simulator/fim_transaction.py
+index 01ebc76..fd3a9e8 100644
+--- a/src/simulator/fim_transaction.py
++++ b/src/simulator/fim_transaction.py
+@@ -85,7 +85,14 @@ class _StepState:
+         self.hyst = getattr(getattr(solver, 'kr', None), 'hyst', None)
+         self.hyst_state = _capture(self.hyst, _HYST_BINDINGS) if self.hyst is not None else None
+ 
+-    def restore(self):
++    def restore(self, *, reusable=False):
++        """Restore state, optionally retaining an immutable rollback snapshot.
++
++        Reservoir fields are copied into their original storage either way.
++        Repeated trials must not receive the snapshot's mutable well buffers:
++        copy only those small values, not the reservoir-sized saved fields.
++        Bindings listed above remain replace-only under the step contract.
++        """
+         solver = self.solver
+         with torch.no_grad():
+             for name, (original, value) in self.fluid.items():
+@@ -93,18 +100,18 @@ class _StepState:
+                 setattr(solver.fluid, name, original)
+         _restore(solver.fluid, self.fluid_bindings)
+         _restore(solver, self.bindings)
+-        _restore(solver.wells, self.well_state)
++        _restore(solver.wells, _copy_value(self.well_state) if reusable else self.well_state)
+         _restore(solver.wells, self.well_bindings)
+         for segment, values in self.segments:
+             for name, value in values.items():
+                 if value is _MISSING:
+                     segment.pop(name, None)
+                 else:
+-                    segment[name] = value
++                    segment[name] = _copy_value(value) if reusable else value
+         for well, values, dictionaries in self.wells:
+             for original, saved in dictionaries:
+                 original.clear()
+-                original.update(saved)
++                original.update(_copy_value(saved) if reusable else saved)
+             well.__dict__.clear()
+             well.__dict__.update(values)
+         if self.hyst is not None:

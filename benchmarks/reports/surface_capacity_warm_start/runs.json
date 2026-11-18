@@ -1,0 +1,244 @@
+{
+  "production_changed": false,
+  "decision": "Do not promote any experimental variant. Warm floor fails fixed 1e-7 rate/cumulative budgets on multi-step window.",
+  "runs": [
+    {
+      "name": "reference",
+      "days": 5e-05,
+      "wall_s": 9.979962777000765,
+      "work": {
+        "macro_attempts": 1,
+        "rejected_macro_steps": 0,
+        "coupled_solves": 3,
+        "capacity_evaluations": 20,
+        "reservoir_evaluations": 17,
+        "capacity_amg_work": {
+          "fresh_requests": 3,
+          "reuse_requests": 14,
+          "retries": 0,
+          "builds": 3,
+          "updates": 29,
+          "linear_attempts": 32
+        },
+        "sensitivity_linear_solves": 0,
+        "sensitivity_plant_evaluations": 0
+      },
+      "execution": {
+        "torch_version": "2.7.0+cu126",
+        "torch_threads": 1,
+        "device_name": "NVIDIA GeForce RTX 3090 Ti",
+        "cuda_peak_allocated_bytes": 72382464,
+        "cuda_peak_reserved_bytes": 79691776,
+        "memory_scope": "PyTorch allocator peak from before model construction through the forecast; excludes CUDA context and other processes",
+        "gathering_backend": "cpu_reference",
+        "hydraulic_backend": "torch_batch"
+      },
+      "completed": true,
+      "source_guard": true
+    },
+    {
+      "name": "candidate",
+      "days": 5e-05,
+      "wall_s": 11.83216130999972,
+      "work": {
+        "macro_attempts": 1,
+        "rejected_macro_steps": 0,
+        "coupled_solves": 3,
+        "capacity_evaluations": 27,
+        "reservoir_evaluations": 24,
+        "capacity_amg_work": {
+          "fresh_requests": 3,
+          "reuse_requests": 17,
+          "retries": 0,
+          "builds": 3,
+          "updates": 30,
+          "linear_attempts": 33
+        },
+        "sensitivity_linear_solves": 0,
+        "sensitivity_plant_evaluations": 0
+      },
+      "execution": {
+        "torch_version": "2.7.0+cu126",
+        "torch_threads": 1,
+        "device_name": "NVIDIA GeForce RTX 3090 Ti",
+        "cuda_peak_allocated_bytes": 72382464,
+        "cuda_peak_reserved_bytes": 79691776,
+        "memory_scope": "PyTorch allocator peak from before model construction through the forecast; excludes CUDA context and other processes",
+        "gathering_backend": "cpu_reference",
+        "hydraulic_backend": "torch_batch"
+      },
+      "completed": true,
+      "source_guard": true
+    },
+    {
+      "name": "interior",
+      "days": 5e-05,
+      "wall_s": 9.998962667999876,
+      "work": {
+        "macro_attempts": 1,
+        "rejected_macro_steps": 0,
+        "coupled_solves": 3,
+        "capacity_evaluations": 20,
+        "reservoir_evaluations": 17,
+        "capacity_amg_work": {
+          "fresh_requests": 3,
+          "reuse_requests": 14,
+          "retries": 0,
+          "builds": 3,
+          "updates": 29,
+          "linear_attempts": 32
+        },
+        "sensitivity_linear_solves": 0,
+        "sensitivity_plant_evaluations": 0
+      },
+      "execution": {
+        "torch_version": "2.7.0+cu126",
+        "torch_threads": 1,
+        "device_name": "NVIDIA GeForce RTX 3090 Ti",
+        "cuda_peak_allocated_bytes": 72382464,
+        "cuda_peak_reserved_bytes": 79691776,
+        "memory_scope": "PyTorch allocator peak from before model construction through the forecast; excludes CUDA context and other processes",
+        "gathering_backend": "cpu_reference",
+        "hydraulic_backend": "torch_batch"
+      },
+      "completed": true,
+      "source_guard": true
+    },
+    {
+      "name": "reference_evolution",
+      "days": 0.001,
+      "wall_s": 48.84563286899902,
+      "work": {
+        "macro_attempts": 5,
+        "rejected_macro_steps": 0,
+        "coupled_solves": 15,
+        "capacity_evaluations": 102,
+        "reservoir_evaluations": 87,
+        "capacity_amg_work": {
+          "fresh_requests": 15,
+          "reuse_requests": 72,
+          "retries": 0,
+          "builds": 15,
+          "updates": 157,
+          "linear_attempts": 172
+        },
+        "sensitivity_linear_solves": 0,
+        "sensitivity_plant_evaluations": 0
+      },
+      "execution": {
+        "torch_version": "2.7.0+cu126",
+        "torch_threads": 1,
+        "device_name": "NVIDIA GeForce RTX 3090 Ti",
+        "cuda_peak_allocated_bytes": 72396288,
+        "cuda_peak_reserved_bytes": 81788928,
+        "memory_scope": "PyTorch allocator peak from before model construction through the forecast; excludes CUDA context and other processes",
+        "gathering_backend": "cpu_reference",
+        "hydraulic_backend": "torch_batch"
+      },
+      "completed": true,
+      "source_guard": true
+    },
+    {
+      "name": "interior_evolution",
+      "days": 0.001,
+      "wall_s": 48.585124384000665,
+      "work": {
+        "macro_attempts": 5,
+        "rejected_macro_steps": 0,
+        "coupled_solves": 15,
+        "capacity_evaluations": 99,
+        "reservoir_evaluations": 84,
+        "capacity_amg_work": {
+          "fresh_requests": 15,
+          "reuse_requests": 69,
+          "retries": 0,
+          "builds": 15,
+          "updates": 151,
+          "linear_attempts": 166
+        },
+        "sensitivity_linear_solves": 0,
+        "sensitivity_plant_evaluations": 0
+      },
+      "execution": {
+        "torch_version": "2.7.0+cu126",
+        "torch_threads": 1,
+        "device_name": "NVIDIA GeForce RTX 3090 Ti",
+        "cuda_peak_allocated_bytes": 72396288,
+        "cuda_peak_reserved_bytes": 81788928,
+        "memory_scope": "PyTorch allocator peak from before model construction through the forecast; excludes CUDA context and other processes",
+        "gathering_backend": "cpu_reference",
+        "hydraulic_backend": "torch_batch"
+      },
+      "completed": true,
+      "source_guard": true
+    },
+    {
+      "name": "warm_floor",
+      "days": 5e-05,
+      "wall_s": 9.612765156000023,
+      "work": {
+        "macro_attempts": 1,
+        "rejected_macro_steps": 0,
+        "coupled_solves": 3,
+        "capacity_evaluations": 20,
+        "reservoir_evaluations": 17,
+        "capacity_amg_work": {
+          "fresh_requests": 3,
+          "reuse_requests": 14,
+          "retries": 0,
+          "builds": 3,
+          "updates": 23,
+          "linear_attempts": 26
+        },
+        "sensitivity_linear_solves": 0,
+        "sensitivity_plant_evaluations": 0
+      },
+      "execution": {
+        "torch_version": "2.7.0+cu126",
+        "torch_threads": 1,
+        "device_name": "NVIDIA GeForce RTX 3090 Ti",
+        "cuda_peak_allocated_bytes": 72382464,
+        "cuda_peak_reserved_bytes": 79691776,
+        "memory_scope": "PyTorch allocator peak from before model construction through the forecast; excludes CUDA context and other processes",
+        "gathering_backend": "cpu_reference",
+        "hydraulic_backend": "torch_batch"
+      },
+      "completed": true,
+      "source_guard": true
+    },
+    {
+      "name": "floor_evolution",
+      "days": 0.001,
+      "wall_s": 43.66670287599845,
+      "work": {
+        "macro_attempts": 5,
+        "rejected_macro_steps": 0,
+        "coupled_solves": 15,
+        "capacity_evaluations": 99,
+        "reservoir_evaluations": 84,
+        "capacity_amg_work": {
+          "fresh_requests": 15,
+          "reuse_requests": 69,
+          "retries": 0,
+          "builds": 15,
+          "updates": 114,
+          "linear_attempts": 129
+        },
+        "sensitivity_linear_solves": 0,
+        "sensitivity_plant_evaluations": 0
+      },
+      "execution": {
+        "torch_version": "2.7.0+cu126",
+        "torch_threads": 1,
+        "device_name": "NVIDIA GeForce RTX 3090 Ti",
+        "cuda_peak_allocated_bytes": 72396288,
+        "cuda_peak_reserved_bytes": 79691776,
+        "memory_scope": "PyTorch allocator peak from before model construction through the forecast; excludes CUDA context and other processes",
+        "gathering_backend": "cpu_reference",
+        "hydraulic_backend": "torch_batch"
+      },
+      "completed": true,
+      "source_guard": true
+    }
+  ]
+}

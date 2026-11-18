@@ -1,0 +1,104 @@
+{
+  "accepted": true,
+  "fields": {
+    "accepted": true,
+    "errors": {
+      "final_pressure_pa": 2.1433015260845423,
+      "final_s_w": 5.64704736860655e-08,
+      "final_s_g": 2.052953876618968e-07,
+      "final_rs": 3.2149522894542315e-05,
+      "withdrawal_relative": 1.643551268408442e-05
+    },
+    "budgets": {
+      "final_pressure_pa": 1000.0,
+      "final_s_w": 0.0002,
+      "final_s_g": 0.0002,
+      "final_rs": 0.05,
+      "withdrawal_relative": 0.002
+    },
+    "coarse": ".scratch/engineering_tolerances/strict_gpu/trajectory.json.gz",
+    "fine": ".scratch/engineering_tolerances/final_gpu/trajectory.json.gz",
+    "scope": "Compare completed operational forecasts at the final common report endpoint.\n\nBudgets must be supplied before inspecting the reference result. This is a\nstep-refinement check, not a proof that the finer trajectory is exact.\n",
+    "allowed_numerical_policy_differences": [
+      "simulation.newton_tol_cnv",
+      "simulation.newton_tol_mb",
+      "simulation.newton_tol_well_bhp",
+      "simulation.newton_tol_well_rate",
+      "coupled_facility.control.fraction_tolerance",
+      "coupled_facility.control.continuation_scan_interval",
+      "simulation.max_time_step_days",
+      "simulation.initial_time_step_days",
+      "coupled_facility.time_control",
+      "coupled_facility.temporal_control",
+      "coupled_facility.control.search_method",
+      "coupled_facility.control.sensitivity_sparse_budget_bytes",
+      "coupled_facility.control.commit_method",
+      "coupled_facility.control.reuse_inactive_caps",
+      "coupled_facility.control.inactive_cap_certificate_version",
+      "coupled_facility.control.reuse_initial_cell_state",
+      "coupled_facility.control.initial_cell_state_cache_bytes",
+      "coupled_facility.control.reuse_capacity_amg",
+      "coupled_facility.control.reuse_capacity_history",
+      "physical_surface_network.sensitivity_backend",
+      "physical_surface_network.network_backend",
+      "physical_surface_network.bhp_initialization",
+      "physical_surface_network.well_block_backend",
+      "physical_surface_network.structured_memory_budget_bytes",
+      "physical_surface_network.network.hydraulic_backend",
+      "physical_surface_network.network.pipe_batch_size"
+    ]
+  },
+  "wells": {
+    "scope": "Compare actual well rates/BHP and cumulative mass at coarse report endpoints.\n\nBoth bundles must independently pass full facility accounting first. This is\nstep refinement, not a proof that either trajectory is exact or calibrated.\n",
+    "accepted": true,
+    "matched_endpoints_days": [
+      1.0
+    ],
+    "mode_mismatches": 0,
+    "errors": {
+      "bhp_abs_pa": 2.4473541220650077,
+      "component_rate_scaled": 2.2899474485374316e-05,
+      "cumulative_mass_relative": 1.6435512683787924e-05
+    },
+    "budgets": {
+      "bhp_abs_pa": 1000.0,
+      "component_rate_scaled": 0.002,
+      "cumulative_mass_relative": 0.002
+    },
+    "component_rate_floor_kg_s": 1e-08,
+    "allow_numerical_policy": true
+  },
+  "work": [
+    {
+      "fim": 172,
+      "linear": 526,
+      "accepted_steps": 26,
+      "rejected_steps": 0,
+      "solve_wall_s": 236.24544492600035
+    },
+    {
+      "fim": 98,
+      "linear": 242,
+      "accepted_steps": 26,
+      "rejected_steps": 0,
+      "solve_wall_s": 114.82647130500118
+    }
+  ],
+  "time_refinement": false,
+  "declared_budgets": {
+    "fields": {
+      "final_pressure_pa": 1000.0,
+      "final_s_w": 0.0002,
+      "final_s_g": 0.0002,
+      "final_rs": 0.05,
+      "withdrawal_relative": 0.002
+    },
+    "wells": {
+      "bhp_abs_pa": 1000.0,
+      "component_rate_scaled": 0.002,
+      "cumulative_mass_relative": 0.002
+    },
+    "scope": "Predeclared numerical refinement targets for these synthetic models; not universal industrial tolerances or experimental validation."
+  },
+  "scope": "Final fields and wells at common report dates; unchanged strict independent mass audit. Shared-host timings, not an exact-solution error bound."
+}

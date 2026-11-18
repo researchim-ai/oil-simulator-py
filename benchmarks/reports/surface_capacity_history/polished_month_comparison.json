@@ -1,0 +1,122 @@
+{
+  "accepted": true,
+  "fields": {
+    "accepted": true,
+    "errors": {
+      "final_pressure_pa": 0.06696059368550777,
+      "final_s_w": 7.662258050267212e-10,
+      "final_s_g": 3.5453835700582914e-09,
+      "final_rs": 1.0044089080452068e-06,
+      "withdrawal_relative": 6.339831624830384e-08
+    },
+    "budgets": {
+      "final_pressure_pa": 0.1,
+      "final_s_w": 1e-08,
+      "final_s_g": 1e-08,
+      "final_rs": 1e-05,
+      "withdrawal_relative": 1e-05
+    },
+    "coarse": "benchmarks/reports/surface_reusable_snapshot/month/trajectory.json.gz",
+    "fine": ".scratch/capacity_history/polished_month/trajectory.json.gz",
+    "scope": "Compare completed operational forecasts at the final common report endpoint.\n\nBudgets must be supplied before inspecting the reference result. This is a\nstep-refinement check, not a proof that the finer trajectory is exact.\n",
+    "allowed_numerical_policy_differences": [
+      "simulation.max_time_step_days",
+      "simulation.initial_time_step_days",
+      "coupled_facility.time_control",
+      "coupled_facility.temporal_control",
+      "coupled_facility.control.search_method",
+      "coupled_facility.control.sensitivity_sparse_budget_bytes",
+      "coupled_facility.control.commit_method",
+      "coupled_facility.control.reuse_inactive_caps",
+      "coupled_facility.control.inactive_cap_certificate_version",
+      "coupled_facility.control.reuse_initial_cell_state",
+      "coupled_facility.control.initial_cell_state_cache_bytes",
+      "coupled_facility.control.reuse_capacity_amg",
+      "coupled_facility.control.reuse_capacity_history",
+      "physical_surface_network.sensitivity_backend",
+      "physical_surface_network.network_backend",
+      "physical_surface_network.bhp_initialization",
+      "physical_surface_network.well_block_backend",
+      "physical_surface_network.structured_memory_budget_bytes",
+      "physical_surface_network.network.hydraulic_backend",
+      "physical_surface_network.network.pipe_batch_size"
+    ]
+  },
+  "wells": {
+    "scope": "Compare actual well rates/BHP and cumulative mass at coarse report endpoints.\n\nBoth bundles must independently pass full facility accounting first. This is\nstep refinement, not a proof that either trajectory is exact or calibrated.\n",
+    "accepted": true,
+    "matched_endpoints_days": [
+      1.0,
+      2.0,
+      3.0,
+      4.0,
+      5.0,
+      6.0,
+      7.0,
+      8.0,
+      9.0,
+      10.0,
+      11.0,
+      12.0,
+      13.0,
+      14.0,
+      15.0,
+      16.0,
+      17.0,
+      18.0,
+      19.0,
+      20.0,
+      21.0,
+      22.0,
+      23.0,
+      24.0,
+      25.0,
+      26.0,
+      27.0,
+      28.0,
+      29.0,
+      30.0
+    ],
+    "mode_mismatches": 0,
+    "errors": {
+      "bhp_abs_pa": 0.07052664691582322,
+      "component_rate_scaled": 9.162722911217169e-07,
+      "cumulative_mass_relative": 6.339831506234877e-08
+    },
+    "budgets": {
+      "bhp_abs_pa": 0.1,
+      "component_rate_scaled": 1e-05,
+      "cumulative_mass_relative": 1e-05
+    },
+    "component_rate_floor_kg_s": 1e-08,
+    "allow_numerical_policy": true
+  },
+  "all_accepted_stage_wells": {
+    "accepted": true,
+    "errors": {
+      "bhp_abs_pa": 0.07052664691582322,
+      "component_rate_scaled": 9.253705135931917e-07,
+      "cumulative_mass_relative": 9.63753819773597e-08
+    },
+    "budgets": {
+      "bhp_abs_pa": 0.1,
+      "component_rate_scaled": 1e-05,
+      "cumulative_mass_relative": 1e-05
+    },
+    "mode_mismatches": 0
+  },
+  "accepted_fim_evaluations": [
+    3106,
+    2794
+  ],
+  "rejected_steps": [
+    0,
+    0
+  ],
+  "fewer_fim_solves": true,
+  "solve_wall_s": [
+    492.92106374500145,
+    429.11540330800017
+  ],
+  "scope": "Shared-host execution comparison, not independent physical validation or isolated timing."
+}

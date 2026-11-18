@@ -1,0 +1,14 @@
+{
+  "accepted": true,
+  "exact_all_accepted_stages": true,
+  "accepted_stages": 490,
+  "changed_sources": [
+    "/src/simulator/facility_coupling.py",
+    "/src/simulator/fim_transaction.py"
+  ],
+  "reference": "benchmarks/reports/surface_forecast_profiles/depletion_run3",
+  "candidate": ".scratch/reusable_snapshot/month",
+  "reference_wall_s": 451.6320833709997,
+  "candidate_wall_s": 492.92106374500145,
+  "scope": "Exact execution regression; shared host at different times, not an isolated speedup measurement."
+}

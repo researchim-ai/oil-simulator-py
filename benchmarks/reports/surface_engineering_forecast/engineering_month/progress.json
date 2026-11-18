@@ -1,0 +1,31 @@
+{
+  "status": "incomplete",
+  "runs": [
+    {
+      "time_days": 30.0,
+      "requested_days": 30.0,
+      "solve_wall_s": 355.6667905330032,
+      "accepted_substeps": 490,
+      "last_interval": {
+        "time_days": 30.0,
+        "wall_s": 13.15792412400333,
+        "time_step_statistics": {
+          "start_time_s": 2505600.0,
+          "requested_duration_s": 86400.0,
+          "integrated_duration_s": 86400.0,
+          "accepted_steps": 16,
+          "rejected_steps": 0,
+          "minimum_accepted_step_s": 5400.0,
+          "maximum_accepted_step_s": 5400.0,
+          "time_error_limited_proposals": 0
+        }
+      },
+      "applied_events": 2,
+      "process_rss_bytes": 726503424,
+      "process_swap_bytes": 0,
+      "process_lifetime_peak_rss_bytes": 722583552
+    }
+  ],
+  "comparisons": [],
+  "audit_certificates": {}
+}

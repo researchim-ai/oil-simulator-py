@@ -85,7 +85,14 @@ class _StepState:
         self.hyst = getattr(getattr(solver, 'kr', None), 'hyst', None)
         self.hyst_state = _capture(self.hyst, _HYST_BINDINGS) if self.hyst is not None else None
 
-    def restore(self):
+    def restore(self, *, reusable=False):
+        """Restore state, optionally retaining an immutable rollback snapshot.
+
+        Reservoir fields are copied into their original storage either way.
+        Repeated trials must not receive the snapshot's mutable well buffers:
+        copy only those small values, not the reservoir-sized saved fields.
+        Bindings listed above remain replace-only under the step contract.
+        """
         solver = self.solver
         with torch.no_grad():
             for name, (original, value) in self.fluid.items():
@@ -93,18 +100,18 @@ class _StepState:
                 setattr(solver.fluid, name, original)
         _restore(solver.fluid, self.fluid_bindings)
         _restore(solver, self.bindings)
-        _restore(solver.wells, self.well_state)
+        _restore(solver.wells, _copy_value(self.well_state) if reusable else self.well_state)
         _restore(solver.wells, self.well_bindings)
         for segment, values in self.segments:
             for name, value in values.items():
                 if value is _MISSING:
                     segment.pop(name, None)
                 else:
-                    segment[name] = value
+                    segment[name] = _copy_value(value) if reusable else value
         for well, values, dictionaries in self.wells:
             for original, saved in dictionaries:
                 original.clear()
-                original.update(saved)
+                original.update(_copy_value(saved) if reusable else saved)
             well.__dict__.clear()
             well.__dict__.update(values)
         if self.hyst is not None:

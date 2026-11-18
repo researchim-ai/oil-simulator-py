@@ -1,0 +1,55 @@
+{
+  "scope": "Isolated transaction bookkeeping; not a reservoir solve benchmark.",
+  "device": "NVIDIA GeForce RTX 3090 Ti",
+  "shared_gpu": true,
+  "rows": [
+    {
+      "cells": 262144,
+      "removed_reservoir_copy_bytes_per_restore": 6291456,
+      "seconds_per_restore": {
+        "recapture": [
+          7.549275000201305e-05,
+          6.360520001180703e-05,
+          9.319058999608387e-05,
+          4.3251389997749355e-05,
+          4.052788999615586e-05
+        ],
+        "reusable": [
+          2.7117780009575655e-05,
+          2.3927700003696372e-05,
+          4.25924500086694e-05,
+          4.45177599976887e-05,
+          2.249081999252667e-05
+        ]
+      },
+      "median_seconds": {
+        "recapture": 6.360520001180703e-05,
+        "reusable": 2.7117780009575655e-05
+      }
+    },
+    {
+      "cells": 1048576,
+      "removed_reservoir_copy_bytes_per_restore": 25165824,
+      "seconds_per_restore": {
+        "recapture": [
+          0.00019716197000889225,
+          0.0001645479000035266,
+          0.00022625243000220507,
+          0.00017971379000300658,
+          0.00019649851999929525
+        ],
+        "reusable": [
+          0.0001152977800120425,
+          0.0001612403000035556,
+          0.0001414945299984538,
+          0.0001773185099955299,
+          0.00013661109000167926
+        ]
+      },
+      "median_seconds": {
+        "recapture": 0.00019649851999929525,
+        "reusable": 0.0001414945299984538
+      }
+    }
+  ]
+}

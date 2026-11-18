@@ -13,10 +13,17 @@ from pathlib import Path
 
 from check_fim_facility_forecast import audit
 
+NEWTON_TOLERANCES = {'newton_tol_cnv': 1e-3, 'newton_tol_mb': 1e-7,
+                     'newton_tol_well_bhp': 10., 'newton_tol_well_rate': 1e-5}
+
 
 def physical_config(bundle, *, allow_numerical_policy=False):
     c = copy.deepcopy(bundle["config"])
     if allow_numerical_policy:
+        for key, default in NEWTON_TOLERANCES.items():
+            value = c['simulation'].pop(key, default)
+            if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value) or value <= 0:
+                raise ValueError('Invalid nonlinear convergence tolerance')
         for key in ("max_time_step_days", "initial_time_step_days"):
             value = c["simulation"].pop(key, None)
             if value is not None and (isinstance(value, bool) or not math.isfinite(value) or value <= 0):
@@ -25,6 +32,14 @@ def physical_config(bundle, *, allow_numerical_policy=False):
         facility.pop("time_control", None)
         facility.pop("temporal_control", None)
         if facility.get("control") is not None:
+            value = facility['control'].pop('fraction_tolerance', 1e-4)
+            if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value) or not 0 < value < 1:
+                raise ValueError('Invalid capacity fraction tolerance')
+            interval = facility['control'].pop('continuation_scan_interval', 16)
+            if type(interval) is not int or interval < 1:
+                raise ValueError('Invalid continuation scan interval')
+            if type(facility['control'].pop('reuse_capacity_history', False)) is not bool:
+                raise ValueError('Invalid capacity history policy')
             if type(facility['control'].pop('reuse_capacity_amg', False)) is not bool:
                 raise ValueError('Invalid capacity AMG reuse policy')
             sparse_budget = facility['control'].pop('sensitivity_sparse_budget_bytes', 256 * 1024**2)
@@ -123,6 +138,9 @@ def compare(coarse_path, fine_path, budgets, *, allow_numerical_policy=False):
         "fine": str(fine_path),
         "scope": __doc__,
         "allowed_numerical_policy_differences": [
+            *('simulation.' + k for k in NEWTON_TOLERANCES),
+            "coupled_facility.control.fraction_tolerance",
+            "coupled_facility.control.continuation_scan_interval",
             "simulation.max_time_step_days",
             "simulation.initial_time_step_days",
             "coupled_facility.time_control",
@@ -135,6 +153,7 @@ def compare(coarse_path, fine_path, budgets, *, allow_numerical_policy=False):
             "coupled_facility.control.reuse_initial_cell_state",
             "coupled_facility.control.initial_cell_state_cache_bytes",
             "coupled_facility.control.reuse_capacity_amg",
+            "coupled_facility.control.reuse_capacity_history",
             "physical_surface_network.sensitivity_backend",
             "physical_surface_network.network_backend",
             "physical_surface_network.bhp_initialization",

@@ -1,0 +1,84 @@
+{
+  "accepted": true,
+  "fields": {
+    "accepted": true,
+    "errors": {
+      "final_pressure_pa": 3.259629011154175e-09,
+      "final_s_w": 1.6653345369377348e-16,
+      "final_s_g": 6.904199434387692e-16,
+      "final_rs": 4.973799150320701e-14,
+      "withdrawal_relative": 4.1799896877137144e-14
+    },
+    "budgets": {
+      "final_pressure_pa": 0.1,
+      "final_s_w": 1e-08,
+      "final_s_g": 1e-08,
+      "final_rs": 1e-05,
+      "withdrawal_relative": 1e-07
+    },
+    "coarse": ".scratch/capacity_warm/startup_reference/trajectory.json.gz",
+    "fine": ".scratch/capacity_warm/startup_warm_floor/trajectory.json.gz",
+    "scope": "Compare completed operational forecasts at the final common report endpoint.\n\nBudgets must be supplied before inspecting the reference result. This is a\nstep-refinement check, not a proof that the finer trajectory is exact.\n",
+    "allowed_numerical_policy_differences": []
+  },
+  "wells": {
+    "scope": "Compare actual well rates/BHP and cumulative mass at coarse report endpoints.\n\nBoth bundles must independently pass full facility accounting first. This is\nstep refinement, not a proof that either trajectory is exact or calibrated.\n",
+    "accepted": true,
+    "matched_endpoints_days": [
+      5e-05
+    ],
+    "mode_mismatches": 0,
+    "errors": {
+      "bhp_abs_pa": 1.210719347000122e-08,
+      "component_rate_scaled": 5.957966747142609e-13,
+      "cumulative_mass_relative": 4.1799896877137144e-14
+    },
+    "budgets": {
+      "bhp_abs_pa": 0.1,
+      "component_rate_scaled": 1e-07,
+      "cumulative_mass_relative": 1e-07
+    },
+    "component_rate_floor_kg_s": 1e-08,
+    "allow_numerical_policy": false
+  },
+  "wall": [
+    9.979962777000765,
+    9.612765156000023
+  ],
+  "work": [
+    {
+      "macro_attempts": 1,
+      "rejected_macro_steps": 0,
+      "coupled_solves": 3,
+      "capacity_evaluations": 20,
+      "reservoir_evaluations": 17,
+      "capacity_amg_work": {
+        "fresh_requests": 3,
+        "reuse_requests": 14,
+        "retries": 0,
+        "builds": 3,
+        "updates": 29,
+        "linear_attempts": 32
+      },
+      "sensitivity_linear_solves": 0,
+      "sensitivity_plant_evaluations": 0
+    },
+    {
+      "macro_attempts": 1,
+      "rejected_macro_steps": 0,
+      "coupled_solves": 3,
+      "capacity_evaluations": 20,
+      "reservoir_evaluations": 17,
+      "capacity_amg_work": {
+        "fresh_requests": 3,
+        "reuse_requests": 14,
+        "retries": 0,
+        "builds": 3,
+        "updates": 23,
+        "linear_attempts": 26
+      },
+      "sensitivity_linear_solves": 0,
+      "sensitivity_plant_evaluations": 0
+    }
+  ]
+}
