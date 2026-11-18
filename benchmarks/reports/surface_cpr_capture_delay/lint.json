@@ -1,0 +1,12 @@
+{
+  "src/simulator/cpr_gpu.py": {
+    "baseline": 1,
+    "candidate": 1,
+    "unchanged": true
+  },
+  "src/simulator/manual_assembly_solver.py": {
+    "baseline": 6,
+    "candidate": 6,
+    "unchanged": true
+  }
+}

@@ -1,0 +1,21 @@
+{
+  "correctness_accepted": true,
+  "full_forecast_speedup_confirmed": false,
+  "source_guards_and_mass_audits_passed": [
+    "before",
+    "after",
+    "before_repeat",
+    "after_repeat",
+    "small"
+  ],
+  "exact_accepted_trajectories": [
+    "gpu_pair_1",
+    "gpu_pair_2",
+    "cpu_month"
+  ],
+  "tests": {
+    "passed": 43,
+    "skipped": 4
+  },
+  "scope": "Synthetic black-oil + quasi-steady facility. BHP microbenchmark is not full forecast performance."
+}

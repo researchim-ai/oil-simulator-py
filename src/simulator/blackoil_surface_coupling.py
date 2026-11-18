@@ -235,18 +235,19 @@ class SurfaceCoupledBlackOilWells(FullWellSchur, BlackOilWells):
         if getattr(self, "bhp_initialization", "previous") == "rate_network":
             self._rate_network_initial_bhp(v, d, previous)
             return
-        for i in self.surface_well_indices:
-            ceiling = (
-                v[I_P][self.conn_cell[self.conn_well == i]] - self.conn_head[self.conn_well == i]
-            ).min()
-            # Keep an accepted producing pressure, including near-closed rate
-            # caps. Forcing another 5% drawdown on every capacity trial can
-            # make Newton overshoot into backflow independently of dt.
-            # Use the interior seed only when no valid warm start exists;
-            # no source or static phase distribution is invented at zero flow.
-            upper = float(ceiling)
-            prior = None if previous is None else float(previous[i])
-            self.p_bh[i] = prior if prior is not None and 0 < prior < upper else 0.95 * upper
+        self.p_bh.copy_(self._previous_surface_bhp(v, previous))
+
+    def _previous_surface_bhp(self, v, previous):
+        """Same per-well minimum and warm-start rule, without scalar D2H reads."""
+        ceiling = self.p_bh.new_full((self.n_w,), float("inf"))
+        ceiling.scatter_reduce_(0, self.conn_well,
+                                v[I_P][self.conn_cell] - self.conn_head,
+                                reduce="amin", include_self=True)
+        base = .95 * ceiling
+        if previous is not None:
+            valid = (previous > 0) & (previous < ceiling)
+            base = torch.where(valid, previous, base)
+        return base
 
     def _rate_network_initial_bhp(self, v, d, previous):
         """Frozen-cell affine rate root, bounded by a network pressure guess.

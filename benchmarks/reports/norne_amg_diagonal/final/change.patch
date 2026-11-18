@@ -1,0 +1,134 @@
+--- a/src/solver/classical_amg.py
++++ b/src/solver/classical_amg.py
+@@ -62,7 +62,7 @@
+     if (row_len < 0).any():
+         raise RuntimeError(f"find_strong_connections: некорректный CSR - row_len имеет отрицательные значения")
+     
+-    row_idx = torch.repeat_interleave(torch.arange(n, device=device), row_len)
++    row_idx = torch.repeat_interleave(torch.arange(n, device=device), row_len, output_size=col.numel())
+     
+     # Диагональ (для масштабирования)
+     diag = torch.zeros(n, device=device, dtype=dtype)
+@@ -109,7 +109,7 @@
+     # Делаем граф неориентированным: i<->j
+     # Уникализируем рёбра {min(i,j), max(i,j)} чтобы избежать дублей
+     row_len = crow[1:] - crow[:-1]
+-    row_idx = torch.repeat_interleave(torch.arange(n, device=device), row_len)
++    row_idx = torch.repeat_interleave(torch.arange(n, device=device), row_len, output_size=col.numel())
+     i = row_idx[strong]
+     j = col[strong]
+     
+@@ -160,7 +160,7 @@
+     device = A_csr.device
+ 
+     row_len = crow[1:] - crow[:-1]
+-    row_idx = torch.repeat_interleave(torch.arange(n, device=device), row_len)
++    row_idx = torch.repeat_interleave(torch.arange(n, device=device), row_len, output_size=col.numel())
+ 
+     edges_i = row_idx[strong_mask]
+     edges_j = col[strong_mask]
+@@ -1003,7 +1003,7 @@
+             col = A_csr.col_indices()
+             vals = A_csr.values().clone()
+             row_len = crow[1:] - crow[:-1]
+-            row_idx = torch.repeat_interleave(torch.arange(crow.numel()-1, device=device), row_len)
++            row_idx = torch.repeat_interleave(torch.arange(crow.numel()-1, device=device), row_len, output_size=col.numel())
+             vals = vals * Dhalf_inv[row_idx] * Dhalf_inv[col]
+             A_csr = torch.sparse_csr_tensor(crow, col, vals, size=A_csr.size(),
+                                             device=device, dtype=torch.float64)
+@@ -1229,6 +1229,11 @@
+     
+     def _extract_diag(self, A_csr: torch.Tensor) -> torch.Tensor:
+         """Извлекает диагональ из CSR матрицы."""
++        if A_csr.is_cuda:
++            from .csr_spmv import csr_diagonal
++            diagonal = csr_diagonal(A_csr)
++            if diagonal is not None:
++                return diagonal
+         crow = A_csr.crow_indices()
+         col = A_csr.col_indices()
+         val = A_csr.values()
+@@ -1237,7 +1242,7 @@
+         diag = torch.zeros(n, device=A_csr.device, dtype=A_csr.dtype)
+         
+         row_len = crow[1:] - crow[:-1]
+-        row_idx = torch.repeat_interleave(torch.arange(n, device=A_csr.device), row_len)
++        row_idx = torch.repeat_interleave(torch.arange(n, device=A_csr.device), row_len, output_size=val.numel())
+         diag_mask = row_idx == col
+         
+         diag.scatter_(0, row_idx[diag_mask], val[diag_mask])
+@@ -1256,7 +1261,7 @@
+         n = crow.numel() - 1
+         
+         row_len = crow[1:] - crow[:-1]
+-        row_idx = torch.repeat_interleave(torch.arange(n, device=A_csr.device), row_len)
++        row_idx = torch.repeat_interleave(torch.arange(n, device=A_csr.device), row_len, output_size=val.numel())
+         
+         row_abs = torch.zeros(n, device=A_csr.device, dtype=val.dtype)
+         row_abs.scatter_add_(0, row_idx, val)
+@@ -1317,7 +1322,7 @@
+             return hit[1]
+         crow = A_csr.crow_indices()
+         idx = torch.repeat_interleave(torch.arange(crow.numel() - 1, device=A_csr.device, dtype=torch.int64),
+-                                      crow[1:] - crow[:-1])
++                                      crow[1:] - crow[:-1], output_size=A_csr.values().numel())
+         live = {id(l[k]) for l in getattr(self, 'levels', []) for k in ('A', 'P', 'R') if torch.is_tensor(l.get(k))}
+         for key in [k for k in cache if k not in live]:
+             del cache[key]
+@@ -1835,7 +1840,7 @@
+             col = A_csr.col_indices()
+             vals = A_csr.values().clone()
+             row_len = crow[1:] - crow[:-1]
+-            row_idx = torch.repeat_interleave(torch.arange(crow.numel() - 1, device=root_device), row_len)
++            row_idx = torch.repeat_interleave(torch.arange(crow.numel() - 1, device=root_device), row_len, output_size=col.numel())
+             vals = vals * Dhalf_inv[row_idx] * Dhalf_inv[col]
+             A_csr = torch.sparse_csr_tensor(crow, col, vals, size=A_csr.size(), device=root_device, dtype=root_dtype)
+             self.Dhalf_inv = Dhalf_inv
+--- a/src/solver/csr_spmv.py
++++ b/src/solver/csr_spmv.py
+@@ -87,3 +87,45 @@
+             rhs.contiguous(), inv.contiguous(), BLOCK=32, ROWS=4,
+             num_warps=4, enable_fp_fusion=False)
+     return out
++
++
++if triton is not None:
++    @triton.jit
++    def _csr_diagonal(crow, col, values, out, n_rows,
++                      BLOCK: tl.constexpr, ROWS: tl.constexpr):
++        rows = tl.program_id(0) * ROWS + tl.arange(0, ROWS)
++        starts = tl.load(crow + rows, rows < n_rows, other=0)
++        ends = tl.load(crow + rows + 1, rows < n_rows, other=0)
++        width = tl.max(ends - starts, axis=0)
++        found = tl.full((ROWS,), -1, starts.dtype)
++        offset = 0
++        while offset < width:
++            pos = starts[:, None] + offset + tl.arange(0, BLOCK)[None, :]
++            valid = (rows[:, None] < n_rows) & (pos < ends[:, None])
++            columns = tl.load(col + pos, valid, other=-1)
++            hits = tl.where(valid & (columns == rows[:, None]), pos, -1)
++            found = tl.maximum(found, tl.max(hits, axis=1))
++            offset += BLOCK
++        diagonal = tl.load(values + found, (rows < n_rows) & (found >= 0), other=0.)
++        tl.store(out + rows, diagonal, rows < n_rows)
++
++
++def csr_diagonal(matrix):
++    """Read diagonal entries without host synchronization or floating reduction.
++
++    Returns None for the caller's eager fallback. Missing entries are zero;
++    an unsorted row is supported. Duplicate diagonals select the last entry,
++    matching the deterministic scatter used by AMG (not a duplicate sum).
++    """
++    if (triton is None or not matrix.is_cuda or torch.version.hip is not None
++            or matrix.dtype not in (torch.float32, torch.float64)
++            or matrix.requires_grad):
++        return None
++    n = matrix.size(0)
++    out = matrix.values().new_empty(n)
++    if n:
++        _csr_diagonal[(triton.cdiv(n, 4),)](
++            matrix.crow_indices().contiguous(), matrix.col_indices().contiguous(),
++            matrix.values().contiguous(), out, n, BLOCK=32, ROWS=4,
++            num_warps=4)
++    return out

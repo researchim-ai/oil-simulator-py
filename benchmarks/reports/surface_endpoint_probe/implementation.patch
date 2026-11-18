@@ -1,0 +1,130 @@
+diff --git a/src/simulator/facility_coupling.py b/src/simulator/facility_coupling.py
+index 8174ca3..0855e53 100644
+--- a/src/simulator/facility_coupling.py
++++ b/src/simulator/facility_coupling.py
+@@ -604,7 +604,8 @@ class FacilityCoupledFIM:
+                     mid = (
+                         (bracket.low + bracket.high) / 2
+                         if self.control.search_method == "bisect"
+-                        else predicted if predicted is not None else bracket.proposal()
++                        else predicted if predicted is not None else bracket.proposal(
++                            allow_endpoint_probe=self.control.search_method == 'continuation_safeguarded')
+                     )
+                     if self.control.search_method == 'continuation_safeguarded' and local is not None:
+                         # Probe slightly above the predicted crossing to close
+diff --git a/src/surface/capacity_bracket.py b/src/surface/capacity_bracket.py
+index d049481..b8ec3f3 100644
+--- a/src/surface/capacity_bracket.py
++++ b/src/surface/capacity_bracket.py
+@@ -42,9 +42,9 @@ def local_capacity_bracket(evaluate, fraction, slopes, minimum, tolerance):
+         root = min(roots)
+         proposed = root + (tolerance/2 if row['feasible'] else -tolerance/2)
+         if row['feasible']:
+-            proposed = max(point+tolerance, proposed)
++            proposed = max(point+tolerance/2, proposed)
+         else:
+-            proposed = min(point-tolerance, proposed)
++            proposed = min(point-tolerance/2, proposed)
+         if not lower <= proposed <= upper or proposed == point:
+             return None
+         point = proposed
+@@ -125,6 +125,7 @@ class CapacityBracket:
+     slow_updates: int = 0
+     low_margins: dict[str, float | None] | None = None
+     high_margins: dict[str, float | None] | None = None
++    endpoint_probe_used: bool = False
+ 
+     def __post_init__(self):
+         if not (0 < self.low < self.high <= 1 and 0 < self.tolerance < 1):
+@@ -144,7 +145,7 @@ class CapacityBracket:
+     def complete(self):
+         return self.high - self.low <= self.tolerance
+ 
+-    def proposal(self):
++    def proposal(self, *, allow_endpoint_probe=False):
+         if self.complete:
+             raise ValueError("Capacity bracket already resolved")
+         middle = self.low + (self.high - self.low) / 2
+@@ -165,7 +166,7 @@ class CapacityBracket:
+         if pairs:
+             # First predicted crossing constrains a jointly feasible point.
+             low, high = min(pairs, key=lambda p: -p[0] / (p[1] - p[0]))
+-        if self.slow_updates >= 2 or low is None or high is None:
++        if low is None or high is None:
+             self.slow_updates = 0
+             return middle
+         ratio = -low / (high - low)
+@@ -175,6 +176,16 @@ class CapacityBracket:
+         candidate = max(
+             self.low + self.tolerance / 2, min(self.high - self.tolerance / 2, candidate)
+         )
++        if self.slow_updates >= 2:
++            # One bounded exception to bisection per search: a solved point
++            # within the termination tolerance may close the bracket directly.
++            # If it does not, the next stalled proposal still bisects.
++            near_endpoint = min(candidate-self.low, self.high-candidate) <= self.tolerance
++            if allow_endpoint_probe and not self.endpoint_probe_used and near_endpoint:
++                self.endpoint_probe_used = True
++            else:
++                self.slow_updates = 0
++                return middle
+         return candidate if self.low < candidate < self.high else middle
+ 
+     def update(self, candidate, feasible, margin, *, margins=None):
+diff --git a/tests/test_capacity_continuation.py b/tests/test_capacity_continuation.py
+index 8e6c7ce..0b7e4df 100644
+--- a/tests/test_capacity_continuation.py
++++ b/tests/test_capacity_continuation.py
+@@ -153,3 +153,52 @@ def test_continuation_preserves_existing_wide_history_proposal():
+     expected = capacity_history_slopes(report['trace'], report['fraction'], 1e-6)
+     assert expected
+     assert continuation_slopes(report, 1e-6) == expected
++
++
++def test_local_nearby_root_closes_within_tolerance_in_two_solves():
++    points = []
++    def evaluate(x):
++        points.append(x)
++        return {'fraction': x, 'feasible': x <= .0030001,
++                'constraint_margins': {'gas': x-.0030001}}
++    low, high = local_capacity_bracket(evaluate, .003, {'gas': 1.}, .0001, 1e-6)
++    assert len(points) == 2
++    assert 0 < high['fraction']-low['fraction'] <= 1e-6
++
++
++def test_endpoint_probe_is_bounded_and_does_not_disable_bisection():
++    from surface.capacity_bracket import CapacityBracket
++
++    b = CapacityBracket(.1, .9, 1e-6, -1e-8, 1., slow_updates=2)
++    x = b.proposal(allow_endpoint_probe=True)
++    assert b.low < x <= b.low+b.tolerance
++    b.update(x, True, -1e-8)
++    assert b.proposal(allow_endpoint_probe=True) == b.low+(b.high-b.low)/2
++    # Legacy searches retain immediate bisection even near a secant root.
++    legacy = CapacityBracket(.1, .9, 1e-6, -1e-8, 1., slow_updates=2)
++    assert legacy.proposal() == .5
++
++
++def test_endpoint_probe_does_not_replace_interior_stagnation_safeguard():
++    from surface.capacity_bracket import CapacityBracket
++
++    b = CapacityBracket(.1, .9, 1e-6, -.2, 1., slow_updates=2)
++    assert b.proposal(allow_endpoint_probe=True) == .5
++    assert not b.endpoint_probe_used
++
++
++@pytest.mark.parametrize('root,power', [(.1000002, 1), (.37, 3), (.8999998, 5)])
++def test_endpoint_search_retains_bracket_and_terminates_for_flat_roots(root, power):
++    from surface.capacity_bracket import CapacityBracket
++
++    def margin(x):
++        return (x-root)**power
++    b = CapacityBracket(.1, .9, 1e-7, margin(.1), margin(.9))
++    for _ in range(60):
++        if b.complete:
++            break
++        x = b.proposal(allow_endpoint_probe=True)
++        value = margin(x)
++        b.update(x, value <= 0, value)
++        assert b.low <= root < b.high
++    assert b.complete

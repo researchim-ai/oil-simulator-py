@@ -1,0 +1,46 @@
+{
+  "reference": {
+    "torch_searches": {
+      "calls": 7110,
+      "cumulative_s": 0.017584927
+    },
+    "stream_validation": {
+      "calls": 14976,
+      "cumulative_s": 0.146413236
+    },
+    "mass_rates": {
+      "calls": 5370,
+      "cumulative_s": 0.001417164
+    },
+    "asdict": {
+      "calls": 15217,
+      "cumulative_s": 0.08452190300000001
+    },
+    "surface_assembly": {
+      "calls": 39,
+      "cumulative_s": 1.5217682250000002
+    }
+  },
+  "candidate": {
+    "torch_searches": {
+      "calls": 3366,
+      "cumulative_s": 0.013035176
+    },
+    "stream_validation": {
+      "calls": 9867,
+      "cumulative_s": 0.054542569000000006
+    },
+    "mass_rates": {
+      "calls": 2796,
+      "cumulative_s": 0.0008618800000000001
+    },
+    "asdict": {
+      "calls": 239,
+      "cumulative_s": 0.002532676
+    },
+    "surface_assembly": {
+      "calls": 39,
+      "cumulative_s": 1.5458630050000002
+    }
+  }
+}

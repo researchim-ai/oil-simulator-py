@@ -1,0 +1,150 @@
+--- before/src/surface/blackoil_pipe.py
++++ after/src/surface/blackoil_pipe.py
+@@ -262,21 +262,30 @@
+         (length, dissipation, work), order, error = self._checked_integral(
+             x[1], x[0], x[2:5], model, resistance=x[5]
+         )
+-        grad = torch.autograd.grad(length, x, retain_graph=True)[0]
++        # No second backward follows: work/dissipation are only detached for
++        # accounting below. Release saved quadrature tensors before port work.
++        grad = torch.autograd.grad(length, x)[0]
+         unknown = 0 if from_outlet else 1
+         known = 1 - unknown
+         derivative = -grad / grad[unknown]
+         port = torch.tensor(
+             [pin, pout], dtype=torch.float64, device=masses.device, requires_grad=True
+         )
+-        pv = model.tensor_state(port, masses)["specific_volume"]
++        port_states = model.tensor_state(port, masses)
++        pv = port_states["specific_volume"]
+         derivative_v = torch.autograd.grad(pv.sum(), port)[0]
+         flux_port = float(masses.sum()) / (math.pi * self.diameter_m**2 / 4)
+         margins = 1 + flux_port**2 * derivative_v
+         if not bool(torch.isfinite(margins).all()) or bool((margins <= 1e-6).any()):
+             raise ChokedFlowError("Black-oil pipe port is outside the subcritical domain")
+-        inlet = model.state(pin, masses.tolist())
+-        outlet = model.state(pout, masses.tolist())
++        # The subcritical-port check already evaluated the full flash at
++        # both endpoints. Reuse those values, but retain the public state
++        # path's pressure/composition admission checks at each endpoint.
++        model.validate(pin, masses)
++        model.validate(pout, masses)
++        port_values = {key: value.detach().tolist() for key, value in port_states.items()}
++        inlet = {key: values[0] for key, values in port_values.items()}
++        outlet = {key: values[1] for key, values in port_values.items()}
+         vin, vout = inlet["specific_volume"], outlet["specific_volume"]
+         flux = float(masses.sum()) / (math.pi * self.diameter_m**2 / 4)
+         mechanical = (
+--- before/src/surface/blackoil_pipe_batch.py
++++ after/src/surface/blackoil_pipe_batch.py
+@@ -212,8 +212,13 @@
+         # the full pressure-coordinate integral as the acceptance equation.
+         done = torch.zeros(n, dtype=torch.bool, device=boundary.device)
+         for _ in range(64):
+-            trial = trial.detach().requires_grad_(True)
+-            value, _, _ = self.checked(boundary, trial, masses, resistance)
++            # Keep the complete local input vector on the accepted trial tape.
++            # Newton differentiates only the root view; once converged the
++            # same checked integral supplies all implicit sensitivities.
++            x = torch.cat([trial[:, None], boundary[:, None], masses, resistance[:, None]], 1)
++            x = x.detach().requires_grad_(True)
++            trial = x[:, 0]
++            value, order, error = self.checked(x[:, 1], trial, x[:, 2:5], x[:, 5])
+             residual = value[:, 0] - length
+             calls += 1
+             okay = residual.detach().abs() <= torch.maximum(
+@@ -222,26 +227,20 @@
+             done |= okay
+             if bool(done.all()):
+                 root = trial.detach()
+-                # Release the unused trial tape before the final sensitivity
+-                # graph; skipping backward must not increase peak memory.
+-                del value, residual
++                integral = value
+                 break
+             high = torch.where(~done & (residual.detach() > 0), trial.detach(), high)
+             low = torch.where(~done & (residual.detach() <= 0), trial.detach(), low)
+-            # A converged root needs no next Newton proposal. Final implicit
+-            # sensitivities are computed independently below for all inputs.
++            # Only the root derivative is needed for the next Newton proposal.
+             deriv = torch.autograd.grad(value[:, 0].sum(), trial)[0]
+             newton = trial.detach() - residual.detach() / deriv.detach()
+             safe = torch.isfinite(newton) & (newton > low) & (newton < high)
+             trial = torch.where(done, trial.detach(), torch.where(safe, newton, (low + high) / 2))
++            # Root-only backward need not visit every composition branch.
++            # Drop the rejected tape before building the next one.
++            del value, residual
+         else:
+             raise HydraulicConvergenceError("Batch pressure inversion budget exhausted")
+-        x = (
+-            torch.cat([root[:, None], boundary[:, None], masses, resistance[:, None]], 1)
+-            .detach()
+-            .requires_grad_(True)
+-        )
+-        integral, order, error = self.checked(x[:, 1], x[:, 0], x[:, 2:5], x[:, 5])
+         gradient = torch.autograd.grad(integral[:, 0].sum(), x)[0]
+         derivative = -gradient / gradient[:, :1]
+         ports = x[:, :2].detach().requires_grad_(True)
+--- before/tests/test_pipe_port_reuse.py
++++ after/tests/test_pipe_port_reuse.py
+@@ -0,0 +1,20 @@
++"""Reused port flashes retain the independently evaluated public reports."""
++import pytest
++import torch
++from test_surface_blackoil_properties import model
++
++from surface.blackoil_pipe import BlackOilPipe
++
++
++@pytest.mark.parametrize('device', ['cpu', pytest.param('cuda', marks=pytest.mark.skipif(
++    not torch.cuda.is_available(), reason='CUDA unavailable'))])
++@pytest.mark.parametrize('rates', [[.85, 2., .06], [.85, 2., .144], [0., 2., 0.]])
++@pytest.mark.parametrize('inverse', [False, True])
++def test_port_report_is_exact_to_independent_flash(device, rates, inverse):
++    m = model().to(device)
++    pipe = BlackOilPipe('riser', 300, .08, 30, 1e-5)
++    run = pipe.required_inlet if inverse else pipe.run
++    result = run(2.72e6 if inverse else 3e6, rates, m)
++    for port in ('inlet', 'outlet'):
++        assert result[port+'_state'] == m.state(result[port+'_pressure_pa'], rates)
++    assert abs(result['mechanical_balance_error_w']) < 1e-5
+--- before/tests/test_pipe_root_reuse.py
++++ after/tests/test_pipe_root_reuse.py
+@@ -0,0 +1,37 @@
++"""Accepted Newton tape gives the same implicit Jacobian as a fresh integral."""
++import pytest
++import torch
++from test_surface_blackoil_properties import model
++
++from surface.blackoil_pipe import BlackOilPipe
++from surface.blackoil_pipe_batch import PipeBatch
++
++
++@pytest.mark.parametrize('device', ['cpu', pytest.param('cuda', marks=pytest.mark.skipif(
++    not torch.cuda.is_available(), reason='CUDA unavailable'))])
++def test_reused_root_jacobian_exact_to_fresh_full_input_tape(device, monkeypatch):
++    m = model().to(device)
++    pipes = [BlackOilPipe('phase', 300, .08, 30, 1e-5),
++             BlackOilPipe('gas', 100, .15, 5, 2e-5, 2),
++             BlackOilPipe('water', 80, .03, 0, 1e-5)]
++    boundaries = [2.72e6, 1.1e6, 2.4e6]
++    rates = [[.85, 2., .06], [.85, 1., .144], [0., .001, 0.]]
++    batch = PipeBatch(pipes, m)
++    checked = batch.checked
++    calls = []
++    def counted(*args, **kwargs):
++        calls.append(1)
++        return checked(*args, **kwargs)
++    monkeypatch.setattr(batch, 'checked', counted)
++    rows = batch.solve(boundaries, rates)
++    assert len(calls) == rows[0]['pressure_evaluations']
++    x = torch.tensor([[row['inlet_pressure_pa'], b, *q, p.loss_coefficient]
++                      for row,b,q,p in zip(rows,boundaries,rates,pipes)],
++                     dtype=torch.float64, device=device, requires_grad=True)
++    integral,order,error = checked(x[:,1],x[:,0],x[:,2:5],x[:,5])
++    gradient = torch.autograd.grad(integral[:,0].sum(),x)[0]
++    expected = (-gradient[:,1:]/gradient[:,:1]).detach().cpu().tolist()
++    for row,derivative,err in zip(rows,expected,error.detach().cpu().tolist()):
++        assert list(row['pressure_derivatives'].values()) == derivative
++        assert row['quadrature_order'] == order
++        assert row['quadrature_length_error_m'] == err

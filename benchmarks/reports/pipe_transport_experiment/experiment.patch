@@ -1,0 +1,105 @@
+--- before/src/surface/blackoil_properties.py
++++ experiment/src/surface/blackoil_properties.py
+@@ -210,7 +210,7 @@
+                 unique[-1] = (value, p)
+         return [p for value, p in unique]
+ 
+-    def tensor_state(self, pressure, masses):
++    def tensor_state(self, pressure, masses, *, transport_only=False):
+         """Differentiable inside validated pressure/composition regions; no clamping."""
+         q = masses / self.rho
+         lookup = self._column_interpolator(pressure, self.pressures)
+@@ -255,7 +255,7 @@
+         volumes = torch.stack(
+             [q[0] * bo, q[1] * interp("Bw"), (q[2] - dissolved) * interp("Bg")], dim=-1
+         )
+-        phase_mass = torch.stack(
++        phase_mass = None if transport_only else torch.stack(
+             [
+                 masses[0] + dissolved * self.rho[2],
+                 masses[1] + pressure * 0,
+@@ -265,6 +265,14 @@
+         )
+         volume = volumes.sum(-1)
+         viscosities = torch.stack([muo, interp("mu_w"), interp("mu_g")], dim=-1) * 0.001
++        if transport_only:
++            # Internal momentum quadrature needs these two quantities only.
++            # Keep identical arithmetic/AD; full phase accounting is still
++            # evaluated at reporting ports and by the public state() path.
++            return {
++                "specific_volume": volume / masses.sum(),
++                "viscosity_pa_s": (volumes * viscosities).sum(-1) / volume,
++            }
+         return {
+             "specific_volume": volume / masses.sum(),
+             "viscosity_pa_s": (volumes * viscosities).sum(-1) / volume,
+--- before/src/surface/blackoil_pipe.py
++++ experiment/src/surface/blackoil_pipe.py
+@@ -108,7 +108,7 @@
+             with torch.enable_grad():
+                 if not p.requires_grad:
+                     p.requires_grad_(True)
+-                state = model.tensor_state(p, masses)
++                state = model.tensor_state(p, masses, transport_only=True)
+                 v, mu = state["specific_volume"], state["viscosity_pa_s"]
+                 vp = torch.autograd.grad(v.sum(), p, create_graph=differentiate)[0]
+             flux = masses.sum() / (math.pi * self.diameter_m**2 / 4)
+@@ -269,7 +269,7 @@
+         port = torch.tensor(
+             [pin, pout], dtype=torch.float64, device=masses.device, requires_grad=True
+         )
+-        pv = model.tensor_state(port, masses)["specific_volume"]
++        pv = model.tensor_state(port, masses, transport_only=True)["specific_volume"]
+         derivative_v = torch.autograd.grad(pv.sum(), port)[0]
+         flux_port = float(masses.sum()) / (math.pi * self.diameter_m**2 / 4)
+         margins = 1 + flux_port**2 * derivative_v
+--- before/src/surface/blackoil_pipe_batch.py
++++ experiment/src/surface/blackoil_pipe_batch.py
+@@ -18,7 +18,7 @@
+ from .liquid import HydraulicConvergenceError
+ 
+ 
+-def tensor_state(model, pressure, masses, *, pvto=None):
++def tensor_state(model, pressure, masses, *, pvto=None, transport_only=False):
+     """Independent rows; trailing pressure axes are quadrature/port points."""
+     shape = (len(masses),) + (1,) * (pressure.ndim - 1)
+     q = masses / model.rho
+@@ -55,7 +55,7 @@
+         bo, muo = torch.where(saturated, bo, values[0]), torch.where(saturated, muo, values[1])
+     dissolved = oil * rs
+     volumes = torch.stack([oil * bo, water * interp("Bw"), (gas - dissolved) * interp("Bg")], -1)
+-    phase_mass = torch.stack(
++    phase_mass = None if transport_only else torch.stack(
+         [
+             masses[:, 0].reshape(shape) + dissolved * model.rho[2],
+             masses[:, 1].reshape(shape) + pressure * 0,
+@@ -65,6 +65,11 @@
+     )
+     volume = volumes.sum(-1)
+     viscosity = torch.stack([muo, interp("mu_w"), interp("mu_g")], -1) * 0.001
++    if transport_only:
++        return {
++            "specific_volume": volume / masses.sum(-1).reshape(shape),
++            "viscosity_pa_s": (volumes * viscosity).sum(-1) / volume,
++        }
+     return {
+         "specific_volume": volume / masses.sum(-1).reshape(shape),
+         "viscosity_pa_s": (volumes * viscosity).sum(-1) / volume,
+@@ -114,7 +119,7 @@
+         with torch.enable_grad():
+             if not p.requires_grad:
+                 p.requires_grad_(True)
+-            state = tensor_state(model, p, masses, pvto=self.pvto)
++            state = tensor_state(model, p, masses, pvto=self.pvto, transport_only=True)
+             v, mu = state["specific_volume"], state["viscosity_pa_s"]
+             vp = torch.autograd.grad(v.sum(), p, create_graph=differentiate)[0]
+         flux = masses.sum(1) / (math.pi * diameter.square() / 4)
+@@ -168,7 +173,7 @@
+         resistance = model.rho.new_tensor([p.loss_coefficient for p in self.pipes])
+         length, diameter, dz, rough = self.geometry.unbind(1)
+         port = boundary.detach().requires_grad_(True)
+-        state = tensor_state(model, port, masses, pvto=self.pvto)
++        state = tensor_state(model, port, masses, pvto=self.pvto, transport_only=True)
+         v, mu = state["specific_volume"], state["viscosity_pa_s"]
+         vp = torch.autograd.grad(v.sum(), port)[0]
+         flux = masses.sum(1) / (math.pi * diameter.square() / 4)

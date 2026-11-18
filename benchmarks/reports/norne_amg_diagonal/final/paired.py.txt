@@ -1,0 +1,24 @@
+import os,sys,subprocess,shutil,json
+from pathlib import Path
+import numpy as np
+r=Path.cwd();out=r/'.scratch/norne_amg_sizes'
+for tag in ['reference','optimized']:
+ root=out/tag
+ shutil.copytree(r/'src',root/'src',dirs_exist_ok=True)
+ shutil.copytree(r/'scripts',root/'scripts',dirs_exist_ok=True)
+ if tag=='reference':
+  for name in ['classical_amg','csr_spmv']:
+   shutil.copyfile(out/f'{name}_before.py',root/f'src/solver/{name}.py')
+for repeat,tags in enumerate([['reference','optimized'],['optimized','reference']]):
+ for tag in tags:
+  root=out/tag
+  for window in ['early','late']:
+   dest=out/f'{window}_{tag}_{repeat}'
+   env=dict(os.environ,PYTHONPATH=str(root/'src')+':'+str(root/'scripts'))
+   if window=='early':
+    env.update(NORNE_DIR=str(r/'.scratch/ot2/norne'),NORNE_OUT=str(dest),NORNE_DAYS='115',NORNE_DEVICE='cuda:0',NORNE_THREADS='1',NORNE_CPR_REUSE_GRAPH='0')
+    cmd=[sys.executable,str(root/'scripts/validate_norne.py')]
+   else:
+    cmd=[sys.executable,str(root/'scripts/probe_norne_timestep.py'),'--deck',str(r/'.scratch/ot2/norne/NORNE_ATW2013.DATA'),'--checkpoint',str(r/'results/norne_gpu_packets_3090_20261031/checkpoint_day_2431.pt'),'--out',str(dest),'--end','2521','--device','cuda:0']
+   with (out/f'{dest.name}.log').open('w') as log:subprocess.run(cmd,env=env,cwd=root,stdout=log,stderr=subprocess.STDOUT,check=True)
+   data=np.load(dest/'substeps.npz')['data']; print(dest.name,float(data[:,-1].sum()),flush=True)

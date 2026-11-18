@@ -1,0 +1,37 @@
+"""Internal transport evaluation must preserve values and implicit derivatives."""
+import pytest
+import torch
+from test_surface_blackoil_properties import model
+
+from surface.blackoil_pipe_batch import tensor_state
+
+
+@pytest.mark.parametrize('device', ['cpu', pytest.param('cuda', marks=pytest.mark.skipif(
+    not torch.cuda.is_available(), reason='CUDA unavailable'))])
+@pytest.mark.parametrize('batched', [False, True])
+@pytest.mark.parametrize('pressure,masses', [
+    (0.6e6, [.85, 2., .144]), (3e6, [.85, 2., .024]),
+    (1e6, [.85, 2., .024]), (3e6, [0., 2., 0.]),
+])
+def test_transport_values_first_and_second_derivatives_exact(device, batched, pressure, masses):
+    m = model().to(device)
+    x = torch.tensor([pressure, *masses], dtype=torch.float64, device=device)
+    def evaluate(z, transport):
+        if batched:
+            # Broadcast pressure quadrature and two independent stream rows.
+            state = tensor_state(m, z[:1].expand(2, 3), z[1:].expand(2, 3),
+                                 transport_only=transport)
+        else:
+            state = m.tensor_state(z[0].expand(3), z[1:], transport_only=transport)
+        if transport:
+            assert set(state) == {'specific_volume', 'viscosity_pa_s'}
+        else:
+            assert 'phase_mass_rates_kg_s' in state
+        return torch.cat([state[k].reshape(-1) for k in ('specific_volume', 'viscosity_pa_s')])
+    results=[]
+    for transport in (False, True):
+        f = lambda z, transport=transport: evaluate(z, transport)
+        results.append((f(x), torch.autograd.functional.jacobian(f, x),
+                        torch.autograd.functional.hessian(lambda z, f=f: f(z).square().sum(), x)))
+    for a,b in zip(*results):
+        torch.testing.assert_close(a,b,rtol=0,atol=0)

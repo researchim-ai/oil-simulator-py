@@ -286,8 +286,12 @@ class BlackOilProductionNetwork:
         count = len(source_names)
         masses = {}
         members = {}
+        empty = ComponentStream()
+        own_masses = {
+            node: sources.get(node, empty).mass_rates(self.model.densities) for node in self.order
+        }
         for node in self.order:
-            own = sources.get(node, ComponentStream()).mass_rates(self.model.densities)
+            own = own_masses[node]
             masses[node] = np.array(
                 [
                     math.fsum([own[c], *(masses[ch][i] for ch in self.incoming[node])])
@@ -370,7 +374,7 @@ class BlackOilProductionNetwork:
                 results[pipe.name] = result
         residuals = {}
         for node in self.order:
-            own = sources.get(node, ComponentStream()).mass_rates(self.model.densities)
+            own = own_masses[node]
             withdrawn = masses[node]
             residuals[node] = {
                 c: math.fsum(

@@ -1,0 +1,46 @@
+{
+  "early": [
+    {
+      "reference_s": 11.807609558105469,
+      "optimized_s": 12.719748973846436,
+      "work_exact": true,
+      "outputs_exact": {
+        "summary.npz": true,
+        "fields.npz": true
+      },
+      "attempts": 17
+    },
+    {
+      "reference_s": 12.596060514450073,
+      "optimized_s": 12.430692672729492,
+      "work_exact": true,
+      "outputs_exact": {
+        "summary.npz": true,
+        "fields.npz": true
+      },
+      "attempts": 17
+    }
+  ],
+  "late": [
+    {
+      "reference_s": 17.901879451997956,
+      "optimized_s": 18.48700511599236,
+      "work_exact": true,
+      "outputs_exact": {
+        "summary.npz": true,
+        "final_fields.npz": true
+      },
+      "attempts": 17
+    },
+    {
+      "reference_s": 18.70976823800447,
+      "optimized_s": 18.51476498899501,
+      "work_exact": true,
+      "outputs_exact": {
+        "summary.npz": true,
+        "final_fields.npz": true
+      },
+      "attempts": 17
+    }
+  ]
+}

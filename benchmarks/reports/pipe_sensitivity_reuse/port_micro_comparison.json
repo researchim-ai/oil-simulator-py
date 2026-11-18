@@ -1,0 +1,9 @@
+{
+  "exact_reports": true,
+  "medians": {
+    "micro_0_False": 0.008259424300073684,
+    "micro_0_True": 0.008149872900078965,
+    "micro_1_True": 0.008437275066656487,
+    "micro_1_False": 0.007977342799980155
+  }
+}

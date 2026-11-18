@@ -1,0 +1,17 @@
+{
+  "checkpoint_day": 3251.0,
+  "step_ok": true,
+  "calls": 34,
+  "max_absolute": 2.2737367544323206e-13,
+  "max_relative_norm": 2.042279478132506e-17,
+  "workspace": {
+    "captures": 4,
+    "refreshes": 0,
+    "replays": 34,
+    "fallbacks": 0,
+    "input_bytes": 57677612,
+    "input_budget_bytes": 134217728,
+    "reason": null
+  },
+  "scope": "One actual Norne step: graph CPR versus fresh eager application at every RHS; not a proof for all states."
+}

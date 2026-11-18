@@ -1,0 +1,22 @@
+{
+  "accepted": true,
+  "pairs": [
+    {
+      "reference": "before",
+      "candidate": "after",
+      "reference_s": 17.15408226499858,
+      "candidate_s": 20.116444566003338,
+      "exact_accepted_trajectory": true
+    },
+    {
+      "reference": "before_repeat",
+      "candidate": "after_repeat",
+      "reference_s": 19.51923608099969,
+      "candidate_s": 18.104687738999928,
+      "exact_accepted_trajectory": true
+    }
+  ],
+  "median_reference_s": 18.336659172999134,
+  "median_candidate_s": 19.110566152501633,
+  "observed_ratio": 0.9595037125887977
+}

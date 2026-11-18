@@ -1761,3 +1761,88 @@ FIM-проб 3106 → 1686, линейных попыток 10485 → 5013. Ст
 и стоимость каждого решения остаются следующими резервами ускорения.
 Протокол: `surface_continuation_secants`; результат не распространяется
 автоматически на подробную PR-динамику и Norne.
+
+Локальные поиски большой модели сокращены до двух физических решений:
+41 → 34 FIM-пробы за месяц без изменения допусков. Дополнительная проба
+у близкого конца скобки ограничена одним разом, деление пополам сохранено.
+Полные поиски после событий пока остаются дорогими; их стоимость и
+стоимость отдельного FIM-решения — следующие резервы. Проверки и границы
+выводов: `surface_endpoint_probe`.
+
+Один из дорогих поисков после события сокращён с 10 до 5 FIM-проб:
+используются только уже решённые допустимые точки текущего шага.
+Месяц большой модели: 34 → 29 FIM-проб, 89 → 70 линейных попыток.
+Полное сканирование сохранено. Следующий резерв — стоимость каждой
+физической пробы, а также начального поиска без накопленных точек.
+Данные: `surface_current_secant`.
+
+Пакетная гидростатика независимых одноперфорационных добывающих скважин
+ускорила большую месячную GPU-модель примерно в 1,40 раза по двум
+контрольным парам. Все принятые состояния совпали точно; физика и число
+FIM-проб не менялись. Следующие резервы — подготовка начальных BHP,
+обновление AMG и пакетная работа со сложными многоперфорационными стволами;
+ускорение последних пока не подтверждено. Протокол: `surface_batched_well_heads`.
+
+Пакетирован выбор начального BHP, устранено повторное построение части
+структур CPR внутри одного линейного решения. Точное совпадение траекторий
+подтверждено; общий выигрыш времени пока не установлен (`surface_bhp_cpr`).
+Постоянные буферы и повторное использование CUDA-графов между матрицами
+пока не реализованы: требуется корректная обработка смены разреженной
+структуры AMG и контроль роста памяти.
+
+Проверена и отклонена по скорости отсрочка записи CPR-графа до четвёртого
+применения: записей меньше, но полный месяц не быстрее. Рабочий порог
+сохранён; добавлены счётчики. Постоянные обновляемые буферы и полноценное
+переиспользование графа между матрицами остаются открытой задачей:
+в граф записываются также меняющиеся коэффициенты сглаживания AMG.
+Протокол: `surface_cpr_capture_delay`.
+
+### Persistent CPR execution workspace
+
+Implemented opt-in `cpr_reuse_graph`: private bounded input buffers, current
+numerical values at every AMG level, structural compatibility checks, checkpoint
+reset and ordinary-CPR fallback. Two opposite-order synthetic coupled month pairs
+pass physical-state and balance checks with approximately 7.3% lower median solve
+time on shared RTX 3090 Ti. Intermediate trial traces are roundoff-close, not
+bitwise equal. Evidence: `benchmarks/reports/surface_cpr_replay/`.
+
+Remaining before default-on: difficult nonlinear/Norne cases, long-run GPU memory
+and scaling qualification, clean-device performance repeats. Do not equate this
+execution optimization with completed surface-physics validation.
+
+### Norne CPR replay qualification outcome
+
+Completed both full 3312-day audits. Persistent replay is **not promoted**:
+648.594 → 673.050 s, different adaptive trajectory and local field discrepancies.
+The graph-pool/stream reservation defect found during testing is fixed and
+covered by 100 recaptures and the complete run (914 MiB maximum reserve).
+Evidence: `benchmarks/reports/norne_cpr_replay/`. Default remains off.
+Further replay work requires explaining/controlling nonlinear trajectory
+sensitivity and demonstrating a real speed benefit. Focus subsequent acceleration
+on measured coupled assembly/derivative costs and redundant reservoir solves.
+
+### Surface assembly preparation reduction
+
+Completed current-evaluation PVT interval reuse with unchanged pressure AD
+ordering, direct stream-field validation and one source-mass preparation per
+network solve. Four GPU month pairs and a stronger CPU two-day pair preserve
+accepted/trial states exactly. GPU median time reduced 7.8% in the tested
+synthetic scenario; CPU speedup unconfirmed. Evidence:
+`benchmarks/reports/surface_assembly_reuse/`.
+
+Next: isolate the remaining implicit surface-derivative and repeated coupled
+reservoir-solve costs on larger networks. Do not claim this preparation change
+solves those algorithmic bottlenecks or qualifies persistent CPR for Norne.
+
+### Converged pipe sensitivity reuse
+
+Implemented accepted Newton integral/tape reuse for batched implicit pressure
+sensitivities, bounded trial-tape lifetimes and reuse of already computed scalar
+port reports. Exact Jacobian and complete trajectory comparisons pass. Local
+64-pipe GPU and stronger coupled CPU opposite-order pairs show about 5.7% less
+time. Full GPU-coupled speedup is not confirmed; Norne was not re-benchmarked.
+Evidence: `benchmarks/reports/pipe_sensitivity_reuse/`.
+
+Rejected the extra transport-only property path after mixed timings; production
+does not contain that experimental API. Continue from the measured complete
+GPU-coupled profile and repeated reservoir-solve costs, without weakening tolerances.

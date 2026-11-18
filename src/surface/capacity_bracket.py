@@ -42,9 +42,9 @@ def local_capacity_bracket(evaluate, fraction, slopes, minimum, tolerance):
         root = min(roots)
         proposed = root + (tolerance/2 if row['feasible'] else -tolerance/2)
         if row['feasible']:
-            proposed = max(point+tolerance, proposed)
+            proposed = max(point+tolerance/2, proposed)
         else:
-            proposed = min(point-tolerance, proposed)
+            proposed = min(point-tolerance/2, proposed)
         if not lower <= proposed <= upper or proposed == point:
             return None
         point = proposed
@@ -115,6 +115,47 @@ def continuation_slopes(report, tolerance):
     return slopes
 
 
+def feasible_secant_proposal(trace, bracket):
+    """One optional current-step proposal when the upper margin is unavailable.
+
+    Uses only solved feasible points, never a prior step's equipment response.
+    This extrapolation does not certify feasibility; the caller must solve it
+    and limit its use to once per search before returning to normal safeguards.
+    """
+    if bracket.complete or bracket.high_margins:
+        return None
+    rows = {r['fraction']: r for r in trace
+            if r.get('feasible') is True and 'certified_from_trace_index' not in r
+            and r['fraction'] <= bracket.low and r.get('constraint_margins')}
+    points = sorted(rows)
+    if len(points) < 2 or points[-1] != bracket.low:
+        return None
+    left, right = points[-2:]
+    if right-left <= 32*max(math.ulp(left), math.ulp(right)):
+        return None
+    a, b = [rows[x]['constraint_margins'] for x in (left, right)]
+    if a.keys() != b.keys():
+        return None
+    roots = []
+    for key, value in b.items():
+        prior = a[key]
+        if (value is None or prior is None
+                or not all(math.isfinite(v) and v <= 0 for v in (value, prior))):
+            return None
+        signal = value-prior
+        if signal > 64*math.ulp(max(1., abs(value), abs(prior))):
+            roots.append(right-value*(right-left)/signal)
+    if not roots:
+        return None
+    root = min(roots)
+    # Avoid remote extrapolation from almost coincident points or tiny caps.
+    if not bracket.low <= root <= min(2*right, right+2*(right-left)):
+        return None
+    candidate = max(bracket.low+bracket.tolerance/2,
+                    min(bracket.high-bracket.tolerance/2, root))
+    return candidate if bracket.low < candidate < bracket.high else None
+
+
 @dataclass
 class CapacityBracket:
     low: float
@@ -125,6 +166,7 @@ class CapacityBracket:
     slow_updates: int = 0
     low_margins: dict[str, float | None] | None = None
     high_margins: dict[str, float | None] | None = None
+    endpoint_probe_used: bool = False
 
     def __post_init__(self):
         if not (0 < self.low < self.high <= 1 and 0 < self.tolerance < 1):
@@ -144,7 +186,7 @@ class CapacityBracket:
     def complete(self):
         return self.high - self.low <= self.tolerance
 
-    def proposal(self):
+    def proposal(self, *, allow_endpoint_probe=False):
         if self.complete:
             raise ValueError("Capacity bracket already resolved")
         middle = self.low + (self.high - self.low) / 2
@@ -165,7 +207,7 @@ class CapacityBracket:
         if pairs:
             # First predicted crossing constrains a jointly feasible point.
             low, high = min(pairs, key=lambda p: -p[0] / (p[1] - p[0]))
-        if self.slow_updates >= 2 or low is None or high is None:
+        if low is None or high is None:
             self.slow_updates = 0
             return middle
         ratio = -low / (high - low)
@@ -175,6 +217,16 @@ class CapacityBracket:
         candidate = max(
             self.low + self.tolerance / 2, min(self.high - self.tolerance / 2, candidate)
         )
+        if self.slow_updates >= 2:
+            # One bounded exception to bisection per search: a solved point
+            # within the termination tolerance may close the bracket directly.
+            # If it does not, the next stalled proposal still bisects.
+            near_endpoint = min(candidate-self.low, self.high-candidate) <= self.tolerance
+            if allow_endpoint_probe and not self.endpoint_probe_used and near_endpoint:
+                self.endpoint_probe_used = True
+            else:
+                self.slow_updates = 0
+                return middle
         return candidate if self.low < candidate < self.high else middle
 
     def update(self, candidate, feasible, margin, *, margins=None):

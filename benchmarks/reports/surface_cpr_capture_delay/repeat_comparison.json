@@ -1,0 +1,26 @@
+{
+  "accepted": true,
+  "pairs": [
+    {
+      "reference": "before",
+      "candidate": "after_final",
+      "reference_s": 18.56495722499676,
+      "candidate_s": 18.438379941002495,
+      "exact_accepted_trajectory": true,
+      "reference_captures": 34,
+      "candidate_captures": 2
+    },
+    {
+      "reference": "before_repeat",
+      "candidate": "after_repeat",
+      "reference_s": 18.002278635001858,
+      "candidate_s": 18.64899434799736,
+      "exact_accepted_trajectory": true,
+      "reference_captures": 34,
+      "candidate_captures": 2
+    }
+  ],
+  "median_reference_s": 18.28361792999931,
+  "median_candidate_s": 18.543687144499927,
+  "observed_ratio": 0.9859753234362696
+}

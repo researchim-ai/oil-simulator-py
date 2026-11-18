@@ -29,15 +29,22 @@ class CPRPreconditionerGPU:
     use_graphs = True
 
     def __init__(self, J_vals, indptr, indices, n_cells, device, amg=None, smoother_sweeps=1,
-                 amg_verbose=False, graph_pool=None):
+                 amg_verbose=False, graph_pool=None, matrix_rows=None,
+                 matrix_bsr=None, diag_positions=None, graph_warmup_calls=1, replay_workspace=None):
+        self.replay_workspace = replay_workspace
+        if type(graph_warmup_calls) is not int or graph_warmup_calls < 1:
+            raise ValueError("Positive integer CPR graph warmup count required")
+        self.graph_warmup_calls = graph_warmup_calls
+        self.graph_eager_calls = self.graph_captures = self.graph_replays = 0
         self.n_cells = n_cells
         self.device = device
         self.smoother_sweeps = max(1, int(smoother_sweeps))
         self._graph_pool = graph_pool
         crow = indptr.long()
         col = indices.long()
-        self.rows = torch.repeat_interleave(torch.arange(n_cells, device=J_vals.device),
-                                            crow[1:] - crow[:-1], output_size=J_vals.shape[0])
+        self.rows = (matrix_rows if matrix_rows is not None else
+                     torch.repeat_interleave(torch.arange(n_cells, device=J_vals.device),
+                                             crow[1:] - crow[:-1], output_size=J_vals.shape[0]))
         self.col = col
         self.J_vals = J_vals
 
@@ -46,11 +53,12 @@ class CPRPreconditionerGPU:
         # than inside every Krylov/CPR product. Values keep their precision.
         bsr_dtype = (torch.int32 if max(n_cells*self.nb, J_vals.shape[0]) <= 2**31-1
                      else torch.int64)
-        self._J_bsr = (torch.sparse_bsr_tensor(crow.to(bsr_dtype), col.to(bsr_dtype), J_vals,
-                                              size=(n_cells*self.nb, n_cells*self.nb))
-                       if J_vals.is_cuda else None)
-        diag_mask = self.rows == col
-        diag = J_vals[diag_mask]
+        self._J_bsr = matrix_bsr
+        if self._J_bsr is None and J_vals.is_cuda:
+            self._J_bsr = torch.sparse_bsr_tensor(
+                crow.to(bsr_dtype), col.to(bsr_dtype), J_vals,
+                size=(n_cells*self.nb, n_cells*self.nb))
+        diag = J_vals[self.rows == col] if diag_positions is None else J_vals[diag_positions]
         if diag.shape[0] != n_cells:
             raise RuntimeError(f"CPR: найдено {diag.shape[0]} диагональных блоков, ожидалось {n_cells}")
         if self.nb == 2:
@@ -114,6 +122,14 @@ class CPRPreconditionerGPU:
 
     def matvec(self, r):
         if r.is_cuda and self.amg is not None and self._graph is not False:
+            if self.replay_workspace is not None and CPRPreconditionerGPU.use_graphs:
+                try:
+                    with torch.cuda.device(r.device):
+                        result = self.replay_workspace.apply(self, r)
+                    if result is not None:
+                        return result
+                except (RuntimeError, ValueError) as error:
+                    self.replay_workspace.reject(self, error)
             try:
                 with torch.cuda.device(r.device):
                     return self._matvec_graph(r)
@@ -126,9 +142,12 @@ class CPRPreconditionerGPU:
 
     def _matvec_graph(self, r):
         """matvec через CUDA-граф: V-цикл AMG и блочный Якоби записываются один раз на матрицу."""
-        if self._graph is None:
-            # первый вызов — без графа (заодно заполняются кэши индексов строк AMG), запись — со второго
+        if self._graph is None or (self._graph == "warm" and
+                                   self.graph_eager_calls < self.graph_warmup_calls):
+            # Short Krylov solves may finish before capture can pay for itself.
+            # Populate AMG caches eagerly; capture only on a later application.
             self._graph = "warm"
+            self.graph_eager_calls += 1
             return self._matvec_eager(r)
         if self._graph == "warm":
             r_in = r.clone()
@@ -141,9 +160,11 @@ class CPRPreconditionerGPU:
             if pool is not None and pool["anchor"] is None:
                 pool["anchor"] = graph
             self._graph = (graph, r_in, out)
+            self.graph_captures += 1
         graph, r_in, out = self._graph
         r_in.copy_(r)
         graph.replay()
+        self.graph_replays += 1
         return out.clone()
 
 

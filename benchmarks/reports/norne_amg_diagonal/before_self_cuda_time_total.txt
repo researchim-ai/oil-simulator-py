@@ -1,0 +1,51 @@
+-------------------------------------------------------  ------------  ------------  ------------  ------------  ------------  ------------  ------------  ------------  ------------  ------------  
+                                                   Name    Self CPU %      Self CPU   CPU total %     CPU total  CPU time avg     Self CUDA   Self CUDA %    CUDA total  CUDA time avg    # of Calls  
+-------------------------------------------------------  ------------  ------------  ------------  ------------  ------------  ------------  ------------  ------------  ------------  ------------  
+                                            aten::addmm         2.70%       1.191ms        34.48%      15.232ms     304.635us       3.456ms        18.90%       7.933ms     158.665us            50  
+                                              _csr_rows         0.00%       0.000us         0.00%       0.000us       0.000us       2.483ms        13.57%       2.483ms      14.777us           168  
+                                            aten::fill_         3.73%       1.647ms         9.36%       4.134ms       2.145us       1.398ms         7.64%       1.398ms       0.725us          1927  
+                                        aten::_coalesce         0.73%     323.041us         4.87%       2.153ms     239.176us       1.346ms         7.36%       1.613ms     179.180us             9  
+void bsrmm_small_core<double, 2, 3, false>(int, int,...         0.00%       0.000us         0.00%       0.000us       0.000us       1.201ms         6.56%       1.201ms     133.401us             9  
+                                 aten::_index_put_impl_        16.29%       7.195ms        24.69%      10.908ms     311.663us       1.155ms         6.31%       2.254ms      64.413us            35  
+void at::native::vectorized_elementwise_kernel<2, at...         0.00%       0.000us         0.00%       0.000us       0.000us     732.649us         4.01%     732.649us       1.182us           620  
+                                            _csr_jacobi         0.00%       0.000us         0.00%       0.000us       0.000us     639.844us         3.50%     639.844us       5.332us           120  
+                                             aten::sort         0.30%     133.415us         1.17%     515.642us      51.564us     608.043us         3.32%     642.026us      64.203us            10  
+void at_cuda_detail::cub::DeviceRadixSortOnesweepKer...         0.00%       0.000us         0.00%       0.000us       0.000us     582.916us         3.19%     582.916us       8.832us            66  
+                                            aten::copy_         0.79%     348.925us         2.65%       1.170ms       4.077us     578.090us         3.16%     578.090us       2.014us           287  
+void at::native::vectorized_elementwise_kernel<4, at...         0.00%       0.000us         0.00%       0.000us       0.000us     453.728us         2.48%     453.728us       0.991us           458  
+                 aten::_convert_indices_from_csr_to_coo         0.19%      82.943us         0.55%     242.399us      12.758us     417.056us         2.28%     473.537us      24.923us            19  
+void cub::CUB_200101_500_520_600_610_700_750_800_860...         0.00%       0.000us         0.00%       0.000us       0.000us     409.666us         2.24%     409.666us      81.933us             5  
+void at::native::vectorized_elementwise_kernel<2, at...         0.00%       0.000us         0.00%       0.000us       0.000us     400.102us         2.19%     400.102us       1.295us           309  
+                                          aten::nonzero         0.90%     397.885us         3.58%       1.580ms      39.498us     393.696us         2.15%     483.141us      12.079us            40  
+void (anonymous namespace)::indexing_backward_kernel...         0.00%       0.000us         0.00%       0.000us       0.000us     387.205us         2.12%     387.205us      29.785us            13  
+void at::native::(anonymous namespace)::convert_indi...         0.00%       0.000us         0.00%       0.000us       0.000us     382.497us         2.09%     382.497us      42.500us             9  
+                                            aten::index         0.76%     334.461us         4.80%       2.122ms      34.221us     362.020us         1.98%     845.161us      13.632us            62  
+                         Memcpy DtoD (Device -> Device)         0.00%       0.000us         0.00%       0.000us       0.000us     350.437us         1.92%     350.437us       2.014us           174  
+                                              aten::mul         1.34%     590.201us         3.93%       1.735ms       8.303us     312.094us         1.71%     314.430us       1.504us           209  
+void at::native::index_elementwise_kernel<128, 4, at...         0.00%       0.000us         0.00%       0.000us       0.000us     301.890us         1.65%     301.890us       6.289us            48  
+std::enable_if<!(false), void>::type internal::gemvx...         0.00%       0.000us         0.00%       0.000us       0.000us     295.235us         1.61%     295.235us      73.809us             4  
+void at::native::vectorized_elementwise_kernel<2, at...         0.00%       0.000us         0.00%       0.000us       0.000us     293.410us         1.60%     293.410us       1.857us           158  
+void cusparse::binary_search_lb_offset_kernel<128u, ...         0.00%       0.000us         0.00%       0.000us       0.000us     291.042us         1.59%     291.042us      20.789us            14  
+void getrf_pivot<getrf_params_<float, 128, 1, 128, 1...         0.00%       0.000us         0.00%       0.000us       0.000us     289.696us         1.58%     289.696us      72.424us             4  
+void at::native::apply::coalesceValuesKernel<double,...         0.00%       0.000us         0.00%       0.000us       0.000us     283.714us         1.55%     283.714us     141.857us             2  
+void at_cuda_detail::cub::DeviceMergeSortMergeKernel...         0.00%       0.000us         0.00%       0.000us       0.000us     278.913us         1.53%     278.913us       5.934us            47  
+                                              aten::max         0.40%     177.629us         1.16%     514.472us      11.184us     269.060us         1.47%     315.460us       6.858us            46  
+                                        Memset (Device)         0.00%       0.000us         0.00%       0.000us       0.000us     253.994us         1.39%     253.994us       1.100us           231  
+void cub::CUB_200101_500_520_600_610_700_750_800_860...         0.00%       0.000us         0.00%       0.000us       0.000us     252.066us         1.38%     252.066us      28.007us             9  
+void at_cuda_detail::cub::DeviceMergeSortBlockSortKe...         0.00%       0.000us         0.00%       0.000us       0.000us     240.481us         1.31%     240.481us      26.720us             9  
+void (anonymous namespace)::indexing_backward_kernel...         0.00%       0.000us         0.00%       0.000us       0.000us     224.224us         1.23%     224.224us      14.948us            15  
+void cub::CUB_200101_500_520_600_610_700_750_800_860...         0.00%       0.000us         0.00%       0.000us       0.000us     204.896us         1.12%     204.896us       2.277us            90  
+void cusparse::binary_search_partition_kernel<128, 1...         0.00%       0.000us         0.00%       0.000us       0.000us     195.873us         1.07%     195.873us       2.720us            72  
+void at::native::unrolled_elementwise_kernel<at::nat...         0.00%       0.000us         0.00%       0.000us       0.000us     194.211us         1.06%     194.211us       2.624us            74  
+void at_cuda_detail::cub::DeviceMergeSortPartitionKe...         0.00%       0.000us         0.00%       0.000us       0.000us     184.160us         1.01%     184.160us       3.918us            47  
+                       Memcpy DtoH (Device -> Pageable)         0.00%       0.000us         0.00%       0.000us       0.000us     173.629us         0.95%     173.629us       1.378us           126  
+void cusparse::binary_search_lb_offset_kernel<128u, ...         0.00%       0.000us         0.00%       0.000us       0.000us     171.553us         0.94%     171.553us      42.888us             4  
+                         Memcpy DtoH (Device -> Pinned)         0.00%       0.000us         0.00%       0.000us       0.000us     169.570us         0.93%     169.570us       1.390us           122  
+                                    aten::_assert_async         0.17%      76.916us         0.51%     226.585us       3.237us     168.576us         0.92%     168.576us       2.408us            70  
+void at::native::_assert_async_cuda_kernel<bool>(boo...         0.00%       0.000us         0.00%       0.000us       0.000us     168.576us         0.92%     168.576us       2.408us            70  
+void at_cuda_detail::cub::DeviceSelectSweepKernel<at...         0.00%       0.000us         0.00%       0.000us       0.000us     167.550us         0.92%     167.550us       4.189us            40  
+void at::native::vectorized_elementwise_kernel<2, at...         0.00%       0.000us         0.00%       0.000us       0.000us     166.465us         0.91%     166.465us       1.601us           104  
+void at::native::apply::coalesceValuesKernel<float, ...         0.00%       0.000us         0.00%       0.000us       0.000us     163.073us         0.89%     163.073us      23.296us             7  
+-------------------------------------------------------  ------------  ------------  ------------  ------------  ------------  ------------  ------------  ------------  ------------  ------------  
+Self CPU time total: 44.172ms
+Self CUDA time total: 18.288ms

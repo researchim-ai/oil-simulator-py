@@ -1,0 +1,97 @@
+--- before/src/simulator/blackoil_surface_coupling.py
++++ after/src/simulator/blackoil_surface_coupling.py
+@@ -235,18 +235,19 @@
+         if getattr(self, "bhp_initialization", "previous") == "rate_network":
+             self._rate_network_initial_bhp(v, d, previous)
+             return
+-        for i in self.surface_well_indices:
+-            ceiling = (
+-                v[I_P][self.conn_cell[self.conn_well == i]] - self.conn_head[self.conn_well == i]
+-            ).min()
+-            # Keep an accepted producing pressure, including near-closed rate
+-            # caps. Forcing another 5% drawdown on every capacity trial can
+-            # make Newton overshoot into backflow independently of dt.
+-            # Use the interior seed only when no valid warm start exists;
+-            # no source or static phase distribution is invented at zero flow.
+-            upper = float(ceiling)
+-            prior = None if previous is None else float(previous[i])
+-            self.p_bh[i] = prior if prior is not None and 0 < prior < upper else 0.95 * upper
++        self.p_bh.copy_(self._previous_surface_bhp(v, previous))
++
++    def _previous_surface_bhp(self, v, previous):
++        """Same per-well minimum and warm-start rule, without scalar D2H reads."""
++        ceiling = self.p_bh.new_full((self.n_w,), float("inf"))
++        ceiling.scatter_reduce_(0, self.conn_well,
++                                v[I_P][self.conn_cell] - self.conn_head,
++                                reduce="amin", include_self=True)
++        base = .95 * ceiling
++        if previous is not None:
++            valid = (previous > 0) & (previous < ceiling)
++            base = torch.where(valid, previous, base)
++        return base
+ 
+     def _rate_network_initial_bhp(self, v, d, previous):
+         """Frozen-cell affine rate root, bounded by a network pressure guess.
+--- before/src/simulator/cpr_gpu.py
++++ after/src/simulator/cpr_gpu.py
+@@ -29,15 +29,17 @@
+     use_graphs = True
+ 
+     def __init__(self, J_vals, indptr, indices, n_cells, device, amg=None, smoother_sweeps=1,
+-                 amg_verbose=False, graph_pool=None):
++                 amg_verbose=False, graph_pool=None, matrix_rows=None,
++                 matrix_bsr=None, diag_positions=None):
+         self.n_cells = n_cells
+         self.device = device
+         self.smoother_sweeps = max(1, int(smoother_sweeps))
+         self._graph_pool = graph_pool
+         crow = indptr.long()
+         col = indices.long()
+-        self.rows = torch.repeat_interleave(torch.arange(n_cells, device=J_vals.device),
+-                                            crow[1:] - crow[:-1], output_size=J_vals.shape[0])
++        self.rows = (matrix_rows if matrix_rows is not None else
++                     torch.repeat_interleave(torch.arange(n_cells, device=J_vals.device),
++                                             crow[1:] - crow[:-1], output_size=J_vals.shape[0]))
+         self.col = col
+         self.J_vals = J_vals
+ 
+@@ -46,11 +48,12 @@
+         # than inside every Krylov/CPR product. Values keep their precision.
+         bsr_dtype = (torch.int32 if max(n_cells*self.nb, J_vals.shape[0]) <= 2**31-1
+                      else torch.int64)
+-        self._J_bsr = (torch.sparse_bsr_tensor(crow.to(bsr_dtype), col.to(bsr_dtype), J_vals,
+-                                              size=(n_cells*self.nb, n_cells*self.nb))
+-                       if J_vals.is_cuda else None)
+-        diag_mask = self.rows == col
+-        diag = J_vals[diag_mask]
++        self._J_bsr = matrix_bsr
++        if self._J_bsr is None and J_vals.is_cuda:
++            self._J_bsr = torch.sparse_bsr_tensor(
++                crow.to(bsr_dtype), col.to(bsr_dtype), J_vals,
++                size=(n_cells*self.nb, n_cells*self.nb))
++        diag = J_vals[self.rows == col] if diag_positions is None else J_vals[diag_positions]
+         if diag.shape[0] != n_cells:
+             raise RuntimeError(f"CPR: найдено {diag.shape[0]} диагональных блоков, ожидалось {n_cells}")
+         if self.nb == 2:
+--- before/src/simulator/manual_assembly_solver.py
++++ after/src/simulator/manual_assembly_solver.py
+@@ -584,13 +584,17 @@
+                 self._cpr_graph_pool = {"handle": torch.cuda.graph_pool_handle(),
+                                         "stream": torch.cuda.Stream(device=Js.device), "anchor": None}
+         pool = getattr(self, "_cpr_graph_pool", None)
++        # CPR and Krylov operate on this same scaled matrix. Share only
++        # structures from the current solve; no stale cross-step cache.
++        structure = {"matrix_rows": rows_s, "matrix_bsr": J_bsr,
++                     "diag_positions": self.builder.diag_map if sub is None else None}
+         cpr = CPRPreconditionerGPU(Js, indptr_s, indices_s, n_s, self.device,
+                                    amg=amg_in, smoother_sweeps=self.cpr_smoother_sweeps,
+-                                   amg_verbose=self.amg_verbose, graph_pool=pool)
++                                   amg_verbose=self.amg_verbose, graph_pool=pool, **structure)
+         if cpr.amg is None and amg_in is not None:
+             cpr = CPRPreconditionerGPU(Js, indptr_s, indices_s, n_s, self.device,
+                                        amg=None, smoother_sweeps=self.cpr_smoother_sweeps,
+-                                       amg_verbose=self.amg_verbose, graph_pool=pool)
++                                       amg_verbose=self.amg_verbose, graph_pool=pool, **structure)
+         self._amg = cpr.amg
+         stats.update(amg_levels=cpr.amg_levels, amg_rebuilt=cpr.amg_rebuilt, amg_setup_s=cpr.amg_build_s,
+                      amg_error=cpr.amg_error, precond_setup_s=time.perf_counter() - t0)

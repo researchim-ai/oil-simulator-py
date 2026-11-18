@@ -31,6 +31,9 @@ SNAP_AT = [float(d) for d in os.environ.get("NORNE_SNAP_AT", "").split(",") if d
 CKPT = os.environ.get("NORNE_CKPT")
 RESUME = os.environ.get("NORNE_RESUME")
 PROFILE = os.environ.get("NORNE_CONVERGENCE_PROFILE", "strict")
+REPLAY = os.environ.get("NORNE_CPR_REUSE_GRAPH", "0")
+if REPLAY not in ("0", "1"):
+    raise ValueError("NORNE_CPR_REUSE_GRAPH must be 0 or 1")
 t0 = time.time()
 H = {"solver": None, "sub": [], "snap_t": [], "snap": {k: [] for k in ("p", "sw", "sg", "so", "rs")},
      "next_snap": 0.0, "summary": None, "pv": None, "status": "running", "error": None}
@@ -163,7 +166,7 @@ DEV = torch.device(os.environ.get("NORNE_DEVICE", "cuda:0" if torch.cuda.is_avai
 thread_policy = configure_norne_threads(DEV)
 try:
     s, info = run_deck(DECK, device=DEV, progress=progress, quiet=False,
-                       sim_overrides={"convergence_profile": PROFILE},
+                       sim_overrides={"convergence_profile": PROFILE, "cpr_reuse_graph": REPLAY == "1"},
                        max_days=float(sys.argv[1]) if len(sys.argv) > 1 else None,
                        checkpoint=CKPT, checkpoint_every=int(os.environ.get("NORNE_CKPT_EVERY", "1")),
                        resume=RESUME)

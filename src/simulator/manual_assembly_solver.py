@@ -29,6 +29,7 @@ try:
 except (ImportError, ValueError):
     from solver.fgmres import fgmres
 from .cpr_gpu import CPRPreconditionerGPU
+from .cpr_replay import CPRReplayWorkspace
 from .fim_transaction import atomic_fim_step
 from .surface_coupling import SurfaceCoupledWaterWells, surface_step_failure
 
@@ -90,6 +91,7 @@ class ManualFIMSolver:
         state = self.__dict__.copy()
         # CUDA pool handles belong to a process/context; recreate after checkpoint load.
         state["_cpr_graph_pool"] = None
+        state["_cpr_replay_workspace"] = None
         return state
 
     def _init_params(self, params):
@@ -129,6 +131,13 @@ class ManualFIMSolver:
         self.amg_verbose = bool(params.get('amg_verbose', False))
         self._amg = None
         self._cpr_graph_pool = None
+        self.cpr_reuse_graph = params.get('cpr_reuse_graph', False)
+        self.cpr_graph_input_budget_bytes = params.get('cpr_graph_input_budget_bytes', 128*1024**2)
+        if type(self.cpr_reuse_graph) is not bool:
+            raise ValueError('cpr_reuse_graph must be boolean')
+        if type(self.cpr_graph_input_budget_bytes) is not int or self.cpr_graph_input_budget_bytes <= 0:
+            raise ValueError('Positive integer cpr_graph_input_budget_bytes required')
+        self._cpr_replay_workspace = None
         self.last_newton_iters = 0
         self.last_max_dsw = 0.0
         self.last_max_dp = 0.0
@@ -584,13 +593,21 @@ class ManualFIMSolver:
                 self._cpr_graph_pool = {"handle": torch.cuda.graph_pool_handle(),
                                         "stream": torch.cuda.Stream(device=Js.device), "anchor": None}
         pool = getattr(self, "_cpr_graph_pool", None)
+        if (Js.is_cuda and getattr(self, 'cpr_reuse_graph', False)
+                and getattr(self, '_cpr_replay_workspace', None) is None):
+            self._cpr_replay_workspace = CPRReplayWorkspace(self.cpr_graph_input_budget_bytes)
+        # CPR and Krylov operate on this same scaled matrix. Share only
+        # structures from the current solve; no stale cross-step cache.
+        structure = {"matrix_rows": rows_s, "matrix_bsr": J_bsr,
+                     "diag_positions": self.builder.diag_map if sub is None else None,
+                     "replay_workspace": getattr(self, '_cpr_replay_workspace', None)}
         cpr = CPRPreconditionerGPU(Js, indptr_s, indices_s, n_s, self.device,
                                    amg=amg_in, smoother_sweeps=self.cpr_smoother_sweeps,
-                                   amg_verbose=self.amg_verbose, graph_pool=pool)
+                                   amg_verbose=self.amg_verbose, graph_pool=pool, **structure)
         if cpr.amg is None and amg_in is not None:
             cpr = CPRPreconditionerGPU(Js, indptr_s, indices_s, n_s, self.device,
                                        amg=None, smoother_sweeps=self.cpr_smoother_sweeps,
-                                       amg_verbose=self.amg_verbose, graph_pool=pool)
+                                       amg_verbose=self.amg_verbose, graph_pool=pool, **structure)
         self._amg = cpr.amg
         stats.update(amg_levels=cpr.amg_levels, amg_rebuilt=cpr.amg_rebuilt, amg_setup_s=cpr.amg_build_s,
                      amg_error=cpr.amg_error, precond_setup_s=time.perf_counter() - t0)
@@ -602,6 +619,11 @@ class ManualFIMSolver:
         x, info = fgmres(matvec, b, M_mv=cpr.matvec, max_iter=self.lin_max_restarts, restart=self.lin_restart,
                          tol=tol, verbose=self.linear_verbose, stats=stats)
         stats["solve_s"] = time.perf_counter() - t1
+        stats.update(cpr_graph_eager_calls=cpr.graph_eager_calls,
+                     cpr_graph_captures=cpr.graph_captures,
+                     cpr_graph_replays=cpr.graph_replays)
+        if cpr.replay_workspace is not None:
+            stats['cpr_replay_workspace'] = cpr.replay_workspace.report()
         stats["tol"] = tol
         true_rel = ((matvec(x) - b).norm() / b.norm().clamp_min(1e-300)).item()
         stats["true_rel_res"] = true_rel

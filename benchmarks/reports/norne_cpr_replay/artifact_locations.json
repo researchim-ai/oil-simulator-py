@@ -1,0 +1,12 @@
+{
+  "baseline": {
+    "path": "/home/user/workspace/oil-simulator-py-impes/.scratch/norne_cpr_validation/baseline",
+    "fields_sha256": "f84ad5e7f0543894ee5170e012e740dde1f87003dbc28528071aea5cf6a51dfa",
+    "checkpoint": "/home/user/workspace/oil-simulator-py-impes/.scratch/norne_cpr_validation/baseline/latest_checkpoint.pt"
+  },
+  "replay_fixed": {
+    "path": "/home/user/workspace/oil-simulator-py-impes/.scratch/norne_cpr_validation/replay_fixed",
+    "fields_sha256": "d6b8076341060dc1a6e4ef0ab06a8bbde2049eaa8ba83d3f18b2ffc85e4c7571",
+    "checkpoint": "/home/user/workspace/oil-simulator-py-impes/.scratch/norne_cpr_validation/replay_fixed/latest_checkpoint.pt"
+  }
+}

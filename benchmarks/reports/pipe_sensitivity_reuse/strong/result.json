@@ -1,0 +1,79 @@
+{
+  "accepted": true,
+  "scope": "Alternate two source trees on one model; require exact accepted trajectories.\n\nEach child forecast must complete its source guard and accounting audit. This\nis an execution regression on a shared host, not independent physical validation.\n",
+  "rows": [
+    {
+      "repeat": 0,
+      "candidate": false,
+      "directory": "pair0_reference",
+      "solve_wall_s": 21.524691369999346,
+      "trajectory_sha256": "1f4f1e2c50ace1cff55ad1df7c09e66ee7fba5c54532238db09e379c0eaeb45e",
+      "audit": {
+        "accepted": true,
+        "checked_substeps": 42,
+        "elapsed_days": 2.0,
+        "minimum_step_s": 4.32,
+        "maximum_step_s": 5400.000000000005,
+        "capacity_evaluations": 164,
+        "reservoir_evaluations": 161,
+        "accepted_initial_cell_evaluations": 42,
+        "accepted_initial_cell_reuses": 119,
+        "accepted_sensitivity_linear_solves": 0,
+        "accepted_sensitivity_plant_evaluations": 0,
+        "accepted_macro_estimator_reservoir_evaluations": 0,
+        "accepted_macro_estimator_capacity_evaluations": 0,
+        "operating_events": 0,
+        "mass_balance_error_kg": [
+          3.2476627893629484e-06,
+          -3.114114406344015e-07,
+          -2.231275118447229e-06
+        ],
+        "maximum_surface_component_residual_kg_s": 3.469446951953614e-18,
+        "mass_atol_kg": 0.01,
+        "mass_rtol": 1e-08,
+        "scope": "Audit accepted forecast material and controls without running either solver.\n\nThis is an accounting/constraint audit, not independent validation of the PVT\nor homogeneous gathering closure. The production FIM CNV/MB remain required.\n"
+      }
+    },
+    {
+      "repeat": 0,
+      "candidate": true,
+      "directory": "pair0_candidate",
+      "solve_wall_s": 20.207644851001533,
+      "trajectory_sha256": "dcd1ffa3376037dda6ad25f3b5598c931db1cf7d75ac4e5d589333beadef7076",
+      "audit": {
+        "accepted": true,
+        "checked_substeps": 42,
+        "elapsed_days": 2.0,
+        "minimum_step_s": 4.32,
+        "maximum_step_s": 5400.000000000005,
+        "capacity_evaluations": 164,
+        "reservoir_evaluations": 161,
+        "accepted_initial_cell_evaluations": 42,
+        "accepted_initial_cell_reuses": 119,
+        "accepted_sensitivity_linear_solves": 0,
+        "accepted_sensitivity_plant_evaluations": 0,
+        "accepted_macro_estimator_reservoir_evaluations": 0,
+        "accepted_macro_estimator_capacity_evaluations": 0,
+        "operating_events": 0,
+        "mass_balance_error_kg": [
+          3.2476627893629484e-06,
+          -3.114114406344015e-07,
+          -2.231275118447229e-06
+        ],
+        "maximum_surface_component_residual_kg_s": 3.469446951953614e-18,
+        "mass_atol_kg": 0.01,
+        "mass_rtol": 1e-08,
+        "scope": "Audit accepted forecast material and controls without running either solver.\n\nThis is an accounting/constraint audit, not independent validation of the PVT\nor homogeneous gathering closure. The production FIM CNV/MB remain required.\n"
+      }
+    }
+  ],
+  "device": "cpu",
+  "days": 2.0,
+  "threads": 1,
+  "exact_all_accepted_stages": true,
+  "median_s": {
+    "False": 21.524691369999346,
+    "True": 20.207644851001533
+  },
+  "observed_ratio": 1.0651756564759964
+}

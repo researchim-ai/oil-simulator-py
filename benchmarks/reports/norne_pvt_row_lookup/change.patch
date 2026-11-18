@@ -1,0 +1,50 @@
+diff --git a/src/simulator/blackoil_props.py b/src/simulator/blackoil_props.py
+index 2dd718f..cf9ff1f 100644
+--- a/src/simulator/blackoil_props.py
++++ b/src/simulator/blackoil_props.py
+@@ -49,6 +49,19 @@ def interp_rows(x, XP, FP):
+     return y0 + (y1 - y0) * (x - x0) / (x1 - x0)
+ 
+ 
++def interp_rows_pair(x, XP, FP, GP):
++    """Two properties on one row grid; share discrete lookup, not AD arithmetic."""
++    i = torch.searchsorted(XP, x.detach().contiguous().unsqueeze(1), right=True).clamp(1, XP.shape[1] - 1)
++    lower = i - 1
++    x0, x1 = XP.gather(1, lower).squeeze(1), XP.gather(1, i).squeeze(1)
++
++    def evaluate(values):
++        y0, y1 = values.gather(1, lower).squeeze(1), values.gather(1, i).squeeze(1)
++        return y0 + (y1 - y0) * (x - x0) / (x1 - x0)
++
++    return evaluate(FP), evaluate(GP)
++
++
+ class DeckPVT:
+     """
+     PVT из deck Eclipse (в СИ), интерполяция как в OPM Flow:
+@@ -215,8 +228,10 @@ class DeckPVT:
+         i = torch.searchsorted(self.rs_tab, rs.detach().contiguous(), right=True).clamp(1, n_t - 1)
+         lo, hi = i - 1, i
+         w = ((rs - self.rs_tab.index_select(0, lo)) / (self.rs_tab.index_select(0, hi) - self.rs_tab.index_select(0, lo))).clamp(0.0, 1.0)
+-        b_u = (1 - w) * interp_rows(p, self.us_P.index_select(0, lo), self.us_b.index_select(0, lo)) + w * interp_rows(p, self.us_P.index_select(0, hi), self.us_b.index_select(0, hi))
+-        bm_u = (1 - w) * interp_rows(p, self.us_P.index_select(0, lo), self.us_bm.index_select(0, lo)) + w * interp_rows(p, self.us_P.index_select(0, hi), self.us_bm.index_select(0, hi))
++        b_lo, bm_lo = interp_rows_pair(p, self.us_P.index_select(0, lo), self.us_b.index_select(0, lo), self.us_bm.index_select(0, lo))
++        b_hi, bm_hi = interp_rows_pair(p, self.us_P.index_select(0, hi), self.us_b.index_select(0, hi), self.us_bm.index_select(0, hi))
++        b_u = (1 - w) * b_lo + w * b_hi
++        bm_u = (1 - w) * bm_lo + w * bm_hi
+         return b_u, b_u / bm_u
+ 
+     def water(self, p):
+@@ -237,8 +252,10 @@ class DeckPVT:
+         i = torch.searchsorted(self.g_p, p.detach().contiguous(), right=True).clamp(1, n_t - 1)
+         lo, hi = i - 1, i
+         w = (p - self.g_p.index_select(0, lo)) / (self.g_p.index_select(0, hi) - self.g_p.index_select(0, lo))
+-        b = (1 - w) * interp_rows(rv, self.ug_RV.index_select(0, lo), self.ug_b.index_select(0, lo)) + w * interp_rows(rv, self.ug_RV.index_select(0, hi), self.ug_b.index_select(0, hi))
+-        bm = (1 - w) * interp_rows(rv, self.ug_RV.index_select(0, lo), self.ug_bm.index_select(0, lo)) + w * interp_rows(rv, self.ug_RV.index_select(0, hi), self.ug_bm.index_select(0, hi))
++        b_lo, bm_lo = interp_rows_pair(rv, self.ug_RV.index_select(0, lo), self.ug_b.index_select(0, lo), self.ug_bm.index_select(0, lo))
++        b_hi, bm_hi = interp_rows_pair(rv, self.ug_RV.index_select(0, hi), self.ug_b.index_select(0, hi), self.ug_bm.index_select(0, hi))
++        b = (1 - w) * b_lo + w * b_hi
++        bm = (1 - w) * bm_lo + w * bm_hi
+         return b, bm
+ 
+     def gas(self, p, rv=None, sat=None):

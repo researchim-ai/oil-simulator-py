@@ -1,0 +1,65 @@
+{
+  "exact_rows": true,
+  "runs": {
+    "batch_0_False": {
+      "median": 0.044039765699926646,
+      "peak_extra_bytes": [
+        3684352,
+        3684352,
+        3684352,
+        3684352
+      ],
+      "checked_integrals_per_solve": [
+        5.0,
+        5.0,
+        5.0,
+        5.0
+      ]
+    },
+    "batch_0_True": {
+      "median": 0.041042234099950295,
+      "peak_extra_bytes": [
+        3683840,
+        3683840,
+        3683840,
+        3683840
+      ],
+      "checked_integrals_per_solve": [
+        4.0,
+        4.0,
+        4.0,
+        4.0
+      ]
+    },
+    "batch_1_True": {
+      "median": 0.03999558299983619,
+      "peak_extra_bytes": [
+        3683840,
+        3683840,
+        3683840,
+        3683840
+      ],
+      "checked_integrals_per_solve": [
+        4.0,
+        4.0,
+        4.0,
+        4.0
+      ]
+    },
+    "batch_1_False": {
+      "median": 0.041910775300129904,
+      "peak_extra_bytes": [
+        3684352,
+        3684352,
+        3684352,
+        3684352
+      ],
+      "checked_integrals_per_solve": [
+        5.0,
+        5.0,
+        5.0,
+        5.0
+      ]
+    }
+  }
+}

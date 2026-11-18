@@ -1,0 +1,17 @@
+{
+  "src/simulator/blackoil_surface_coupling.py": {
+    "baseline": 0,
+    "candidate": 0,
+    "same_diagnostics": true
+  },
+  "src/simulator/cpr_gpu.py": {
+    "baseline": 1,
+    "candidate": 1,
+    "same_diagnostics": true
+  },
+  "src/simulator/manual_assembly_solver.py": {
+    "baseline": 6,
+    "candidate": 6,
+    "same_diagnostics": true
+  }
+}

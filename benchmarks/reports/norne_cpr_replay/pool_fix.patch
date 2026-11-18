@@ -1,0 +1,44 @@
+--- before/src/simulator/cpr_replay.py
++++ after/src/simulator/cpr_replay.py
+@@ -24,8 +24,10 @@
+         self.busy = False
+         self.reset()
+ 
+-    def reset(self):
+-        self.graph = self.snapshot = self.rhs = self.output = self.pool = None
++    def reset(self, *, keep_pool=False):
++        self.graph = self.snapshot = self.rhs = self.output = None
++        if not keep_pool:
++            self.pool = None
+         self.buffers = {}
+         self.signature = None
+         self.bound = None
+@@ -164,7 +166,10 @@
+                     level['_dense_version'] = level['A']._version
+             self.refreshes += 1
+         else:
+-            self.reset()  # release previous graph BEFORE allocating its replacement
++            # Retain one stream and registered graph pool across structural
++            # changes. A new pool/stream on every capture strands allocator
++            # reservations on long runs with changing AMG sparsity.
++            self.reset(keep_pool=True)
+             self.buffers = {k:t.detach().clone(memory_format=torch.contiguous_format) for k,t in data.items()}
+             self.signature = signature
+             self.buffer_bytes = size
+@@ -172,9 +177,15 @@
+             self.snapshot = self._build_snapshot(cpr)
+             self.snapshot._matvec_eager(self.rhs)  # warm libraries outside capture
+             cpr.graph_eager_calls += 1
+-            self.pool = {'handle':torch.cuda.graph_pool_handle(), 'stream':torch.cuda.Stream(device=rhs.device)}
++            if self.pool is None:
++                self.pool = {'handle':torch.cuda.graph_pool_handle(),
++                             'stream':torch.cuda.Stream(device=rhs.device), 'anchor':None}
+             self.graph, self.output = capture(lambda: self.snapshot._matvec_eager(self.rhs), rhs.device,
+                                               pool=self.pool['handle'], stream=self.pool['stream'])
++            if self.pool['anchor'] is None:
++                # Keep the pool registered between graph lifetimes. This first
++                # graph is never replayed after replacement.
++                self.pool['anchor'] = self.graph
+             self.owner_stream = (rhs.device, torch.cuda.current_stream(rhs.device).cuda_stream)
+             self.captures += 1
+             cpr.graph_captures += 1

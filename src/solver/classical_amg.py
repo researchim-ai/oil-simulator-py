@@ -1229,6 +1229,11 @@ class ClassicalAMG:
     
     def _extract_diag(self, A_csr: torch.Tensor) -> torch.Tensor:
         """Извлекает диагональ из CSR матрицы."""
+        if A_csr.is_cuda:
+            from .csr_spmv import csr_diagonal
+            diagonal = csr_diagonal(A_csr)
+            if diagonal is not None:
+                return diagonal
         crow = A_csr.crow_indices()
         col = A_csr.col_indices()
         val = A_csr.values()
@@ -1365,15 +1370,18 @@ class ClassicalAMG:
             return self._jacobi_smooth(lvl, x, b, nu=nu, debug=debug)
 
         inv_diag = level['inv_diag_cheb']
+        graph_coefficients = level.get('_graph_chebyshev_coefficients')
         p = torch.zeros_like(x)
         for it in range(nu):
             r = b - self._matvec(lvl, x)
             if it == 0:
                 beta = 0.0
             else:
-                beta = (c / (2.0 * d)) ** 2
+                beta = ((c / (2.0 * d)) ** 2 if graph_coefficients is None
+                        else graph_coefficients[1])
             p = inv_diag * r + beta * p
-            x = x + (1.0 / d) * p
+            step = 1.0 / d if graph_coefficients is None else graph_coefficients[0]
+            x = x + step * p
             if debug:
                 print(f"    [Chebyshev L{lvl} iter{it+1}] ||r||={r.norm():.3e}")
         return x
@@ -1401,16 +1409,7 @@ class ClassicalAMG:
             
             if n <= 2000:
                 # плотная матрица — по объекту A уровня (to_dense синхронизирует GPU)
-                version = None if level['A'].is_inference() else level['A']._version
-                if level.get('_dense_of') is not level['A'] or level.get('_dense_version') != version:
-                    A_dense = level['A'].to_dense().clone()
-                    if n > 0:
-                        A_dense[0, :] = 0.0
-                        A_dense[:, 0] = 0.0
-                        A_dense[0, 0] = 1.0
-                    level['_dense'], level['_dense_of'] = A_dense, level['A']
-                    level['_dense_version'] = version
-                A_dense = level['_dense']
+                A_dense = self._coarse_dense_matrix(level)
                 if n > 0:
                     b_local[:1].zero_()
     
@@ -1688,6 +1687,20 @@ class ClassicalAMG:
         except RuntimeError:
             sol = torch.linalg.pinv(M) @ target
         return sol
+
+    @staticmethod
+    def _coarse_dense_matrix(level):
+        """Materialize the current coarse matrix outside capture when needed."""
+        version = None if level['A'].is_inference() else level['A']._version
+        if level.get('_dense_of') is not level['A'] or level.get('_dense_version') != version:
+            dense = level['A'].to_dense().clone()
+            if level['n'] > 0:
+                dense[0, :] = 0.0
+                dense[:, 0] = 0.0
+                dense[0, 0] = 1.0
+            level['_dense'], level['_dense_of'] = dense, level['A']
+            level['_dense_version'] = version
+        return level['_dense']
 
     def _update_level_metrics(self, lvl: int) -> None:
         A_lvl = self.levels[lvl]['A']

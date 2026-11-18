@@ -1,0 +1,31 @@
+Wed Nov 18 19:17:32 2026    .scratch/norne_cpr_validation/coupled_profile.prof
+
+         10558416 function calls (9673305 primitive calls) in 7.014 seconds
+
+   Ordered by: cumulative time
+   List reduced from 13108 to 21 due to restriction <'assemble_bo|blackoil_surface_coupling|_matvec_graph|run_backward|solve_linear'>
+
+   ncalls  tottime  percall  cumtime  percall filename:lineno(function)
+       39    0.036    0.001    1.670    0.043 /home/user/workspace/oil-simulator-py-impes/src/simulator/blackoil_fim.py:1739(assemble_bo)
+       39    0.021    0.001    1.557    0.040 /home/user/workspace/oil-simulator-py-impes/src/simulator/blackoil_surface_coupling.py:293(assemble)
+       45    0.002    0.000    0.616    0.014 /home/user/workspace/oil-simulator-py-impes/src/simulator/cpr_gpu.py:143(_matvec_graph)
+     22/2    0.003    0.000    0.389    0.195 /home/user/workspace/oil-simulator-py-impes/src/simulator/manual_assembly_solver.py:512(solve_linear)
+     1209    0.002    0.000    0.242    0.000 /home/user/miniconda3/lib/python3.12/site-packages/torch/autograd/graph.py:815(_engine_run_backward)
+     1209    0.240    0.000    0.240    0.000 {method 'run_backward' of 'torch._C._EngineBase' objects}
+       11    0.000    0.000    0.109    0.010 /home/user/workspace/oil-simulator-py-impes/src/simulator/blackoil_surface_coupling.py:214(begin_step)
+        1    0.012    0.012    0.024    0.024 /home/user/workspace/oil-simulator-py-impes/src/simulator/blackoil_surface_coupling.py:47(__init__)
+        1    0.000    0.000    0.018    0.018 /home/user/workspace/oil-simulator-py-impes/src/simulator/blackoil_surface_coupling.py:1(<module>)
+       50    0.000    0.000    0.015    0.000 /home/user/workspace/oil-simulator-py-impes/src/simulator/blackoil_surface_coupling.py:206(_conn_flows)
+        1    0.000    0.000    0.002    0.002 /home/user/workspace/oil-simulator-py-impes/src/simulator/blackoil_surface_coupling.py:170(set_surface_controls)
+       11    0.000    0.000    0.001    0.000 /home/user/workspace/oil-simulator-py-impes/src/simulator/blackoil_surface_coupling.py:240(_previous_surface_bhp)
+       11    0.000    0.000    0.001    0.000 /home/user/workspace/oil-simulator-py-impes/src/simulator/blackoil_surface_coupling.py:476(commit)
+      715    0.000    0.000    0.000    0.000 /home/user/workspace/oil-simulator-py-impes/src/simulator/blackoil_surface_coupling.py:228(<genexpr>)
+      715    0.000    0.000    0.000    0.000 /home/user/workspace/oil-simulator-py-impes/src/simulator/blackoil_surface_coupling.py:225(<genexpr>)
+      715    0.000    0.000    0.000    0.000 /home/user/workspace/oil-simulator-py-impes/src/simulator/blackoil_surface_coupling.py:220(<genexpr>)
+       15    0.000    0.000    0.000    0.000 /home/user/workspace/oil-simulator-py-impes/src/simulator/blackoil_surface_coupling.py:109(<genexpr>)
+        1    0.000    0.000    0.000    0.000 /home/user/workspace/oil-simulator-py-impes/src/simulator/blackoil_surface_coupling.py:44(SurfaceCoupledBlackOilWells)
+       65    0.000    0.000    0.000    0.000 /home/user/workspace/oil-simulator-py-impes/src/simulator/blackoil_surface_coupling.py:119(<genexpr>)
+       28    0.000    0.000    0.000    0.000 /home/user/workspace/oil-simulator-py-impes/src/simulator/blackoil_surface_coupling.py:289(update_controls)
+        1    0.000    0.000    0.000    0.000 /home/user/workspace/oil-simulator-py-impes/src/simulator/blackoil_surface_coupling.py:181(set_surface_pressure_control)
+
+

@@ -1,0 +1,3927 @@
+{
+  "seconds_per_batch": [
+    0.047684073200070995,
+    0.05032392139983131,
+    0.0403954581997823,
+    0.03981293000033474
+  ],
+  "median": 0.044039765699926646,
+  "peak_extra_bytes": [
+    3684352,
+    3684352,
+    3684352,
+    3684352
+  ],
+  "checked_integrals_per_solve": [
+    5.0,
+    5.0,
+    5.0,
+    5.0
+  ],
+  "rows": [
+    {
+      "name": "p0",
+      "compute_device": "cuda:0",
+      "model": "homogeneous_equilibrium_blackoil_rs_only",
+      "inlet_pressure_pa": 3002574.020532109,
+      "outlet_pressure_pa": 2720000.0,
+      "loss_coefficient": 0.0,
+      "resistance_model": "uniform_distributed_K",
+      "component_mass_rates_kg_s": {
+        "oil": 0.85,
+        "water": 2.0,
+        "gas": 0.06
+      },
+      "inlet_acceleration_margin": 0.9999996544789324,
+      "outlet_acceleration_margin": 0.9998802193632128,
+      "inlet_state": {
+        "specific_volume": 0.0010632275869204135,
+        "viscosity_pa_s": 0.0017110629143471739,
+        "phase_volume_rates_m3_s": [
+          0.0010999974259794678,
+          0.0019939948519589355,
+          0.0
+        ],
+        "phase_mass_rates_kg_s": [
+          0.9099999999999999,
+          2.0,
+          0.0
+        ],
+        "rs_m3_m3": 50.0
+      },
+      "outlet_state": {
+        "specific_volume": 0.0011552164948453606,
+        "viscosity_pa_s": 0.001623120124699555,
+        "phase_volume_rates_m3_s": [
+          0.0010915999999999999,
+          0.00199456,
+          0.0002755200000000002
+        ],
+        "phase_mass_rates_kg_s": [
+          0.90496,
+          2.0,
+          0.005039999999999996
+        ],
+        "rs_m3_m3": 45.8
+      },
+      "friction_dissipation_w": 54.44154851977037,
+      "mechanical_balance_error_w": 2.0391453858792376e-10,
+      "length_residual_m": -7.145217750803567e-11,
+      "quadrature_order": 32,
+      "quadrature_length_error_m": 0.0,
+      "pressure_evaluations": 4,
+      "derivative_direction": "required_inlet",
+      "pressure_derivatives": {
+        "boundary_pressure_pa": 1.0764250945822527,
+        "oil_kg_s": 281985.9866533029,
+        "water_kg_s": 19009.7149724491,
+        "gas_kg_s": -4109682.2040364537,
+        "loss_coefficient": 192.74053926439117
+      },
+      "hydraulic_backend": "torch_batch"
+    },
+    {
+      "name": "p1",
+      "compute_device": "cuda:0",
+      "model": "homogeneous_equilibrium_blackoil_rs_only",
+      "inlet_pressure_pa": 3003157.797017807,
+      "outlet_pressure_pa": 2720000.0,
+      "loss_coefficient": 0.0,
+      "resistance_model": "uniform_distributed_K",
+      "component_mass_rates_kg_s": {
+        "oil": 0.85,
+        "water": 2.0,
+        "gas": 0.06
+      },
+      "inlet_acceleration_margin": 0.9999996544789324,
+      "outlet_acceleration_margin": 0.9998802193632128,
+      "inlet_state": {
+        "specific_volume": 0.001063226985088985,
+        "viscosity_pa_s": 0.0017110650149548786,
+        "phase_volume_rates_m3_s": [
+          0.001099996842202982,
+          0.0019939936844059645,
+          0.0
+        ],
+        "phase_mass_rates_kg_s": [
+          0.9099999999999999,
+          2.0,
+          0.0
+        ],
+        "rs_m3_m3": 50.0
+      },
+      "outlet_state": {
+        "specific_volume": 0.0011552164948453606,
+        "viscosity_pa_s": 0.001623120124699555,
+        "phase_volume_rates_m3_s": [
+          0.0010915999999999999,
+          0.00199456,
+          0.0002755200000000002
+        ],
+        "phase_mass_rates_kg_s": [
+          0.90496,
+          2.0,
+          0.005039999999999996
+        ],
+        "rs_m3_m3": 45.8
+      },
+      "friction_dissipation_w": 56.247747323273195,
+      "mechanical_balance_error_w": 1.8659772393903042e-10,
+      "length_residual_m": -6.758682502550073e-11,
+      "quadrature_order": 32,
+      "quadrature_length_error_m": 0.0,
+      "pressure_evaluations": 4,
+      "derivative_direction": "required_inlet",
+      "pressure_derivatives": {
+        "boundary_pressure_pa": 1.0761155338232635,
+        "oil_kg_s": 281335.4450091417,
+        "water_kg_s": 19317.95199636617,
+        "gas_kg_s": -4093636.7909130044,
+        "loss_coefficient": 192.68340854667653
+      },
+      "hydraulic_backend": "torch_batch"
+    },
+    {
+      "name": "p2",
+      "compute_device": "cuda:0",
+      "model": "homogeneous_equilibrium_blackoil_rs_only",
+      "inlet_pressure_pa": 3003741.40773812,
+      "outlet_pressure_pa": 2720000.0,
+      "loss_coefficient": 0.0,
+      "resistance_model": "uniform_distributed_K",
+      "component_mass_rates_kg_s": {
+        "oil": 0.85,
+        "water": 2.0,
+        "gas": 0.06
+      },
+      "inlet_acceleration_margin": 0.9999996544789324,
+      "outlet_acceleration_margin": 0.9998802193632128,
+      "inlet_state": {
+        "specific_volume": 0.0010632263834284485,
+        "viscosity_pa_s": 0.0017110671149662832,
+        "phase_volume_rates_m3_s": [
+          0.0010999962585922618,
+          0.001993992517184524,
+          0.0
+        ],
+        "phase_mass_rates_kg_s": [
+          0.9099999999999999,
+          2.0,
+          0.0
+        ],
+        "rs_m3_m3": 50.0
+      },
+      "outlet_state": {
+        "specific_volume": 0.0011552164948453606,
+        "viscosity_pa_s": 0.001623120124699555,
+        "phase_volume_rates_m3_s": [
+          0.0010915999999999999,
+          0.00199456,
+          0.0002755200000000002
+        ],
+        "phase_mass_rates_kg_s": [
+          0.90496,
+          2.0,
+          0.005039999999999996
+        ],
+        "rs_m3_m3": 45.8
+      },
+      "friction_dissipation_w": 58.053432228324475,
+      "mechanical_balance_error_w": 1.6765778099170348e-10,
+      "length_residual_m": -6.269829100347124e-11,
+      "quadrature_order": 32,
+      "quadrature_length_error_m": 0.0,
+      "pressure_evaluations": 4,
+      "derivative_direction": "required_inlet",
+      "pressure_derivatives": {
+        "boundary_pressure_pa": 1.0758072922163324,
+        "oil_kg_s": 280689.4411132548,
+        "water_kg_s": 19626.087996372848,
+        "gas_kg_s": -4077661.194575052,
+        "loss_coefficient": 192.62662192825715
+      },
+      "hydraulic_backend": "torch_batch"
+    },
+    {
+      "name": "p3",
+      "compute_device": "cuda:0",
+      "model": "homogeneous_equilibrium_blackoil_rs_only",
+      "inlet_pressure_pa": 3002574.020532109,
+      "outlet_pressure_pa": 2720000.0,
+      "loss_coefficient": 0.0,
+      "resistance_model": "uniform_distributed_K",
+      "component_mass_rates_kg_s": {
+        "oil": 0.85,
+        "water": 2.0,
+        "gas": 0.06
+      },
+      "inlet_acceleration_margin": 0.9999996544789324,
+      "outlet_acceleration_margin": 0.9998802193632128,
+      "inlet_state": {
+        "specific_volume": 0.0010632275869204135,
+        "viscosity_pa_s": 0.0017110629143471739,
+        "phase_volume_rates_m3_s": [
+          0.0010999974259794678,
+          0.0019939948519589355,
+          0.0
+        ],
+        "phase_mass_rates_kg_s": [
+          0.9099999999999999,
+          2.0,
+          0.0
+        ],
+        "rs_m3_m3": 50.0
+      },
+      "outlet_state": {
+        "specific_volume": 0.0011552164948453606,
+        "viscosity_pa_s": 0.001623120124699555,
+        "phase_volume_rates_m3_s": [
+          0.0010915999999999999,
+          0.00199456,
+          0.0002755200000000002
+        ],
+        "phase_mass_rates_kg_s": [
+          0.90496,
+          2.0,
+          0.005039999999999996
+        ],
+        "rs_m3_m3": 45.8
+      },
+      "friction_dissipation_w": 54.44154851977037,
+      "mechanical_balance_error_w": 2.0391453858792376e-10,
+      "length_residual_m": -7.145217750803567e-11,
+      "quadrature_order": 32,
+      "quadrature_length_error_m": 0.0,
+      "pressure_evaluations": 4,
+      "derivative_direction": "required_inlet",
+      "pressure_derivatives": {
+        "boundary_pressure_pa": 1.0764250945822527,
+        "oil_kg_s": 281985.9866533029,
+        "water_kg_s": 19009.7149724491,
+        "gas_kg_s": -4109682.2040364537,
+        "loss_coefficient": 192.74053926439117
+      },
+      "hydraulic_backend": "torch_batch"
+    },
+    {
+      "name": "p4",
+      "compute_device": "cuda:0",
+      "model": "homogeneous_equilibrium_blackoil_rs_only",
+      "inlet_pressure_pa": 3003157.797017807,
+      "outlet_pressure_pa": 2720000.0,
+      "loss_coefficient": 0.0,
+      "resistance_model": "uniform_distributed_K",
+      "component_mass_rates_kg_s": {
+        "oil": 0.85,
+        "water": 2.0,
+        "gas": 0.06
+      },
+      "inlet_acceleration_margin": 0.9999996544789324,
+      "outlet_acceleration_margin": 0.9998802193632128,
+      "inlet_state": {
+        "specific_volume": 0.001063226985088985,
+        "viscosity_pa_s": 0.0017110650149548786,
+        "phase_volume_rates_m3_s": [
+          0.001099996842202982,
+          0.0019939936844059645,
+          0.0
+        ],
+        "phase_mass_rates_kg_s": [
+          0.9099999999999999,
+          2.0,
+          0.0
+        ],
+        "rs_m3_m3": 50.0
+      },
+      "outlet_state": {
+        "specific_volume": 0.0011552164948453606,
+        "viscosity_pa_s": 0.001623120124699555,
+        "phase_volume_rates_m3_s": [
+          0.0010915999999999999,
+          0.00199456,
+          0.0002755200000000002
+        ],
+        "phase_mass_rates_kg_s": [
+          0.90496,
+          2.0,
+          0.005039999999999996
+        ],
+        "rs_m3_m3": 45.8
+      },
+      "friction_dissipation_w": 56.247747323273195,
+      "mechanical_balance_error_w": 1.8659772393903042e-10,
+      "length_residual_m": -6.758682502550073e-11,
+      "quadrature_order": 32,
+      "quadrature_length_error_m": 0.0,
+      "pressure_evaluations": 4,
+      "derivative_direction": "required_inlet",
+      "pressure_derivatives": {
+        "boundary_pressure_pa": 1.0761155338232635,
+        "oil_kg_s": 281335.4450091417,
+        "water_kg_s": 19317.95199636617,
+        "gas_kg_s": -4093636.7909130044,
+        "loss_coefficient": 192.68340854667653
+      },
+      "hydraulic_backend": "torch_batch"
+    },
+    {
+      "name": "p5",
+      "compute_device": "cuda:0",
+      "model": "homogeneous_equilibrium_blackoil_rs_only",
+      "inlet_pressure_pa": 3003741.40773812,
+      "outlet_pressure_pa": 2720000.0,
+      "loss_coefficient": 0.0,
+      "resistance_model": "uniform_distributed_K",
+      "component_mass_rates_kg_s": {
+        "oil": 0.85,
+        "water": 2.0,
+        "gas": 0.06
+      },
+      "inlet_acceleration_margin": 0.9999996544789324,
+      "outlet_acceleration_margin": 0.9998802193632128,
+      "inlet_state": {
+        "specific_volume": 0.0010632263834284485,
+        "viscosity_pa_s": 0.0017110671149662832,
+        "phase_volume_rates_m3_s": [
+          0.0010999962585922618,
+          0.001993992517184524,
+          0.0
+        ],
+        "phase_mass_rates_kg_s": [
+          0.9099999999999999,
+          2.0,
+          0.0
+        ],
+        "rs_m3_m3": 50.0
+      },
+      "outlet_state": {
+        "specific_volume": 0.0011552164948453606,
+        "viscosity_pa_s": 0.001623120124699555,
+        "phase_volume_rates_m3_s": [
+          0.0010915999999999999,
+          0.00199456,
+          0.0002755200000000002
+        ],
+        "phase_mass_rates_kg_s": [
+          0.90496,
+          2.0,
+          0.005039999999999996
+        ],
+        "rs_m3_m3": 45.8
+      },
+      "friction_dissipation_w": 58.053432228324475,
+      "mechanical_balance_error_w": 1.6765778099170348e-10,
+      "length_residual_m": -6.269829100347124e-11,
+      "quadrature_order": 32,
+      "quadrature_length_error_m": 0.0,
+      "pressure_evaluations": 4,
+      "derivative_direction": "required_inlet",
+      "pressure_derivatives": {
+        "boundary_pressure_pa": 1.0758072922163324,
+        "oil_kg_s": 280689.4411132548,
+        "water_kg_s": 19626.087996372848,
+        "gas_kg_s": -4077661.194575052,
+        "loss_coefficient": 192.62662192825715
+      },
+      "hydraulic_backend": "torch_batch"
+    },
+    {
+      "name": "p6",
+      "compute_device": "cuda:0",
+      "model": "homogeneous_equilibrium_blackoil_rs_only",
+      "inlet_pressure_pa": 3002574.020532109,
+      "outlet_pressure_pa": 2720000.0,
+      "loss_coefficient": 0.0,
+      "resistance_model": "uniform_distributed_K",
+      "component_mass_rates_kg_s": {
+        "oil": 0.85,
+        "water": 2.0,
+        "gas": 0.06
+      },
+      "inlet_acceleration_margin": 0.9999996544789324,
+      "outlet_acceleration_margin": 0.9998802193632128,
+      "inlet_state": {
+        "specific_volume": 0.0010632275869204135,
+        "viscosity_pa_s": 0.0017110629143471739,
+        "phase_volume_rates_m3_s": [
+          0.0010999974259794678,
+          0.0019939948519589355,
+          0.0
+        ],
+        "phase_mass_rates_kg_s": [
+          0.9099999999999999,
+          2.0,
+          0.0
+        ],
+        "rs_m3_m3": 50.0
+      },
+      "outlet_state": {
+        "specific_volume": 0.0011552164948453606,
+        "viscosity_pa_s": 0.001623120124699555,
+        "phase_volume_rates_m3_s": [
+          0.0010915999999999999,
+          0.00199456,
+          0.0002755200000000002
+        ],
+        "phase_mass_rates_kg_s": [
+          0.90496,
+          2.0,
+          0.005039999999999996
+        ],
+        "rs_m3_m3": 45.8
+      },
+      "friction_dissipation_w": 54.44154851977037,
+      "mechanical_balance_error_w": 2.0391453858792376e-10,
+      "length_residual_m": -7.145217750803567e-11,
+      "quadrature_order": 32,
+      "quadrature_length_error_m": 0.0,
+      "pressure_evaluations": 4,
+      "derivative_direction": "required_inlet",
+      "pressure_derivatives": {
+        "boundary_pressure_pa": 1.0764250945822527,
+        "oil_kg_s": 281985.9866533029,
+        "water_kg_s": 19009.7149724491,
+        "gas_kg_s": -4109682.2040364537,
+        "loss_coefficient": 192.74053926439117
+      },
+      "hydraulic_backend": "torch_batch"
+    },
+    {
+      "name": "p7",
+      "compute_device": "cuda:0",
+      "model": "homogeneous_equilibrium_blackoil_rs_only",
+      "inlet_pressure_pa": 3003157.797017807,
+      "outlet_pressure_pa": 2720000.0,
+      "loss_coefficient": 0.0,
+      "resistance_model": "uniform_distributed_K",
+      "component_mass_rates_kg_s": {
+        "oil": 0.85,
+        "water": 2.0,
+        "gas": 0.06
+      },
+      "inlet_acceleration_margin": 0.9999996544789324,
+      "outlet_acceleration_margin": 0.9998802193632128,
+      "inlet_state": {
+        "specific_volume": 0.001063226985088985,
+        "viscosity_pa_s": 0.0017110650149548786,
+        "phase_volume_rates_m3_s": [
+          0.001099996842202982,
+          0.0019939936844059645,
+          0.0
+        ],
+        "phase_mass_rates_kg_s": [
+          0.9099999999999999,
+          2.0,
+          0.0
+        ],
+        "rs_m3_m3": 50.0
+      },
+      "outlet_state": {
+        "specific_volume": 0.0011552164948453606,
+        "viscosity_pa_s": 0.001623120124699555,
+        "phase_volume_rates_m3_s": [
+          0.0010915999999999999,
+          0.00199456,
+          0.0002755200000000002
+        ],
+        "phase_mass_rates_kg_s": [
+          0.90496,
+          2.0,
+          0.005039999999999996
+        ],
+        "rs_m3_m3": 45.8
+      },
+      "friction_dissipation_w": 56.247747323273195,
+      "mechanical_balance_error_w": 1.8659772393903042e-10,
+      "length_residual_m": -6.758682502550073e-11,
+      "quadrature_order": 32,
+      "quadrature_length_error_m": 0.0,
+      "pressure_evaluations": 4,
+      "derivative_direction": "required_inlet",
+      "pressure_derivatives": {
+        "boundary_pressure_pa": 1.0761155338232635,
+        "oil_kg_s": 281335.4450091417,
+        "water_kg_s": 19317.95199636617,
+        "gas_kg_s": -4093636.7909130044,
+        "loss_coefficient": 192.68340854667653
+      },
+      "hydraulic_backend": "torch_batch"
+    },
+    {
+      "name": "p8",
+      "compute_device": "cuda:0",
+      "model": "homogeneous_equilibrium_blackoil_rs_only",
+      "inlet_pressure_pa": 3003741.40773812,
+      "outlet_pressure_pa": 2720000.0,
+      "loss_coefficient": 0.0,
+      "resistance_model": "uniform_distributed_K",
+      "component_mass_rates_kg_s": {
+        "oil": 0.85,
+        "water": 2.0,
+        "gas": 0.06
+      },
+      "inlet_acceleration_margin": 0.9999996544789324,
+      "outlet_acceleration_margin": 0.9998802193632128,
+      "inlet_state": {
+        "specific_volume": 0.0010632263834284485,
+        "viscosity_pa_s": 0.0017110671149662832,
+        "phase_volume_rates_m3_s": [
+          0.0010999962585922618,
+          0.001993992517184524,
+          0.0
+        ],
+        "phase_mass_rates_kg_s": [
+          0.9099999999999999,
+          2.0,
+          0.0
+        ],
+        "rs_m3_m3": 50.0
+      },
+      "outlet_state": {
+        "specific_volume": 0.0011552164948453606,
+        "viscosity_pa_s": 0.001623120124699555,
+        "phase_volume_rates_m3_s": [
+          0.0010915999999999999,
+          0.00199456,
+          0.0002755200000000002
+        ],
+        "phase_mass_rates_kg_s": [
+          0.90496,
+          2.0,
+          0.005039999999999996
+        ],
+        "rs_m3_m3": 45.8
+      },
+      "friction_dissipation_w": 58.053432228324475,
+      "mechanical_balance_error_w": 1.6765778099170348e-10,
+      "length_residual_m": -6.269829100347124e-11,
+      "quadrature_order": 32,
+      "quadrature_length_error_m": 0.0,
+      "pressure_evaluations": 4,
+      "derivative_direction": "required_inlet",
+      "pressure_derivatives": {
+        "boundary_pressure_pa": 1.0758072922163324,
+        "oil_kg_s": 280689.4411132548,
+        "water_kg_s": 19626.087996372848,
+        "gas_kg_s": -4077661.194575052,
+        "loss_coefficient": 192.62662192825715
+      },
+      "hydraulic_backend": "torch_batch"
+    },
+    {
+      "name": "p9",
+      "compute_device": "cuda:0",
+      "model": "homogeneous_equilibrium_blackoil_rs_only",
+      "inlet_pressure_pa": 3002574.020532109,
+      "outlet_pressure_pa": 2720000.0,
+      "loss_coefficient": 0.0,
+      "resistance_model": "uniform_distributed_K",
+      "component_mass_rates_kg_s": {
+        "oil": 0.85,
+        "water": 2.0,
+        "gas": 0.06
+      },
+      "inlet_acceleration_margin": 0.9999996544789324,
+      "outlet_acceleration_margin": 0.9998802193632128,
+      "inlet_state": {
+        "specific_volume": 0.0010632275869204135,
+        "viscosity_pa_s": 0.0017110629143471739,
+        "phase_volume_rates_m3_s": [
+          0.0010999974259794678,
+          0.0019939948519589355,
+          0.0
+        ],
+        "phase_mass_rates_kg_s": [
+          0.9099999999999999,
+          2.0,
+          0.0
+        ],
+        "rs_m3_m3": 50.0
+      },
+      "outlet_state": {
+        "specific_volume": 0.0011552164948453606,
+        "viscosity_pa_s": 0.001623120124699555,
+        "phase_volume_rates_m3_s": [
+          0.0010915999999999999,
+          0.00199456,
+          0.0002755200000000002
+        ],
+        "phase_mass_rates_kg_s": [
+          0.90496,
+          2.0,
+          0.005039999999999996
+        ],
+        "rs_m3_m3": 45.8
+      },
+      "friction_dissipation_w": 54.44154851977037,
+      "mechanical_balance_error_w": 2.0391453858792376e-10,
+      "length_residual_m": -7.145217750803567e-11,
+      "quadrature_order": 32,
+      "quadrature_length_error_m": 0.0,
+      "pressure_evaluations": 4,
+      "derivative_direction": "required_inlet",
+      "pressure_derivatives": {
+        "boundary_pressure_pa": 1.0764250945822527,
+        "oil_kg_s": 281985.9866533029,
+        "water_kg_s": 19009.7149724491,
+        "gas_kg_s": -4109682.2040364537,
+        "loss_coefficient": 192.74053926439117
+      },
+      "hydraulic_backend": "torch_batch"
+    },
+    {
+      "name": "p10",
+      "compute_device": "cuda:0",
+      "model": "homogeneous_equilibrium_blackoil_rs_only",
+      "inlet_pressure_pa": 3003157.797017807,
+      "outlet_pressure_pa": 2720000.0,
+      "loss_coefficient": 0.0,
+      "resistance_model": "uniform_distributed_K",
+      "component_mass_rates_kg_s": {
+        "oil": 0.85,
+        "water": 2.0,
+        "gas": 0.06
+      },
+      "inlet_acceleration_margin": 0.9999996544789324,
+      "outlet_acceleration_margin": 0.9998802193632128,
+      "inlet_state": {
+        "specific_volume": 0.001063226985088985,
+        "viscosity_pa_s": 0.0017110650149548786,
+        "phase_volume_rates_m3_s": [
+          0.001099996842202982,
+          0.0019939936844059645,
+          0.0
+        ],
+        "phase_mass_rates_kg_s": [
+          0.9099999999999999,
+          2.0,
+          0.0
+        ],
+        "rs_m3_m3": 50.0
+      },
+      "outlet_state": {
+        "specific_volume": 0.0011552164948453606,
+        "viscosity_pa_s": 0.001623120124699555,
+        "phase_volume_rates_m3_s": [
+          0.0010915999999999999,
+          0.00199456,
+          0.0002755200000000002
+        ],
+        "phase_mass_rates_kg_s": [
+          0.90496,
+          2.0,
+          0.005039999999999996
+        ],
+        "rs_m3_m3": 45.8
+      },
+      "friction_dissipation_w": 56.247747323273195,
+      "mechanical_balance_error_w": 1.8659772393903042e-10,
+      "length_residual_m": -6.758682502550073e-11,
+      "quadrature_order": 32,
+      "quadrature_length_error_m": 0.0,
+      "pressure_evaluations": 4,
+      "derivative_direction": "required_inlet",
+      "pressure_derivatives": {
+        "boundary_pressure_pa": 1.0761155338232635,
+        "oil_kg_s": 281335.4450091417,
+        "water_kg_s": 19317.95199636617,
+        "gas_kg_s": -4093636.7909130044,
+        "loss_coefficient": 192.68340854667653
+      },
+      "hydraulic_backend": "torch_batch"
+    },
+    {
+      "name": "p11",
+      "compute_device": "cuda:0",
+      "model": "homogeneous_equilibrium_blackoil_rs_only",
+      "inlet_pressure_pa": 3003741.40773812,
+      "outlet_pressure_pa": 2720000.0,
+      "loss_coefficient": 0.0,
+      "resistance_model": "uniform_distributed_K",
+      "component_mass_rates_kg_s": {
+        "oil": 0.85,
+        "water": 2.0,
+        "gas": 0.06
+      },
+      "inlet_acceleration_margin": 0.9999996544789324,
+      "outlet_acceleration_margin": 0.9998802193632128,
+      "inlet_state": {
+        "specific_volume": 0.0010632263834284485,
+        "viscosity_pa_s": 0.0017110671149662832,
+        "phase_volume_rates_m3_s": [
+          0.0010999962585922618,
+          0.001993992517184524,
+          0.0
+        ],
+        "phase_mass_rates_kg_s": [
+          0.9099999999999999,
+          2.0,
+          0.0
+        ],
+        "rs_m3_m3": 50.0
+      },
+      "outlet_state": {
+        "specific_volume": 0.0011552164948453606,
+        "viscosity_pa_s": 0.001623120124699555,
+        "phase_volume_rates_m3_s": [
+          0.0010915999999999999,
+          0.00199456,
+          0.0002755200000000002
+        ],
+        "phase_mass_rates_kg_s": [
+          0.90496,
+          2.0,
+          0.005039999999999996
+        ],
+        "rs_m3_m3": 45.8
+      },
+      "friction_dissipation_w": 58.053432228324475,
+      "mechanical_balance_error_w": 1.6765778099170348e-10,
+      "length_residual_m": -6.269829100347124e-11,
+      "quadrature_order": 32,
+      "quadrature_length_error_m": 0.0,
+      "pressure_evaluations": 4,
+      "derivative_direction": "required_inlet",
+      "pressure_derivatives": {
+        "boundary_pressure_pa": 1.0758072922163324,
+        "oil_kg_s": 280689.4411132548,
+        "water_kg_s": 19626.087996372848,
+        "gas_kg_s": -4077661.194575052,
+        "loss_coefficient": 192.62662192825715
+      },
+      "hydraulic_backend": "torch_batch"
+    },
+    {
+      "name": "p12",
+      "compute_device": "cuda:0",
+      "model": "homogeneous_equilibrium_blackoil_rs_only",
+      "inlet_pressure_pa": 3002574.020532109,
+      "outlet_pressure_pa": 2720000.0,
+      "loss_coefficient": 0.0,
+      "resistance_model": "uniform_distributed_K",
+      "component_mass_rates_kg_s": {
+        "oil": 0.85,
+        "water": 2.0,
+        "gas": 0.06
+      },
+      "inlet_acceleration_margin": 0.9999996544789324,
+      "outlet_acceleration_margin": 0.9998802193632128,
+      "inlet_state": {
+        "specific_volume": 0.0010632275869204135,
+        "viscosity_pa_s": 0.0017110629143471739,
+        "phase_volume_rates_m3_s": [
+          0.0010999974259794678,
+          0.0019939948519589355,
+          0.0
+        ],
+        "phase_mass_rates_kg_s": [
+          0.9099999999999999,
+          2.0,
+          0.0
+        ],
+        "rs_m3_m3": 50.0
+      },
+      "outlet_state": {
+        "specific_volume": 0.0011552164948453606,
+        "viscosity_pa_s": 0.001623120124699555,
+        "phase_volume_rates_m3_s": [
+          0.0010915999999999999,
+          0.00199456,
+          0.0002755200000000002
+        ],
+        "phase_mass_rates_kg_s": [
+          0.90496,
+          2.0,
+          0.005039999999999996
+        ],
+        "rs_m3_m3": 45.8
+      },
+      "friction_dissipation_w": 54.44154851977037,
+      "mechanical_balance_error_w": 2.0391453858792376e-10,
+      "length_residual_m": -7.145217750803567e-11,
+      "quadrature_order": 32,
+      "quadrature_length_error_m": 0.0,
+      "pressure_evaluations": 4,
+      "derivative_direction": "required_inlet",
+      "pressure_derivatives": {
+        "boundary_pressure_pa": 1.0764250945822527,
+        "oil_kg_s": 281985.9866533029,
+        "water_kg_s": 19009.7149724491,
+        "gas_kg_s": -4109682.2040364537,
+        "loss_coefficient": 192.74053926439117
+      },
+      "hydraulic_backend": "torch_batch"
+    },
+    {
+      "name": "p13",
+      "compute_device": "cuda:0",
+      "model": "homogeneous_equilibrium_blackoil_rs_only",
+      "inlet_pressure_pa": 3003157.797017807,
+      "outlet_pressure_pa": 2720000.0,
+      "loss_coefficient": 0.0,
+      "resistance_model": "uniform_distributed_K",
+      "component_mass_rates_kg_s": {
+        "oil": 0.85,
+        "water": 2.0,
+        "gas": 0.06
+      },
+      "inlet_acceleration_margin": 0.9999996544789324,
+      "outlet_acceleration_margin": 0.9998802193632128,
+      "inlet_state": {
+        "specific_volume": 0.001063226985088985,
+        "viscosity_pa_s": 0.0017110650149548786,
+        "phase_volume_rates_m3_s": [
+          0.001099996842202982,
+          0.0019939936844059645,
+          0.0
+        ],
+        "phase_mass_rates_kg_s": [
+          0.9099999999999999,
+          2.0,
+          0.0
+        ],
+        "rs_m3_m3": 50.0
+      },
+      "outlet_state": {
+        "specific_volume": 0.0011552164948453606,
+        "viscosity_pa_s": 0.001623120124699555,
+        "phase_volume_rates_m3_s": [
+          0.0010915999999999999,
+          0.00199456,
+          0.0002755200000000002
+        ],
+        "phase_mass_rates_kg_s": [
+          0.90496,
+          2.0,
+          0.005039999999999996
+        ],
+        "rs_m3_m3": 45.8
+      },
+      "friction_dissipation_w": 56.247747323273195,
+      "mechanical_balance_error_w": 1.8659772393903042e-10,
+      "length_residual_m": -6.758682502550073e-11,
+      "quadrature_order": 32,
+      "quadrature_length_error_m": 0.0,
+      "pressure_evaluations": 4,
+      "derivative_direction": "required_inlet",
+      "pressure_derivatives": {
+        "boundary_pressure_pa": 1.0761155338232635,
+        "oil_kg_s": 281335.4450091417,
+        "water_kg_s": 19317.95199636617,
+        "gas_kg_s": -4093636.7909130044,
+        "loss_coefficient": 192.68340854667653
+      },
+      "hydraulic_backend": "torch_batch"
+    },
+    {
+      "name": "p14",
+      "compute_device": "cuda:0",
+      "model": "homogeneous_equilibrium_blackoil_rs_only",
+      "inlet_pressure_pa": 3003741.40773812,
+      "outlet_pressure_pa": 2720000.0,
+      "loss_coefficient": 0.0,
+      "resistance_model": "uniform_distributed_K",
+      "component_mass_rates_kg_s": {
+        "oil": 0.85,
+        "water": 2.0,
+        "gas": 0.06
+      },
+      "inlet_acceleration_margin": 0.9999996544789324,
+      "outlet_acceleration_margin": 0.9998802193632128,
+      "inlet_state": {
+        "specific_volume": 0.0010632263834284485,
+        "viscosity_pa_s": 0.0017110671149662832,
+        "phase_volume_rates_m3_s": [
+          0.0010999962585922618,
+          0.001993992517184524,
+          0.0
+        ],
+        "phase_mass_rates_kg_s": [
+          0.9099999999999999,
+          2.0,
+          0.0
+        ],
+        "rs_m3_m3": 50.0
+      },
+      "outlet_state": {
+        "specific_volume": 0.0011552164948453606,
+        "viscosity_pa_s": 0.001623120124699555,
+        "phase_volume_rates_m3_s": [
+          0.0010915999999999999,
+          0.00199456,
+          0.0002755200000000002
+        ],
+        "phase_mass_rates_kg_s": [
+          0.90496,
+          2.0,
+          0.005039999999999996
+        ],
+        "rs_m3_m3": 45.8
+      },
+      "friction_dissipation_w": 58.053432228324475,
+      "mechanical_balance_error_w": 1.6765778099170348e-10,
+      "length_residual_m": -6.269829100347124e-11,
+      "quadrature_order": 32,
+      "quadrature_length_error_m": 0.0,
+      "pressure_evaluations": 4,
+      "derivative_direction": "required_inlet",
+      "pressure_derivatives": {
+        "boundary_pressure_pa": 1.0758072922163324,
+        "oil_kg_s": 280689.4411132548,
+        "water_kg_s": 19626.087996372848,
+        "gas_kg_s": -4077661.194575052,
+        "loss_coefficient": 192.62662192825715
+      },
+      "hydraulic_backend": "torch_batch"
+    },
+    {
+      "name": "p15",
+      "compute_device": "cuda:0",
+      "model": "homogeneous_equilibrium_blackoil_rs_only",
+      "inlet_pressure_pa": 3002574.020532109,
+      "outlet_pressure_pa": 2720000.0,
+      "loss_coefficient": 0.0,
+      "resistance_model": "uniform_distributed_K",
+      "component_mass_rates_kg_s": {
+        "oil": 0.85,
+        "water": 2.0,
+        "gas": 0.06
+      },
+      "inlet_acceleration_margin": 0.9999996544789324,
+      "outlet_acceleration_margin": 0.9998802193632128,
+      "inlet_state": {
+        "specific_volume": 0.0010632275869204135,
+        "viscosity_pa_s": 0.0017110629143471739,
+        "phase_volume_rates_m3_s": [
+          0.0010999974259794678,
+          0.0019939948519589355,
+          0.0
+        ],
+        "phase_mass_rates_kg_s": [
+          0.9099999999999999,
+          2.0,
+          0.0
+        ],
+        "rs_m3_m3": 50.0
+      },
+      "outlet_state": {
+        "specific_volume": 0.0011552164948453606,
+        "viscosity_pa_s": 0.001623120124699555,
+        "phase_volume_rates_m3_s": [
+          0.0010915999999999999,
+          0.00199456,
+          0.0002755200000000002
+        ],
+        "phase_mass_rates_kg_s": [
+          0.90496,
+          2.0,
+          0.005039999999999996
+        ],
+        "rs_m3_m3": 45.8
+      },
+      "friction_dissipation_w": 54.44154851977037,
+      "mechanical_balance_error_w": 2.0391453858792376e-10,
+      "length_residual_m": -7.145217750803567e-11,
+      "quadrature_order": 32,
+      "quadrature_length_error_m": 0.0,
+      "pressure_evaluations": 4,
+      "derivative_direction": "required_inlet",
+      "pressure_derivatives": {
+        "boundary_pressure_pa": 1.0764250945822527,
+        "oil_kg_s": 281985.9866533029,
+        "water_kg_s": 19009.7149724491,
+        "gas_kg_s": -4109682.2040364537,
+        "loss_coefficient": 192.74053926439117
+      },
+      "hydraulic_backend": "torch_batch"
+    },
+    {
+      "name": "p16",
+      "compute_device": "cuda:0",
+      "model": "homogeneous_equilibrium_blackoil_rs_only",
+      "inlet_pressure_pa": 3003157.797017807,
+      "outlet_pressure_pa": 2720000.0,
+      "loss_coefficient": 0.0,
+      "resistance_model": "uniform_distributed_K",
+      "component_mass_rates_kg_s": {
+        "oil": 0.85,
+        "water": 2.0,
+        "gas": 0.06
+      },
+      "inlet_acceleration_margin": 0.9999996544789324,
+      "outlet_acceleration_margin": 0.9998802193632128,
+      "inlet_state": {
+        "specific_volume": 0.001063226985088985,
+        "viscosity_pa_s": 0.0017110650149548786,
+        "phase_volume_rates_m3_s": [
+          0.001099996842202982,
+          0.0019939936844059645,
+          0.0
+        ],
+        "phase_mass_rates_kg_s": [
+          0.9099999999999999,
+          2.0,
+          0.0
+        ],
+        "rs_m3_m3": 50.0
+      },
+      "outlet_state": {
+        "specific_volume": 0.0011552164948453606,
+        "viscosity_pa_s": 0.001623120124699555,
+        "phase_volume_rates_m3_s": [
+          0.0010915999999999999,
+          0.00199456,
+          0.0002755200000000002
+        ],
+        "phase_mass_rates_kg_s": [
+          0.90496,
+          2.0,
+          0.005039999999999996
+        ],
+        "rs_m3_m3": 45.8
+      },
+      "friction_dissipation_w": 56.247747323273195,
+      "mechanical_balance_error_w": 1.8659772393903042e-10,
+      "length_residual_m": -6.758682502550073e-11,
+      "quadrature_order": 32,
+      "quadrature_length_error_m": 0.0,
+      "pressure_evaluations": 4,
+      "derivative_direction": "required_inlet",
+      "pressure_derivatives": {
+        "boundary_pressure_pa": 1.0761155338232635,
+        "oil_kg_s": 281335.4450091417,
+        "water_kg_s": 19317.95199636617,
+        "gas_kg_s": -4093636.7909130044,
+        "loss_coefficient": 192.68340854667653
+      },
+      "hydraulic_backend": "torch_batch"
+    },
+    {
+      "name": "p17",
+      "compute_device": "cuda:0",
+      "model": "homogeneous_equilibrium_blackoil_rs_only",
+      "inlet_pressure_pa": 3003741.40773812,
+      "outlet_pressure_pa": 2720000.0,
+      "loss_coefficient": 0.0,
+      "resistance_model": "uniform_distributed_K",
+      "component_mass_rates_kg_s": {
+        "oil": 0.85,
+        "water": 2.0,
+        "gas": 0.06
+      },
+      "inlet_acceleration_margin": 0.9999996544789324,
+      "outlet_acceleration_margin": 0.9998802193632128,
+      "inlet_state": {
+        "specific_volume": 0.0010632263834284485,
+        "viscosity_pa_s": 0.0017110671149662832,
+        "phase_volume_rates_m3_s": [
+          0.0010999962585922618,
+          0.001993992517184524,
+          0.0
+        ],
+        "phase_mass_rates_kg_s": [
+          0.9099999999999999,
+          2.0,
+          0.0
+        ],
+        "rs_m3_m3": 50.0
+      },
+      "outlet_state": {
+        "specific_volume": 0.0011552164948453606,
+        "viscosity_pa_s": 0.001623120124699555,
+        "phase_volume_rates_m3_s": [
+          0.0010915999999999999,
+          0.00199456,
+          0.0002755200000000002
+        ],
+        "phase_mass_rates_kg_s": [
+          0.90496,
+          2.0,
+          0.005039999999999996
+        ],
+        "rs_m3_m3": 45.8
+      },
+      "friction_dissipation_w": 58.053432228324475,
+      "mechanical_balance_error_w": 1.6765778099170348e-10,
+      "length_residual_m": -6.269829100347124e-11,
+      "quadrature_order": 32,
+      "quadrature_length_error_m": 0.0,
+      "pressure_evaluations": 4,
+      "derivative_direction": "required_inlet",
+      "pressure_derivatives": {
+        "boundary_pressure_pa": 1.0758072922163324,
+        "oil_kg_s": 280689.4411132548,
+        "water_kg_s": 19626.087996372848,
+        "gas_kg_s": -4077661.194575052,
+        "loss_coefficient": 192.62662192825715
+      },
+      "hydraulic_backend": "torch_batch"
+    },
+    {
+      "name": "p18",
+      "compute_device": "cuda:0",
+      "model": "homogeneous_equilibrium_blackoil_rs_only",
+      "inlet_pressure_pa": 3002574.020532109,
+      "outlet_pressure_pa": 2720000.0,
+      "loss_coefficient": 0.0,
+      "resistance_model": "uniform_distributed_K",
+      "component_mass_rates_kg_s": {
+        "oil": 0.85,
+        "water": 2.0,
+        "gas": 0.06
+      },
+      "inlet_acceleration_margin": 0.9999996544789324,
+      "outlet_acceleration_margin": 0.9998802193632128,
+      "inlet_state": {
+        "specific_volume": 0.0010632275869204135,
+        "viscosity_pa_s": 0.0017110629143471739,
+        "phase_volume_rates_m3_s": [
+          0.0010999974259794678,
+          0.0019939948519589355,
+          0.0
+        ],
+        "phase_mass_rates_kg_s": [
+          0.9099999999999999,
+          2.0,
+          0.0
+        ],
+        "rs_m3_m3": 50.0
+      },
+      "outlet_state": {
+        "specific_volume": 0.0011552164948453606,
+        "viscosity_pa_s": 0.001623120124699555,
+        "phase_volume_rates_m3_s": [
+          0.0010915999999999999,
+          0.00199456,
+          0.0002755200000000002
+        ],
+        "phase_mass_rates_kg_s": [
+          0.90496,
+          2.0,
+          0.005039999999999996
+        ],
+        "rs_m3_m3": 45.8
+      },
+      "friction_dissipation_w": 54.44154851977037,
+      "mechanical_balance_error_w": 2.0391453858792376e-10,
+      "length_residual_m": -7.145217750803567e-11,
+      "quadrature_order": 32,
+      "quadrature_length_error_m": 0.0,
+      "pressure_evaluations": 4,
+      "derivative_direction": "required_inlet",
+      "pressure_derivatives": {
+        "boundary_pressure_pa": 1.0764250945822527,
+        "oil_kg_s": 281985.9866533029,
+        "water_kg_s": 19009.7149724491,
+        "gas_kg_s": -4109682.2040364537,
+        "loss_coefficient": 192.74053926439117
+      },
+      "hydraulic_backend": "torch_batch"
+    },
+    {
+      "name": "p19",
+      "compute_device": "cuda:0",
+      "model": "homogeneous_equilibrium_blackoil_rs_only",
+      "inlet_pressure_pa": 3003157.797017807,
+      "outlet_pressure_pa": 2720000.0,
+      "loss_coefficient": 0.0,
+      "resistance_model": "uniform_distributed_K",
+      "component_mass_rates_kg_s": {
+        "oil": 0.85,
+        "water": 2.0,
+        "gas": 0.06
+      },
+      "inlet_acceleration_margin": 0.9999996544789324,
+      "outlet_acceleration_margin": 0.9998802193632128,
+      "inlet_state": {
+        "specific_volume": 0.001063226985088985,
+        "viscosity_pa_s": 0.0017110650149548786,
+        "phase_volume_rates_m3_s": [
+          0.001099996842202982,
+          0.0019939936844059645,
+          0.0
+        ],
+        "phase_mass_rates_kg_s": [
+          0.9099999999999999,
+          2.0,
+          0.0
+        ],
+        "rs_m3_m3": 50.0
+      },
+      "outlet_state": {
+        "specific_volume": 0.0011552164948453606,
+        "viscosity_pa_s": 0.001623120124699555,
+        "phase_volume_rates_m3_s": [
+          0.0010915999999999999,
+          0.00199456,
+          0.0002755200000000002
+        ],
+        "phase_mass_rates_kg_s": [
+          0.90496,
+          2.0,
+          0.005039999999999996
+        ],
+        "rs_m3_m3": 45.8
+      },
+      "friction_dissipation_w": 56.247747323273195,
+      "mechanical_balance_error_w": 1.8659772393903042e-10,
+      "length_residual_m": -6.758682502550073e-11,
+      "quadrature_order": 32,
+      "quadrature_length_error_m": 0.0,
+      "pressure_evaluations": 4,
+      "derivative_direction": "required_inlet",
+      "pressure_derivatives": {
+        "boundary_pressure_pa": 1.0761155338232635,
+        "oil_kg_s": 281335.4450091417,
+        "water_kg_s": 19317.95199636617,
+        "gas_kg_s": -4093636.7909130044,
+        "loss_coefficient": 192.68340854667653
+      },
+      "hydraulic_backend": "torch_batch"
+    },
+    {
+      "name": "p20",
+      "compute_device": "cuda:0",
+      "model": "homogeneous_equilibrium_blackoil_rs_only",
+      "inlet_pressure_pa": 3003741.40773812,
+      "outlet_pressure_pa": 2720000.0,
+      "loss_coefficient": 0.0,
+      "resistance_model": "uniform_distributed_K",
+      "component_mass_rates_kg_s": {
+        "oil": 0.85,
+        "water": 2.0,
+        "gas": 0.06
+      },
+      "inlet_acceleration_margin": 0.9999996544789324,
+      "outlet_acceleration_margin": 0.9998802193632128,
+      "inlet_state": {
+        "specific_volume": 0.0010632263834284485,
+        "viscosity_pa_s": 0.0017110671149662832,
+        "phase_volume_rates_m3_s": [
+          0.0010999962585922618,
+          0.001993992517184524,
+          0.0
+        ],
+        "phase_mass_rates_kg_s": [
+          0.9099999999999999,
+          2.0,
+          0.0
+        ],
+        "rs_m3_m3": 50.0
+      },
+      "outlet_state": {
+        "specific_volume": 0.0011552164948453606,
+        "viscosity_pa_s": 0.001623120124699555,
+        "phase_volume_rates_m3_s": [
+          0.0010915999999999999,
+          0.00199456,
+          0.0002755200000000002
+        ],
+        "phase_mass_rates_kg_s": [
+          0.90496,
+          2.0,
+          0.005039999999999996
+        ],
+        "rs_m3_m3": 45.8
+      },
+      "friction_dissipation_w": 58.053432228324475,
+      "mechanical_balance_error_w": 1.6765778099170348e-10,
+      "length_residual_m": -6.269829100347124e-11,
+      "quadrature_order": 32,
+      "quadrature_length_error_m": 0.0,
+      "pressure_evaluations": 4,
+      "derivative_direction": "required_inlet",
+      "pressure_derivatives": {
+        "boundary_pressure_pa": 1.0758072922163324,
+        "oil_kg_s": 280689.4411132548,
+        "water_kg_s": 19626.087996372848,
+        "gas_kg_s": -4077661.194575052,
+        "loss_coefficient": 192.62662192825715
+      },
+      "hydraulic_backend": "torch_batch"
+    },
+    {
+      "name": "p21",
+      "compute_device": "cuda:0",
+      "model": "homogeneous_equilibrium_blackoil_rs_only",
+      "inlet_pressure_pa": 3002574.020532109,
+      "outlet_pressure_pa": 2720000.0,
+      "loss_coefficient": 0.0,
+      "resistance_model": "uniform_distributed_K",
+      "component_mass_rates_kg_s": {
+        "oil": 0.85,
+        "water": 2.0,
+        "gas": 0.06
+      },
+      "inlet_acceleration_margin": 0.9999996544789324,
+      "outlet_acceleration_margin": 0.9998802193632128,
+      "inlet_state": {
+        "specific_volume": 0.0010632275869204135,
+        "viscosity_pa_s": 0.0017110629143471739,
+        "phase_volume_rates_m3_s": [
+          0.0010999974259794678,
+          0.0019939948519589355,
+          0.0
+        ],
+        "phase_mass_rates_kg_s": [
+          0.9099999999999999,
+          2.0,
+          0.0
+        ],
+        "rs_m3_m3": 50.0
+      },
+      "outlet_state": {
+        "specific_volume": 0.0011552164948453606,
+        "viscosity_pa_s": 0.001623120124699555,
+        "phase_volume_rates_m3_s": [
+          0.0010915999999999999,
+          0.00199456,
+          0.0002755200000000002
+        ],
+        "phase_mass_rates_kg_s": [
+          0.90496,
+          2.0,
+          0.005039999999999996
+        ],
+        "rs_m3_m3": 45.8
+      },
+      "friction_dissipation_w": 54.44154851977037,
+      "mechanical_balance_error_w": 2.0391453858792376e-10,
+      "length_residual_m": -7.145217750803567e-11,
+      "quadrature_order": 32,
+      "quadrature_length_error_m": 0.0,
+      "pressure_evaluations": 4,
+      "derivative_direction": "required_inlet",
+      "pressure_derivatives": {
+        "boundary_pressure_pa": 1.0764250945822527,
+        "oil_kg_s": 281985.9866533029,
+        "water_kg_s": 19009.7149724491,
+        "gas_kg_s": -4109682.2040364537,
+        "loss_coefficient": 192.74053926439117
+      },
+      "hydraulic_backend": "torch_batch"
+    },
+    {
+      "name": "p22",
+      "compute_device": "cuda:0",
+      "model": "homogeneous_equilibrium_blackoil_rs_only",
+      "inlet_pressure_pa": 3003157.797017807,
+      "outlet_pressure_pa": 2720000.0,
+      "loss_coefficient": 0.0,
+      "resistance_model": "uniform_distributed_K",
+      "component_mass_rates_kg_s": {
+        "oil": 0.85,
+        "water": 2.0,
+        "gas": 0.06
+      },
+      "inlet_acceleration_margin": 0.9999996544789324,
+      "outlet_acceleration_margin": 0.9998802193632128,
+      "inlet_state": {
+        "specific_volume": 0.001063226985088985,
+        "viscosity_pa_s": 0.0017110650149548786,
+        "phase_volume_rates_m3_s": [
+          0.001099996842202982,
+          0.0019939936844059645,
+          0.0
+        ],
+        "phase_mass_rates_kg_s": [
+          0.9099999999999999,
+          2.0,
+          0.0
+        ],
+        "rs_m3_m3": 50.0
+      },
+      "outlet_state": {
+        "specific_volume": 0.0011552164948453606,
+        "viscosity_pa_s": 0.001623120124699555,
+        "phase_volume_rates_m3_s": [
+          0.0010915999999999999,
+          0.00199456,
+          0.0002755200000000002
+        ],
+        "phase_mass_rates_kg_s": [
+          0.90496,
+          2.0,
+          0.005039999999999996
+        ],
+        "rs_m3_m3": 45.8
+      },
+      "friction_dissipation_w": 56.247747323273195,
+      "mechanical_balance_error_w": 1.8659772393903042e-10,
+      "length_residual_m": -6.758682502550073e-11,
+      "quadrature_order": 32,
+      "quadrature_length_error_m": 0.0,
+      "pressure_evaluations": 4,
+      "derivative_direction": "required_inlet",
+      "pressure_derivatives": {
+        "boundary_pressure_pa": 1.0761155338232635,
+        "oil_kg_s": 281335.4450091417,
+        "water_kg_s": 19317.95199636617,
+        "gas_kg_s": -4093636.7909130044,
+        "loss_coefficient": 192.68340854667653
+      },
+      "hydraulic_backend": "torch_batch"
+    },
+    {
+      "name": "p23",
+      "compute_device": "cuda:0",
+      "model": "homogeneous_equilibrium_blackoil_rs_only",
+      "inlet_pressure_pa": 3003741.40773812,
+      "outlet_pressure_pa": 2720000.0,
+      "loss_coefficient": 0.0,
+      "resistance_model": "uniform_distributed_K",
+      "component_mass_rates_kg_s": {
+        "oil": 0.85,
+        "water": 2.0,
+        "gas": 0.06
+      },
+      "inlet_acceleration_margin": 0.9999996544789324,
+      "outlet_acceleration_margin": 0.9998802193632128,
+      "inlet_state": {
+        "specific_volume": 0.0010632263834284485,
+        "viscosity_pa_s": 0.0017110671149662832,
+        "phase_volume_rates_m3_s": [
+          0.0010999962585922618,
+          0.001993992517184524,
+          0.0
+        ],
+        "phase_mass_rates_kg_s": [
+          0.9099999999999999,
+          2.0,
+          0.0
+        ],
+        "rs_m3_m3": 50.0
+      },
+      "outlet_state": {
+        "specific_volume": 0.0011552164948453606,
+        "viscosity_pa_s": 0.001623120124699555,
+        "phase_volume_rates_m3_s": [
+          0.0010915999999999999,
+          0.00199456,
+          0.0002755200000000002
+        ],
+        "phase_mass_rates_kg_s": [
+          0.90496,
+          2.0,
+          0.005039999999999996
+        ],
+        "rs_m3_m3": 45.8
+      },
+      "friction_dissipation_w": 58.053432228324475,
+      "mechanical_balance_error_w": 1.6765778099170348e-10,
+      "length_residual_m": -6.269829100347124e-11,
+      "quadrature_order": 32,
+      "quadrature_length_error_m": 0.0,
+      "pressure_evaluations": 4,
+      "derivative_direction": "required_inlet",
+      "pressure_derivatives": {
+        "boundary_pressure_pa": 1.0758072922163324,
+        "oil_kg_s": 280689.4411132548,
+        "water_kg_s": 19626.087996372848,
+        "gas_kg_s": -4077661.194575052,
+        "loss_coefficient": 192.62662192825715
+      },
+      "hydraulic_backend": "torch_batch"
+    },
+    {
+      "name": "p24",
+      "compute_device": "cuda:0",
+      "model": "homogeneous_equilibrium_blackoil_rs_only",
+      "inlet_pressure_pa": 3002574.020532109,
+      "outlet_pressure_pa": 2720000.0,
+      "loss_coefficient": 0.0,
+      "resistance_model": "uniform_distributed_K",
+      "component_mass_rates_kg_s": {
+        "oil": 0.85,
+        "water": 2.0,
+        "gas": 0.06
+      },
+      "inlet_acceleration_margin": 0.9999996544789324,
+      "outlet_acceleration_margin": 0.9998802193632128,
+      "inlet_state": {
+        "specific_volume": 0.0010632275869204135,
+        "viscosity_pa_s": 0.0017110629143471739,
+        "phase_volume_rates_m3_s": [
+          0.0010999974259794678,
+          0.0019939948519589355,
+          0.0
+        ],
+        "phase_mass_rates_kg_s": [
+          0.9099999999999999,
+          2.0,
+          0.0
+        ],
+        "rs_m3_m3": 50.0
+      },
+      "outlet_state": {
+        "specific_volume": 0.0011552164948453606,
+        "viscosity_pa_s": 0.001623120124699555,
+        "phase_volume_rates_m3_s": [
+          0.0010915999999999999,
+          0.00199456,
+          0.0002755200000000002
+        ],
+        "phase_mass_rates_kg_s": [
+          0.90496,
+          2.0,
+          0.005039999999999996
+        ],
+        "rs_m3_m3": 45.8
+      },
+      "friction_dissipation_w": 54.44154851977037,
+      "mechanical_balance_error_w": 2.0391453858792376e-10,
+      "length_residual_m": -7.145217750803567e-11,
+      "quadrature_order": 32,
+      "quadrature_length_error_m": 0.0,
+      "pressure_evaluations": 4,
+      "derivative_direction": "required_inlet",
+      "pressure_derivatives": {
+        "boundary_pressure_pa": 1.0764250945822527,
+        "oil_kg_s": 281985.9866533029,
+        "water_kg_s": 19009.7149724491,
+        "gas_kg_s": -4109682.2040364537,
+        "loss_coefficient": 192.74053926439117
+      },
+      "hydraulic_backend": "torch_batch"
+    },
+    {
+      "name": "p25",
+      "compute_device": "cuda:0",
+      "model": "homogeneous_equilibrium_blackoil_rs_only",
+      "inlet_pressure_pa": 3003157.797017807,
+      "outlet_pressure_pa": 2720000.0,
+      "loss_coefficient": 0.0,
+      "resistance_model": "uniform_distributed_K",
+      "component_mass_rates_kg_s": {
+        "oil": 0.85,
+        "water": 2.0,
+        "gas": 0.06
+      },
+      "inlet_acceleration_margin": 0.9999996544789324,
+      "outlet_acceleration_margin": 0.9998802193632128,
+      "inlet_state": {
+        "specific_volume": 0.001063226985088985,
+        "viscosity_pa_s": 0.0017110650149548786,
+        "phase_volume_rates_m3_s": [
+          0.001099996842202982,
+          0.0019939936844059645,
+          0.0
+        ],
+        "phase_mass_rates_kg_s": [
+          0.9099999999999999,
+          2.0,
+          0.0
+        ],
+        "rs_m3_m3": 50.0
+      },
+      "outlet_state": {
+        "specific_volume": 0.0011552164948453606,
+        "viscosity_pa_s": 0.001623120124699555,
+        "phase_volume_rates_m3_s": [
+          0.0010915999999999999,
+          0.00199456,
+          0.0002755200000000002
+        ],
+        "phase_mass_rates_kg_s": [
+          0.90496,
+          2.0,
+          0.005039999999999996
+        ],
+        "rs_m3_m3": 45.8
+      },
+      "friction_dissipation_w": 56.247747323273195,
+      "mechanical_balance_error_w": 1.8659772393903042e-10,
+      "length_residual_m": -6.758682502550073e-11,
+      "quadrature_order": 32,
+      "quadrature_length_error_m": 0.0,
+      "pressure_evaluations": 4,
+      "derivative_direction": "required_inlet",
+      "pressure_derivatives": {
+        "boundary_pressure_pa": 1.0761155338232635,
+        "oil_kg_s": 281335.4450091417,
+        "water_kg_s": 19317.95199636617,
+        "gas_kg_s": -4093636.7909130044,
+        "loss_coefficient": 192.68340854667653
+      },
+      "hydraulic_backend": "torch_batch"
+    },
+    {
+      "name": "p26",
+      "compute_device": "cuda:0",
+      "model": "homogeneous_equilibrium_blackoil_rs_only",
+      "inlet_pressure_pa": 3003741.40773812,
+      "outlet_pressure_pa": 2720000.0,
+      "loss_coefficient": 0.0,
+      "resistance_model": "uniform_distributed_K",
+      "component_mass_rates_kg_s": {
+        "oil": 0.85,
+        "water": 2.0,
+        "gas": 0.06
+      },
+      "inlet_acceleration_margin": 0.9999996544789324,
+      "outlet_acceleration_margin": 0.9998802193632128,
+      "inlet_state": {
+        "specific_volume": 0.0010632263834284485,
+        "viscosity_pa_s": 0.0017110671149662832,
+        "phase_volume_rates_m3_s": [
+          0.0010999962585922618,
+          0.001993992517184524,
+          0.0
+        ],
+        "phase_mass_rates_kg_s": [
+          0.9099999999999999,
+          2.0,
+          0.0
+        ],
+        "rs_m3_m3": 50.0
+      },
+      "outlet_state": {
+        "specific_volume": 0.0011552164948453606,
+        "viscosity_pa_s": 0.001623120124699555,
+        "phase_volume_rates_m3_s": [
+          0.0010915999999999999,
+          0.00199456,
+          0.0002755200000000002
+        ],
+        "phase_mass_rates_kg_s": [
+          0.90496,
+          2.0,
+          0.005039999999999996
+        ],
+        "rs_m3_m3": 45.8
+      },
+      "friction_dissipation_w": 58.053432228324475,
+      "mechanical_balance_error_w": 1.6765778099170348e-10,
+      "length_residual_m": -6.269829100347124e-11,
+      "quadrature_order": 32,
+      "quadrature_length_error_m": 0.0,
+      "pressure_evaluations": 4,
+      "derivative_direction": "required_inlet",
+      "pressure_derivatives": {
+        "boundary_pressure_pa": 1.0758072922163324,
+        "oil_kg_s": 280689.4411132548,
+        "water_kg_s": 19626.087996372848,
+        "gas_kg_s": -4077661.194575052,
+        "loss_coefficient": 192.62662192825715
+      },
+      "hydraulic_backend": "torch_batch"
+    },
+    {
+      "name": "p27",
+      "compute_device": "cuda:0",
+      "model": "homogeneous_equilibrium_blackoil_rs_only",
+      "inlet_pressure_pa": 3002574.020532109,
+      "outlet_pressure_pa": 2720000.0,
+      "loss_coefficient": 0.0,
+      "resistance_model": "uniform_distributed_K",
+      "component_mass_rates_kg_s": {
+        "oil": 0.85,
+        "water": 2.0,
+        "gas": 0.06
+      },
+      "inlet_acceleration_margin": 0.9999996544789324,
+      "outlet_acceleration_margin": 0.9998802193632128,
+      "inlet_state": {
+        "specific_volume": 0.0010632275869204135,
+        "viscosity_pa_s": 0.0017110629143471739,
+        "phase_volume_rates_m3_s": [
+          0.0010999974259794678,
+          0.0019939948519589355,
+          0.0
+        ],
+        "phase_mass_rates_kg_s": [
+          0.9099999999999999,
+          2.0,
+          0.0
+        ],
+        "rs_m3_m3": 50.0
+      },
+      "outlet_state": {
+        "specific_volume": 0.0011552164948453606,
+        "viscosity_pa_s": 0.001623120124699555,
+        "phase_volume_rates_m3_s": [
+          0.0010915999999999999,
+          0.00199456,
+          0.0002755200000000002
+        ],
+        "phase_mass_rates_kg_s": [
+          0.90496,
+          2.0,
+          0.005039999999999996
+        ],
+        "rs_m3_m3": 45.8
+      },
+      "friction_dissipation_w": 54.44154851977037,
+      "mechanical_balance_error_w": 2.0391453858792376e-10,
+      "length_residual_m": -7.145217750803567e-11,
+      "quadrature_order": 32,
+      "quadrature_length_error_m": 0.0,
+      "pressure_evaluations": 4,
+      "derivative_direction": "required_inlet",
+      "pressure_derivatives": {
+        "boundary_pressure_pa": 1.0764250945822527,
+        "oil_kg_s": 281985.9866533029,
+        "water_kg_s": 19009.7149724491,
+        "gas_kg_s": -4109682.2040364537,
+        "loss_coefficient": 192.74053926439117
+      },
+      "hydraulic_backend": "torch_batch"
+    },
+    {
+      "name": "p28",
+      "compute_device": "cuda:0",
+      "model": "homogeneous_equilibrium_blackoil_rs_only",
+      "inlet_pressure_pa": 3003157.797017807,
+      "outlet_pressure_pa": 2720000.0,
+      "loss_coefficient": 0.0,
+      "resistance_model": "uniform_distributed_K",
+      "component_mass_rates_kg_s": {
+        "oil": 0.85,
+        "water": 2.0,
+        "gas": 0.06
+      },
+      "inlet_acceleration_margin": 0.9999996544789324,
+      "outlet_acceleration_margin": 0.9998802193632128,
+      "inlet_state": {
+        "specific_volume": 0.001063226985088985,
+        "viscosity_pa_s": 0.0017110650149548786,
+        "phase_volume_rates_m3_s": [
+          0.001099996842202982,
+          0.0019939936844059645,
+          0.0
+        ],
+        "phase_mass_rates_kg_s": [
+          0.9099999999999999,
+          2.0,
+          0.0
+        ],
+        "rs_m3_m3": 50.0
+      },
+      "outlet_state": {
+        "specific_volume": 0.0011552164948453606,
+        "viscosity_pa_s": 0.001623120124699555,
+        "phase_volume_rates_m3_s": [
+          0.0010915999999999999,
+          0.00199456,
+          0.0002755200000000002
+        ],
+        "phase_mass_rates_kg_s": [
+          0.90496,
+          2.0,
+          0.005039999999999996
+        ],
+        "rs_m3_m3": 45.8
+      },
+      "friction_dissipation_w": 56.247747323273195,
+      "mechanical_balance_error_w": 1.8659772393903042e-10,
+      "length_residual_m": -6.758682502550073e-11,
+      "quadrature_order": 32,
+      "quadrature_length_error_m": 0.0,
+      "pressure_evaluations": 4,
+      "derivative_direction": "required_inlet",
+      "pressure_derivatives": {
+        "boundary_pressure_pa": 1.0761155338232635,
+        "oil_kg_s": 281335.4450091417,
+        "water_kg_s": 19317.95199636617,
+        "gas_kg_s": -4093636.7909130044,
+        "loss_coefficient": 192.68340854667653
+      },
+      "hydraulic_backend": "torch_batch"
+    },
+    {
+      "name": "p29",
+      "compute_device": "cuda:0",
+      "model": "homogeneous_equilibrium_blackoil_rs_only",
+      "inlet_pressure_pa": 3003741.40773812,
+      "outlet_pressure_pa": 2720000.0,
+      "loss_coefficient": 0.0,
+      "resistance_model": "uniform_distributed_K",
+      "component_mass_rates_kg_s": {
+        "oil": 0.85,
+        "water": 2.0,
+        "gas": 0.06
+      },
+      "inlet_acceleration_margin": 0.9999996544789324,
+      "outlet_acceleration_margin": 0.9998802193632128,
+      "inlet_state": {
+        "specific_volume": 0.0010632263834284485,
+        "viscosity_pa_s": 0.0017110671149662832,
+        "phase_volume_rates_m3_s": [
+          0.0010999962585922618,
+          0.001993992517184524,
+          0.0
+        ],
+        "phase_mass_rates_kg_s": [
+          0.9099999999999999,
+          2.0,
+          0.0
+        ],
+        "rs_m3_m3": 50.0
+      },
+      "outlet_state": {
+        "specific_volume": 0.0011552164948453606,
+        "viscosity_pa_s": 0.001623120124699555,
+        "phase_volume_rates_m3_s": [
+          0.0010915999999999999,
+          0.00199456,
+          0.0002755200000000002
+        ],
+        "phase_mass_rates_kg_s": [
+          0.90496,
+          2.0,
+          0.005039999999999996
+        ],
+        "rs_m3_m3": 45.8
+      },
+      "friction_dissipation_w": 58.053432228324475,
+      "mechanical_balance_error_w": 1.6765778099170348e-10,
+      "length_residual_m": -6.269829100347124e-11,
+      "quadrature_order": 32,
+      "quadrature_length_error_m": 0.0,
+      "pressure_evaluations": 4,
+      "derivative_direction": "required_inlet",
+      "pressure_derivatives": {
+        "boundary_pressure_pa": 1.0758072922163324,
+        "oil_kg_s": 280689.4411132548,
+        "water_kg_s": 19626.087996372848,
+        "gas_kg_s": -4077661.194575052,
+        "loss_coefficient": 192.62662192825715
+      },
+      "hydraulic_backend": "torch_batch"
+    },
+    {
+      "name": "p30",
+      "compute_device": "cuda:0",
+      "model": "homogeneous_equilibrium_blackoil_rs_only",
+      "inlet_pressure_pa": 3002574.020532109,
+      "outlet_pressure_pa": 2720000.0,
+      "loss_coefficient": 0.0,
+      "resistance_model": "uniform_distributed_K",
+      "component_mass_rates_kg_s": {
+        "oil": 0.85,
+        "water": 2.0,
+        "gas": 0.06
+      },
+      "inlet_acceleration_margin": 0.9999996544789324,
+      "outlet_acceleration_margin": 0.9998802193632128,
+      "inlet_state": {
+        "specific_volume": 0.0010632275869204135,
+        "viscosity_pa_s": 0.0017110629143471739,
+        "phase_volume_rates_m3_s": [
+          0.0010999974259794678,
+          0.0019939948519589355,
+          0.0
+        ],
+        "phase_mass_rates_kg_s": [
+          0.9099999999999999,
+          2.0,
+          0.0
+        ],
+        "rs_m3_m3": 50.0
+      },
+      "outlet_state": {
+        "specific_volume": 0.0011552164948453606,
+        "viscosity_pa_s": 0.001623120124699555,
+        "phase_volume_rates_m3_s": [
+          0.0010915999999999999,
+          0.00199456,
+          0.0002755200000000002
+        ],
+        "phase_mass_rates_kg_s": [
+          0.90496,
+          2.0,
+          0.005039999999999996
+        ],
+        "rs_m3_m3": 45.8
+      },
+      "friction_dissipation_w": 54.44154851977037,
+      "mechanical_balance_error_w": 2.0391453858792376e-10,
+      "length_residual_m": -7.145217750803567e-11,
+      "quadrature_order": 32,
+      "quadrature_length_error_m": 0.0,
+      "pressure_evaluations": 4,
+      "derivative_direction": "required_inlet",
+      "pressure_derivatives": {
+        "boundary_pressure_pa": 1.0764250945822527,
+        "oil_kg_s": 281985.9866533029,
+        "water_kg_s": 19009.7149724491,
+        "gas_kg_s": -4109682.2040364537,
+        "loss_coefficient": 192.74053926439117
+      },
+      "hydraulic_backend": "torch_batch"
+    },
+    {
+      "name": "p31",
+      "compute_device": "cuda:0",
+      "model": "homogeneous_equilibrium_blackoil_rs_only",
+      "inlet_pressure_pa": 3003157.797017807,
+      "outlet_pressure_pa": 2720000.0,
+      "loss_coefficient": 0.0,
+      "resistance_model": "uniform_distributed_K",
+      "component_mass_rates_kg_s": {
+        "oil": 0.85,
+        "water": 2.0,
+        "gas": 0.06
+      },
+      "inlet_acceleration_margin": 0.9999996544789324,
+      "outlet_acceleration_margin": 0.9998802193632128,
+      "inlet_state": {
+        "specific_volume": 0.001063226985088985,
+        "viscosity_pa_s": 0.0017110650149548786,
+        "phase_volume_rates_m3_s": [
+          0.001099996842202982,
+          0.0019939936844059645,
+          0.0
+        ],
+        "phase_mass_rates_kg_s": [
+          0.9099999999999999,
+          2.0,
+          0.0
+        ],
+        "rs_m3_m3": 50.0
+      },
+      "outlet_state": {
+        "specific_volume": 0.0011552164948453606,
+        "viscosity_pa_s": 0.001623120124699555,
+        "phase_volume_rates_m3_s": [
+          0.0010915999999999999,
+          0.00199456,
+          0.0002755200000000002
+        ],
+        "phase_mass_rates_kg_s": [
+          0.90496,
+          2.0,
+          0.005039999999999996
+        ],
+        "rs_m3_m3": 45.8
+      },
+      "friction_dissipation_w": 56.247747323273195,
+      "mechanical_balance_error_w": 1.8659772393903042e-10,
+      "length_residual_m": -6.758682502550073e-11,
+      "quadrature_order": 32,
+      "quadrature_length_error_m": 0.0,
+      "pressure_evaluations": 4,
+      "derivative_direction": "required_inlet",
+      "pressure_derivatives": {
+        "boundary_pressure_pa": 1.0761155338232635,
+        "oil_kg_s": 281335.4450091417,
+        "water_kg_s": 19317.95199636617,
+        "gas_kg_s": -4093636.7909130044,
+        "loss_coefficient": 192.68340854667653
+      },
+      "hydraulic_backend": "torch_batch"
+    },
+    {
+      "name": "p32",
+      "compute_device": "cuda:0",
+      "model": "homogeneous_equilibrium_blackoil_rs_only",
+      "inlet_pressure_pa": 3003741.40773812,
+      "outlet_pressure_pa": 2720000.0,
+      "loss_coefficient": 0.0,
+      "resistance_model": "uniform_distributed_K",
+      "component_mass_rates_kg_s": {
+        "oil": 0.85,
+        "water": 2.0,
+        "gas": 0.06
+      },
+      "inlet_acceleration_margin": 0.9999996544789324,
+      "outlet_acceleration_margin": 0.9998802193632128,
+      "inlet_state": {
+        "specific_volume": 0.0010632263834284485,
+        "viscosity_pa_s": 0.0017110671149662832,
+        "phase_volume_rates_m3_s": [
+          0.0010999962585922618,
+          0.001993992517184524,
+          0.0
+        ],
+        "phase_mass_rates_kg_s": [
+          0.9099999999999999,
+          2.0,
+          0.0
+        ],
+        "rs_m3_m3": 50.0
+      },
+      "outlet_state": {
+        "specific_volume": 0.0011552164948453606,
+        "viscosity_pa_s": 0.001623120124699555,
+        "phase_volume_rates_m3_s": [
+          0.0010915999999999999,
+          0.00199456,
+          0.0002755200000000002
+        ],
+        "phase_mass_rates_kg_s": [
+          0.90496,
+          2.0,
+          0.005039999999999996
+        ],
+        "rs_m3_m3": 45.8
+      },
+      "friction_dissipation_w": 58.053432228324475,
+      "mechanical_balance_error_w": 1.6765778099170348e-10,
+      "length_residual_m": -6.269829100347124e-11,
+      "quadrature_order": 32,
+      "quadrature_length_error_m": 0.0,
+      "pressure_evaluations": 4,
+      "derivative_direction": "required_inlet",
+      "pressure_derivatives": {
+        "boundary_pressure_pa": 1.0758072922163324,
+        "oil_kg_s": 280689.4411132548,
+        "water_kg_s": 19626.087996372848,
+        "gas_kg_s": -4077661.194575052,
+        "loss_coefficient": 192.62662192825715
+      },
+      "hydraulic_backend": "torch_batch"
+    },
+    {
+      "name": "p33",
+      "compute_device": "cuda:0",
+      "model": "homogeneous_equilibrium_blackoil_rs_only",
+      "inlet_pressure_pa": 3002574.020532109,
+      "outlet_pressure_pa": 2720000.0,
+      "loss_coefficient": 0.0,
+      "resistance_model": "uniform_distributed_K",
+      "component_mass_rates_kg_s": {
+        "oil": 0.85,
+        "water": 2.0,
+        "gas": 0.06
+      },
+      "inlet_acceleration_margin": 0.9999996544789324,
+      "outlet_acceleration_margin": 0.9998802193632128,
+      "inlet_state": {
+        "specific_volume": 0.0010632275869204135,
+        "viscosity_pa_s": 0.0017110629143471739,
+        "phase_volume_rates_m3_s": [
+          0.0010999974259794678,
+          0.0019939948519589355,
+          0.0
+        ],
+        "phase_mass_rates_kg_s": [
+          0.9099999999999999,
+          2.0,
+          0.0
+        ],
+        "rs_m3_m3": 50.0
+      },
+      "outlet_state": {
+        "specific_volume": 0.0011552164948453606,
+        "viscosity_pa_s": 0.001623120124699555,
+        "phase_volume_rates_m3_s": [
+          0.0010915999999999999,
+          0.00199456,
+          0.0002755200000000002
+        ],
+        "phase_mass_rates_kg_s": [
+          0.90496,
+          2.0,
+          0.005039999999999996
+        ],
+        "rs_m3_m3": 45.8
+      },
+      "friction_dissipation_w": 54.44154851977037,
+      "mechanical_balance_error_w": 2.0391453858792376e-10,
+      "length_residual_m": -7.145217750803567e-11,
+      "quadrature_order": 32,
+      "quadrature_length_error_m": 0.0,
+      "pressure_evaluations": 4,
+      "derivative_direction": "required_inlet",
+      "pressure_derivatives": {
+        "boundary_pressure_pa": 1.0764250945822527,
+        "oil_kg_s": 281985.9866533029,
+        "water_kg_s": 19009.7149724491,
+        "gas_kg_s": -4109682.2040364537,
+        "loss_coefficient": 192.74053926439117
+      },
+      "hydraulic_backend": "torch_batch"
+    },
+    {
+      "name": "p34",
+      "compute_device": "cuda:0",
+      "model": "homogeneous_equilibrium_blackoil_rs_only",
+      "inlet_pressure_pa": 3003157.797017807,
+      "outlet_pressure_pa": 2720000.0,
+      "loss_coefficient": 0.0,
+      "resistance_model": "uniform_distributed_K",
+      "component_mass_rates_kg_s": {
+        "oil": 0.85,
+        "water": 2.0,
+        "gas": 0.06
+      },
+      "inlet_acceleration_margin": 0.9999996544789324,
+      "outlet_acceleration_margin": 0.9998802193632128,
+      "inlet_state": {
+        "specific_volume": 0.001063226985088985,
+        "viscosity_pa_s": 0.0017110650149548786,
+        "phase_volume_rates_m3_s": [
+          0.001099996842202982,
+          0.0019939936844059645,
+          0.0
+        ],
+        "phase_mass_rates_kg_s": [
+          0.9099999999999999,
+          2.0,
+          0.0
+        ],
+        "rs_m3_m3": 50.0
+      },
+      "outlet_state": {
+        "specific_volume": 0.0011552164948453606,
+        "viscosity_pa_s": 0.001623120124699555,
+        "phase_volume_rates_m3_s": [
+          0.0010915999999999999,
+          0.00199456,
+          0.0002755200000000002
+        ],
+        "phase_mass_rates_kg_s": [
+          0.90496,
+          2.0,
+          0.005039999999999996
+        ],
+        "rs_m3_m3": 45.8
+      },
+      "friction_dissipation_w": 56.247747323273195,
+      "mechanical_balance_error_w": 1.8659772393903042e-10,
+      "length_residual_m": -6.758682502550073e-11,
+      "quadrature_order": 32,
+      "quadrature_length_error_m": 0.0,
+      "pressure_evaluations": 4,
+      "derivative_direction": "required_inlet",
+      "pressure_derivatives": {
+        "boundary_pressure_pa": 1.0761155338232635,
+        "oil_kg_s": 281335.4450091417,
+        "water_kg_s": 19317.95199636617,
+        "gas_kg_s": -4093636.7909130044,
+        "loss_coefficient": 192.68340854667653
+      },
+      "hydraulic_backend": "torch_batch"
+    },
+    {
+      "name": "p35",
+      "compute_device": "cuda:0",
+      "model": "homogeneous_equilibrium_blackoil_rs_only",
+      "inlet_pressure_pa": 3003741.40773812,
+      "outlet_pressure_pa": 2720000.0,
+      "loss_coefficient": 0.0,
+      "resistance_model": "uniform_distributed_K",
+      "component_mass_rates_kg_s": {
+        "oil": 0.85,
+        "water": 2.0,
+        "gas": 0.06
+      },
+      "inlet_acceleration_margin": 0.9999996544789324,
+      "outlet_acceleration_margin": 0.9998802193632128,
+      "inlet_state": {
+        "specific_volume": 0.0010632263834284485,
+        "viscosity_pa_s": 0.0017110671149662832,
+        "phase_volume_rates_m3_s": [
+          0.0010999962585922618,
+          0.001993992517184524,
+          0.0
+        ],
+        "phase_mass_rates_kg_s": [
+          0.9099999999999999,
+          2.0,
+          0.0
+        ],
+        "rs_m3_m3": 50.0
+      },
+      "outlet_state": {
+        "specific_volume": 0.0011552164948453606,
+        "viscosity_pa_s": 0.001623120124699555,
+        "phase_volume_rates_m3_s": [
+          0.0010915999999999999,
+          0.00199456,
+          0.0002755200000000002
+        ],
+        "phase_mass_rates_kg_s": [
+          0.90496,
+          2.0,
+          0.005039999999999996
+        ],
+        "rs_m3_m3": 45.8
+      },
+      "friction_dissipation_w": 58.053432228324475,
+      "mechanical_balance_error_w": 1.6765778099170348e-10,
+      "length_residual_m": -6.269829100347124e-11,
+      "quadrature_order": 32,
+      "quadrature_length_error_m": 0.0,
+      "pressure_evaluations": 4,
+      "derivative_direction": "required_inlet",
+      "pressure_derivatives": {
+        "boundary_pressure_pa": 1.0758072922163324,
+        "oil_kg_s": 280689.4411132548,
+        "water_kg_s": 19626.087996372848,
+        "gas_kg_s": -4077661.194575052,
+        "loss_coefficient": 192.62662192825715
+      },
+      "hydraulic_backend": "torch_batch"
+    },
+    {
+      "name": "p36",
+      "compute_device": "cuda:0",
+      "model": "homogeneous_equilibrium_blackoil_rs_only",
+      "inlet_pressure_pa": 3002574.020532109,
+      "outlet_pressure_pa": 2720000.0,
+      "loss_coefficient": 0.0,
+      "resistance_model": "uniform_distributed_K",
+      "component_mass_rates_kg_s": {
+        "oil": 0.85,
+        "water": 2.0,
+        "gas": 0.06
+      },
+      "inlet_acceleration_margin": 0.9999996544789324,
+      "outlet_acceleration_margin": 0.9998802193632128,
+      "inlet_state": {
+        "specific_volume": 0.0010632275869204135,
+        "viscosity_pa_s": 0.0017110629143471739,
+        "phase_volume_rates_m3_s": [
+          0.0010999974259794678,
+          0.0019939948519589355,
+          0.0
+        ],
+        "phase_mass_rates_kg_s": [
+          0.9099999999999999,
+          2.0,
+          0.0
+        ],
+        "rs_m3_m3": 50.0
+      },
+      "outlet_state": {
+        "specific_volume": 0.0011552164948453606,
+        "viscosity_pa_s": 0.001623120124699555,
+        "phase_volume_rates_m3_s": [
+          0.0010915999999999999,
+          0.00199456,
+          0.0002755200000000002
+        ],
+        "phase_mass_rates_kg_s": [
+          0.90496,
+          2.0,
+          0.005039999999999996
+        ],
+        "rs_m3_m3": 45.8
+      },
+      "friction_dissipation_w": 54.44154851977037,
+      "mechanical_balance_error_w": 2.0391453858792376e-10,
+      "length_residual_m": -7.145217750803567e-11,
+      "quadrature_order": 32,
+      "quadrature_length_error_m": 0.0,
+      "pressure_evaluations": 4,
+      "derivative_direction": "required_inlet",
+      "pressure_derivatives": {
+        "boundary_pressure_pa": 1.0764250945822527,
+        "oil_kg_s": 281985.9866533029,
+        "water_kg_s": 19009.7149724491,
+        "gas_kg_s": -4109682.2040364537,
+        "loss_coefficient": 192.74053926439117
+      },
+      "hydraulic_backend": "torch_batch"
+    },
+    {
+      "name": "p37",
+      "compute_device": "cuda:0",
+      "model": "homogeneous_equilibrium_blackoil_rs_only",
+      "inlet_pressure_pa": 3003157.797017807,
+      "outlet_pressure_pa": 2720000.0,
+      "loss_coefficient": 0.0,
+      "resistance_model": "uniform_distributed_K",
+      "component_mass_rates_kg_s": {
+        "oil": 0.85,
+        "water": 2.0,
+        "gas": 0.06
+      },
+      "inlet_acceleration_margin": 0.9999996544789324,
+      "outlet_acceleration_margin": 0.9998802193632128,
+      "inlet_state": {
+        "specific_volume": 0.001063226985088985,
+        "viscosity_pa_s": 0.0017110650149548786,
+        "phase_volume_rates_m3_s": [
+          0.001099996842202982,
+          0.0019939936844059645,
+          0.0
+        ],
+        "phase_mass_rates_kg_s": [
+          0.9099999999999999,
+          2.0,
+          0.0
+        ],
+        "rs_m3_m3": 50.0
+      },
+      "outlet_state": {
+        "specific_volume": 0.0011552164948453606,
+        "viscosity_pa_s": 0.001623120124699555,
+        "phase_volume_rates_m3_s": [
+          0.0010915999999999999,
+          0.00199456,
+          0.0002755200000000002
+        ],
+        "phase_mass_rates_kg_s": [
+          0.90496,
+          2.0,
+          0.005039999999999996
+        ],
+        "rs_m3_m3": 45.8
+      },
+      "friction_dissipation_w": 56.247747323273195,
+      "mechanical_balance_error_w": 1.8659772393903042e-10,
+      "length_residual_m": -6.758682502550073e-11,
+      "quadrature_order": 32,
+      "quadrature_length_error_m": 0.0,
+      "pressure_evaluations": 4,
+      "derivative_direction": "required_inlet",
+      "pressure_derivatives": {
+        "boundary_pressure_pa": 1.0761155338232635,
+        "oil_kg_s": 281335.4450091417,
+        "water_kg_s": 19317.95199636617,
+        "gas_kg_s": -4093636.7909130044,
+        "loss_coefficient": 192.68340854667653
+      },
+      "hydraulic_backend": "torch_batch"
+    },
+    {
+      "name": "p38",
+      "compute_device": "cuda:0",
+      "model": "homogeneous_equilibrium_blackoil_rs_only",
+      "inlet_pressure_pa": 3003741.40773812,
+      "outlet_pressure_pa": 2720000.0,
+      "loss_coefficient": 0.0,
+      "resistance_model": "uniform_distributed_K",
+      "component_mass_rates_kg_s": {
+        "oil": 0.85,
+        "water": 2.0,
+        "gas": 0.06
+      },
+      "inlet_acceleration_margin": 0.9999996544789324,
+      "outlet_acceleration_margin": 0.9998802193632128,
+      "inlet_state": {
+        "specific_volume": 0.0010632263834284485,
+        "viscosity_pa_s": 0.0017110671149662832,
+        "phase_volume_rates_m3_s": [
+          0.0010999962585922618,
+          0.001993992517184524,
+          0.0
+        ],
+        "phase_mass_rates_kg_s": [
+          0.9099999999999999,
+          2.0,
+          0.0
+        ],
+        "rs_m3_m3": 50.0
+      },
+      "outlet_state": {
+        "specific_volume": 0.0011552164948453606,
+        "viscosity_pa_s": 0.001623120124699555,
+        "phase_volume_rates_m3_s": [
+          0.0010915999999999999,
+          0.00199456,
+          0.0002755200000000002
+        ],
+        "phase_mass_rates_kg_s": [
+          0.90496,
+          2.0,
+          0.005039999999999996
+        ],
+        "rs_m3_m3": 45.8
+      },
+      "friction_dissipation_w": 58.053432228324475,
+      "mechanical_balance_error_w": 1.6765778099170348e-10,
+      "length_residual_m": -6.269829100347124e-11,
+      "quadrature_order": 32,
+      "quadrature_length_error_m": 0.0,
+      "pressure_evaluations": 4,
+      "derivative_direction": "required_inlet",
+      "pressure_derivatives": {
+        "boundary_pressure_pa": 1.0758072922163324,
+        "oil_kg_s": 280689.4411132548,
+        "water_kg_s": 19626.087996372848,
+        "gas_kg_s": -4077661.194575052,
+        "loss_coefficient": 192.62662192825715
+      },
+      "hydraulic_backend": "torch_batch"
+    },
+    {
+      "name": "p39",
+      "compute_device": "cuda:0",
+      "model": "homogeneous_equilibrium_blackoil_rs_only",
+      "inlet_pressure_pa": 3002574.020532109,
+      "outlet_pressure_pa": 2720000.0,
+      "loss_coefficient": 0.0,
+      "resistance_model": "uniform_distributed_K",
+      "component_mass_rates_kg_s": {
+        "oil": 0.85,
+        "water": 2.0,
+        "gas": 0.06
+      },
+      "inlet_acceleration_margin": 0.9999996544789324,
+      "outlet_acceleration_margin": 0.9998802193632128,
+      "inlet_state": {
+        "specific_volume": 0.0010632275869204135,
+        "viscosity_pa_s": 0.0017110629143471739,
+        "phase_volume_rates_m3_s": [
+          0.0010999974259794678,
+          0.0019939948519589355,
+          0.0
+        ],
+        "phase_mass_rates_kg_s": [
+          0.9099999999999999,
+          2.0,
+          0.0
+        ],
+        "rs_m3_m3": 50.0
+      },
+      "outlet_state": {
+        "specific_volume": 0.0011552164948453606,
+        "viscosity_pa_s": 0.001623120124699555,
+        "phase_volume_rates_m3_s": [
+          0.0010915999999999999,
+          0.00199456,
+          0.0002755200000000002
+        ],
+        "phase_mass_rates_kg_s": [
+          0.90496,
+          2.0,
+          0.005039999999999996
+        ],
+        "rs_m3_m3": 45.8
+      },
+      "friction_dissipation_w": 54.44154851977037,
+      "mechanical_balance_error_w": 2.0391453858792376e-10,
+      "length_residual_m": -7.145217750803567e-11,
+      "quadrature_order": 32,
+      "quadrature_length_error_m": 0.0,
+      "pressure_evaluations": 4,
+      "derivative_direction": "required_inlet",
+      "pressure_derivatives": {
+        "boundary_pressure_pa": 1.0764250945822527,
+        "oil_kg_s": 281985.9866533029,
+        "water_kg_s": 19009.7149724491,
+        "gas_kg_s": -4109682.2040364537,
+        "loss_coefficient": 192.74053926439117
+      },
+      "hydraulic_backend": "torch_batch"
+    },
+    {
+      "name": "p40",
+      "compute_device": "cuda:0",
+      "model": "homogeneous_equilibrium_blackoil_rs_only",
+      "inlet_pressure_pa": 3003157.797017807,
+      "outlet_pressure_pa": 2720000.0,
+      "loss_coefficient": 0.0,
+      "resistance_model": "uniform_distributed_K",
+      "component_mass_rates_kg_s": {
+        "oil": 0.85,
+        "water": 2.0,
+        "gas": 0.06
+      },
+      "inlet_acceleration_margin": 0.9999996544789324,
+      "outlet_acceleration_margin": 0.9998802193632128,
+      "inlet_state": {
+        "specific_volume": 0.001063226985088985,
+        "viscosity_pa_s": 0.0017110650149548786,
+        "phase_volume_rates_m3_s": [
+          0.001099996842202982,
+          0.0019939936844059645,
+          0.0
+        ],
+        "phase_mass_rates_kg_s": [
+          0.9099999999999999,
+          2.0,
+          0.0
+        ],
+        "rs_m3_m3": 50.0
+      },
+      "outlet_state": {
+        "specific_volume": 0.0011552164948453606,
+        "viscosity_pa_s": 0.001623120124699555,
+        "phase_volume_rates_m3_s": [
+          0.0010915999999999999,
+          0.00199456,
+          0.0002755200000000002
+        ],
+        "phase_mass_rates_kg_s": [
+          0.90496,
+          2.0,
+          0.005039999999999996
+        ],
+        "rs_m3_m3": 45.8
+      },
+      "friction_dissipation_w": 56.247747323273195,
+      "mechanical_balance_error_w": 1.8659772393903042e-10,
+      "length_residual_m": -6.758682502550073e-11,
+      "quadrature_order": 32,
+      "quadrature_length_error_m": 0.0,
+      "pressure_evaluations": 4,
+      "derivative_direction": "required_inlet",
+      "pressure_derivatives": {
+        "boundary_pressure_pa": 1.0761155338232635,
+        "oil_kg_s": 281335.4450091417,
+        "water_kg_s": 19317.95199636617,
+        "gas_kg_s": -4093636.7909130044,
+        "loss_coefficient": 192.68340854667653
+      },
+      "hydraulic_backend": "torch_batch"
+    },
+    {
+      "name": "p41",
+      "compute_device": "cuda:0",
+      "model": "homogeneous_equilibrium_blackoil_rs_only",
+      "inlet_pressure_pa": 3003741.40773812,
+      "outlet_pressure_pa": 2720000.0,
+      "loss_coefficient": 0.0,
+      "resistance_model": "uniform_distributed_K",
+      "component_mass_rates_kg_s": {
+        "oil": 0.85,
+        "water": 2.0,
+        "gas": 0.06
+      },
+      "inlet_acceleration_margin": 0.9999996544789324,
+      "outlet_acceleration_margin": 0.9998802193632128,
+      "inlet_state": {
+        "specific_volume": 0.0010632263834284485,
+        "viscosity_pa_s": 0.0017110671149662832,
+        "phase_volume_rates_m3_s": [
+          0.0010999962585922618,
+          0.001993992517184524,
+          0.0
+        ],
+        "phase_mass_rates_kg_s": [
+          0.9099999999999999,
+          2.0,
+          0.0
+        ],
+        "rs_m3_m3": 50.0
+      },
+      "outlet_state": {
+        "specific_volume": 0.0011552164948453606,
+        "viscosity_pa_s": 0.001623120124699555,
+        "phase_volume_rates_m3_s": [
+          0.0010915999999999999,
+          0.00199456,
+          0.0002755200000000002
+        ],
+        "phase_mass_rates_kg_s": [
+          0.90496,
+          2.0,
+          0.005039999999999996
+        ],
+        "rs_m3_m3": 45.8
+      },
+      "friction_dissipation_w": 58.053432228324475,
+      "mechanical_balance_error_w": 1.6765778099170348e-10,
+      "length_residual_m": -6.269829100347124e-11,
+      "quadrature_order": 32,
+      "quadrature_length_error_m": 0.0,
+      "pressure_evaluations": 4,
+      "derivative_direction": "required_inlet",
+      "pressure_derivatives": {
+        "boundary_pressure_pa": 1.0758072922163324,
+        "oil_kg_s": 280689.4411132548,
+        "water_kg_s": 19626.087996372848,
+        "gas_kg_s": -4077661.194575052,
+        "loss_coefficient": 192.62662192825715
+      },
+      "hydraulic_backend": "torch_batch"
+    },
+    {
+      "name": "p42",
+      "compute_device": "cuda:0",
+      "model": "homogeneous_equilibrium_blackoil_rs_only",
+      "inlet_pressure_pa": 3002574.020532109,
+      "outlet_pressure_pa": 2720000.0,
+      "loss_coefficient": 0.0,
+      "resistance_model": "uniform_distributed_K",
+      "component_mass_rates_kg_s": {
+        "oil": 0.85,
+        "water": 2.0,
+        "gas": 0.06
+      },
+      "inlet_acceleration_margin": 0.9999996544789324,
+      "outlet_acceleration_margin": 0.9998802193632128,
+      "inlet_state": {
+        "specific_volume": 0.0010632275869204135,
+        "viscosity_pa_s": 0.0017110629143471739,
+        "phase_volume_rates_m3_s": [
+          0.0010999974259794678,
+          0.0019939948519589355,
+          0.0
+        ],
+        "phase_mass_rates_kg_s": [
+          0.9099999999999999,
+          2.0,
+          0.0
+        ],
+        "rs_m3_m3": 50.0
+      },
+      "outlet_state": {
+        "specific_volume": 0.0011552164948453606,
+        "viscosity_pa_s": 0.001623120124699555,
+        "phase_volume_rates_m3_s": [
+          0.0010915999999999999,
+          0.00199456,
+          0.0002755200000000002
+        ],
+        "phase_mass_rates_kg_s": [
+          0.90496,
+          2.0,
+          0.005039999999999996
+        ],
+        "rs_m3_m3": 45.8
+      },
+      "friction_dissipation_w": 54.44154851977037,
+      "mechanical_balance_error_w": 2.0391453858792376e-10,
+      "length_residual_m": -7.145217750803567e-11,
+      "quadrature_order": 32,
+      "quadrature_length_error_m": 0.0,
+      "pressure_evaluations": 4,
+      "derivative_direction": "required_inlet",
+      "pressure_derivatives": {
+        "boundary_pressure_pa": 1.0764250945822527,
+        "oil_kg_s": 281985.9866533029,
+        "water_kg_s": 19009.7149724491,
+        "gas_kg_s": -4109682.2040364537,
+        "loss_coefficient": 192.74053926439117
+      },
+      "hydraulic_backend": "torch_batch"
+    },
+    {
+      "name": "p43",
+      "compute_device": "cuda:0",
+      "model": "homogeneous_equilibrium_blackoil_rs_only",
+      "inlet_pressure_pa": 3003157.797017807,
+      "outlet_pressure_pa": 2720000.0,
+      "loss_coefficient": 0.0,
+      "resistance_model": "uniform_distributed_K",
+      "component_mass_rates_kg_s": {
+        "oil": 0.85,
+        "water": 2.0,
+        "gas": 0.06
+      },
+      "inlet_acceleration_margin": 0.9999996544789324,
+      "outlet_acceleration_margin": 0.9998802193632128,
+      "inlet_state": {
+        "specific_volume": 0.001063226985088985,
+        "viscosity_pa_s": 0.0017110650149548786,
+        "phase_volume_rates_m3_s": [
+          0.001099996842202982,
+          0.0019939936844059645,
+          0.0
+        ],
+        "phase_mass_rates_kg_s": [
+          0.9099999999999999,
+          2.0,
+          0.0
+        ],
+        "rs_m3_m3": 50.0
+      },
+      "outlet_state": {
+        "specific_volume": 0.0011552164948453606,
+        "viscosity_pa_s": 0.001623120124699555,
+        "phase_volume_rates_m3_s": [
+          0.0010915999999999999,
+          0.00199456,
+          0.0002755200000000002
+        ],
+        "phase_mass_rates_kg_s": [
+          0.90496,
+          2.0,
+          0.005039999999999996
+        ],
+        "rs_m3_m3": 45.8
+      },
+      "friction_dissipation_w": 56.247747323273195,
+      "mechanical_balance_error_w": 1.8659772393903042e-10,
+      "length_residual_m": -6.758682502550073e-11,
+      "quadrature_order": 32,
+      "quadrature_length_error_m": 0.0,
+      "pressure_evaluations": 4,
+      "derivative_direction": "required_inlet",
+      "pressure_derivatives": {
+        "boundary_pressure_pa": 1.0761155338232635,
+        "oil_kg_s": 281335.4450091417,
+        "water_kg_s": 19317.95199636617,
+        "gas_kg_s": -4093636.7909130044,
+        "loss_coefficient": 192.68340854667653
+      },
+      "hydraulic_backend": "torch_batch"
+    },
+    {
+      "name": "p44",
+      "compute_device": "cuda:0",
+      "model": "homogeneous_equilibrium_blackoil_rs_only",
+      "inlet_pressure_pa": 3003741.40773812,
+      "outlet_pressure_pa": 2720000.0,
+      "loss_coefficient": 0.0,
+      "resistance_model": "uniform_distributed_K",
+      "component_mass_rates_kg_s": {
+        "oil": 0.85,
+        "water": 2.0,
+        "gas": 0.06
+      },
+      "inlet_acceleration_margin": 0.9999996544789324,
+      "outlet_acceleration_margin": 0.9998802193632128,
+      "inlet_state": {
+        "specific_volume": 0.0010632263834284485,
+        "viscosity_pa_s": 0.0017110671149662832,
+        "phase_volume_rates_m3_s": [
+          0.0010999962585922618,
+          0.001993992517184524,
+          0.0
+        ],
+        "phase_mass_rates_kg_s": [
+          0.9099999999999999,
+          2.0,
+          0.0
+        ],
+        "rs_m3_m3": 50.0
+      },
+      "outlet_state": {
+        "specific_volume": 0.0011552164948453606,
+        "viscosity_pa_s": 0.001623120124699555,
+        "phase_volume_rates_m3_s": [
+          0.0010915999999999999,
+          0.00199456,
+          0.0002755200000000002
+        ],
+        "phase_mass_rates_kg_s": [
+          0.90496,
+          2.0,
+          0.005039999999999996
+        ],
+        "rs_m3_m3": 45.8
+      },
+      "friction_dissipation_w": 58.053432228324475,
+      "mechanical_balance_error_w": 1.6765778099170348e-10,
+      "length_residual_m": -6.269829100347124e-11,
+      "quadrature_order": 32,
+      "quadrature_length_error_m": 0.0,
+      "pressure_evaluations": 4,
+      "derivative_direction": "required_inlet",
+      "pressure_derivatives": {
+        "boundary_pressure_pa": 1.0758072922163324,
+        "oil_kg_s": 280689.4411132548,
+        "water_kg_s": 19626.087996372848,
+        "gas_kg_s": -4077661.194575052,
+        "loss_coefficient": 192.62662192825715
+      },
+      "hydraulic_backend": "torch_batch"
+    },
+    {
+      "name": "p45",
+      "compute_device": "cuda:0",
+      "model": "homogeneous_equilibrium_blackoil_rs_only",
+      "inlet_pressure_pa": 3002574.020532109,
+      "outlet_pressure_pa": 2720000.0,
+      "loss_coefficient": 0.0,
+      "resistance_model": "uniform_distributed_K",
+      "component_mass_rates_kg_s": {
+        "oil": 0.85,
+        "water": 2.0,
+        "gas": 0.06
+      },
+      "inlet_acceleration_margin": 0.9999996544789324,
+      "outlet_acceleration_margin": 0.9998802193632128,
+      "inlet_state": {
+        "specific_volume": 0.0010632275869204135,
+        "viscosity_pa_s": 0.0017110629143471739,
+        "phase_volume_rates_m3_s": [
+          0.0010999974259794678,
+          0.0019939948519589355,
+          0.0
+        ],
+        "phase_mass_rates_kg_s": [
+          0.9099999999999999,
+          2.0,
+          0.0
+        ],
+        "rs_m3_m3": 50.0
+      },
+      "outlet_state": {
+        "specific_volume": 0.0011552164948453606,
+        "viscosity_pa_s": 0.001623120124699555,
+        "phase_volume_rates_m3_s": [
+          0.0010915999999999999,
+          0.00199456,
+          0.0002755200000000002
+        ],
+        "phase_mass_rates_kg_s": [
+          0.90496,
+          2.0,
+          0.005039999999999996
+        ],
+        "rs_m3_m3": 45.8
+      },
+      "friction_dissipation_w": 54.44154851977037,
+      "mechanical_balance_error_w": 2.0391453858792376e-10,
+      "length_residual_m": -7.145217750803567e-11,
+      "quadrature_order": 32,
+      "quadrature_length_error_m": 0.0,
+      "pressure_evaluations": 4,
+      "derivative_direction": "required_inlet",
+      "pressure_derivatives": {
+        "boundary_pressure_pa": 1.0764250945822527,
+        "oil_kg_s": 281985.9866533029,
+        "water_kg_s": 19009.7149724491,
+        "gas_kg_s": -4109682.2040364537,
+        "loss_coefficient": 192.74053926439117
+      },
+      "hydraulic_backend": "torch_batch"
+    },
+    {
+      "name": "p46",
+      "compute_device": "cuda:0",
+      "model": "homogeneous_equilibrium_blackoil_rs_only",
+      "inlet_pressure_pa": 3003157.797017807,
+      "outlet_pressure_pa": 2720000.0,
+      "loss_coefficient": 0.0,
+      "resistance_model": "uniform_distributed_K",
+      "component_mass_rates_kg_s": {
+        "oil": 0.85,
+        "water": 2.0,
+        "gas": 0.06
+      },
+      "inlet_acceleration_margin": 0.9999996544789324,
+      "outlet_acceleration_margin": 0.9998802193632128,
+      "inlet_state": {
+        "specific_volume": 0.001063226985088985,
+        "viscosity_pa_s": 0.0017110650149548786,
+        "phase_volume_rates_m3_s": [
+          0.001099996842202982,
+          0.0019939936844059645,
+          0.0
+        ],
+        "phase_mass_rates_kg_s": [
+          0.9099999999999999,
+          2.0,
+          0.0
+        ],
+        "rs_m3_m3": 50.0
+      },
+      "outlet_state": {
+        "specific_volume": 0.0011552164948453606,
+        "viscosity_pa_s": 0.001623120124699555,
+        "phase_volume_rates_m3_s": [
+          0.0010915999999999999,
+          0.00199456,
+          0.0002755200000000002
+        ],
+        "phase_mass_rates_kg_s": [
+          0.90496,
+          2.0,
+          0.005039999999999996
+        ],
+        "rs_m3_m3": 45.8
+      },
+      "friction_dissipation_w": 56.247747323273195,
+      "mechanical_balance_error_w": 1.8659772393903042e-10,
+      "length_residual_m": -6.758682502550073e-11,
+      "quadrature_order": 32,
+      "quadrature_length_error_m": 0.0,
+      "pressure_evaluations": 4,
+      "derivative_direction": "required_inlet",
+      "pressure_derivatives": {
+        "boundary_pressure_pa": 1.0761155338232635,
+        "oil_kg_s": 281335.4450091417,
+        "water_kg_s": 19317.95199636617,
+        "gas_kg_s": -4093636.7909130044,
+        "loss_coefficient": 192.68340854667653
+      },
+      "hydraulic_backend": "torch_batch"
+    },
+    {
+      "name": "p47",
+      "compute_device": "cuda:0",
+      "model": "homogeneous_equilibrium_blackoil_rs_only",
+      "inlet_pressure_pa": 3003741.40773812,
+      "outlet_pressure_pa": 2720000.0,
+      "loss_coefficient": 0.0,
+      "resistance_model": "uniform_distributed_K",
+      "component_mass_rates_kg_s": {
+        "oil": 0.85,
+        "water": 2.0,
+        "gas": 0.06
+      },
+      "inlet_acceleration_margin": 0.9999996544789324,
+      "outlet_acceleration_margin": 0.9998802193632128,
+      "inlet_state": {
+        "specific_volume": 0.0010632263834284485,
+        "viscosity_pa_s": 0.0017110671149662832,
+        "phase_volume_rates_m3_s": [
+          0.0010999962585922618,
+          0.001993992517184524,
+          0.0
+        ],
+        "phase_mass_rates_kg_s": [
+          0.9099999999999999,
+          2.0,
+          0.0
+        ],
+        "rs_m3_m3": 50.0
+      },
+      "outlet_state": {
+        "specific_volume": 0.0011552164948453606,
+        "viscosity_pa_s": 0.001623120124699555,
+        "phase_volume_rates_m3_s": [
+          0.0010915999999999999,
+          0.00199456,
+          0.0002755200000000002
+        ],
+        "phase_mass_rates_kg_s": [
+          0.90496,
+          2.0,
+          0.005039999999999996
+        ],
+        "rs_m3_m3": 45.8
+      },
+      "friction_dissipation_w": 58.053432228324475,
+      "mechanical_balance_error_w": 1.6765778099170348e-10,
+      "length_residual_m": -6.269829100347124e-11,
+      "quadrature_order": 32,
+      "quadrature_length_error_m": 0.0,
+      "pressure_evaluations": 4,
+      "derivative_direction": "required_inlet",
+      "pressure_derivatives": {
+        "boundary_pressure_pa": 1.0758072922163324,
+        "oil_kg_s": 280689.4411132548,
+        "water_kg_s": 19626.087996372848,
+        "gas_kg_s": -4077661.194575052,
+        "loss_coefficient": 192.62662192825715
+      },
+      "hydraulic_backend": "torch_batch"
+    },
+    {
+      "name": "p48",
+      "compute_device": "cuda:0",
+      "model": "homogeneous_equilibrium_blackoil_rs_only",
+      "inlet_pressure_pa": 3002574.020532109,
+      "outlet_pressure_pa": 2720000.0,
+      "loss_coefficient": 0.0,
+      "resistance_model": "uniform_distributed_K",
+      "component_mass_rates_kg_s": {
+        "oil": 0.85,
+        "water": 2.0,
+        "gas": 0.06
+      },
+      "inlet_acceleration_margin": 0.9999996544789324,
+      "outlet_acceleration_margin": 0.9998802193632128,
+      "inlet_state": {
+        "specific_volume": 0.0010632275869204135,
+        "viscosity_pa_s": 0.0017110629143471739,
+        "phase_volume_rates_m3_s": [
+          0.0010999974259794678,
+          0.0019939948519589355,
+          0.0
+        ],
+        "phase_mass_rates_kg_s": [
+          0.9099999999999999,
+          2.0,
+          0.0
+        ],
+        "rs_m3_m3": 50.0
+      },
+      "outlet_state": {
+        "specific_volume": 0.0011552164948453606,
+        "viscosity_pa_s": 0.001623120124699555,
+        "phase_volume_rates_m3_s": [
+          0.0010915999999999999,
+          0.00199456,
+          0.0002755200000000002
+        ],
+        "phase_mass_rates_kg_s": [
+          0.90496,
+          2.0,
+          0.005039999999999996
+        ],
+        "rs_m3_m3": 45.8
+      },
+      "friction_dissipation_w": 54.44154851977037,
+      "mechanical_balance_error_w": 2.0391453858792376e-10,
+      "length_residual_m": -7.145217750803567e-11,
+      "quadrature_order": 32,
+      "quadrature_length_error_m": 0.0,
+      "pressure_evaluations": 4,
+      "derivative_direction": "required_inlet",
+      "pressure_derivatives": {
+        "boundary_pressure_pa": 1.0764250945822527,
+        "oil_kg_s": 281985.9866533029,
+        "water_kg_s": 19009.7149724491,
+        "gas_kg_s": -4109682.2040364537,
+        "loss_coefficient": 192.74053926439117
+      },
+      "hydraulic_backend": "torch_batch"
+    },
+    {
+      "name": "p49",
+      "compute_device": "cuda:0",
+      "model": "homogeneous_equilibrium_blackoil_rs_only",
+      "inlet_pressure_pa": 3003157.797017807,
+      "outlet_pressure_pa": 2720000.0,
+      "loss_coefficient": 0.0,
+      "resistance_model": "uniform_distributed_K",
+      "component_mass_rates_kg_s": {
+        "oil": 0.85,
+        "water": 2.0,
+        "gas": 0.06
+      },
+      "inlet_acceleration_margin": 0.9999996544789324,
+      "outlet_acceleration_margin": 0.9998802193632128,
+      "inlet_state": {
+        "specific_volume": 0.001063226985088985,
+        "viscosity_pa_s": 0.0017110650149548786,
+        "phase_volume_rates_m3_s": [
+          0.001099996842202982,
+          0.0019939936844059645,
+          0.0
+        ],
+        "phase_mass_rates_kg_s": [
+          0.9099999999999999,
+          2.0,
+          0.0
+        ],
+        "rs_m3_m3": 50.0
+      },
+      "outlet_state": {
+        "specific_volume": 0.0011552164948453606,
+        "viscosity_pa_s": 0.001623120124699555,
+        "phase_volume_rates_m3_s": [
+          0.0010915999999999999,
+          0.00199456,
+          0.0002755200000000002
+        ],
+        "phase_mass_rates_kg_s": [
+          0.90496,
+          2.0,
+          0.005039999999999996
+        ],
+        "rs_m3_m3": 45.8
+      },
+      "friction_dissipation_w": 56.247747323273195,
+      "mechanical_balance_error_w": 1.8659772393903042e-10,
+      "length_residual_m": -6.758682502550073e-11,
+      "quadrature_order": 32,
+      "quadrature_length_error_m": 0.0,
+      "pressure_evaluations": 4,
+      "derivative_direction": "required_inlet",
+      "pressure_derivatives": {
+        "boundary_pressure_pa": 1.0761155338232635,
+        "oil_kg_s": 281335.4450091417,
+        "water_kg_s": 19317.95199636617,
+        "gas_kg_s": -4093636.7909130044,
+        "loss_coefficient": 192.68340854667653
+      },
+      "hydraulic_backend": "torch_batch"
+    },
+    {
+      "name": "p50",
+      "compute_device": "cuda:0",
+      "model": "homogeneous_equilibrium_blackoil_rs_only",
+      "inlet_pressure_pa": 3003741.40773812,
+      "outlet_pressure_pa": 2720000.0,
+      "loss_coefficient": 0.0,
+      "resistance_model": "uniform_distributed_K",
+      "component_mass_rates_kg_s": {
+        "oil": 0.85,
+        "water": 2.0,
+        "gas": 0.06
+      },
+      "inlet_acceleration_margin": 0.9999996544789324,
+      "outlet_acceleration_margin": 0.9998802193632128,
+      "inlet_state": {
+        "specific_volume": 0.0010632263834284485,
+        "viscosity_pa_s": 0.0017110671149662832,
+        "phase_volume_rates_m3_s": [
+          0.0010999962585922618,
+          0.001993992517184524,
+          0.0
+        ],
+        "phase_mass_rates_kg_s": [
+          0.9099999999999999,
+          2.0,
+          0.0
+        ],
+        "rs_m3_m3": 50.0
+      },
+      "outlet_state": {
+        "specific_volume": 0.0011552164948453606,
+        "viscosity_pa_s": 0.001623120124699555,
+        "phase_volume_rates_m3_s": [
+          0.0010915999999999999,
+          0.00199456,
+          0.0002755200000000002
+        ],
+        "phase_mass_rates_kg_s": [
+          0.90496,
+          2.0,
+          0.005039999999999996
+        ],
+        "rs_m3_m3": 45.8
+      },
+      "friction_dissipation_w": 58.053432228324475,
+      "mechanical_balance_error_w": 1.6765778099170348e-10,
+      "length_residual_m": -6.269829100347124e-11,
+      "quadrature_order": 32,
+      "quadrature_length_error_m": 0.0,
+      "pressure_evaluations": 4,
+      "derivative_direction": "required_inlet",
+      "pressure_derivatives": {
+        "boundary_pressure_pa": 1.0758072922163324,
+        "oil_kg_s": 280689.4411132548,
+        "water_kg_s": 19626.087996372848,
+        "gas_kg_s": -4077661.194575052,
+        "loss_coefficient": 192.62662192825715
+      },
+      "hydraulic_backend": "torch_batch"
+    },
+    {
+      "name": "p51",
+      "compute_device": "cuda:0",
+      "model": "homogeneous_equilibrium_blackoil_rs_only",
+      "inlet_pressure_pa": 3002574.020532109,
+      "outlet_pressure_pa": 2720000.0,
+      "loss_coefficient": 0.0,
+      "resistance_model": "uniform_distributed_K",
+      "component_mass_rates_kg_s": {
+        "oil": 0.85,
+        "water": 2.0,
+        "gas": 0.06
+      },
+      "inlet_acceleration_margin": 0.9999996544789324,
+      "outlet_acceleration_margin": 0.9998802193632128,
+      "inlet_state": {
+        "specific_volume": 0.0010632275869204135,
+        "viscosity_pa_s": 0.0017110629143471739,
+        "phase_volume_rates_m3_s": [
+          0.0010999974259794678,
+          0.0019939948519589355,
+          0.0
+        ],
+        "phase_mass_rates_kg_s": [
+          0.9099999999999999,
+          2.0,
+          0.0
+        ],
+        "rs_m3_m3": 50.0
+      },
+      "outlet_state": {
+        "specific_volume": 0.0011552164948453606,
+        "viscosity_pa_s": 0.001623120124699555,
+        "phase_volume_rates_m3_s": [
+          0.0010915999999999999,
+          0.00199456,
+          0.0002755200000000002
+        ],
+        "phase_mass_rates_kg_s": [
+          0.90496,
+          2.0,
+          0.005039999999999996
+        ],
+        "rs_m3_m3": 45.8
+      },
+      "friction_dissipation_w": 54.44154851977037,
+      "mechanical_balance_error_w": 2.0391453858792376e-10,
+      "length_residual_m": -7.145217750803567e-11,
+      "quadrature_order": 32,
+      "quadrature_length_error_m": 0.0,
+      "pressure_evaluations": 4,
+      "derivative_direction": "required_inlet",
+      "pressure_derivatives": {
+        "boundary_pressure_pa": 1.0764250945822527,
+        "oil_kg_s": 281985.9866533029,
+        "water_kg_s": 19009.7149724491,
+        "gas_kg_s": -4109682.2040364537,
+        "loss_coefficient": 192.74053926439117
+      },
+      "hydraulic_backend": "torch_batch"
+    },
+    {
+      "name": "p52",
+      "compute_device": "cuda:0",
+      "model": "homogeneous_equilibrium_blackoil_rs_only",
+      "inlet_pressure_pa": 3003157.797017807,
+      "outlet_pressure_pa": 2720000.0,
+      "loss_coefficient": 0.0,
+      "resistance_model": "uniform_distributed_K",
+      "component_mass_rates_kg_s": {
+        "oil": 0.85,
+        "water": 2.0,
+        "gas": 0.06
+      },
+      "inlet_acceleration_margin": 0.9999996544789324,
+      "outlet_acceleration_margin": 0.9998802193632128,
+      "inlet_state": {
+        "specific_volume": 0.001063226985088985,
+        "viscosity_pa_s": 0.0017110650149548786,
+        "phase_volume_rates_m3_s": [
+          0.001099996842202982,
+          0.0019939936844059645,
+          0.0
+        ],
+        "phase_mass_rates_kg_s": [
+          0.9099999999999999,
+          2.0,
+          0.0
+        ],
+        "rs_m3_m3": 50.0
+      },
+      "outlet_state": {
+        "specific_volume": 0.0011552164948453606,
+        "viscosity_pa_s": 0.001623120124699555,
+        "phase_volume_rates_m3_s": [
+          0.0010915999999999999,
+          0.00199456,
+          0.0002755200000000002
+        ],
+        "phase_mass_rates_kg_s": [
+          0.90496,
+          2.0,
+          0.005039999999999996
+        ],
+        "rs_m3_m3": 45.8
+      },
+      "friction_dissipation_w": 56.247747323273195,
+      "mechanical_balance_error_w": 1.8659772393903042e-10,
+      "length_residual_m": -6.758682502550073e-11,
+      "quadrature_order": 32,
+      "quadrature_length_error_m": 0.0,
+      "pressure_evaluations": 4,
+      "derivative_direction": "required_inlet",
+      "pressure_derivatives": {
+        "boundary_pressure_pa": 1.0761155338232635,
+        "oil_kg_s": 281335.4450091417,
+        "water_kg_s": 19317.95199636617,
+        "gas_kg_s": -4093636.7909130044,
+        "loss_coefficient": 192.68340854667653
+      },
+      "hydraulic_backend": "torch_batch"
+    },
+    {
+      "name": "p53",
+      "compute_device": "cuda:0",
+      "model": "homogeneous_equilibrium_blackoil_rs_only",
+      "inlet_pressure_pa": 3003741.40773812,
+      "outlet_pressure_pa": 2720000.0,
+      "loss_coefficient": 0.0,
+      "resistance_model": "uniform_distributed_K",
+      "component_mass_rates_kg_s": {
+        "oil": 0.85,
+        "water": 2.0,
+        "gas": 0.06
+      },
+      "inlet_acceleration_margin": 0.9999996544789324,
+      "outlet_acceleration_margin": 0.9998802193632128,
+      "inlet_state": {
+        "specific_volume": 0.0010632263834284485,
+        "viscosity_pa_s": 0.0017110671149662832,
+        "phase_volume_rates_m3_s": [
+          0.0010999962585922618,
+          0.001993992517184524,
+          0.0
+        ],
+        "phase_mass_rates_kg_s": [
+          0.9099999999999999,
+          2.0,
+          0.0
+        ],
+        "rs_m3_m3": 50.0
+      },
+      "outlet_state": {
+        "specific_volume": 0.0011552164948453606,
+        "viscosity_pa_s": 0.001623120124699555,
+        "phase_volume_rates_m3_s": [
+          0.0010915999999999999,
+          0.00199456,
+          0.0002755200000000002
+        ],
+        "phase_mass_rates_kg_s": [
+          0.90496,
+          2.0,
+          0.005039999999999996
+        ],
+        "rs_m3_m3": 45.8
+      },
+      "friction_dissipation_w": 58.053432228324475,
+      "mechanical_balance_error_w": 1.6765778099170348e-10,
+      "length_residual_m": -6.269829100347124e-11,
+      "quadrature_order": 32,
+      "quadrature_length_error_m": 0.0,
+      "pressure_evaluations": 4,
+      "derivative_direction": "required_inlet",
+      "pressure_derivatives": {
+        "boundary_pressure_pa": 1.0758072922163324,
+        "oil_kg_s": 280689.4411132548,
+        "water_kg_s": 19626.087996372848,
+        "gas_kg_s": -4077661.194575052,
+        "loss_coefficient": 192.62662192825715
+      },
+      "hydraulic_backend": "torch_batch"
+    },
+    {
+      "name": "p54",
+      "compute_device": "cuda:0",
+      "model": "homogeneous_equilibrium_blackoil_rs_only",
+      "inlet_pressure_pa": 3002574.020532109,
+      "outlet_pressure_pa": 2720000.0,
+      "loss_coefficient": 0.0,
+      "resistance_model": "uniform_distributed_K",
+      "component_mass_rates_kg_s": {
+        "oil": 0.85,
+        "water": 2.0,
+        "gas": 0.06
+      },
+      "inlet_acceleration_margin": 0.9999996544789324,
+      "outlet_acceleration_margin": 0.9998802193632128,
+      "inlet_state": {
+        "specific_volume": 0.0010632275869204135,
+        "viscosity_pa_s": 0.0017110629143471739,
+        "phase_volume_rates_m3_s": [
+          0.0010999974259794678,
+          0.0019939948519589355,
+          0.0
+        ],
+        "phase_mass_rates_kg_s": [
+          0.9099999999999999,
+          2.0,
+          0.0
+        ],
+        "rs_m3_m3": 50.0
+      },
+      "outlet_state": {
+        "specific_volume": 0.0011552164948453606,
+        "viscosity_pa_s": 0.001623120124699555,
+        "phase_volume_rates_m3_s": [
+          0.0010915999999999999,
+          0.00199456,
+          0.0002755200000000002
+        ],
+        "phase_mass_rates_kg_s": [
+          0.90496,
+          2.0,
+          0.005039999999999996
+        ],
+        "rs_m3_m3": 45.8
+      },
+      "friction_dissipation_w": 54.44154851977037,
+      "mechanical_balance_error_w": 2.0391453858792376e-10,
+      "length_residual_m": -7.145217750803567e-11,
+      "quadrature_order": 32,
+      "quadrature_length_error_m": 0.0,
+      "pressure_evaluations": 4,
+      "derivative_direction": "required_inlet",
+      "pressure_derivatives": {
+        "boundary_pressure_pa": 1.0764250945822527,
+        "oil_kg_s": 281985.9866533029,
+        "water_kg_s": 19009.7149724491,
+        "gas_kg_s": -4109682.2040364537,
+        "loss_coefficient": 192.74053926439117
+      },
+      "hydraulic_backend": "torch_batch"
+    },
+    {
+      "name": "p55",
+      "compute_device": "cuda:0",
+      "model": "homogeneous_equilibrium_blackoil_rs_only",
+      "inlet_pressure_pa": 3003157.797017807,
+      "outlet_pressure_pa": 2720000.0,
+      "loss_coefficient": 0.0,
+      "resistance_model": "uniform_distributed_K",
+      "component_mass_rates_kg_s": {
+        "oil": 0.85,
+        "water": 2.0,
+        "gas": 0.06
+      },
+      "inlet_acceleration_margin": 0.9999996544789324,
+      "outlet_acceleration_margin": 0.9998802193632128,
+      "inlet_state": {
+        "specific_volume": 0.001063226985088985,
+        "viscosity_pa_s": 0.0017110650149548786,
+        "phase_volume_rates_m3_s": [
+          0.001099996842202982,
+          0.0019939936844059645,
+          0.0
+        ],
+        "phase_mass_rates_kg_s": [
+          0.9099999999999999,
+          2.0,
+          0.0
+        ],
+        "rs_m3_m3": 50.0
+      },
+      "outlet_state": {
+        "specific_volume": 0.0011552164948453606,
+        "viscosity_pa_s": 0.001623120124699555,
+        "phase_volume_rates_m3_s": [
+          0.0010915999999999999,
+          0.00199456,
+          0.0002755200000000002
+        ],
+        "phase_mass_rates_kg_s": [
+          0.90496,
+          2.0,
+          0.005039999999999996
+        ],
+        "rs_m3_m3": 45.8
+      },
+      "friction_dissipation_w": 56.247747323273195,
+      "mechanical_balance_error_w": 1.8659772393903042e-10,
+      "length_residual_m": -6.758682502550073e-11,
+      "quadrature_order": 32,
+      "quadrature_length_error_m": 0.0,
+      "pressure_evaluations": 4,
+      "derivative_direction": "required_inlet",
+      "pressure_derivatives": {
+        "boundary_pressure_pa": 1.0761155338232635,
+        "oil_kg_s": 281335.4450091417,
+        "water_kg_s": 19317.95199636617,
+        "gas_kg_s": -4093636.7909130044,
+        "loss_coefficient": 192.68340854667653
+      },
+      "hydraulic_backend": "torch_batch"
+    },
+    {
+      "name": "p56",
+      "compute_device": "cuda:0",
+      "model": "homogeneous_equilibrium_blackoil_rs_only",
+      "inlet_pressure_pa": 3003741.40773812,
+      "outlet_pressure_pa": 2720000.0,
+      "loss_coefficient": 0.0,
+      "resistance_model": "uniform_distributed_K",
+      "component_mass_rates_kg_s": {
+        "oil": 0.85,
+        "water": 2.0,
+        "gas": 0.06
+      },
+      "inlet_acceleration_margin": 0.9999996544789324,
+      "outlet_acceleration_margin": 0.9998802193632128,
+      "inlet_state": {
+        "specific_volume": 0.0010632263834284485,
+        "viscosity_pa_s": 0.0017110671149662832,
+        "phase_volume_rates_m3_s": [
+          0.0010999962585922618,
+          0.001993992517184524,
+          0.0
+        ],
+        "phase_mass_rates_kg_s": [
+          0.9099999999999999,
+          2.0,
+          0.0
+        ],
+        "rs_m3_m3": 50.0
+      },
+      "outlet_state": {
+        "specific_volume": 0.0011552164948453606,
+        "viscosity_pa_s": 0.001623120124699555,
+        "phase_volume_rates_m3_s": [
+          0.0010915999999999999,
+          0.00199456,
+          0.0002755200000000002
+        ],
+        "phase_mass_rates_kg_s": [
+          0.90496,
+          2.0,
+          0.005039999999999996
+        ],
+        "rs_m3_m3": 45.8
+      },
+      "friction_dissipation_w": 58.053432228324475,
+      "mechanical_balance_error_w": 1.6765778099170348e-10,
+      "length_residual_m": -6.269829100347124e-11,
+      "quadrature_order": 32,
+      "quadrature_length_error_m": 0.0,
+      "pressure_evaluations": 4,
+      "derivative_direction": "required_inlet",
+      "pressure_derivatives": {
+        "boundary_pressure_pa": 1.0758072922163324,
+        "oil_kg_s": 280689.4411132548,
+        "water_kg_s": 19626.087996372848,
+        "gas_kg_s": -4077661.194575052,
+        "loss_coefficient": 192.62662192825715
+      },
+      "hydraulic_backend": "torch_batch"
+    },
+    {
+      "name": "p57",
+      "compute_device": "cuda:0",
+      "model": "homogeneous_equilibrium_blackoil_rs_only",
+      "inlet_pressure_pa": 3002574.020532109,
+      "outlet_pressure_pa": 2720000.0,
+      "loss_coefficient": 0.0,
+      "resistance_model": "uniform_distributed_K",
+      "component_mass_rates_kg_s": {
+        "oil": 0.85,
+        "water": 2.0,
+        "gas": 0.06
+      },
+      "inlet_acceleration_margin": 0.9999996544789324,
+      "outlet_acceleration_margin": 0.9998802193632128,
+      "inlet_state": {
+        "specific_volume": 0.0010632275869204135,
+        "viscosity_pa_s": 0.0017110629143471739,
+        "phase_volume_rates_m3_s": [
+          0.0010999974259794678,
+          0.0019939948519589355,
+          0.0
+        ],
+        "phase_mass_rates_kg_s": [
+          0.9099999999999999,
+          2.0,
+          0.0
+        ],
+        "rs_m3_m3": 50.0
+      },
+      "outlet_state": {
+        "specific_volume": 0.0011552164948453606,
+        "viscosity_pa_s": 0.001623120124699555,
+        "phase_volume_rates_m3_s": [
+          0.0010915999999999999,
+          0.00199456,
+          0.0002755200000000002
+        ],
+        "phase_mass_rates_kg_s": [
+          0.90496,
+          2.0,
+          0.005039999999999996
+        ],
+        "rs_m3_m3": 45.8
+      },
+      "friction_dissipation_w": 54.44154851977037,
+      "mechanical_balance_error_w": 2.0391453858792376e-10,
+      "length_residual_m": -7.145217750803567e-11,
+      "quadrature_order": 32,
+      "quadrature_length_error_m": 0.0,
+      "pressure_evaluations": 4,
+      "derivative_direction": "required_inlet",
+      "pressure_derivatives": {
+        "boundary_pressure_pa": 1.0764250945822527,
+        "oil_kg_s": 281985.9866533029,
+        "water_kg_s": 19009.7149724491,
+        "gas_kg_s": -4109682.2040364537,
+        "loss_coefficient": 192.74053926439117
+      },
+      "hydraulic_backend": "torch_batch"
+    },
+    {
+      "name": "p58",
+      "compute_device": "cuda:0",
+      "model": "homogeneous_equilibrium_blackoil_rs_only",
+      "inlet_pressure_pa": 3003157.797017807,
+      "outlet_pressure_pa": 2720000.0,
+      "loss_coefficient": 0.0,
+      "resistance_model": "uniform_distributed_K",
+      "component_mass_rates_kg_s": {
+        "oil": 0.85,
+        "water": 2.0,
+        "gas": 0.06
+      },
+      "inlet_acceleration_margin": 0.9999996544789324,
+      "outlet_acceleration_margin": 0.9998802193632128,
+      "inlet_state": {
+        "specific_volume": 0.001063226985088985,
+        "viscosity_pa_s": 0.0017110650149548786,
+        "phase_volume_rates_m3_s": [
+          0.001099996842202982,
+          0.0019939936844059645,
+          0.0
+        ],
+        "phase_mass_rates_kg_s": [
+          0.9099999999999999,
+          2.0,
+          0.0
+        ],
+        "rs_m3_m3": 50.0
+      },
+      "outlet_state": {
+        "specific_volume": 0.0011552164948453606,
+        "viscosity_pa_s": 0.001623120124699555,
+        "phase_volume_rates_m3_s": [
+          0.0010915999999999999,
+          0.00199456,
+          0.0002755200000000002
+        ],
+        "phase_mass_rates_kg_s": [
+          0.90496,
+          2.0,
+          0.005039999999999996
+        ],
+        "rs_m3_m3": 45.8
+      },
+      "friction_dissipation_w": 56.247747323273195,
+      "mechanical_balance_error_w": 1.8659772393903042e-10,
+      "length_residual_m": -6.758682502550073e-11,
+      "quadrature_order": 32,
+      "quadrature_length_error_m": 0.0,
+      "pressure_evaluations": 4,
+      "derivative_direction": "required_inlet",
+      "pressure_derivatives": {
+        "boundary_pressure_pa": 1.0761155338232635,
+        "oil_kg_s": 281335.4450091417,
+        "water_kg_s": 19317.95199636617,
+        "gas_kg_s": -4093636.7909130044,
+        "loss_coefficient": 192.68340854667653
+      },
+      "hydraulic_backend": "torch_batch"
+    },
+    {
+      "name": "p59",
+      "compute_device": "cuda:0",
+      "model": "homogeneous_equilibrium_blackoil_rs_only",
+      "inlet_pressure_pa": 3003741.40773812,
+      "outlet_pressure_pa": 2720000.0,
+      "loss_coefficient": 0.0,
+      "resistance_model": "uniform_distributed_K",
+      "component_mass_rates_kg_s": {
+        "oil": 0.85,
+        "water": 2.0,
+        "gas": 0.06
+      },
+      "inlet_acceleration_margin": 0.9999996544789324,
+      "outlet_acceleration_margin": 0.9998802193632128,
+      "inlet_state": {
+        "specific_volume": 0.0010632263834284485,
+        "viscosity_pa_s": 0.0017110671149662832,
+        "phase_volume_rates_m3_s": [
+          0.0010999962585922618,
+          0.001993992517184524,
+          0.0
+        ],
+        "phase_mass_rates_kg_s": [
+          0.9099999999999999,
+          2.0,
+          0.0
+        ],
+        "rs_m3_m3": 50.0
+      },
+      "outlet_state": {
+        "specific_volume": 0.0011552164948453606,
+        "viscosity_pa_s": 0.001623120124699555,
+        "phase_volume_rates_m3_s": [
+          0.0010915999999999999,
+          0.00199456,
+          0.0002755200000000002
+        ],
+        "phase_mass_rates_kg_s": [
+          0.90496,
+          2.0,
+          0.005039999999999996
+        ],
+        "rs_m3_m3": 45.8
+      },
+      "friction_dissipation_w": 58.053432228324475,
+      "mechanical_balance_error_w": 1.6765778099170348e-10,
+      "length_residual_m": -6.269829100347124e-11,
+      "quadrature_order": 32,
+      "quadrature_length_error_m": 0.0,
+      "pressure_evaluations": 4,
+      "derivative_direction": "required_inlet",
+      "pressure_derivatives": {
+        "boundary_pressure_pa": 1.0758072922163324,
+        "oil_kg_s": 280689.4411132548,
+        "water_kg_s": 19626.087996372848,
+        "gas_kg_s": -4077661.194575052,
+        "loss_coefficient": 192.62662192825715
+      },
+      "hydraulic_backend": "torch_batch"
+    },
+    {
+      "name": "p60",
+      "compute_device": "cuda:0",
+      "model": "homogeneous_equilibrium_blackoil_rs_only",
+      "inlet_pressure_pa": 3002574.020532109,
+      "outlet_pressure_pa": 2720000.0,
+      "loss_coefficient": 0.0,
+      "resistance_model": "uniform_distributed_K",
+      "component_mass_rates_kg_s": {
+        "oil": 0.85,
+        "water": 2.0,
+        "gas": 0.06
+      },
+      "inlet_acceleration_margin": 0.9999996544789324,
+      "outlet_acceleration_margin": 0.9998802193632128,
+      "inlet_state": {
+        "specific_volume": 0.0010632275869204135,
+        "viscosity_pa_s": 0.0017110629143471739,
+        "phase_volume_rates_m3_s": [
+          0.0010999974259794678,
+          0.0019939948519589355,
+          0.0
+        ],
+        "phase_mass_rates_kg_s": [
+          0.9099999999999999,
+          2.0,
+          0.0
+        ],
+        "rs_m3_m3": 50.0
+      },
+      "outlet_state": {
+        "specific_volume": 0.0011552164948453606,
+        "viscosity_pa_s": 0.001623120124699555,
+        "phase_volume_rates_m3_s": [
+          0.0010915999999999999,
+          0.00199456,
+          0.0002755200000000002
+        ],
+        "phase_mass_rates_kg_s": [
+          0.90496,
+          2.0,
+          0.005039999999999996
+        ],
+        "rs_m3_m3": 45.8
+      },
+      "friction_dissipation_w": 54.44154851977037,
+      "mechanical_balance_error_w": 2.0391453858792376e-10,
+      "length_residual_m": -7.145217750803567e-11,
+      "quadrature_order": 32,
+      "quadrature_length_error_m": 0.0,
+      "pressure_evaluations": 4,
+      "derivative_direction": "required_inlet",
+      "pressure_derivatives": {
+        "boundary_pressure_pa": 1.0764250945822527,
+        "oil_kg_s": 281985.9866533029,
+        "water_kg_s": 19009.7149724491,
+        "gas_kg_s": -4109682.2040364537,
+        "loss_coefficient": 192.74053926439117
+      },
+      "hydraulic_backend": "torch_batch"
+    },
+    {
+      "name": "p61",
+      "compute_device": "cuda:0",
+      "model": "homogeneous_equilibrium_blackoil_rs_only",
+      "inlet_pressure_pa": 3003157.797017807,
+      "outlet_pressure_pa": 2720000.0,
+      "loss_coefficient": 0.0,
+      "resistance_model": "uniform_distributed_K",
+      "component_mass_rates_kg_s": {
+        "oil": 0.85,
+        "water": 2.0,
+        "gas": 0.06
+      },
+      "inlet_acceleration_margin": 0.9999996544789324,
+      "outlet_acceleration_margin": 0.9998802193632128,
+      "inlet_state": {
+        "specific_volume": 0.001063226985088985,
+        "viscosity_pa_s": 0.0017110650149548786,
+        "phase_volume_rates_m3_s": [
+          0.001099996842202982,
+          0.0019939936844059645,
+          0.0
+        ],
+        "phase_mass_rates_kg_s": [
+          0.9099999999999999,
+          2.0,
+          0.0
+        ],
+        "rs_m3_m3": 50.0
+      },
+      "outlet_state": {
+        "specific_volume": 0.0011552164948453606,
+        "viscosity_pa_s": 0.001623120124699555,
+        "phase_volume_rates_m3_s": [
+          0.0010915999999999999,
+          0.00199456,
+          0.0002755200000000002
+        ],
+        "phase_mass_rates_kg_s": [
+          0.90496,
+          2.0,
+          0.005039999999999996
+        ],
+        "rs_m3_m3": 45.8
+      },
+      "friction_dissipation_w": 56.247747323273195,
+      "mechanical_balance_error_w": 1.8659772393903042e-10,
+      "length_residual_m": -6.758682502550073e-11,
+      "quadrature_order": 32,
+      "quadrature_length_error_m": 0.0,
+      "pressure_evaluations": 4,
+      "derivative_direction": "required_inlet",
+      "pressure_derivatives": {
+        "boundary_pressure_pa": 1.0761155338232635,
+        "oil_kg_s": 281335.4450091417,
+        "water_kg_s": 19317.95199636617,
+        "gas_kg_s": -4093636.7909130044,
+        "loss_coefficient": 192.68340854667653
+      },
+      "hydraulic_backend": "torch_batch"
+    },
+    {
+      "name": "p62",
+      "compute_device": "cuda:0",
+      "model": "homogeneous_equilibrium_blackoil_rs_only",
+      "inlet_pressure_pa": 3003741.40773812,
+      "outlet_pressure_pa": 2720000.0,
+      "loss_coefficient": 0.0,
+      "resistance_model": "uniform_distributed_K",
+      "component_mass_rates_kg_s": {
+        "oil": 0.85,
+        "water": 2.0,
+        "gas": 0.06
+      },
+      "inlet_acceleration_margin": 0.9999996544789324,
+      "outlet_acceleration_margin": 0.9998802193632128,
+      "inlet_state": {
+        "specific_volume": 0.0010632263834284485,
+        "viscosity_pa_s": 0.0017110671149662832,
+        "phase_volume_rates_m3_s": [
+          0.0010999962585922618,
+          0.001993992517184524,
+          0.0
+        ],
+        "phase_mass_rates_kg_s": [
+          0.9099999999999999,
+          2.0,
+          0.0
+        ],
+        "rs_m3_m3": 50.0
+      },
+      "outlet_state": {
+        "specific_volume": 0.0011552164948453606,
+        "viscosity_pa_s": 0.001623120124699555,
+        "phase_volume_rates_m3_s": [
+          0.0010915999999999999,
+          0.00199456,
+          0.0002755200000000002
+        ],
+        "phase_mass_rates_kg_s": [
+          0.90496,
+          2.0,
+          0.005039999999999996
+        ],
+        "rs_m3_m3": 45.8
+      },
+      "friction_dissipation_w": 58.053432228324475,
+      "mechanical_balance_error_w": 1.6765778099170348e-10,
+      "length_residual_m": -6.269829100347124e-11,
+      "quadrature_order": 32,
+      "quadrature_length_error_m": 0.0,
+      "pressure_evaluations": 4,
+      "derivative_direction": "required_inlet",
+      "pressure_derivatives": {
+        "boundary_pressure_pa": 1.0758072922163324,
+        "oil_kg_s": 280689.4411132548,
+        "water_kg_s": 19626.087996372848,
+        "gas_kg_s": -4077661.194575052,
+        "loss_coefficient": 192.62662192825715
+      },
+      "hydraulic_backend": "torch_batch"
+    },
+    {
+      "name": "p63",
+      "compute_device": "cuda:0",
+      "model": "homogeneous_equilibrium_blackoil_rs_only",
+      "inlet_pressure_pa": 3002574.020532109,
+      "outlet_pressure_pa": 2720000.0,
+      "loss_coefficient": 0.0,
+      "resistance_model": "uniform_distributed_K",
+      "component_mass_rates_kg_s": {
+        "oil": 0.85,
+        "water": 2.0,
+        "gas": 0.06
+      },
+      "inlet_acceleration_margin": 0.9999996544789324,
+      "outlet_acceleration_margin": 0.9998802193632128,
+      "inlet_state": {
+        "specific_volume": 0.0010632275869204135,
+        "viscosity_pa_s": 0.0017110629143471739,
+        "phase_volume_rates_m3_s": [
+          0.0010999974259794678,
+          0.0019939948519589355,
+          0.0
+        ],
+        "phase_mass_rates_kg_s": [
+          0.9099999999999999,
+          2.0,
+          0.0
+        ],
+        "rs_m3_m3": 50.0
+      },
+      "outlet_state": {
+        "specific_volume": 0.0011552164948453606,
+        "viscosity_pa_s": 0.001623120124699555,
+        "phase_volume_rates_m3_s": [
+          0.0010915999999999999,
+          0.00199456,
+          0.0002755200000000002
+        ],
+        "phase_mass_rates_kg_s": [
+          0.90496,
+          2.0,
+          0.005039999999999996
+        ],
+        "rs_m3_m3": 45.8
+      },
+      "friction_dissipation_w": 54.44154851977037,
+      "mechanical_balance_error_w": 2.0391453858792376e-10,
+      "length_residual_m": -7.145217750803567e-11,
+      "quadrature_order": 32,
+      "quadrature_length_error_m": 0.0,
+      "pressure_evaluations": 4,
+      "derivative_direction": "required_inlet",
+      "pressure_derivatives": {
+        "boundary_pressure_pa": 1.0764250945822527,
+        "oil_kg_s": 281985.9866533029,
+        "water_kg_s": 19009.7149724491,
+        "gas_kg_s": -4109682.2040364537,
+        "loss_coefficient": 192.74053926439117
+      },
+      "hydraulic_backend": "torch_batch"
+    }
+  ]
+}

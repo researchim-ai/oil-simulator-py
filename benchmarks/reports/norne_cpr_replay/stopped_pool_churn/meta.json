@@ -1,0 +1,40 @@
+{
+ "status": "running",
+ "error": null,
+ "wall_s": 187.1632833480835,
+ "invocation_solver_s": 172.84795999526978,
+ "invocation_outside_solver_s": 14.31532335281372,
+ "invocation_substeps": 182,
+ "thread_policy": {
+  "source": "NORNE_THREADS",
+  "before": 1,
+  "effective": 1
+ },
+ "cells_total": 113344,
+ "dims": [
+  46,
+  112,
+  22
+ ],
+ "cells_computed": 44431,
+ "cells_active": 44431,
+ "wells": 36,
+ "substeps": 182,
+ "failed_substeps": 6,
+ "newton_iters": 907,
+ "days": 968.0,
+ "cpu": "AMD Ryzen 9 9900X 12-Core Processor",
+ "threads": 1,
+ "device": "NVIDIA GeForce RTX 3090",
+ "torch": "2.7.0+cu126",
+ "python": "3.12.9",
+ "convergence": {
+  "tol_cnv": 0.001,
+  "tol_mb": 1e-07,
+  "max_strict_iter": 8,
+  "relaxed_max_pv_fraction": 0.0,
+  "tol_cnv_relaxed": 1.0,
+  "tol_mb_relaxed": 1e-06
+ },
+ "well_events": []
+}

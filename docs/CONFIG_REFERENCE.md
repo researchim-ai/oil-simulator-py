@@ -122,6 +122,8 @@ CNV `1e-3`, MB `1e-7`, без ослабления по доле поровог�
 | `linear_tol_min`, `linear_tol_max`, `linear_accept_rel_res` | default `1e-6`, `1e-2`, `0.1` | Допуск неточного Ньютона и порог отказа СЛАУ. |
 | `amg_rebuild` | `"step"` \| `"iteration"`, default `"step"` | Когда строить иерархию AMG заново (иначе — только обновление значений). |
 | `cpr_smoother_sweeps` | `int`, default `1` | Число проходов блочного Якоби во второй ступени CPR. |
+| `cpr_reuse_graph` | `bool`, default `false` | Экспериментальное повторное использование CUDA-графа CPR между линейными системами одного решателя. Перед повтором проверяются разреженные структуры и обновляются все численные входы, включая грубые матрицы AMG и коэффициенты Чебышёва. При несовместимой структуре граф пересоздаётся; неподдерживаемая иерархия или ошибка захвата возвращает обычный путь. Не меняет допуски сходимости. |
+| `cpr_graph_input_budget_bytes` | положительный `int`, default `134217728` | Лимит собственных входных буферов повторяемого графа (128 MiB). **Не** лимит всей GPU-памяти: рабочая память графа, аллокатор и CUDA-контекст учитываются отдельно. При превышении используется обычный CPR. Состояние графа не переносится через checkpoint; CPU и иерархии с переносом уровней на CPU используют обычный путь. |
 | `newton_target_iter`, `dt_target_dsw` | default `6`, `0.2` | Цели адаптивного шага по времени. |
 | `dt_increase_factor`, `dt_reduction_factor` | default `2.0`, `2.0` | Максимальный рост и дробление шага. |
 | `dt_control` | `"basic"` \| `"opm"`; для deck Eclipse `"opm"` | `opm` — PID по относительному изменению решения (`dt_pid_tol`, 0.1) и целевому числу итераций (`newton_target_iter`, 8), рост ≤ 3×, после отказа ≤ 2×, дробление `dt_restart_factor` (0.33), как в OPM Flow. |
@@ -543,3 +545,11 @@ GPU-окна на 1024 и 262 144 ячейках; ускорение полно�
 `used`, `age`, `scan_interval`, `reason`; независимый аудитор проверяет
 период и обязательные пробы. Метод отслеживает локальную рабочую ветвь,
 не гарантируя глобальный максимум для несвязной допустимой области.
+
+#### Qualification of `cpr_reuse_graph`
+
+Leave this experimental option **false for Norne**. The complete 3312-day test
+passed strict conservation/convergence audits but did not demonstrate speedup
+or preservation of the adaptive numerical trajectory. The pool reservation
+issue discovered in that test has been corrected. Details and measured limits:
+`benchmarks/reports/norne_cpr_replay/README.md`.

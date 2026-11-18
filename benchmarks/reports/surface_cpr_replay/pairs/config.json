@@ -1,0 +1,2105 @@
+{
+  "simulation": {
+    "solver_type": "fully_implicit",
+    "fim_model": "blackoil",
+    "newton_max_iter": 30,
+    "newton_tol_cnv": 1e-09,
+    "newton_tol_mb": 5e-15,
+    "newton_tol_well_bhp": 0.1,
+    "newton_relaxed_max_pv_fraction": 0.0,
+    "physical_surface_network": {
+      "well_nodes": {
+        "P1": "bottom_1",
+        "P2": "bottom_2",
+        "P3": "bottom_3",
+        "P4": "bottom_4",
+        "P5": "bottom_5",
+        "P6": "bottom_6",
+        "P7": "bottom_7",
+        "P8": "bottom_8",
+        "P9": "bottom_9",
+        "P10": "bottom_10",
+        "P11": "bottom_11",
+        "P12": "bottom_12",
+        "P13": "bottom_13",
+        "P14": "bottom_14",
+        "P15": "bottom_15",
+        "P16": "bottom_16",
+        "P17": "bottom_17",
+        "P18": "bottom_18",
+        "P19": "bottom_19",
+        "P20": "bottom_20",
+        "P21": "bottom_21",
+        "P22": "bottom_22",
+        "P23": "bottom_23",
+        "P24": "bottom_24",
+        "P25": "bottom_25",
+        "P26": "bottom_26",
+        "P27": "bottom_27",
+        "P28": "bottom_28",
+        "P29": "bottom_29",
+        "P30": "bottom_30",
+        "P31": "bottom_31",
+        "P32": "bottom_32",
+        "P33": "bottom_33",
+        "P34": "bottom_34",
+        "P35": "bottom_35",
+        "P36": "bottom_36",
+        "P37": "bottom_37",
+        "P38": "bottom_38",
+        "P39": "bottom_39",
+        "P40": "bottom_40",
+        "P41": "bottom_41",
+        "P42": "bottom_42",
+        "P43": "bottom_43",
+        "P44": "bottom_44",
+        "P45": "bottom_45",
+        "P46": "bottom_46",
+        "P47": "bottom_47",
+        "P48": "bottom_48",
+        "P49": "bottom_49",
+        "P50": "bottom_50",
+        "P51": "bottom_51",
+        "P52": "bottom_52",
+        "P53": "bottom_53",
+        "P54": "bottom_54",
+        "P55": "bottom_55",
+        "P56": "bottom_56",
+        "P57": "bottom_57",
+        "P58": "bottom_58",
+        "P59": "bottom_59",
+        "P60": "bottom_60",
+        "P61": "bottom_61",
+        "P62": "bottom_62",
+        "P63": "bottom_63",
+        "P64": "bottom_64"
+      },
+      "network": {
+        "model": "homogeneous_blackoil_tree",
+        "pvt": {
+          "pressure_MPa": [
+            0.1,
+            1.0,
+            5.0
+          ],
+          "Bo": [
+            1.0,
+            1.04,
+            1.16
+          ],
+          "Bw": [
+            1,
+            1,
+            1
+          ],
+          "Bg": [
+            1.0,
+            0.1,
+            0.02
+          ],
+          "mu_o_cP": [
+            5.0,
+            4.2,
+            1.8
+          ],
+          "mu_w_cP": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "mu_g_cP": [
+            0.01,
+            0.012,
+            0.015
+          ],
+          "Rs_m3m3": [
+            0.0,
+            20.0,
+            80.0
+          ],
+          "Rv_m3m3": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "extended": {
+            "oil": {
+              "rs_values": [
+                0.0,
+                20.0,
+                80.0
+              ],
+              "tables": {
+                "0.0": {
+                  "pressure_MPa": [
+                    0.1,
+                    1.0,
+                    5.0
+                  ],
+                  "Bo": [
+                    1.0,
+                    0.9991,
+                    0.9951
+                  ],
+                  "mu_o_cP": [
+                    5.0,
+                    5.009,
+                    5.049
+                  ]
+                },
+                "20.0": {
+                  "pressure_MPa": [
+                    0.1,
+                    1.0,
+                    5.0
+                  ],
+                  "Bo": [
+                    1.0409,
+                    1.04,
+                    1.036
+                  ],
+                  "mu_o_cP": [
+                    4.191,
+                    4.2,
+                    4.24
+                  ]
+                },
+                "80.0": {
+                  "pressure_MPa": [
+                    0.1,
+                    1.0,
+                    5.0
+                  ],
+                  "Bo": [
+                    1.1648999999999998,
+                    1.164,
+                    1.16
+                  ],
+                  "mu_o_cP": [
+                    1.751,
+                    1.7599999999999998,
+                    1.7999999999999998
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "stock_densities": {
+          "oil_kg_m3": 850,
+          "water_kg_m3": 1000,
+          "gas_kg_m3": 1.2
+        },
+        "nodes": [
+          {
+            "name": "header",
+            "elevation_m": -10
+          },
+          {
+            "name": "receiver",
+            "elevation_m": 0,
+            "pressure_pa": 1000000.0
+          },
+          {
+            "name": "bottom_1",
+            "elevation_m": -40
+          },
+          {
+            "name": "bottom_2",
+            "elevation_m": -40
+          },
+          {
+            "name": "bottom_3",
+            "elevation_m": -40
+          },
+          {
+            "name": "bottom_4",
+            "elevation_m": -40
+          },
+          {
+            "name": "bottom_5",
+            "elevation_m": -40
+          },
+          {
+            "name": "bottom_6",
+            "elevation_m": -40
+          },
+          {
+            "name": "bottom_7",
+            "elevation_m": -40
+          },
+          {
+            "name": "bottom_8",
+            "elevation_m": -40
+          },
+          {
+            "name": "bottom_9",
+            "elevation_m": -40
+          },
+          {
+            "name": "bottom_10",
+            "elevation_m": -40
+          },
+          {
+            "name": "bottom_11",
+            "elevation_m": -40
+          },
+          {
+            "name": "bottom_12",
+            "elevation_m": -40
+          },
+          {
+            "name": "bottom_13",
+            "elevation_m": -40
+          },
+          {
+            "name": "bottom_14",
+            "elevation_m": -40
+          },
+          {
+            "name": "bottom_15",
+            "elevation_m": -40
+          },
+          {
+            "name": "bottom_16",
+            "elevation_m": -40
+          },
+          {
+            "name": "bottom_17",
+            "elevation_m": -40
+          },
+          {
+            "name": "bottom_18",
+            "elevation_m": -40
+          },
+          {
+            "name": "bottom_19",
+            "elevation_m": -40
+          },
+          {
+            "name": "bottom_20",
+            "elevation_m": -40
+          },
+          {
+            "name": "bottom_21",
+            "elevation_m": -40
+          },
+          {
+            "name": "bottom_22",
+            "elevation_m": -40
+          },
+          {
+            "name": "bottom_23",
+            "elevation_m": -40
+          },
+          {
+            "name": "bottom_24",
+            "elevation_m": -40
+          },
+          {
+            "name": "bottom_25",
+            "elevation_m": -40
+          },
+          {
+            "name": "bottom_26",
+            "elevation_m": -40
+          },
+          {
+            "name": "bottom_27",
+            "elevation_m": -40
+          },
+          {
+            "name": "bottom_28",
+            "elevation_m": -40
+          },
+          {
+            "name": "bottom_29",
+            "elevation_m": -40
+          },
+          {
+            "name": "bottom_30",
+            "elevation_m": -40
+          },
+          {
+            "name": "bottom_31",
+            "elevation_m": -40
+          },
+          {
+            "name": "bottom_32",
+            "elevation_m": -40
+          },
+          {
+            "name": "bottom_33",
+            "elevation_m": -40
+          },
+          {
+            "name": "bottom_34",
+            "elevation_m": -40
+          },
+          {
+            "name": "bottom_35",
+            "elevation_m": -40
+          },
+          {
+            "name": "bottom_36",
+            "elevation_m": -40
+          },
+          {
+            "name": "bottom_37",
+            "elevation_m": -40
+          },
+          {
+            "name": "bottom_38",
+            "elevation_m": -40
+          },
+          {
+            "name": "bottom_39",
+            "elevation_m": -40
+          },
+          {
+            "name": "bottom_40",
+            "elevation_m": -40
+          },
+          {
+            "name": "bottom_41",
+            "elevation_m": -40
+          },
+          {
+            "name": "bottom_42",
+            "elevation_m": -40
+          },
+          {
+            "name": "bottom_43",
+            "elevation_m": -40
+          },
+          {
+            "name": "bottom_44",
+            "elevation_m": -40
+          },
+          {
+            "name": "bottom_45",
+            "elevation_m": -40
+          },
+          {
+            "name": "bottom_46",
+            "elevation_m": -40
+          },
+          {
+            "name": "bottom_47",
+            "elevation_m": -40
+          },
+          {
+            "name": "bottom_48",
+            "elevation_m": -40
+          },
+          {
+            "name": "bottom_49",
+            "elevation_m": -40
+          },
+          {
+            "name": "bottom_50",
+            "elevation_m": -40
+          },
+          {
+            "name": "bottom_51",
+            "elevation_m": -40
+          },
+          {
+            "name": "bottom_52",
+            "elevation_m": -40
+          },
+          {
+            "name": "bottom_53",
+            "elevation_m": -40
+          },
+          {
+            "name": "bottom_54",
+            "elevation_m": -40
+          },
+          {
+            "name": "bottom_55",
+            "elevation_m": -40
+          },
+          {
+            "name": "bottom_56",
+            "elevation_m": -40
+          },
+          {
+            "name": "bottom_57",
+            "elevation_m": -40
+          },
+          {
+            "name": "bottom_58",
+            "elevation_m": -40
+          },
+          {
+            "name": "bottom_59",
+            "elevation_m": -40
+          },
+          {
+            "name": "bottom_60",
+            "elevation_m": -40
+          },
+          {
+            "name": "bottom_61",
+            "elevation_m": -40
+          },
+          {
+            "name": "bottom_62",
+            "elevation_m": -40
+          },
+          {
+            "name": "bottom_63",
+            "elevation_m": -40
+          },
+          {
+            "name": "bottom_64",
+            "elevation_m": -40
+          }
+        ],
+        "pipes": [
+          {
+            "name": "collector",
+            "start": "header",
+            "end": "receiver",
+            "length_m": 700,
+            "diameter_m": 0.5,
+            "roughness_m": 1e-05
+          },
+          {
+            "name": "branch_1",
+            "start": "bottom_1",
+            "end": "header",
+            "length_m": 330,
+            "diameter_m": 0.08,
+            "roughness_m": 1e-05
+          },
+          {
+            "name": "branch_2",
+            "start": "bottom_2",
+            "end": "header",
+            "length_m": 340,
+            "diameter_m": 0.08,
+            "roughness_m": 1e-05
+          },
+          {
+            "name": "branch_3",
+            "start": "bottom_3",
+            "end": "header",
+            "length_m": 350,
+            "diameter_m": 0.08,
+            "roughness_m": 1e-05
+          },
+          {
+            "name": "branch_4",
+            "start": "bottom_4",
+            "end": "header",
+            "length_m": 360,
+            "diameter_m": 0.08,
+            "roughness_m": 1e-05
+          },
+          {
+            "name": "branch_5",
+            "start": "bottom_5",
+            "end": "header",
+            "length_m": 370,
+            "diameter_m": 0.08,
+            "roughness_m": 1e-05
+          },
+          {
+            "name": "branch_6",
+            "start": "bottom_6",
+            "end": "header",
+            "length_m": 380,
+            "diameter_m": 0.08,
+            "roughness_m": 1e-05
+          },
+          {
+            "name": "branch_7",
+            "start": "bottom_7",
+            "end": "header",
+            "length_m": 390,
+            "diameter_m": 0.08,
+            "roughness_m": 1e-05
+          },
+          {
+            "name": "branch_8",
+            "start": "bottom_8",
+            "end": "header",
+            "length_m": 400,
+            "diameter_m": 0.08,
+            "roughness_m": 1e-05
+          },
+          {
+            "name": "branch_9",
+            "start": "bottom_9",
+            "end": "header",
+            "length_m": 410,
+            "diameter_m": 0.08,
+            "roughness_m": 1e-05
+          },
+          {
+            "name": "branch_10",
+            "start": "bottom_10",
+            "end": "header",
+            "length_m": 420,
+            "diameter_m": 0.08,
+            "roughness_m": 1e-05
+          },
+          {
+            "name": "branch_11",
+            "start": "bottom_11",
+            "end": "header",
+            "length_m": 430,
+            "diameter_m": 0.08,
+            "roughness_m": 1e-05
+          },
+          {
+            "name": "branch_12",
+            "start": "bottom_12",
+            "end": "header",
+            "length_m": 440,
+            "diameter_m": 0.08,
+            "roughness_m": 1e-05
+          },
+          {
+            "name": "branch_13",
+            "start": "bottom_13",
+            "end": "header",
+            "length_m": 450,
+            "diameter_m": 0.08,
+            "roughness_m": 1e-05
+          },
+          {
+            "name": "branch_14",
+            "start": "bottom_14",
+            "end": "header",
+            "length_m": 460,
+            "diameter_m": 0.08,
+            "roughness_m": 1e-05
+          },
+          {
+            "name": "branch_15",
+            "start": "bottom_15",
+            "end": "header",
+            "length_m": 470,
+            "diameter_m": 0.08,
+            "roughness_m": 1e-05
+          },
+          {
+            "name": "branch_16",
+            "start": "bottom_16",
+            "end": "header",
+            "length_m": 480,
+            "diameter_m": 0.08,
+            "roughness_m": 1e-05
+          },
+          {
+            "name": "branch_17",
+            "start": "bottom_17",
+            "end": "header",
+            "length_m": 330,
+            "diameter_m": 0.08,
+            "roughness_m": 1e-05
+          },
+          {
+            "name": "branch_18",
+            "start": "bottom_18",
+            "end": "header",
+            "length_m": 340,
+            "diameter_m": 0.08,
+            "roughness_m": 1e-05
+          },
+          {
+            "name": "branch_19",
+            "start": "bottom_19",
+            "end": "header",
+            "length_m": 350,
+            "diameter_m": 0.08,
+            "roughness_m": 1e-05
+          },
+          {
+            "name": "branch_20",
+            "start": "bottom_20",
+            "end": "header",
+            "length_m": 360,
+            "diameter_m": 0.08,
+            "roughness_m": 1e-05
+          },
+          {
+            "name": "branch_21",
+            "start": "bottom_21",
+            "end": "header",
+            "length_m": 370,
+            "diameter_m": 0.08,
+            "roughness_m": 1e-05
+          },
+          {
+            "name": "branch_22",
+            "start": "bottom_22",
+            "end": "header",
+            "length_m": 380,
+            "diameter_m": 0.08,
+            "roughness_m": 1e-05
+          },
+          {
+            "name": "branch_23",
+            "start": "bottom_23",
+            "end": "header",
+            "length_m": 390,
+            "diameter_m": 0.08,
+            "roughness_m": 1e-05
+          },
+          {
+            "name": "branch_24",
+            "start": "bottom_24",
+            "end": "header",
+            "length_m": 400,
+            "diameter_m": 0.08,
+            "roughness_m": 1e-05
+          },
+          {
+            "name": "branch_25",
+            "start": "bottom_25",
+            "end": "header",
+            "length_m": 410,
+            "diameter_m": 0.08,
+            "roughness_m": 1e-05
+          },
+          {
+            "name": "branch_26",
+            "start": "bottom_26",
+            "end": "header",
+            "length_m": 420,
+            "diameter_m": 0.08,
+            "roughness_m": 1e-05
+          },
+          {
+            "name": "branch_27",
+            "start": "bottom_27",
+            "end": "header",
+            "length_m": 430,
+            "diameter_m": 0.08,
+            "roughness_m": 1e-05
+          },
+          {
+            "name": "branch_28",
+            "start": "bottom_28",
+            "end": "header",
+            "length_m": 440,
+            "diameter_m": 0.08,
+            "roughness_m": 1e-05
+          },
+          {
+            "name": "branch_29",
+            "start": "bottom_29",
+            "end": "header",
+            "length_m": 450,
+            "diameter_m": 0.08,
+            "roughness_m": 1e-05
+          },
+          {
+            "name": "branch_30",
+            "start": "bottom_30",
+            "end": "header",
+            "length_m": 460,
+            "diameter_m": 0.08,
+            "roughness_m": 1e-05
+          },
+          {
+            "name": "branch_31",
+            "start": "bottom_31",
+            "end": "header",
+            "length_m": 470,
+            "diameter_m": 0.08,
+            "roughness_m": 1e-05
+          },
+          {
+            "name": "branch_32",
+            "start": "bottom_32",
+            "end": "header",
+            "length_m": 480,
+            "diameter_m": 0.08,
+            "roughness_m": 1e-05
+          },
+          {
+            "name": "branch_33",
+            "start": "bottom_33",
+            "end": "header",
+            "length_m": 330,
+            "diameter_m": 0.08,
+            "roughness_m": 1e-05
+          },
+          {
+            "name": "branch_34",
+            "start": "bottom_34",
+            "end": "header",
+            "length_m": 340,
+            "diameter_m": 0.08,
+            "roughness_m": 1e-05
+          },
+          {
+            "name": "branch_35",
+            "start": "bottom_35",
+            "end": "header",
+            "length_m": 350,
+            "diameter_m": 0.08,
+            "roughness_m": 1e-05
+          },
+          {
+            "name": "branch_36",
+            "start": "bottom_36",
+            "end": "header",
+            "length_m": 360,
+            "diameter_m": 0.08,
+            "roughness_m": 1e-05
+          },
+          {
+            "name": "branch_37",
+            "start": "bottom_37",
+            "end": "header",
+            "length_m": 370,
+            "diameter_m": 0.08,
+            "roughness_m": 1e-05
+          },
+          {
+            "name": "branch_38",
+            "start": "bottom_38",
+            "end": "header",
+            "length_m": 380,
+            "diameter_m": 0.08,
+            "roughness_m": 1e-05
+          },
+          {
+            "name": "branch_39",
+            "start": "bottom_39",
+            "end": "header",
+            "length_m": 390,
+            "diameter_m": 0.08,
+            "roughness_m": 1e-05
+          },
+          {
+            "name": "branch_40",
+            "start": "bottom_40",
+            "end": "header",
+            "length_m": 400,
+            "diameter_m": 0.08,
+            "roughness_m": 1e-05
+          },
+          {
+            "name": "branch_41",
+            "start": "bottom_41",
+            "end": "header",
+            "length_m": 410,
+            "diameter_m": 0.08,
+            "roughness_m": 1e-05
+          },
+          {
+            "name": "branch_42",
+            "start": "bottom_42",
+            "end": "header",
+            "length_m": 420,
+            "diameter_m": 0.08,
+            "roughness_m": 1e-05
+          },
+          {
+            "name": "branch_43",
+            "start": "bottom_43",
+            "end": "header",
+            "length_m": 430,
+            "diameter_m": 0.08,
+            "roughness_m": 1e-05
+          },
+          {
+            "name": "branch_44",
+            "start": "bottom_44",
+            "end": "header",
+            "length_m": 440,
+            "diameter_m": 0.08,
+            "roughness_m": 1e-05
+          },
+          {
+            "name": "branch_45",
+            "start": "bottom_45",
+            "end": "header",
+            "length_m": 450,
+            "diameter_m": 0.08,
+            "roughness_m": 1e-05
+          },
+          {
+            "name": "branch_46",
+            "start": "bottom_46",
+            "end": "header",
+            "length_m": 460,
+            "diameter_m": 0.08,
+            "roughness_m": 1e-05
+          },
+          {
+            "name": "branch_47",
+            "start": "bottom_47",
+            "end": "header",
+            "length_m": 470,
+            "diameter_m": 0.08,
+            "roughness_m": 1e-05
+          },
+          {
+            "name": "branch_48",
+            "start": "bottom_48",
+            "end": "header",
+            "length_m": 480,
+            "diameter_m": 0.08,
+            "roughness_m": 1e-05
+          },
+          {
+            "name": "branch_49",
+            "start": "bottom_49",
+            "end": "header",
+            "length_m": 330,
+            "diameter_m": 0.08,
+            "roughness_m": 1e-05
+          },
+          {
+            "name": "branch_50",
+            "start": "bottom_50",
+            "end": "header",
+            "length_m": 340,
+            "diameter_m": 0.08,
+            "roughness_m": 1e-05
+          },
+          {
+            "name": "branch_51",
+            "start": "bottom_51",
+            "end": "header",
+            "length_m": 350,
+            "diameter_m": 0.08,
+            "roughness_m": 1e-05
+          },
+          {
+            "name": "branch_52",
+            "start": "bottom_52",
+            "end": "header",
+            "length_m": 360,
+            "diameter_m": 0.08,
+            "roughness_m": 1e-05
+          },
+          {
+            "name": "branch_53",
+            "start": "bottom_53",
+            "end": "header",
+            "length_m": 370,
+            "diameter_m": 0.08,
+            "roughness_m": 1e-05
+          },
+          {
+            "name": "branch_54",
+            "start": "bottom_54",
+            "end": "header",
+            "length_m": 380,
+            "diameter_m": 0.08,
+            "roughness_m": 1e-05
+          },
+          {
+            "name": "branch_55",
+            "start": "bottom_55",
+            "end": "header",
+            "length_m": 390,
+            "diameter_m": 0.08,
+            "roughness_m": 1e-05
+          },
+          {
+            "name": "branch_56",
+            "start": "bottom_56",
+            "end": "header",
+            "length_m": 400,
+            "diameter_m": 0.08,
+            "roughness_m": 1e-05
+          },
+          {
+            "name": "branch_57",
+            "start": "bottom_57",
+            "end": "header",
+            "length_m": 410,
+            "diameter_m": 0.08,
+            "roughness_m": 1e-05
+          },
+          {
+            "name": "branch_58",
+            "start": "bottom_58",
+            "end": "header",
+            "length_m": 420,
+            "diameter_m": 0.08,
+            "roughness_m": 1e-05
+          },
+          {
+            "name": "branch_59",
+            "start": "bottom_59",
+            "end": "header",
+            "length_m": 430,
+            "diameter_m": 0.08,
+            "roughness_m": 1e-05
+          },
+          {
+            "name": "branch_60",
+            "start": "bottom_60",
+            "end": "header",
+            "length_m": 440,
+            "diameter_m": 0.08,
+            "roughness_m": 1e-05
+          },
+          {
+            "name": "branch_61",
+            "start": "bottom_61",
+            "end": "header",
+            "length_m": 450,
+            "diameter_m": 0.08,
+            "roughness_m": 1e-05
+          },
+          {
+            "name": "branch_62",
+            "start": "bottom_62",
+            "end": "header",
+            "length_m": 460,
+            "diameter_m": 0.08,
+            "roughness_m": 1e-05
+          },
+          {
+            "name": "branch_63",
+            "start": "bottom_63",
+            "end": "header",
+            "length_m": 470,
+            "diameter_m": 0.08,
+            "roughness_m": 1e-05
+          },
+          {
+            "name": "branch_64",
+            "start": "bottom_64",
+            "end": "header",
+            "length_m": 480,
+            "diameter_m": 0.08,
+            "roughness_m": 1e-05
+          }
+        ],
+        "hydraulic_backend": "torch_batch"
+      },
+      "well_block_backend": "tree_structured",
+      "network_backend": "cpu_reference"
+    },
+    "coupled_facility": {
+      "facility": {
+        "stock_densities": {
+          "oil_kg_m3": 850,
+          "water_kg_m3": 1000,
+          "gas_kg_m3": 1.2
+        },
+        "feeds": [
+          {
+            "oil_m3_s": 0.0006,
+            "water_m3_s": 0.0012,
+            "gas_m3_s": 0.072
+          },
+          {
+            "oil_m3_s": 0.0004,
+            "water_m3_s": 0.0008,
+            "gas_m3_s": 0.048
+          }
+        ],
+        "pvt": {
+          "pressure_MPa": [
+            0.1,
+            1.0,
+            5.0
+          ],
+          "Bo": [
+            1.0,
+            1.04,
+            1.16
+          ],
+          "Bw": [
+            1,
+            1,
+            1
+          ],
+          "Bg": [
+            1.0,
+            0.1,
+            0.02
+          ],
+          "mu_o_cP": [
+            5.0,
+            4.2,
+            1.8
+          ],
+          "mu_w_cP": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "mu_g_cP": [
+            0.01,
+            0.012,
+            0.015
+          ],
+          "Rs_m3m3": [
+            0.0,
+            20.0,
+            80.0
+          ],
+          "Rv_m3m3": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "extended": {
+            "oil": {
+              "rs_values": [
+                0.0,
+                20.0,
+                80.0
+              ],
+              "tables": {
+                "0.0": {
+                  "pressure_MPa": [
+                    0.1,
+                    1.0,
+                    5.0
+                  ],
+                  "Bo": [
+                    1.0,
+                    0.9991,
+                    0.9951
+                  ],
+                  "mu_o_cP": [
+                    5.0,
+                    5.009,
+                    5.049
+                  ]
+                },
+                "20.0": {
+                  "pressure_MPa": [
+                    0.1,
+                    1.0,
+                    5.0
+                  ],
+                  "Bo": [
+                    1.0409,
+                    1.04,
+                    1.036
+                  ],
+                  "mu_o_cP": [
+                    4.191,
+                    4.2,
+                    4.24
+                  ]
+                },
+                "80.0": {
+                  "pressure_MPa": [
+                    0.1,
+                    1.0,
+                    5.0
+                  ],
+                  "Bo": [
+                    1.1648999999999998,
+                    1.164,
+                    1.16
+                  ],
+                  "mu_o_cP": [
+                    1.751,
+                    1.7599999999999998,
+                    1.7999999999999998
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "separator_stages": [
+          {
+            "name": "high_pressure",
+            "pressure_pa": 1000000.0
+          },
+          {
+            "name": "stock_tank",
+            "pressure_pa": 100000.0
+          }
+        ],
+        "water_feed_node": "water_inlet",
+        "water_network": {
+          "model": "incompressible_liquid",
+          "fluid": {
+            "density_kg_m3": 1000,
+            "viscosity_pa_s": 0.001,
+            "vapor_pressure_pa": 2300
+          },
+          "nodes": [
+            {
+              "name": "water_inlet"
+            },
+            {
+              "name": "header"
+            },
+            {
+              "name": "valve_in"
+            },
+            {
+              "name": "disposal",
+              "pressure_pa": 400000
+            }
+          ],
+          "pipes": [
+            {
+              "name": "water_line",
+              "start": "header",
+              "end": "valve_in",
+              "length_m": 100,
+              "diameter_m": 0.1
+            }
+          ],
+          "pumps": [
+            {
+              "name": "water_booster",
+              "start": "water_inlet",
+              "end": "header",
+              "shutoff_head_m": 20,
+              "curve_coefficient_s2_m5": 1000000,
+              "max_flow_m3_s": 0.004,
+              "head_curve": {
+                "flow_m3_s": [
+                  0,
+                  0.002,
+                  0.004
+                ],
+                "values": [
+                  20,
+                  16,
+                  8
+                ]
+              },
+              "efficiency_curve": {
+                "flow_m3_s": [
+                  0,
+                  0.002,
+                  0.004
+                ],
+                "values": [
+                  0.65,
+                  0.8,
+                  0.7
+                ]
+              },
+              "npsh_curve": {
+                "flow_m3_s": [
+                  0,
+                  0.002,
+                  0.004
+                ],
+                "values": [
+                  1,
+                  2,
+                  4
+                ]
+              },
+              "inlet_diameter_m": 0.1,
+              "check_valve": true,
+              "max_shaft_power_w": 1000
+            }
+          ],
+          "valves": [
+            {
+              "name": "water_choke",
+              "start": "valve_in",
+              "end": "disposal",
+              "diameter_m": 0.02,
+              "discharge_coefficient": 0.62,
+              "opening": 0.8
+            }
+          ]
+        },
+        "limits": [
+          {
+            "name": "water_pumps",
+            "metric": "shaft_power_total_w",
+            "unit": "W",
+            "maximum": 1000
+          },
+          {
+            "name": "first_stage_gas",
+            "metric": "separator:high_pressure:gas_m3_s",
+            "unit": "m3/s",
+            "maximum": 0.001
+          },
+          {
+            "name": "water_capacity",
+            "metric": "water_handoff_mass_kg_s",
+            "unit": "kg/s",
+            "maximum": 2.5
+          },
+          {
+            "name": "header_rating",
+            "metric": "pressure:header",
+            "unit": "Pa",
+            "maximum": 1000000
+          },
+          {
+            "name": "total_utilities",
+            "metric": "facility_drive_power_total_w",
+            "unit": "W",
+            "maximum": 50000
+          },
+          {
+            "name": "gas_cooling",
+            "metric": "gas_cooling_duty_w",
+            "unit": "W",
+            "maximum": 50000
+          },
+          {
+            "name": "gas_delivery",
+            "metric": "gas_export_pressure_pa",
+            "unit": "Pa",
+            "minimum": 1900000.0
+          }
+        ],
+        "gas_export": {
+          "header_pressure_pa": 6000000,
+          "inlet_temperature_k": 300,
+          "cooling_temperature_k": 300,
+          "standard_pressure_pa": 100000,
+          "standard_temperature_k": 300,
+          "heat_capacity_ratio": 1.3,
+          "max_stage_pressure_ratio": 4,
+          "cooler_pressure_loss_fraction": 0.02,
+          "export_pipe": {
+            "name": "gas_export",
+            "length_m": 500,
+            "diameter_m": 0.05,
+            "roughness_m": 1e-05
+          },
+          "export_valve": {
+            "name": "export_trim",
+            "outlet_pressure_pa": 2000000.0,
+            "throat_area_m2": 2e-07,
+            "discharge_coefficient": 0.8,
+            "max_opening": 1.0
+          }
+        }
+      },
+      "control": {
+        "min_fraction": 0.0001,
+        "scan_points": 3,
+        "fraction_tolerance": 1e-06,
+        "max_evaluations": 60,
+        "commit_method": "state_restore",
+        "search_method": "continuation_safeguarded",
+        "reuse_inactive_caps": true,
+        "reuse_initial_cell_state": true,
+        "reuse_capacity_amg": true,
+        "inactive_cap_certificate_version": 2,
+        "continuation_scan_interval": 16
+      }
+    },
+    "max_time_step_days": 5.0,
+    "initial_time_step_days": 1.0,
+    "cpr_reuse_graph": true
+  },
+  "reservoir": {
+    "dimensions": [
+      256,
+      256,
+      1
+    ],
+    "grid_size": [
+      20,
+      20,
+      80
+    ],
+    "porosity": 0.2,
+    "permeability": 100
+  },
+  "fluid": {
+    "pressure": 3.0,
+    "s_w": 0.35,
+    "s_g": 0.03,
+    "rho_oil": 850,
+    "rho_water": 1000,
+    "rho_gas": 1.2,
+    "pvt_path": "/home/user/workspace/oil-simulator-py-impes/configs/pvt/pvt_surface_coupled.json",
+    "c_rock": 1e-05,
+    "relative_permeability": {
+      "nw": 2,
+      "no": 2,
+      "ng": 2,
+      "sw_cr": 0.2,
+      "so_r": 0.2,
+      "sg_cr": 0.02
+    }
+  },
+  "wells": [
+    {
+      "name": "P1",
+      "type": "producer",
+      "i": 16,
+      "j": 16,
+      "k": 0,
+      "radius": 0.1,
+      "control_type": "rate",
+      "control_value": 100,
+      "surface_phase": "liquid",
+      "well_index": 1e-16
+    },
+    {
+      "name": "P2",
+      "type": "producer",
+      "i": 16,
+      "j": 48,
+      "k": 0,
+      "radius": 0.1,
+      "control_type": "rate",
+      "control_value": 100,
+      "surface_phase": "liquid",
+      "well_index": 1e-12
+    },
+    {
+      "name": "P3",
+      "type": "producer",
+      "i": 16,
+      "j": 80,
+      "k": 0,
+      "radius": 0.1,
+      "control_type": "rate",
+      "control_value": 100,
+      "surface_phase": "liquid",
+      "well_index": 1e-12
+    },
+    {
+      "name": "P4",
+      "type": "producer",
+      "i": 16,
+      "j": 112,
+      "k": 0,
+      "radius": 0.1,
+      "control_type": "rate",
+      "control_value": 100,
+      "surface_phase": "liquid",
+      "well_index": 1e-12
+    },
+    {
+      "name": "P5",
+      "type": "producer",
+      "i": 16,
+      "j": 144,
+      "k": 0,
+      "radius": 0.1,
+      "control_type": "rate",
+      "control_value": 100,
+      "surface_phase": "liquid",
+      "well_index": 1e-12
+    },
+    {
+      "name": "P6",
+      "type": "producer",
+      "i": 16,
+      "j": 176,
+      "k": 0,
+      "radius": 0.1,
+      "control_type": "rate",
+      "control_value": 100,
+      "surface_phase": "liquid",
+      "well_index": 1e-12
+    },
+    {
+      "name": "P7",
+      "type": "producer",
+      "i": 16,
+      "j": 208,
+      "k": 0,
+      "radius": 0.1,
+      "control_type": "rate",
+      "control_value": 100,
+      "surface_phase": "liquid",
+      "well_index": 1e-12
+    },
+    {
+      "name": "P8",
+      "type": "producer",
+      "i": 16,
+      "j": 240,
+      "k": 0,
+      "radius": 0.1,
+      "control_type": "rate",
+      "control_value": 100,
+      "surface_phase": "liquid",
+      "well_index": 1e-12
+    },
+    {
+      "name": "P9",
+      "type": "producer",
+      "i": 48,
+      "j": 16,
+      "k": 0,
+      "radius": 0.1,
+      "control_type": "rate",
+      "control_value": 100,
+      "surface_phase": "liquid",
+      "well_index": 1e-16
+    },
+    {
+      "name": "P10",
+      "type": "producer",
+      "i": 48,
+      "j": 48,
+      "k": 0,
+      "radius": 0.1,
+      "control_type": "rate",
+      "control_value": 100,
+      "surface_phase": "liquid",
+      "well_index": 1e-12
+    },
+    {
+      "name": "P11",
+      "type": "producer",
+      "i": 48,
+      "j": 80,
+      "k": 0,
+      "radius": 0.1,
+      "control_type": "rate",
+      "control_value": 100,
+      "surface_phase": "liquid",
+      "well_index": 1e-12
+    },
+    {
+      "name": "P12",
+      "type": "producer",
+      "i": 48,
+      "j": 112,
+      "k": 0,
+      "radius": 0.1,
+      "control_type": "rate",
+      "control_value": 100,
+      "surface_phase": "liquid",
+      "well_index": 1e-12
+    },
+    {
+      "name": "P13",
+      "type": "producer",
+      "i": 48,
+      "j": 144,
+      "k": 0,
+      "radius": 0.1,
+      "control_type": "rate",
+      "control_value": 100,
+      "surface_phase": "liquid",
+      "well_index": 1e-12
+    },
+    {
+      "name": "P14",
+      "type": "producer",
+      "i": 48,
+      "j": 176,
+      "k": 0,
+      "radius": 0.1,
+      "control_type": "rate",
+      "control_value": 100,
+      "surface_phase": "liquid",
+      "well_index": 1e-12
+    },
+    {
+      "name": "P15",
+      "type": "producer",
+      "i": 48,
+      "j": 208,
+      "k": 0,
+      "radius": 0.1,
+      "control_type": "rate",
+      "control_value": 100,
+      "surface_phase": "liquid",
+      "well_index": 1e-12
+    },
+    {
+      "name": "P16",
+      "type": "producer",
+      "i": 48,
+      "j": 240,
+      "k": 0,
+      "radius": 0.1,
+      "control_type": "rate",
+      "control_value": 100,
+      "surface_phase": "liquid",
+      "well_index": 1e-12
+    },
+    {
+      "name": "P17",
+      "type": "producer",
+      "i": 80,
+      "j": 16,
+      "k": 0,
+      "radius": 0.1,
+      "control_type": "rate",
+      "control_value": 100,
+      "surface_phase": "liquid",
+      "well_index": 1e-16
+    },
+    {
+      "name": "P18",
+      "type": "producer",
+      "i": 80,
+      "j": 48,
+      "k": 0,
+      "radius": 0.1,
+      "control_type": "rate",
+      "control_value": 100,
+      "surface_phase": "liquid",
+      "well_index": 1e-12
+    },
+    {
+      "name": "P19",
+      "type": "producer",
+      "i": 80,
+      "j": 80,
+      "k": 0,
+      "radius": 0.1,
+      "control_type": "rate",
+      "control_value": 100,
+      "surface_phase": "liquid",
+      "well_index": 1e-12
+    },
+    {
+      "name": "P20",
+      "type": "producer",
+      "i": 80,
+      "j": 112,
+      "k": 0,
+      "radius": 0.1,
+      "control_type": "rate",
+      "control_value": 100,
+      "surface_phase": "liquid",
+      "well_index": 1e-12
+    },
+    {
+      "name": "P21",
+      "type": "producer",
+      "i": 80,
+      "j": 144,
+      "k": 0,
+      "radius": 0.1,
+      "control_type": "rate",
+      "control_value": 100,
+      "surface_phase": "liquid",
+      "well_index": 1e-12
+    },
+    {
+      "name": "P22",
+      "type": "producer",
+      "i": 80,
+      "j": 176,
+      "k": 0,
+      "radius": 0.1,
+      "control_type": "rate",
+      "control_value": 100,
+      "surface_phase": "liquid",
+      "well_index": 1e-12
+    },
+    {
+      "name": "P23",
+      "type": "producer",
+      "i": 80,
+      "j": 208,
+      "k": 0,
+      "radius": 0.1,
+      "control_type": "rate",
+      "control_value": 100,
+      "surface_phase": "liquid",
+      "well_index": 1e-12
+    },
+    {
+      "name": "P24",
+      "type": "producer",
+      "i": 80,
+      "j": 240,
+      "k": 0,
+      "radius": 0.1,
+      "control_type": "rate",
+      "control_value": 100,
+      "surface_phase": "liquid",
+      "well_index": 1e-12
+    },
+    {
+      "name": "P25",
+      "type": "producer",
+      "i": 112,
+      "j": 16,
+      "k": 0,
+      "radius": 0.1,
+      "control_type": "rate",
+      "control_value": 100,
+      "surface_phase": "liquid",
+      "well_index": 1e-16
+    },
+    {
+      "name": "P26",
+      "type": "producer",
+      "i": 112,
+      "j": 48,
+      "k": 0,
+      "radius": 0.1,
+      "control_type": "rate",
+      "control_value": 100,
+      "surface_phase": "liquid",
+      "well_index": 1e-12
+    },
+    {
+      "name": "P27",
+      "type": "producer",
+      "i": 112,
+      "j": 80,
+      "k": 0,
+      "radius": 0.1,
+      "control_type": "rate",
+      "control_value": 100,
+      "surface_phase": "liquid",
+      "well_index": 1e-12
+    },
+    {
+      "name": "P28",
+      "type": "producer",
+      "i": 112,
+      "j": 112,
+      "k": 0,
+      "radius": 0.1,
+      "control_type": "rate",
+      "control_value": 100,
+      "surface_phase": "liquid",
+      "well_index": 1e-12
+    },
+    {
+      "name": "P29",
+      "type": "producer",
+      "i": 112,
+      "j": 144,
+      "k": 0,
+      "radius": 0.1,
+      "control_type": "rate",
+      "control_value": 100,
+      "surface_phase": "liquid",
+      "well_index": 1e-12
+    },
+    {
+      "name": "P30",
+      "type": "producer",
+      "i": 112,
+      "j": 176,
+      "k": 0,
+      "radius": 0.1,
+      "control_type": "rate",
+      "control_value": 100,
+      "surface_phase": "liquid",
+      "well_index": 1e-12
+    },
+    {
+      "name": "P31",
+      "type": "producer",
+      "i": 112,
+      "j": 208,
+      "k": 0,
+      "radius": 0.1,
+      "control_type": "rate",
+      "control_value": 100,
+      "surface_phase": "liquid",
+      "well_index": 1e-12
+    },
+    {
+      "name": "P32",
+      "type": "producer",
+      "i": 112,
+      "j": 240,
+      "k": 0,
+      "radius": 0.1,
+      "control_type": "rate",
+      "control_value": 100,
+      "surface_phase": "liquid",
+      "well_index": 1e-12
+    },
+    {
+      "name": "P33",
+      "type": "producer",
+      "i": 144,
+      "j": 16,
+      "k": 0,
+      "radius": 0.1,
+      "control_type": "rate",
+      "control_value": 100,
+      "surface_phase": "liquid",
+      "well_index": 1e-16
+    },
+    {
+      "name": "P34",
+      "type": "producer",
+      "i": 144,
+      "j": 48,
+      "k": 0,
+      "radius": 0.1,
+      "control_type": "rate",
+      "control_value": 100,
+      "surface_phase": "liquid",
+      "well_index": 1e-12
+    },
+    {
+      "name": "P35",
+      "type": "producer",
+      "i": 144,
+      "j": 80,
+      "k": 0,
+      "radius": 0.1,
+      "control_type": "rate",
+      "control_value": 100,
+      "surface_phase": "liquid",
+      "well_index": 1e-12
+    },
+    {
+      "name": "P36",
+      "type": "producer",
+      "i": 144,
+      "j": 112,
+      "k": 0,
+      "radius": 0.1,
+      "control_type": "rate",
+      "control_value": 100,
+      "surface_phase": "liquid",
+      "well_index": 1e-12
+    },
+    {
+      "name": "P37",
+      "type": "producer",
+      "i": 144,
+      "j": 144,
+      "k": 0,
+      "radius": 0.1,
+      "control_type": "rate",
+      "control_value": 100,
+      "surface_phase": "liquid",
+      "well_index": 1e-12
+    },
+    {
+      "name": "P38",
+      "type": "producer",
+      "i": 144,
+      "j": 176,
+      "k": 0,
+      "radius": 0.1,
+      "control_type": "rate",
+      "control_value": 100,
+      "surface_phase": "liquid",
+      "well_index": 1e-12
+    },
+    {
+      "name": "P39",
+      "type": "producer",
+      "i": 144,
+      "j": 208,
+      "k": 0,
+      "radius": 0.1,
+      "control_type": "rate",
+      "control_value": 100,
+      "surface_phase": "liquid",
+      "well_index": 1e-12
+    },
+    {
+      "name": "P40",
+      "type": "producer",
+      "i": 144,
+      "j": 240,
+      "k": 0,
+      "radius": 0.1,
+      "control_type": "rate",
+      "control_value": 100,
+      "surface_phase": "liquid",
+      "well_index": 1e-12
+    },
+    {
+      "name": "P41",
+      "type": "producer",
+      "i": 176,
+      "j": 16,
+      "k": 0,
+      "radius": 0.1,
+      "control_type": "rate",
+      "control_value": 100,
+      "surface_phase": "liquid",
+      "well_index": 1e-16
+    },
+    {
+      "name": "P42",
+      "type": "producer",
+      "i": 176,
+      "j": 48,
+      "k": 0,
+      "radius": 0.1,
+      "control_type": "rate",
+      "control_value": 100,
+      "surface_phase": "liquid",
+      "well_index": 1e-12
+    },
+    {
+      "name": "P43",
+      "type": "producer",
+      "i": 176,
+      "j": 80,
+      "k": 0,
+      "radius": 0.1,
+      "control_type": "rate",
+      "control_value": 100,
+      "surface_phase": "liquid",
+      "well_index": 1e-12
+    },
+    {
+      "name": "P44",
+      "type": "producer",
+      "i": 176,
+      "j": 112,
+      "k": 0,
+      "radius": 0.1,
+      "control_type": "rate",
+      "control_value": 100,
+      "surface_phase": "liquid",
+      "well_index": 1e-12
+    },
+    {
+      "name": "P45",
+      "type": "producer",
+      "i": 176,
+      "j": 144,
+      "k": 0,
+      "radius": 0.1,
+      "control_type": "rate",
+      "control_value": 100,
+      "surface_phase": "liquid",
+      "well_index": 1e-12
+    },
+    {
+      "name": "P46",
+      "type": "producer",
+      "i": 176,
+      "j": 176,
+      "k": 0,
+      "radius": 0.1,
+      "control_type": "rate",
+      "control_value": 100,
+      "surface_phase": "liquid",
+      "well_index": 1e-12
+    },
+    {
+      "name": "P47",
+      "type": "producer",
+      "i": 176,
+      "j": 208,
+      "k": 0,
+      "radius": 0.1,
+      "control_type": "rate",
+      "control_value": 100,
+      "surface_phase": "liquid",
+      "well_index": 1e-12
+    },
+    {
+      "name": "P48",
+      "type": "producer",
+      "i": 176,
+      "j": 240,
+      "k": 0,
+      "radius": 0.1,
+      "control_type": "rate",
+      "control_value": 100,
+      "surface_phase": "liquid",
+      "well_index": 1e-12
+    },
+    {
+      "name": "P49",
+      "type": "producer",
+      "i": 208,
+      "j": 16,
+      "k": 0,
+      "radius": 0.1,
+      "control_type": "rate",
+      "control_value": 100,
+      "surface_phase": "liquid",
+      "well_index": 1e-16
+    },
+    {
+      "name": "P50",
+      "type": "producer",
+      "i": 208,
+      "j": 48,
+      "k": 0,
+      "radius": 0.1,
+      "control_type": "rate",
+      "control_value": 100,
+      "surface_phase": "liquid",
+      "well_index": 1e-12
+    },
+    {
+      "name": "P51",
+      "type": "producer",
+      "i": 208,
+      "j": 80,
+      "k": 0,
+      "radius": 0.1,
+      "control_type": "rate",
+      "control_value": 100,
+      "surface_phase": "liquid",
+      "well_index": 1e-12
+    },
+    {
+      "name": "P52",
+      "type": "producer",
+      "i": 208,
+      "j": 112,
+      "k": 0,
+      "radius": 0.1,
+      "control_type": "rate",
+      "control_value": 100,
+      "surface_phase": "liquid",
+      "well_index": 1e-12
+    },
+    {
+      "name": "P53",
+      "type": "producer",
+      "i": 208,
+      "j": 144,
+      "k": 0,
+      "radius": 0.1,
+      "control_type": "rate",
+      "control_value": 100,
+      "surface_phase": "liquid",
+      "well_index": 1e-12
+    },
+    {
+      "name": "P54",
+      "type": "producer",
+      "i": 208,
+      "j": 176,
+      "k": 0,
+      "radius": 0.1,
+      "control_type": "rate",
+      "control_value": 100,
+      "surface_phase": "liquid",
+      "well_index": 1e-12
+    },
+    {
+      "name": "P55",
+      "type": "producer",
+      "i": 208,
+      "j": 208,
+      "k": 0,
+      "radius": 0.1,
+      "control_type": "rate",
+      "control_value": 100,
+      "surface_phase": "liquid",
+      "well_index": 1e-12
+    },
+    {
+      "name": "P56",
+      "type": "producer",
+      "i": 208,
+      "j": 240,
+      "k": 0,
+      "radius": 0.1,
+      "control_type": "rate",
+      "control_value": 100,
+      "surface_phase": "liquid",
+      "well_index": 1e-12
+    },
+    {
+      "name": "P57",
+      "type": "producer",
+      "i": 240,
+      "j": 16,
+      "k": 0,
+      "radius": 0.1,
+      "control_type": "rate",
+      "control_value": 100,
+      "surface_phase": "liquid",
+      "well_index": 1e-16
+    },
+    {
+      "name": "P58",
+      "type": "producer",
+      "i": 240,
+      "j": 48,
+      "k": 0,
+      "radius": 0.1,
+      "control_type": "rate",
+      "control_value": 100,
+      "surface_phase": "liquid",
+      "well_index": 1e-12
+    },
+    {
+      "name": "P59",
+      "type": "producer",
+      "i": 240,
+      "j": 80,
+      "k": 0,
+      "radius": 0.1,
+      "control_type": "rate",
+      "control_value": 100,
+      "surface_phase": "liquid",
+      "well_index": 1e-12
+    },
+    {
+      "name": "P60",
+      "type": "producer",
+      "i": 240,
+      "j": 112,
+      "k": 0,
+      "radius": 0.1,
+      "control_type": "rate",
+      "control_value": 100,
+      "surface_phase": "liquid",
+      "well_index": 1e-12
+    },
+    {
+      "name": "P61",
+      "type": "producer",
+      "i": 240,
+      "j": 144,
+      "k": 0,
+      "radius": 0.1,
+      "control_type": "rate",
+      "control_value": 100,
+      "surface_phase": "liquid",
+      "well_index": 1e-12
+    },
+    {
+      "name": "P62",
+      "type": "producer",
+      "i": 240,
+      "j": 176,
+      "k": 0,
+      "radius": 0.1,
+      "control_type": "rate",
+      "control_value": 100,
+      "surface_phase": "liquid",
+      "well_index": 1e-12
+    },
+    {
+      "name": "P63",
+      "type": "producer",
+      "i": 240,
+      "j": 208,
+      "k": 0,
+      "radius": 0.1,
+      "control_type": "rate",
+      "control_value": 100,
+      "surface_phase": "liquid",
+      "well_index": 1e-12
+    },
+    {
+      "name": "P64",
+      "type": "producer",
+      "i": 240,
+      "j": 240,
+      "k": 0,
+      "radius": 0.1,
+      "control_type": "rate",
+      "control_value": 100,
+      "surface_phase": "liquid",
+      "well_index": 1e-12
+    }
+  ]
+}

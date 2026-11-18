@@ -1,0 +1,41 @@
+--- before/src/simulator/blackoil_fim.py
++++ after/src/simulator/blackoil_fim.py
+@@ -1195,8 +1195,38 @@
+         qo, qw, qg = qo * dd, qw * dd, qg * dd
+         p_bh = self.p_bh if self.p_bh is not None else torch.zeros(self.n_w, dtype=torch.float64, device=self.device)
+         heads = torch.zeros_like(p_cell)
++        heads.copy_(mix_cell * G * self.conn_dz)
+         dz_all = self.conn_dz
++        # Independent one-connection producers share the same two flash
++        # iterations. Batch them without changing path integration for longer
++        # wells, stopped wells or injectors. Closed connections keep cell heads.
++        single = [i for i, w in enumerate(self.wells)
++                  if w.type != 'injector' and not getattr(w, 'stopped', False)
++                  and self.well_conn_order[i].numel() == 1]
++        if single:
++            order = torch.cat([self.well_conn_order[i] for i in single])
++            order = order[self.conn_sched[order] > 0]
++            if order.numel():
++                Qo, Qw, Qg = qo[order], qw[order], qg[order]
++                mass = Qo * rho_sc[OIL] + Qw * rho_sc[WAT] + Qg * rho_sc[GAS]
++                dz = dz_all[order]
++                if head_old is None:
++                    h = mix_cell[order] * G * dz
++                    pb = p_cell[order] - h
++                else:
++                    h, pb = head_old[order], p_bh[cw[order]]
++                for _ in range(2):
++                    p = (pb + 0.5 * h).clamp_min(1e5)
++                    vo, vw, vg = surface_to_reservoir(self.pvt.at(c[order]), p, Qo, Qw, Qg)
++                    vol = vo + vw + vg
++                    rho = torch.where((mass > 0) & (vol > 0),
++                                      mass / vol.clamp_min(1e-300), mix_cell[order])
++                    h = rho * G * dz
++                heads[order] = h
++        single = set(single)
+         for w_idx, w in enumerate(self.wells):
++            if w_idx in single:
++                continue
+             idx = (cw == w_idx).nonzero().view(-1)
+             if w.type == 'injector' or idx.numel() == 0:
+                 heads[idx] = mix_cell[idx] * G * dz_all[idx]

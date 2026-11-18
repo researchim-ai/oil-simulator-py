@@ -1,5 +1,5 @@
 import torch
-from .krylov_cuda import rotate_givens
+from .krylov_cuda import rotate_givens, orthogonalize_subtract
 
 def fgmres(A_mv, b, M_mv=None, max_iter=100, tol=1e-5, restart=20, verbose=False, stats=None):
     """
@@ -109,7 +109,7 @@ def fgmres(A_mv, b, M_mv=None, max_iter=100, tol=1e-5, restart=20, verbose=False
             # 3. Gram-Schmidt Orthogonalization
             for i in range(j + 1):
                 H[i, j] = torch.dot(V[i], w)
-                w = w - H[i, j] * V[i]
+                w = orthogonalize_subtract(w, V[i], H[i, j])
                 
             H[j + 1, j] = torch.norm(w)
             

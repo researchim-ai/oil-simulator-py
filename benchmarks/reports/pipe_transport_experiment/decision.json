@@ -1,0 +1,4 @@
+{
+  "promoted": false,
+  "reason": "No consistent full-case speed gain; correctness exact and lower local memory, but the extra API/path is not justified for this acceleration task."
+}

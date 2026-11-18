@@ -1,0 +1,20 @@
+{
+  "exact_batch_reports": true,
+  "batch_reference_s": 0.04297527050002828,
+  "batch_candidate_s": 0.04051890854989324,
+  "batch_time_reduction_fraction": 0.057157568097992995,
+  "batch_checked_integrals": [
+    5,
+    4
+  ],
+  "full_gpu_speedup_confirmed": false,
+  "full_gpu_final_pair": {
+    "False": 7.725753538499703,
+    "True": 7.957018273000358
+  },
+  "experimental_cpr_enabled": false,
+  "cpu_strong_reference_median_s": 20.734267162499236,
+  "cpu_strong_candidate_median_s": 19.56172778600012,
+  "cpu_strong_time_reduction_fraction": 0.0565507990858638,
+  "scope": "Controlled source pairs on shared host; synthetic coupled cases and a 64-pipe batch. No new Norne performance claim."
+}

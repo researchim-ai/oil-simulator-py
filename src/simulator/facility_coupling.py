@@ -38,6 +38,7 @@ try:
         continuation_slopes,
         facility_constraint_margin,
         facility_constraint_margins,
+        feasible_secant_proposal,
         local_capacity_bracket,
     )
     from ..surface.gas_valve import GasValveCapacityError
@@ -58,6 +59,7 @@ except ImportError:
         continuation_slopes,
         facility_constraint_margin,
         facility_constraint_margins,
+        feasible_secant_proposal,
         local_capacity_bracket,
     )
     from surface.gas_valve import GasValveCapacityError
@@ -591,10 +593,15 @@ class FacilityCoupledFIM:
                         status, _ = trial(warm)
                         bracket.update(warm, status, trace[-1]["normalized_margin"],
                                        margins=trace[-1].get("constraint_margins") if facets else None)
+                current_secant_used = False
                 while not bracket.complete:
                     predicted = (bracket.tangent_proposal(sensitivities.get(bracket.low), sensitivities.get(bracket.high))
                                  if self.control.search_method == 'sensitivity_safeguarded' else None)
                     tangent_work['proposals'] += int(predicted is not None)
+                    if (self.control.search_method == 'continuation_safeguarded'
+                            and local is None and not current_secant_used):
+                        predicted = feasible_secant_proposal(trace, bracket)
+                        current_secant_used = predicted is not None
                     if history_slopes:
                         predicted = bracket.tangent_proposal(history_slopes, history_slopes)
                         history_proposals += int(predicted is not None)
@@ -604,7 +611,8 @@ class FacilityCoupledFIM:
                     mid = (
                         (bracket.low + bracket.high) / 2
                         if self.control.search_method == "bisect"
-                        else predicted if predicted is not None else bracket.proposal()
+                        else predicted if predicted is not None else bracket.proposal(
+                            allow_endpoint_probe=self.control.search_method == 'continuation_safeguarded')
                     )
                     if self.control.search_method == 'continuation_safeguarded' and local is not None:
                         # Probe slightly above the predicted crossing to close

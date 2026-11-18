@@ -1,0 +1,12 @@
+{
+  "late_sources_verified_after_runs": [
+    "diagonal/late_optimized_0",
+    "diagonal/late_optimized_1",
+    "diagonal/late_reference_0",
+    "diagonal/late_reference_1",
+    "sizes/late_optimized_0",
+    "sizes/late_optimized_1",
+    "sizes/late_reference_0",
+    "sizes/late_reference_1"
+  ]
+}

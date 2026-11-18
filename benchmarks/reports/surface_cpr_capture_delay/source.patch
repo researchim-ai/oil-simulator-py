@@ -1,0 +1,66 @@
+--- before/src/simulator/cpr_gpu.py
++++ after/src/simulator/cpr_gpu.py
+@@ -30,7 +30,11 @@
+ 
+     def __init__(self, J_vals, indptr, indices, n_cells, device, amg=None, smoother_sweeps=1,
+                  amg_verbose=False, graph_pool=None, matrix_rows=None,
+-                 matrix_bsr=None, diag_positions=None):
++                 matrix_bsr=None, diag_positions=None, graph_warmup_calls=1):
++        if type(graph_warmup_calls) is not int or graph_warmup_calls < 1:
++            raise ValueError("Positive integer CPR graph warmup count required")
++        self.graph_warmup_calls = graph_warmup_calls
++        self.graph_eager_calls = self.graph_captures = self.graph_replays = 0
+         self.n_cells = n_cells
+         self.device = device
+         self.smoother_sweeps = max(1, int(smoother_sweeps))
+@@ -129,9 +133,12 @@
+ 
+     def _matvec_graph(self, r):
+         """matvec через CUDA-граф: V-цикл AMG и блочный Якоби записываются один раз на матрицу."""
+-        if self._graph is None:
+-            # первый вызов — без графа (заодно заполняются кэши индексов строк AMG), запись — со второго
++        if self._graph is None or (self._graph == "warm" and
++                                   self.graph_eager_calls < self.graph_warmup_calls):
++            # Short Krylov solves may finish before capture can pay for itself.
++            # Populate AMG caches eagerly; capture only on a later application.
+             self._graph = "warm"
++            self.graph_eager_calls += 1
+             return self._matvec_eager(r)
+         if self._graph == "warm":
+             r_in = r.clone()
+@@ -144,9 +151,11 @@
+             if pool is not None and pool["anchor"] is None:
+                 pool["anchor"] = graph
+             self._graph = (graph, r_in, out)
++            self.graph_captures += 1
+         graph, r_in, out = self._graph
+         r_in.copy_(r)
+         graph.replay()
++        self.graph_replays += 1
+         return out.clone()
+ 
+ 
+--- before/src/simulator/manual_assembly_solver.py
++++ after/src/simulator/manual_assembly_solver.py
+@@ -587,7 +587,10 @@
+         # CPR and Krylov operate on this same scaled matrix. Share only
+         # structures from the current solve; no stale cross-step cache.
+         structure = {"matrix_rows": rows_s, "matrix_bsr": J_bsr,
+-                     "diag_positions": self.builder.diag_map if sub is None else None}
++                     "diag_positions": self.builder.diag_map if sub is None else None,
++                     # Capacity searches commonly converge in 1-3 applications.
++                     # Preserve legacy capture timing for standalone reservoirs.
++                     "graph_warmup_calls": 3 if getattr(self, '_capacity_amg_scope', None) is not None else 1}
+         cpr = CPRPreconditionerGPU(Js, indptr_s, indices_s, n_s, self.device,
+                                    amg=amg_in, smoother_sweeps=self.cpr_smoother_sweeps,
+                                    amg_verbose=self.amg_verbose, graph_pool=pool, **structure)
+@@ -606,6 +609,9 @@
+         x, info = fgmres(matvec, b, M_mv=cpr.matvec, max_iter=self.lin_max_restarts, restart=self.lin_restart,
+                          tol=tol, verbose=self.linear_verbose, stats=stats)
+         stats["solve_s"] = time.perf_counter() - t1
++        stats.update(cpr_graph_eager_calls=cpr.graph_eager_calls,
++                     cpr_graph_captures=cpr.graph_captures,
++                     cpr_graph_replays=cpr.graph_replays)
+         stats["tol"] = tol
+         true_rel = ((matvec(x) - b).norm() / b.norm().clamp_min(1e-300)).item()
+         stats["true_rel_res"] = true_rel

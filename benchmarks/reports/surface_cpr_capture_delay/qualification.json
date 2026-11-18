@@ -1,0 +1,20 @@
+{
+  "correctness_accepted": true,
+  "experimental_policy_promoted": false,
+  "full_forecast_speedup_confirmed": false,
+  "production_graph_warmup_calls": 1,
+  "experimental_graph_warmup_calls": 3,
+  "source_guards_and_mass_audits_passed": [
+    "before",
+    "after_final",
+    "before_repeat",
+    "after_repeat",
+    "small"
+  ],
+  "tests": {
+    "cpu_passed": 35,
+    "gpu_specific_passed": 4,
+    "cpu_policy_cases_repeated_on_gpu_run": 7
+  },
+  "scope": "Rejected speed experiment; production retains original capture timing and adds counters."
+}

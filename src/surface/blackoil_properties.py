@@ -114,6 +114,20 @@ class BlackOilMixture:
         i = (torch.searchsorted(axis, p.contiguous(), right=True) - 1).clamp(0, len(axis) - 2)
         return values[i] + (p - axis[i]) * (values[i + 1] - values[i]) / (axis[i + 1] - axis[i])
 
+    @staticmethod
+    def _column_interpolator(p, axis):
+        """One interval search per current pressure, independent AD per column.
+
+        Only table indices/coordinates are reused. Keep each ``p - lower``
+        operation separate so pressure-gradient accumulation stays unchanged.
+        This closure never survives a property evaluation.
+        """
+        i = (torch.searchsorted(axis, p.contiguous(), right=True) - 1).clamp(0, len(axis) - 2)
+        lower, span = axis[i], axis[i + 1] - axis[i]
+        def interpolate(values):
+            return values[i] + (p - lower) * (values[i + 1] - values[i]) / span
+        return interpolate
+
     @property
     def pressure_bounds_pa(self):
         return self._pressure_bounds
@@ -199,7 +213,8 @@ class BlackOilMixture:
     def tensor_state(self, pressure, masses):
         """Differentiable inside validated pressure/composition regions; no clamping."""
         q = masses / self.rho
-        interp = lambda key: self.interpolate(pressure, self.pressures, self.columns[key])
+        lookup = self._column_interpolator(pressure, self.pressures)
+        interp = lambda key: lookup(self.columns[key])
         sat_rs = interp("Rs")
         if float(q[0].detach()) > 0:
             ratio = q[2] / q[0]
@@ -225,13 +240,15 @@ class BlackOilMixture:
             lo, hi = self.oil_rs[i], self.oil_rs[i + 1]
             t0, t1 = self.oil_tables[float(lo)], self.oil_tables[float(hi)]
             w = (ratio - lo) / (hi - lo)
+            lookup0 = self._column_interpolator(pressure, t0[0])
+            lookup1 = self._column_interpolator(pressure, t1[0])
             unsat_bo = (
-                self.interpolate(pressure, t0[0], t0[1]) * (1 - w)
-                + self.interpolate(pressure, t1[0], t1[1]) * w
+                lookup0(t0[1]) * (1 - w)
+                + lookup1(t1[1]) * w
             )
             unsat_mu = (
-                self.interpolate(pressure, t0[0], t0[2]) * (1 - w)
-                + self.interpolate(pressure, t1[0], t1[2]) * w
+                lookup0(t0[2]) * (1 - w)
+                + lookup1(t1[2]) * w
             )
             bo, muo = torch.where(saturated, bo, unsat_bo), torch.where(saturated, muo, unsat_mu)
         dissolved = q[0] * rs

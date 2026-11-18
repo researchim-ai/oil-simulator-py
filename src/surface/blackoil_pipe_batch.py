@@ -212,8 +212,13 @@ class PipeBatch:
         # the full pressure-coordinate integral as the acceptance equation.
         done = torch.zeros(n, dtype=torch.bool, device=boundary.device)
         for _ in range(64):
-            trial = trial.detach().requires_grad_(True)
-            value, _, _ = self.checked(boundary, trial, masses, resistance)
+            # Keep the complete local input vector on the accepted trial tape.
+            # Newton differentiates only the root view; once converged the
+            # same checked integral supplies all implicit sensitivities.
+            x = torch.cat([trial[:, None], boundary[:, None], masses, resistance[:, None]], 1)
+            x = x.detach().requires_grad_(True)
+            trial = x[:, 0]
+            value, order, error = self.checked(x[:, 1], trial, x[:, 2:5], x[:, 5])
             residual = value[:, 0] - length
             calls += 1
             okay = residual.detach().abs() <= torch.maximum(
@@ -222,26 +227,20 @@ class PipeBatch:
             done |= okay
             if bool(done.all()):
                 root = trial.detach()
-                # Release the unused trial tape before the final sensitivity
-                # graph; skipping backward must not increase peak memory.
-                del value, residual
+                integral = value
                 break
             high = torch.where(~done & (residual.detach() > 0), trial.detach(), high)
             low = torch.where(~done & (residual.detach() <= 0), trial.detach(), low)
-            # A converged root needs no next Newton proposal. Final implicit
-            # sensitivities are computed independently below for all inputs.
+            # Only the root derivative is needed for the next Newton proposal.
             deriv = torch.autograd.grad(value[:, 0].sum(), trial)[0]
             newton = trial.detach() - residual.detach() / deriv.detach()
             safe = torch.isfinite(newton) & (newton > low) & (newton < high)
             trial = torch.where(done, trial.detach(), torch.where(safe, newton, (low + high) / 2))
+            # Root-only backward need not visit every composition branch.
+            # Drop the rejected tape before building the next one.
+            del value, residual
         else:
             raise HydraulicConvergenceError("Batch pressure inversion budget exhausted")
-        x = (
-            torch.cat([root[:, None], boundary[:, None], masses, resistance[:, None]], 1)
-            .detach()
-            .requires_grad_(True)
-        )
-        integral, order, error = self.checked(x[:, 1], x[:, 0], x[:, 2:5], x[:, 5])
         gradient = torch.autograd.grad(integral[:, 0].sum(), x)[0]
         derivative = -gradient / gradient[:, :1]
         ports = x[:, :2].detach().requires_grad_(True)

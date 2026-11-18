@@ -153,3 +153,90 @@ def test_continuation_preserves_existing_wide_history_proposal():
     expected = capacity_history_slopes(report['trace'], report['fraction'], 1e-6)
     assert expected
     assert continuation_slopes(report, 1e-6) == expected
+
+
+def test_local_nearby_root_closes_within_tolerance_in_two_solves():
+    points = []
+    def evaluate(x):
+        points.append(x)
+        return {'fraction': x, 'feasible': x <= .0030001,
+                'constraint_margins': {'gas': x-.0030001}}
+    low, high = local_capacity_bracket(evaluate, .003, {'gas': 1.}, .0001, 1e-6)
+    assert len(points) == 2
+    assert 0 < high['fraction']-low['fraction'] <= 1e-6
+
+
+def test_endpoint_probe_is_bounded_and_does_not_disable_bisection():
+    from surface.capacity_bracket import CapacityBracket
+
+    b = CapacityBracket(.1, .9, 1e-6, -1e-8, 1., slow_updates=2)
+    x = b.proposal(allow_endpoint_probe=True)
+    assert b.low < x <= b.low+b.tolerance
+    b.update(x, True, -1e-8)
+    assert b.proposal(allow_endpoint_probe=True) == b.low+(b.high-b.low)/2
+    # Legacy searches retain immediate bisection even near a secant root.
+    legacy = CapacityBracket(.1, .9, 1e-6, -1e-8, 1., slow_updates=2)
+    assert legacy.proposal() == .5
+
+
+def test_endpoint_probe_does_not_replace_interior_stagnation_safeguard():
+    from surface.capacity_bracket import CapacityBracket
+
+    b = CapacityBracket(.1, .9, 1e-6, -.2, 1., slow_updates=2)
+    assert b.proposal(allow_endpoint_probe=True) == .5
+    assert not b.endpoint_probe_used
+
+
+@pytest.mark.parametrize('root,power', [(.1000002, 1), (.37, 3), (.8999998, 5)])
+def test_endpoint_search_retains_bracket_and_terminates_for_flat_roots(root, power):
+    from surface.capacity_bracket import CapacityBracket
+
+    def margin(x):
+        return (x-root)**power
+    b = CapacityBracket(.1, .9, 1e-7, margin(.1), margin(.9))
+    for _ in range(60):
+        if b.complete:
+            break
+        x = b.proposal(allow_endpoint_probe=True)
+        value = margin(x)
+        b.update(x, value <= 0, value)
+        assert b.low <= root < b.high
+    assert b.complete
+
+
+def test_current_feasible_secant_avoids_unknown_equipment_domain():
+    from surface.capacity_bracket import CapacityBracket, feasible_secant_proposal
+
+    trace = [{'fraction': x, 'feasible': True,
+              'constraint_margins': {'gas': 1300*(x-.00076), 'constant': -.1}}
+             for x in (.0001, .0006)]
+    b = CapacityBracket(.0006, .5, 1e-6)
+    x = feasible_secant_proposal(trace, b)
+    assert x == pytest.approx(.00076)
+    # This is only a proposal: the original unresolved bracket stays intact.
+    assert (b.low, b.high) == (.0006, .5)
+    b.update(x, True, 0., margins={'gas': 0.})
+    assert b.high == .5
+
+
+@pytest.mark.parametrize('case', ['certificate', 'missing', 'remote', 'nan', 'new_facet', 'resolved_high'])
+def test_current_secant_rejects_unreliable_or_unneeded_extrapolation(case):
+    from surface.capacity_bracket import CapacityBracket, feasible_secant_proposal
+
+    trace = [{'fraction': x, 'feasible': True, 'constraint_margins': {'gas': x-.00076}}
+             for x in (.0001, .0006)]
+    b = CapacityBracket(.0006, .5, 1e-6)
+    if case == 'certificate':
+        trace[0]['certified_from_trace_index'] = 0
+    elif case == 'missing':
+        trace.pop()
+    elif case == 'remote':
+        for row in trace:
+            row['constraint_margins']['gas'] = row['fraction']-1.
+    elif case == 'nan':
+        trace[0]['constraint_margins']['gas'] = float('nan')
+    elif case == 'new_facet':
+        trace[1]['constraint_margins']['new'] = -.1
+    else:
+        b.high_margins = {'gas': .1}
+    assert feasible_secant_proposal(trace, b) is None

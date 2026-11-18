@@ -1,0 +1,73 @@
+{
+  "exact": true,
+  "wells": 64,
+  "connections": 128,
+  "device": "NVIDIA GeForce RTX 3090 Ti",
+  "rows": [
+    {
+      "repeat": 0,
+      "batch": false,
+      "seconds_per_seed": 0.04808510210023087
+    },
+    {
+      "repeat": 0,
+      "batch": true,
+      "seconds_per_seed": 7.934309978736564e-05
+    },
+    {
+      "repeat": 1,
+      "batch": true,
+      "seconds_per_seed": 6.153889989946038e-05
+    },
+    {
+      "repeat": 1,
+      "batch": false,
+      "seconds_per_seed": 0.016381286799878582
+    },
+    {
+      "repeat": 2,
+      "batch": false,
+      "seconds_per_seed": 0.057607807000022146
+    },
+    {
+      "repeat": 2,
+      "batch": true,
+      "seconds_per_seed": 0.0001268238000193378
+    },
+    {
+      "repeat": 3,
+      "batch": true,
+      "seconds_per_seed": 8.878369990270585e-05
+    },
+    {
+      "repeat": 3,
+      "batch": false,
+      "seconds_per_seed": 0.059142110599714214
+    },
+    {
+      "repeat": 4,
+      "batch": false,
+      "seconds_per_seed": 0.06096335430011095
+    },
+    {
+      "repeat": 4,
+      "batch": true,
+      "seconds_per_seed": 9.715629967104178e-05
+    },
+    {
+      "repeat": 5,
+      "batch": true,
+      "seconds_per_seed": 7.857259988668375e-05
+    },
+    {
+      "repeat": 5,
+      "batch": false,
+      "seconds_per_seed": 0.05841947789995174
+    }
+  ],
+  "median_seconds": {
+    "False": 0.05801364244998694,
+    "True": 8.406339984503574e-05
+  },
+  "scope": "Isolated old scalar vs device-batched BHP seed; not full forecast timing."
+}

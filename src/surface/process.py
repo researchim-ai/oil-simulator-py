@@ -8,7 +8,7 @@ multiphase pipeline model. Gas dissolution in oil is supported; vaporized oil
 from __future__ import annotations
 
 import math
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, fields
 
 import numpy as np
 
@@ -22,8 +22,8 @@ class StockDensities:
     gas_kg_m3: float
 
     def __post_init__(self):
-        for name, value in asdict(self).items():
-            _number(value, name, positive=True)
+        for field in fields(self):
+            _number(getattr(self, field.name), field.name, positive=True)
 
 
 @dataclass(frozen=True)
@@ -35,8 +35,8 @@ class ComponentStream:
     gas_m3_s: float = 0.0
 
     def __post_init__(self):
-        for name, value in asdict(self).items():
-            _number(value, name, nonnegative=True)
+        for field in fields(self):
+            _number(getattr(self, field.name), field.name, nonnegative=True)
 
     def mass_rates(self, densities):
         return {

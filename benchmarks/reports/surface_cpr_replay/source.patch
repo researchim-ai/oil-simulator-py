@@ -1,0 +1,512 @@
+--- before/src/simulator/cpr_replay.py
++++ after/src/simulator/cpr_replay.py
+@@ -0,0 +1,215 @@
++"""One bounded, solver-owned CPR graph snapshot, refreshed before every matrix.
++
++No equation or convergence tolerance is cached. Structural compatibility is
++checked before reuse; all numerical inputs, including coarse solves and
++Chebyshev coefficients, are copied into graph-owned buffers. CPU/offloaded
++hierarchies and over-budget inputs use the original CPR path.
++"""
++import copy
++import math
++import weakref
++
++import torch
++
++from .cuda_graphs import capture
++
++
++class CPRReplayWorkspace:
++    def __init__(self, budget_bytes):
++        if type(budget_bytes) is not int or budget_bytes <= 0:
++            raise ValueError('Positive integer CPR graph input budget required')
++        self.budget_bytes = budget_bytes
++        self.captures = self.refreshes = self.replays = self.fallbacks = 0
++        self.reason = None
++        self.busy = False
++        self.reset()
++
++    def reset(self):
++        self.graph = self.snapshot = self.rhs = self.output = self.pool = None
++        self.buffers = {}
++        self.signature = None
++        self.bound = None
++        self.ready = False
++        self.buffer_bytes = 0
++        self.owner_stream = None
++
++    @staticmethod
++    def _collect(cpr):
++        from .cpr_gpu import ClassicalAMG
++
++        amg = cpr.amg
++        if (not cpr.J_vals.is_cuda or cpr._J_bsr is None
++                or type(amg) is not ClassicalAMG or amg.debug_cycles):
++            return None
++        device = cpr.J_vals.device
++        data = {'J': cpr.J_vals, 'w': cpr.w, 'inv': cpr.inv_diag, 'scale': cpr.p_scale}
++        indices = set()
++        def sparse(prefix, matrix):
++            if matrix.device != device or matrix.layout not in (torch.sparse_csr, torch.sparse_bsr):
++                raise ValueError('CPR replay requires device-local CSR/BSR storage')
++            data[prefix+'.crow'], data[prefix+'.col'] = matrix.crow_indices(), matrix.col_indices()
++            indices.update((prefix+'.crow', prefix+'.col'))
++            if prefix != 'J':
++                data[prefix+'.values'] = matrix.values()
++        sparse('J', cpr._J_bsr)
++        metadata = []
++        for i, level in enumerate(amg.levels):
++            prefix = str(i)
++            if level['A'].device != device:
++                return None
++            sparse(prefix+'.A', level['A'])
++            coarse = bool(level['is_coarsest'])
++            cheb = bool(level.get('use_chebyshev', False))
++            lo, hi = level.get('lambda_min'), level.get('lambda_max')
++            if cheb and any(v is not None and not math.isfinite(v) for v in (lo, hi)):
++                # Never turn an invalid production smoother into a different,
++                # apparently successful Jacobi solve in the replay snapshot.
++                return None
++            valid = (cheb and lo is not None and hi is not None and
++                     math.isfinite(lo) and math.isfinite(hi) and hi > max(lo, 1e-8)
++                     and (hi+lo)/2 > 0 and (hi-lo)/2 > 0)
++            metadata.append((level['n'], coarse, cheb, valid, str(level['A'].dtype)))
++            data[prefix+'.relax'] = level['inv_relax']
++            if valid:
++                d, c = (hi+lo)/2, (hi-lo)/2
++                data[prefix+'.cheb_inv'] = level['inv_diag_cheb']
++                data[prefix+'.coeff'] = torch.tensor([1./d, (c/(2*d))**2],
++                                                      dtype=level['A'].dtype, device=device)
++            if coarse:
++                if level['n'] <= 2000:
++                    data[prefix+'.dense'] = amg._coarse_dense_matrix(level)
++            else:
++                sparse(prefix+'.P', level['P'])
++                sparse(prefix+'.PT', amg._transpose_csr(level['P']))
++        if amg.Dhalf_inv is not None:
++            data['equilibration'] = amg.Dhalf_inv
++        if any(t.device != device or t.layout != torch.strided for t in data.values()):
++            return None
++        signature = (cpr.n_cells, cpr.nb, cpr.smoother_sweeps, tuple(metadata),
++                     tuple((k, tuple(t.shape), t.dtype, t.device) for k,t in sorted(data.items())))
++        return signature, data, indices
++
++    def _build_snapshot(self, cpr):
++        b = self.buffers
++        snapshot = copy.copy(cpr)
++        snapshot.replay_workspace = None
++        snapshot._graph_pool = None
++        snapshot._graph = False
++        snapshot.J_vals, snapshot.w = b['J'], b['w']
++        snapshot.inv_diag, snapshot.p_scale = b['inv'], b['scale']
++        snapshot.rows = snapshot.col = None
++        snapshot._J_bsr = torch.sparse_bsr_tensor(b['J.crow'], b['J.col'], b['J'],
++                                                 size=cpr._J_bsr.shape)
++        amg = copy.copy(cpr.amg)
++        amg.levels = []
++        amg._row_idx_cache = {}
++        amg._transpose_csr_cache = {}
++        amg.Dhalf_inv = b.get('equilibration')
++        transposes = {}
++        def csr(prefix, shape):
++            return torch.sparse_csr_tensor(b[prefix+'.crow'], b[prefix+'.col'],
++                                           b[prefix+'.values'], size=shape)
++        for i, source in enumerate(cpr.amg.levels):
++            prefix = str(i)
++            level = {k:source[k] for k in ('n', 'is_coarsest')}
++            level['A'] = csr(prefix+'.A', source['A'].shape)
++            level['device'], level['dtype'] = source['A'].device, source['A'].dtype
++            level['inv_relax'] = b[prefix+'.relax']
++            # Invalid Chebyshev coefficients take the same Jacobi fallback.
++            level['use_chebyshev'] = prefix+'.coeff' in b
++            if level['use_chebyshev']:
++                level['lambda_min'], level['lambda_max'] = source['lambda_min'], source['lambda_max']
++                level['inv_diag_cheb'] = b[prefix+'.cheb_inv']
++                level['_graph_chebyshev_coefficients'] = b[prefix+'.coeff']
++            if prefix+'.dense' in b:
++                level['_dense'], level['_dense_of'] = b[prefix+'.dense'], level['A']
++                level['_dense_version'] = level['A']._version
++            if not level['is_coarsest']:
++                level['P'] = csr(prefix+'.P', source['P'].shape)
++                transposes[id(level['P'])] = csr(prefix+'.PT', tuple(reversed(source['P'].shape)))
++            amg.levels.append(level)
++        # Fixed transpose buffers are updated explicitly, never lazily replaced.
++        amg._transpose_csr = lambda matrix: transposes[id(matrix)]
++        snapshot.amg = amg
++        return snapshot
++
++    def _prepare(self, cpr, rhs):
++        collected = self._collect(cpr)
++        if collected is None:
++            self.ready = False
++            self.reason = 'unsupported_hierarchy'
++            self.fallbacks += 1
++            self.bound = weakref.ref(cpr)
++            return
++        signature, data, indices = collected
++        size = sum(t.numel()*t.element_size() for t in data.values()) + rhs.numel()*rhs.element_size()
++        if size > self.budget_bytes:
++            self.ready = False
++            self.reason = 'input_budget'
++            self.fallbacks += 1
++            self.bound = weakref.ref(cpr)
++            return
++        compatible = signature == self.signature
++        if compatible:
++            # One host decision for all sparse structures. Values are NOT keys.
++            checks = [torch.all(self.buffers[k] == data[k]) for k in sorted(indices)]
++            compatible = bool(torch.stack(checks).all())
++        if compatible:
++            for key, value in data.items():
++                if key not in indices:
++                    self.buffers[key].copy_(value)
++            # Dense coarse storage is already refreshed; preserve its identity.
++            for level in self.snapshot.amg.levels:
++                if '_dense' in level:
++                    level['_dense_version'] = level['A']._version
++            self.refreshes += 1
++        else:
++            self.reset()  # release previous graph BEFORE allocating its replacement
++            self.buffers = {k:t.detach().clone(memory_format=torch.contiguous_format) for k,t in data.items()}
++            self.signature = signature
++            self.buffer_bytes = size
++            self.rhs = rhs.clone()
++            self.snapshot = self._build_snapshot(cpr)
++            self.snapshot._matvec_eager(self.rhs)  # warm libraries outside capture
++            cpr.graph_eager_calls += 1
++            self.pool = {'handle':torch.cuda.graph_pool_handle(), 'stream':torch.cuda.Stream(device=rhs.device)}
++            self.graph, self.output = capture(lambda: self.snapshot._matvec_eager(self.rhs), rhs.device,
++                                              pool=self.pool['handle'], stream=self.pool['stream'])
++            self.owner_stream = (rhs.device, torch.cuda.current_stream(rhs.device).cuda_stream)
++            self.captures += 1
++            cpr.graph_captures += 1
++        self.ready = True
++        self.reason = None
++        self.bound = weakref.ref(cpr)
++
++    def apply(self, cpr, rhs):
++        if (self.busy or not rhs.is_cuda or rhs.device != cpr.J_vals.device or rhs.dtype != cpr.J_vals.dtype
++                or tuple(rhs.shape) != (cpr.n_cells*cpr.nb,)):
++            return None
++        stream = (rhs.device, torch.cuda.current_stream(rhs.device).cuda_stream)
++        if self.owner_stream is not None and self.owner_stream != stream:
++            return None
++        self.busy = True
++        try:
++            if self.bound is None or self.bound() is not cpr:
++                self._prepare(cpr, rhs)
++            if not self.ready:
++                return None
++            self.rhs.copy_(rhs)
++            self.graph.replay()
++            self.replays += 1
++            cpr.graph_replays += 1
++            return self.output.clone()
++        finally:
++            self.busy = False
++
++    def reject(self, cpr, error):
++        self.reset()
++        self.fallbacks += 1
++        self.reason = type(error).__name__ + ': ' + str(error).splitlines()[0][:160]
++        self.bound = weakref.ref(cpr)
++
++    def report(self):
++        return {'captures':self.captures, 'refreshes':self.refreshes, 'replays':self.replays,
++                'fallbacks':self.fallbacks, 'input_bytes':self.buffer_bytes,
++                'input_budget_bytes':self.budget_bytes, 'reason':self.reason}
+--- before/src/simulator/cpr_gpu.py
++++ after/src/simulator/cpr_gpu.py
+@@ -30,7 +30,8 @@
+ 
+     def __init__(self, J_vals, indptr, indices, n_cells, device, amg=None, smoother_sweeps=1,
+                  amg_verbose=False, graph_pool=None, matrix_rows=None,
+-                 matrix_bsr=None, diag_positions=None, graph_warmup_calls=1):
++                 matrix_bsr=None, diag_positions=None, graph_warmup_calls=1, replay_workspace=None):
++        self.replay_workspace = replay_workspace
+         if type(graph_warmup_calls) is not int or graph_warmup_calls < 1:
+             raise ValueError("Positive integer CPR graph warmup count required")
+         self.graph_warmup_calls = graph_warmup_calls
+@@ -121,6 +122,14 @@
+ 
+     def matvec(self, r):
+         if r.is_cuda and self.amg is not None and self._graph is not False:
++            if self.replay_workspace is not None and CPRPreconditionerGPU.use_graphs:
++                try:
++                    with torch.cuda.device(r.device):
++                        result = self.replay_workspace.apply(self, r)
++                    if result is not None:
++                        return result
++                except (RuntimeError, ValueError) as error:
++                    self.replay_workspace.reject(self, error)
+             try:
+                 with torch.cuda.device(r.device):
+                     return self._matvec_graph(r)
+--- before/src/simulator/manual_assembly_solver.py
++++ after/src/simulator/manual_assembly_solver.py
+@@ -29,6 +29,7 @@
+ except (ImportError, ValueError):
+     from solver.fgmres import fgmres
+ from .cpr_gpu import CPRPreconditionerGPU
++from .cpr_replay import CPRReplayWorkspace
+ from .fim_transaction import atomic_fim_step
+ from .surface_coupling import SurfaceCoupledWaterWells, surface_step_failure
+ 
+@@ -90,6 +91,7 @@
+         state = self.__dict__.copy()
+         # CUDA pool handles belong to a process/context; recreate after checkpoint load.
+         state["_cpr_graph_pool"] = None
++        state["_cpr_replay_workspace"] = None
+         return state
+ 
+     def _init_params(self, params):
+@@ -129,6 +131,13 @@
+         self.amg_verbose = bool(params.get('amg_verbose', False))
+         self._amg = None
+         self._cpr_graph_pool = None
++        self.cpr_reuse_graph = params.get('cpr_reuse_graph', False)
++        self.cpr_graph_input_budget_bytes = params.get('cpr_graph_input_budget_bytes', 128*1024**2)
++        if type(self.cpr_reuse_graph) is not bool:
++            raise ValueError('cpr_reuse_graph must be boolean')
++        if type(self.cpr_graph_input_budget_bytes) is not int or self.cpr_graph_input_budget_bytes <= 0:
++            raise ValueError('Positive integer cpr_graph_input_budget_bytes required')
++        self._cpr_replay_workspace = None
+         self.last_newton_iters = 0
+         self.last_max_dsw = 0.0
+         self.last_max_dp = 0.0
+@@ -584,10 +593,14 @@
+                 self._cpr_graph_pool = {"handle": torch.cuda.graph_pool_handle(),
+                                         "stream": torch.cuda.Stream(device=Js.device), "anchor": None}
+         pool = getattr(self, "_cpr_graph_pool", None)
++        if (Js.is_cuda and getattr(self, 'cpr_reuse_graph', False)
++                and getattr(self, '_cpr_replay_workspace', None) is None):
++            self._cpr_replay_workspace = CPRReplayWorkspace(self.cpr_graph_input_budget_bytes)
+         # CPR and Krylov operate on this same scaled matrix. Share only
+         # structures from the current solve; no stale cross-step cache.
+         structure = {"matrix_rows": rows_s, "matrix_bsr": J_bsr,
+-                     "diag_positions": self.builder.diag_map if sub is None else None}
++                     "diag_positions": self.builder.diag_map if sub is None else None,
++                     "replay_workspace": getattr(self, '_cpr_replay_workspace', None)}
+         cpr = CPRPreconditionerGPU(Js, indptr_s, indices_s, n_s, self.device,
+                                    amg=amg_in, smoother_sweeps=self.cpr_smoother_sweeps,
+                                    amg_verbose=self.amg_verbose, graph_pool=pool, **structure)
+@@ -609,6 +622,8 @@
+         stats.update(cpr_graph_eager_calls=cpr.graph_eager_calls,
+                      cpr_graph_captures=cpr.graph_captures,
+                      cpr_graph_replays=cpr.graph_replays)
++        if cpr.replay_workspace is not None:
++            stats['cpr_replay_workspace'] = cpr.replay_workspace.report()
+         stats["tol"] = tol
+         true_rel = ((matvec(x) - b).norm() / b.norm().clamp_min(1e-300)).item()
+         stats["true_rel_res"] = true_rel
+--- before/src/solver/classical_amg.py
++++ after/src/solver/classical_amg.py
+@@ -1365,15 +1365,18 @@
+             return self._jacobi_smooth(lvl, x, b, nu=nu, debug=debug)
+ 
+         inv_diag = level['inv_diag_cheb']
++        graph_coefficients = level.get('_graph_chebyshev_coefficients')
+         p = torch.zeros_like(x)
+         for it in range(nu):
+             r = b - self._matvec(lvl, x)
+             if it == 0:
+                 beta = 0.0
+             else:
+-                beta = (c / (2.0 * d)) ** 2
++                beta = ((c / (2.0 * d)) ** 2 if graph_coefficients is None
++                        else graph_coefficients[1])
+             p = inv_diag * r + beta * p
+-            x = x + (1.0 / d) * p
++            step = 1.0 / d if graph_coefficients is None else graph_coefficients[0]
++            x = x + step * p
+             if debug:
+                 print(f"    [Chebyshev L{lvl} iter{it+1}] ||r||={r.norm():.3e}")
+         return x
+@@ -1401,16 +1404,7 @@
+             
+             if n <= 2000:
+                 # плотная матрица — по объекту A уровня (to_dense синхронизирует GPU)
+-                version = None if level['A'].is_inference() else level['A']._version
+-                if level.get('_dense_of') is not level['A'] or level.get('_dense_version') != version:
+-                    A_dense = level['A'].to_dense().clone()
+-                    if n > 0:
+-                        A_dense[0, :] = 0.0
+-                        A_dense[:, 0] = 0.0
+-                        A_dense[0, 0] = 1.0
+-                    level['_dense'], level['_dense_of'] = A_dense, level['A']
+-                    level['_dense_version'] = version
+-                A_dense = level['_dense']
++                A_dense = self._coarse_dense_matrix(level)
+                 if n > 0:
+                     b_local[:1].zero_()
+     
+@@ -1688,6 +1682,20 @@
+         except RuntimeError:
+             sol = torch.linalg.pinv(M) @ target
+         return sol
++
++    @staticmethod
++    def _coarse_dense_matrix(level):
++        """Materialize the current coarse matrix outside capture when needed."""
++        version = None if level['A'].is_inference() else level['A']._version
++        if level.get('_dense_of') is not level['A'] or level.get('_dense_version') != version:
++            dense = level['A'].to_dense().clone()
++            if level['n'] > 0:
++                dense[0, :] = 0.0
++                dense[:, 0] = 0.0
++                dense[0, 0] = 1.0
++            level['_dense'], level['_dense_of'] = dense, level['A']
++            level['_dense_version'] = version
++        return level['_dense']
+ 
+     def _update_level_metrics(self, lvl: int) -> None:
+         A_lvl = self.levels[lvl]['A']
+--- before/tests/test_cpr_replay.py
++++ after/tests/test_cpr_replay.py
+@@ -0,0 +1,145 @@
++"""Adversarial graph refresh: values, coefficients, sparse pattern and ownership."""
++import pytest
++import torch
++
++from simulator.cpr_gpu import ClassicalAMG, CPRPreconditionerGPU
++from simulator.cpr_replay import CPRReplayWorkspace
++from simulator.manual_assembly_solver import ManualFIMSolver
++
++
++@pytest.mark.parametrize('budget', [0, -1, True, 1.5])
++def test_input_budget_is_explicit_positive_integer(budget):
++    with pytest.raises(ValueError, match='budget'):
++        CPRReplayWorkspace(budget)
++
++
++def test_checkpoint_drops_graph_workspace_without_mutating_live_solver():
++    solver = ManualFIMSolver.__new__(ManualFIMSolver)
++    solver._cpr_replay_workspace = CPRReplayWorkspace(1024)
++    solver._cpr_graph_pool = object()
++    state = solver.__getstate__()
++    assert state['_cpr_replay_workspace'] is None and state['_cpr_graph_pool'] is None
++    assert solver._cpr_replay_workspace is not None
++
++
++@pytest.mark.parametrize('params', [
++    {'cpr_reuse_graph': 'false'}, {'cpr_reuse_graph': 1},
++    {'cpr_graph_input_budget_bytes': True}, {'cpr_graph_input_budget_bytes': 0},
++])
++def test_solver_rejects_invalid_replay_configuration(params):
++    solver = ManualFIMSolver.__new__(ManualFIMSolver)
++    with pytest.raises(ValueError, match='cpr_'):
++        solver._init_params(params)
++
++
++def operator(workspace, *, n=8, value=1., coefficient=3.2, permute=False, equilibrate=False):
++    # A controlled two-level hierarchy using the real production V-cycle.
++    # Off-diagonal blocks ensure the Jacobi stage cannot erase stale AMG data.
++    dev = torch.device('cuda')
++    root = torch.eye(n, device=dev, dtype=torch.float64)*4*value
++    root += torch.diag(torch.full((n-1,), -.4, device=dev, dtype=torch.float64), 1)
++    root += torch.diag(torch.full((n-1,), -.4, device=dev, dtype=torch.float64), -1)
++    a = root.to_sparse_csr()
++    p = torch.zeros((n, 2), device=dev, dtype=torch.float32)
++    p[:n//2, int(permute)] = 1
++    p[n//2:, int(not permute)] = 1
++    # Match parent dtype for restriction; the coarse solve uses mixed precision.
++    p = p.double().to_sparse_csr()
++    coarse = torch.tensor([[2.*value, -.1], [-.1, 3.*value]], device=dev, dtype=torch.float32).to_sparse_csr()
++    amg = ClassicalAMG.__new__(ClassicalAMG)
++    amg.device, amg.root_dtype, amg.debug_cycles = dev, torch.float64, False
++    amg.Dhalf_inv = torch.linspace(.8, 1.2, n, device=dev, dtype=torch.float64) if equilibrate else None
++    amg.levels = [
++        {'A':a, 'P':p, 'n':n, 'is_coarsest':False, 'device':dev, 'dtype':torch.float64,
++         'use_chebyshev':True, 'lambda_max':coefficient, 'lambda_min':.05*coefficient,
++         'inv_diag_cheb':1./root.diag(), 'inv_relax':1./root.diag()},
++        {'A':coarse, 'n':2, 'is_coarsest':True, 'device':dev, 'dtype':torch.float32,
++         'use_chebyshev':False, 'inv_relax':torch.ones(2,device=dev,dtype=torch.float32)}]
++    cpr = CPRPreconditionerGPU.__new__(CPRPreconditionerGPU)
++    cpr.n_cells, cpr.nb, cpr.device, cpr.smoother_sweeps = n, 3, dev, 1
++    cpr.amg = amg
++    cpr.J_vals = a.values()[:, None, None]*torch.eye(3, dtype=torch.float64, device=dev)
++    cpr._J_bsr = torch.sparse_bsr_tensor(a.crow_indices().int(), a.col_indices().int(), cpr.J_vals, size=(3*n, 3*n))
++    cpr.inv_diag = torch.eye(3,device=dev,dtype=torch.float64).expand(n,3,3).clone()/(4*value)
++    cpr.w = cpr.inv_diag[:,0,:].clone()
++    cpr.p_scale = torch.tensor(1.,device=dev,dtype=torch.float64)
++    cpr._graph, cpr._graph_pool = None, None
++    cpr.replay_workspace = workspace
++    cpr.graph_warmup_calls = 1
++    cpr.graph_eager_calls = cpr.graph_captures = cpr.graph_replays = 0
++    return cpr
++
++
++def check(cpr):
++    rhs = torch.linspace(-1., 2., cpr.n_cells*3, device='cuda', dtype=torch.float64)
++    expected = cpr._matvec_eager(rhs)
++    actual = cpr.matvec(rhs)
++    torch.testing.assert_close(actual, expected, rtol=0, atol=0)
++    return actual
++
++
++cuda = pytest.mark.skipif(not torch.cuda.is_available(), reason='CUDA required')
++
++
++@cuda
++def test_refreshes_current_values_coarse_solve_and_chebyshev_coefficients():
++    workspace = CPRReplayWorkspace(32*1024**2)
++    c1 = operator(workspace)
++    old = check(c1); saved = old.clone()
++    graph = workspace.graph
++    c2 = operator(workspace, value=1.2, coefficient=4.3)
++    new = check(c2)
++    assert workspace.graph is graph
++    assert workspace.captures == 1 and workspace.refreshes == 1
++    assert not torch.equal(new, saved)
++    torch.testing.assert_close(old, saved, rtol=0, atol=0)
++    # Changing only a scalar coefficient must also refresh the captured graph.
++    c3 = operator(workspace, value=1.2, coefficient=7.)
++    newer = check(c3)
++    assert workspace.graph is graph and not torch.equal(newer, new)
++    assert workspace.report()['input_bytes'] <= workspace.budget_bytes
++
++
++@cuda
++def test_recaptures_pattern_shape_and_equilibration_changes():
++    workspace = CPRReplayWorkspace(32*1024**2)
++    for count, kwargs in enumerate([{}, {'permute':True}, {'n':10}, {'n':10,'equilibrate':True}], 1):
++        check(operator(workspace, **kwargs))
++        assert workspace.captures == count
++    assert workspace.reason is None
++
++
++@cuda
++def test_budget_and_capture_failure_return_to_legacy_path(monkeypatch):
++    from simulator import cpr_replay
++    workspace = CPRReplayWorkspace(1)
++    check(operator(workspace))
++    assert workspace.reason == 'input_budget' and workspace.graph is None
++    workspace = CPRReplayWorkspace(32*1024**2)
++    def fail(*args, **kwargs):
++        raise RuntimeError('injected capture failure')
++    monkeypatch.setattr(cpr_replay, 'capture', fail)
++    cpr = operator(workspace)
++    check(cpr)
++    assert workspace.graph is None and 'injected' in workspace.reason
++    assert CPRPreconditionerGPU.use_graphs  # failure is local, never global
++
++
++@cuda
++def test_workspaces_are_private_and_other_stream_does_not_replay():
++    a, b = CPRReplayWorkspace(32*1024**2), CPRReplayWorkspace(32*1024**2)
++    first, second = operator(a), operator(b, value=1.4)
++    check(first);check(second)
++    assert a.graph is not b.graph and a.buffers['J'].data_ptr() != b.buffers['J'].data_ptr()
++    rhs = torch.ones(24,device='cuda',dtype=torch.float64)
++    torch.cuda.synchronize()
++    with torch.cuda.stream(torch.cuda.Stream()):
++        assert a.apply(first, rhs) is None
++    assert a.replays == 1
++
++
++@cuda
++def test_nonfinite_spectrum_is_not_silently_changed_to_jacobi():
++    cpr = operator(CPRReplayWorkspace(32*1024**2))
++    cpr.amg.levels[0]['lambda_max'] = float('nan')
++    assert CPRReplayWorkspace._collect(cpr) is None

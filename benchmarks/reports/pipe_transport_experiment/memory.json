@@ -1,0 +1,23 @@
+{
+  "False": {
+    "peak_increment_bytes": 25768448,
+    "live_increment_bytes": 21704704,
+    "dispatch_counts": {
+      "aten::mul": 40,
+      "aten::sub": 29,
+      "aten::add": 39,
+      "aten::stack": 3
+    }
+  },
+  "True": {
+    "peak_increment_bytes": 24195584,
+    "live_increment_bytes": 20131840,
+    "dispatch_counts": {
+      "aten::mul": 37,
+      "aten::sub": 28,
+      "aten::add": 37,
+      "aten::stack": 2
+    }
+  },
+  "scope": "128 streams x 512 pressure points, current properties plus differentiable dv/dp; CUDA tensor allocation excluding preexisting inputs and allocator reserve."
+}

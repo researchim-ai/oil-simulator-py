@@ -1,0 +1,145 @@
+{
+  "accepted": true,
+  "exact_final_and_accepted_states": true,
+  "trial_trace_relative_gate": 2e-14,
+  "trial_trace_differences": [
+    {
+      "path": "0/0/inactive_cap_certificate/wells/P3/rate_m3_s",
+      "reference": 0.00039660076588021975,
+      "candidate": 0.0003966007658802199,
+      "relative": 4.1006054416431148e-16
+    },
+    {
+      "path": "0/0/inactive_cap_certificate/wells/P3/network_pressure_pa",
+      "reference": 1109387.1632906143,
+      "candidate": 1109387.1632906145,
+      "relative": 2.0987320870313462e-16
+    },
+    {
+      "path": "0/0/inactive_cap_certificate/wells/P56/rate_m3_s",
+      "reference": 0.0003965537894915124,
+      "candidate": 0.0003965537894915123,
+      "relative": 1.3670304019484224e-16
+    },
+    {
+      "path": "0/0/inactive_cap_certificate/wells/P56/bhp_pa",
+      "reference": 1109614.797796679,
+      "candidate": 1109614.7977966792,
+      "relative": 2.0983015377606063e-16
+    },
+    {
+      "path": "5/0/inactive_cap_certificate/wells/P24/rate_m3_s",
+      "reference": 0.0003833358271213312,
+      "candidate": 0.0003833358271213311,
+      "relative": 2.828335093610593e-16
+    },
+    {
+      "path": "5/0/inactive_cap_certificate/wells/P27/rate_m3_s",
+      "reference": 0.0003833085144301745,
+      "candidate": 0.0003833085144301747,
+      "relative": 4.2428049404170274e-16
+    },
+    {
+      "path": "5/0/inactive_cap_certificate/wells/P27/bhp_pa",
+      "reference": 1098980.0944110253,
+      "candidate": 1098980.0944110255,
+      "relative": 2.1186065592812228e-16
+    },
+    {
+      "path": "5/0/inactive_cap_certificate/wells/P32/rate_m3_s",
+      "reference": 0.0003832630116534851,
+      "candidate": 0.00038326301165348504,
+      "relative": 1.414436222018929e-16
+    },
+    {
+      "path": "5/0/inactive_cap_certificate/wells/P32/network_pressure_pa",
+      "reference": 1099213.7823545863,
+      "candidate": 1099213.782354586,
+      "relative": 2.1181561529835578e-16
+    },
+    {
+      "path": "5/0/inactive_cap_certificate/wells/P38/rate_m3_s",
+      "reference": 0.00038335404017879,
+      "candidate": 0.0003833540401787902,
+      "relative": 4.2423010801445443e-16
+    },
+    {
+      "path": "5/0/inactive_cap_certificate/wells/P38/network_pressure_pa",
+      "reference": 1098746.2869387406,
+      "candidate": 1098746.2869387409,
+      "relative": 2.1190573876938234e-16
+    },
+    {
+      "path": "5/0/inactive_cap_certificate/wells/P40/rate_m3_s",
+      "reference": 0.0003833358271212242,
+      "candidate": 0.00038333582712122443,
+      "relative": 5.656670187222762e-16
+    },
+    {
+      "path": "5/0/inactive_cap_certificate/wells/P43/rate_m3_s",
+      "reference": 0.0003833085144302402,
+      "candidate": 0.00038330851443024,
+      "relative": 5.657073253888403e-16
+    },
+    {
+      "path": "5/0/inactive_cap_certificate/wells/P43/network_pressure_pa",
+      "reference": 1098980.0944110486,
+      "candidate": 1098980.0944110483,
+      "relative": 2.1186065592811784e-16
+    },
+    {
+      "path": "5/0/inactive_cap_certificate/wells/P46/rate_m3_s",
+      "reference": 0.00038328121000905823,
+      "candidate": 0.0003832812100090579,
+      "relative": 8.486214383897513e-16
+    },
+    {
+      "path": "5/0/inactive_cap_certificate/wells/P46/bhp_pa",
+      "reference": 1099120.3215130647,
+      "candidate": 1099120.3215130642,
+      "relative": 4.236672529780027e-16
+    },
+    {
+      "path": "5/0/inactive_cap_certificate/wells/P46/network_pressure_pa",
+      "reference": 1099120.3215130644,
+      "candidate": 1099120.3215130642,
+      "relative": 2.118336264890014e-16
+    },
+    {
+      "path": "7/0/inactive_cap_certificate/wells/P20/bhp_pa",
+      "reference": 1098643.6053315878,
+      "candidate": 1098643.605331588,
+      "relative": 2.1192554393797036e-16
+    },
+    {
+      "path": "7/0/inactive_cap_certificate/wells/P28/rate_m3_s",
+      "reference": 0.00038329078437871974,
+      "candidate": 0.0003832907843787197,
+      "relative": 1.4143337339076645e-16
+    },
+    {
+      "path": "7/0/inactive_cap_certificate/wells/P52/rate_m3_s",
+      "reference": 0.0003833636306190628,
+      "candidate": 0.00038336363061906273,
+      "relative": 1.4140649841179697e-16
+    },
+    {
+      "path": "7/0/inactive_cap_certificate/wells/P58/bhp_pa",
+      "reference": 1098924.227389934,
+      "candidate": 1098924.2273899338,
+      "relative": 2.1187142648303244e-16
+    },
+    {
+      "path": "7/0/inactive_cap_certificate/wells/P58/network_pressure_pa",
+      "reference": 1098924.227389934,
+      "candidate": 1098924.2273899338,
+      "relative": 2.1187142648303244e-16
+    },
+    {
+      "path": "7/0/inactive_cap_certificate/wells/P63/rate_m3_s",
+      "reference": 0.0003832634822028518,
+      "candidate": 0.0003832634822028516,
+      "relative": 5.657737941814468e-16
+    }
+  ]
+}

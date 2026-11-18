@@ -1,0 +1,23 @@
+{
+  "accepted": true,
+  "source_guards_and_mass_audits_passed": [
+    "before",
+    "after",
+    "before_repeat",
+    "after_repeat",
+    "small",
+    "profile5",
+    "profile_after"
+  ],
+  "exact_accepted_trajectories": [
+    "gpu_pair_1",
+    "gpu_pair_2",
+    "cpu_month",
+    "profile_fragment"
+  ],
+  "tests": {
+    "passed": 51,
+    "skipped": 3
+  },
+  "scope": "Single-connection producers in synthetic black-oil + quasi-steady facility. Shared GPU; no Norne/multi-connection speed claim."
+}

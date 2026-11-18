@@ -1,0 +1,7 @@
+{
+  "accepted": true,
+  "exact_accepted_trajectory": true,
+  "reference_s": 219.09688234799978,
+  "candidate_s": 245.61104954199982,
+  "scope": "CPU regression against archived run, not controlled speed measurement."
+}

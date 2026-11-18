@@ -1,0 +1,306 @@
+{
+  "reference": {
+    "('~', 0, '<built-in method torch.searchsorted>')": {
+      "calls": 7110,
+      "self_s": 0.017584927,
+      "cumulative_s": 0.017584927
+    },
+    "('/home/user/workspace/oil-simulator-py-impes/.scratch/surface_assembly_reuse/reference/src/surface/blackoil_pressure_lookup.py', 38, 'interpolate')": {
+      "calls": 3276,
+      "self_s": 0.048263403,
+      "cumulative_s": 0.051498292
+    },
+    "('/home/user/workspace/oil-simulator-py-impes/.scratch/surface_assembly_reuse/reference/src/surface/liquid.py', 184, '__post_init__')": {
+      "calls": 1,
+      "self_s": 1.7954e-05,
+      "cumulative_s": 8.734e-05
+    },
+    "('/home/user/workspace/oil-simulator-py-impes/.scratch/surface_assembly_reuse/reference/src/surface/liquid.py', 318, '__post_init__')": {
+      "calls": 1,
+      "self_s": 2.404e-06,
+      "cumulative_s": 7.494000000000001e-06
+    },
+    "('/home/user/workspace/oil-simulator-py-impes/.scratch/surface_assembly_reuse/reference/src/surface/liquid.py', 84, '__post_init__')": {
+      "calls": 1,
+      "self_s": 3.157e-06,
+      "cumulative_s": 9.918e-06
+    },
+    "('/home/user/workspace/oil-simulator-py-impes/.scratch/surface_assembly_reuse/reference/src/surface/curves.py', 17, '__post_init__')": {
+      "calls": 3,
+      "self_s": 1.2833e-05,
+      "cumulative_s": 4.5743000000000006e-05
+    },
+    "('/home/user/workspace/oil-simulator-py-impes/.scratch/surface_assembly_reuse/reference/src/surface/facility.py', 35, '__post_init__')": {
+      "calls": 7,
+      "self_s": 7.916e-06,
+      "cumulative_s": 2.6538000000000002e-05
+    },
+    "('/home/user/workspace/oil-simulator-py-impes/.scratch/surface_assembly_reuse/reference/src/surface/gas.py', 459, '__post_init__')": {
+      "calls": 1,
+      "self_s": 2.1713e-05,
+      "cumulative_s": 6.8075e-05
+    },
+    "('/home/user/workspace/oil-simulator-py-impes/.scratch/surface_assembly_reuse/reference/src/surface/blackoil_network.py', 46, '__post_init__')": {
+      "calls": 130,
+      "self_s": 0.000135104,
+      "cumulative_s": 0.0016161900000000002
+    },
+    "('/home/user/workspace/oil-simulator-py-impes/.scratch/surface_assembly_reuse/reference/src/surface/capacity_bracket.py', 171, '__post_init__')": {
+      "calls": 3,
+      "self_s": 8.126e-06,
+      "cumulative_s": 1.1772e-05
+    },
+    "('/home/user/workspace/oil-simulator-py-impes/.scratch/surface_assembly_reuse/reference/src/surface/blackoil_network.py', 28, '__post_init__')": {
+      "calls": 66,
+      "self_s": 2.6318e-05,
+      "cumulative_s": 0.00011439800000000001
+    },
+    "('/home/user/workspace/oil-simulator-py-impes/.scratch/surface_assembly_reuse/reference/src/surface/multiphase.py', 49, '__post_init__')": {
+      "calls": 260,
+      "self_s": 0.000186548,
+      "cumulative_s": 0.001642089
+    },
+    "('/home/user/workspace/oil-simulator-py-impes/.scratch/surface_assembly_reuse/reference/src/surface/process.py', 41, 'mass_rates')": {
+      "calls": 5370,
+      "self_s": 0.001417164,
+      "cumulative_s": 0.001417164
+    },
+    "('/home/user/workspace/oil-simulator-py-impes/.scratch/surface_assembly_reuse/reference/src/surface/blackoil_pipe.py', 85, '__post_init__')": {
+      "calls": 260,
+      "self_s": 0.00011886000000000001,
+      "cumulative_s": 0.002161173
+    },
+    "('/home/user/workspace/oil-simulator-py-impes/.scratch/surface_assembly_reuse/reference/src/surface/blackoil_properties.py', 112, 'interpolate')": {
+      "calls": 5616,
+      "self_s": 0.09104790500000001,
+      "cumulative_s": 0.11219240200000001
+    },
+    "('/home/user/workspace/oil-simulator-py-impes/.scratch/surface_assembly_reuse/reference/src/surface/process.py', 24, '__post_init__')": {
+      "calls": 2,
+      "self_s": 2.1532e-05,
+      "cumulative_s": 0.00012044100000000001
+    },
+    "('/home/user/workspace/oil-simulator-py-impes/.scratch/surface_assembly_reuse/reference/src/surface/process.py', 37, '__post_init__')": {
+      "calls": 14976,
+      "self_s": 0.012228746,
+      "cumulative_s": 0.146413236
+    },
+    "('/home/user/workspace/oil-simulator-py-impes/.scratch/surface_assembly_reuse/reference/src/surface/gas_valve.py', 128, '__post_init__')": {
+      "calls": 1,
+      "self_s": 2.4230000000000003e-06,
+      "cumulative_s": 1.1531e-05
+    },
+    "('/home/user/workspace/oil-simulator-py-impes/.scratch/surface_assembly_reuse/reference/src/surface/gas.py', 279, '__post_init__')": {
+      "calls": 261,
+      "self_s": 0.00014411100000000002,
+      "cumulative_s": 0.001005646
+    },
+    "('/home/user/workspace/oil-simulator-py-impes/.scratch/surface_assembly_reuse/reference/src/surface/gas.py', 155, '__post_init__')": {
+      "calls": 45,
+      "self_s": 3.3457e-05,
+      "cumulative_s": 0.000154498
+    },
+    "('/home/user/workspace/oil-simulator-py-impes/.scratch/surface_assembly_reuse/reference/src/surface/gas.py', 25, '__post_init__')": {
+      "calls": 10,
+      "self_s": 1.5494e-05,
+      "cumulative_s": 6.526700000000001e-05
+    },
+    "('/home/user/workspace/oil-simulator-py-impes/.scratch/surface_assembly_reuse/reference/src/surface/gas.py', 86, '__post_init__')": {
+      "calls": 45,
+      "self_s": 9.055200000000001e-05,
+      "cumulative_s": 0.000386053
+    },
+    "('/home/user/workspace/oil-simulator-py-impes/.scratch/surface_assembly_reuse/reference/src/surface/liquid.py', 64, '__post_init__')": {
+      "calls": 4,
+      "self_s": 3.897e-06,
+      "cumulative_s": 1.7412000000000002e-05
+    },
+    "('/home/user/workspace/oil-simulator-py-impes/.scratch/surface_assembly_reuse/reference/src/surface/liquid.py', 51, '__post_init__')": {
+      "calls": 1,
+      "self_s": 1.5940000000000001e-06,
+      "cumulative_s": 5.9210000000000006e-06
+    },
+    "('/home/user/workspace/oil-simulator-py-impes/.scratch/surface_assembly_reuse/reference/src/surface/gas.py', 49, '__post_init__')": {
+      "calls": 253,
+      "self_s": 0.000116867,
+      "cumulative_s": 0.0009728870000000001
+    },
+    "('~', 0, \"<method 'searchsorted' of 'numpy.ndarray' objects>\")": {
+      "calls": 574,
+      "self_s": 0.005129548,
+      "cumulative_s": 0.005129548
+    },
+    "('/home/user/miniconda3/lib/python3.12/site-packages/numpy/_core/fromnumeric.py', 1443, '_searchsorted_dispatcher')": {
+      "calls": 574,
+      "self_s": 7.3088e-05,
+      "cumulative_s": 7.3088e-05
+    },
+    "('/home/user/miniconda3/lib/python3.12/site-packages/numpy/_core/fromnumeric.py', 1447, 'searchsorted')": {
+      "calls": 574,
+      "self_s": 0.000373875,
+      "cumulative_s": 0.006272097000000001
+    },
+    "('/home/user/miniconda3/lib/python3.12/dataclasses.py', 1308, 'asdict')": {
+      "calls": 15217,
+      "self_s": 0.004720375000000001,
+      "cumulative_s": 0.08452190300000001
+    }
+  },
+  "candidate": {
+    "('~', 0, '<built-in method torch.searchsorted>')": {
+      "calls": 3366,
+      "self_s": 0.013035176,
+      "cumulative_s": 0.013035176
+    },
+    "('/home/user/workspace/oil-simulator-py-impes/src/surface/blackoil_pressure_lookup.py', 38, 'interpolate')": {
+      "calls": 3276,
+      "self_s": 0.048398008000000006,
+      "cumulative_s": 0.051784678
+    },
+    "('/home/user/workspace/oil-simulator-py-impes/src/surface/liquid.py', 184, '__post_init__')": {
+      "calls": 1,
+      "self_s": 1.5028e-05,
+      "cumulative_s": 7.6591e-05
+    },
+    "('/home/user/workspace/oil-simulator-py-impes/src/surface/gas.py', 459, '__post_init__')": {
+      "calls": 1,
+      "self_s": 1.5538e-05,
+      "cumulative_s": 5.4760000000000004e-05
+    },
+    "('/home/user/workspace/oil-simulator-py-impes/src/surface/liquid.py', 318, '__post_init__')": {
+      "calls": 1,
+      "self_s": 2.0620000000000003e-06,
+      "cumulative_s": 7.123e-06
+    },
+    "('/home/user/workspace/oil-simulator-py-impes/src/surface/facility.py', 35, '__post_init__')": {
+      "calls": 7,
+      "self_s": 8.175e-06,
+      "cumulative_s": 2.71e-05
+    },
+    "('/home/user/workspace/oil-simulator-py-impes/src/surface/liquid.py', 84, '__post_init__')": {
+      "calls": 1,
+      "self_s": 2.776e-06,
+      "cumulative_s": 8.937000000000001e-06
+    },
+    "('/home/user/workspace/oil-simulator-py-impes/src/surface/curves.py', 17, '__post_init__')": {
+      "calls": 3,
+      "self_s": 1.1559e-05,
+      "cumulative_s": 4.0263000000000004e-05
+    },
+    "('/home/user/workspace/oil-simulator-py-impes/src/surface/blackoil_network.py', 46, '__post_init__')": {
+      "calls": 130,
+      "self_s": 0.000128605,
+      "cumulative_s": 0.0016099970000000002
+    },
+    "('/home/user/workspace/oil-simulator-py-impes/src/surface/capacity_bracket.py', 171, '__post_init__')": {
+      "calls": 3,
+      "self_s": 8.505e-06,
+      "cumulative_s": 1.2864e-05
+    },
+    "('/home/user/workspace/oil-simulator-py-impes/src/surface/blackoil_properties.py', 117, '_column_interpolator')": {
+      "calls": 624,
+      "self_s": 0.007740159000000001,
+      "cumulative_s": 0.012622495000000001
+    },
+    "('/home/user/workspace/oil-simulator-py-impes/src/surface/multiphase.py', 49, '__post_init__')": {
+      "calls": 260,
+      "self_s": 0.000183999,
+      "cumulative_s": 0.001643207
+    },
+    "('/home/user/workspace/oil-simulator-py-impes/src/surface/process.py', 41, 'mass_rates')": {
+      "calls": 2796,
+      "self_s": 0.0008618800000000001,
+      "cumulative_s": 0.0008618800000000001
+    },
+    "('/home/user/workspace/oil-simulator-py-impes/src/surface/blackoil_pipe.py', 85, '__post_init__')": {
+      "calls": 260,
+      "self_s": 0.000121422,
+      "cumulative_s": 0.002164383
+    },
+    "('/home/user/workspace/oil-simulator-py-impes/src/surface/blackoil_properties.py', 112, 'interpolate')": {
+      "calls": 1248,
+      "self_s": 0.016918803,
+      "cumulative_s": 0.021177446000000003
+    },
+    "('/home/user/workspace/oil-simulator-py-impes/src/surface/blackoil_network.py', 28, '__post_init__')": {
+      "calls": 66,
+      "self_s": 2.4140000000000003e-05,
+      "cumulative_s": 0.00010968800000000001
+    },
+    "('/home/user/workspace/oil-simulator-py-impes/src/surface/blackoil_properties.py', 127, 'interpolate')": {
+      "calls": 4368,
+      "self_s": 0.042987578000000005,
+      "cumulative_s": 0.042987578000000005
+    },
+    "('/home/user/workspace/oil-simulator-py-impes/src/surface/process.py', 24, '__post_init__')": {
+      "calls": 2,
+      "self_s": 1.6269e-05,
+      "cumulative_s": 6.9769e-05
+    },
+    "('/home/user/workspace/oil-simulator-py-impes/src/surface/process.py', 37, '__post_init__')": {
+      "calls": 9867,
+      "self_s": 0.00846303,
+      "cumulative_s": 0.054542569000000006
+    },
+    "('/home/user/workspace/oil-simulator-py-impes/src/surface/gas_valve.py', 128, '__post_init__')": {
+      "calls": 1,
+      "self_s": 2.3650000000000002e-06,
+      "cumulative_s": 8.075e-06
+    },
+    "('/home/user/workspace/oil-simulator-py-impes/src/surface/gas.py', 25, '__post_init__')": {
+      "calls": 10,
+      "self_s": 1.4875e-05,
+      "cumulative_s": 5.9900000000000006e-05
+    },
+    "('/home/user/workspace/oil-simulator-py-impes/src/surface/gas.py', 86, '__post_init__')": {
+      "calls": 45,
+      "self_s": 8.9098e-05,
+      "cumulative_s": 0.000392346
+    },
+    "('/home/user/workspace/oil-simulator-py-impes/src/surface/liquid.py', 64, '__post_init__')": {
+      "calls": 4,
+      "self_s": 3.288e-06,
+      "cumulative_s": 2.3724000000000002e-05
+    },
+    "('/home/user/workspace/oil-simulator-py-impes/src/surface/liquid.py', 51, '__post_init__')": {
+      "calls": 1,
+      "self_s": 1.432e-06,
+      "cumulative_s": 5.249e-06
+    },
+    "('/home/user/workspace/oil-simulator-py-impes/src/surface/gas.py', 49, '__post_init__')": {
+      "calls": 253,
+      "self_s": 0.00012034900000000001,
+      "cumulative_s": 0.0010118800000000002
+    },
+    "('/home/user/workspace/oil-simulator-py-impes/src/surface/gas.py', 279, '__post_init__')": {
+      "calls": 261,
+      "self_s": 0.000145406,
+      "cumulative_s": 0.001011844
+    },
+    "('/home/user/workspace/oil-simulator-py-impes/src/surface/gas.py', 155, '__post_init__')": {
+      "calls": 45,
+      "self_s": 3.5424000000000005e-05,
+      "cumulative_s": 0.000162537
+    },
+    "('~', 0, \"<method 'searchsorted' of 'numpy.ndarray' objects>\")": {
+      "calls": 574,
+      "self_s": 0.004985605000000001,
+      "cumulative_s": 0.004985605000000001
+    },
+    "('/home/user/miniconda3/lib/python3.12/site-packages/numpy/_core/fromnumeric.py', 1443, '_searchsorted_dispatcher')": {
+      "calls": 574,
+      "self_s": 7.5874e-05,
+      "cumulative_s": 7.5874e-05
+    },
+    "('/home/user/miniconda3/lib/python3.12/site-packages/numpy/_core/fromnumeric.py', 1447, 'searchsorted')": {
+      "calls": 574,
+      "self_s": 0.00036078,
+      "cumulative_s": 0.006162301
+    },
+    "('/home/user/miniconda3/lib/python3.12/dataclasses.py', 1308, 'asdict')": {
+      "calls": 239,
+      "self_s": 9.9574e-05,
+      "cumulative_s": 0.002532676
+    }
+  }
+}

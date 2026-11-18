@@ -1,0 +1,24 @@
+"""Shared PVT row lookup must preserve values and directional derivatives."""
+import pytest
+import torch
+from simulator.blackoil_props import interp_rows, interp_rows_pair
+
+
+@pytest.mark.parametrize('device', ['cpu', 'cuda'])
+def test_pair_matches_independent_properties(device):
+    if device == 'cuda' and not torch.cuda.is_available():
+        pytest.skip('CUDA unavailable')
+    xp = torch.tensor([[1., 2., 4.]], dtype=torch.float64, device=device).repeat(7, 1)
+    x = torch.tensor([0., 1., 1.5, 2., 3., 4., 5.], dtype=torch.float64, device=device)
+    a = torch.tensor([[2., 5., 7.]], dtype=torch.float64, device=device).repeat(7, 1)
+    b = torch.tensor([[7., 3., 1.]], dtype=torch.float64, device=device).repeat(7, 1)
+    def reference(v):
+        return torch.stack((interp_rows(v, xp, a), interp_rows(v, xp, b)))
+    def candidate(v):
+        return torch.stack(interp_rows_pair(v, xp, a, b))
+    for fn in (lambda f: f(x), lambda f: torch.func.jacfwd(f)(x), lambda f: torch.func.jacrev(f)(x)):
+        torch.testing.assert_close(fn(candidate), fn(reference), rtol=0, atol=0)
+    directions = torch.stack((torch.ones_like(x), x))
+    def derivatives(f):
+        return torch.vmap(lambda d: torch.func.jvp(f, (x,), (d,))[1])(directions)
+    torch.testing.assert_close(derivatives(candidate), derivatives(reference), rtol=0, atol=0)

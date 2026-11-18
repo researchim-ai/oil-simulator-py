@@ -1,0 +1,12 @@
+{
+  "verified_after_run": [
+    "late_optimized_0",
+    "late_optimized_1",
+    "late_reference_0",
+    "late_reference_1"
+  ],
+  "only_changed_sources": [
+    "src/solver/fgmres.py",
+    "src/solver/krylov_cuda.py"
+  ]
+}

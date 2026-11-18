@@ -87,3 +87,45 @@ def csr_jacobi(matrix, x, rhs, inv):
             rhs.contiguous(), inv.contiguous(), BLOCK=32, ROWS=4,
             num_warps=4, enable_fp_fusion=False)
     return out
+
+
+if triton is not None:
+    @triton.jit
+    def _csr_diagonal(crow, col, values, out, n_rows,
+                      BLOCK: tl.constexpr, ROWS: tl.constexpr):
+        rows = tl.program_id(0) * ROWS + tl.arange(0, ROWS)
+        starts = tl.load(crow + rows, rows < n_rows, other=0)
+        ends = tl.load(crow + rows + 1, rows < n_rows, other=0)
+        width = tl.max(ends - starts, axis=0)
+        found = tl.full((ROWS,), -1, starts.dtype)
+        offset = 0
+        while offset < width:
+            pos = starts[:, None] + offset + tl.arange(0, BLOCK)[None, :]
+            valid = (rows[:, None] < n_rows) & (pos < ends[:, None])
+            columns = tl.load(col + pos, valid, other=-1)
+            hits = tl.where(valid & (columns == rows[:, None]), pos, -1)
+            found = tl.maximum(found, tl.max(hits, axis=1))
+            offset += BLOCK
+        diagonal = tl.load(values + found, (rows < n_rows) & (found >= 0), other=0.)
+        tl.store(out + rows, diagonal, rows < n_rows)
+
+
+def csr_diagonal(matrix):
+    """Read diagonal entries without host synchronization or floating reduction.
+
+    Returns None for the caller's eager fallback. Missing entries are zero;
+    an unsorted row is supported. Duplicate diagonals select the last entry,
+    matching the deterministic scatter used by AMG (not a duplicate sum).
+    """
+    if (triton is None or not matrix.is_cuda or torch.version.hip is not None
+            or matrix.dtype not in (torch.float32, torch.float64)
+            or matrix.requires_grad):
+        return None
+    n = matrix.size(0)
+    out = matrix.values().new_empty(n)
+    if n:
+        _csr_diagonal[(triton.cdiv(n, 4),)](
+            matrix.crow_indices().contiguous(), matrix.col_indices().contiguous(),
+            matrix.values().contiguous(), out, n, BLOCK=32, ROWS=4,
+            num_warps=4)
+    return out

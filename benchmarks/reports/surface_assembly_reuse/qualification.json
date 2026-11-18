@@ -1,0 +1,11 @@
+{
+  "gpu_pairs": 4,
+  "reference_median_s": 7.692854144999728,
+  "candidate_median_s": 7.092091560502013,
+  "time_reduction_fraction": 0.0780935883060001,
+  "ratio": 1.0847088026674025,
+  "exact_all_accepted_stages": true,
+  "cpr_reuse_graph": false,
+  "shared_host": true,
+  "scope": "Synthetic 65536-cell 64-well 30-day coupled forecast with reports at interval end and operating events; not Norne or independent physics validation."
+}

@@ -34,7 +34,8 @@ def test_common_lookup_values_and_hessian_match_scalar(shape):
     )
 
 
-def test_one_base_and_two_pvto_searches_per_property_evaluation(monkeypatch):
+@pytest.mark.parametrize("gas,expected_searches", [(0.024, 4), (0.06, 1)])
+def test_one_base_and_two_pvto_searches_per_property_evaluation(monkeypatch, gas, expected_searches):
     m = model()
     packed = PackedPVTO(m)
     original = torch.searchsorted
@@ -46,11 +47,12 @@ def test_one_base_and_two_pvto_searches_per_property_evaluation(monkeypatch):
 
     monkeypatch.setattr(torch, "searchsorted", counted)
     p = torch.full((128, 1, 32), 2.4e6, dtype=torch.float64)
-    rates = torch.tensor([[0.85, 2, 0.06]], dtype=torch.float64).expand(128, -1)
+    rates = torch.tensor([[0.85, 2, gas]], dtype=torch.float64).expand(128, -1)
     tensor_state(m, p, rates, pvto=packed)
-    # One common pressure axis, one Rs selection, two pressure-table searches.
-    assert len(calls) == 4
-    assert sum(len(shape) == 2 for shape in calls) == 2
+    # Fully saturated CPU rows skip unused PVTO tables. Undersaturated rows
+    # use one common pressure axis, one Rs selection, two table searches.
+    assert len(calls) == expected_searches
+    assert sum(len(shape) == 2 for shape in calls) == (2 if expected_searches == 4 else 0)
 
 
 def test_one_lookup_is_reused_for_both_pvto_columns(monkeypatch):

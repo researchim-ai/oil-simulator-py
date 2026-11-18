@@ -73,6 +73,7 @@ manifest = {
     "cuda_visible_devices": os.environ.get("CUDA_VISIBLE_DEVICES"),
     "cublas_workspace_config": os.environ.get("CUBLAS_WORKSPACE_CONFIG"),
     "requested_days": requested_days, "thread_policy": thread_policy,
+    "cpr_reuse_graph": os.environ.get("NORNE_CPR_REUSE_GRAPH", "0"),
     "scope": "isothermal Norne reservoir deck; no additional physical surface network",
 }
 manifest_path.write_text(json.dumps(manifest, indent=2))
@@ -157,6 +158,14 @@ def step(self, dt, current_time=None):
     status.update(status="running", day=day, balance_rel=balance.tolist(), last_cnv=detail["cnv"], last_mb=detail["mb"],
                   cpr_graphs_enabled=CPRPreconditionerGPU.use_graphs,
                   cuda_reserved_mb=torch.cuda.memory_reserved() / 2**20 if self.fluid.pressure.is_cuda else None)
+    workspace = getattr(self, "_cpr_replay_workspace", None)
+    status["cpr_replay_workspace"] = workspace.report() if workspace is not None else None
+    if self.fluid.pressure.is_cuda:
+        status["cuda_allocated_mb"] = torch.cuda.memory_allocated() / 2**20
+        status["cuda_peak_allocated_mb"] = torch.cuda.max_memory_allocated() / 2**20
+    with (OUT / "execution_samples.jsonl").open("a") as samples:
+        samples.write(json.dumps({k: status[k] for k in ("day", "cpr_replay_workspace", "cuda_reserved_mb")}
+                                 | {k: status[k] for k in ("cuda_allocated_mb", "cuda_peak_allocated_mb") if k in status}) + "\n")
     diagnostic_days = (1668, 1742, 1821, 2002, 2072, 2105, 2177, 2265, 2431, 2552, 2672, 2764)
     if any(abs(day - target) < 1e-6 for target in diagnostic_days):
         arrays = {key: getattr(self.fluid, attr).detach().cpu().numpy()

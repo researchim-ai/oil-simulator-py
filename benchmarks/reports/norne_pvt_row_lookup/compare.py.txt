@@ -1,0 +1,26 @@
+import json,hashlib,shutil
+from pathlib import Path
+import numpy as np
+root=Path('.scratch/norne_windows'); dest=Path('benchmarks/reports/norne_pvt_row_lookup')
+result={}
+for window in ['early','late']:
+ rows=[]
+ for repeat in range(2):
+  dirs=[root/f'{window}_{tag}_{repeat}' for tag in ['reference','optimized']]
+  a,b=[np.load(d/'substeps.npz')['data'] for d in dirs]
+  assert np.array_equal(a[:,:4],b[:,:4])
+  exact={}
+  for name in ['summary.npz', 'fields.npz' if window=='early' else 'final_fields.npz']:
+   x,y=[np.load(d/name) for d in dirs]
+   assert x.files==y.files
+   for k in x.files:
+    assert np.array_equal(x[k],y[k],equal_nan=True) if x[k].dtype.kind in 'fc' else np.array_equal(x[k],y[k]), (window,name,k)
+   exact[name]=True
+  rows.append(dict(reference_s=float(a[:,-1].sum()),optimized_s=float(b[:,-1].sum()),work_exact=True,outputs_exact=exact,attempts=len(a)))
+  for d in dirs:
+   target=dest/d.name;target.mkdir(exist_ok=True)
+   for name in ['substeps.npz','summary.npz','fields.npz','final_fields.npz','status.json','audit_status.json','manifest.json','meta.json','accepted_substeps.csv']:
+    if (d/name).exists():shutil.copyfile(d/name,target/name)
+ result[window]=rows
+(dest/'results.json').write_text(json.dumps(result,indent=2)+'\n')
+print(json.dumps(result,indent=2))

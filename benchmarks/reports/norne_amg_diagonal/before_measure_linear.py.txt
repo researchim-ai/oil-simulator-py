@@ -1,0 +1,19 @@
+import sys
+from pathlib import Path
+import torch
+sys.path[:0]=[str(Path.cwd()/'src'),str(Path.cwd()/'scripts')]
+from simulator.manual_assembly_solver import ManualFIMSolver
+original=ManualFIMSolver.solve_linear
+count=0
+def wrapped(self,*args,**kwargs):
+ global count
+ count+=1
+ if count!=3:return original(self,*args,**kwargs)
+ with torch.profiler.profile(activities=[torch.profiler.ProfilerActivity.CPU,torch.profiler.ProfilerActivity.CUDA]) as p:
+  result=original(self,*args,**kwargs)
+ for key in ['self_cuda_time_total','self_cpu_time_total']:
+  Path('.scratch/norne_linear_profile/'+key+'.txt').write_text(p.key_averages().table(sort_by=key,row_limit=45))
+ return result
+ManualFIMSolver.solve_linear=wrapped
+import probe_norne_timestep
+probe_norne_timestep.main()

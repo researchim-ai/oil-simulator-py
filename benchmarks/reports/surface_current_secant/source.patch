@@ -1,0 +1,84 @@
+--- before/src/simulator/facility_coupling.py
++++ after/src/simulator/facility_coupling.py
+@@ -38,6 +38,7 @@
+         continuation_slopes,
+         facility_constraint_margin,
+         facility_constraint_margins,
++        feasible_secant_proposal,
+         local_capacity_bracket,
+     )
+     from ..surface.gas_valve import GasValveCapacityError
+@@ -58,6 +59,7 @@
+         continuation_slopes,
+         facility_constraint_margin,
+         facility_constraint_margins,
++        feasible_secant_proposal,
+         local_capacity_bracket,
+     )
+     from surface.gas_valve import GasValveCapacityError
+@@ -591,10 +593,15 @@
+                         status, _ = trial(warm)
+                         bracket.update(warm, status, trace[-1]["normalized_margin"],
+                                        margins=trace[-1].get("constraint_margins") if facets else None)
++                current_secant_used = False
+                 while not bracket.complete:
+                     predicted = (bracket.tangent_proposal(sensitivities.get(bracket.low), sensitivities.get(bracket.high))
+                                  if self.control.search_method == 'sensitivity_safeguarded' else None)
+                     tangent_work['proposals'] += int(predicted is not None)
++                    if (self.control.search_method == 'continuation_safeguarded'
++                            and local is None and not current_secant_used):
++                        predicted = feasible_secant_proposal(trace, bracket)
++                        current_secant_used = predicted is not None
+                     if history_slopes:
+                         predicted = bracket.tangent_proposal(history_slopes, history_slopes)
+                         history_proposals += int(predicted is not None)
+--- before/src/surface/capacity_bracket.py
++++ after/src/surface/capacity_bracket.py
+@@ -113,6 +113,47 @@
+         if math.isfinite(slope) and slope > 0:
+             slopes[key] = slope
+     return slopes
++
++
++def feasible_secant_proposal(trace, bracket):
++    """One optional current-step proposal when the upper margin is unavailable.
++
++    Uses only solved feasible points, never a prior step's equipment response.
++    This extrapolation does not certify feasibility; the caller must solve it
++    and limit its use to once per search before returning to normal safeguards.
++    """
++    if bracket.complete or bracket.high_margins:
++        return None
++    rows = {r['fraction']: r for r in trace
++            if r.get('feasible') is True and 'certified_from_trace_index' not in r
++            and r['fraction'] <= bracket.low and r.get('constraint_margins')}
++    points = sorted(rows)
++    if len(points) < 2 or points[-1] != bracket.low:
++        return None
++    left, right = points[-2:]
++    if right-left <= 32*max(math.ulp(left), math.ulp(right)):
++        return None
++    a, b = [rows[x]['constraint_margins'] for x in (left, right)]
++    if a.keys() != b.keys():
++        return None
++    roots = []
++    for key, value in b.items():
++        prior = a[key]
++        if (value is None or prior is None
++                or not all(math.isfinite(v) and v <= 0 for v in (value, prior))):
++            return None
++        signal = value-prior
++        if signal > 64*math.ulp(max(1., abs(value), abs(prior))):
++            roots.append(right-value*(right-left)/signal)
++    if not roots:
++        return None
++    root = min(roots)
++    # Avoid remote extrapolation from almost coincident points or tiny caps.
++    if not bracket.low <= root <= min(2*right, right+2*(right-left)):
++        return None
++    candidate = max(bracket.low+bracket.tolerance/2,
++                    min(bracket.high-bracket.tolerance/2, root))
++    return candidate if bracket.low < candidate < bracket.high else None
+ 
+ 
+ @dataclass

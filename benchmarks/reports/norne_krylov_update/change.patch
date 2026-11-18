@@ -1,0 +1,54 @@
+--- a/src/solver/fgmres.py
++++ b/src/solver/fgmres.py
+@@ -1,5 +1,5 @@
+ import torch
+-from .krylov_cuda import rotate_givens
++from .krylov_cuda import rotate_givens, orthogonalize_subtract
+ 
+ def fgmres(A_mv, b, M_mv=None, max_iter=100, tol=1e-5, restart=20, verbose=False, stats=None):
+     """
+@@ -109,7 +109,7 @@
+             # 3. Gram-Schmidt Orthogonalization
+             for i in range(j + 1):
+                 H[i, j] = torch.dot(V[i], w)
+-                w = w - H[i, j] * V[i]
++                w = orthogonalize_subtract(w, V[i], H[i, j])
+                 
+             H[j + 1, j] = torch.norm(w)
+             
+--- a/src/solver/krylov_cuda.py
++++ b/src/solver/krylov_cuda.py
+@@ -32,6 +32,33 @@
+         tl.store(g+j, c*rhs)
+ 
+ 
++if triton is not None:
++    @triton.jit
++    def _orthogonalize_subtract(W, V, H, OUT, N: tl.constexpr,
++                                BLOCK: tl.constexpr):
++        k = tl.program_id(0) * BLOCK + tl.arange(0, BLOCK)
++        coefficient = tl.load(H)
++        w = tl.load(W + k, k < N, other=0)
++        v = tl.load(V + k, k < N, other=0)
++        # Keep the multiply rounded before subtraction, as in eager PyTorch.
++        result = w - coefficient * v
++        tl.store(OUT + k, result, k < N)
++
++
++def orthogonalize_subtract(w, v, coefficient):
++    """One launch for the MGS update, retaining eager multiply/subtract order."""
++    if (triton is not None and w.is_cuda and torch.version.hip is None
++            and w.dtype in (torch.float32, torch.float64)
++            and v.dtype == w.dtype and coefficient.dtype == w.dtype
++            and w.is_contiguous() and v.is_contiguous()
++            and not (w.requires_grad or v.requires_grad or coefficient.requires_grad)):
++        out = torch.empty_like(w)
++        _orthogonalize_subtract[(triton.cdiv(w.numel(), 256),)](
++            w, v, coefficient, out, w.numel(), 256, enable_fp_fusion=False)
++        return out
++    return w - coefficient * v
++
++
+ def rotate_givens(H, cs, sn, g, j):
+     """Apply previous rotations, form the next, and rotate the RHS in place.
+ 

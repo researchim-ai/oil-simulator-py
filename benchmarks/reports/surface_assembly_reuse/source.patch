@@ -1,0 +1,182 @@
+--- before/src/surface/process.py
++++ after/src/surface/process.py
+@@ -8,7 +8,7 @@
+ from __future__ import annotations
+ 
+ import math
+-from dataclasses import asdict, dataclass
++from dataclasses import asdict, dataclass, fields
+ 
+ import numpy as np
+ 
+@@ -22,8 +22,8 @@
+     gas_kg_m3: float
+ 
+     def __post_init__(self):
+-        for name, value in asdict(self).items():
+-            _number(value, name, positive=True)
++        for field in fields(self):
++            _number(getattr(self, field.name), field.name, positive=True)
+ 
+ 
+ @dataclass(frozen=True)
+@@ -35,8 +35,8 @@
+     gas_m3_s: float = 0.0
+ 
+     def __post_init__(self):
+-        for name, value in asdict(self).items():
+-            _number(value, name, nonnegative=True)
++        for field in fields(self):
++            _number(getattr(self, field.name), field.name, nonnegative=True)
+ 
+     def mass_rates(self, densities):
+         return {
+--- before/src/surface/blackoil_network.py
++++ after/src/surface/blackoil_network.py
+@@ -286,8 +286,12 @@
+         count = len(source_names)
+         masses = {}
+         members = {}
++        empty = ComponentStream()
++        own_masses = {
++            node: sources.get(node, empty).mass_rates(self.model.densities) for node in self.order
++        }
+         for node in self.order:
+-            own = sources.get(node, ComponentStream()).mass_rates(self.model.densities)
++            own = own_masses[node]
+             masses[node] = np.array(
+                 [
+                     math.fsum([own[c], *(masses[ch][i] for ch in self.incoming[node])])
+@@ -370,7 +374,7 @@
+                 results[pipe.name] = result
+         residuals = {}
+         for node in self.order:
+-            own = sources.get(node, ComponentStream()).mass_rates(self.model.densities)
++            own = own_masses[node]
+             withdrawn = masses[node]
+             residuals[node] = {
+                 c: math.fsum(
+--- before/src/surface/blackoil_properties.py
++++ after/src/surface/blackoil_properties.py
+@@ -114,6 +114,20 @@
+         i = (torch.searchsorted(axis, p.contiguous(), right=True) - 1).clamp(0, len(axis) - 2)
+         return values[i] + (p - axis[i]) * (values[i + 1] - values[i]) / (axis[i + 1] - axis[i])
+ 
++    @staticmethod
++    def _column_interpolator(p, axis):
++        """One interval search per current pressure, independent AD per column.
++
++        Only table indices/coordinates are reused. Keep each ``p - lower``
++        operation separate so pressure-gradient accumulation stays unchanged.
++        This closure never survives a property evaluation.
++        """
++        i = (torch.searchsorted(axis, p.contiguous(), right=True) - 1).clamp(0, len(axis) - 2)
++        lower, span = axis[i], axis[i + 1] - axis[i]
++        def interpolate(values):
++            return values[i] + (p - lower) * (values[i + 1] - values[i]) / span
++        return interpolate
++
+     @property
+     def pressure_bounds_pa(self):
+         return self._pressure_bounds
+@@ -199,7 +213,8 @@
+     def tensor_state(self, pressure, masses):
+         """Differentiable inside validated pressure/composition regions; no clamping."""
+         q = masses / self.rho
+-        interp = lambda key: self.interpolate(pressure, self.pressures, self.columns[key])
++        lookup = self._column_interpolator(pressure, self.pressures)
++        interp = lambda key: lookup(self.columns[key])
+         sat_rs = interp("Rs")
+         if float(q[0].detach()) > 0:
+             ratio = q[2] / q[0]
+@@ -225,13 +240,15 @@
+             lo, hi = self.oil_rs[i], self.oil_rs[i + 1]
+             t0, t1 = self.oil_tables[float(lo)], self.oil_tables[float(hi)]
+             w = (ratio - lo) / (hi - lo)
++            lookup0 = self._column_interpolator(pressure, t0[0])
++            lookup1 = self._column_interpolator(pressure, t1[0])
+             unsat_bo = (
+-                self.interpolate(pressure, t0[0], t0[1]) * (1 - w)
+-                + self.interpolate(pressure, t1[0], t1[1]) * w
++                lookup0(t0[1]) * (1 - w)
++                + lookup1(t1[1]) * w
+             )
+             unsat_mu = (
+-                self.interpolate(pressure, t0[0], t0[2]) * (1 - w)
+-                + self.interpolate(pressure, t1[0], t1[2]) * w
++                lookup0(t0[2]) * (1 - w)
++                + lookup1(t1[2]) * w
+             )
+             bo, muo = torch.where(saturated, bo, unsat_bo), torch.where(saturated, muo, unsat_mu)
+         dissolved = q[0] * rs
+--- before/tests/test_blackoil_pressure_lookup.py
++++ after/tests/test_blackoil_pressure_lookup.py
+@@ -34,7 +34,8 @@
+     )
+ 
+ 
+-def test_one_base_and_two_pvto_searches_per_property_evaluation(monkeypatch):
++@pytest.mark.parametrize("gas,expected_searches", [(0.024, 4), (0.06, 1)])
++def test_one_base_and_two_pvto_searches_per_property_evaluation(monkeypatch, gas, expected_searches):
+     m = model()
+     packed = PackedPVTO(m)
+     original = torch.searchsorted
+@@ -46,11 +47,12 @@
+ 
+     monkeypatch.setattr(torch, "searchsorted", counted)
+     p = torch.full((128, 1, 32), 2.4e6, dtype=torch.float64)
+-    rates = torch.tensor([[0.85, 2, 0.06]], dtype=torch.float64).expand(128, -1)
++    rates = torch.tensor([[0.85, 2, gas]], dtype=torch.float64).expand(128, -1)
+     tensor_state(m, p, rates, pvto=packed)
+-    # One common pressure axis, one Rs selection, two pressure-table searches.
+-    assert len(calls) == 4
+-    assert sum(len(shape) == 2 for shape in calls) == 2
++    # Fully saturated CPU rows skip unused PVTO tables. Undersaturated rows
++    # use one common pressure axis, one Rs selection, two table searches.
++    assert len(calls) == expected_searches
++    assert sum(len(shape) == 2 for shape in calls) == (2 if expected_searches == 4 else 0)
+ 
+ 
+ def test_one_lookup_is_reused_for_both_pvto_columns(monkeypatch):
+--- before/tests/test_surface_assembly_reuse.py
++++ after/tests/test_surface_assembly_reuse.py
+@@ -0,0 +1,39 @@
++"""Reuse table interval searches without regrouping pressure derivatives."""
++import pytest
++import torch
++from test_surface_blackoil_properties import model
++
++
++@pytest.mark.parametrize('pressure,gas', [(0.6e6, .144), (3e6, .024), (3e6, .144), (1e6, .024)])
++@pytest.mark.parametrize('device', ['cpu', pytest.param('cuda', marks=pytest.mark.skipif(
++    not torch.cuda.is_available(), reason='CUDA unavailable'))])
++def test_scalar_flash_values_jacobian_hessian_are_exact(pressure, gas, device):
++    m = model().to(device)
++    x = torch.tensor([pressure, .85, 2., gas], dtype=torch.float64, device=device)
++    def evaluate(z):
++        state = m.tensor_state(z[0], z[1:])
++        return torch.cat([v.reshape(-1) for v in state.values()])
++    def evaluate_all():
++        return (evaluate(x), torch.autograd.functional.jacobian(evaluate, x),
++                torch.autograd.functional.hessian(lambda z: evaluate(z).square().sum(), x))
++    current = evaluate_all()
++    # Original per-column interpolation, same physical model and operations.
++    m._column_interpolator = lambda p, axis: lambda values: m.interpolate(p, axis, values)
++    original = evaluate_all()
++    for a, b in zip(current, original):
++        torch.testing.assert_close(a, b, rtol=0, atol=0)
++
++
++def test_scalar_flash_uses_one_search_per_pressure_axis(monkeypatch):
++    m = model()
++    original = torch.searchsorted
++    calls = []
++    def counted(axis, pressure, *args, **kwargs):
++        calls.append(axis)
++        return original(axis, pressure, *args, **kwargs)
++    monkeypatch.setattr(torch, 'searchsorted', counted)
++    m.tensor_state(torch.tensor([2.4e6, 3.1e6], dtype=torch.float64),
++                   torch.tensor([.85, 2., .024], dtype=torch.float64))
++    # Main PVT pressure, Rs selection, and two undersaturated pressure tables.
++    assert len(calls) == 4
++    assert sum(a is m.pressures for a in calls) == 1

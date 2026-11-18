@@ -809,3 +809,202 @@ BHP 100 Па, скобка 1e-7. Независимый аудит массы 0,
 квазистационарной площадкой, не полный Norne.
 Профиль: `configs/fim_blackoil_facility_field64k_continuation.json`.
 [Протокол и исходники](../benchmarks/reports/surface_continuation_secants/README.md).
+
+### Пробы у границы режима
+
+Следующая оптимизация уменьшает минимальное смещение локальной пробы до
+половины допуска и разрешает одну проверку близкой секущей перед
+принудительным делением пополам. Проверка конечной ширины, физический
+расчёт каждой точки и все допуски сохранены. На свежей паре 65 536 / 64,
+30 суток: FIM 41 → 34, линейные попытки 104 → 89; наблюдалось
+48,895 → 44,348 с на общей RTX 3090 Ti. Шесть локальных поисков требуют
+двух решений вместо трёх. Полные поиски после событий не ускорились.
+Различия BHP 1,533 Па и расходов 0,0366% прошли прежние бюджеты;
+сравнение с уточнённым временным шагом также пройдено.
+[Протокол и область применимости](../benchmarks/reports/surface_endpoint_probe/README.md).
+
+### Полный поиск после переключения оборудования
+
+При недоступной невязке верхнего конца скобки добавлено однократное
+предложение по двум допустимым точкам текущего шага. Дальняя экстраполяция
+запрещена; полное сканирование и физическая проверка новой точки сохранены.
+На 65 536 ячейках / 64 скважинах поиск после снятия ограничения уменьшился
+с 10 до 5 FIM-проб, месяц — с 34 до 29, линейные попытки — с 89 до 70.
+Свежая GPU-пара: 43,734 → 36,332 с на общей RTX 3090 Ti. Прежние бюджеты
+точности и аудит массы пройдены, допуски не менялись.
+[Протокол и ограничения](../benchmarks/reports/surface_current_secant/README.md).
+
+### Пакетная гидростатика одноперфорационных скважин
+
+Профиль выявил мелкие последовательные GPU-операции при подготовке
+64 независимых стволов. Два пересчёта плотности теперь выполняются пакетом;
+остановленные, нагнетательные и многоперфорационные стволы сохраняют
+прежний алгоритм. На пятисуточном фрагменте число вызовов пересчёта
+поверхностных расходов в пластовые объёмы уменьшилось с 1408 до 22.
+
+Две свежие месячные GPU-пары 65 536 / 64, включая обратный порядок:
+37,382 → 26,121 с и 33,804 → 24,722 с. Отношение медиан — 1,40×
+на общей RTX 3090 Ti. Все принятые состояния и трассы поиска совпали
+точно; FIM-пробы (29), линейные попытки (70), допуски и физика неизменны.
+Месяц сильного истощения на CPU также сохранил точное совпадение всех
+490 стадий. Это ускорение одноперфорационного сценария, не замер Norne.
+[Исходники, профили и проверки](../benchmarks/reports/surface_batched_well_heads/README.md).
+
+### Пакетный BHP и общие структуры CPR
+
+Начальное приближение BHP в физическом black-oil сопряжении перенесено
+с отдельных чтений на пакетную редукцию устройства. CPR использует
+структуры текущего линейного решения вместо повторного построения.
+Принятые состояния двух GPU-пар совпали точно. Изолированная подготовка
+BHP для 64 скважин: 58,014 → 0,0841 мс.
+**Ускорение полного месяца не подтверждено**: пары 17,154 → 20,116 с
+и 19,519 → 18,105 с, медиана кандидата на 4,2% хуже на общей GPU.
+Локальный выигрыш нельзя переносить на весь расчёт.
+[Замеры, исходники и ограничения](../benchmarks/reports/surface_bhp_cpr/README.md).
+
+### Отложенная запись CPR-графа — не принята по скорости
+
+В связанном месяце 65 536 / 64 из 70 линейных решений 36 требуют одного
+применения CPR, 28 — двух, четыре — трёх и два — четырёх. Эксперимент
+с записью графа с четвёртого применения уменьшил записи 34 → 2,
+но добавил обычные вызовы: 70 → 110. Траектории совпали точно.
+Две GPU-пары: 18,565 → 18,438 с и 18,002 → 18,649 с;
+медиана кандидата примерно на 1,4% хуже. **Порог не изменён в рабочем
+решателе**; оставлены диагностические счётчики и прежний прогрев один вызов.
+[Эксперимент и окончательные исходники](../benchmarks/reports/surface_cpr_capture_delay/README.md).
+
+### Opt-in persistent CPR graph workspace
+
+`simulation.cpr_reuse_graph=true` reuses a solver-owned CUDA graph across
+compatible linear systems. All numerical inputs, including AMG coarse matrices
+and Chebyshev coefficients, are refreshed; sparse patterns are checked by value.
+Incompatible patterns recapture, unsupported/over-budget inputs fall back.
+Default remains **false**. The 128 MiB input-buffer budget is not a total GPU
+memory bound. Checkpoints drop this workspace.
+
+On the 65,536-cell/64-well synthetic coupled 30-day case, opposite-order RTX
+3090 Ti pairs measured **24.435 → 22.294 s** and **22.125 → 20.877 s**;
+median solve time decreased 7.3% on a shared host. Both paths required 29 FIM
+and 70 linear solves with 9 accepted steps and no rejection. Captures decreased
+34 → 16, eager CPR calls 70 → 16, with 54 numerical refreshes. Accepted physical
+states and final fields were exact; intermediate trial certificates differ at
+roundoff, so this is not an all-traces-bitwise result. Original material audits
+and engineering budgets passed. Five-day timing alone showed no gain.
+
+Evidence: `benchmarks/reports/surface_cpr_replay/`. This is not a Norne timing or
+independent physical validation. Broader difficult-case and long-run memory
+qualification is required before enabling the policy by default.
+
+### Full Norne qualification: CPR replay is not promoted
+
+Full 3312-day Norne comparison on RTX 3090: ordinary CPR **648.594 s**,
+persistent replay **673.050 s** (solver-only 620.137 → 631.908 s).
+Both strict audits pass, but accepted steps changed 599 → 604 and Newton
+iterations 3103 → 3166. Saved local field differences reach 0.0433 MPa pressure
+and 0.011 gas saturation; this is not confirmed quality-preserving equivalence.
+The default remains **off**. The earlier synthetic 7.3% observation must not be
+extrapolated to Norne.
+
+This qualification exposed and fixed graph-pool/stream churn: an incomplete
+candidate approached 23 GiB reserved memory. Reusing one registered pool and
+stream bounded the completed candidate's observed reserve at 914 MiB (ordinary
+CPR 958 MiB), across 3234 captures and 475 refreshes. A 100-recapture regression
+and the full run cover this fix. Input budget is still not a total memory limit.
+
+Evidence, frozen sources, per-step memory history and numerical differences:
+`benchmarks/reports/norne_cpr_replay/`. Follow-up priority is coupled assembly,
+derivatives and repeated reservoir evaluations. The short Python-call profile
+is diagnostic only; it does not establish GPU-kernel bottleneck percentages.
+
+### Surface assembly: remove repeated preparation without changing derivatives
+
+Scalar surface PVT now reuses interval indices/table coordinates across columns
+within one evaluation, while retaining separate pressure AD operations and the
+original arithmetic. Stream validation avoids recursive dataclass copies;
+network source masses are prepared once per solve and reused in the balance.
+No cross-step property cache or physical/numerical tolerance change is involved.
+
+Four alternating RTX 3090 pairs on a 65,536-cell/64-well synthetic coupled
+30-day case: median **7.693 → 7.092 s** (7.8% less time, shared host).
+All accepted states, trial traces, fields and accounts compare exactly.
+CPU strong-case two-day comparison also matches exactly across 42 accepted
+steps and 161 reservoir evaluations; **no CPU speedup established**.
+Value/Jacobian/Hessian checks are exact on CPU and CUDA.
+
+The short paired profile counts interval searches 7110 → 3366 and `asdict`
+15217 → 239. Its whole-assembly timing did not improve; use the repeated
+unprofiled run timings, not a claimed GPU-kernel percentage. Reporting here is
+at the interval endpoint plus operating events (8 accepted steps), unlike
+previous five-day-report runs. Do not compare their absolute times directly.
+Evidence: `benchmarks/reports/surface_assembly_reuse/`. Not a Norne speed result;
+persistent CPR remains off.
+
+### Pipe sensitivity work: reuse the converged integral
+
+The batched pipe solver now uses its converged Newton tape for the full implicit
+Jacobian instead of repeating adaptive quadrature. Rejected tapes are released
+before the next trial. Scalar port reports reuse the existing two-port flash,
+retain endpoint validation, and release the final sensitivity tape after backward.
+No cross-solve numerical cache, tolerance or physical equation changed.
+
+For a 64-pipe GPU batch, checked integrals decreased **5 → 4**, reports remain
+exact, and opposite-order microbenchmark medians decreased **42.975 → 40.519 ms**
+(5.7%); peak live tensor allocation did not increase. In the stronger coupled
+CPU two-day case (42 accepted steps, 161 reservoir evaluations), opposite-order
+pairs give **20.734 → 19.562 s** combined median (5.7%), with exact full traces.
+
+Full GPU-coupled acceleration remains unconfirmed: the final month pair batch
+measured **7.726 → 7.957 s**, despite exact states/balances. Earlier timings were
+mixed. Do not promote local speedup into a universal GPU/Norne claim. Evidence:
+`benchmarks/reports/pipe_sensitivity_reuse/`.
+
+The transport-only property experiment was not promoted: its local memory
+saving did not translate into a consistent full-case timing benefit. Its source
+and evidence are isolated in `benchmarks/reports/pipe_transport_experiment/`.
+
+
+## Norne: проверка общего поиска PVT-интервалов
+
+На RTX 3090 проведены две последовательные пары AB/BA без профилировщика:
+0–115 суток и продолжение 2431–2521 суток из одинакового checkpoint.
+Общий поиск интервалов для двух свойств PVT сохранил точные поля, SUMMARY,
+шаги и числа итераций, но не ускорил расчёт: медианы времени step-вызовов
+13,602 → 13,778 с и 19,589 → 19,837 с. Изменение **откачено**;
+рабочий решатель сохранён. Это пласт и скважины, не связанная наземная сеть.
+Начальное окно прошло аудит баланса компонентов; позднее проверено на
+строгую сходимость и точную эквивалентность, без независимого интегрального
+балансового аудита. Скорость полного девятилетнего расчёта не переоценивалась.
+[Протокол и исходные результаты](../benchmarks/reports/norne_pvt_row_lookup/README.md).
+
+
+## Norne: объединение векторного обновления FGMRES
+
+Операция MGS `w - h*v` выполняется одним CUDA/Triton-ядром, без FMA:
+сохранены отдельное округление умножения, порядок скалярных произведений,
+критерии сходимости и политика шага. CPU и входы с градиентами используют
+прежние операции PyTorch. 39 целевых тестов CPU/CUDA прошли.
+
+На RTX 3090 две пары AB/BA дали для 0–115 суток **12,930 → 12,348 с**
+времени вызовов шага (−4,5%); для 2431–2521 суток **18,543 → 18,777 с**
+(+1,3%, знаки отдельных пар разные). Оптимизация сохранена как локальная;
+ускорение позднего окна и полного Norne **не подтверждено**. Во всех парах
+точно совпали сохранённые поля, SUMMARY, шаги и числа итераций.
+[Протокол, ограничения аудита и результаты](../benchmarks/reports/norne_krylov_update/README.md).
+
+
+## Norne: сокращение синхронизаций при подготовке AMG
+
+Диагональ CSR на CUDA теперь читается напрямую одним ядром, без разворачивания
+строк, булевых выборок и scatter. Значения не суммируются и не кэшируются
+между матрицами. CPU и входы с градиентами сохраняют прежний путь.
+29 целевых проверок прошли, включая обновление матриц и CUDA-граф.
+
+На RTX 3090 две пары AB/BA: 0–115 суток **11,682 → 11,619 с**
+(разница в пределах разброса); 2431–2521 суток **17,642 → 17,283 с**
+(около 2%, обе пары быстрее). Во всех сравнениях точно совпали сохранённые
+поля, SUMMARY, шаги и числа итераций. В профиле одного и того же линейного
+решения синхронизации CUDA уменьшились 187 → 143, запуски ядер 3845 → 3315.
+Это не кратное ускорение всего Norne; полный девятилетний срок не переоценивался.
+Дополнительная правка известных размеров `repeat_interleave` не подтвердила
+ускорение и откачена.
+[Протокол и ограничения](../benchmarks/reports/norne_amg_diagonal/README.md).

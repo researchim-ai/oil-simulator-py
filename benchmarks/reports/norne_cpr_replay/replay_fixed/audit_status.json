@@ -1,0 +1,47 @@
+{
+  "accepted": 604,
+  "failed": 29,
+  "max_cnv": [
+    0.0009771707652981932,
+    0.000969545335312586,
+    0.0009824126736575514
+  ],
+  "max_mb": [
+    1.5719512901642995e-08,
+    2.8371223285130886e-08,
+    6.742215844650877e-08
+  ],
+  "status": "complete",
+  "day": 3312.0,
+  "balance_rel": [
+    -3.932174630116913e-07,
+    -1.998689806545319e-08,
+    2.27384511060659e-06
+  ],
+  "last_cnv": [
+    7.3575625706289915e-06,
+    9.985808142776766e-05,
+    0.0005832459654700126
+  ],
+  "last_mb": [
+    3.184969828749521e-11,
+    5.343613835433012e-10,
+    2.3317134857125703e-09
+  ],
+  "cpr_graphs_enabled": true,
+  "cuda_reserved_mb": 914.0,
+  "cpr_replay_workspace": {
+    "captures": 3234,
+    "refreshes": 475,
+    "replays": 47242,
+    "fallbacks": 0,
+    "input_bytes": 56860048,
+    "input_budget_bytes": 134217728,
+    "reason": null
+  },
+  "cuda_allocated_mb": 348.3505859375,
+  "cuda_peak_allocated_mb": 637.05517578125,
+  "requested_days": 3312.0,
+  "source_and_input_hashes_verified": true,
+  "wall_s": 673.0500545501709
+}

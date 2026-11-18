@@ -1,0 +1,49 @@
+{
+  "default_enabled": false,
+  "month_pairs": [
+    [
+      {
+        "fim": 29,
+        "linear": 70,
+        "accepted_steps": 9,
+        "rejected_steps": 0,
+        "solve_wall_s": 24.4354209430021
+      },
+      {
+        "fim": 29,
+        "linear": 70,
+        "accepted_steps": 9,
+        "rejected_steps": 0,
+        "solve_wall_s": 22.293707670000003
+      }
+    ],
+    [
+      {
+        "fim": 29,
+        "linear": 70,
+        "accepted_steps": 9,
+        "rejected_steps": 0,
+        "solve_wall_s": 22.12541182700079
+      },
+      {
+        "fim": 29,
+        "linear": 70,
+        "accepted_steps": 9,
+        "rejected_steps": 0,
+        "solve_wall_s": 20.876638359000935
+      }
+    ]
+  ],
+  "median_reference_s": 23.280416385001445,
+  "median_candidate_s": 21.58517301450047,
+  "observed_ratio": 1.0785374001571424,
+  "shared_host": true,
+  "exact_final_and_accepted_states": true,
+  "bitwise_trial_traces": false,
+  "input_bytes": 61662096,
+  "workspace_captures": 16,
+  "workspace_refreshes": 54,
+  "workspace_replays": 112,
+  "workspace_fallbacks": 0,
+  "final_source_note": "After timings, added rejection of nonfinite Chebyshev spectra; covered by final GPU tests. Timing source hashes are in run protocols."
+}

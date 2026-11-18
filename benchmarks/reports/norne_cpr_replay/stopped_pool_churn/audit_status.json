@@ -1,0 +1,44 @@
+{
+  "accepted": 179,
+  "failed": 6,
+  "max_cnv": [
+    0.0009771707652981932,
+    0.0008883219002813086,
+    0.0009824126736481056
+  ],
+  "max_mb": [
+    1.4794235135115844e-08,
+    1.2636827351017354e-08,
+    4.3671286784309006e-08
+  ],
+  "status": "running",
+  "day": 985.92,
+  "balance_rel": [
+    -1.1700715254391835e-07,
+    1.5896050369299167e-08,
+    8.028656418946535e-07
+  ],
+  "last_cnv": [
+    4.492718587521279e-06,
+    4.884778825054479e-07,
+    2.6593449636949914e-05
+  ],
+  "last_mb": [
+    6.947244061732936e-10,
+    7.43791789994854e-12,
+    1.044898500776886e-09
+  ],
+  "cpr_graphs_enabled": false,
+  "cuda_reserved_mb": 23796.0,
+  "cpr_replay_workspace": {
+    "captures": 843,
+    "refreshes": 94,
+    "replays": 11291,
+    "fallbacks": 1,
+    "input_bytes": 0,
+    "input_budget_bytes": 134217728,
+    "reason": "RuntimeError: CUDA error: out of memory"
+  },
+  "cuda_allocated_mb": 1284.41259765625,
+  "cuda_peak_allocated_mb": 1591.5732421875
+}

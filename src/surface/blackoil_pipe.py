@@ -262,21 +262,30 @@ class BlackOilPipe:
         (length, dissipation, work), order, error = self._checked_integral(
             x[1], x[0], x[2:5], model, resistance=x[5]
         )
-        grad = torch.autograd.grad(length, x, retain_graph=True)[0]
+        # No second backward follows: work/dissipation are only detached for
+        # accounting below. Release saved quadrature tensors before port work.
+        grad = torch.autograd.grad(length, x)[0]
         unknown = 0 if from_outlet else 1
         known = 1 - unknown
         derivative = -grad / grad[unknown]
         port = torch.tensor(
             [pin, pout], dtype=torch.float64, device=masses.device, requires_grad=True
         )
-        pv = model.tensor_state(port, masses)["specific_volume"]
+        port_states = model.tensor_state(port, masses)
+        pv = port_states["specific_volume"]
         derivative_v = torch.autograd.grad(pv.sum(), port)[0]
         flux_port = float(masses.sum()) / (math.pi * self.diameter_m**2 / 4)
         margins = 1 + flux_port**2 * derivative_v
         if not bool(torch.isfinite(margins).all()) or bool((margins <= 1e-6).any()):
             raise ChokedFlowError("Black-oil pipe port is outside the subcritical domain")
-        inlet = model.state(pin, masses.tolist())
-        outlet = model.state(pout, masses.tolist())
+        # The subcritical-port check already evaluated the full flash at
+        # both endpoints. Reuse those values, but retain the public state
+        # path's pressure/composition admission checks at each endpoint.
+        model.validate(pin, masses)
+        model.validate(pout, masses)
+        port_values = {key: value.detach().tolist() for key, value in port_states.items()}
+        inlet = {key: values[0] for key, values in port_values.items()}
+        outlet = {key: values[1] for key, values in port_values.items()}
         vin, vout = inlet["specific_volume"], outlet["specific_volume"]
         flux = float(masses.sum()) / (math.pi * self.diameter_m**2 / 4)
         mechanical = (
