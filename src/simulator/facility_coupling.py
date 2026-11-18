@@ -67,12 +67,16 @@ class CoupledFacilityControl:
     search_method: str = "safeguarded"
     commit_method: str = "replay"
     reuse_inactive_caps: bool = False
+    inactive_cap_certificate_version: int = 1
     reuse_initial_cell_state: bool = False
     initial_cell_state_cache_bytes: int = 64 * 1024**2
     reuse_capacity_amg: bool = False
     sensitivity_sparse_budget_bytes: int = 256 * 1024**2
 
     def __post_init__(self):
+        if (type(self.inactive_cap_certificate_version) is not int
+                or self.inactive_cap_certificate_version not in (1, 2)):
+            raise ValueError('inactive_cap_certificate_version must be 1 or 2')
         if type(self.reuse_capacity_amg) is not bool:
             raise ValueError('reuse_capacity_amg must be boolean')
         if type(self.sensitivity_sparse_budget_bytes) is not int or self.sensitivity_sparse_budget_bytes <= 0:
@@ -483,7 +487,8 @@ class FacilityCoupledFIM:
                     {w.name: cap for w, cap in zip(solver.wells.wells, caps)},
                     {w.name: solver.wells.bhp_limit(w) for w in solver.wells.wells},
                     fraction,
-                    version=2 if self.control.search_method == 'sensitivity_safeguarded' else 1,
+                    version=(2 if self.control.search_method == 'sensitivity_safeguarded'
+                             else self.control.inactive_cap_certificate_version),
                 )
                 if proof is not None:
                     trace[-1]['inactive_cap_certificate'] = proof

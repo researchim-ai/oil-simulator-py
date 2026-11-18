@@ -1,0 +1,293 @@
+{
+  "scope": "262144-cell/16-well isothermal blackoil FIM/quasi-steady facility; two alternating startup pairs of .00005 days on shared RTX3090Ti; only solver/fgmres.py differs. Memory improvement, no demonstrated wall-time speedup.",
+  "rows": [
+    {
+      "label": "reference",
+      "repeat": 0,
+      "wall_s": 13.688403537998965,
+      "execution": {
+        "torch_version": "2.7.0+cu126",
+        "torch_threads": 1,
+        "device_name": "NVIDIA GeForce RTX 3090 Ti",
+        "cuda_peak_allocated_bytes": 1639145472,
+        "cuda_peak_reserved_bytes": 2476736512,
+        "memory_scope": "PyTorch allocator peak from before model construction through the forecast; excludes CUDA context and other processes",
+        "gathering_backend": "cpu_reference",
+        "hydraulic_backend": "torch_batch"
+      },
+      "work": {
+        "macro_attempts": 1,
+        "rejected_macro_steps": 0,
+        "coupled_solves": 3,
+        "capacity_evaluations": 20,
+        "reservoir_evaluations": 20,
+        "capacity_amg_work": {
+          "fresh_requests": 3,
+          "reuse_requests": 17,
+          "retries": 0,
+          "builds": 3,
+          "updates": 23,
+          "linear_attempts": 26
+        },
+        "sensitivity_linear_solves": 0,
+        "sensitivity_plant_evaluations": 0
+      }
+    },
+    {
+      "label": "candidate",
+      "repeat": 0,
+      "wall_s": 15.147751407999749,
+      "execution": {
+        "torch_version": "2.7.0+cu126",
+        "torch_threads": 1,
+        "device_name": "NVIDIA GeForce RTX 3090 Ti",
+        "cuda_peak_allocated_bytes": 1259441664,
+        "cuda_peak_reserved_bytes": 2162163712,
+        "memory_scope": "PyTorch allocator peak from before model construction through the forecast; excludes CUDA context and other processes",
+        "gathering_backend": "cpu_reference",
+        "hydraulic_backend": "torch_batch"
+      },
+      "work": {
+        "macro_attempts": 1,
+        "rejected_macro_steps": 0,
+        "coupled_solves": 3,
+        "capacity_evaluations": 20,
+        "reservoir_evaluations": 20,
+        "capacity_amg_work": {
+          "fresh_requests": 3,
+          "reuse_requests": 17,
+          "retries": 0,
+          "builds": 3,
+          "updates": 23,
+          "linear_attempts": 26
+        },
+        "sensitivity_linear_solves": 0,
+        "sensitivity_plant_evaluations": 0
+      }
+    },
+    {
+      "label": "candidate",
+      "repeat": 1,
+      "wall_s": 15.702581828001712,
+      "execution": {
+        "torch_version": "2.7.0+cu126",
+        "torch_threads": 1,
+        "device_name": "NVIDIA GeForce RTX 3090 Ti",
+        "cuda_peak_allocated_bytes": 1259441664,
+        "cuda_peak_reserved_bytes": 2162163712,
+        "memory_scope": "PyTorch allocator peak from before model construction through the forecast; excludes CUDA context and other processes",
+        "gathering_backend": "cpu_reference",
+        "hydraulic_backend": "torch_batch"
+      },
+      "work": {
+        "macro_attempts": 1,
+        "rejected_macro_steps": 0,
+        "coupled_solves": 3,
+        "capacity_evaluations": 20,
+        "reservoir_evaluations": 20,
+        "capacity_amg_work": {
+          "fresh_requests": 3,
+          "reuse_requests": 17,
+          "retries": 0,
+          "builds": 3,
+          "updates": 23,
+          "linear_attempts": 26
+        },
+        "sensitivity_linear_solves": 0,
+        "sensitivity_plant_evaluations": 0
+      }
+    },
+    {
+      "label": "reference",
+      "repeat": 1,
+      "wall_s": 16.528029228000378,
+      "execution": {
+        "torch_version": "2.7.0+cu126",
+        "torch_threads": 1,
+        "device_name": "NVIDIA GeForce RTX 3090 Ti",
+        "cuda_peak_allocated_bytes": 1639145472,
+        "cuda_peak_reserved_bytes": 2476736512,
+        "memory_scope": "PyTorch allocator peak from before model construction through the forecast; excludes CUDA context and other processes",
+        "gathering_backend": "cpu_reference",
+        "hydraulic_backend": "torch_batch"
+      },
+      "work": {
+        "macro_attempts": 1,
+        "rejected_macro_steps": 0,
+        "coupled_solves": 3,
+        "capacity_evaluations": 20,
+        "reservoir_evaluations": 20,
+        "capacity_amg_work": {
+          "fresh_requests": 3,
+          "reuse_requests": 17,
+          "retries": 0,
+          "builds": 3,
+          "updates": 23,
+          "linear_attempts": 26
+        },
+        "sensitivity_linear_solves": 0,
+        "sensitivity_plant_evaluations": 0
+      }
+    }
+  ],
+  "strict_checks": [
+    {
+      "repeat": 0,
+      "fields": {
+        "accepted": true,
+        "errors": {
+          "final_pressure_pa": 0.0,
+          "final_s_w": 0.0,
+          "final_s_g": 0.0,
+          "final_rs": 0.0,
+          "withdrawal_relative": 0.0
+        },
+        "budgets": {
+          "final_pressure_pa": 0.1,
+          "final_s_w": 1e-08,
+          "final_s_g": 1e-08,
+          "final_rs": 1e-05,
+          "withdrawal_relative": 1e-07
+        },
+        "coarse": "/home/user/workspace/oil-simulator-py-impes/.scratch/fgmres_lazy/large_0_reference/trajectory.json.gz",
+        "fine": "/home/user/workspace/oil-simulator-py-impes/.scratch/fgmres_lazy/large_0_candidate/trajectory.json.gz",
+        "scope": "Compare completed operational forecasts at the final common report endpoint.\n\nBudgets must be supplied before inspecting the reference result. This is a\nstep-refinement check, not a proof that the finer trajectory is exact.\n",
+        "allowed_numerical_policy_differences": []
+      },
+      "wells": {
+        "scope": "Compare actual well rates/BHP and cumulative mass at coarse report endpoints.\n\nBoth bundles must independently pass full facility accounting first. This is\nstep refinement, not a proof that either trajectory is exact or calibrated.\n",
+        "accepted": true,
+        "matched_endpoints_days": [
+          5e-05
+        ],
+        "mode_mismatches": 0,
+        "errors": {
+          "bhp_abs_pa": 0.0,
+          "component_rate_scaled": 0.0,
+          "cumulative_mass_relative": 0.0
+        },
+        "budgets": {
+          "bhp_abs_pa": 100.0,
+          "component_rate_scaled": 0.002,
+          "cumulative_mass_relative": 0.002
+        },
+        "component_rate_floor_kg_s": 1e-08,
+        "allow_numerical_policy": false
+      },
+      "strict_well_budgets": {
+        "bhp_abs_pa": 0.1,
+        "component_rate_scaled": 1e-07,
+        "cumulative_mass_relative": 1e-07
+      }
+    },
+    {
+      "repeat": 1,
+      "fields": {
+        "accepted": true,
+        "errors": {
+          "final_pressure_pa": 0.0,
+          "final_s_w": 0.0,
+          "final_s_g": 0.0,
+          "final_rs": 0.0,
+          "withdrawal_relative": 0.0
+        },
+        "budgets": {
+          "final_pressure_pa": 0.1,
+          "final_s_w": 1e-08,
+          "final_s_g": 1e-08,
+          "final_rs": 1e-05,
+          "withdrawal_relative": 1e-07
+        },
+        "coarse": "/home/user/workspace/oil-simulator-py-impes/.scratch/fgmres_lazy/large_1_reference/trajectory.json.gz",
+        "fine": "/home/user/workspace/oil-simulator-py-impes/.scratch/fgmres_lazy/large_1_candidate/trajectory.json.gz",
+        "scope": "Compare completed operational forecasts at the final common report endpoint.\n\nBudgets must be supplied before inspecting the reference result. This is a\nstep-refinement check, not a proof that the finer trajectory is exact.\n",
+        "allowed_numerical_policy_differences": []
+      },
+      "wells": {
+        "scope": "Compare actual well rates/BHP and cumulative mass at coarse report endpoints.\n\nBoth bundles must independently pass full facility accounting first. This is\nstep refinement, not a proof that either trajectory is exact or calibrated.\n",
+        "accepted": true,
+        "matched_endpoints_days": [
+          5e-05
+        ],
+        "mode_mismatches": 0,
+        "errors": {
+          "bhp_abs_pa": 0.0,
+          "component_rate_scaled": 0.0,
+          "cumulative_mass_relative": 0.0
+        },
+        "budgets": {
+          "bhp_abs_pa": 100.0,
+          "component_rate_scaled": 0.002,
+          "cumulative_mass_relative": 0.002
+        },
+        "component_rate_floor_kg_s": 1e-08,
+        "allow_numerical_policy": false
+      },
+      "strict_well_budgets": {
+        "bhp_abs_pa": 0.1,
+        "component_rate_scaled": 1e-07,
+        "cumulative_mass_relative": 1e-07
+      }
+    }
+  ],
+  "median_wall_s": {
+    "reference": 15.108216382999672,
+    "candidate": 15.42516661800073
+  },
+  "peak_allocated_reduction_fraction": 0.2316474129271182,
+  "candidate_8pct": {
+    "complete": true,
+    "execution": {
+      "torch_version": "2.7.0+cu126",
+      "torch_threads": 1,
+      "device_name": "NVIDIA GeForce RTX 3090 Ti",
+      "cuda_peak_allocated_bytes": 1260193280,
+      "cuda_peak_reserved_bytes": 1994391552,
+      "memory_scope": "PyTorch allocator peak from before model construction through the forecast; excludes CUDA context and other processes",
+      "gathering_backend": "cpu_reference",
+      "hydraulic_backend": "torch_batch"
+    },
+    "fields": {
+      "accepted": true,
+      "errors": {
+        "final_pressure_pa": 1.862645149230957e-09,
+        "final_s_w": 2.220446049250313e-16,
+        "final_s_g": 7.771561172376096e-16,
+        "final_rs": 3.552713678800501e-14,
+        "withdrawal_relative": 4.996003610813204e-16
+      },
+      "budgets": {
+        "final_pressure_pa": 0.1,
+        "final_s_w": 1e-08,
+        "final_s_g": 1e-08,
+        "final_rs": 1e-05,
+        "withdrawal_relative": 1e-07
+      },
+      "coarse": "/home/user/workspace/oil-simulator-py-impes/.scratch/fgmres_lazy/large_candidate_8pct/trajectory.json.gz",
+      "fine": "/home/user/workspace/oil-simulator-py-impes/.scratch/fgmres_lazy/large_0_candidate/trajectory.json.gz",
+      "scope": "Compare completed operational forecasts at the final common report endpoint.\n\nBudgets must be supplied before inspecting the reference result. This is a\nstep-refinement check, not a proof that the finer trajectory is exact.\n",
+      "allowed_numerical_policy_differences": []
+    },
+    "wells": {
+      "scope": "Compare actual well rates/BHP and cumulative mass at coarse report endpoints.\n\nBoth bundles must independently pass full facility accounting first. This is\nstep refinement, not a proof that either trajectory is exact or calibrated.\n",
+      "accepted": true,
+      "matched_endpoints_days": [
+        5e-05
+      ],
+      "mode_mismatches": 0,
+      "errors": {
+        "bhp_abs_pa": 4.656612873077393e-10,
+        "component_rate_scaled": 1.714522804318713e-15,
+        "cumulative_mass_relative": 4.996003610813204e-16
+      },
+      "budgets": {
+        "bhp_abs_pa": 100.0,
+        "component_rate_scaled": 0.002,
+        "cumulative_mass_relative": 0.002
+      },
+      "component_rate_floor_kg_s": 1e-08,
+      "allow_numerical_policy": false
+    }
+  },
+  "timing_claim": "No speedup established; shared GPU, reference median15.1082s/candidate15.4252s. 8pct completion is a feasibility check only."
+}

@@ -1,0 +1,12 @@
+{
+  "accepted_stages": 22,
+  "exact_equal": {
+    "time_days": true,
+    "dt_s": true,
+    "withdrawn_component_mass_kg": true,
+    "newton_iterations": true,
+    "surface": true,
+    "facility_controls": true,
+    "plant": true
+  }
+}

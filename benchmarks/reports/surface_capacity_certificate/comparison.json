@@ -1,0 +1,320 @@
+[
+  {
+    "window": "startup",
+    "repeat": 0,
+    "accepted": true,
+    "required_days": 5e-05,
+    "fewer_fim_solves": true,
+    "same_fim_work": false,
+    "fields": {
+      "accepted": true,
+      "errors": {
+        "final_pressure_pa": 0.0,
+        "final_s_w": 0.0,
+        "final_s_g": 0.0,
+        "final_rs": 0.0,
+        "withdrawal_relative": 0.0
+      },
+      "budgets": {
+        "final_pressure_pa": 0.1,
+        "final_s_w": 1e-08,
+        "final_s_g": 1e-08,
+        "final_rs": 1e-05,
+        "withdrawal_relative": 1e-07
+      },
+      "coarse": "/home/user/workspace/oil-simulator-py-impes/.scratch/capacity_iqi/startup_0_v1/trajectory.json.gz",
+      "fine": "/home/user/workspace/oil-simulator-py-impes/.scratch/capacity_iqi/startup_0_v2/trajectory.json.gz",
+      "scope": "Compare completed operational forecasts at the final common report endpoint.\n\nBudgets must be supplied before inspecting the reference result. This is a\nstep-refinement check, not a proof that the finer trajectory is exact.\n",
+      "allowed_numerical_policy_differences": [
+        "simulation.max_time_step_days",
+        "simulation.initial_time_step_days",
+        "coupled_facility.time_control",
+        "coupled_facility.temporal_control",
+        "coupled_facility.control.search_method",
+        "coupled_facility.control.sensitivity_sparse_budget_bytes",
+        "coupled_facility.control.commit_method",
+        "coupled_facility.control.reuse_inactive_caps",
+        "coupled_facility.control.reuse_initial_cell_state",
+        "coupled_facility.control.initial_cell_state_cache_bytes",
+        "coupled_facility.control.reuse_capacity_amg",
+        "physical_surface_network.sensitivity_backend",
+        "physical_surface_network.network_backend",
+        "physical_surface_network.bhp_initialization",
+        "physical_surface_network.well_block_backend",
+        "physical_surface_network.structured_memory_budget_bytes",
+        "physical_surface_network.network.hydraulic_backend",
+        "physical_surface_network.network.pipe_batch_size"
+      ]
+    },
+    "wells": {
+      "scope": "Compare actual well rates/BHP and cumulative mass at coarse report endpoints.\n\nBoth bundles must independently pass full facility accounting first. This is\nstep refinement, not a proof that either trajectory is exact or calibrated.\n",
+      "accepted": true,
+      "matched_endpoints_days": [
+        5e-05
+      ],
+      "mode_mismatches": 0,
+      "errors": {
+        "bhp_abs_pa": 0.0,
+        "component_rate_scaled": 0.0,
+        "cumulative_mass_relative": 0.0
+      },
+      "budgets": {
+        "bhp_abs_pa": 0.1,
+        "component_rate_scaled": 1e-07,
+        "cumulative_mass_relative": 1e-07
+      },
+      "component_rate_floor_kg_s": 1e-08,
+      "allow_numerical_policy": true
+    },
+    "reference_work": {
+      "macro_attempts": 1,
+      "rejected_macro_steps": 0,
+      "coupled_solves": 3,
+      "capacity_evaluations": 20,
+      "reservoir_evaluations": 20,
+      "capacity_amg_work": {
+        "fresh_requests": 3,
+        "reuse_requests": 17,
+        "retries": 0,
+        "builds": 3,
+        "updates": 36,
+        "linear_attempts": 39
+      },
+      "sensitivity_linear_solves": 0,
+      "sensitivity_plant_evaluations": 0
+    },
+    "candidate_work": {
+      "macro_attempts": 1,
+      "rejected_macro_steps": 0,
+      "coupled_solves": 3,
+      "capacity_evaluations": 20,
+      "reservoir_evaluations": 17,
+      "capacity_amg_work": {
+        "fresh_requests": 3,
+        "reuse_requests": 14,
+        "retries": 0,
+        "builds": 3,
+        "updates": 29,
+        "linear_attempts": 32
+      },
+      "sensitivity_linear_solves": 0,
+      "sensitivity_plant_evaluations": 0
+    },
+    "reference_solve_wall_s": 9.609452954999142,
+    "candidate_solve_wall_s": 10.217809940000734,
+    "observed_ratio": 0.9404611175414417,
+    "timing_scope": "Shared host/device, not isolated speedup or a longer-horizon prediction."
+  },
+  {
+    "window": "startup",
+    "repeat": 1,
+    "accepted": true,
+    "required_days": 5e-05,
+    "fewer_fim_solves": true,
+    "same_fim_work": false,
+    "fields": {
+      "accepted": true,
+      "errors": {
+        "final_pressure_pa": 0.0,
+        "final_s_w": 0.0,
+        "final_s_g": 0.0,
+        "final_rs": 0.0,
+        "withdrawal_relative": 0.0
+      },
+      "budgets": {
+        "final_pressure_pa": 0.1,
+        "final_s_w": 1e-08,
+        "final_s_g": 1e-08,
+        "final_rs": 1e-05,
+        "withdrawal_relative": 1e-07
+      },
+      "coarse": "/home/user/workspace/oil-simulator-py-impes/.scratch/capacity_iqi/startup_1_v1/trajectory.json.gz",
+      "fine": "/home/user/workspace/oil-simulator-py-impes/.scratch/capacity_iqi/startup_1_v2/trajectory.json.gz",
+      "scope": "Compare completed operational forecasts at the final common report endpoint.\n\nBudgets must be supplied before inspecting the reference result. This is a\nstep-refinement check, not a proof that the finer trajectory is exact.\n",
+      "allowed_numerical_policy_differences": [
+        "simulation.max_time_step_days",
+        "simulation.initial_time_step_days",
+        "coupled_facility.time_control",
+        "coupled_facility.temporal_control",
+        "coupled_facility.control.search_method",
+        "coupled_facility.control.sensitivity_sparse_budget_bytes",
+        "coupled_facility.control.commit_method",
+        "coupled_facility.control.reuse_inactive_caps",
+        "coupled_facility.control.reuse_initial_cell_state",
+        "coupled_facility.control.initial_cell_state_cache_bytes",
+        "coupled_facility.control.reuse_capacity_amg",
+        "physical_surface_network.sensitivity_backend",
+        "physical_surface_network.network_backend",
+        "physical_surface_network.bhp_initialization",
+        "physical_surface_network.well_block_backend",
+        "physical_surface_network.structured_memory_budget_bytes",
+        "physical_surface_network.network.hydraulic_backend",
+        "physical_surface_network.network.pipe_batch_size"
+      ]
+    },
+    "wells": {
+      "scope": "Compare actual well rates/BHP and cumulative mass at coarse report endpoints.\n\nBoth bundles must independently pass full facility accounting first. This is\nstep refinement, not a proof that either trajectory is exact or calibrated.\n",
+      "accepted": true,
+      "matched_endpoints_days": [
+        5e-05
+      ],
+      "mode_mismatches": 0,
+      "errors": {
+        "bhp_abs_pa": 0.0,
+        "component_rate_scaled": 0.0,
+        "cumulative_mass_relative": 0.0
+      },
+      "budgets": {
+        "bhp_abs_pa": 0.1,
+        "component_rate_scaled": 1e-07,
+        "cumulative_mass_relative": 1e-07
+      },
+      "component_rate_floor_kg_s": 1e-08,
+      "allow_numerical_policy": true
+    },
+    "reference_work": {
+      "macro_attempts": 1,
+      "rejected_macro_steps": 0,
+      "coupled_solves": 3,
+      "capacity_evaluations": 20,
+      "reservoir_evaluations": 20,
+      "capacity_amg_work": {
+        "fresh_requests": 3,
+        "reuse_requests": 17,
+        "retries": 0,
+        "builds": 3,
+        "updates": 36,
+        "linear_attempts": 39
+      },
+      "sensitivity_linear_solves": 0,
+      "sensitivity_plant_evaluations": 0
+    },
+    "candidate_work": {
+      "macro_attempts": 1,
+      "rejected_macro_steps": 0,
+      "coupled_solves": 3,
+      "capacity_evaluations": 20,
+      "reservoir_evaluations": 17,
+      "capacity_amg_work": {
+        "fresh_requests": 3,
+        "reuse_requests": 14,
+        "retries": 0,
+        "builds": 3,
+        "updates": 29,
+        "linear_attempts": 32
+      },
+      "sensitivity_linear_solves": 0,
+      "sensitivity_plant_evaluations": 0
+    },
+    "reference_solve_wall_s": 11.626439528999981,
+    "candidate_solve_wall_s": 10.555853900999864,
+    "observed_ratio": 1.101421035004919,
+    "timing_scope": "Shared host/device, not isolated speedup or a longer-horizon prediction."
+  },
+  {
+    "window": "evolution",
+    "repeat": 0,
+    "accepted": true,
+    "required_days": 0.005,
+    "fewer_fim_solves": true,
+    "same_fim_work": false,
+    "fields": {
+      "accepted": true,
+      "errors": {
+        "final_pressure_pa": 0.0,
+        "final_s_w": 0.0,
+        "final_s_g": 0.0,
+        "final_rs": 0.0,
+        "withdrawal_relative": 0.0
+      },
+      "budgets": {
+        "final_pressure_pa": 0.1,
+        "final_s_w": 1e-08,
+        "final_s_g": 1e-08,
+        "final_rs": 1e-05,
+        "withdrawal_relative": 1e-07
+      },
+      "coarse": "/home/user/workspace/oil-simulator-py-impes/.scratch/capacity_iqi/evolution_0_v1/trajectory.json.gz",
+      "fine": "/home/user/workspace/oil-simulator-py-impes/.scratch/capacity_iqi/evolution_0_v2/trajectory.json.gz",
+      "scope": "Compare completed operational forecasts at the final common report endpoint.\n\nBudgets must be supplied before inspecting the reference result. This is a\nstep-refinement check, not a proof that the finer trajectory is exact.\n",
+      "allowed_numerical_policy_differences": [
+        "simulation.max_time_step_days",
+        "simulation.initial_time_step_days",
+        "coupled_facility.time_control",
+        "coupled_facility.temporal_control",
+        "coupled_facility.control.search_method",
+        "coupled_facility.control.sensitivity_sparse_budget_bytes",
+        "coupled_facility.control.commit_method",
+        "coupled_facility.control.reuse_inactive_caps",
+        "coupled_facility.control.reuse_initial_cell_state",
+        "coupled_facility.control.initial_cell_state_cache_bytes",
+        "coupled_facility.control.reuse_capacity_amg",
+        "physical_surface_network.sensitivity_backend",
+        "physical_surface_network.network_backend",
+        "physical_surface_network.bhp_initialization",
+        "physical_surface_network.well_block_backend",
+        "physical_surface_network.structured_memory_budget_bytes",
+        "physical_surface_network.network.hydraulic_backend",
+        "physical_surface_network.network.pipe_batch_size"
+      ]
+    },
+    "wells": {
+      "scope": "Compare actual well rates/BHP and cumulative mass at coarse report endpoints.\n\nBoth bundles must independently pass full facility accounting first. This is\nstep refinement, not a proof that either trajectory is exact or calibrated.\n",
+      "accepted": true,
+      "matched_endpoints_days": [
+        0.005
+      ],
+      "mode_mismatches": 0,
+      "errors": {
+        "bhp_abs_pa": 0.0,
+        "component_rate_scaled": 0.0,
+        "cumulative_mass_relative": 0.0
+      },
+      "budgets": {
+        "bhp_abs_pa": 0.1,
+        "component_rate_scaled": 1e-07,
+        "cumulative_mass_relative": 1e-07
+      },
+      "component_rate_floor_kg_s": 1e-08,
+      "allow_numerical_policy": true
+    },
+    "reference_work": {
+      "macro_attempts": 11,
+      "rejected_macro_steps": 0,
+      "coupled_solves": 33,
+      "capacity_evaluations": 228,
+      "reservoir_evaluations": 228,
+      "capacity_amg_work": {
+        "fresh_requests": 33,
+        "reuse_requests": 195,
+        "retries": 0,
+        "builds": 33,
+        "updates": 479,
+        "linear_attempts": 512
+      },
+      "sensitivity_linear_solves": 0,
+      "sensitivity_plant_evaluations": 0
+    },
+    "candidate_work": {
+      "macro_attempts": 11,
+      "rejected_macro_steps": 0,
+      "coupled_solves": 33,
+      "capacity_evaluations": 228,
+      "reservoir_evaluations": 195,
+      "capacity_amg_work": {
+        "fresh_requests": 33,
+        "reuse_requests": 162,
+        "retries": 0,
+        "builds": 33,
+        "updates": 376,
+        "linear_attempts": 409
+      },
+      "sensitivity_linear_solves": 0,
+      "sensitivity_plant_evaluations": 0
+    },
+    "reference_solve_wall_s": 136.58081880400096,
+    "candidate_solve_wall_s": 115.4269970080004,
+    "observed_ratio": 1.183265807344311,
+    "timing_scope": "Shared host/device, not isolated speedup or a longer-horizon prediction."
+  }
+]

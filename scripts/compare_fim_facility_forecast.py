@@ -37,6 +37,9 @@ def physical_config(bundle, *, allow_numerical_policy=False):
             reuse = facility['control'].pop('reuse_inactive_caps', False)
             if type(reuse) is not bool:
                 raise ValueError('Invalid inactive-cap reuse policy')
+            version = facility['control'].pop('inactive_cap_certificate_version', 1)
+            if type(version) is not int or version not in (1, 2):
+                raise ValueError('Invalid inactive-cap certificate version')
             facility["control"].pop("search_method", None)
             commit = facility["control"].pop("commit_method", "replay")
             if commit not in ("replay", "state_restore"):
@@ -128,6 +131,7 @@ def compare(coarse_path, fine_path, budgets, *, allow_numerical_policy=False):
             "coupled_facility.control.sensitivity_sparse_budget_bytes",
             "coupled_facility.control.commit_method",
             "coupled_facility.control.reuse_inactive_caps",
+            "coupled_facility.control.inactive_cap_certificate_version",
             "coupled_facility.control.reuse_initial_cell_state",
             "coupled_facility.control.initial_cell_state_cache_bytes",
             "coupled_facility.control.reuse_capacity_amg",

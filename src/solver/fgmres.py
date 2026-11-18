@@ -26,10 +26,15 @@ def fgmres(A_mv, b, M_mv=None, max_iter=100, tol=1e-5, restart=20, verbose=False
     dtype = b.dtype
     
     history = []
+    basis_capacity = 0
+    basis_growths = 0
 
     def _done(x, info, iters, restarts):
         if stats is not None:
             stats.update(iters=iters, restarts=restarts, converged=(info == 0), history=history)
+            stats.update(basis_capacity=basis_capacity, basis_growths=basis_growths,
+                         basis_storage_bytes=(2 * basis_capacity + 1) * n * b.element_size()
+                         if basis_capacity else 0)
         return x, info
 
     # Initial guess x0 = 0
@@ -53,8 +58,13 @@ def fgmres(A_mv, b, M_mv=None, max_iter=100, tol=1e-5, restart=20, verbose=False
     # V: Basis for Krylov subspace (orthogonal)
     # Z: Preconditioned basis vectors
     # H: Hessenberg matrix
-    V = torch.zeros((restart + 1, n), device=device, dtype=dtype)
-    Z = torch.zeros((restart, n), device=device, dtype=dtype)
+    # Most CPR solves use only a few vectors. Grow contiguous buffers on demand;
+    # keep the original Arnoldi operations and final GEMV reduction order.
+    # Empty storage is safe: every accessed row is assigned before use, including
+    # the extra Arnoldi vector V[j+1]. Retain the capacity across restart cycles.
+    basis_capacity = min(8, restart)
+    V = torch.empty((basis_capacity + 1, n), device=device, dtype=dtype)
+    Z = torch.empty((basis_capacity, n), device=device, dtype=dtype)
     H = torch.zeros((restart + 1, restart), device=device, dtype=dtype)
     
     # Givens rotation holders
@@ -76,6 +86,17 @@ def fgmres(A_mv, b, M_mv=None, max_iter=100, tol=1e-5, restart=20, verbose=False
         g[1:] = 0
         
         for j in range(restart):
+            if j == basis_capacity:
+                capacity = min(restart, 2 * basis_capacity)
+                next_v = torch.empty((capacity + 1, n), device=device, dtype=dtype)
+                next_z = torch.empty((capacity, n), device=device, dtype=dtype)
+                next_v[:j+1].copy_(V[:j+1])
+                next_z[:j].copy_(Z[:j])
+                V, Z = next_v, next_z
+                # Do not retain aliases to buffers during the next growth.
+                del next_v, next_z
+                basis_capacity = capacity
+                basis_growths += 1
             total_iters += 1
             
             # 1. Preconditioning: z_j = M^{-1} v_j

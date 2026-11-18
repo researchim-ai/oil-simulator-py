@@ -96,6 +96,16 @@ def audit(
         reuse = (config['simulation']['coupled_facility'].get('control') or {}).get('reuse_inactive_caps', False)
         if type(reuse) is not bool:
             raise ValueError('Invalid inactive-cap reuse policy')
+        capacity_policy = config['simulation']['coupled_facility'].get('control') or {}
+        certificate_version = capacity_policy.get('inactive_cap_certificate_version', 1)
+        if type(certificate_version) is not int or certificate_version not in (1, 2):
+            raise ValueError('Invalid inactive-cap certificate version')
+        if capacity_policy.get('search_method') == 'sensitivity_safeguarded':
+            certificate_version = 2
+        for trial in coupling['trace']:
+            proof = trial.get('inactive_cap_certificate')
+            if proof is not None and proof.get('version') != certificate_version:
+                raise ValueError('Inactive-cap certificate version differs from config')
         reservoir_evaluations += audit_inactive_cap_trace(coupling, config['wells'], reuse)
         cell_evaluations, cell_hits = audit_initial_cell_cache(
             coupling, config['simulation']['coupled_facility'].get('control') or {})
