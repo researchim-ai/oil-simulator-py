@@ -1,0 +1,48 @@
+/* Project overview: extend the established Literata / Manrope mineral palette. */
+.project-page .top nav { flex-wrap: wrap; }
+.project-page .hero { padding: 5rem 0 3rem; }
+.project-page h1 { line-height: 1.06; }
+.project-page h2 { max-width: 850px; }
+.project-page section { padding-top: 6rem; }
+.actions { display:flex; flex-wrap:wrap; gap:.8rem; margin-top:1.7rem; }
+.action { display:inline-flex; align-items:center; padding:.8rem 1.15rem; border:1px solid var(--line); text-decoration:none; font-size:.9rem; border-radius:3px; transition:background .18s; }
+.action:hover { background:#ffffff0d; }
+.action.primary { background:var(--oil); color:var(--bg); border-color:var(--oil); }
+.quiet,.annotation { color:var(--muted); }
+.quiet { font-size:.85rem; margin-top:1.4rem; }
+.evidence-strip { display:grid; grid-template-columns:repeat(auto-fit,minmax(190px,1fr)); gap:1.8rem; border-top:1px solid var(--line); border-bottom:1px solid var(--line); padding:1.8rem 0; margin-top:2rem; }
+.evidence-strip b { display:block; font-family:var(--serif); font-size:clamp(1.8rem,3vw,2.7rem); font-weight:500; color:var(--oil); }
+.evidence-strip span { display:block; color:var(--muted); font-size:.85rem; max-width:270px; margin-top:.4rem; }
+.split-story { display:grid; grid-template-columns:1fr 1fr; gap:3.5rem; margin-top:2rem; }
+.split-story h3 { font-size:1.4rem; }
+.annotation { border-left:2px solid var(--oil); padding:.5rem 0 .5rem 1.3rem; font-size:.95rem; }
+.annotation p:last-child { margin-bottom:0; }
+.system-line { display:flex; flex-wrap:wrap; margin:2rem 0 3rem; border:1px solid var(--line); }
+.system-line span { flex:1; min-width:150px; padding:1rem; font-family:var(--mono); font-size:.85rem; border-right:1px solid var(--line); text-align:center; }
+.experiment-grid { display:grid; grid-template-columns:1.15fr 1fr 1fr; margin-top:2rem; }
+.experiment { display:flex; flex-direction:column; padding:2rem; text-decoration:none; border:1px solid var(--line); background:linear-gradient(155deg,#ffffff05,transparent); }
+.experiment:hover { background:#ffffff09; }
+.experiment.featured { border-top:2px solid var(--oil); }
+.experiment h3 { font-family:var(--serif); font-size:1.8rem; line-height:1.25; font-weight:500; }
+.experiment p { color:var(--muted); font-size:.95rem; }
+.eyebrow { font-family:var(--mono); color:var(--oil); font-size:.82rem; }
+.text-link { margin-top:auto; padding-top:1.5rem; text-decoration:underline; text-underline-offset:5px; font-size:.9rem; }
+.viewer-banner { display:grid; grid-template-columns:2fr 1fr; padding:3rem; background:linear-gradient(125deg,#242e2b,#171b19); border:1px solid #475347; gap:2rem; }
+.viewer-banner p { max-width:590px; color:var(--muted); }
+.viewer-type { align-self:center; text-align:center; font-family:var(--serif); font-size:6rem; line-height:1; color:#c7c7a6; font-style:italic; }
+.viewer-type span { font-size:2.2rem; }
+.proof-list article { display:grid; grid-template-columns:180px 1fr; gap:2rem; border-top:1px solid var(--line); padding:2rem 0; }
+.proof-list article>span { font-family:var(--mono); color:var(--oil); }
+.proof-list h3 { margin-top:0; }
+.archive-note { margin-top:2rem; padding:1.5rem; box-sizing:border-box; border:1px solid var(--line); background:#ffffff05; color:var(--muted); }
+.latest-norne { padding-top:3rem; }
+.skip-link { position:absolute; top:-100px; left:1rem; z-index:100; background:var(--oil); color:var(--bg); padding:1rem; }
+.skip-link:focus { top:1rem; }
+a:focus-visible,button:focus-visible { outline:2px solid var(--oil); outline-offset:5px; }
+@media(max-width:900px) { .experiment-grid { grid-template-columns:1fr; } .split-story { gap:2rem; } .project-page .top { align-items:flex-start; } .project-page .top nav { gap:.65rem 1rem; } }
+@media(max-width:650px) { .split-story,.viewer-banner { grid-template-columns:1fr; } .viewer-type { display:none; } .viewer-banner { padding:1.5rem; } .proof-list article { grid-template-columns:1fr; gap:.5rem; } .project-page .hero { padding-top:2.5rem; } .project-page section { padding-top:3.5rem; } .evidence-strip { grid-template-columns:1fr 1fr; gap:1rem; } .experiment { padding:1.5rem; } .project-page .top { flex-direction:column; gap:.7rem; } }
+@media(max-width:540px) {
+  .project-page .top nav a:nth-child(n) { display:inline; }
+  .project-page .top nav { width:100%; }
+  .evidence-strip b { font-size:1.7rem; }
+}

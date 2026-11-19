@@ -5,10 +5,10 @@ const fs=require('node:fs');
 const vm=require('node:vm');
 const path=require('node:path');
 const root=path.resolve(__dirname,'..');
-const fixture=JSON.parse(fs.readFileSync(path.join(root,'web/data/engineering-case.json'),'utf8'));
+const fixture=JSON.parse(fs.readFileSync(path.join(root,'apps/fieldroom/data/engineering-case.json'),'utf8'));
 const element={addEventListener(){}};
-const context=vm.createContext({document:{querySelector(){return element},querySelectorAll(){return []}},fetch(){return new Promise(()=>{})}});
-vm.runInContext(fs.readFileSync(path.join(root,'web/viewer/viewer.js'),'utf8'),context);
+const context=vm.createContext({document:{querySelector(){return element},querySelectorAll(){return []}},FieldScene3D:class{},location:{search:''},URLSearchParams,fetch(){return new Promise(()=>{})}});
+vm.runInContext(fs.readFileSync(path.join(root,'apps/fieldroom/archive.js'),'utf8').replace('export function','function')+'\n'+fs.readFileSync(path.join(root,'apps/fieldroom/viewer.js'),'utf8').replace(/^import .*;$/gm,''),context);
 context.fixture=fixture;
 test('actual exported archive satisfies the browser contract',()=>{
  assert.equal(vm.runInContext('validate(fixture).schema',context),'oil-engineering-viewer/v1');

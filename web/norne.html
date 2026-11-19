@@ -5,17 +5,17 @@
 <meta charset="utf-8"/>
 <meta content="width=device-width, initial-scale=1" name="viewport"/>
 <title>oil-simulator — Norne против Eclipse</title>
-<meta content="Norne: 3312 суток за 11 мин 6 с на RTX 3090. Строгие CNV/MB; нефть / вода / газ против Eclipse: −0,064% / +0,130% / −0,088%. Проверки баланса и перезапуска." name="description"/>
+<meta content="Norne: 3312 суток за 8 мин 19 с на RTX 3090. Актуальный протокол и отдельно подписанный архив графиков октября." name="description"/>
 <meta content="#14110e" name="theme-color"/>
 <link href="favicon.svg" rel="icon" type="image/svg+xml"/>
-<link href="style.css?v=20261029-resv" rel="stylesheet"/>
-</head>
+<link href="style.css?v=20261119" rel="stylesheet"/>
+<link href="project.css?v=20261119" rel="stylesheet"/></head>
 <body>
 <header class="top">
 <a class="brand" href="index.html"><i></i>oil-simulator</a>
 <nav>
 <a href="index.html">Симулятор</a>
-<a href="gaslift.html">Газлифт</a>
+<a href="surface.html">Наземная часть</a><a href="gaslift.html">Газлифт</a>
 <a href="#norne">Итог</a>
 <a href="#wells">Скважины</a>
 <a href="#field">Пласт</a>
@@ -24,7 +24,7 @@
 </nav>
 </header>
 <nav aria-label="Разделы" class="rail"><a href="#norne">01 Итог</a><a href="#validation">02 Проверка</a><a href="#wells">03 Скважины</a><a href="#field">04 Пласт</a><a href="#solver">05 Решатель</a><a href="#limits">06 Границы</a></nav>
-<main id="top">
+<main id="top"><section class="latest-norne"><div class="wrap"><p class="kicker">Актуальный опубликованный протокол / обновление 20 ноября 2026</p><h1>Norne.<br><em>Пласт проверен историей.</em></h1><p class="lede">3 312 суток, 44 431 активная ячейка и 36 скважин. Изотермический пласт и скважины — без подробной наземной сети.</p><div class="evidence-strip"><div><b>8:19</b><span>мин:с · 499,453 с · RTX 3090</span></div><div><b>−0,07846%</b><span>накопленная нефть против Eclipse</span></div><div><b>+0,18216%</b><span>накопленная вода</span></div><div><b>−0,09091%</b><span>накопленный газ</span></div></div><p>569 принятых шагов, 3 отклонённые попытки. CNV = 10⁻³, MB = 10⁻⁷ без ослабления. Максимальная накопленная относительная ошибка баланса — 2,92×10⁻⁶.</p><p class="annotation">Интегральные расхождения не задают максимальную ошибку отдельных скважин или полей. Времена отдельных запусков не являются контролируемым замером ускорения. Резервный поиск поправки в этом прогоне не спас отклонённые шаги и остаётся выключенным по умолчанию.</p><a class="action" href="data/reports/norne.txt">Прочитать полный протокол</a></div></section><div class="wrap archive-note"><strong>Ниже — архив графиков прогона 30 октября 2026.</strong> Его время 11:06 и показатели относятся к старому запуску. Изображения и CSV сохранены без подмены; они не иллюстрируют новый прогон 8:19.</div>
 <header class="hero">
 <div class="wrap hero-grid">
 <div>
@@ -38,7 +38,7 @@
 <div><b>−0,088%</b><span>накопленный газ</span></div>
 </div>
 <figure class="spark">
-<img alt="Накопленная нефть: последний строгий прогон и Eclipse за девять лет" src="assets/hero_fopt.svg?v=20261030-fused"/>
+<img alt="Накопленная нефть: архивный строгий прогон и Eclipse за девять лет" src="assets/hero_fopt.svg?v=20261030-fused"/>
 <div class="legend">
 <span><i></i>Eclipse</span>
 <span class="ours"><i></i>наш солвер</span>
@@ -56,7 +56,7 @@
 <div class="wrap">
 <p class="index">01 — постановка и итог</p>
 <h2>Norne, 1997–2006</h2>
-<div class="prose"><p>Norne — открытая модель Equinor в Норвежском море. Сетка 46×112×22: 113 344 ячейки, из них 44 431 активная. История с ноября 1997 по декабрь 2006, 3312 суток, 36 скважин, закачка воды и газа, остановки и смена режимов.</p><p>Последний полный расчёт выполнен <strong>30 октября 2026</strong> из исходного deck с профилем <strong>strict</strong>: CNV ≤ 10<sup>−3</sup> и MB ≤ 10<sup>−7</sup> на каждом принятом подшаге, без ослабления для части порового объёма. Все графики и поля на этой странице построены по этому прогону.</p><p>К концу истории нефть отличается от Eclipse на <strong>−0,064%</strong>, вода на <strong>+0,130%</strong>, газ на <strong>−0,088%</strong>. Это ошибки итоговых накопленных объёмов. Закачка воды: −0,01567%; газа: −0,000034%.</p><p>Голубая линия — Eclipse 2014.2, оранжевый пунктир — oil-simulator. Серые точки — исторические данные из deck, по которым задаются режимы скважин. Это сравнение двух симуляций одной модели; совпадение с историей добычи отдельно не подгонялось.</p></div>
+<div class="prose"><p>Norne — открытая модель Equinor в Норвежском море. Сетка 46×112×22: 113 344 ячейки, из них 44 431 активная. История с ноября 1997 по декабрь 2006, 3312 суток, 36 скважин, закачка воды и газа, остановки и смена режимов.</p><p>Архивный полный расчёт выполнен <strong>30 октября 2026</strong> из исходного deck с профилем <strong>strict</strong>: CNV ≤ 10<sup>−3</sup> и MB ≤ 10<sup>−7</sup> на каждом принятом подшаге, без ослабления для части порового объёма. Все графики и поля на этой странице построены по этому прогону.</p><p>К концу истории нефть отличается от Eclipse на <strong>−0,064%</strong>, вода на <strong>+0,130%</strong>, газ на <strong>−0,088%</strong>. Это ошибки итоговых накопленных объёмов. Закачка воды: −0,01567%; газа: −0,000034%.</p><p>Голубая линия — Eclipse 2014.2, оранжевый пунктир — oil-simulator. Серые точки — исторические данные из deck, по которым задаются режимы скважин. Это сравнение двух симуляций одной модели; совпадение с историей добычи отдельно не подгонялось.</p></div>
 <div aria-label="Накопленные объёмы к декабрю 2006" class="slip" role="table">
 <div class="slip-head" role="row">
 <span>вектор</span><span>что это</span><span>наш · Eclipse</span><span></span><span>разница</span>
@@ -112,7 +112,7 @@
 </div>
 <figure>
 <img alt="Дебит нефти двенадцати крупнейших добывающих скважин" class="chart" id="well" src="assets/wells_oil.png?v=20261030-fused"/>
-<figcaption id="well-cap">Дебит нефти, м³/сут. Голубая — Eclipse, пунктир — текущий строгий прогон, точки — история. Переключатель показывает воду, газ и забойное давление тех же скважин.</figcaption>
+<figcaption id="well-cap">Дебит нефти, м³/сут. Голубая — Eclipse, пунктир — архивный строгий прогон, точки — история. Переключатель показывает воду, газ и забойное давление тех же скважин.</figcaption>
 </figure>
 </div>
 </section>
@@ -181,6 +181,6 @@
 <a href="https://github.com/researchim-ai/oil-simulator-py/blob/main/docs/NORNE.md">документация</a>
 </nav>
 </footer>
-<script src="main.js?v=20261030-fused"></script>
+<script src="main.js?v=20261120"></script>
 </body>
 </html>

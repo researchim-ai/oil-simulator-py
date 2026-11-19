@@ -2,7 +2,7 @@
   const assetVersion = "?v=20261030-fused";
   const caps = {
     "assets/wells_oil.png": "Дебит нефти, м³/сут. Голубая — Eclipse, пунктир — наш солвер, точки — история.",
-    "assets/wells_water.png": "Дебит воды, м³/сут. Текущий строгий прогон: накопленная вода месторождения +0,130% к Eclipse; ошибки отдельных скважин различаются.",
+    "assets/wells_water.png": "Дебит воды, м³/сут. Архивный прогон 30 октября: накопленная вода месторождения +0,130% к Eclipse; ошибки отдельных скважин различаются.",
     "assets/wells_gas.png": "Дебит газа, тыс. м³/сут. Свободный газ плюс растворённый.",
     "assets/wells_bhp.png": "Забойное давление, бар. У закрытой скважины эталон может показывать ноль. STOP сохраняет давление и внутренний переток; 1 атм — нижний предел забоя в истории.",
     "assets/map_so.png": "Нефтенасыщенность, среднее по разрезу. Южный сегмент светлеет к 2006 году.",
@@ -22,7 +22,7 @@
           const cap = document.getElementById(kind === "well" ? "well-cap" : "map-cap");
           img.src = btn.dataset.src;
           cap.textContent = caps[btn.dataset.src.split("?")[0]];
-          img.alt = "Norne: " + btn.textContent + ", текущий строгий прогон";
+          img.alt = "Norne: " + btn.textContent + ", архивный прогон 30 октября";
         } else {
           paint();
         }

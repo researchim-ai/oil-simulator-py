@@ -1,36 +1,17 @@
+import {validate} from './archive.js';
+import {readProject} from './projects.js';
+import { FieldScene3D } from './scene3d.js?v=20261120-3d';
 const $ = s => document.querySelector(s);
 const esc = v => String(v ?? '—').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const fmt = (v, n=3) => Number.isFinite(v) ? (v !== 0 && Math.abs(v) < .001 ? v.toExponential(3) : v.toLocaleString('ru-RU',{maximumFractionDigits:n})) : '—';
 const colors={oil:'#e9a864',water:'#61b2cf',gas:'#a4b99b',mixed:'#9fb7ad'};
-let data, index=0, selected='facility', view='network', timer=null, entities=[], fieldBounds;
+let data, index=0, selected='facility', view='scene', timer=null, entities=[], fieldBounds;
+const scene=new FieldScene3D(document.querySelector('#scene-canvas'), id=>select(id));
 const frame=()=>data.frames[index];
 const measure=(f,k)=>f.facility.measurements[k]?.value;
 const sum=a=>a.reduce((x,y)=>x+y,0);
 const vec=o=>['oil','water','gas'].map(k=>o[k]);
-function validate(d){
- if(d?.schema!=='oil-engineering-viewer/v1')throw Error('Нужен экспорт oil-engineering-viewer/v1. Используйте scripts/export_engineering_viewer.py.');
- if(!Array.isArray(d.frames)||!d.frames.length||d.frames.length>10000)throw Error('Некорректное число кадров.');
- if(d.provenance?.status!=='complete'||d.provenance?.source_guard!==true||d.provenance?.audit?.accepted!==true)throw Error('Нужен завершённый расчёт с пройденным аудитом.');
- if(d.field?.layout!=='C-order [i,j,k]; flat=(i*ny+j)*nz+k')throw Error('Неизвестный порядок ячеек.');
- const dims=d.field.dimensions;if(!Array.isArray(dims)||dims.length!==3||!dims.every(x=>Number.isInteger(x)&&x>0)||dims.reduce((a,b)=>a*b,1)>2000000)throw Error('Неподдерживаемые размеры сетки.');
- for(const key of ['pressure_pa','s_w','s_g','rs'])if(!Array.isArray(d.field[key])||d.field[key].length!==dims.reduce((a,b)=>a*b,1)||!d.field[key].every(Number.isFinite))throw Error('Некорректное поле '+key);
- if(!d.topology?.gathering?.pipes||!Array.isArray(d.topology.wells)||!d.topology.facility?.water_network)throw Error('Не поддержана топология этого экспорта.');
- const top=d.topology, plant=top.facility;
- if(top.gathering.model!=='homogeneous_blackoil_tree'||plant.separator_stages?.length!==2||plant.water_network.pumps?.length!==1||!plant.gas_export||top.wells.length<1||top.wells.length>16)throw Error('Просмотр v1 поддерживает до 16 добывающих скважин, две ступени сепарации, один насос воды и экспорт газа.');
- const expected=new Set([...Object.values(top.well_nodes).map(n=>JSON.stringify([n,'header'])),JSON.stringify(['header','receiver'])]);
- if(top.gathering.pipes.length!==expected.size||top.gathering.pipes.some(p=>!expected.has(JSON.stringify([p.start,p.end]))))throw Error('Для этой топологии нужен отдельный адаптер схемы.');
- let last=-Infinity;
- for(const f of d.frames){
-  if(!Number.isFinite(f.time_days)||f.time_days<=last||!Number.isFinite(f.dt_s)||f.dt_s<=0)throw Error('Нарушен порядок времени.');last=f.time_days;
-  if(!f.wells||!f.pipes||!f.control||!f.facility?.limits||!f.facility?.measurements||!f.facility?.gas_export)throw Error('Неполный кадр сети.');
-  if(top.wells.some(w=>!Object.hasOwn(f.wells,w.name))||top.gathering.pipes.some(p=>!Object.hasOwn(f.pipes,p.name)))throw Error('Отсутствуют объекты в кадре.');
-  for(const w of Object.values(f.wells))if(!Number.isFinite(w.bhp_pa)||!Array.isArray(w.component_mass_rates_kg_s)||w.component_mass_rates_kg_s.length!==3||!w.component_mass_rates_kg_s.every(Number.isFinite))throw Error('Некорректная история скважины.');
- }
- for(const f of d.frames){for(const w of top.wells){const p=[w.i,w.j,w.k];if(!p.every((v,i)=>Number.isInteger(v)&&v>=0&&v<dims[i]))throw Error('Скважина вне сетки.');}for(const p of top.gathering.pipes){const v=f.pipes[p.name];if(!Number.isFinite(v.inlet_pressure_pa)||!Number.isFinite(v.outlet_pressure_pa)||!v.outlet_state?.phase_volume_rates_m3_s||!v.component_mass_rates_kg_s)throw Error('Неполные данные трубы.');}if(!Array.isArray(f.facility.gas_export.routes)||!f.facility.gas_export.valve?.nozzle||!f.facility.network.pump_npsh_margin_m||!Array.isArray(f.control.trace)||top.facility.separator_stages.some(s=>!f.facility.stages.some(r=>r.name===s.name)))throw Error('Неполные данные оборудования.');}
- if(!['initial_component_mass_kg','final_component_mass_kg','withdrawn_component_mass_kg','mass_balance_error_kg'].every(k=>Array.isArray(d.totals?.[k])&&d.totals[k].length===3&&d.totals[k].every(Number.isFinite)))throw Error('Неполный материальный баланс.');
- if(d.field.time_days!==d.frames.at(-1).time_days)throw Error('Дата поля не совпадает с концом архива.');
- return d;
-}
+
 function load(d){
  validate(d); stop();data=d;index=d.frames.length-1;selected='facility';
  entities=[{id:'facility',name:'Вся площадка',kind:'facility',group:'Система',icon:'◇'},
@@ -44,7 +25,8 @@ function load(d){
  $('#audit-status').textContent='Архив · аудит пройден';$('#timeline').max=d.frames.length-1;$('#timeline').disabled=false;$('#play').disabled=false;$('#export').disabled=false;
  $('#time-start').textContent=fmt(d.frames[0].time_days,6)+' сут';$('#time-end').textContent=fmt(d.frames.at(-1).time_days)+' сут';
  $('#layer').innerHTML=Array.from({length:d.field.dimensions[2]},(_,i)=>`<option value="${i}">${i+1}</option>`).join('');
- $('#object-count').textContent=entities.length;$('#error').hidden=true;renderObjects();render();
+ $('#scene-layer').innerHTML=$('#layer').innerHTML;
+ $('#object-count').textContent=entities.length;$('#error').hidden=true;renderObjects();switchView(view);
 }
 function renderObjects(){
  if(!data)return;const query=$('#search').value.toLowerCase();let group='';
@@ -61,7 +43,7 @@ function composition(q){const total=sum(q.map(Math.abs));return `<div class="com
 function render(){
  if(!data)return;const f=frame();$('#timeline').value=index;$('#time').textContent=fmt(f.time_days,6);$('#frame-label').textContent=`КАДР ${index+1} / ${data.frames.length}`;
  $('#metrics').innerHTML=[['Отбор нефти',measure(f,'product:oil:mass_kg_s'),'кг/с','Масса нефтяного компонента'],['Экспорт газа',measure(f,'gas_export_mass_kg_s'),'кг/с','Газовый компонент'],['Мощность приводов',measure(f,'facility_drive_power_total_w')/1000,'кВт','Насосы + компрессоры'],['Использование клапана',measure(f,'gas_valve_utilization')*100,'%','Экспортное ограничение']].map((m,i)=>`<div class="metric ${i===3?'accent':''}"><label>${m[0]}</label><strong>${fmt(m[1],3)}<small>${m[2]}</small></strong><p>${m[3]}</p></div>`).join('');
- if(view==='network')renderNetwork();if(view==='reservoir')renderField();if(view==='balances')renderBalances();if(view==='diagnostics')renderDiagnostics();renderInspector();renderCharts();
+ if(view==='scene')scene.update(data,f,selected);if(view==='network')renderNetwork();if(view==='reservoir')renderField();if(view==='balances')renderBalances();if(view==='diagnostics')renderDiagnostics();renderInspector();renderCharts();
 }
 function node(id,x,y,w,h,title,value,kind='rect'){
  const shape=kind==='vessel'?`<rect class="body" x="${-w/2}" y="${-h/2}" width="${w}" height="${h}" rx="${h/2}"/>`:kind==='pump'?`<circle class="body" r="${h/2}"/><path d="M-9,-12 L12,0 L-9,12 Z" fill="none" stroke="#94b6a5"/>`:`<rect class="body" x="${-w/2}" y="${-h/2}" width="${w}" height="${h}" rx="5"/>`;
@@ -165,7 +147,7 @@ function renderField(){
 function renderBalances(){
  const t=data.totals;$('#balance-content').innerHTML=`<div class="balance-grid">${['Нефть','Вода','Газ'].map((name,i)=>`<div class="balance-card"><h3>${name} · компонент</h3><p>Начальный запас<br><b>${fmt(t.initial_component_mass_kg[i])}</b> кг</p><p>Конечный запас<br><b>${fmt(t.final_component_mass_kg[i])}</b> кг</p><p>Накопленный отбор<br><b>${fmt(t.withdrawn_component_mass_kg[i])}</b> кг</p><hr><p>Невязка баланса<br><b>${t.mass_balance_error_kg[i].toExponential(3)}</b> кг</p></div>`).join('')}</div><div class="balance-note"><strong>Интегральный баланс за весь расчёт · ${fmt(data.field.time_days)} суток.</strong><br>Начальный запас − конечный запас − накопленный отбор. Этот итог не перематывается вместе с историей сети.<br>Материальный аудит пройден. Это проверка сохранения массы, а не независимая экспериментальная валидация физических замыканий.</div>`;
 }
-function switchView(v){view=v;for(const name of ['network','reservoir','balances','diagnostics'])$('#'+name+'-view').hidden=name!==v;document.querySelectorAll('[data-view]').forEach(b=>{b.classList.toggle('active',b.dataset.view===v);b.setAttribute('aria-selected',b.dataset.view===v);});$('#stage-title').textContent={network:'От скважины до экспорта',reservoir:'Поле пласта · ячейка за ячейкой',balances:'Проверка сохранения компонентов',diagnostics:'Как найдено принятое решение'}[v];$('#stage-eyebrow').textContent={network:'СВЯЗАННАЯ СИСТЕМА',reservoir:'КОНЕЧНЫЙ СНИМОК',balances:'АУДИТ ВСЕГО ГОРИЗОНТА',diagnostics:'ДИАГНОСТИКА ОГРАНИЧИТЕЛЯ'}[v];$('#stage-note').textContent=v==='network'?'Схема связей · не географическая карта':v==='reservoir'?'Значения в ячейках · без сглаживания':'Из архивного расчёта';render();}
+function switchView(v){view=v;for(const name of ['scene','network','reservoir','balances','diagnostics'])$('#'+name+'-view').hidden=name!==v;document.querySelectorAll('[data-view]').forEach(b=>{b.classList.toggle('active',b.dataset.view===v);b.setAttribute('aria-selected',b.dataset.view===v);});$('#stage-title').textContent={scene:'От пласта до оборудования · 3D',network:'От скважины до экспорта',reservoir:'Поле пласта · ячейка за ячейкой',balances:'Проверка сохранения компонентов',diagnostics:'Как найдено принятое решение'}[v];$('#stage-eyebrow').textContent={scene:'ПРОСТРАНСТВЕННЫЙ ОБЗОР',network:'СВЯЗАННАЯ СИСТЕМА',reservoir:'КОНЕЧНЫЙ СНИМОК',balances:'АУДИТ ВСЕГО ГОРИЗОНТА',diagnostics:'ДИАГНОСТИКА ОГРАНИЧИТЕЛЯ'}[v];$('#stage-note').textContent=v==='scene'?'Условная компоновка · данные расчёта':v==='network'?'Схема связей · не географическая карта':v==='reservoir'?'Значения в ячейках · без сглаживания':'Из архивного расчёта';render();}
 function stop(){clearInterval(timer);timer=null;$('#play').textContent='▶';$('#play').setAttribute('aria-label','Воспроизвести историю');}
 function play(){if(!data)return;if(timer){stop();return;}if(index===data.frames.length-1)index=0;$('#play').textContent='Ⅱ';$('#play').setAttribute('aria-label','Остановить воспроизведение');render();timer=setInterval(()=>{if(index>=data.frames.length-1){stop();return;}index++;render();},Number($('#speed').value));}
 function showError(e){$('#error').hidden=false;$('#error').textContent=e.message+' Можно открыть подготовленный JSON кнопкой «Открыть расчёт».';}
@@ -195,7 +177,8 @@ $('#search').addEventListener('input',renderObjects);document.querySelectorAll('
 $('#timeline').addEventListener('input',e=>{stop();index=Number(e.target.value);render();});$('#play').addEventListener('click',play);$('#speed').addEventListener('change',()=>{if(timer){stop();play();}});$('#previous').addEventListener('click',()=>{if(data){stop();index=Math.max(0,index-1);render();}});$('#next').addEventListener('click',()=>{if(data){stop();index=Math.min(data.frames.length-1,index+1);render();}});$('#field').addEventListener('change',()=>data&&renderField());$('#layer').addEventListener('change',()=>data&&renderField());$('#source-button').addEventListener('click',sourceInfo);$('#close-source').addEventListener('click',()=>$('#provenance').close());$('#export').addEventListener('click',downloadCSV);
 $('#field-canvas').addEventListener('mousemove',e=>{if(!fieldBounds)return;const b=fieldBounds,{i,j}=fieldPoint(e);const tip=$('#cell-tooltip');if(i<0||i>=b.nx||j<0||j>=b.ny){tip.hidden=true;return;}tip.hidden=false;tip.textContent=`i=${i} · j=${j} · k=${b.k} → ${fmt(b.values[(i*b.ny+j)*b.nz+b.k],7)} · ${$('#field').selectedOptions[0].textContent.split('·')[1]}`;});$('#field-canvas').addEventListener('mouseleave',()=>$('#cell-tooltip').hidden=true);
 $('#import').addEventListener('change',async e=>{const file=e.target.files[0];if(!file)return;try{if(file.size>80*1024**2)throw Error('Файл больше 80 МиБ. Уменьшите число экспортируемых кадров.');load(JSON.parse(await file.text()));}catch(err){showError(err);}finally{e.target.value='';}});
-fetch('../data/engineering-case.json').then(r=>{if(!r.ok)throw Error('Не удалось загрузить архив: HTTP '+r.status);return r.json();}).then(load).catch(showError);
+const projectId=new URLSearchParams(location.search).get('project');
+(projectId?readProject(projectId).then(p=>{if(!p?.archive)throw Error('В проекте нет расчёта. Добавьте архив на странице проектов.');return p.archive;}):fetch('data/engineering-case.json').then(r=>{if(!r.ok)throw Error('Не удалось загрузить демонстрационный архив');return r.json();})).then(load).catch(showError);
 
 function renderDiagnostics(){
  const f=frame();$('#diagnostics-content').innerHTML=`<div class="diagnostic-summary">${kv('Конец принятого шага',fmt(f.time_days,7),'сут')+kv('Длительность шага',fmt(f.dt_s,7),'с')+kv('Итерации Ньютона',f.newton_iterations)+kv('Множитель дебита',fmt(f.control.fraction,9))+kv('Физических FIM-проб',f.control.reservoir_evaluations)}</div><p class="data-note">Пробы ограничителя в выбранной принятой стадии. Недопустимые точки поиска не являются принятыми состояниями пласта.</p><div class="trace-wrap"><table class="trace-table"><thead><tr><th>Проба</th><th>Множитель</th><th>Оборудование</th><th>Расчёт</th><th>Наибольшая невязка ограничения</th></tr></thead><tbody>${f.control.trace.map((r,i)=>{const a=Object.entries(r.constraint_margins||{}).filter(([,v])=>Number.isFinite(v)).sort((a,b)=>b[1]-a[1])[0];return `<tr><td>${i+1}</td><td>${fmt(r.fraction,9)}</td><td class="${r.feasible?'ok':'warn'}">${r.feasible?'Допустимо':'Недопустимо'}</td><td>${r.certified_from_trace_index!==undefined?'Сертификат ← '+(r.certified_from_trace_index+1):'FIM'}</td><td>${a?esc(a[0])+' · '+fmt(a[1],7):'Нет значения'}</td></tr>`;}).join('')}</tbody></table></div><p class="data-note">Невязки нормированы: положительное значение означает превышение. Полные журналы итераций и локальные CNV по ячейкам в этот компактный экспорт не включены.</p>`;
@@ -215,3 +198,12 @@ function fieldPoint(e){
  const x=(e.clientX-r.left-ox)/scale,y=(e.clientY-r.top-oy)/scale;
  return {i:Math.floor((x-b.x0)/b.size),j:b.ny-1-Math.floor((y-b.y0)/b.size)};
 }
+
+$('#scene-field').addEventListener('change',e=>{scene.field=e.target.value;scene.request();});
+$('#scene-layer').addEventListener('change',e=>{scene.layer=Number(e.target.value);scene.request();});
+$('#scene-field-visible').addEventListener('change',e=>{scene.showField=e.target.checked;scene.request();});
+$('#scene-labels').addEventListener('change',e=>{scene.showLabels=e.target.checked;scene.request();});
+$('#scene-reset').addEventListener('click',()=>scene.reset());
+$('#scene-top').addEventListener('click',()=>scene.reset(true));
+$('#scene-plus').addEventListener('click',()=>{scene.zoom=Math.min(3,scene.zoom*1.2);scene.request();});
+$('#scene-minus').addEventListener('click',()=>{scene.zoom=Math.max(.45,scene.zoom/1.2);scene.request();});

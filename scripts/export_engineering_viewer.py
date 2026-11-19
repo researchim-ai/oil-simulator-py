@@ -189,7 +189,7 @@ def build(directory, max_frames=160):
 def main():
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument("forecast", type=Path)
-    p.add_argument("--output", type=Path, default=Path("web/data/engineering-case.json"))
+    p.add_argument("--output", type=Path, default=Path("apps/fieldroom/data/engineering-case.json"))
     p.add_argument("--max-frames", type=int, default=160)
     args = p.parse_args()
     data = build(args.forecast, args.max_frames)
