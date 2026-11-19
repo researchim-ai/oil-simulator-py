@@ -1,0 +1,92 @@
+{
+  "model": "incompressible_liquid",
+  "fluid": {
+    "density_kg_m3": 1000,
+    "viscosity_pa_s": 0.001,
+    "vapor_pressure_pa": 2300
+  },
+  "nodes": [
+    {
+      "name": "water_inlet",
+      "source_mass_rate_kg_s": 2
+    },
+    {
+      "name": "header"
+    },
+    {
+      "name": "valve_in"
+    },
+    {
+      "name": "disposal",
+      "pressure_pa": 400000
+    }
+  ],
+  "pipes": [
+    {
+      "name": "water_line",
+      "start": "header",
+      "end": "valve_in",
+      "length_m": 100,
+      "diameter_m": 0.1
+    }
+  ],
+  "pumps": [
+    {
+      "name": "water_booster",
+      "start": "water_inlet",
+      "end": "header",
+      "shutoff_head_m": 20,
+      "curve_coefficient_s2_m5": 1000000,
+      "max_flow_m3_s": 0.004,
+      "head_curve": {
+        "flow_m3_s": [
+          0,
+          0.002,
+          0.004
+        ],
+        "values": [
+          20,
+          16,
+          8
+        ]
+      },
+      "efficiency_curve": {
+        "flow_m3_s": [
+          0,
+          0.002,
+          0.004
+        ],
+        "values": [
+          0.65,
+          0.8,
+          0.7
+        ]
+      },
+      "npsh_curve": {
+        "flow_m3_s": [
+          0,
+          0.002,
+          0.004
+        ],
+        "values": [
+          1,
+          2,
+          4
+        ]
+      },
+      "inlet_diameter_m": 0.1,
+      "check_valve": true,
+      "max_shaft_power_w": 1000
+    }
+  ],
+  "valves": [
+    {
+      "name": "water_choke",
+      "start": "valve_in",
+      "end": "disposal",
+      "diameter_m": 0.02,
+      "discharge_coefficient": 0.62,
+      "opening": 0.8
+    }
+  ]
+}

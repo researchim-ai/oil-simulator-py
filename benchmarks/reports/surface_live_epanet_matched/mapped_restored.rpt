@@ -1,0 +1,38 @@
+  Page 1                                    Thu Nov 19 22:11:48 2026
+
+  ******************************************************************
+  *                           E P A N E T                          *
+  *                   Hydraulic and Water Quality                  *
+  *                   Analysis for Pipe Networks                   *
+  *                         Version 2.2                            *
+  ******************************************************************
+  
+   
+      Input Data File ................... /home/user/workspace/oil-simulator-py-impes/benchmarks/reports/surface_live_epanet_matched/mapped_restored.inp
+      Number of Junctions................ 3
+      Number of Reservoirs............... 1
+      Number of Tanks ................... 0
+      Number of Pipes ................... 1
+      Number of Pumps ................... 1
+      Number of Valves .................. 1
+      Headloss Formula .................. Darcy-Weisbach
+      Nodal Demand Model ................ DDA
+      Hydraulic Timestep ................ 1.00 hrs
+      Hydraulic Accuracy ................ 0.000010
+      Status Check Frequency ............ 2
+      Maximum Trials Checked ............ 10
+      Damping Limit Threshold ........... 0.000000
+      Maximum Trials .................... 100
+      Quality Analysis .................. None
+      Specific Gravity .................. 1.00
+      Relative Kinematic Viscosity ...... 0.98
+      Relative Chemical Diffusivity ..... 1.00
+      Demand Multiplier ................. 1.00
+      Total Duration .................... 0.00 hrs
+      Reporting Criteria:
+         No Nodes
+         No Links
+   
+  Analysis begun Thu Nov 19 22:11:48 2026
+
+  Analysis ended Thu Nov 19 22:11:48 2026

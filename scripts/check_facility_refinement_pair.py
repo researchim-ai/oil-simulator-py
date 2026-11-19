@@ -18,6 +18,7 @@ from check_long_facility_trajectory import compare as compare_wells
 from compare_fim_facility_forecast import compare as compare_fields
 
 from simulator.facility_temporal_control import FacilityTemporalControl
+from simulator.facility_time_control import FacilityTimeControl
 
 
 def completed(directory, required_days):
@@ -77,6 +78,19 @@ def stricter(candidate, reference):
         ):
             raise ValueError("Reference temporal tolerances must be stricter")
         return "local_BE_defect_tolerances"
+    ra, rb = [x["coupled_facility"].get("time_control") for x in (a, b)]
+    if ra is not None or rb is not None:
+        if ra is None or rb is None:
+            raise ValueError("Use the same endpoint-rate control family")
+        pa, pb = FacilityTimeControl(**ra), FacilityTimeControl(**rb)
+        if (pa.safety_factor != pb.safety_factor or pa.maximum_growth != pb.maximum_growth
+                or pb.startup_step_days > pa.startup_step_days):
+            raise ValueError("Reference must preserve rate growth policy and not increase startup step")
+        keys = ("rate_relative_tolerance", "rate_absolute_tolerance_kg_s")
+        if not all(getattr(pb, k) <= getattr(pa, k) for k in keys) or not any(
+            getattr(pb, k) < getattr(pa, k) for k in keys
+        ):
+            raise ValueError("Reference endpoint-rate tolerances must be stricter")
     ha, hb = a.get("max_time_step_days"), b.get("max_time_step_days")
     if (
         any(
@@ -94,7 +108,7 @@ def stricter(candidate, reference):
         raise ValueError("Positive finite initial time steps required")
     if min(initial[1], hb) > min(initial[0], ha):
         raise ValueError("Reference must not increase the effective startup step")
-    return "maximum_time_step"
+    return "endpoint_rate_and_maximum_step" if ra is not None else "maximum_time_step"
 
 
 def same_other_settings(candidate, reference):
@@ -104,6 +118,7 @@ def same_other_settings(candidate, reference):
         for key in ("max_time_step_days", "initial_time_step_days"):
             s.pop(key, None)
         s["coupled_facility"].pop("temporal_control", None)
+        s["coupled_facility"].pop("time_control", None)
     if configs[0] != configs[1]:
         raise ValueError("Only time refinement settings may differ in the release pair")
 

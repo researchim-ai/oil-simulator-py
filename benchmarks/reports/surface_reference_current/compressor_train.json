@@ -1,0 +1,69 @@
+{
+  "scope": "Analytical choked ideal-gas blowdown + manufactured partial/full recycle equilibria. Independent nozzle/isentropic formulas, no equipment calibration or post-surge validation.",
+  "passed": true,
+  "blowdown": [
+    {
+      "dt_s": 0.04,
+      "mass_error_kg": 0.0015183532661176002,
+      "temperature_error_k": 0.056585433790019124,
+      "reference_mass_kg": 5.065687389330325,
+      "reference_temperature_k": 295.40180995441733
+    },
+    {
+      "dt_s": 0.02,
+      "mass_error_kg": 0.0007624688289684656,
+      "temperature_error_k": 0.028478582209515935,
+      "reference_mass_kg": 5.065687389330325,
+      "reference_temperature_k": 295.40180995441733
+    },
+    {
+      "dt_s": 0.01,
+      "mass_error_kg": 0.0003820642124603424,
+      "temperature_error_k": 0.014286241534136934,
+      "reference_mass_kg": 5.065687389330325,
+      "reference_temperature_k": 295.40180995441733
+    }
+  ],
+  "mass_error_reduction_ratios": [
+    1.9913643790156788,
+    1.9956562381450698
+  ],
+  "equilibria": [
+    {
+      "recycle_fraction": 0.6,
+      "mass_drift_kg": 0.0,
+      "energy_drift_j": 0.0,
+      "speed_drift_rad_s": 0.0,
+      "net_suction_mass_kg": 0.09999999999999995,
+      "export_mass_kg": 0.10000000000000005,
+      "recycle_mass_kg": 0.15000000000000005,
+      "conditioning_heat_j": 7606.955130710217,
+      "reference_conditioning_heat_j": 7606.95513071021,
+      "passed": true
+    },
+    {
+      "recycle_fraction": 1.0,
+      "mass_drift_kg": 0.0,
+      "energy_drift_j": 0.0,
+      "speed_drift_rad_s": 0.0,
+      "net_suction_mass_kg": -1.1102230246251565e-16,
+      "export_mass_kg": 0.0,
+      "recycle_mass_kg": 0.2500000000000001,
+      "conditioning_heat_j": 12678.258551183697,
+      "reference_conditioning_heat_j": 12678.258551183686,
+      "passed": true
+    }
+  ],
+  "sha256": {
+    "scripts/check_compressor_train.py": "a2550374a72466ec9f4b69c96bdf3cc678f20c4aafd605610e1c9662a4169174",
+    "configs/surface_compressor_train.json": "473d9d2467d405639a83776da3448e56063c499e97f00b1e6af5a93077d10543",
+    "src/surface/compressor_map.py": "24c02d6f1f7be2348ca1c459fea6f7d152ae7ca356a3c1b39e64dd1e35780cc2",
+    "src/surface/compressor_train.py": "e06a9fcc4aab292af4c3413cacf22b173f48dfa1d00c536326bd0ceb913b9060",
+    "src/surface/compressor_schedule.py": "d2edc155be69adfab96b99b37e5d8d96a927ac0c72a4eb04f8993536a38735b3",
+    "src/surface/gas.py": "9df592daa40c165e6c2c19c1a85dfbb0a62192ddb54d83c95023d026d032d62e",
+    "src/surface/gas_valve.py": "d5e2b539a7926e3ec21681e76880de91d7801f332e31fe9c9f699490a51b004c",
+    "src/surface/pid.py": "2222eeb87d5dbb46d64158f4f1e824adbd5e136ce23358d8e3c911d21742402c",
+    "src/surface/actuator.py": "865b8269db96a118508866a6de786b2ae05f6baddcda82bc99e76dcb9b0dbbf0",
+    "src/surface/rotating_drive.py": "c21c189f46ca90d56ccb1b1f87cdfd7bd923aac7497773aab2d5421379d1cff2"
+  }
+}

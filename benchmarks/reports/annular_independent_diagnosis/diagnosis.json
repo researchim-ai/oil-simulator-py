@@ -1,0 +1,181 @@
+{
+  "cases": [
+    {
+      "window": [
+        "mess1",
+        483,
+        542
+      ],
+      "holdup_difference": 8.326672684688674e-17,
+      "pressure_span_difference_pa": 4.050093593832571e-13,
+      "experimental_error_pa": 53.13452985852862
+    },
+    {
+      "window": [
+        "mess1",
+        963,
+        1022
+      ],
+      "holdup_difference": 7.28583859910259e-17,
+      "pressure_span_difference_pa": 7.034373084024992e-13,
+      "experimental_error_pa": 51.6855117814996
+    },
+    {
+      "window": [
+        "mess1",
+        1323,
+        1382
+      ],
+      "holdup_difference": 4.5102810375396984e-17,
+      "pressure_span_difference_pa": 6.608047442568932e-13,
+      "experimental_error_pa": 65.05219110036714
+    },
+    {
+      "window": [
+        "mess2",
+        663,
+        722
+      ],
+      "holdup_difference": 1.0755285551056204e-16,
+      "pressure_span_difference_pa": 4.689582056016661e-13,
+      "experimental_error_pa": 64.40719247711523
+    },
+    {
+      "window": [
+        "mess2",
+        723,
+        782
+      ],
+      "holdup_difference": 1.7694179454963432e-16,
+      "pressure_span_difference_pa": 8.739675649849232e-13,
+      "experimental_error_pa": 71.38944266860814
+    },
+    {
+      "window": [
+        "mess2",
+        1263,
+        1322
+      ],
+      "holdup_difference": 2.0122792321330962e-16,
+      "pressure_span_difference_pa": 6.394884621840902e-13,
+      "experimental_error_pa": 70.16379955731254
+    },
+    {
+      "window": [
+        "mess2",
+        1443,
+        1502
+      ],
+      "holdup_difference": 3.8163916471489756e-17,
+      "pressure_span_difference_pa": 1.4921397450962104e-13,
+      "experimental_error_pa": 53.59606553814335
+    },
+    {
+      "window": [
+        "mess2",
+        1503,
+        1562
+      ],
+      "holdup_difference": 1.1622647289044608e-15,
+      "pressure_span_difference_pa": 2.7071678232459817e-12,
+      "experimental_error_pa": 57.55082592973123
+    },
+    {
+      "window": [
+        "mess2",
+        1563,
+        1622
+      ],
+      "holdup_difference": 2.0816681711721685e-16,
+      "pressure_span_difference_pa": 1.0444978215673473e-12,
+      "experimental_error_pa": 50.22491303328928
+    },
+    {
+      "window": [
+        "mess2",
+        1623,
+        1682
+      ],
+      "holdup_difference": 1.5959455978986625e-16,
+      "pressure_span_difference_pa": 4.689582056016661e-13,
+      "experimental_error_pa": 67.08744087557785
+    },
+    {
+      "window": [
+        "mess2",
+        1923,
+        1982
+      ],
+      "holdup_difference": 4.5102810375396984e-17,
+      "pressure_span_difference_pa": 2.3447910280083306e-13,
+      "experimental_error_pa": 46.99613519361339
+    },
+    {
+      "window": [
+        "mess3",
+        63,
+        122
+      ],
+      "holdup_difference": 1.0755285551056204e-16,
+      "pressure_span_difference_pa": 4.263256414560601e-14,
+      "experimental_error_pa": 40.64180689968027
+    },
+    {
+      "window": [
+        "mess3",
+        483,
+        542
+      ],
+      "holdup_difference": 1.3461454173580023e-15,
+      "pressure_span_difference_pa": 3.069544618483633e-12,
+      "experimental_error_pa": 50.86349362415599
+    },
+    {
+      "window": [
+        "mess3",
+        723,
+        782
+      ],
+      "holdup_difference": 4.163336342344337e-17,
+      "pressure_span_difference_pa": 1.2789769243681803e-13,
+      "experimental_error_pa": 58.132315702809464
+    },
+    {
+      "window": [
+        "mess3",
+        783,
+        842
+      ],
+      "holdup_difference": 1.249000902703301e-16,
+      "pressure_span_difference_pa": 6.394884621840902e-14,
+      "experimental_error_pa": 67.67268607032359
+    },
+    {
+      "window": [
+        "mess3",
+        1083,
+        1142
+      ],
+      "holdup_difference": 1.4224732503009818e-16,
+      "pressure_span_difference_pa": 8.313350008393172e-13,
+      "experimental_error_pa": 72.80906796493673
+    }
+  ],
+  "numerical_budgets": {
+    "holdup": 1e-08,
+    "pressure_span_pa": 1e-05
+  },
+  "numerical_check_passed": true,
+  "experimental_check_passed": false,
+  "qualification_blockers": [
+    "pressure_increment_discrepancy",
+    "full_circumferential_wetting_not_confirmed",
+    "liquid_application_losses_not_separately_measured"
+  ],
+  "fit_performed": false,
+  "scope": "Steady fully-wetted laminar film; not transient or partial-wetting validation",
+  "source_sha256": {
+    "scripts/diagnose_annular_experiment.py": "03ef059b4d8bff3233c0f515127aa3f6cb36921332e18cfd59b89caba8b014e6",
+    "scripts/reference_pr_annular_source.py": "356d85d40cddeb2aca60827d94cec7fabf725fbef0018e0b93b5a6a66f9ccfde"
+  }
+}

@@ -1,0 +1,23 @@
+{
+  "reference": "Linear standing acoustic wave, homogeneous isothermal Wood limit; 100 Pa perturbation about 1 MPa; no slip, no friction",
+  "cases": [
+    {
+      "cells": 8,
+      "dt_s": 0.0005,
+      "pressure_L1_error_pa": 1.643733346281806,
+      "wall_s": 0.2969025630000033
+    },
+    {
+      "cells": 16,
+      "dt_s": 0.00025,
+      "pressure_L1_error_pa": 0.8448127749070409,
+      "wall_s": 1.2516079540000646
+    },
+    {
+      "cells": 32,
+      "dt_s": 0.000125,
+      "pressure_L1_error_pa": 0.4270798314428248,
+      "wall_s": 5.148531372999969
+    }
+  ]
+}

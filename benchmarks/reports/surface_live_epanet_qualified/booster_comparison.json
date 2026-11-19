@@ -1,0 +1,161 @@
+{
+  "reference": "OpenWaterAnalytics EPANET v2.2",
+  "source": {
+    "url": "https://codeload.github.com/OpenWaterAnalytics/EPANET/tar.gz/refs/tags/v2.2",
+    "sha256": "0deffd034363fd7cf4275fff0a795c88a0eae1ce964c7f4fb95de8a38b892b1b",
+    "version": "2.2.0"
+  },
+  "input": {
+    "model": "incompressible_liquid",
+    "fluid": {
+      "density_kg_m3": 850,
+      "viscosity_pa_s": 0.1,
+      "vapor_pressure_pa": 2000
+    },
+    "nodes": [
+      {
+        "name": "suction",
+        "pressure_pa": 200000
+      },
+      {
+        "name": "discharge"
+      },
+      {
+        "name": "outlet",
+        "pressure_pa": 200000
+      }
+    ],
+    "pipes": [
+      {
+        "name": "line",
+        "start": "discharge",
+        "end": "outlet",
+        "length_m": 100,
+        "diameter_m": 0.1
+      }
+    ],
+    "pumps": [
+      {
+        "name": "booster",
+        "start": "suction",
+        "end": "discharge",
+        "shutoff_head_m": 20,
+        "curve_coefficient_s2_m5": 1000000,
+        "max_flow_m3_s": 0.0044,
+        "efficiency": 0.75,
+        "speed_ratio": 1.0,
+        "max_shaft_power_w": 1500,
+        "npsh_required_m": 3,
+        "inlet_diameter_m": 0.1
+      }
+    ]
+  },
+  "epanet_heads_m": {
+    "suction": 23.99332265830419,
+    "discharge": 26.061465897465546,
+    "outlet": 23.99332265830419
+  },
+  "epanet_shaft_power_w": {
+    "booster": 97.2925980925764
+  },
+  "epanet_flows_lps": {
+    "line": 4.234602314366577,
+    "booster": 4.234602314366563
+  },
+  "epanet_link_status": {
+    "line": 1.0,
+    "booster": 1.0
+  },
+  "epanet_warnings": [],
+  "ours": {
+    "pressures_pa": {
+      "suction": 200000.0,
+      "discharge": 217252.5581496036,
+      "outlet": 200000.0
+    },
+    "pipe_mass_rates_kg_s": {
+      "line": 3.5992526130985603
+    },
+    "pipe_volume_rates_m3_s": {
+      "line": 0.004234414838939483
+    },
+    "boundary_mass_rates_kg_s": {
+      "suction": 3.5992526130985603,
+      "outlet": -3.5992526130985603
+    },
+    "node_mass_residuals_kg_s": {
+      "suction": 0.0,
+      "discharge": 0.0,
+      "outlet": 0.0
+    },
+    "pipe_equation_residuals_pa": {
+      "line": 7.275957614183426e-12
+    },
+    "pipe_dissipation_w": {
+      "line": 73.05448823834777
+    },
+    "power_balance_error_w": -1.900900770124281e-09,
+    "iterations": 3,
+    "valve_mass_rates_kg_s": {},
+    "valve_volume_rates_m3_s": {},
+    "valve_equation_residuals_pa": {},
+    "valve_dissipation_w": {},
+    "pump_mass_rates_kg_s": {
+      "booster": 3.5992526130985603
+    },
+    "pump_volume_rates_m3_s": {
+      "booster": 0.004234414838939483
+    },
+    "pump_equation_residuals_pa": {
+      "booster": -4.489229468163103e-07
+    },
+    "pump_hydraulic_power_w": {
+      "booster": 73.05448823644687
+    },
+    "pump_shaft_power_w": {
+      "booster": 97.4059843152625
+    },
+    "pump_npsh_available_m": {
+      "booster": 23.76820971045826
+    },
+    "pump_npsh_required_m": {
+      "booster": 3.0
+    },
+    "pump_npsh_margin_m": {
+      "booster": 20.76820971045826
+    },
+    "pump_efficiencies": {
+      "booster": 0.75
+    },
+    "pump_head_gains_m": {
+      "booster": 2.0697309717691184
+    },
+    "branch_states": {
+      "line": "open",
+      "booster": "open"
+    },
+    "check_valve_driving_pressure_pa": {},
+    "operating_controls": {
+      "pump_speed_ratios": {
+        "booster": 1.0
+      },
+      "pump_status": {
+        "booster": true
+      },
+      "valve_openings": {}
+    }
+  },
+  "max_flow_difference_kg_s": 0.00015935411303003022,
+  "max_head_difference_m": 0.0015877326616227094,
+  "max_power_scaled_difference": 0.0011654146863075109,
+  "status_mismatches": [],
+  "si_local_loss_coefficient_matched": true,
+  "local_loss_export_scale": 1.0009244847395202,
+  "accepted": true,
+  "budgets": {
+    "flow_kg_s": 0.0002,
+    "head_m": 0.002,
+    "power_relative_with_1w_floor": 0.002
+  },
+  "note": "EPANET uses g=32.2 ft/s2 and rounded local-loss coefficient; production uses standard g=9.80665 m/s2. Viscosity explicitly matched."
+}

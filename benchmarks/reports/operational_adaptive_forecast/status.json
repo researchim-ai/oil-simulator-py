@@ -1,0 +1,6 @@
+{
+  "status": "interrupted",
+  "accepted": false,
+  "reason": "Agent stopped the owned pilot after observing overly restrictive endpoint-rate timesteps; no completed forecast or qualification.",
+  "rate_relative_tolerance": 0.001
+}

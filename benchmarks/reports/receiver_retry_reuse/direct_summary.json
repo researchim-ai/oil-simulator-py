@@ -1,0 +1,31 @@
+{
+  "local_integration_s": 164.40377261299997,
+  "direct_005_s": 33.86716876699995,
+  "direct_0025_s": 56.43665025000007,
+  "direct_refinement_differences": {
+    "inlet_pressure_pa": 4.673799049691297,
+    "temperature_k": 0.0002805018492608724,
+    "component_moles": 0.00016439385722577526,
+    "total_energy_j": 0.14961734172538854,
+    "reservoir": {
+      "pressure": 2.3283064365386963e-09,
+      "s_w": 3.3306690738754696e-16,
+      "s_g": 1.3565537582138631e-15,
+      "rs": 2.842170943040401e-14
+    }
+  },
+  "local_vs_direct_0025_differences": {
+    "inlet_pressure_pa": 1.39635678823106,
+    "temperature_k": 8.563832301433649e-05,
+    "component_moles": 4.883346559125812e-05,
+    "total_energy_j": 0.05005950776103418,
+    "reservoir": {
+      "pressure": 1.0663643479347229e-07,
+      "s_w": 1.3322676295501878e-14,
+      "s_g": 5.0719844990609886e-14,
+      "rs": 1.5987211554602254e-12
+    }
+  },
+  "all_direct_audits_accepted": true,
+  "direct_max_temporal_error_ratio": 0.2034136760015328
+}

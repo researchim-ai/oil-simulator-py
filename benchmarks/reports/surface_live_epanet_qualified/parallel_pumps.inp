@@ -1,0 +1,34 @@
+[JUNCTIONS]
+header 0.0 -0.0
+[RESERVOIRS]
+supply 20.39432425955857
+outlet 50.98581064889641
+[PIPES]
+line header outlet 100 100.0 0.0 0.0 OPEN
+[PUMPS]
+strong supply header HEAD curve_strong SPEED 1.0
+weak supply header HEAD curve_weak SPEED 1.0
+[VALVES]
+[STATUS]
+[CURVES]
+curve_strong 0 40
+curve_strong 3 31
+curve_strong 6 4
+eff_strong 0 75
+eff_strong 6 75
+curve_weak 0 10
+curve_weak 1.5 7.75
+curve_weak 3 1
+eff_weak 0 75
+eff_weak 3 75
+[ENERGY]
+PUMP strong EFFIC eff_strong
+PUMP weak EFFIC eff_weak
+[OPTIONS]
+UNITS LPS
+HEADLOSS D-W
+VISCOSITY 0.9785373106099746
+SPECIFIC GRAVITY 1
+ACCURACY 0.00000001
+TRIALS 100
+[END]

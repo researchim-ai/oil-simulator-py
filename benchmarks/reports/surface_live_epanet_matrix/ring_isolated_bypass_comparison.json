@@ -1,0 +1,197 @@
+{
+  "reference": "OpenWaterAnalytics EPANET v2.2",
+  "source": {
+    "url": "https://codeload.github.com/OpenWaterAnalytics/EPANET/tar.gz/refs/tags/v2.2",
+    "sha256": "0deffd034363fd7cf4275fff0a795c88a0eae1ce964c7f4fb95de8a38b892b1b",
+    "version": "2.2.0"
+  },
+  "input": {
+    "model": "incompressible_liquid",
+    "fluid": {
+      "density_kg_m3": 1000.0,
+      "viscosity_pa_s": 0.00102193344,
+      "vapor_pressure_pa": 2300.0
+    },
+    "nodes": [
+      {
+        "name": "well_a",
+        "elevation_m": 0.0,
+        "source_mass_rate_kg_s": 20.0
+      },
+      {
+        "name": "well_b",
+        "elevation_m": 5.0,
+        "source_mass_rate_kg_s": 10.0
+      },
+      {
+        "name": "manifold",
+        "elevation_m": 10.0
+      },
+      {
+        "name": "bypass",
+        "elevation_m": 8.0
+      },
+      {
+        "name": "outlet",
+        "elevation_m": 12.0,
+        "pressure_pa": 400000.0
+      }
+    ],
+    "pipes": [
+      {
+        "name": "a_manifold",
+        "start": "well_a",
+        "end": "manifold",
+        "length_m": 1200.0,
+        "diameter_m": 0.15,
+        "roughness_m": 5e-05,
+        "minor_loss_coefficient": 2.0
+      },
+      {
+        "name": "b_bypass",
+        "start": "well_b",
+        "end": "bypass",
+        "length_m": 800.0,
+        "diameter_m": 0.12,
+        "roughness_m": 5e-05,
+        "minor_loss_coefficient": 2.0
+      },
+      {
+        "name": "bypass_manifold",
+        "start": "bypass",
+        "end": "manifold",
+        "length_m": 500.0,
+        "diameter_m": 0.12,
+        "roughness_m": 5e-05,
+        "minor_loss_coefficient": 1.0
+      },
+      {
+        "name": "a_bypass",
+        "start": "well_a",
+        "end": "bypass",
+        "length_m": 600.0,
+        "diameter_m": 0.12,
+        "roughness_m": 5e-05,
+        "minor_loss_coefficient": 1.0,
+        "open": false
+      },
+      {
+        "name": "manifold_outlet",
+        "start": "manifold",
+        "end": "outlet",
+        "length_m": 1500.0,
+        "diameter_m": 0.2,
+        "roughness_m": 5e-05,
+        "minor_loss_coefficient": 4.0
+      }
+    ]
+  },
+  "epanet_heads_m": {
+    "well_a": 68.83739694606119,
+    "well_b": 67.8372964436598,
+    "manifold": 59.11240148489704,
+    "bypass": 62.46200591460841,
+    "outlet": 52.78864851911713
+  },
+  "epanet_shaft_power_w": {},
+  "epanet_flows_lps": {
+    "a_manifold": 19.99999407703583,
+    "b_bypass": 9.999999999999982,
+    "bypass_manifold": 10.000005922964169,
+    "a_bypass": 0.0,
+    "manifold_outlet": 30.0
+  },
+  "epanet_link_status": {
+    "a_manifold": 1.0,
+    "b_bypass": 1.0,
+    "bypass_manifold": 1.0,
+    "a_bypass": 0.0,
+    "manifold_outlet": 1.0
+  },
+  "epanet_warnings": [],
+  "ours": {
+    "pressures_pa": {
+      "well_a": 675193.2283278758,
+      "well_b": 616344.2223521085,
+      "manifold": 481678.99923573714,
+      "bypass": 534167.5351069185,
+      "outlet": 400000.0
+    },
+    "pipe_mass_rates_kg_s": {
+      "a_manifold": 20.0,
+      "b_bypass": 9.999999999999998,
+      "bypass_manifold": 9.999999999999998,
+      "a_bypass": 0.0,
+      "manifold_outlet": 29.999999999999996
+    },
+    "pipe_volume_rates_m3_s": {
+      "a_manifold": 0.02,
+      "b_bypass": 0.009999999999999998,
+      "bypass_manifold": 0.009999999999999998,
+      "a_bypass": 0.0,
+      "manifold_outlet": 0.029999999999999995
+    },
+    "boundary_mass_rates_kg_s": {
+      "outlet": -29.999999999999996
+    },
+    "node_mass_residuals_kg_s": {
+      "well_a": 0.0,
+      "well_b": -1.7763568394002505e-15,
+      "manifold": -3.469446951953614e-15,
+      "bypass": 0.0,
+      "outlet": 0.0
+    },
+    "pipe_equation_residuals_pa": {
+      "a_manifold": 1.4551915228366852e-11,
+      "b_bypass": 1.4551915228366852e-11,
+      "bypass_manifold": 7.275957614183426e-11,
+      "manifold_outlet": -4.3655745685100555e-11
+    },
+    "pipe_dissipation_w": {
+      "a_manifold": 1908.954581842774,
+      "b_bypass": 527.5673724518994,
+      "bypass_manifold": 328.7523587118128,
+      "manifold_outlet": 1861.9709770721156
+    },
+    "power_balance_error_w": 2.7284841053187847e-12,
+    "iterations": 1,
+    "valve_mass_rates_kg_s": {},
+    "valve_volume_rates_m3_s": {},
+    "valve_equation_residuals_pa": {},
+    "valve_dissipation_w": {},
+    "pump_mass_rates_kg_s": {},
+    "pump_volume_rates_m3_s": {},
+    "pump_equation_residuals_pa": {},
+    "pump_hydraulic_power_w": {},
+    "pump_shaft_power_w": {},
+    "pump_npsh_available_m": {},
+    "pump_npsh_required_m": {},
+    "pump_npsh_margin_m": {},
+    "pump_efficiencies": {},
+    "pump_head_gains_m": {},
+    "branch_states": {
+      "a_manifold": "open",
+      "b_bypass": "open",
+      "bypass_manifold": "open",
+      "a_bypass": "closed",
+      "manifold_outlet": "open"
+    },
+    "check_valve_driving_pressure_pa": {},
+    "operating_controls": {
+      "pump_speed_ratios": {},
+      "pump_status": {},
+      "valve_openings": {}
+    }
+  },
+  "max_flow_difference_kg_s": 5.922964170679279e-06,
+  "max_head_difference_m": 0.013151235823130492,
+  "max_power_scaled_difference": 0.0,
+  "status_mismatches": [],
+  "accepted": true,
+  "budgets": {
+    "flow_kg_s": 1e-05,
+    "head_m": 0.02,
+    "power_relative_with_1w_floor": 0.002
+  },
+  "note": "EPANET uses g=32.2 ft/s2 and rounded local-loss coefficient; production uses standard g=9.80665 m/s2. Viscosity explicitly matched."
+}

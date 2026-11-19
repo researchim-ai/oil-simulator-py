@@ -1,0 +1,26 @@
+{
+  "reference": "Linear standing acoustic wave, homogeneous thermal adiabatic limit; 100 Pa perturbation about 1 MPa; no slip, no friction",
+  "cases": [
+    {
+      "cells": 8,
+      "dt_s": 0.0005,
+      "pressure_L1_error_pa": 3.3614174558751984,
+      "wall_s": 0.37763588699999673,
+      "temperature_L1_error_k": 0.00014108173886029363
+    },
+    {
+      "cells": 16,
+      "dt_s": 0.00025,
+      "pressure_L1_error_pa": 1.8030581698112655,
+      "wall_s": 0.6790360250006415,
+      "temperature_L1_error_k": 7.946180326712238e-05
+    },
+    {
+      "cells": 32,
+      "dt_s": 0.000125,
+      "pressure_L1_error_pa": 0.8843637005884375,
+      "wall_s": 1.4409827839999707,
+      "temperature_L1_error_k": 4.094979195201631e-05
+    }
+  ]
+}

@@ -1,0 +1,27 @@
+[JUNCTIONS]
+discharge 0.0 -0.0
+[RESERVOIRS]
+suction 23.99332265830419
+outlet 23.99332265830419
+[PIPES]
+line discharge outlet 100 100.0 0.0 0.0 OPEN
+[PUMPS]
+booster suction discharge HEAD curve_booster SPEED 1.0
+[VALVES]
+[STATUS]
+[CURVES]
+curve_booster 0 20
+curve_booster 2.2 15.16
+curve_booster 4.4 0.6400000000000006
+eff_booster 0 75
+eff_booster 4.4 75
+[ENERGY]
+PUMP booster EFFIC eff_booster
+[OPTIONS]
+UNITS LPS
+HEADLOSS D-W
+VISCOSITY 115.12203654235
+SPECIFIC GRAVITY 0.85
+ACCURACY 0.00000001
+TRIALS 100
+[END]

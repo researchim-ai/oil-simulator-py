@@ -1,0 +1,112 @@
+{
+  "scope": "Independent PR, homogeneous-pipe and selected optional dry-gas compressor reference gates",
+  "passed": true,
+  "standard_gates_passed": true,
+  "strict_local_temperature_passed": true,
+  "local_temperature_required": true,
+  "shock_matrix_included": false,
+  "compressor_included": true,
+  "status": "passed",
+  "known_limits": [],
+  "not_validated": [
+    "Experimental calibration",
+    "Full thermal slip closure",
+    "Water/three phases",
+    "Thermal reservoir-network coupling",
+    "Field-scale/GPU performance",
+    "Universal local temperature accuracy outside the explicitly tested shock states and resolutions"
+  ],
+  "jobs": [
+    {
+      "name": "pr",
+      "returncode": 0,
+      "output": "benchmarks/reports/surface_reference_current/pr.json",
+      "command": [
+        "/home/user/miniconda3/bin/python",
+        "/home/user/workspace/oil-simulator-py-impes/scripts/check_pr_reference.py",
+        "--output",
+        "/home/user/workspace/oil-simulator-py-impes/benchmarks/reports/surface_reference_current/pr.json"
+      ],
+      "artifact_valid": true,
+      "artifact_error": null
+    },
+    {
+      "name": "isothermal_acoustics",
+      "returncode": 0,
+      "output": "benchmarks/reports/surface_reference_current/isothermal_acoustics.json",
+      "command": [
+        "/home/user/miniconda3/bin/python",
+        "/home/user/workspace/oil-simulator-py-impes/scripts/check_pipe_acoustics.py",
+        "--output",
+        "/home/user/workspace/oil-simulator-py-impes/benchmarks/reports/surface_reference_current/isothermal_acoustics.json"
+      ],
+      "artifact_valid": true,
+      "artifact_error": null
+    },
+    {
+      "name": "thermal_acoustics",
+      "returncode": 0,
+      "output": "benchmarks/reports/surface_reference_current/thermal_acoustics.json",
+      "command": [
+        "/home/user/miniconda3/bin/python",
+        "/home/user/workspace/oil-simulator-py-impes/scripts/check_pipe_acoustics.py",
+        "--thermal",
+        "--output",
+        "/home/user/workspace/oil-simulator-py-impes/benchmarks/reports/surface_reference_current/thermal_acoustics.json"
+      ],
+      "artifact_valid": true,
+      "artifact_error": null
+    },
+    {
+      "name": "thermal_shock",
+      "returncode": 0,
+      "output": "benchmarks/reports/surface_reference_current/thermal_shock.json",
+      "command": [
+        "/home/user/miniconda3/bin/python",
+        "/home/user/workspace/oil-simulator-py-impes/scripts/check_pipe_shock.py",
+        "--output",
+        "/home/user/workspace/oil-simulator-py-impes/benchmarks/reports/surface_reference_current/thermal_shock.json"
+      ],
+      "artifact_valid": true,
+      "artifact_error": null
+    },
+    {
+      "name": "compressor_train",
+      "returncode": 0,
+      "output": "benchmarks/reports/surface_reference_current/compressor_train.json",
+      "command": [
+        "/home/user/miniconda3/bin/python",
+        "/home/user/workspace/oil-simulator-py-impes/scripts/check_compressor_train.py",
+        "--output",
+        "/home/user/workspace/oil-simulator-py-impes/benchmarks/reports/surface_reference_current/compressor_train.json"
+      ],
+      "artifact_valid": true,
+      "artifact_error": null
+    }
+  ],
+  "sha256": {
+    "tests/data/surface/pr_caloric_coolprop.json": "e3f7b199d32b338d1b8c54244a9e58f3aec5e02d120a02a2d59a3e9bbd98915b",
+    "src/surface/peng_robinson.py": "c062297735326130ea8b220e054bb004a5ef835b0727090d2fc34b5c20920d87",
+    "src/surface/peng_robinson_mixture.py": "140b27cc3c8bc1b8366496d2790b3df6bb49faf0f9d7de1af7de9d9e8720e653",
+    "src/surface/single_phase_nozzle.py": "c4369418b0298d16570bc6078d02e4eb1fa61978af466905c4b602227a9ec36a",
+    "src/surface/thermal_pipe.py": "767b4e53e14c84e3f42f3b39fda94096675b32625b953e766d890fc5b7befd5d",
+    "src/surface/thermal_flux.py": "60d34395624468f5240d9a0cfbe1f707708b6b2a94ebb2098c0f55ef92701ec7",
+    "src/surface/transient_pipe.py": "755e404b2a822c8a59e9071f5cbdfd822266da4b43bf6e1015e739f2d4bebc8c",
+    "scripts/check_surface_reference_suite.py": "69f3d1ee1cecf2b030fa6146464f7506adbc644fcc86b7676e18c3f1971ced97",
+    "scripts/pr_reference_support.py": "dfe70e787b91f864cbdd8226b750b29635ad44f1887daaf69284ec3b3a96df4d",
+    "scripts/check_pr_reference.py": "e586ce5219402aa923862d95858cea093d81f2c2823892ff763a8d4b6a7b056c",
+    "scripts/check_pipe_acoustics.py": "2d5ed2a8ad59091fad499172850cbc672644b9dd5375b773f215c73c2d7acd23",
+    "scripts/check_pipe_shock.py": "d481423034706a429c9005c392c4b116a6daef4f296cdb84c03ddfa27ae94422",
+    "scripts/check_pipe_shock_matrix.py": "c95437cde2487083ac270605f45f3845bc5e040b0184f2285126da886ecd9088",
+    "src/surface/compressor_map.py": "24c02d6f1f7be2348ca1c459fea6f7d152ae7ca356a3c1b39e64dd1e35780cc2",
+    "src/surface/compressor_train.py": "e06a9fcc4aab292af4c3413cacf22b173f48dfa1d00c536326bd0ceb913b9060",
+    "src/surface/compressor_schedule.py": "d2edc155be69adfab96b99b37e5d8d96a927ac0c72a4eb04f8993536a38735b3",
+    "src/surface/gas.py": "9df592daa40c165e6c2c19c1a85dfbb0a62192ddb54d83c95023d026d032d62e",
+    "src/surface/gas_valve.py": "d5e2b539a7926e3ec21681e76880de91d7801f332e31fe9c9f699490a51b004c",
+    "src/surface/actuator.py": "865b8269db96a118508866a6de786b2ae05f6baddcda82bc99e76dcb9b0dbbf0",
+    "src/surface/pid.py": "2222eeb87d5dbb46d64158f4f1e824adbd5e136ce23358d8e3c911d21742402c",
+    "src/surface/rotating_drive.py": "c21c189f46ca90d56ccb1b1f87cdfd7bd923aac7497773aab2d5421379d1cff2",
+    "scripts/check_compressor_train.py": "a2550374a72466ec9f4b69c96bdf3cc678f20c4aafd605610e1c9662a4169174",
+    "configs/surface_compressor_train.json": "473d9d2467d405639a83776da3448e56063c499e97f00b1e6af5a93077d10543"
+  }
+}

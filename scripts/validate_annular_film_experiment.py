@@ -200,12 +200,14 @@ def validate(data, *, shear_velocity="mean"):
     }
 
 
-def main():
+def main(argv=None):
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument("--data", type=Path, default=ROOT / "tests/data/surface/hannover_countercurrent")
     p.add_argument("--output", type=Path, required=True)
     p.add_argument("--shear-velocity", choices=["mean", "interface"], default="mean")
-    args = p.parse_args()
+    p.add_argument("--report-only", action="store_true",
+                   help="Write an unsuccessful challenge without a failing exit code; qualification stays false")
+    args = p.parse_args(argv)
     result = validate(args.data, shear_velocity=args.shear_velocity)
     args.output.write_text(json.dumps(result, indent=2, allow_nan=False) + "\n")
     print(
@@ -215,7 +217,8 @@ def main():
     )
     for k, v in result["roughness_sensitivity"].items():
         print(k, {key: value for key, value in v.items() if key != "cases"})
+    return 0 if result["accepted_as_validated_for_annular_countercurrent"] is True or args.report_only else 1
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

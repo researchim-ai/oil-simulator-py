@@ -1,0 +1,37 @@
+{
+  "previous_wall_s": 170.80595913499928,
+  "retry_reuse_wall_s": 164.40377261299997,
+  "observed_speedup": 1.0389418467730045,
+  "previous_counters": {
+    "solves": 1574,
+    "residual_evaluations": 11064
+  },
+  "retry_reuse_counters": {
+    "solves": 1526,
+    "residual_evaluations": 10680
+  },
+  "reservoir_max_absolute_differences": {
+    "pressure": 0.0,
+    "s_w": 0.0,
+    "s_g": 0.0,
+    "rs": 0.0
+  },
+  "receiver_differences": {
+    "time_s": 0.0,
+    "wall_temperature_k": 0.0,
+    "component_moles": 0.0,
+    "total_energy_j": 0.0,
+    "temperature_k": 0.0,
+    "interface_heights_m": 0.0
+  },
+  "accepted_stage_pressure_trials": {
+    "previous": [
+      5,
+      2
+    ],
+    "retry_reuse": [
+      5,
+      2
+    ]
+  }
+}

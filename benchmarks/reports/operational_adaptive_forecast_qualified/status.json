@@ -1,0 +1,61 @@
+{
+  "status": "complete",
+  "accepted": true,
+  "candidate": "benchmarks/reports/operational_adaptive_forecast_fast/refined",
+  "reference": "benchmarks/reports/operational_adaptive_forecast_qualified/refined",
+  "days": 30.0,
+  "work": {
+    "operating": {
+      "solve_wall_s": 105.3660343229999,
+      "accepted_substeps": 240,
+      "reservoir_evaluations": 983,
+      "linear_attempts": 2807,
+      "execution": {
+        "torch_version": "2.7.0+cu126",
+        "torch_threads": 1,
+        "device_name": "cpu",
+        "cuda_peak_allocated_bytes": null,
+        "cuda_peak_reserved_bytes": null,
+        "memory_scope": "PyTorch allocator peak from before model construction through the forecast; excludes CUDA context and other processes",
+        "gathering_backend": "cpu_reference",
+        "hydraulic_backend": "torch_batch"
+      },
+      "step_hours": {
+        "minimum": 0.0012000000000000001,
+        "median": 2.632468340702527,
+        "maximum": 6.539798678645468
+      },
+      "time_fraction_with_steps_over_two_hours": 0.969470839585766,
+      "event_boundaries_present": true
+    },
+    "refined": {
+      "solve_wall_s": 153.37142565499994,
+      "accepted_substeps": 454,
+      "reservoir_evaluations": 1647,
+      "linear_attempts": 4589,
+      "execution": {
+        "torch_version": "2.7.0+cu126",
+        "torch_threads": 1,
+        "device_name": "cpu",
+        "cuda_peak_allocated_bytes": null,
+        "cuda_peak_reserved_bytes": null,
+        "memory_scope": "PyTorch allocator peak from before model construction through the forecast; excludes CUDA context and other processes",
+        "gathering_backend": "cpu_reference",
+        "hydraulic_backend": "torch_batch"
+      },
+      "step_hours": {
+        "minimum": 0.0012000000000000001,
+        "median": 1.4035517492118006,
+        "maximum": 3.5445847972943056
+      },
+      "time_fraction_with_steps_over_two_hours": 0.6259229428277037,
+      "event_boundaries_present": true
+    }
+  },
+  "scope": "1024-cell, 16-well synthetic blackoil forecast with quasi-steady facilities; no dynamic vessel inventory or transient multiphase validation",
+  "timing_scope": "Shared-host CPU with one Torch thread; not GPU or universal performance",
+  "accuracy_scope": "Declared numerical refinement budgets, not error against the exact solution or experimental calibration",
+  "tests": {
+    "passed": 47
+  }
+}

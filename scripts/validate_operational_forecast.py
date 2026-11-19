@@ -11,10 +11,13 @@ import math
 import os
 import subprocess
 import sys
+from dataclasses import asdict
 from pathlib import Path
 
 from benchmark_journal import atomic_json
 from check_facility_engineering_profile import check, validate_budgets
+
+from simulator.facility_time_control import FacilityTimeControl
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -32,6 +35,14 @@ def refined_config(config):
         raise ValueError("Positive initial time step required")
     s["max_time_step_days"] = step / 2
     s["initial_time_step_days"] = min(initial, step / 2)
+    rate = s["coupled_facility"].get("time_control")
+    if rate is not None:
+        # A smaller cap alone may never bind an adaptive trajectory. Refine
+        # the active indicator too; this remains a heuristic, not a defect bound.
+        policy = asdict(FacilityTimeControl(**rate))
+        for key in ("rate_relative_tolerance", "rate_absolute_tolerance_kg_s", "startup_step_days"):
+            policy[key] /= 2
+        s["coupled_facility"]["time_control"] = policy
     return c
 
 

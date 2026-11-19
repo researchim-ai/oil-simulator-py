@@ -1,0 +1,34 @@
+[JUNCTIONS]
+water_inlet 0.0 -2.0
+header 0.0 -0.0
+valve_in 0.0 -0.0
+[RESERVOIRS]
+disposal 40.78864851911713
+[PIPES]
+water_line header valve_in 100 100.0 0.0 0.0 OPEN
+[PUMPS]
+water_booster water_inlet header HEAD curve_water_booster SPEED 1.0
+[VALVES]
+water_choke valve_in disposal 20.0 TCV 4.06477627471384 0
+[STATUS]
+[CURVES]
+curve_water_booster 0 20
+curve_water_booster 0.6666666666666666 18.66666666666667
+curve_water_booster 1.333333333333333 17.33333333333333
+curve_water_booster 2 16
+curve_water_booster 2.666666666666667 13.33333333333333
+curve_water_booster 3.333333333333333 10.66666666666667
+curve_water_booster 4 8
+eff_water_booster 0 65
+eff_water_booster 2 80
+eff_water_booster 4 70
+[ENERGY]
+PUMP water_booster EFFIC eff_water_booster
+[OPTIONS]
+UNITS LPS
+HEADLOSS D-W
+VISCOSITY 0.9785373106099746
+SPECIFIC GRAVITY 1
+ACCURACY 0.00000001
+TRIALS 100
+[END]

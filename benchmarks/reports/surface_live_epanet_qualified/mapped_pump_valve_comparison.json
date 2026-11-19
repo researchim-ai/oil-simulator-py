@@ -1,0 +1,225 @@
+{
+  "reference": "OpenWaterAnalytics EPANET v2.2",
+  "source": {
+    "url": "https://codeload.github.com/OpenWaterAnalytics/EPANET/tar.gz/refs/tags/v2.2",
+    "sha256": "0deffd034363fd7cf4275fff0a795c88a0eae1ce964c7f4fb95de8a38b892b1b",
+    "version": "2.2.0"
+  },
+  "input": {
+    "model": "incompressible_liquid",
+    "fluid": {
+      "density_kg_m3": 1000,
+      "viscosity_pa_s": 0.001,
+      "vapor_pressure_pa": 2300
+    },
+    "nodes": [
+      {
+        "name": "water_inlet",
+        "source_mass_rate_kg_s": 2
+      },
+      {
+        "name": "header"
+      },
+      {
+        "name": "valve_in"
+      },
+      {
+        "name": "disposal",
+        "pressure_pa": 400000
+      }
+    ],
+    "pipes": [
+      {
+        "name": "water_line",
+        "start": "header",
+        "end": "valve_in",
+        "length_m": 100,
+        "diameter_m": 0.1
+      }
+    ],
+    "pumps": [
+      {
+        "name": "water_booster",
+        "start": "water_inlet",
+        "end": "header",
+        "shutoff_head_m": 20,
+        "curve_coefficient_s2_m5": 1000000,
+        "max_flow_m3_s": 0.004,
+        "head_curve": {
+          "flow_m3_s": [
+            0,
+            0.002,
+            0.004
+          ],
+          "values": [
+            20,
+            16,
+            8
+          ]
+        },
+        "efficiency_curve": {
+          "flow_m3_s": [
+            0,
+            0.002,
+            0.004
+          ],
+          "values": [
+            0.65,
+            0.8,
+            0.7
+          ]
+        },
+        "npsh_curve": {
+          "flow_m3_s": [
+            0,
+            0.002,
+            0.004
+          ],
+          "values": [
+            1,
+            2,
+            4
+          ]
+        },
+        "inlet_diameter_m": 0.1,
+        "check_valve": true,
+        "max_shaft_power_w": 1000
+      }
+    ],
+    "valves": [
+      {
+        "name": "water_choke",
+        "start": "valve_in",
+        "end": "disposal",
+        "diameter_m": 0.02,
+        "discharge_coefficient": 0.62,
+        "opening": 0.8
+      }
+    ]
+  },
+  "epanet_heads_m": {
+    "water_inlet": 33.26824669102651,
+    "header": 49.268246691026505,
+    "valve_in": 49.187918015141186,
+    "disposal": 40.78864851911713
+  },
+  "epanet_shaft_power_w": {
+    "water_booster": 392.0928156584282
+  },
+  "epanet_flows_lps": {
+    "water_line": 1.999999999999905,
+    "water_booster": 2.000000000000001,
+    "water_choke": 1.999999999999956
+  },
+  "epanet_link_status": {
+    "water_line": 1.0,
+    "water_booster": 1.0,
+    "water_choke": 1.0
+  },
+  "epanet_warnings": [],
+  "ours": {
+    "pressures_pa": {
+      "water_inlet": 326251.5867892591,
+      "header": 483157.98678925907,
+      "valve_in": 482369.5886790597,
+      "disposal": 400000.0
+    },
+    "pipe_mass_rates_kg_s": {
+      "water_line": 2.0
+    },
+    "pipe_volume_rates_m3_s": {
+      "water_line": 0.002
+    },
+    "boundary_mass_rates_kg_s": {
+      "disposal": -2.0
+    },
+    "node_mass_residuals_kg_s": {
+      "water_inlet": 0.0,
+      "header": 0.0,
+      "valve_in": 0.0,
+      "disposal": 0.0
+    },
+    "pipe_equation_residuals_pa": {
+      "water_line": 3.183231456205249e-12
+    },
+    "pipe_dissipation_w": {
+      "water_line": 1.5767962203987345
+    },
+    "power_balance_error_w": 2.842170943040401e-14,
+    "iterations": 1,
+    "valve_mass_rates_kg_s": {
+      "water_choke": 2.0
+    },
+    "valve_volume_rates_m3_s": {
+      "water_choke": 0.002
+    },
+    "valve_equation_residuals_pa": {
+      "water_choke": -1.4551915228366852e-11
+    },
+    "valve_dissipation_w": {
+      "water_choke": 164.73917735811943
+    },
+    "pump_mass_rates_kg_s": {
+      "water_booster": 2.0
+    },
+    "pump_volume_rates_m3_s": {
+      "water_booster": 0.002
+    },
+    "pump_equation_residuals_pa": {
+      "water_booster": 2.9103830456733704e-11
+    },
+    "pump_hydraulic_power_w": {
+      "water_booster": 313.8128
+    },
+    "pump_shaft_power_w": {
+      "water_booster": 392.26599999999996
+    },
+    "pump_npsh_available_m": {
+      "water_booster": 33.0371747302111
+    },
+    "pump_npsh_required_m": {
+      "water_booster": 2.0
+    },
+    "pump_npsh_margin_m": {
+      "water_booster": 31.0371747302111
+    },
+    "pump_efficiencies": {
+      "water_booster": 0.8
+    },
+    "pump_head_gains_m": {
+      "water_booster": 16.0
+    },
+    "branch_states": {
+      "water_line": "open",
+      "water_booster": "open",
+      "water_choke": "open"
+    },
+    "check_valve_driving_pressure_pa": {
+      "water_booster": 2.9103830456733704e-11
+    },
+    "operating_controls": {
+      "pump_speed_ratios": {
+        "water_booster": 1.0
+      },
+      "pump_status": {
+        "water_booster": true
+      },
+      "valve_openings": {
+        "water_choke": 0.8
+      }
+    }
+  },
+  "max_flow_difference_kg_s": 9.50350909079134e-14,
+  "max_head_difference_m": 0.00015656485181381186,
+  "max_power_scaled_difference": 0.00044169220821078367,
+  "status_mismatches": [],
+  "si_local_loss_coefficient_matched": true,
+  "local_loss_export_scale": 1.0009244847395202,
+  "accepted": true,
+  "budgets": {
+    "flow_kg_s": 1e-10,
+    "head_m": 0.01,
+    "power_relative_with_1w_floor": 0.002
+  },
+  "note": "EPANET uses g=32.2 ft/s2 and rounded local-loss coefficient; production uses standard g=9.80665 m/s2. Viscosity explicitly matched."
+}

@@ -318,6 +318,8 @@ class StratifiedPRThermal:
             order *= 2
         raise HydraulicConvergenceError("Thermal quadrature budget exhausted")
 
+    _reuse_rejected_half_step = True
+
     def advance(self, state, duration_s, *, pressure_tolerance_pa=1.0, _stepper=None):
         self.inspect(state)
         pressure_tolerance_pa = _number(pressure_tolerance_pa, "pressure tolerance", positive=True)
@@ -329,13 +331,22 @@ class StratifiedPRThermal:
         step = self._step if _stepper is None else _stepper
         dt = min(state.next_step_s, duration)
         attempts = 0
+        cached_coarse = None
         while current.time_s < target:
             attempts += 1
             if attempts > self.maximum_attempts:
                 raise HydraulicConvergenceError("Thermal integration attempt budget exhausted")
             dt = min(dt, target - current.time_s)
             try:
-                coarse, _ = step(current, dt)
+                if (
+                    cached_coarse is not None
+                    and cached_coarse[0] is current
+                    and cached_coarse[1] == dt
+                ):
+                    coarse = cached_coarse[2]
+                else:
+                    coarse, _ = step(current, dt)
+                cached_coarse = None
                 half, first = step(current, dt / 2)
                 fine, second = step(half, dt / 2)
                 error = (
@@ -429,6 +440,12 @@ class StratifiedPRThermal:
                 if len(coarse.column.phase_roots) != len(fine.column.phase_roots):
                     error = max(error, 2.0)
                 if error > 1:
+                    if self._reuse_rejected_half_step:
+                        # After halving dt, this EXACT already-validated first
+                        # half is the next coarse solve from the same stocks.
+                        # Its ledger is not accepted or added to history.
+                        # Never reuse a failed nonlinear/physical trial.
+                        cached_coarse = (current, dt / 2, half)
                     raise HydraulicConvergenceError("Thermal temporal error above tolerance")
             except (HydraulicConvergenceError, PropertyModelError, ConservationError) as exc:
                 dt *= 0.5
