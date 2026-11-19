@@ -95,7 +95,7 @@ def run(config, *, device="cpu", progress=None):
         "total_work_j": work,
         "runtime": runtime_fingerprint(),
         "numerical_policy": {
-            "shared_probe_quadrature": PRControlledSurface._share_probe_quadrature,
+            "shared_probe_quadrature": model._share_probe_quadrature,
             "identical_trial_reuse": TorchNewton._reuse_identical_trials,
             "stagnation_patience": TorchNewton._stagnation_patience,
             "jacobian_reuse": TorchNewton._reuse_jacobian,

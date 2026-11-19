@@ -1,0 +1,63 @@
+{
+  "status": "failed",
+  "last_linear_stats": {
+    "backend": "fgmres_cpr",
+    "n_wells": 36,
+    "amg_levels": [
+      44431,
+      22874,
+      11476,
+      4882,
+      2111,
+      954,
+      428,
+      222,
+      108,
+      58
+    ],
+    "amg_rebuilt": false,
+    "amg_setup_s": 0.019442411998170428,
+    "amg_error": null,
+    "precond_setup_s": 0.020212513001752086,
+    "iters": 1,
+    "restarts": 0,
+    "converged": true,
+    "history": [
+      9.208450739741148e-10
+    ],
+    "basis_capacity": 8,
+    "basis_growths": 0,
+    "basis_storage_bytes": 18127848,
+    "solve_s": 0.0036405779974302277,
+    "cpr_graph_eager_calls": 1,
+    "cpr_graph_captures": 0,
+    "cpr_graph_replays": 0,
+    "tol": 1e-09,
+    "true_rel_res": 9.208450742182399e-10
+  },
+  "last_criteria": {
+    "cnv": [
+      5.232810995208414e-06,
+      4.398600850930489e-12,
+      3.115884707873245e-06
+    ],
+    "mb": [
+      1.16398429254358e-09,
+      5.5374842672138507e-17,
+      6.8883650892461e-10
+    ],
+    "well_rate_rel_err": 7.744956510372476e-15,
+    "cnv_relaxed": false,
+    "tol_cnv_used": 1e-05,
+    "tol_mb_used": 1e-09,
+    "unrelaxed_converged": false,
+    "cnv_bad_pv_fraction": 0.0,
+    "residual_finite": true
+  },
+  "failed_day": 41.0,
+  "failed_dt_days": 10.0,
+  "error": "RuntimeError('Prescribed step failed; refinement cannot be compared on this grid')",
+  "wall_s": 21.05783601699659,
+  "solve_s": 7.64389948999451,
+  "accepted": 7
+}

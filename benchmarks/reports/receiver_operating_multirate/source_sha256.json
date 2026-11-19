@@ -1,0 +1,11 @@
+{
+  "src/simulator/dynamic_receiver_coupling.py": "29f11ba909c8eb932476f1294794398cebb11a787e92e4bdae4898cc1acfa77c",
+  "src/simulator/receiver_operating_point.py": "837d236299a93313e8723d7f4cbe640c573fb9f7de923fbe162822094b16cc04",
+  "src/simulator/receiver_subcycling.py": "cf0a8a970aee99fb47b178e58db62dbf5d71140be7eca8b221cb70dded142607",
+  "src/surface/stratified_pr_thermal.py": "27671c9f836d99bc0964f9a87fe9168c2a14a798e7d5cf46d770ccff181b57f0",
+  "src/surface/stratified_pr_flow.py": "2df18c152a96ef2e5fbd7f5d69b8923c32013440d3baedd263912a0bcf8c44a9",
+  "scripts/check_dynamic_receiver.py": "b7d46a55352b9e4c6a9e54cceee7e6aa34b861c55e9f8d64a5167b974dd9e919",
+  "scripts/prepare_dynamic_receiver.py": "4ce3fe08d35e5e9ac448800b8eb4eff85f31019b695897b2b0c91f33c0897ab4",
+  "tests/test_fim_receiver_operating_point.py": "4124214e0289915dcd844d5f668fb72f53bba40f05540ddfd7e8ae8f5ec2a04f",
+  "tests/test_fim_receiver_subcycling.py": "f801131abbd0d0c03555b8479a5c4b4626d5c78f1e8a01357464b493d0cf65d8"
+}

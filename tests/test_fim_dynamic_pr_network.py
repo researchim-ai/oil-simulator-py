@@ -107,7 +107,12 @@ def test_graph_restart_isolation_and_atomic_temporal_failure(device, monkeypatch
     model.connection_openings = {"link": 0.0}
     restored = pickle.loads(pickle.dumps(model))
     assert model.step(0.01) and restored.step(0.01)
-    assert model.report == restored.report
+    # Restored tensor identities invalidate physical inspection caches;
+    # extra stability work is allowed, differences in physical results are not.
+    assert model.receiver_state == restored.receiver_state
+    assert {k: v for k, v in model.report.items() if k != "property_evaluations"} == {
+        k: v for k, v in restored.report.items() if k != "property_evaluations"
+    }
     assert all(
         s["flow"]["network_report"]["transfers"][0]["component_rates_mol_s"] == [0.0, 0.0]
         for s in model.report["stages"]

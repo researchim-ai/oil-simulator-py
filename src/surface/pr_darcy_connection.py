@@ -49,6 +49,34 @@ class PRDarcyConnection:
             raise ValueError("Explicit Darcy isolation and reverse modes required")
 
     def velocity(self, pressure_drop, density):
+        # Poiseuille plus the local velocity-head loss is a quadratic with
+        # a cancellation-free inverse. Classify by its own resulting Re;
+        # transition/turbulent requests retain the original friction solve.
+        linear = 32 * self.dynamic_viscosity_pa_s * self.length_m / self.diameter_m**2
+        laminar = (
+            2
+            * pressure_drop
+            / (
+                linear
+                + torch.sqrt(
+                    linear**2 + 2 * self.local_loss_coefficient * density * pressure_drop.abs()
+                )
+            )
+        )
+        eligible = (
+            density.detach() * laminar.detach().abs() * self.diameter_m
+            <= 2000 * self.dynamic_viscosity_pa_s
+        ) & (laminar.detach().abs() <= self.maximum_velocity_m_s)
+        # vmap carries different primal branches in one tensor. Its generic
+        # path remains fully tensorized; ordinary and AD calls can avoid all
+        # root iterations when their primals are laminar.
+        try:
+            all_laminar = bool(eligible.all().cpu())
+        except RuntimeError:
+            all_laminar = False
+        if all_laminar:
+            return laminar
+
         def loss(v, rho):
             distributed = darcy_pressure_loss(
                 v,

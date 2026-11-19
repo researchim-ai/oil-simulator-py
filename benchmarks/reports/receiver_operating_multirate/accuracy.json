@@ -1,0 +1,20 @@
+{
+  "pressure_difference_pa": 12.344315260532312,
+  "temperature_difference_k": 0.0007390279703827218,
+  "component_max_difference_mol": 0.0004344735096353247,
+  "wall_temperature_difference_k": 7.215925279524527e-08,
+  "stock_withdrawal_max_difference_kg": 3.1916981355420426e-07,
+  "subcycling_reservoir_calls": 16,
+  "reference_reservoir_calls": 35,
+  "subcycling_wall_s": 284.29785672599974,
+  "reference_wall_s": 47.51882257499892,
+  "scope": "Comparison to a smaller-step solution, not an exact error bound or an isolated speed benchmark.",
+  "finer_reference": {
+    "dt_s": 0.005,
+    "pressure_difference_pa": 3.2774433644954115,
+    "temperature_difference_k": 0.00019486360196196983,
+    "component_max_difference_mol": 0.00011556043116911496,
+    "reservoir_calls": 70,
+    "wall_s": 42.31455043099777
+  }
+}

@@ -1,0 +1,47 @@
+{
+  "status": "complete",
+  "accepted": true,
+  "days": 30.0,
+  "scope": {
+    "reservoir": "blackoil FIM",
+    "gathering": "configured production network",
+    "facility": "quasi-steady",
+    "dynamic_vessel_inventory": false,
+    "qualification": "Numerical refinement of this configured model; no experimental or detailed PR qualification"
+  },
+  "work": {
+    "operating": {
+      "solve_wall_s": 182.2540039680025,
+      "accepted_substeps": 490,
+      "reservoir_evaluations": 1683,
+      "linear_attempts": 5006,
+      "execution": {
+        "torch_version": "2.7.0+cu126",
+        "torch_threads": 1,
+        "device_name": "cpu",
+        "cuda_peak_allocated_bytes": null,
+        "cuda_peak_reserved_bytes": null,
+        "memory_scope": "PyTorch allocator peak from before model construction through the forecast; excludes CUDA context and other processes",
+        "gathering_backend": "cpu_reference",
+        "hydraulic_backend": "torch_batch"
+      }
+    },
+    "refined": {
+      "solve_wall_s": 304.6225459109992,
+      "accepted_substeps": 969,
+      "reservoir_evaluations": 3077,
+      "linear_attempts": 8323,
+      "execution": {
+        "torch_version": "2.7.0+cu126",
+        "torch_threads": 1,
+        "device_name": "cpu",
+        "cuda_peak_allocated_bytes": null,
+        "cuda_peak_reserved_bytes": null,
+        "memory_scope": "PyTorch allocator peak from before model construction through the forecast; excludes CUDA context and other processes",
+        "gathering_backend": "cpu_reference",
+        "hydraulic_backend": "torch_batch"
+      }
+    }
+  },
+  "comparison": "comparison.json"
+}

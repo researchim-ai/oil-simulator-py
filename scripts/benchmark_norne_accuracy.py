@@ -34,10 +34,17 @@ def main():
     ap.add_argument('--checkpoint')
     ap.add_argument('--grid', required=True, help='Accepted substeps.npz from the control run')
     ap.add_argument('--out', required=True)
-    ap.add_argument('--mode', choices=['step','adaptive','tight','tighter'], required=True)
+    ap.add_argument('--mode', choices=['step','adaptive','tight','tighter','cnv_ref','cnv_ref_fine'], required=True)
     ap.add_argument('--device', default='cuda:0')
     ap.add_argument('--verbose', action='store_true')
+    ap.add_argument('--max-newton', type=int)
+    ap.add_argument('--line-search', action='store_true', help='Experimental safeguarded Newton update')
+    ap.add_argument('--line-search-fallback', action='store_true', help='Retry rejected steps with safeguarded updates')
+    ap.add_argument('--capture-day', type=float, action='append', default=[],
+                    help='Save solver state immediately before a prescribed step (days)')
     args = ap.parse_args()
+    if args.max_newton is not None and args.max_newton < 1:
+        ap.error('--max-newton must be positive')
     out = Path(args.out); out.mkdir(parents=True, exist_ok=False)
     source = {str(p.relative_to(ROOT)): digest(p) for p in sorted((ROOT/'src').rglob('*.py'))}
     deck = Path(args.deck).resolve()
@@ -67,7 +74,11 @@ def main():
         if abs(start-grid[0,0]) > 1e-8: raise ValueError('Checkpoint/grid start mismatch')
         solver.amg_rebuild = 'adaptive' if args.mode=='adaptive' else 'step'
         solver._adaptive_amg_policy = None
+        solver.newton_line_search = args.line_search
+        solver.newton_line_search_fallback = args.line_search_fallback
         solver.relaxed_max_pv_fraction = 0.
+        if args.max_newton is not None:
+            solver.max_newton = args.max_newton
         if args.mode in ['tight','tighter']:
             factor = 1 if args.mode=='tight' else .1
             solver.tol_cnv, solver.tol_mb = 1e-5*factor, 1e-9*factor
@@ -75,9 +86,13 @@ def main():
             solver.lin_accept = 1e-7*factor
             # Keep well-control criteria identical in all variants; this
             # experiment refines reservoir/linear residuals only.
+        elif args.mode in ['cnv_ref','cnv_ref_fine']:
+            solver.tol_cnv = 1e-4 if args.mode=='cnv_ref' else 1e-5
+            solver.tol_mb = 1e-8
+            solver.lin_tol_max, solver.lin_tol_min, solver.lin_accept = 1e-8, 1e-9, 1e-7
         else:
             solver.tol_cnv, solver.tol_mb = 1e-3, 1e-7
-        names = ['tol_cnv','tol_mb','lin_tol_max','lin_tol_min','lin_accept','tol_well_rate','tol_well_bhp','amg_rebuild']
+        names = ['tol_cnv','tol_mb','lin_tol_max','lin_tol_min','lin_accept','tol_well_rate','tol_well_bhp','amg_rebuild','max_newton','newton_line_search','newton_line_search_fallback']
         manifest['effective_settings'] = {n:getattr(solver,n) for n in names}
         (out/'manifest.json').write_text(json.dumps(manifest,indent=2))
         f = solver.fluid
@@ -101,8 +116,27 @@ def main():
         def checked_step(dt,current_time=None):
             i=len(records)
             if i>=len(grid) or abs(current_time/86400-grid[i,0])>1e-8 or abs(dt/86400-grid[i,1])>1e-8:
-                raise RuntimeError('Solver deviated from prescribed timestep grid')
+                raise RuntimeError(f'Solver deviated from prescribed timestep grid: index={i}, '
+                                   f'day={current_time/86400:.17g}, dt={dt/86400:.17g}')
             candidate.clear(); began=time.monotonic()
+            if any(abs(current_time/86400-day) < 1e-8 for day in args.capture_day):
+                # Instrumentation closures are not part of a restartable solver.
+                # Remove only our instance overrides and restore them even if
+                # serialization fails. Production step/convergence live on the class.
+                overrides = {name: solver.__dict__.pop(name)
+                             for name in ('step', 'convergence')}
+                try:
+                    torch.save(dict(solver=solver, dt=dt, current_time=current_time,
+                                    source_hashes=source,
+                                    execution=dict(
+                                        deterministic=torch.are_deterministic_algorithms_enabled(),
+                                        warn_only=torch.is_deterministic_algorithms_warn_only_enabled(),
+                                        threads=torch.get_num_threads(),
+                                        matmul_tf32=torch.backends.cuda.matmul.allow_tf32,
+                                        cudnn_tf32=torch.backends.cudnn.allow_tf32)),
+                               out/f'prestep_{current_time/86400:g}.pt')
+                finally:
+                    solver.__dict__.update(overrides)
             ok=original_step(dt,current_time=current_time)
             elapsed=time.monotonic()-began
             if not ok:
@@ -131,9 +165,13 @@ def main():
                 if i>=len(grid):raise RuntimeError('Grid exhausted')
                 days=float(grid[i,1])
                 if grid[i,0]+days > end_day+1e-8:raise RuntimeError('Grid crosses report boundary')
-                sim.sim_params['max_time_step_days']=days
-                sim._fim_dt=days*86400
-                if not original_run(days*86400):return False
+                # Anchor to the prescribed absolute endpoint. Repeatedly
+                # adding durations can leave an ULP-sized tail which the
+                # production integrator correctly attempts to solve.
+                duration=(float(grid[i,0])+days)*86400-sim.current_time
+                sim.sim_params['max_time_step_days']=float(np.nextafter(duration/86400, np.inf))
+                sim._fim_dt=duration
+                if not original_run(duration):return False
             return True
         sim.run_step=aligned
         for _, day, summary in steps:
@@ -151,6 +189,8 @@ def main():
     except BaseException as exc:
         status.update(status='failed',error=repr(exc));raise
     finally:
+        if 'solver' in context:
+            status['line_search_retries'] = getattr(context['solver'], 'newton_line_search_retries', 0)
         status.update(wall_s=time.monotonic()-t0,solve_s=sum(r['solve_s'] for r in records),accepted=len(records))
         (out/'status.json').write_text(json.dumps(status,indent=2))
         (out/'steps.json').write_text(json.dumps(records,indent=2))

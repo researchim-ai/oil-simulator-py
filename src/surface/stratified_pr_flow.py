@@ -24,7 +24,7 @@ from .phase_geometry import EquilibriumLevelControl, validate_pickup
 from .stratified_pr import StratifiedPRColumn
 from .stratified_pr_thermal import StratifiedPRThermal, StratifiedThermalState
 from .three_phase_properties import disk_band_area
-from .torch_linear import TorchNewton
+from .torch_nonlinear import TorchNewton
 from .vessel_wall import VesselWall
 
 
@@ -35,10 +35,18 @@ class ReceiverFeedPressureError(EquipmentOperatingError):
     pressure defect to bracket its next trial without suppressing the check.
     """
 
+    pressure_relative_tolerance = 1e-7
+
     def __init__(self, supply_pressure_pa, receiver_pressure_pa):
         self.supply_pressure_pa = supply_pressure_pa
         self.receiver_pressure_pa = receiver_pressure_pa
+        # Filled only by an explicitly completed, still-rejected local probe.
+        self.endpoint_pressure_pa = None
         super().__init__("Feed pressure below receiver; explicit pump required")
+
+    @property
+    def minimum_supply_pressure_pa(self):
+        return self.receiver_pressure_pa / (1.0 + self.pressure_relative_tolerance)
 
 
 @dataclass(frozen=True)
@@ -142,7 +150,15 @@ class StratifiedPRFlow(StratifiedPRThermal):
         )
         return hh, ww
 
-    def _problem(self, state, dt, seed, order):
+    def initialize_operating_point(self, guess, *, verification_duration_s=0.1):
+        """Prepare a stationary fixed-feed state without advancing physical time."""
+        from .pr_operating_point import initialize_operating_point
+
+        return initialize_operating_point(
+            self, guess, verification_duration_s=verification_duration_s
+        )
+
+    def _problem(self, state, dt, seed, order, *, stationary=False):
         c, f, w = self.column, self.column.fluid, self.wall
         old = state.column
         n0 = f.tensor(old.component_moles)
@@ -188,6 +204,12 @@ class StratifiedPRFlow(StratifiedPRThermal):
                 w.heat_capacity_j_k * state.wall_temperature_k
                 + dt * (w.fluid_ua_w_k * t + w.ambient_ua_w_k * w.ambient_temperature_k)
             ) / (w.heat_capacity_j_k + dt * (w.fluid_ua_w_k + w.ambient_ua_w_k))
+            if stationary:
+                ua = w.fluid_ua_w_k + w.ambient_ua_w_k
+                tw = (
+                    (w.fluid_ua_w_k * t + w.ambient_ua_w_k * w.ambient_temperature_k) / ua
+                    if ua > 0 else t.new_tensor(state.wall_temperature_k)
+                )
             heat = w.fluid_ua_w_k * (tw - t)
             ambient = w.ambient_ua_w_k * (w.ambient_temperature_k - tw)
             bounds = torch.cat(
@@ -308,6 +330,15 @@ class StratifiedPRFlow(StratifiedPRThermal):
                     *chemical,
                 )
             )
+            if stationary:
+                # Replace storage balances, retaining the same profile,
+                # finite-aperture fluxes and caloric equations.
+                residual = torch.cat((
+                    r[:-count - 1],
+                    (out_n[active] - feed_n[active]) / nscale,
+                    ((out_e - feed_relative - heat) / escale).reshape(1),
+                    *chemical,
+                ))
             return residual, {
                 "data": data,
                 "column_variables": y[:size],
@@ -322,7 +353,7 @@ class StratifiedPRFlow(StratifiedPRThermal):
 
         return initial, lower, upper, evaluate, active, roots, feed_n, feed_e
 
-    def _step(self, state, dt):
+    def _step(self, state, dt, *, _feed_pressure_observer=None):
         c, f, w = self.column, self.column.fluid, self.wall
         old = state.column
         feed_n = sum(
@@ -459,11 +490,16 @@ class StratifiedPRFlow(StratifiedPRThermal):
                     local = c.sample(candidate, feed.height_m, side="below")
                     if (
                         local["pressure_pa"]
-                        > feed.stream.pressure_pa + 1e-7 * feed.stream.pressure_pa
+                        > feed.stream.pressure_pa * (1.0 + ReceiverFeedPressureError.pressure_relative_tolerance)
                     ):
-                        raise ReceiverFeedPressureError(
+                        failure = ReceiverFeedPressureError(
                             feed.stream.pressure_pa, local["pressure_pa"]
                         )
+                        if _feed_pressure_observer is None:
+                            raise failure
+                        # A coupling probe may finish its residual evaluation,
+                        # but its driver MUST reject this entire trajectory.
+                        _feed_pressure_observer(failure)
             if previous is not None:
                 prior, prior_report, prior_out, prior_e, prior_ports = previous
                 if len(prior.phase_roots) != len(candidate.phase_roots):

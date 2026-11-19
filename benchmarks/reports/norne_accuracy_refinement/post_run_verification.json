@@ -1,0 +1,66 @@
+{
+  "early_adaptive": {
+    "solver_and_inputs_unchanged": true,
+    "run_status": "complete"
+  },
+  "early_cnv_ref": {
+    "solver_and_inputs_unchanged": true,
+    "run_status": "complete"
+  },
+  "early_cnv_ref_fine": {
+    "solver_and_inputs_unchanged": true,
+    "run_status": "complete"
+  },
+  "early_step": {
+    "solver_and_inputs_unchanged": true,
+    "run_status": "complete"
+  },
+  "early_tight": {
+    "solver_and_inputs_unchanged": true,
+    "run_status": "failed"
+  },
+  "early_tight_cells": {
+    "solver_and_inputs_unchanged": true,
+    "run_status": "failed"
+  },
+  "early_tight_cells_diagnostic": {
+    "solver_and_inputs_unchanged": true,
+    "run_status": "failed"
+  },
+  "early_tight_diagnostic": {
+    "solver_and_inputs_unchanged": true,
+    "run_status": "failed"
+  },
+  "late_adaptive": {
+    "solver_and_inputs_unchanged": true,
+    "run_status": "complete"
+  },
+  "late_cnv_ref": {
+    "solver_and_inputs_unchanged": true,
+    "run_status": "failed"
+  },
+  "late_cnv_ref_80": {
+    "solver_and_inputs_unchanged": true,
+    "run_status": "failed"
+  },
+  "late_cnv_ref_fine": {
+    "solver_and_inputs_unchanged": true,
+    "run_status": "failed"
+  },
+  "late_cnv_ref_fine_80": {
+    "solver_and_inputs_unchanged": true,
+    "run_status": "failed"
+  },
+  "late_step": {
+    "solver_and_inputs_unchanged": true,
+    "run_status": "complete"
+  },
+  "late_tight_cells": {
+    "solver_and_inputs_unchanged": true,
+    "run_status": "failed"
+  },
+  "late_tighter_cells": {
+    "solver_and_inputs_unchanged": true,
+    "run_status": "failed"
+  }
+}

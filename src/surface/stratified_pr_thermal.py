@@ -13,7 +13,7 @@ from .liquid import ConservationError, HydraulicConvergenceError, PropertyModelE
 from .operation import _digest
 from .peng_robinson import R
 from .stratified_pr import StratifiedPRColumn, StratifiedPRState
-from .torch_linear import TorchNewton
+from .torch_nonlinear import TorchNewton
 from .vessel_wall import VesselWall
 
 
@@ -318,13 +318,15 @@ class StratifiedPRThermal:
             order *= 2
         raise HydraulicConvergenceError("Thermal quadrature budget exhausted")
 
-    def advance(self, state, duration_s):
+    def advance(self, state, duration_s, *, pressure_tolerance_pa=1.0, _stepper=None):
         self.inspect(state)
+        pressure_tolerance_pa = _number(pressure_tolerance_pa, "pressure tolerance", positive=True)
         duration = _number(duration_s, "duration", positive=True)
         target = state.time_s + duration
         if not math.isfinite(target) or target <= state.time_s:
             raise ValueError("Unrepresentable end time")
         current, history = state, []
+        step = self._step if _stepper is None else _stepper
         dt = min(state.next_step_s, duration)
         attempts = 0
         while current.time_s < target:
@@ -333,9 +335,9 @@ class StratifiedPRThermal:
                 raise HydraulicConvergenceError("Thermal integration attempt budget exhausted")
             dt = min(dt, target - current.time_s)
             try:
-                coarse, _ = self._step(current, dt)
-                half, first = self._step(current, dt / 2)
-                fine, second = self._step(half, dt / 2)
+                coarse, _ = step(current, dt)
+                half, first = step(current, dt / 2)
+                fine, second = step(half, dt / 2)
                 error = (
                     max(
                         abs(coarse.column.temperature_k - fine.column.temperature_k),
@@ -405,7 +407,7 @@ class StratifiedPRThermal:
                     )
 
                 pc, pf = mean_pressure(coarse_data), mean_pressure(fine_data)
-                error = max(error, abs(pc - pf) / (1.0 + self.relative_tolerance * max(pc, pf)))
+                error = max(error, abs(pc - pf) / (pressure_tolerance_pa + self.relative_tolerance * max(pc, pf)))
                 if len(coarse.column.phase_roots) == len(fine.column.phase_roots):
                     amounts = (
                         coarse_data["phase_component_moles"] - fine_data["phase_component_moles"]

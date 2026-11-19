@@ -1,0 +1,12 @@
+{
+  "exact_report_match": {
+    "fetrig_conditioned_film.json": true,
+    "annular_mean_control.json": true,
+    "annular_interface.json": true,
+    "volume_wetted_control.json": true,
+    "methane_ethane_vle.json": false,
+    "pure_saturation_correlation.json": true
+  },
+  "gate_passed": false,
+  "vle_predictions_identical_excluding_source_fingerprints": true
+}

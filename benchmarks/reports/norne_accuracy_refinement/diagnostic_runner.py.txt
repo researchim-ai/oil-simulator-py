@@ -1,0 +1,154 @@
+"""Norne nonlinear-tolerance refinement on a prescribed accepted timestep grid.
+
+This measures algebraic error at fixed spatial/temporal discretization, not
+independent physical accuracy. Every prescribed step must converge without cuts.
+"""
+import argparse
+import hashlib
+import json
+import os
+from pathlib import Path
+import sys
+import time
+
+import numpy as np
+import torch
+
+ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT / 'src'))
+from simulator.eclipse_run import iter_deck
+from simulator.blackoil_fim import I_ACC
+
+
+def digest(path):
+    h = hashlib.sha256()
+    with Path(path).open('rb') as f:
+        for block in iter(lambda: f.read(1024*1024), b''):
+            h.update(block)
+    return h.hexdigest()
+
+
+def main():
+    ap = argparse.ArgumentParser(description=__doc__)
+    ap.add_argument('--deck', required=True)
+    ap.add_argument('--checkpoint')
+    ap.add_argument('--grid', required=True, help='Accepted substeps.npz from the control run')
+    ap.add_argument('--out', required=True)
+    ap.add_argument('--mode', choices=['step','adaptive','tight','tighter'], required=True)
+    ap.add_argument('--device', default='cuda:0')
+    ap.add_argument('--verbose', action='store_true')
+    args = ap.parse_args()
+    out = Path(args.out); out.mkdir(parents=True, exist_ok=False)
+    source = {str(p.relative_to(ROOT)): digest(p) for p in sorted((ROOT/'src').rglob('*.py'))}
+    deck = Path(args.deck).resolve()
+    inputs = {str(p): digest(p) for p in [deck, *sorted((deck.parent/'INCLUDE').rglob('*'))]
+              if p.is_file()}
+    for p in [args.grid, args.checkpoint]:
+        if p: inputs[str(Path(p).resolve())] = digest(p)
+    launcher_hash = digest(__file__)
+    manifest = dict(arguments=vars(args), sources=source, inputs=inputs, launcher_sha256=launcher_hash,
+                    cuda_visible_devices=os.environ.get('CUDA_VISIBLE_DEVICES'), torch=torch.__version__)
+    grid = np.load(args.grid)['data']
+    if grid.ndim != 2 or grid.shape[1] < 4 or not len(grid) or not np.isfinite(grid[:,:4]).all():
+        raise ValueError('Invalid timestep grid')
+    if not np.all(grid[:,2] == 1) or np.any(grid[:,1] <= 0):
+        raise ValueError('Grid must contain only accepted positive steps')
+    if not np.allclose(grid[1:,0], grid[:-1,0]+grid[:-1,1], rtol=0, atol=1e-8):
+        raise ValueError('Noncontiguous timestep grid')
+    end = float(grid[-1,0]+grid[-1,1])
+    context = {}; records = []; status = dict(status='initializing')
+    t0 = time.monotonic()
+    try:
+        steps = iter_deck(str(deck), device=torch.device(args.device), resume=args.checkpoint,
+                         sim_overrides={'convergence_profile':'strict'}, max_days=end,
+                         context=context, yield_start=True, quiet=not args.verbose)
+        _, start, summary = next(steps)
+        solver, sim = context['solver'], context['sim']
+        if abs(start-grid[0,0]) > 1e-8: raise ValueError('Checkpoint/grid start mismatch')
+        solver.amg_rebuild = 'adaptive' if args.mode=='adaptive' else 'step'
+        solver._adaptive_amg_policy = None
+        solver.relaxed_max_pv_fraction = 0.
+        if args.mode in ['tight','tighter']:
+            factor = 1 if args.mode=='tight' else .1
+            solver.tol_cnv, solver.tol_mb = 1e-5*factor, 1e-9*factor
+            solver.lin_tol_max, solver.lin_tol_min = 1e-8*factor, 1e-9*factor
+            solver.lin_accept = 1e-7*factor
+            solver.tol_well_rate, solver.tol_well_bhp = 1e-7*factor, .1*factor
+        else:
+            solver.tol_cnv, solver.tol_mb = 1e-3, 1e-7
+        names = ['tol_cnv','tol_mb','lin_tol_max','lin_tol_min','lin_accept','tol_well_rate','tol_well_bhp','amg_rebuild']
+        manifest['effective_settings'] = {n:getattr(solver,n) for n in names}
+        (out/'manifest.json').write_text(json.dumps(manifest,indent=2))
+        f = solver.fluid
+        initial_mass = solver.masses(f.pressure.reshape(-1), f.s_w.reshape(-1), solver.x, solver.sat, solver.ug).sum(1).detach().cpu().numpy()
+        def net():
+            return np.array([sum((getattr(w,'cum_surface',None) or {}).get(ph,0.) for w in solver.wells.wells)
+                             for ph in ('oil','water','gas')])
+        initial_net = net()
+        candidate = {}
+        original_convergence = solver.convergence
+        def convergence(residual, dt, pv, wsys, p_bh, v=None):
+            ok, detail = original_convergence(residual,dt,pv,wsys,p_bh,v)
+            if ok:
+                if detail['cnv_relaxed'] or max(detail['cnv']) > solver.tol_cnv or max(detail['mb']) > solver.tol_mb:
+                    raise RuntimeError('Accepted iterate violates requested criteria')
+                candidate.update(detail=detail, mass=v[I_ACC:I_ACC+3].sum(1).detach().cpu().numpy())
+            return ok,detail
+        solver.convergence = convergence
+        original_step = solver.step
+        def checked_step(dt,current_time=None):
+            i=len(records)
+            if i>=len(grid) or abs(current_time/86400-grid[i,0])>1e-8 or abs(dt/86400-grid[i,1])>1e-8:
+                raise RuntimeError('Solver deviated from prescribed timestep grid')
+            candidate.clear(); began=time.monotonic()
+            ok=original_step(dt,current_time=current_time)
+            elapsed=time.monotonic()-began
+            if not ok:
+                status['last_linear_stats'] = solver._last_linear_stats
+                raise RuntimeError('Prescribed step failed; refinement cannot be compared on this grid')
+            sat=[f.s_w,f.s_g,f.s_o]
+            for value in sat+[f.pressure,f.rs,f.rv]:
+                if not bool(torch.isfinite(value).all()): raise RuntimeError('Nonfinite field')
+            if any(float(v.min()) < -1e-10 or float(v.max()) > 1+1e-10 for v in sat):
+                raise RuntimeError('Saturation outside bounds')
+            if float((sum(sat)-1).abs().max())>1e-10:raise RuntimeError('Saturation sum')
+            balance=(candidate['mass']-initial_mass+(net()-initial_net)*np.asarray(solver.pvt.rho_sc))/np.maximum(abs(initial_mass),1.)
+            if not np.isfinite(balance).all() or np.max(abs(balance))>1e-4:raise RuntimeError('Component balance')
+            records.append(dict(day=current_time/86400,dt=dt/86400,newton=solver.last_newton_iters,
+                solve_s=elapsed,cnv=candidate['detail']['cnv'],mb=candidate['detail']['mb'],balance=balance.tolist()))
+            return True
+        solver.step=checked_step
+        original_run=sim.run_step
+        def aligned(dt):
+            end_day=(sim.current_time+dt)/86400
+            while sim.current_time/86400 < end_day-1e-8:
+                i=len(records)
+                if i>=len(grid):raise RuntimeError('Grid exhausted')
+                days=float(grid[i,1])
+                if grid[i,0]+days > end_day+1e-8:raise RuntimeError('Grid crosses report boundary')
+                sim.sim_params['max_time_step_days']=days
+                sim._fim_dt=days*86400
+                if not original_run(days*86400):return False
+            return True
+        sim.run_step=aligned
+        for _, day, summary in steps:
+            print(f'{args.mode} day={day:g} steps={len(records)}',flush=True)
+        if len(records)!=len(grid) or abs(float(summary['TIME'][-1])-end)>1e-8:
+            raise RuntimeError('Incomplete window')
+        np.savez_compressed(out/'summary.npz',**summary)
+        fields={key:getattr(f,attr).detach().cpu().numpy() for key,attr in
+                [('p','pressure'),('sw','s_w'),('sg','s_g'),('so','s_o'),('rs','rs'),('rv','rv')]}
+        fields['pv']=solver._pv(f.pressure.reshape(-1)).detach().cpu().numpy()
+        np.savez_compressed(out/'fields.npz',**fields)
+        if any(digest(ROOT/p)!=h for p,h in source.items()) or any(digest(p)!=h for p,h in inputs.items()) or digest(__file__)!=launcher_hash:
+            raise RuntimeError('Source or input changed during run')
+        status.update(status='complete',day=end,start=start,source_and_inputs_verified=True)
+    except BaseException as exc:
+        status.update(status='failed',error=repr(exc));raise
+    finally:
+        status.update(wall_s=time.monotonic()-t0,solve_s=sum(r['solve_s'] for r in records),accepted=len(records))
+        (out/'status.json').write_text(json.dumps(status,indent=2))
+        (out/'steps.json').write_text(json.dumps(records,indent=2))
+
+
+if __name__=='__main__':main()

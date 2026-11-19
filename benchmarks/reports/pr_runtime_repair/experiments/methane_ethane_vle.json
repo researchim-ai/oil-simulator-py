@@ -1,0 +1,1525 @@
+{
+  "format": "may2015_pr_experimental_validation_v1",
+  "device": "cpu",
+  "reference_doi": "10.1021/acs.jced.5b00610",
+  "reference_sha256": "33cfa9c24bd1300f6f98c5118e570e5814e0c412a831e3b721d93ef85f1add08",
+  "protocol": {
+    "format": "unfitted_may2015_pr_protocol_v1",
+    "fluid": {
+      "components": [
+        {
+          "name": "Methane",
+          "critical_temperature_k": 190.564,
+          "critical_pressure_pa": 4599200.0,
+          "acentric_factor": 0.01142,
+          "molar_mass_kg_mol": 0.0160428,
+          "ideal_cp_j_mol_k": 35.7,
+          "min_temperature_k": 160.0,
+          "max_temperature_k": 500.0,
+          "reference_temperature_k": 298.15,
+          "reference_pressure_pa": 100000.0
+        },
+        {
+          "name": "Ethane",
+          "critical_temperature_k": 305.322,
+          "critical_pressure_pa": 4872200.0,
+          "acentric_factor": 0.099,
+          "molar_mass_kg_mol": 0.03006904,
+          "ideal_cp_j_mol_k": 52.5,
+          "min_temperature_k": 160.0,
+          "max_temperature_k": 500.0,
+          "reference_temperature_k": 298.15,
+          "reference_pressure_pa": 100000.0
+        }
+      ],
+      "binary_interactions": [
+        [
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0
+        ]
+      ],
+      "min_pressure_pa": 100.0,
+      "max_pressure_pa": 1000000000.0,
+      "max_phases": 3
+    },
+    "model_origin": "Unchanged fluid from configs/surface_stratified_pr_gas.json; same methane/ethane parameters and kij=0 used by the capillary FIM examples.",
+    "model_inputs": [
+      "measured liquid temperature",
+      "measured liquid methane mole fraction"
+    ],
+    "predicted_observables": [
+      "bubble pressure",
+      "vapor ethane mole fraction"
+    ],
+    "initialization": "Wilson estimate from fixed component critical constants; pressure scales 0.2, 0.5, 1, 2, 4; no measured pressure or vapor composition used.",
+    "fit_performed": false,
+    "qualification": "All 17 measured states. Marginal archived expanded uncertainties are diagnostics, not a predeclared overall industrial acceptance threshold.",
+    "model_origin_config": "configs/surface_stratified_pr_gas.json"
+  },
+  "source_sha256": {
+    "src/surface/__init__.py": "3685183ddfd53e167df4fabcf70819792a6817f4a1fceee92dd8bbbef48a684f",
+    "src/surface/actuator.py": "865b8269db96a118508866a6de786b2ae05f6baddcda82bc99e76dcb9b0dbbf0",
+    "src/surface/annular_film.py": "023352aec8557a7b317e72ebbb4e7d85d3a1fe44b678f505b38eccecf8e20eac",
+    "src/surface/blackoil_batch_admission.py": "39a543bf980b0c2b09daf8b6c7cdca9b8e924a0c735ca41029646a82ca6cb868",
+    "src/surface/blackoil_control.py": "0643a805551906e47521ad49ebe8b5278047a4ce3023f240ca855c3904737270",
+    "src/surface/blackoil_network.py": "cec7dea74d1bd3faf2937da1a64c7534b8cd9a0d3f5e41b7398bdf91b33838ba",
+    "src/surface/blackoil_pipe.py": "850b137ec04d69da0e9d6284ae3b8f76e7ef48409ec1c34b6524fcf0465089ef",
+    "src/surface/blackoil_pipe_batch.py": "3726728cccf21af9d095e8c995ddef6b95c183bb86029036ca6f00c476369f95",
+    "src/surface/blackoil_pipe_grid.py": "a46716061453554a6783eda334e623e6f925dff2d18c22d2387c09bb643cdebb",
+    "src/surface/blackoil_pressure_lookup.py": "350f7ed8c984fd9c4b0cfa98eb16c3df2103f07e989477224d11f61042c589f6",
+    "src/surface/blackoil_properties.py": "6a8526ff95ec64543a172b5a91e7dd5b5493d96d4fdfebb6d70e2c970ec7eb06",
+    "src/surface/blackoil_pvto_batch.py": "bab74b5edaad082c22367d8cc3f7276172ad0136647604b3b2991385aa944acc",
+    "src/surface/blackoil_quadrature_plan.py": "0f7bb1f9dbbad0f7bac4f35b5eb2ab09d94bfc226405ae536ed9635c2a5ab852",
+    "src/surface/blackoil_valve.py": "719a4fa8ce784d8111481f6706ae4209ceb5221570ef4f307fea09a6e400c352",
+    "src/surface/calibration.py": "b49c15e2231b81b1ed2b3fb85423e84019181abed6d96bb1e2b6efe9edb0cbdd",
+    "src/surface/capacity_bracket.py": "2c2d7a886b75f6dcf3e9910518a6689b0abd5e399f2f573a2f2931e51ea69d49",
+    "src/surface/chemical_kernel.py": "70ae73f38deb906766d1ae9fd27fe96409519a10a9e74b8252fde7beddff975d",
+    "src/surface/collocation_thermal_schedule.py": "b07fb62b90310acfca189a14787314929e81fb7b7c6129f0538caed0f7e4416b",
+    "src/surface/collocation_thermal_station.py": "6c219a0d074530d55977bcd5a5f8f44c964facac59cea8b13d0971ddcdd19bd8",
+    "src/surface/component_energy.py": "99777b436d0f2631f902b48bd0d7ec1f062193154b562152c0742ca6ba91cc56",
+    "src/surface/compositional_network.py": "4a8b00ca026a90e320115717b67811ecf8b1753c5e099c544619df82b6f22b60",
+    "src/surface/compositional_network_schedule.py": "bbe85e293d8bb13f536011081fb9006b150953df0b46e1715b8a1873499e80de",
+    "src/surface/compositional_separator.py": "5ce8fa1177447d3df4e64475cb46324a83ef659b730544833f3ad55b937fbb97",
+    "src/surface/compositional_separator_schedule.py": "7e3e69e58bc5f5184468f076e0e89129024439e0a11297aba2a6448db143badc",
+    "src/surface/compressor_map.py": "24c02d6f1f7be2348ca1c459fea6f7d152ae7ca356a3c1b39e64dd1e35780cc2",
+    "src/surface/compressor_schedule.py": "d2edc155be69adfab96b99b37e5d8d96a927ac0c72a4eb04f8993536a38735b3",
+    "src/surface/compressor_train.py": "e06a9fcc4aab292af4c3413cacf22b173f48dfa1d00c536326bd0ceb913b9060",
+    "src/surface/concentrated_liquid_drift.py": "99a0e3c68a511726ca47ca5854e7eebdd93ef1dc5986373698d4453256c48edd",
+    "src/surface/control.py": "606a2b67864d1e9122f059b3965769bf740d1249b0811a0922d332564539b1f3",
+    "src/surface/controlled_liquid.py": "1fc1bc6f6813be0f83d338c67f312ca9de7a8fdd2e93d93f93c02e6e3f95ad74",
+    "src/surface/controlled_liquid_schedule.py": "21e53ecab6c27fe17ce68765502d6569433875b2aeadb96257f88731e5d1000e",
+    "src/surface/curves.py": "678ba0e134dd958fed3b8a8290125397efde39a6e7cb9e5da0ad3d84ce0c049a",
+    "src/surface/darcy_hydraulics.py": "d1dda325b6cd8dd51312ca83541df987e8cfb81a988a52bae8c123b2669452a2",
+    "src/surface/dispatch.py": "002289d9f03203277c4f7f54a2a5e96eeeb599fc8170c43238be18bf2b3453f6",
+    "src/surface/dispersed_gas_liquid_drift.py": "2a93e3b8cbac8400e6dcb198fceb7b6d7af279e7abe79ed26ce13c11966cdb85",
+    "src/surface/dispersed_liquid_drift.py": "3c5a77c9c4e9807070cc80f6e27e50d2da447371d7fcd7838570a0bdaeecc6da",
+    "src/surface/drift_flux_closure.py": "49f0ad53da8fb8d72dc432da76dc32dbfec0b785dddb8e8449fbd0a01adb7808",
+    "src/surface/dynamic_station.py": "84351881b81d1a1f359b04f2dac9229161088d04f218e0603c7845d4482e6c4a",
+    "src/surface/dynamic_station_schedule.py": "ebaac7f6f2808e7a41c0a6fde68628d781a0792d31647c8bc8d3467f5081ae6d",
+    "src/surface/dynamic_vessel.py": "eb3636d79b647ec09350fa7d2dc2f8af47e36684f633425a2bfcb204fcbd53ef",
+    "src/surface/equilibrium_cache.py": "f0918ebbc418cb99927ae1b4510d50472f27a1d5ca58f1d7cac7fbe261e48f22",
+    "src/surface/equilibrium_inventory.py": "8195d72dc3ae7212d2a6d85f079462b6fb1f47f56c955e714cc0c70666549b84",
+    "src/surface/equilibrium_process.py": "86dcc7783346174478f6db40fc910e71bad9e2cafeb8ed037b9917ba03ea1781",
+    "src/surface/equilibrium_properties.py": "3dfcdf37d7639b20b9b434b9ef708fdaf0063064dd8dff0d2612e2726a3d8bc4",
+    "src/surface/equilibrium_stability_batch.py": "c3a530a365926c3b64e862bf5221f63b027acaf298946dd51085c27efb73af52",
+    "src/surface/facility.py": "661ce7f7f75ba1bb8327cadd05cc5e5e325bd7abd7c48df719052c1f08a9d638",
+    "src/surface/film_wetting.py": "aaec488294dd743f4086b1f966315422c5a3f810b4614b987619d2e8e695e038",
+    "src/surface/gas.py": "9df592daa40c165e6c2c19c1a85dfbb0a62192ddb54d83c95023d026d032d62e",
+    "src/surface/gas_valve.py": "d5e2b539a7926e3ec21681e76880de91d7801f332e31fe9c9f699490a51b004c",
+    "src/surface/gathering.py": "4ca3114d8d8ce504ec551e153206e89961c2483f23a562be54be7b78bc91638b",
+    "src/surface/gauss_rules.py": "301f8d7026542a5a26fa9b7b50d9ce66dc603d14c8f48fb76258f5dd3ed64a9c",
+    "src/surface/hllc_local.py": "8c9622a596d3b729e6064707a9b77091c712eac1ba357095b9c4ef14f44b1db3",
+    "src/surface/holmes_drift.py": "4a0e5b139acbcc977bb543e108da3007f72000eb5ce154c30e13c1773cba8160",
+    "src/surface/inclined_cylinder.py": "d9c74b88c62d5bb1cb8755dac916d61fc4094fa3f79faba40de0104ada8d6f75",
+    "src/surface/inertial_capillary_film.py": "7f92162e8ab90e6366242d5db9b611217b9dac4940295594475e538ab6e1e5e7",
+    "src/surface/liquid.py": "d8f4c11add64b8c59bbb62591b82809d315aaefae10d263a32378134c4824704",
+    "src/surface/liquid_collocation.py": "90a3d601c49766a505b0a0b5ce3bc921ce4c31a93ec4e1c1d0faaa241b1f8a2e",
+    "src/surface/liquid_heat.py": "511344b345471a52839378ec8d48080bfa7e41736f9f70abbb2bb80e17516403",
+    "src/surface/liquid_journal.py": "6b6aac4c5ed9383c48f5551fad350e6e6d42ca2892ece25aecc31ab96a45ad08",
+    "src/surface/liquid_protection.py": "afbfe5a4e7f1db81b3ff9c51fe1c71006650d7edeb0ff726da8e5a849c86212a",
+    "src/surface/liquid_protection_schedule.py": "ee7ebf71f15c6411b0cc709d3be9457d52712f4558bd2e403064da273917f6ce",
+    "src/surface/liquid_recycle.py": "e5a82905fc5d9275a463c5b0ba085d6c1b31143c534c5a4fbe5b834490963871",
+    "src/surface/liquid_recycle_schedule.py": "994a448e3b2aef3d482068b637d6a855fb1c5fbe5da160e7a91f4189db18177a",
+    "src/surface/liquid_relief.py": "4d6a2d87b81adf6c8ca0241b1fc7b19872708d60cf49a3553a550c548e3c17b1",
+    "src/surface/liquid_thermal_collocation.py": "b15cd0313ff87046ef452778e78157a54efe0f426debd321fc6cd6c828a8ee0a",
+    "src/surface/liquid_transient.py": "232c88fb8cf59118ff45e2b644d5b27196b7f93a14a738cdd469df2fdb30454c",
+    "src/surface/liquid_transient_schedule.py": "8935a1d882798fb5892e25e890c709f396039d76f5d0429f4f765dd269cea545",
+    "src/surface/mixture_equipment.py": "c176b38446702aad0a752e112eb3c673e0c250df74f3d458abe4f40eb833f9ba",
+    "src/surface/mixture_nozzle.py": "5b132334d72e244ab46952b65e9dcfc499a106dfe5323f7c0dcfac693978b345",
+    "src/surface/multiphase.py": "4cb4123380d2376f691aad60e2344e58101d57840d62656cf680fe8cac0d2a4f",
+    "src/surface/network_events.py": "8b6ea58ae2e960a44512d660e699830c8170b35e05834f7a29f572f49d82a0cf",
+    "src/surface/network_schedule.py": "941bee536b3904a414e0e541ec4aaf636138261acda9591116a3e49a938e95fc",
+    "src/surface/nozzle_connection.py": "e93a2498533952c44a5a705ef1856bcea10714cf4ee194acb4284f3ce102339c",
+    "src/surface/operation.py": "fb26e1111661da864edee2b7463f62b6c467f86e935cef0576f1d5f51b98d24f",
+    "src/surface/peng_robinson.py": "c062297735326130ea8b220e054bb004a5ef835b0727090d2fc34b5c20920d87",
+    "src/surface/peng_robinson_mixture.py": "140b27cc3c8bc1b8366496d2790b3df6bb49faf0f9d7de1af7de9d9e8720e653",
+    "src/surface/phase_geometry.py": "cd5b489641076a4ceaebd638ba1818ba974febc8d22b1d7b204a06a015997d31",
+    "src/surface/phase_momentum_exchange.py": "5e378b4a10484dbc1e448b6e41b94b27ed45bc6bd0d4174a3b55b1feb571ddb3",
+    "src/surface/pid.py": "2222eeb87d5dbb46d64158f4f1e824adbd5e136ce23358d8e3c911d21742402c",
+    "src/surface/pipe_schedule.py": "8826948b6e8e9d8f8b740b82e60c1dd9726293bebc67e3f5a56f689566b5b568",
+    "src/surface/planar_film.py": "6a13f530ce13fc471527a6edb8531f114c906f9eb73c2d78ef09926888a35537",
+    "src/surface/pr_active_annular_friction.py": "c52d1c4e74e870def662c43d61851c220064857c688c8c6e3812cf0d8137af33",
+    "src/surface/pr_active_capillary_axial.py": "b9da72fda76ab9edecfd82bff3bcf08e8baab2f2c59749e3286d7a2cd9682fb6",
+    "src/surface/pr_active_multifluid_flux.py": "2589c7abd4bcd9a8f9ef35258b150b83f11d00f41433318b24ec7b40292e197a",
+    "src/surface/pr_active_multifluid_pipe.py": "626b37ed834af0fdff948aa2cc365f5d0090718bee72891d7b85a269ef433f34",
+    "src/surface/pr_active_pipe_friction.py": "9250e5e2f334952bdeae51a9324260efbab6406fa93baa3728c194fc11fccf64",
+    "src/surface/pr_active_pipe_heat.py": "ee32f25850279d62b8389ef8353defb5a99561db99ef6bb9d73dfc161f445e4c",
+    "src/surface/pr_active_surface.py": "64829664f7bdfdedbc029e3ff67e4c88f80a4e52bda860ce5c5346e48e0faed4",
+    "src/surface/pr_batched_homogeneous.py": "9496c5c7300d5528c3bf5014690eea0920f9d60c21a3690a89ca8678bef78bc0",
+    "src/surface/pr_boundary_cache.py": "5c116383ae4583f77ea8a0f7abf8e0733198a27fdf7d31004c0f2e92e7bcdc37",
+    "src/surface/pr_canonical_equilibrium.py": "7b38e5096926fd5f753662f540c52f217e7ca0c5f51506c10b8f0a84c9b9af18",
+    "src/surface/pr_capillary_axial.py": "7dc3fec8893021204b49882c21087c3cb8a0618b156ddc214103b1a7bacaff39",
+    "src/surface/pr_capillary_branch.py": "588f500b1cea1741b164c309622424153c73e0b2e919ec839e1b101bdb01db9d",
+    "src/surface/pr_capillary_chain.py": "044487cc13ed74468b62d9285ff52bbf747ca8736524fbc4836d458810317222",
+    "src/surface/pr_capillary_column.py": "0f24d85e79a9954cbc402c686b42b4eb2560e4f1f3347604ba9f9b686948f652",
+    "src/surface/pr_capillary_equilibrium.py": "0e07321543b0607dda5d9f6f003b1a31af631a5db5fe45bff0dcd32b3d326208",
+    "src/surface/pr_capillary_facility.py": "fc733523bc7ceccc4235d1fd945d5d1a76358291069993d1d44f6e9c59ccf070",
+    "src/surface/pr_capillary_gas_exchange.py": "8dd5cd298613cf5e5ef4e0f0ffe3b44cadfcc2a6aed63e6b0ce427ca0a91ab3b",
+    "src/surface/pr_capillary_linear.py": "226a959d31e526d62ef63680f2d76d5d2ccb8e0b1a4da546032f63d999f865bf",
+    "src/surface/pr_capillary_pressure.py": "813a09160ed6bcd4639f969fad638807bf3d5b9e7b277dc918fcd48a669d88a7",
+    "src/surface/pr_capillary_surface_plant.py": "299912b07f4b34c866024f31c2071c496f6b0e75e0ce31e297a2b88eabdbe4b6",
+    "src/surface/pr_capillary_transport.py": "4bbe4656ef60d0a5112937eb9b6dca77c4fc1f7dd8f1f597ac10c354fc952641",
+    "src/surface/pr_collocation.py": "ae507c00af6c463332ba179517cf7584e04b771220dafd26e53a401e863051a1",
+    "src/surface/pr_compressor_gasmap.py": "502a1565ac281d6dcc03725e05c475d0502a367528b143d2c6b8de5b2ed03dbf",
+    "src/surface/pr_compressor_unit.py": "e06e22c94a389c3f73e2616d965aeaed4915643dd28ae64a25d13f4f3e31caa7",
+    "src/surface/pr_control_channels.py": "c7ecd6ea69229748e79e0692d54dd00671ef27c977677fc13864ed666958a554",
+    "src/surface/pr_darcy_connection.py": "8bead8227dcdb5e450404d4695fdb165444e2319774b7013a278c68f65b63c2a",
+    "src/surface/pr_droplet_population.py": "907e5404f3f8fa864667a8bb002703efbd4538065f78a17f332d4b9e13f23355",
+    "src/surface/pr_equilibrium_euler_pipe.py": "1163a50347e2c6fb0d563483c5deeff7a78f5c1c99e800088071dabc7c17bac6",
+    "src/surface/pr_equilibrium_euler_plant.py": "979b1bf2bc5c83912aa1e0fb208a412a5d8ee745556b9dc5cdec731cf66fab9b",
+    "src/surface/pr_equilibrium_transport.py": "ef7243a16a7399d14d654f4f0d0f1e3d82922194964d47b315f8d6c15ec994e0",
+    "src/surface/pr_facility_schur.py": "c76901a28498050cc1dcc57e6ca7a47b032ec7ef590b0517fc935360ea602399",
+    "src/surface/pr_film_mist_exchange.py": "a760f1a76bd6084595a4c7d190c2a608235513f7f9981e69f568409c0452df40",
+    "src/surface/pr_gas_loaded_capillary.py": "695a342ea802a47f574314ebf8ecd0777c674338045a66167cde53c8f5a46fe3",
+    "src/surface/pr_gravity_transport.py": "fc5ccc684635f228c9b007b407fd092787b40119483fe0c77cf1290d96c7096a",
+    "src/surface/pr_heat_link.py": "bf28792cdd7fa162a370606970d3834a20cdeff564efc17ee461b8a4ea8252e6",
+    "src/surface/pr_hem_restriction.py": "f9742ba9aa9dd89cfe12d9665e13f26fded62f836caa79e8ace1d83c3f04c309",
+    "src/surface/pr_homogeneous_uv.py": "aeb3efa582f8110a665b55ab7f9748a70ef456834b81546db45fbe828b5eeb78",
+    "src/surface/pr_hydrostatic_faces.py": "66bd22053c87cdeb33a7e7f15d92d2b3bdad2b16b0e24901f89179e6afbbb85c",
+    "src/surface/pr_hydrostatic_initialization.py": "c50b5958430dfa1b472e6fd38c6eda13486b1ed54a082dd338490ccba035fed5",
+    "src/surface/pr_inclined_pipe.py": "7649aa8f1a44a8043b3b5ca8cc4ccbbb838588da020a7bcd2f587c90103ce3ee",
+    "src/surface/pr_interphase_relaxation.py": "586b958e5001227175b891aabaab5c6809b1d8a1620185ac955c856938b3f896",
+    "src/surface/pr_isothermal_capillary_film.py": "820ab0e588a81b0b24501c1f83f09cfcd71c8529f033964b250ba960f858a404",
+    "src/surface/pr_layered_plant.py": "b14c93594a1ef4be2b0ea3fd8b31034bdb7c3b1ffcfc87d63e398f8feffeaf06",
+    "src/surface/pr_layered_transport.py": "4362e367b2e54fd3488d2cd7bc9d504e19b7cad9837d66b5434876008dcdbe8c",
+    "src/surface/pr_linepack.py": "430fa6cee0ca6a70f909eba7fb2c43552d7cef090f5c1f321687df2174c67688",
+    "src/surface/pr_liquid_mixture_pump.py": "dcaa8cd433cb06f3a13270ba0e4a424a6c79399367b4d76be2ce17f6baaee70f",
+    "src/surface/pr_machine_drive.py": "ca63828348d107f8184bac96b3fa0bd6306fdc05bc8cf748fbf9c22fe68da8de",
+    "src/surface/pr_material_predictor.py": "56d5ff3d734987c74fb52e9201ff9936bd2aca53ff6370282a2e2a8ad01c5fae",
+    "src/surface/pr_momentum_pipe.py": "80897139d54ac8889258c202f1e6be9566f35ec3f3b19089e0b1dab5f60a229c",
+    "src/surface/pr_momentum_thermal.py": "9a2028ccf3146eadc98a3107fc3656a88a8079cb2401f6100831fe37bd93a2ad",
+    "src/surface/pr_momentum_vessels.py": "6e589e08b8776f632d8e9bb57ceddd5e52441b59053b048c79d4a04ed15500c3",
+    "src/surface/pr_multifluid_flux.py": "89981fa7ac789857b97c74d201869e6246ea12c923d61cdcdd3a4bdff185638e",
+    "src/surface/pr_multifluid_network.py": "536edbe2b4f4cdb17aad68bc6124857fa5094894e6e18906952896e4615d4223",
+    "src/surface/pr_multifluid_pipe.py": "49e18f4a6f80afb6407a27dd291365044f3839c7a486bcefe68fb30e7aa30125",
+    "src/surface/pr_open_gravity_transport.py": "28851e6618f3c7b48f2826f1d9b3b38a7fdb016b001eaf5070a32f3c6232f904",
+    "src/surface/pr_open_transport.py": "78eea838b61ab034ed9cf0aaa61338268245a1aa5304c173f2355c590b1f9bac",
+    "src/surface/pr_phase_batch.py": "b275be971ee26c74146f0c657549c50027d06be66e7335d8b7e8a3112effeeea",
+    "src/surface/pr_phase_equilibration.py": "4dc27e1a975445bc9028cc073397ea0e2877264875db0fe8ed5a30bb237c18c4",
+    "src/surface/pr_phase_volume_transport.py": "908c7d686f3acf9d765a122500dad63336c3f243d8776103ffa93868bb1fe6a2",
+    "src/surface/pr_plant_registry.py": "c4611ca8fc1e3ce5a2005491a14503af9edda31a8b7a6b8fdd6594cbedc42568",
+    "src/surface/pr_profile_graph.py": "ed62f5ca7151bd94529214975a5e547689f8687a474f9ef06ceee6ade295184e",
+    "src/surface/pr_pump_connection.py": "e34d49700b620e6ee3dd16400d2db6bb35741b30accb5120dca142071c871f77",
+    "src/surface/pr_pump_four_quadrant.py": "ef976c404850611fda1c31709a0a4efc129cb7e6cedd1af9fe30a359272aba41",
+    "src/surface/pr_pump_unit.py": "70441ba95ba3fb6c70587a9709a1c80b9d2487e15892c1d397ce5237664024c5",
+    "src/surface/pr_resolved_separator.py": "9d8f78686a3adebf660de3887129b964128e25875b7b46644d8ef3b6e2be636b",
+    "src/surface/pr_sectional_population.py": "b1e1a479429699e9fc0c96ee34872de628c4c6c4c05ac76c151f9c916ae6ea47",
+    "src/surface/pr_stagnation_ports.py": "397223e10f9fe61a2b85169b750d2657a44fcb822ce3afb2b689a59900888179",
+    "src/surface/pr_stock_balances.py": "5eed5c068e57514817df4454f18c15ced07fa87024be11464f4f7477ed65cdd1",
+    "src/surface/pr_surface_builder.py": "94292f9793785afb3aaa93957463f5dbeecd653c2f4e7764dff5d8dd6a7df33e",
+    "src/surface/pr_surface_control.py": "f80a35d2e1e35496b903457b02326fee39259a603e2de2004ac53a8e8a3974e1",
+    "src/surface/pr_terrain_pipe.py": "9642718ba90c3b465cf4410abe935585a082d30d47a723476f6c91141babaa92",
+    "src/surface/pr_thermochemical_relaxation.py": "0a45a82aac4f584e711aff38dee5914c53b39d3901d2bd9ac5bc43baccb54731",
+    "src/surface/pr_transport_builder.py": "62e4ef217bc1c11070adb470b6fe70ce4c69053802620354f5f79f93a43a6dd1",
+    "src/surface/process.py": "9e0a67c36b916cf9d19852cc849df092d376ce89489a8f11a4128c9e8a03c94b",
+    "src/surface/pump_drive.py": "0b535e0fb8d58d329af23cd22d9510728b74e49fcc2825e073207870bbb02ef5",
+    "src/surface/pump_drive_schedule.py": "8d14dc69c221cf06ff04874c97fbec5706cc9666819c0934dbb9eaea5985d4cd",
+    "src/surface/rotating_drive.py": "c21c189f46ca90d56ccb1b1f87cdfd7bd923aac7497773aab2d5421379d1cff2",
+    "src/surface/separator_geometry.py": "1cf9eb01844dc4f7493b11d48438b9164d8e0df95483202ab6b42e685dbf5f19",
+    "src/surface/single_phase_nozzle.py": "c4369418b0298d16570bc6078d02e4eb1fa61978af466905c4b602227a9ec36a",
+    "src/surface/station.py": "f9506537688df3cfbfd4048651010943ec63b6d49eb3369fa8cd849369444699",
+    "src/surface/stratified_drift.py": "3e41a9d1e055439911fb1126332fef5ad35a8e9fc2893b5a00812d84f17e3ccd",
+    "src/surface/stratified_pr.py": "d8beaa811256bce156c1c07e099cfbbcfb40a359e3081876a3473f2fab1b4003",
+    "src/surface/stratified_pr_flow.py": "3bf42afea2552ba723a1e23119af04415fdbd5df04e027374d357103c4a51bc2",
+    "src/surface/stratified_pr_momentum.py": "fbb1934dd023dea4dd81bb118f55cb9d86ff218691529b3cdbfda5a91441f139",
+    "src/surface/stratified_pr_network.py": "7dc226266d4926f36d157d40c881bbb3b7c5d8bc8e7a8f032b338bfb1bdd7ccb",
+    "src/surface/stratified_pr_thermal.py": "83bc32f0fd5da6ea35f582424e065b1f23057f5a38cc0945bd3cff3e19c0e37f",
+    "src/surface/thermal_capacity.py": "73277d736c563002ac6703968357591a3a70146574ed8c99847c56dec7982686",
+    "src/surface/thermal_control.py": "93d4110c34c68a9abd129fc954ec2e350227e437cb0dad40cd7d68515f2d6af9",
+    "src/surface/thermal_equipment.py": "571fa88fd38cea61635b09bdf4f375600945bf6ebf60946d75f9518cb7db537a",
+    "src/surface/thermal_flowsheet.py": "3abbf7d9f200d0f8bee8f3e08b283755fc7fbe301006653d1ab4711c5d9282f1",
+    "src/surface/thermal_flux.py": "60d34395624468f5240d9a0cfbe1f707708b6b2a94ebb2098c0f55ef92701ec7",
+    "src/surface/thermal_liquid.py": "923a126041716244ef2b14f0df215d5603ace5b423ea80cf6e1263a446830c95",
+    "src/surface/thermal_liquid_schedule.py": "4f2df85b5495f6a662a66ef2174063273441825658d8b7b7269da2fb09acc785",
+    "src/surface/thermal_pipe.py": "767b4e53e14c84e3f42f3b39fda94096675b32625b953e766d890fc5b7befd5d",
+    "src/surface/thermal_process.py": "85423374f3ded841ef09bbd5773e1dda25510d71ab5d45a33d3c3d4540e3a438",
+    "src/surface/thin_film_dynamics.py": "e36cf592d82bc5bc2acb3233514c41d870c96353f8ab27c026cf5e86fb3d0f56",
+    "src/surface/three_phase_properties.py": "768d8f966fd9ea7f48b6a353796a74a21f98a049260ebc2a8487bd017400b3c5",
+    "src/surface/three_phase_schedule.py": "20c7308c06b674651f5c4996c4c5eb7faa56fd3ee53aa32731f374c407b746f7",
+    "src/surface/three_phase_separator.py": "ec337e84472d3f2e07a8e7f72ddcb9add1315734ee0c24224a844e1add781adb",
+    "src/surface/time_interval.py": "b7209f50ffefb79ac4563627a7e19729dd6a7f3799e25e5b0719bc7a4cc397f3",
+    "src/surface/torch_backend.py": "6fa2adfa7eb1bc7b3b3406a38c1427a045caec6bd06447f098571a084f40e4f0",
+    "src/surface/torch_heat.py": "bd709418596b592f2b3f7b6c3490acde9b230ba638dff80c8f41193dbb1013e6",
+    "src/surface/torch_heat_bridge.py": "b273aa9b762451c1bc87348587fba9a95f41371e4135df096c380389679e863f",
+    "src/surface/torch_heat_graph.py": "53f1ec4448ff75de6e4b018c214bb0766b7378f17e6bc9e79cab001db84114ca",
+    "src/surface/torch_heat_interval.py": "87367d770c11141d27810cf3f9132be4837d769cccd00028932769f351c74a98",
+    "src/surface/torch_heat_session.py": "fdb91d5b0e38210ddc5914da66b196fb2ea063387b0ca19a5e566d8db1d90056",
+    "src/surface/torch_krylov.py": "8f886108a3f427775c7c5da326b75afe4130ecc3c25bdbaaa8fb5fc9925bd7fe",
+    "src/surface/torch_linear.py": "b7bda1aae66d9e979c147f821efba9990d6460d60b32a05c6fc5f9b873b752d5",
+    "src/surface/torch_liquid.py": "e8ac463099d4b1d32c9fdc3df1f75aa5d61f69c3038c66397d1e9b6bfdd1d7b0",
+    "src/surface/torch_liquid_bridge.py": "112593930bcb60ef6c8e03513c52c409731bccf7344703251e663f7e8a35a6b5",
+    "src/surface/torch_liquid_interval.py": "fd50de4f139037673a8b070a588c5b05d326a67d21692289b7638b85a34f665d",
+    "src/surface/torch_nonlinear.py": "24ba9f9804690bae74ccb7c28074d0d6a054dfb7ad73c29675169b1884422ac5",
+    "src/surface/torch_steady.py": "d3e7a0ab63d119d1c9dbd081d4287ffd00fc39373cc83c3b91a84bdef91b1f3e",
+    "src/surface/transient_pipe.py": "755e404b2a822c8a59e9071f5cbdfd822266da4b43bf6e1015e739f2d4bebc8c",
+    "src/surface/tree_pressure_tangent.py": "0a355ca0a3e4974eda55e926ee03d35da1f4537970d01a030815bbd8ec276bf7",
+    "src/surface/vessel_network.py": "52670020e8cc39933d37582efb105463c7682e984906b140316454c7d2c9a896",
+    "src/surface/vessel_schedule.py": "9ec3975cb36f47782169f8bbea0c2e547aebd6ac9d2bbd9917a73a5c03289183",
+    "src/surface/vessel_wall.py": "93aefd82264b33a80618654b15a6eb749e0fcf1ff9aa59e896ffd211ea1029b2",
+    "src/surface/vfp_network.py": "adc7e3b75b4b222665a36815b68642edca5b1d631d1e696f68abe57279996df1",
+    "scripts/validate_may2015_vle.py": "b6d61858946274948993fada97e292ed13c5de68930e2be53c0b1d8906fcc7a1",
+    "scripts/import_may2015_vle.py": "03d832ddb14aebff454438b80a9a2c2918b53958dae03c29b63c32ee36251ba3",
+    "tests/data/surface/may2015_methane_ethane.json": "33cfa9c24bd1300f6f98c5118e570e5814e0c412a831e3b721d93ef85f1add08",
+    "configs/validation_may2015_pr.json": "95000b54a8711f91774b5b9dc584744bad5254801bebcedab0ab49d1b8ba6f6a",
+    "configs/surface_stratified_pr_gas.json": "54b2624a44366d33ce1c231529e14d57fd24de096fefa3689de2165440a1536b",
+    "tests/data/surface/may2015_manifest.json": "3862a495b7816d23a508f59fb0abe4d7d8f2501a6520ade7703e6c0457941ab9"
+  },
+  "fit_performed": false,
+  "experimental_points": 17,
+  "predicted_points": 17,
+  "failed_point_indices": [],
+  "pressure_within_archived_bounds": 15,
+  "vapor_within_archived_bounds": 16,
+  "pressure_mean_absolute_relative_error": 0.010220964284953348,
+  "maximum_pressure_absolute_relative_error": 0.02629143098821524,
+  "vapor_ethane_mean_absolute_error": 0.003842557118386983,
+  "cases": [
+    {
+      "point_index": 0,
+      "measurement": {
+        "pressure_dataset": 1,
+        "pressure_index": 0,
+        "vapor_dataset": 2,
+        "vapor_index": 0,
+        "temperature_k": 243.58,
+        "liquid_methane_mole_fraction": 0.3099,
+        "pressure_pa": 3949000,
+        "pressure_expanded_uncertainty_pa": 52000,
+        "vapor_ethane_mole_fraction": 0.3336,
+        "vapor_expanded_uncertainty": 0.0074
+      },
+      "prediction": {
+        "status": "predicted",
+        "pressure_pa": 3948851.219680313,
+        "vapor_ethane_mole_fraction": 0.3353302363361087,
+        "maximum_log_fugacity_residual": 2.48245868306185e-12,
+        "production_flash_phase_count": 2,
+        "production_flash_component_balance_error": 0.0,
+        "production_flash_vapor_fraction_for_constructed_feed": 0.5000000000027751,
+        "attempts": [
+          {
+            "wilson_pressure_scale": 0.2,
+            "evaluations": 37,
+            "pressure_pa": 3948851.219680313,
+            "vapor_methane": 0.6646697636638913,
+            "maximum_log_fugacity_residual": 2.48245868306185e-12,
+            "nontrivial_root": true
+          },
+          {
+            "wilson_pressure_scale": 0.5,
+            "evaluations": 37,
+            "pressure_pa": 3948851.219686752,
+            "vapor_methane": 0.6646697636629821,
+            "maximum_log_fugacity_residual": 2.7755575615628914e-15,
+            "nontrivial_root": true
+          },
+          {
+            "wilson_pressure_scale": 1.0,
+            "evaluations": 37,
+            "pressure_pa": 3948851.2196858195,
+            "vapor_methane": 0.6646697636631129,
+            "maximum_log_fugacity_residual": 3.6004532688593827e-13,
+            "nontrivial_root": true
+          },
+          {
+            "wilson_pressure_scale": 2.0,
+            "evaluations": 44,
+            "pressure_pa": 3948851.219684613,
+            "vapor_methane": 0.6646697636632832,
+            "maximum_log_fugacity_residual": 8.238965065743287e-13,
+            "nontrivial_root": true
+          },
+          {
+            "wilson_pressure_scale": 4.0,
+            "evaluations": 51,
+            "pressure_pa": 3948851.219686752,
+            "vapor_methane": 0.6646697636629809,
+            "maximum_log_fugacity_residual": 7.771561172376096e-16,
+            "nontrivial_root": true
+          }
+        ]
+      },
+      "pressure_error_pa": -148.78031968697906,
+      "pressure_relative_error": -3.767544180475539e-05,
+      "vapor_ethane_error": 0.0017302363361086925,
+      "pressure_error_over_archived_expanded_bound": -0.0028611599939803666,
+      "vapor_error_over_archived_expanded_bound": 0.23381572109576926,
+      "pressure_within_archived_bound": true,
+      "vapor_within_archived_bound": true
+    },
+    {
+      "point_index": 1,
+      "measurement": {
+        "pressure_dataset": 1,
+        "pressure_index": 1,
+        "vapor_dataset": 2,
+        "vapor_index": 1,
+        "temperature_k": 203.22,
+        "liquid_methane_mole_fraction": 0.3653,
+        "pressure_pa": 2124000,
+        "pressure_expanded_uncertainty_pa": 137000,
+        "vapor_ethane_mole_fraction": 0.1333,
+        "vapor_expanded_uncertainty": 0.025
+      },
+      "prediction": {
+        "status": "predicted",
+        "pressure_pa": 2123855.577890475,
+        "vapor_ethane_mole_fraction": 0.12462414118312437,
+        "maximum_log_fugacity_residual": 3.9498904147450276e-11,
+        "production_flash_phase_count": 2,
+        "production_flash_component_balance_error": 0.0,
+        "production_flash_vapor_fraction_for_constructed_feed": 0.5000000000154281,
+        "attempts": [
+          {
+            "wilson_pressure_scale": 0.2,
+            "evaluations": 30,
+            "pressure_pa": 2123855.577890475,
+            "vapor_methane": 0.8753758588168756,
+            "maximum_log_fugacity_residual": 3.9498904147450276e-11,
+            "nontrivial_root": true
+          },
+          {
+            "wilson_pressure_scale": 0.5,
+            "evaluations": 30,
+            "pressure_pa": 2123855.577938173,
+            "vapor_methane": 0.875375858812918,
+            "maximum_log_fugacity_residual": 3.502753642692369e-14,
+            "nontrivial_root": true
+          },
+          {
+            "wilson_pressure_scale": 1.0,
+            "evaluations": 30,
+            "pressure_pa": 2123855.5779382186,
+            "vapor_methane": 0.8753758588129146,
+            "maximum_log_fugacity_residual": 7.216449660063518e-16,
+            "nontrivial_root": true
+          },
+          {
+            "wilson_pressure_scale": 2.0,
+            "evaluations": 181,
+            "pressure_pa": 2123855.5779382186,
+            "vapor_methane": 0.8753758588129142,
+            "maximum_log_fugacity_residual": 1.7208456881689926e-15,
+            "nontrivial_root": true
+          },
+          {
+            "wilson_pressure_scale": 4.0,
+            "evaluations": 37,
+            "pressure_pa": 2123855.577937253,
+            "vapor_methane": 0.875375858812995,
+            "maximum_log_fugacity_residual": 8.005818230572004e-13,
+            "nontrivial_root": true
+          }
+        ]
+      },
+      "pressure_error_pa": -144.42210952518508,
+      "pressure_relative_error": -6.799534346760126e-05,
+      "vapor_ethane_error": -0.008675858816875631,
+      "pressure_error_over_archived_expanded_bound": -0.0010541759819356574,
+      "vapor_error_over_archived_expanded_bound": -0.34703435267502525,
+      "pressure_within_archived_bound": true,
+      "vapor_within_archived_bound": true
+    },
+    {
+      "point_index": 2,
+      "measurement": {
+        "pressure_dataset": 1,
+        "pressure_index": 2,
+        "vapor_dataset": 2,
+        "vapor_index": 2,
+        "temperature_k": 213.39,
+        "liquid_methane_mole_fraction": 0.3464,
+        "pressure_pa": 2517000,
+        "pressure_expanded_uncertainty_pa": 157000,
+        "vapor_ethane_mole_fraction": 0.1711,
+        "vapor_expanded_uncertainty": 0.0182
+      },
+      "prediction": {
+        "status": "predicted",
+        "pressure_pa": 2518036.588972626,
+        "vapor_ethane_mole_fraction": 0.16797365477752824,
+        "maximum_log_fugacity_residual": 6.661338147750939e-16,
+        "production_flash_phase_count": 2,
+        "production_flash_component_balance_error": 1.1102230246251565e-16,
+        "production_flash_vapor_fraction_for_constructed_feed": 0.5000000001125139,
+        "attempts": [
+          {
+            "wilson_pressure_scale": 0.2,
+            "evaluations": 37,
+            "pressure_pa": 2518036.588972626,
+            "vapor_methane": 0.8320263452224718,
+            "maximum_log_fugacity_residual": 6.661338147750939e-16,
+            "nontrivial_root": true
+          },
+          {
+            "wilson_pressure_scale": 0.5,
+            "evaluations": 30,
+            "pressure_pa": 2518036.588971114,
+            "vapor_methane": 0.8320263452226169,
+            "maximum_log_fugacity_residual": 1.017519402068956e-12,
+            "nontrivial_root": true
+          },
+          {
+            "wilson_pressure_scale": 1.0,
+            "evaluations": 30,
+            "pressure_pa": 2518036.588972277,
+            "vapor_methane": 0.8320263452225051,
+            "maximum_log_fugacity_residual": 2.3359092438113294e-13,
+            "nontrivial_root": true
+          },
+          {
+            "wilson_pressure_scale": 2.0,
+            "evaluations": 77,
+            "pressure_pa": 2518036.588972608,
+            "vapor_methane": 0.832026345222473,
+            "maximum_log_fugacity_residual": 8.43769498715119e-15,
+            "nontrivial_root": true
+          },
+          {
+            "wilson_pressure_scale": 4.0,
+            "evaluations": 44,
+            "pressure_pa": 2518036.588972621,
+            "vapor_methane": 0.8320263452224719,
+            "maximum_log_fugacity_residual": 7.771561172376096e-16,
+            "nontrivial_root": true
+          }
+        ]
+      },
+      "pressure_error_pa": 1036.5889726257883,
+      "pressure_relative_error": 0.00041183511030027346,
+      "vapor_ethane_error": -0.003126345222471766,
+      "pressure_error_over_archived_expanded_bound": 0.006602477532648333,
+      "vapor_error_over_archived_expanded_bound": -0.1717772100259212,
+      "pressure_within_archived_bound": true,
+      "vapor_within_archived_bound": true
+    },
+    {
+      "point_index": 3,
+      "measurement": {
+        "pressure_dataset": 1,
+        "pressure_index": 3,
+        "vapor_dataset": 2,
+        "vapor_index": 3,
+        "temperature_k": 223.5,
+        "liquid_methane_mole_fraction": 0.3315,
+        "pressure_pa": 2945000,
+        "pressure_expanded_uncertainty_pa": 81000,
+        "vapor_ethane_mole_fraction": 0.2195,
+        "vapor_expanded_uncertainty": 0.0053
+      },
+      "prediction": {
+        "status": "predicted",
+        "pressure_pa": 2952883.2065190887,
+        "vapor_ethane_mole_fraction": 0.21778644147349413,
+        "maximum_log_fugacity_residual": 1.1102230246251565e-15,
+        "production_flash_phase_count": 2,
+        "production_flash_component_balance_error": 5.551115123125783e-17,
+        "production_flash_vapor_fraction_for_constructed_feed": 0.49999999995261457,
+        "attempts": [
+          {
+            "wilson_pressure_scale": 0.2,
+            "evaluations": 37,
+            "pressure_pa": 2952883.2065190887,
+            "vapor_methane": 0.7822135585265059,
+            "maximum_log_fugacity_residual": 1.1102230246251565e-15,
+            "nontrivial_root": true
+          },
+          {
+            "wilson_pressure_scale": 0.5,
+            "evaluations": 30,
+            "pressure_pa": 2952883.206457634,
+            "vapor_methane": 0.7822135585332,
+            "maximum_log_fugacity_residual": 3.393840763976641e-11,
+            "nontrivial_root": true
+          },
+          {
+            "wilson_pressure_scale": 1.0,
+            "evaluations": 30,
+            "pressure_pa": 2952883.2064340194,
+            "vapor_methane": 0.7822135585358021,
+            "maximum_log_fugacity_residual": 4.7104764533401067e-11,
+            "nontrivial_root": true
+          },
+          {
+            "wilson_pressure_scale": 2.0,
+            "evaluations": 51,
+            "pressure_pa": 2952883.2065190887,
+            "vapor_methane": 0.7822135585265059,
+            "maximum_log_fugacity_residual": 1.1102230246251565e-15,
+            "nontrivial_root": true
+          },
+          {
+            "wilson_pressure_scale": 4.0,
+            "evaluations": 44,
+            "pressure_pa": 2952883.206510455,
+            "vapor_methane": 0.782213558527453,
+            "maximum_log_fugacity_residual": 4.796607555590526e-12,
+            "nontrivial_root": true
+          }
+        ]
+      },
+      "pressure_error_pa": 7883.206519088708,
+      "pressure_relative_error": 0.002676810363018237,
+      "vapor_ethane_error": -0.0017135585265058706,
+      "pressure_error_over_archived_expanded_bound": 0.0973235372727001,
+      "vapor_error_over_archived_expanded_bound": -0.32331292952940954,
+      "pressure_within_archived_bound": true,
+      "vapor_within_archived_bound": true
+    },
+    {
+      "point_index": 4,
+      "measurement": {
+        "pressure_dataset": 1,
+        "pressure_index": 4,
+        "vapor_dataset": 2,
+        "vapor_index": 4,
+        "temperature_k": 233.56,
+        "liquid_methane_mole_fraction": 0.3188,
+        "pressure_pa": 3417000,
+        "pressure_expanded_uncertainty_pa": 74000,
+        "vapor_ethane_mole_fraction": 0.2755,
+        "vapor_expanded_uncertainty": 0.0051
+      },
+      "prediction": {
+        "status": "predicted",
+        "pressure_pa": 3423298.1612221193,
+        "vapor_ethane_mole_fraction": 0.27405999487684907,
+        "maximum_log_fugacity_residual": 6.661338147750939e-15,
+        "production_flash_phase_count": 2,
+        "production_flash_component_balance_error": 1.1102230246251565e-16,
+        "production_flash_vapor_fraction_for_constructed_feed": 0.5000000000000059,
+        "attempts": [
+          {
+            "wilson_pressure_scale": 0.2,
+            "evaluations": 37,
+            "pressure_pa": 3423298.1612221193,
+            "vapor_methane": 0.7259400051231509,
+            "maximum_log_fugacity_residual": 6.661338147750939e-15,
+            "nontrivial_root": true
+          },
+          {
+            "wilson_pressure_scale": 0.5,
+            "evaluations": 37,
+            "pressure_pa": 3423298.1612221375,
+            "vapor_methane": 0.7259400051231493,
+            "maximum_log_fugacity_residual": 7.771561172376096e-16,
+            "nontrivial_root": true
+          },
+          {
+            "wilson_pressure_scale": 1.0,
+            "evaluations": 37,
+            "pressure_pa": 3423298.1612221375,
+            "vapor_methane": 0.7259400051231492,
+            "maximum_log_fugacity_residual": 9.992007221626409e-16,
+            "nontrivial_root": true
+          },
+          {
+            "wilson_pressure_scale": 2.0,
+            "evaluations": 51,
+            "pressure_pa": 3423298.1612221375,
+            "vapor_methane": 0.7259400051231494,
+            "maximum_log_fugacity_residual": 8.604228440844963e-16,
+            "nontrivial_root": true
+          },
+          {
+            "wilson_pressure_scale": 4.0,
+            "evaluations": 51,
+            "pressure_pa": 3423298.1612221375,
+            "vapor_methane": 0.7259400051231494,
+            "maximum_log_fugacity_residual": 8.604228440844963e-16,
+            "nontrivial_root": true
+          }
+        ]
+      },
+      "pressure_error_pa": 6298.16122211935,
+      "pressure_relative_error": 0.0018431844372605649,
+      "vapor_ethane_error": -0.0014400051231509559,
+      "pressure_error_over_archived_expanded_bound": 0.08511028678539662,
+      "vapor_error_over_archived_expanded_bound": -0.2823539457158737,
+      "pressure_within_archived_bound": true,
+      "vapor_within_archived_bound": true
+    },
+    {
+      "point_index": 5,
+      "measurement": {
+        "pressure_dataset": 1,
+        "pressure_index": 5,
+        "vapor_dataset": 2,
+        "vapor_index": 5,
+        "temperature_k": 243.6,
+        "liquid_methane_mole_fraction": 0.3082,
+        "pressure_pa": 3942000,
+        "pressure_expanded_uncertainty_pa": 52000,
+        "vapor_ethane_mole_fraction": 0.334,
+        "vapor_expanded_uncertainty": 0.0062
+      },
+      "prediction": {
+        "status": "predicted",
+        "pressure_pa": 3934013.900623077,
+        "vapor_ethane_mole_fraction": 0.33639410122180846,
+        "maximum_log_fugacity_residual": 2.2002399902021352e-12,
+        "production_flash_phase_count": 2,
+        "production_flash_component_balance_error": 0.0,
+        "production_flash_vapor_fraction_for_constructed_feed": 0.50000000000246,
+        "attempts": [
+          {
+            "wilson_pressure_scale": 0.2,
+            "evaluations": 37,
+            "pressure_pa": 3934013.900623077,
+            "vapor_methane": 0.6636058987781915,
+            "maximum_log_fugacity_residual": 2.2002399902021352e-12,
+            "nontrivial_root": true
+          },
+          {
+            "wilson_pressure_scale": 0.5,
+            "evaluations": 37,
+            "pressure_pa": 3934013.9006287865,
+            "vapor_methane": 0.6636058987773866,
+            "maximum_log_fugacity_residual": 2.3314683517128287e-15,
+            "nontrivial_root": true
+          },
+          {
+            "wilson_pressure_scale": 1.0,
+            "evaluations": 37,
+            "pressure_pa": 3934013.90062799,
+            "vapor_methane": 0.6636058987774981,
+            "maximum_log_fugacity_residual": 3.0753177782116836e-13,
+            "nontrivial_root": true
+          },
+          {
+            "wilson_pressure_scale": 2.0,
+            "evaluations": 44,
+            "pressure_pa": 3934013.900626774,
+            "vapor_methane": 0.6636058987776697,
+            "maximum_log_fugacity_residual": 7.758238496080594e-13,
+            "nontrivial_root": true
+          },
+          {
+            "wilson_pressure_scale": 4.0,
+            "evaluations": 51,
+            "pressure_pa": 3934013.9006287935,
+            "vapor_methane": 0.6636058987773856,
+            "maximum_log_fugacity_residual": 1.2212453270876722e-15,
+            "nontrivial_root": true
+          }
+        ]
+      },
+      "pressure_error_pa": -7986.099376922939,
+      "pressure_relative_error": -0.0020259004000311867,
+      "vapor_ethane_error": 0.0023941012218084423,
+      "pressure_error_over_archived_expanded_bound": -0.15357883417159499,
+      "vapor_error_over_archived_expanded_bound": 0.3861453583562004,
+      "pressure_within_archived_bound": true,
+      "vapor_within_archived_bound": true
+    },
+    {
+      "point_index": 6,
+      "measurement": {
+        "pressure_dataset": 1,
+        "pressure_index": 6,
+        "vapor_dataset": 2,
+        "vapor_index": 6,
+        "temperature_k": 243.6,
+        "liquid_methane_mole_fraction": 0.3973,
+        "pressure_pa": 4831000,
+        "pressure_expanded_uncertainty_pa": 77000,
+        "vapor_ethane_mole_fraction": 0.2954,
+        "vapor_expanded_uncertainty": 0.0059
+      },
+      "prediction": {
+        "status": "predicted",
+        "pressure_pa": 4776048.887386819,
+        "vapor_ethane_mole_fraction": 0.2978217712112631,
+        "maximum_log_fugacity_residual": 1.227196122499663e-11,
+        "production_flash_phase_count": 2,
+        "production_flash_component_balance_error": 1.1102230246251565e-16,
+        "production_flash_vapor_fraction_for_constructed_feed": 0.4999999997195291,
+        "attempts": [
+          {
+            "wilson_pressure_scale": 0.2,
+            "evaluations": 44,
+            "pressure_pa": 4776048.887386819,
+            "vapor_methane": 0.7021782287887369,
+            "maximum_log_fugacity_residual": 1.227196122499663e-11,
+            "nontrivial_root": true
+          },
+          {
+            "wilson_pressure_scale": 0.5,
+            "evaluations": 37,
+            "pressure_pa": 4776048.887383578,
+            "vapor_methane": 0.7021782287892478,
+            "maximum_log_fugacity_residual": 1.3503198559305929e-11,
+            "nontrivial_root": true
+          },
+          {
+            "wilson_pressure_scale": 1.0,
+            "evaluations": 44,
+            "pressure_pa": 4776048.8874189565,
+            "vapor_methane": 0.7021782287836466,
+            "maximum_log_fugacity_residual": 8.881784197001252e-16,
+            "nontrivial_root": true
+          },
+          {
+            "wilson_pressure_scale": 2.0,
+            "evaluations": 44,
+            "pressure_pa": 4776048.887078961,
+            "vapor_methane": 0.7021782288374717,
+            "maximum_log_fugacity_residual": 1.297518759102445e-10,
+            "nontrivial_root": true
+          },
+          {
+            "wilson_pressure_scale": 4.0,
+            "evaluations": 51,
+            "pressure_pa": 4776048.887417709,
+            "vapor_methane": 0.702178228783843,
+            "maximum_log_fugacity_residual": 4.742872761198669e-13,
+            "nontrivial_root": true
+          }
+        ]
+      },
+      "pressure_error_pa": -54951.11261318065,
+      "pressure_relative_error": -0.011374686941250394,
+      "vapor_ethane_error": 0.0024217712112630796,
+      "pressure_error_over_archived_expanded_bound": -0.7136508131581902,
+      "vapor_error_over_archived_expanded_bound": 0.4104696968242508,
+      "pressure_within_archived_bound": true,
+      "vapor_within_archived_bound": true
+    },
+    {
+      "point_index": 7,
+      "measurement": {
+        "pressure_dataset": 1,
+        "pressure_index": 7,
+        "vapor_dataset": 2,
+        "vapor_index": 7,
+        "temperature_k": 243.6,
+        "liquid_methane_mole_fraction": 0.4553,
+        "pressure_pa": 5395000,
+        "pressure_expanded_uncertainty_pa": 76000,
+        "vapor_ethane_mole_fraction": 0.2788,
+        "vapor_expanded_uncertainty": 0.0078
+      },
+      "prediction": {
+        "status": "predicted",
+        "pressure_pa": 5317797.972807512,
+        "vapor_ethane_mole_fraction": 0.2826505435367058,
+        "maximum_log_fugacity_residual": 6.120659534758488e-13,
+        "production_flash_phase_count": 2,
+        "production_flash_component_balance_error": 0.0,
+        "production_flash_vapor_fraction_for_constructed_feed": 0.5000000000009311,
+        "attempts": [
+          {
+            "wilson_pressure_scale": 0.2,
+            "evaluations": 51,
+            "pressure_pa": 5317797.972807512,
+            "vapor_methane": 0.7173494564632942,
+            "maximum_log_fugacity_residual": 6.120659534758488e-13,
+            "nontrivial_root": true
+          },
+          {
+            "wilson_pressure_scale": 0.5,
+            "evaluations": 44,
+            "pressure_pa": 5317797.972809033,
+            "vapor_methane": 0.7173494564630082,
+            "maximum_log_fugacity_residual": 1.6653345369377348e-15,
+            "nontrivial_root": true
+          },
+          {
+            "wilson_pressure_scale": 1.0,
+            "evaluations": 44,
+            "pressure_pa": 5317797.972807398,
+            "vapor_methane": 0.7173494564633164,
+            "maximum_log_fugacity_residual": 6.603606550470431e-13,
+            "nontrivial_root": true
+          },
+          {
+            "wilson_pressure_scale": 2.0,
+            "evaluations": 51,
+            "pressure_pa": 5317797.972809042,
+            "vapor_methane": 0.7173494564630077,
+            "maximum_log_fugacity_residual": 9.992007221626409e-16,
+            "nontrivial_root": true
+          },
+          {
+            "wilson_pressure_scale": 4.0,
+            "evaluations": 51,
+            "pressure_pa": 5317797.972440985,
+            "vapor_methane": 0.7173494565317794,
+            "maximum_log_fugacity_residual": 1.4694390149116998e-10,
+            "nontrivial_root": true
+          }
+        ]
+      },
+      "pressure_error_pa": -77202.02719248831,
+      "pressure_relative_error": -0.014309921629747603,
+      "vapor_ethane_error": 0.0038505435367058305,
+      "pressure_error_over_archived_expanded_bound": -1.015816147269583,
+      "vapor_error_over_archived_expanded_bound": 0.4936594277827988,
+      "pressure_within_archived_bound": false,
+      "vapor_within_archived_bound": true
+    },
+    {
+      "point_index": 8,
+      "measurement": {
+        "pressure_dataset": 1,
+        "pressure_index": 8,
+        "vapor_dataset": 2,
+        "vapor_index": 8,
+        "temperature_k": 243.61,
+        "liquid_methane_mole_fraction": 0.5273,
+        "pressure_pa": 6080000,
+        "pressure_expanded_uncertainty_pa": 111000,
+        "vapor_ethane_mole_fraction": 0.2778,
+        "vapor_expanded_uncertainty": 0.0518
+      },
+      "prediction": {
+        "status": "predicted",
+        "pressure_pa": 5967741.205569223,
+        "vapor_ethane_mole_fraction": 0.27356853395351344,
+        "maximum_log_fugacity_residual": 8.815170815523743e-14,
+        "production_flash_phase_count": 2,
+        "production_flash_component_balance_error": 0.0,
+        "production_flash_vapor_fraction_for_constructed_feed": 0.4999999996823448,
+        "attempts": [
+          {
+            "wilson_pressure_scale": 0.2,
+            "evaluations": 58,
+            "pressure_pa": 5967741.205569223,
+            "vapor_methane": 0.7264314660464866,
+            "maximum_log_fugacity_residual": 8.815170815523743e-14,
+            "nontrivial_root": true
+          },
+          {
+            "wilson_pressure_scale": 0.5,
+            "evaluations": 51,
+            "pressure_pa": 5967741.205555356,
+            "vapor_methane": 0.7264314660502044,
+            "maximum_log_fugacity_residual": 6.20814510909895e-12,
+            "nontrivial_root": true
+          },
+          {
+            "wilson_pressure_scale": 1.0,
+            "evaluations": 51,
+            "pressure_pa": 5967741.205567801,
+            "vapor_methane": 0.726431466046869,
+            "maximum_log_fugacity_residual": 7.183142969324763e-13,
+            "nontrivial_root": true
+          },
+          {
+            "wilson_pressure_scale": 2.0,
+            "evaluations": 58,
+            "pressure_pa": 5967741.205553152,
+            "vapor_methane": 0.7264314660507988,
+            "maximum_log_fugacity_residual": 7.1880279506331135e-12,
+            "nontrivial_root": true
+          },
+          {
+            "wilson_pressure_scale": 4.0,
+            "evaluations": 58,
+            "pressure_pa": 5967741.205566339,
+            "vapor_methane": 0.7264314660472608,
+            "maximum_log_fugacity_residual": 1.3626877404249171e-12,
+            "nontrivial_root": true
+          }
+        ]
+      },
+      "pressure_error_pa": -112258.79443077743,
+      "pressure_relative_error": -0.018463617505062077,
+      "vapor_ethane_error": -0.004231466046486554,
+      "pressure_error_over_archived_expanded_bound": -1.0113404903673642,
+      "vapor_error_over_archived_expanded_bound": -0.08168853371595663,
+      "pressure_within_archived_bound": false,
+      "vapor_within_archived_bound": true
+    },
+    {
+      "point_index": 9,
+      "measurement": {
+        "pressure_dataset": 1,
+        "pressure_index": 9,
+        "vapor_dataset": 2,
+        "vapor_index": 9,
+        "temperature_k": 243.61,
+        "liquid_methane_mole_fraction": 0.5673,
+        "pressure_pa": 6469000,
+        "pressure_expanded_uncertainty_pa": 1683000,
+        "vapor_ethane_mole_fraction": 0.2731,
+        "vapor_expanded_uncertainty": 0.2442
+      },
+      "prediction": {
+        "status": "predicted",
+        "pressure_pa": 6304641.947239466,
+        "vapor_ethane_mole_fraction": 0.27371999887596354,
+        "maximum_log_fugacity_residual": 6.661338147750939e-16,
+        "production_flash_phase_count": 2,
+        "production_flash_component_balance_error": 5.551115123125783e-17,
+        "production_flash_vapor_fraction_for_constructed_feed": 0.500000000000025,
+        "attempts": [
+          {
+            "wilson_pressure_scale": 0.2,
+            "evaluations": 219,
+            "pressure_pa": 4594797.016876708,
+            "vapor_methane": 0.5673781379846945,
+            "maximum_log_fugacity_residual": 1.185570530637392e-10,
+            "nontrivial_root": true
+          },
+          {
+            "wilson_pressure_scale": 0.5,
+            "evaluations": 65,
+            "pressure_pa": 6304641.947239466,
+            "vapor_methane": 0.7262800011240365,
+            "maximum_log_fugacity_residual": 6.661338147750939e-16,
+            "nontrivial_root": true
+          },
+          {
+            "wilson_pressure_scale": 1.0,
+            "evaluations": 58,
+            "pressure_pa": 6304641.947239466,
+            "vapor_methane": 0.726280001124037,
+            "maximum_log_fugacity_residual": 1.5543122344752192e-15,
+            "nontrivial_root": true
+          },
+          {
+            "wilson_pressure_scale": 2.0,
+            "evaluations": 65,
+            "pressure_pa": 6304641.947239444,
+            "vapor_methane": 0.7262800011240447,
+            "maximum_log_fugacity_residual": 1.0658141036401503e-14,
+            "nontrivial_root": true
+          },
+          {
+            "wilson_pressure_scale": 4.0,
+            "evaluations": 105,
+            "pressure_pa": 6304641.947239455,
+            "vapor_methane": 0.7262800011240383,
+            "maximum_log_fugacity_residual": 3.3306690738754696e-15,
+            "nontrivial_root": true
+          }
+        ]
+      },
+      "pressure_error_pa": -164358.052760534,
+      "pressure_relative_error": -0.025407026242160145,
+      "vapor_ethane_error": 0.0006199988759635344,
+      "pressure_error_over_archived_expanded_bound": -0.09765778535979441,
+      "vapor_error_over_archived_expanded_bound": 0.0025388979359686095,
+      "pressure_within_archived_bound": true,
+      "vapor_within_archived_bound": true
+    },
+    {
+      "point_index": 10,
+      "measurement": {
+        "pressure_dataset": 1,
+        "pressure_index": 10,
+        "vapor_dataset": 2,
+        "vapor_index": 10,
+        "temperature_k": 243.61,
+        "liquid_methane_mole_fraction": 0.5957,
+        "pressure_pa": 6691000,
+        "pressure_expanded_uncertainty_pa": 1187000,
+        "vapor_ethane_mole_fraction": 0.2812,
+        "vapor_expanded_uncertainty": 0.1992
+      },
+      "prediction": {
+        "status": "predicted",
+        "pressure_pa": 6524721.128757213,
+        "vapor_ethane_mole_fraction": 0.2768073900254876,
+        "maximum_log_fugacity_residual": 4.694422628404027e-11,
+        "production_flash_phase_count": 2,
+        "production_flash_component_balance_error": 1.1102230246251565e-16,
+        "production_flash_vapor_fraction_for_constructed_feed": 0.5000000002487311,
+        "attempts": [
+          {
+            "wilson_pressure_scale": 0.2,
+            "evaluations": 72,
+            "pressure_pa": 6524721.128757213,
+            "vapor_methane": 0.7231926099745124,
+            "maximum_log_fugacity_residual": 4.694422628404027e-11,
+            "nontrivial_root": true
+          },
+          {
+            "wilson_pressure_scale": 0.5,
+            "evaluations": 65,
+            "pressure_pa": 6524721.128852636,
+            "vapor_methane": 0.7231926099270503,
+            "maximum_log_fugacity_residual": 3.766986722553156e-12,
+            "nontrivial_root": true
+          },
+          {
+            "wilson_pressure_scale": 1.0,
+            "evaluations": 79,
+            "pressure_pa": 6524721.128860992,
+            "vapor_methane": 0.7231926099229082,
+            "maximum_log_fugacity_residual": 8.881784197001252e-16,
+            "nontrivial_root": true
+          },
+          {
+            "wilson_pressure_scale": 2.0,
+            "evaluations": 65,
+            "pressure_pa": 6524721.128793966,
+            "vapor_methane": 0.7231926099562275,
+            "maximum_log_fugacity_residual": 3.03093106168717e-11,
+            "nontrivial_root": true
+          },
+          {
+            "wilson_pressure_scale": 4.0,
+            "evaluations": 86,
+            "pressure_pa": 6524721.128860969,
+            "vapor_methane": 0.7231926099229093,
+            "maximum_log_fugacity_residual": 7.216449660063518e-16,
+            "nontrivial_root": true
+          }
+        ]
+      },
+      "pressure_error_pa": -166278.87124278676,
+      "pressure_relative_error": -0.02485112408351319,
+      "vapor_ethane_error": -0.004392609974512407,
+      "pressure_error_over_archived_expanded_bound": -0.14008329506553224,
+      "vapor_error_over_archived_expanded_bound": -0.02205125489213056,
+      "pressure_within_archived_bound": true,
+      "vapor_within_archived_bound": true
+    },
+    {
+      "point_index": 11,
+      "measurement": {
+        "pressure_dataset": 1,
+        "pressure_index": 11,
+        "vapor_dataset": 2,
+        "vapor_index": 11,
+        "temperature_k": 243.6,
+        "liquid_methane_mole_fraction": 0.6218,
+        "pressure_pa": 6885000,
+        "pressure_expanded_uncertainty_pa": 1349000,
+        "vapor_ethane_mole_fraction": 0.2877,
+        "vapor_expanded_uncertainty": 0.2658
+      },
+      "prediction": {
+        "status": "predicted",
+        "pressure_pa": 6703983.497646138,
+        "vapor_ethane_mole_fraction": 0.28251703975702225,
+        "maximum_log_fugacity_residual": 1.7763568394002505e-15,
+        "production_flash_phase_count": 2,
+        "production_flash_component_balance_error": 5.551115123125783e-17,
+        "production_flash_vapor_fraction_for_constructed_feed": 0.5000000000000446,
+        "attempts": [
+          {
+            "wilson_pressure_scale": 0.2,
+            "evaluations": 177,
+            "pressure_pa": 5155326.139144909,
+            "vapor_methane": 0.6218989802582684,
+            "maximum_log_fugacity_residual": 1.4543133364242067e-10,
+            "nontrivial_root": true
+          },
+          {
+            "wilson_pressure_scale": 0.5,
+            "evaluations": 145,
+            "pressure_pa": 6703983.497646138,
+            "vapor_methane": 0.7174829602429778,
+            "maximum_log_fugacity_residual": 1.7763568394002505e-15,
+            "nontrivial_root": true
+          },
+          {
+            "wilson_pressure_scale": 1.0,
+            "evaluations": 170,
+            "pressure_pa": 5155208.538137231,
+            "vapor_methane": 0.6218792736241557,
+            "maximum_log_fugacity_residual": 7.527489742642501e-11,
+            "nontrivial_root": true
+          },
+          {
+            "wilson_pressure_scale": 2.0,
+            "evaluations": 163,
+            "pressure_pa": 5155268.763161427,
+            "vapor_methane": 0.6218893653329841,
+            "maximum_log_fugacity_residual": 1.0874079414691096e-10,
+            "nontrivial_root": true
+          },
+          {
+            "wilson_pressure_scale": 4.0,
+            "evaluations": 93,
+            "pressure_pa": 6703983.497646126,
+            "vapor_methane": 0.7174829602429819,
+            "maximum_log_fugacity_residual": 1.7763568394002505e-15,
+            "nontrivial_root": true
+          }
+        ]
+      },
+      "pressure_error_pa": -181016.50235386193,
+      "pressure_relative_error": -0.02629143098821524,
+      "vapor_ethane_error": -0.005182960242977763,
+      "pressure_error_over_archived_expanded_bound": -0.1341856948508984,
+      "vapor_error_over_archived_expanded_bound": -0.019499474202324167,
+      "pressure_within_archived_bound": true,
+      "vapor_within_archived_bound": true
+    },
+    {
+      "point_index": 12,
+      "measurement": {
+        "pressure_dataset": 1,
+        "pressure_index": 12,
+        "vapor_dataset": 2,
+        "vapor_index": 12,
+        "temperature_k": 243.6,
+        "liquid_methane_mole_fraction": 0.5754,
+        "pressure_pa": 6487000,
+        "pressure_expanded_uncertainty_pa": 1373000,
+        "vapor_ethane_mole_fraction": 0.2801,
+        "vapor_expanded_uncertainty": 0.1443
+      },
+      "prediction": {
+        "status": "predicted",
+        "pressure_pa": 6368735.769381534,
+        "vapor_ethane_mole_fraction": 0.2742335409240383,
+        "maximum_log_fugacity_residual": 1.3100631690576847e-14,
+        "production_flash_phase_count": 2,
+        "production_flash_component_balance_error": 1.1102230246251565e-16,
+        "production_flash_vapor_fraction_for_constructed_feed": 0.5000000000000133,
+        "attempts": [
+          {
+            "wilson_pressure_scale": 0.2,
+            "evaluations": 163,
+            "pressure_pa": 4668012.250227247,
+            "vapor_methane": 0.5754703842629749,
+            "maximum_log_fugacity_residual": 8.107781113153578e-11,
+            "nontrivial_root": true
+          },
+          {
+            "wilson_pressure_scale": 0.5,
+            "evaluations": 58,
+            "pressure_pa": 6368735.769381534,
+            "vapor_methane": 0.7257664590759617,
+            "maximum_log_fugacity_residual": 1.3100631690576847e-14,
+            "nontrivial_root": true
+          },
+          {
+            "wilson_pressure_scale": 1.0,
+            "evaluations": 65,
+            "pressure_pa": 6368735.769354225,
+            "vapor_methane": 0.7257664590867998,
+            "maximum_log_fugacity_residual": 1.2612577648951628e-11,
+            "nontrivial_root": true
+          },
+          {
+            "wilson_pressure_scale": 2.0,
+            "evaluations": 205,
+            "pressure_pa": 4668030.986703505,
+            "vapor_methane": 0.5754744089641592,
+            "maximum_log_fugacity_residual": 9.441414317024055e-11,
+            "nontrivial_root": true
+          },
+          {
+            "wilson_pressure_scale": 4.0,
+            "evaluations": 58,
+            "pressure_pa": 6368735.769315421,
+            "vapor_methane": 0.7257664591022169,
+            "maximum_log_fugacity_residual": 3.053846064915433e-11,
+            "nontrivial_root": true
+          }
+        ]
+      },
+      "pressure_error_pa": -118264.23061846569,
+      "pressure_relative_error": -0.018230958936097687,
+      "vapor_ethane_error": -0.0058664590759617274,
+      "pressure_error_over_archived_expanded_bound": -0.08613563774105294,
+      "vapor_error_over_archived_expanded_bound": -0.04065460205101682,
+      "pressure_within_archived_bound": true,
+      "vapor_within_archived_bound": true
+    },
+    {
+      "point_index": 13,
+      "measurement": {
+        "pressure_dataset": 1,
+        "pressure_index": 13,
+        "vapor_dataset": 2,
+        "vapor_index": 13,
+        "temperature_k": 243.6,
+        "liquid_methane_mole_fraction": 0.4741,
+        "pressure_pa": 5564000,
+        "pressure_expanded_uncertainty_pa": 80000,
+        "vapor_ethane_mole_fraction": 0.2745,
+        "vapor_expanded_uncertainty": 0.0036
+      },
+      "prediction": {
+        "status": "predicted",
+        "pressure_pa": 5490720.774079063,
+        "vapor_ethane_mole_fraction": 0.27921206072644655,
+        "maximum_log_fugacity_residual": 3.6148861681795097e-12,
+        "production_flash_phase_count": 2,
+        "production_flash_component_balance_error": 0.0,
+        "production_flash_vapor_fraction_for_constructed_feed": 0.5000000000058857,
+        "attempts": [
+          {
+            "wilson_pressure_scale": 0.2,
+            "evaluations": 51,
+            "pressure_pa": 5490720.774079063,
+            "vapor_methane": 0.7207879392735534,
+            "maximum_log_fugacity_residual": 3.6148861681795097e-12,
+            "nontrivial_root": true
+          },
+          {
+            "wilson_pressure_scale": 0.5,
+            "evaluations": 44,
+            "pressure_pa": 5490720.77408789,
+            "vapor_methane": 0.720787939271773,
+            "maximum_log_fugacity_residual": 2.220446049250313e-15,
+            "nontrivial_root": true
+          },
+          {
+            "wilson_pressure_scale": 1.0,
+            "evaluations": 44,
+            "pressure_pa": 5490720.774034461,
+            "vapor_methane": 0.7207879392825549,
+            "maximum_log_fugacity_residual": 2.1888713064299736e-11,
+            "nontrivial_root": true
+          },
+          {
+            "wilson_pressure_scale": 2.0,
+            "evaluations": 51,
+            "pressure_pa": 5490720.774087881,
+            "vapor_methane": 0.7207879392717762,
+            "maximum_log_fugacity_residual": 9.103828801926284e-15,
+            "nontrivial_root": true
+          },
+          {
+            "wilson_pressure_scale": 4.0,
+            "evaluations": 58,
+            "pressure_pa": 5490720.77408789,
+            "vapor_methane": 0.7207879392717725,
+            "maximum_log_fugacity_residual": 1.5543122344752192e-15,
+            "nontrivial_root": true
+          }
+        ]
+      },
+      "pressure_error_pa": -73279.22592093702,
+      "pressure_relative_error": -0.013170241898083577,
+      "vapor_ethane_error": 0.004712060726446532,
+      "pressure_error_over_archived_expanded_bound": -0.9159903240117128,
+      "vapor_error_over_archived_expanded_bound": 1.3089057573462588,
+      "pressure_within_archived_bound": true,
+      "vapor_within_archived_bound": false
+    },
+    {
+      "point_index": 14,
+      "measurement": {
+        "pressure_dataset": 1,
+        "pressure_index": 14,
+        "vapor_dataset": 2,
+        "vapor_index": 14,
+        "temperature_k": 243.6,
+        "liquid_methane_mole_fraction": 0.4255,
+        "pressure_pa": 5094000,
+        "pressure_expanded_uncertainty_pa": 78000,
+        "vapor_ethane_mole_fraction": 0.2856,
+        "vapor_expanded_uncertainty": 0.0058
+      },
+      "prediction": {
+        "status": "predicted",
+        "pressure_pa": 5040653.3077492695,
+        "vapor_ethane_mole_fraction": 0.28957156500042247,
+        "maximum_log_fugacity_residual": 1.766364832178624e-13,
+        "production_flash_phase_count": 2,
+        "production_flash_component_balance_error": 1.1102230246251565e-16,
+        "production_flash_vapor_fraction_for_constructed_feed": 0.5000000000002439,
+        "attempts": [
+          {
+            "wilson_pressure_scale": 0.2,
+            "evaluations": 51,
+            "pressure_pa": 5040653.3077492695,
+            "vapor_methane": 0.7104284349995775,
+            "maximum_log_fugacity_residual": 1.766364832178624e-13,
+            "nontrivial_root": true
+          },
+          {
+            "wilson_pressure_scale": 0.5,
+            "evaluations": 44,
+            "pressure_pa": 5040653.307749726,
+            "vapor_methane": 0.7104284349995004,
+            "maximum_log_fugacity_residual": 8.881784197001252e-16,
+            "nontrivial_root": true
+          },
+          {
+            "wilson_pressure_scale": 1.0,
+            "evaluations": 44,
+            "pressure_pa": 5040653.307749726,
+            "vapor_methane": 0.7104284349995014,
+            "maximum_log_fugacity_residual": 1.3877787807814457e-15,
+            "nontrivial_root": true
+          },
+          {
+            "wilson_pressure_scale": 2.0,
+            "evaluations": 51,
+            "pressure_pa": 5040653.307749735,
+            "vapor_methane": 0.7104284349995003,
+            "maximum_log_fugacity_residual": 3.885780586188048e-16,
+            "nontrivial_root": true
+          },
+          {
+            "wilson_pressure_scale": 4.0,
+            "evaluations": 51,
+            "pressure_pa": 5040653.307731496,
+            "vapor_methane": 0.7104284350025974,
+            "maximum_log_fugacity_residual": 7.0821126740838736e-12,
+            "nontrivial_root": true
+          }
+        ]
+      },
+      "pressure_error_pa": -53346.69225073047,
+      "pressure_relative_error": -0.010472456272228203,
+      "vapor_ethane_error": 0.00397156500042245,
+      "pressure_error_over_archived_expanded_bound": -0.6839319519324419,
+      "vapor_error_over_archived_expanded_bound": 0.6847525862797328,
+      "pressure_within_archived_bound": true,
+      "vapor_within_archived_bound": true
+    },
+    {
+      "point_index": 15,
+      "measurement": {
+        "pressure_dataset": 1,
+        "pressure_index": 15,
+        "vapor_dataset": 2,
+        "vapor_index": 15,
+        "temperature_k": 243.61,
+        "liquid_methane_mole_fraction": 0.2865,
+        "pressure_pa": 3718000,
+        "pressure_expanded_uncertainty_pa": 60000,
+        "vapor_ethane_mole_fraction": 0.3421,
+        "vapor_expanded_uncertainty": 0.0083
+      },
+      "prediction": {
+        "status": "predicted",
+        "pressure_pa": 3729471.0853897855,
+        "vapor_ethane_mole_fraction": 0.3493707193044353,
+        "maximum_log_fugacity_residual": 3.9834802123550617e-13,
+        "production_flash_phase_count": 2,
+        "production_flash_component_balance_error": 0.0,
+        "production_flash_vapor_fraction_for_constructed_feed": 0.5000000000004348,
+        "attempts": [
+          {
+            "wilson_pressure_scale": 0.2,
+            "evaluations": 37,
+            "pressure_pa": 3729471.0853897855,
+            "vapor_methane": 0.6506292806955647,
+            "maximum_log_fugacity_residual": 3.9834802123550617e-13,
+            "nontrivial_root": true
+          },
+          {
+            "wilson_pressure_scale": 0.5,
+            "evaluations": 37,
+            "pressure_pa": 3729471.0853907987,
+            "vapor_methane": 0.6506292806954225,
+            "maximum_log_fugacity_residual": 8.881784197001252e-16,
+            "nontrivial_root": true
+          },
+          {
+            "wilson_pressure_scale": 1.0,
+            "evaluations": 37,
+            "pressure_pa": 3729471.085390726,
+            "vapor_methane": 0.6506292806954329,
+            "maximum_log_fugacity_residual": 3.042011087472929e-14,
+            "nontrivial_root": true
+          },
+          {
+            "wilson_pressure_scale": 2.0,
+            "evaluations": 44,
+            "pressure_pa": 3729471.085389911,
+            "vapor_methane": 0.6506292806955464,
+            "maximum_log_fugacity_residual": 3.476108290101365e-13,
+            "nontrivial_root": true
+          },
+          {
+            "wilson_pressure_scale": 4.0,
+            "evaluations": 51,
+            "pressure_pa": 3729471.0853907987,
+            "vapor_methane": 0.650629280695422,
+            "maximum_log_fugacity_residual": 7.771561172376096e-16,
+            "nontrivial_root": true
+          }
+        ]
+      },
+      "pressure_error_pa": 11471.085389785469,
+      "pressure_relative_error": 0.0030852838595442356,
+      "vapor_ethane_error": 0.007270719304435291,
+      "pressure_error_over_archived_expanded_bound": 0.19118475649642447,
+      "vapor_error_over_archived_expanded_bound": 0.8759902776428061,
+      "pressure_within_archived_bound": true,
+      "vapor_within_archived_bound": true
+    },
+    {
+      "point_index": 16,
+      "measurement": {
+        "pressure_dataset": 1,
+        "pressure_index": 16,
+        "vapor_dataset": 2,
+        "vapor_index": 16,
+        "temperature_k": 243.6,
+        "liquid_methane_mole_fraction": 0.2812,
+        "pressure_pa": 3675000,
+        "pressure_expanded_uncertainty_pa": 68000,
+        "vapor_ethane_mole_fraction": 0.349,
+        "vapor_expanded_uncertainty": 0.012
+      },
+      "prediction": {
+        "status": "predicted",
+        "pressure_pa": 3678808.1944671506,
+        "vapor_ethane_mole_fraction": 0.35272321177048216,
+        "maximum_log_fugacity_residual": 2.5979218776228663e-13,
+        "production_flash_phase_count": 2,
+        "production_flash_component_balance_error": 0.0,
+        "production_flash_vapor_fraction_for_constructed_feed": 0.5000000000002824,
+        "attempts": [
+          {
+            "wilson_pressure_scale": 0.2,
+            "evaluations": 37,
+            "pressure_pa": 3678808.1944671506,
+            "vapor_methane": 0.6472767882295178,
+            "maximum_log_fugacity_residual": 2.5979218776228663e-13,
+            "nontrivial_root": true
+          },
+          {
+            "wilson_pressure_scale": 0.5,
+            "evaluations": 37,
+            "pressure_pa": 3678808.194467804,
+            "vapor_methane": 0.6472767882294256,
+            "maximum_log_fugacity_residual": 1.6653345369377348e-15,
+            "nontrivial_root": true
+          },
+          {
+            "wilson_pressure_scale": 1.0,
+            "evaluations": 37,
+            "pressure_pa": 3678808.194467765,
+            "vapor_methane": 0.6472767882294316,
+            "maximum_log_fugacity_residual": 1.709743457922741e-14,
+            "nontrivial_root": true
+          },
+          {
+            "wilson_pressure_scale": 2.0,
+            "evaluations": 44,
+            "pressure_pa": 3678808.194467059,
+            "vapor_methane": 0.6472767882295299,
+            "maximum_log_fugacity_residual": 2.952083022478291e-13,
+            "nontrivial_root": true
+          },
+          {
+            "wilson_pressure_scale": 4.0,
+            "evaluations": 51,
+            "pressure_pa": 3678808.1944678104,
+            "vapor_methane": 0.6472767882294255,
+            "maximum_log_fugacity_residual": 1.1102230246251565e-15,
+            "nontrivial_root": true
+          }
+        ]
+      },
+      "pressure_error_pa": 3808.194467150606,
+      "pressure_relative_error": 0.0010362433924219338,
+      "vapor_ethane_error": 0.003723211770482182,
+      "pressure_error_over_archived_expanded_bound": 0.05600285981103833,
+      "vapor_error_over_archived_expanded_bound": 0.3102676475401818,
+      "pressure_within_archived_bound": true,
+      "vapor_within_archived_bound": true
+    }
+  ],
+  "uncertainty_scope": "Marginal comparison with archived combined expanded 95% property bounds; no covariance or joint statistical acceptance claim. Wide bounds retained, no errors used for selection.",
+  "qualification": "Only conditional binary bubble pressure and vapor composition. Constructed half-liquid/half-vapor feed is a numerical stability cross-check, not a measured vapor fraction. No caloric, water, pipe-hydraulics or complete-plant qualification."
+}

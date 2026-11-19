@@ -1,0 +1,88 @@
+{
+  "protocol_verified": true,
+  "days": 755.0,
+  "accepted_steps": [
+    136,
+    272,
+    544
+  ],
+  "fields": {
+    "p": {
+      "coarse_medium_l2": 12768.251404330289,
+      "medium_fine_l2": 7291.4574431474275,
+      "roundoff_floor": 7.25176110551072e-07,
+      "resolved": true,
+      "decreases": true,
+      "observed_order": 0.8082818436873596,
+      "coarse_medium_max": 384761.8405248076,
+      "medium_fine_max": 204618.77160977572,
+      "unit": "Pa"
+    },
+    "sw": {
+      "coarse_medium_l2": 0.0007892956440860943,
+      "medium_fine_l2": 0.00046000712145485715,
+      "roundoff_floor": 2.1125763667458948e-14,
+      "resolved": true,
+      "decreases": true,
+      "observed_order": 0.7789095914247424,
+      "coarse_medium_max": 0.02264502764662879,
+      "medium_fine_max": 0.01793268783688362,
+      "unit": "fraction"
+    },
+    "sg": {
+      "coarse_medium_l2": 0.0010059730887901418,
+      "medium_fine_l2": 0.0005745771224926936,
+      "roundoff_floor": 7.0963999371429e-15,
+      "resolved": true,
+      "decreases": true,
+      "observed_order": 0.8080192550990836,
+      "coarse_medium_max": 0.033967622685185495,
+      "medium_fine_max": 0.021107223958559462,
+      "unit": "fraction"
+    },
+    "so": {
+      "coarse_medium_l2": 0.0008546408297036509,
+      "medium_fine_l2": 0.0004770739541526315,
+      "roundoff_floor": 1.264172602715863e-14,
+      "resolved": true,
+      "decreases": true,
+      "observed_order": 0.841105317582704,
+      "coarse_medium_max": 0.026897658083731457,
+      "medium_fine_max": 0.015666553372125414,
+      "unit": "fraction"
+    }
+  },
+  "all_field_rms_differences_decrease": true,
+  "cumulative": {
+    "FOPT": {
+      "coarse_medium_l2": 5265.252416977659,
+      "medium_fine_l2": 1819.703069359064,
+      "roundoff_floor": 4.594648915467666e-07,
+      "resolved": true,
+      "decreases": true,
+      "observed_order": 1.5327996385264901
+    },
+    "FWPT": {
+      "coarse_medium_l2": 955.8329694459972,
+      "medium_fine_l2": 497.8143837272364,
+      "roundoff_floor": 5.577196596173791e-09,
+      "resolved": true,
+      "decreases": true,
+      "observed_order": 0.9411506153714257
+    },
+    "FGPT": {
+      "coarse_medium_l2": 479579.00255680084,
+      "medium_fine_l2": 112140.13757801056,
+      "roundoff_floor": 7.156365569179396e-05,
+      "resolved": true,
+      "decreases": true,
+      "observed_order": 2.09646574963644
+    }
+  },
+  "runs": [
+    ".scratch/norne_time_refinement/coarse",
+    ".scratch/norne_restart_diagnostics/ref_half_fresh",
+    ".scratch/norne_time_refinement/fine"
+  ],
+  "scope": "Three nested temporal grids at fixed physics, sources and tolerances. Endpoint PV-weighted RMS uses finest-grid PV for all vectors. No absolute error bound, calibration or asymptotic convergence claim."
+}

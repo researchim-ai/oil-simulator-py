@@ -13,6 +13,7 @@
 потоки по граням и скважины собираются вручную с upwind по потенциалу каждой фазы.
 """
 import numpy as np
+from functools import wraps
 import torch
 import torch.nn.functional as F
 from torch.func import jacfwd, jvp, vmap
@@ -40,6 +41,26 @@ I_B = 14           # 14..16 bo, bw, bg
 I_MOG = 17         # масса нефти (испарённой, Rv) в газовой фазе
 I_RS, I_RV = 18, 19  # свойства состояния, в том числе при нулевой подвижности фазы
 N_PROPS = 20
+
+
+def _retry_with_line_search(step):
+    """One bounded rescue after atomic_fim_step has restored a failed step."""
+    @wraps(step)
+    def wrapped(self, *args, **kwargs):
+        fallback = getattr(self, 'newton_line_search_fallback', False)
+        if fallback and (getattr(self.wells, 'network', None) is not None
+                         or type(self.wells) is not BlackOilWells):
+            raise NotImplementedError('Newton line search is not yet qualified for coupled surface networks')
+        result = step(self, *args, **kwargs)
+        if result or not fallback or getattr(self, 'newton_line_search', False):
+            return result
+        self.newton_line_search_retries = getattr(self, 'newton_line_search_retries', 0) + 1
+        self.newton_line_search = True
+        try:
+            return step(self, *args, **kwargs)
+        finally:
+            self.newton_line_search = False
+    return wrapped
 # (компонент, фаза, строка подвижности)
 FLUX_TERMS = ((OIL, OIL, I_MOO), (WAT, WAT, I_MWW), (GAS, GAS, I_MGG), (GAS, OIL, I_MGO))
 FLUX_TERMS_WET = FLUX_TERMS + ((OIL, GAS, I_MOG),)
@@ -1485,6 +1506,8 @@ class BlackOilFIMSolver(ManualFIMSolver):
         self.relax_min = float(params.get('newton_relax_min', 0.5))
         self.relax_increment = float(params.get('newton_relax_increment', 0.1))
         self.relax_rel_tol = float(params.get('newton_relax_rel_tol', 0.2))
+        self.newton_line_search = bool(params.get('newton_line_search', False))
+        self.newton_line_search_fallback = bool(params.get('newton_line_search_fallback', False))
         self.debug.eq_names = ("oil", "water", "gas")
 
         dev = self.device
@@ -1936,8 +1959,13 @@ class BlackOilFIMSolver(ManualFIMSolver):
             self.wells.rv_avg = host[2] if has_rv else None
 
     @surface_step_failure
+    @_retry_with_line_search
     @atomic_fim_step
     def step(self, dt, current_time=None):
+        if getattr(self, 'newton_line_search', False) and (
+                getattr(self.wells, 'network', None) is not None
+                or type(self.wells) is not BlackOilWells):
+            raise NotImplementedError('Newton line search is not yet qualified for coupled surface networks')
         dbg = self.debug
         log = (lambda *a, **k: None) if (dbg.enabled and dbg.console) else print
         t_days = (current_time or 0.0) / 86400.0
@@ -1980,7 +2008,9 @@ class BlackOilFIMSolver(ManualFIMSolver):
             self._p_bh_cur = None
             return False
 
-        for k in range(self.max_newton):
+        # Inspect the state after the final allowed correction as well.
+        # The budget counts Newton corrections, not residual evaluations.
+        for k in range(self.max_newton + 1):
             dbg.begin_iter(k)
             timer = dbg.timer()
             with timer('assemble'):
@@ -2058,6 +2088,17 @@ class BlackOilFIMSolver(ManualFIMSolver):
                 log("  Converged!")
                 return True
 
+            if k == self.max_newton:
+                return fail("max_newton_iter", R, J)
+
+            search = getattr(self, 'newton_line_search', False)
+            if search:
+                # solve_linear scales/eliminates R and J in place. Compute the
+                # merit and freeze its scaling before handing them to it.
+                search_scale = (dt * (1.0 / state[0][I_B:I_B+3]).mean(1)
+                                / self.rho_sc / self.tol_cnv)[None, :] / pv[:, None]
+                search_merit = self._trial_merit(R, wsys, search_scale)
+
             dbg.jacobian(J, self.builder.diag_map)
             # допуск линейного решателя — по норме всей системы, а CNV — максимум по ячейкам: локальная невязка
             # (например, в водоносной ячейке) может не уменьшаться при «решённой» системе; при застое Ньютона
@@ -2081,7 +2122,8 @@ class BlackOilFIMSolver(ManualFIMSolver):
                          else adaptive.reuse(self, dt, current_time, k) if adaptive is not None else False)
                 rebuild = ((k == 0 and not carry) or self.amg_rebuild == 'iteration'
                            or (adaptive is not None and adaptive.refresh))
-                retry_fresh = ((amg_scope is not None and amg_scope.enabled) or adaptive is not None) and not rebuild and self._amg is not None
+                retry_fresh = ((amg_scope is not None and amg_scope.enabled) or adaptive is not None
+                               or search) and not rebuild and self._amg is not None
                 sol = self.solve_linear(J, R, wsys, newton_rel=rel,
                                         rebuild_amg=rebuild)
                 if amg_scope is not None:
@@ -2115,6 +2157,20 @@ class BlackOilFIMSolver(ManualFIMSolver):
                 log(f"    ~ колебания Ньютона: релаксация ω = {omega:.2f}")
             if omega < 1.0:
                 dx, dpw = dx * omega, dpw * omega
+            if search:
+                trial, history = self._backtrack_update(
+                    p, sw, x, sat, ug, p_bh, dx, dpw, acc_old, dt,
+                    search_scale, search_merit, dbg)
+                dbg.line_search(history, history[-1]['alpha'], trial is not None)
+                if trial is None:
+                    dbg.end_iter(timer.t if dbg.enabled else {})
+                    return fail('line_search_failed')
+                p, sw, x, sat, ug, p_bh, n_sw = trial
+                n_switch += n_sw
+                self._p_bh_cur = p_bh
+                state = self.cell_state(p, sw, x, sat, ug)
+                dbg.end_iter(timer.t if dbg.enabled else {})
+                continue
             # Появление/исчезновение фазы обязано менять первичную переменную независимо
             # от числа прежних переключений. Фиксация неверной ветви делает задачу нерешаемой.
             p, sw, x, sat, ug, n_sw = self._apply_update(p, sw, x, sat, ug, dx, dbg)
@@ -2131,13 +2187,60 @@ class BlackOilFIMSolver(ManualFIMSolver):
             dbg.line_search([], 1.0, True)
             dbg.end_iter(timer.t if dbg.enabled else {})
 
-        R, J, _ = self.assemble_bo(p, sw, x, sat, acc_old, dt, p_bh, state, ug)
-        return fail("max_newton_iter", R, J)
+        raise AssertionError("Newton loop must terminate at the correction budget")
+
+    def _trial_merit(self, residual, wells, scale):
+        """Fixed-scale infinity norm of reservoir and well equations."""
+        value = (residual.reshape(-1, 3) * scale).abs().amax()
+        if wells is not None and wells['r_w'].numel():
+            denominator = torch.where(
+                wells['is_rate'], wells['target'].abs().clamp_min(0.01 / DAY) * self.tol_well_rate,
+                torch.full_like(wells['target'], self.tol_well_bhp))
+            value = torch.maximum(value, (wells['r_w'] / denominator).abs().amax())
+            if 'is_stopped' in wells:
+                errors = torch.where(wells['is_stopped'][:, None],
+                                     wells['component_rates'].abs() / ((0.01 / DAY) * self.tol_well_rate), 0.)
+                value = torch.maximum(value, errors.amax())
+        return float(value)
+
+    def _backtrack_update(self, p, sw, x, sat, ug, p_bh, dx, dpw,
+                          acc_old, dt, scale, merit, dbg):
+        """Trial evaluations never switch controls or commit well/phase history.
+
+        The existing transaction restores assembly caches and mutable well
+        data between trials. CUDA property buffers are recomputed afterwards.
+        """
+        import math
+        from .fim_transaction import _StepState
+        snapshot = _StepState(self)
+        history = []
+        try:
+            for attempt in range(9):
+                snapshot.restore(reusable=True)
+                alpha = 0.5 ** attempt
+                pp, ww, xx, ss, uu, switches = self._apply_update(
+                    p, sw, x, sat, ug, dx * alpha, dbg)
+                limit = torch.clamp(self.dbhp_max_rel * p_bh.abs(), min=self.dp_max_abs)
+                delta = dpw * alpha
+                bhp = (p_bh + torch.maximum(torch.minimum(delta, limit), -limit)).clamp_min(1e3)
+                if dpw.numel():
+                    bhp = self.wells.solve_thp(bhp)
+                self._p_bh_cur = bhp
+                trial_state = self.cell_state(pp, ww, xx, ss, uu)
+                residual, _, wells = self.assemble_bo(pp, ww, xx, ss, acc_old, dt, bhp, trial_state, uu)
+                trial_merit = self._trial_merit(residual, wells, scale)
+                history.append(dict(alpha=alpha, merit=trial_merit))
+                if math.isfinite(trial_merit) and trial_merit <= (1.0 - 1e-4 * alpha) * merit:
+                    return (pp, ww, xx, ss, uu, bhp, switches), history
+            return None, history
+        finally:
+            snapshot.restore()
 
     def _oscillating(self, hist):
         """
-        Колебания Ньютона (как detectOscillations в OPM): по ≥2 уравнениям невязка вернулась к значению
-        двух итераций назад (|F0 − F2| < tol·F0), но отличается от предыдущей (|F0 − F1| > tol·F0).
+        Двухточечный цикл: невязка вернулась к значению двух итераций назад,
+        но отличается от предыдущей. Требуем два колеблющихся компонента,
+        кроме случая, когда несошедшимся остался только один компонент.
         hist — невязки уравнений, нормированные на допуск: max(CNV/tol_cnv, MB/tol_mb).
         """
         if len(hist) < 3:
@@ -2149,7 +2252,8 @@ class BlackOilFIMSolver(ManualFIMSolver):
                 continue
             if abs(f0 - f2) < tol * f0 and abs(f0 - f1) > tol * f0:
                 n += 1
-        return n >= min(2, len(hist[-1]))
+        active = sum(f > 1.0 for f in hist[-1])
+        return n > 0 and n >= min(2, active)
 
     @staticmethod
     def _clamp_x(x, sw, sat, es):

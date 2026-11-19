@@ -1,0 +1,103 @@
+{
+  "time_s": 0.001,
+  "nodes": {
+    "flowline_1_0": {
+      "pressure_pa": 0.0,
+      "temperature_k": 3.979039320256561e-13,
+      "group_component_moles_max": 2.636779683484747e-16,
+      "group_energy_j": 1.1368683772161603e-11
+    },
+    "flowline_1_1": {
+      "pressure_pa": 5.3551048040390015e-09,
+      "temperature_k": 2.2737367544323206e-13,
+      "group_component_moles_max": 2.7755575615628914e-16,
+      "group_energy_j": 1.3642420526593924e-11
+    },
+    "flowline_2_0": {
+      "pressure_pa": 0.0,
+      "temperature_k": 3.979039320256561e-13,
+      "group_component_moles_max": 2.636779683484747e-16,
+      "group_energy_j": 1.1368683772161603e-11
+    },
+    "flowline_2_1": {
+      "pressure_pa": 5.3551048040390015e-09,
+      "temperature_k": 2.2737367544323206e-13,
+      "group_component_moles_max": 2.7755575615628914e-16,
+      "group_energy_j": 1.3642420526593924e-11
+    },
+    "gas_export": {
+      "pressure_pa": 0.02343742025550455,
+      "temperature_k": 1.3820321669300029e-06,
+      "group_component_moles_max": 5.485532255988801e-06,
+      "group_energy_j": 0.0031928675016388297
+    },
+    "gas_suction": {
+      "pressure_pa": 0.2500760976690799,
+      "temperature_k": 2.345796747249551e-05,
+      "group_component_moles_max": 5.485470357058375e-06,
+      "group_energy_j": 0.0031928650132613257
+    },
+    "gas_takeoff_0": {
+      "pressure_pa": 0.010854353429749608,
+      "temperature_k": 6.60627165416372e-07,
+      "group_component_moles_max": 4.0846270810135366e-11,
+      "group_energy_j": 3.974875539825007e-09
+    },
+    "injection_sink": {
+      "pressure_pa": 2.1456507965922356e-06,
+      "temperature_k": 2.2737367544323206e-13,
+      "group_component_moles_max": 0.0,
+      "group_energy_j": 0.0
+    },
+    "oil_export": {
+      "pressure_pa": 1.2095551937818527e-07,
+      "temperature_k": 1.1368683772161603e-13,
+      "group_component_moles_max": 0.0,
+      "group_energy_j": 0.0
+    },
+    "oil_suction": {
+      "pressure_pa": 1.4202669262886047e-08,
+      "temperature_k": 1.1368683772161603e-13,
+      "group_component_moles_max": 0.0,
+      "group_energy_j": 0.0
+    },
+    "oil_takeoff_0": {
+      "pressure_pa": 2.0081643015146255e-07,
+      "temperature_k": 5.684341886080802e-14,
+      "group_component_moles_max": 4.163336342344337e-17,
+      "group_energy_j": 4.547473508864641e-13
+    },
+    "water_suction": {
+      "pressure_pa": 6.727874279022217e-06,
+      "temperature_k": 1.8189894035458565e-12,
+      "group_component_moles_max": 0.0,
+      "group_energy_j": 0.0
+    },
+    "water_takeoff_0": {
+      "pressure_pa": 3.1223753467202187e-06,
+      "temperature_k": 7.389644451905042e-13,
+      "group_component_moles_max": 1.1102230246251565e-16,
+      "group_energy_j": 7.275957614183426e-12
+    },
+    "wellhead_1": {
+      "pressure_pa": 1.7462298274040222e-09,
+      "temperature_k": 2.8421709430404007e-13,
+      "group_component_moles_max": 4.547473508864641e-13,
+      "group_energy_j": 0.0
+    },
+    "wellhead_2": {
+      "pressure_pa": 1.7462298274040222e-09,
+      "temperature_k": 2.8421709430404007e-13,
+      "group_component_moles_max": 4.547473508864641e-13,
+      "group_energy_j": 0.0
+    }
+  },
+  "velocity_diagnostics": {
+    "gas_recycle_0_darcy": {
+      "detailed_cell_mean_m_s": 0.265811902132363,
+      "reduced_algebraic_m_s": 25.10427551945268,
+      "absolute_difference_m_s": 24.83846361732032
+    }
+  },
+  "qualification": "Endpoint diagnostics only; no claim of equivalent startup, spatial holdup, controller trajectory or accumulated interfacial flux. Engineering budgets and settled-regime validation are required."
+}

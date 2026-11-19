@@ -195,6 +195,24 @@ def countercurrent_film(
 
     grid = torch.logspace(-5, math.log10(0.3), 128, dtype=jg.dtype, device=device)
     grid = grid.reshape((128,) + (1,) * jg.ndim)
+    # The old lower scan endpoint alpha=1e-5 was not a physical limit:
+    # a perfectly valid thin-film root could lie below it. Use the gravity
+    # film scale to extend only the lower bracket, without imposing a liquid
+    # inventory floor or changing the usual scan. Countercurrent shear opposes
+    # drainage; the small fraction of the shear-free scale starts below its
+    # thin branch. The actual force balance still determines the root.
+    gravity_thickness = (
+        3 * liquid_viscosity_pa_s * ml
+        / (math.pi * diameter_m * liquid_density_kg_m3
+           * (liquid_density_kg_m3 - rg) * gravity_m_s2)
+    ).pow(1 / 3)
+    lower = (1e-3 * 4 * gravity_thickness / diameter_m).clamp_max(1e-5)
+    if not bool((torch.isfinite(lower) & (lower > 0)).all().cpu()):
+        raise ValueError("Film scale is outside representable input domain")
+    fraction = torch.linspace(0, 1, 128, dtype=jg.dtype, device=device)
+    fraction = fraction.reshape((128,) + (1,) * jg.ndim)
+    extended = torch.exp(lower.log()[None] * (1 - fraction) + math.log(0.3) * fraction)
+    grid = torch.where(lower[None] < 1e-5, extended, grid)
     residual = evaluate(grid)[0]
     crossing = (residual[:-1] >= 0) & (residual[1:] <= 0)
     if not bool(crossing.any(0).all().cpu()):
@@ -202,8 +220,8 @@ def countercurrent_film(
             "No steady thin annular film root; no flooding extrapolation"
         )
     index = crossing.to(torch.int64).argmax(0)
-    values = grid.reshape(128)
-    lo, hi = values[index], values[index + 1]
+    lo = grid.gather(0, index.unsqueeze(0)).squeeze(0)
+    hi = grid.gather(0, (index + 1).unsqueeze(0)).squeeze(0)
     for _ in range(56):
         mid = (lo + hi) / 2
         positive = evaluate(mid)[0] >= 0

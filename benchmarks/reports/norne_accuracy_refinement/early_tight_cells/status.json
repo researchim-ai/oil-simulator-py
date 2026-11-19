@@ -1,0 +1,42 @@
+{
+  "status": "failed",
+  "last_linear_stats": {
+    "backend": "fgmres_cpr",
+    "n_wells": 36,
+    "amg_levels": [
+      44431,
+      22874,
+      11476,
+      4882,
+      2111,
+      954,
+      428,
+      222,
+      108,
+      58
+    ],
+    "amg_rebuilt": false,
+    "amg_setup_s": 0.02047075599693926,
+    "amg_error": null,
+    "precond_setup_s": 0.02099790400097845,
+    "iters": 1,
+    "restarts": 0,
+    "converged": true,
+    "history": [
+      9.208450739741148e-10
+    ],
+    "basis_capacity": 8,
+    "basis_growths": 0,
+    "basis_storage_bytes": 18127848,
+    "solve_s": 0.004172330001892988,
+    "cpr_graph_eager_calls": 1,
+    "cpr_graph_captures": 0,
+    "cpr_graph_replays": 0,
+    "tol": 1e-09,
+    "true_rel_res": 9.208450742182399e-10
+  },
+  "error": "RuntimeError('Prescribed step failed; refinement cannot be compared on this grid')",
+  "wall_s": 20.743839058995945,
+  "solve_s": 7.506275256004301,
+  "accepted": 7
+}

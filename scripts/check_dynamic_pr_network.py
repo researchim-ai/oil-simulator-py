@@ -11,7 +11,7 @@ from surface.operation import _digest
 
 
 def audit_network_step(spec, report):
-    from check_dynamic_receiver import audit_inlet_packets
+    from check_dynamic_receiver import audit_inlet_packets, commanded_outlet
 
     base = spec["receiver"]
     old = report["initial_state"]
@@ -38,10 +38,10 @@ def audit_network_step(spec, report):
                 if name == inlet
                 else []
             )
-            for port in v["outlets"]:
-                port["opening"] = report["outlet_openings"].get(
-                    name + "/" + port["name"], port["opening"]
-                )
+            v["outlets"] = [
+                commanded_outlet(port, report["outlet_openings"], name + "/" + port["name"])
+                for port in v["outlets"]
+            ]
         if _digest(flow["network_model"]) != _digest(expected):
             raise ValueError("Network trial changed physical model or accepted feeds")
         raw = flow["network_report"]

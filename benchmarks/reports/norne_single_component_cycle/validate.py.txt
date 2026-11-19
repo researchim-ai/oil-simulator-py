@@ -1,0 +1,12 @@
+from pathlib import Path
+import subprocess,sys
+r=Path.cwd();out=r/'.scratch/norne_oscillation'
+cases=[('late','cnv_ref_fine'),('late','cnv_ref'),('early','step'),('late','step'),('early','adaptive'),('late','adaptive'),('early','cnv_ref'),('early','cnv_ref_fine')]
+for window,mode in cases:
+ dest=out/f'fixed_{window}_{mode}'
+ cmd=[sys.executable,str(r/'scripts/benchmark_norne_accuracy.py'),'--deck',str(r/'.scratch/ot2/norne/NORNE_ATW2013.DATA'),
+      '--grid',str(r/f'.scratch/norne_adaptive_amg/{window}_reference_0/substeps.npz'),'--out',str(dest),'--mode',mode,'--verbose']
+ if window=='late':cmd+=['--checkpoint',str(r/'results/norne_gpu_packets_3090_20261031/checkpoint_day_2431.pt')]
+ with (out/f'{dest.name}.log').open('w') as log:result=subprocess.run(cmd,stdout=log,stderr=subprocess.STDOUT)
+ print(dest.name,result.returncode,flush=True)
+ if result.returncode:sys.exit(result.returncode)

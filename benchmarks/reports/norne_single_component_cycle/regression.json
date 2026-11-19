@@ -1,0 +1,32 @@
+{
+  "early_step": {
+    "fields.npz": true,
+    "summary.npz": true,
+    "step_clocks_and_newton_exact": true
+  },
+  "early_adaptive": {
+    "fields.npz": true,
+    "summary.npz": true,
+    "step_clocks_and_newton_exact": true
+  },
+  "early_cnv_ref": {
+    "fields.npz": true,
+    "summary.npz": true,
+    "step_clocks_and_newton_exact": true
+  },
+  "early_cnv_ref_fine": {
+    "fields.npz": true,
+    "summary.npz": true,
+    "step_clocks_and_newton_exact": true
+  },
+  "late_step": {
+    "fields.npz": true,
+    "summary.npz": true,
+    "step_clocks_and_newton_exact": true
+  },
+  "late_adaptive": {
+    "fields.npz": true,
+    "summary.npz": true,
+    "step_clocks_and_newton_exact": true
+  }
+}

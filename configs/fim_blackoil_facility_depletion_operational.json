@@ -673,7 +673,7 @@
         "continuation_scan_interval": 16
       }
     },
-    "max_time_step_days": 0.0625,
+    "max_time_step_days": 0.08333333333333333,
     "initial_time_step_days": 5e-05,
     "newton_tol_well_rate": 1e-05
   },

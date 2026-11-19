@@ -1,0 +1,34 @@
+{
+  "status": "incomplete",
+  "runs": [
+    {
+      "time_days": 0.031823053090526694,
+      "requested_days": 30.0,
+      "solve_wall_s": 87.73206750600002,
+      "accepted_substeps": 88,
+      "last_interval": null,
+      "temporal_work": {
+        "macro_attempts": 44,
+        "rejected_macro_steps": 0,
+        "coupled_solves": 132,
+        "capacity_evaluations": 921,
+        "reservoir_evaluations": 789,
+        "capacity_amg_work": {
+          "fresh_requests": 132,
+          "reuse_requests": 657,
+          "retries": 0,
+          "builds": 132,
+          "updates": 1600,
+          "linear_attempts": 1732
+        },
+        "sensitivity_linear_solves": 0,
+        "sensitivity_plant_evaluations": 0
+      },
+      "process_rss_bytes": 1799090176,
+      "process_swap_bytes": 0,
+      "process_lifetime_peak_rss_bytes": 1795989504
+    }
+  ],
+  "comparisons": [],
+  "audit_certificates": {}
+}

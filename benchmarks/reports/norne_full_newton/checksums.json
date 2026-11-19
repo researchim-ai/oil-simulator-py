@@ -1,0 +1,13 @@
+{
+  "README.md": "1f5eda034736dc2bd24cac6ef0b82cf26e94c5e9ba1cb7dc75e3f2de6878fcff",
+  "accepted_substeps.csv": "2010391a341aec49e5b7edafb3bde913282b0d30cee2ba8e408f3d0bd924a319",
+  "audit_status.json": "4329bb3b502a33953895e634a1c9abd59ae2eaeb143327664bbe1fe662cc46d5",
+  "check_norne_run.py": "521ca56fdb5f9678ded1898d900271fdf297c147a538d0e62706d1107380d587",
+  "compare.py": "278f24bb3f3f4e1622e39ea78ed6df0f38d1071d9a297a9e396f967ae68f4ef3",
+  "historical_comparison.json": "52cd315592b762b4798b5a60a561c0943430f2706f7d2ae0fd53a9893777a8b0",
+  "manifest.json": "aab99788eda4cebae0f0d27258676191cc8fb3e30d5abd41c7525e5bc972395f",
+  "meta.json": "49d8bce1d03100cb64ce6251a89b0a50356072ed70c75064bdfc2d168e761ca1",
+  "substeps.npz": "813f804bdd8fb43fac9f59ca3de86cc7e35a72e3c7b5a7c438d4540064752bb7",
+  "summary.npz": "6ec59050090d13a6dd3e0c0dc6b21b7d7467145c3796c59919ec7eabcf91dff4",
+  "validation.json": "f720dd024316047ec5e6715c372a711f4b8f42db61b62a468697d7faa65eeb73"
+}

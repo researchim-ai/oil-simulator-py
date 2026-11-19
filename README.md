@@ -73,6 +73,22 @@ NORNE_DIR=opm-tests/norne NORNE_OUT=results/norne python scripts/norne_figures.p
 
 Подробности — [`docs/NORNE.md`](docs/NORNE.md).
 
+## Связанный эксплуатационный прогноз
+
+Пласт → скважины ↔ сеть сбора ↔ квазистационарная площадка с ограничениями
+оборудования. Синтетический пример: 1024 ячейки, 16 скважин, 30 суток и
+изменения газового экспорта. Один запуск выполняет прогноз, уточнение шага и
+независимые проверки балансов и численной точности:
+
+```bash
+CUDA_VISIBLE_DEVICES='' OMP_NUM_THREADS=1 MKL_NUM_THREADS=1 \
+PYTHONPATH=src:scripts python scripts/validate_operational_forecast.py \
+    --output results/operational-validation
+```
+
+Это отдельный режим от подробной PR-динамики труб и сосудов; динамика уровней
+оборудования в нём не рассчитывается. [Область применимости и настройка](docs/SURFACE_MODELING.md#основной-эксплуатационный-сценарий).
+
 ## IMPES на JSON-конфигах
 
 ```bash

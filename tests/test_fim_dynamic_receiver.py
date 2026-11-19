@@ -127,7 +127,13 @@ def test_restart_and_commands_preserve_dynamic_storage_and_pressure_feedback():
     other = pickle.loads(pickle.dumps(model))
     assert model.step(0.02, current_time=0.02), model.last_attempt
     assert other.step(0.02, current_time=0.02), other.last_attempt
-    assert model.report == other.report
+    # Restoring tensors invalidates identity/version-keyed physical caches.
+    # Extra stability checks are expected; every physical result must still
+    # be identical, including the complete vessel/wall state and balances.
+    assert model.receiver_state == other.receiver_state
+    assert {k: v for k, v in model.report.items() if k != "property_evaluations"} == {
+        k: v for k, v in other.report.items() if k != "property_evaluations"
+    }
     assert model.report["cumulative"]["elapsed_s"] == 0.04
     assert model.report["stages"][-1]["flow"]["outlet_component_moles"] == [0.0, 0.0]
     assert torch.equal(model.solver.fluid.pressure, other.solver.fluid.pressure)
@@ -143,11 +149,25 @@ def test_failed_surface_or_temporal_solve_restores_every_accepted_state(monkeypa
     monkeypatch.setattr(model, "_temporal_error", lambda *args: 2.0)
     assert not model.step(0.02)
     assert "temporal" in model.last_attempt["reason"]
+    assert model.last_attempt["temporal_error_ratio"] == 2.0
+    assert model.last_attempt["dt_s"] == 0.02
     assert model.receiver_state == state and model.report == report
     assert torch.equal(model.solver.fluid.pressure, pressure)
     assert model.solver.wells.surface_network is original_network
     assert model.solver.wells.surface_report == original_wells
     assert model.outlet_openings == {}
+    # A later nonlinear failure must not reuse the previous time defect.
+    from surface.liquid import HydraulicConvergenceError
+
+    def failed_trial(*args, **kwargs):
+        raise HydraulicConvergenceError("pressure iteration failed")
+
+    monkeypatch.setattr(model, "_backward_euler", failed_trial)
+    assert not model.step(0.01)
+    assert "temporal_error_ratio" not in model.last_attempt
+    assert model.limit_rejected_time_step_s(0.005, failed_dt_s=0.01) == 0.005
+    assert model.receiver_state == state and model.report == report
+    assert torch.equal(model.solver.fluid.pressure, pressure)
 
 
 def test_rejects_unbound_commands_and_clock_before_reservoir_mutation():

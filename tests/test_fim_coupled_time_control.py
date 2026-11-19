@@ -116,3 +116,53 @@ def test_invalid_rejection_feedback_is_rejected(bad):
     sim.facility_coupling = coupled
     with pytest.raises(ValueError, match='rejection limiter'):
         sim.run_step(10.)
+
+
+@pytest.mark.parametrize('error, expected', [(4., 4.5), (100., 1.), (1e8, 1.)])
+def test_dynamic_receiver_rejected_defect_predicts_bounded_retry(error, expected):
+    state = SimpleNamespace(last_attempt={
+        'success': False, 'dt_s': 10., 'temporal_error_ratio': error,
+    })
+    limit = DynamicReceiverCoupledFIM.limit_rejected_time_step_s
+    assert limit(state, 5., failed_dt_s=10.) == pytest.approx(expected)
+    assert limit(state, .5, failed_dt_s=10.) == .5
+    assert limit(state, 5., failed_dt_s=9.) == 5.  # stale attempt
+
+
+def test_dynamic_receiver_without_time_defect_keeps_driver_cut():
+    limit = DynamicReceiverCoupledFIM.limit_rejected_time_step_s
+    for attempt in (None, {'success': False, 'dt_s': 10., 'reason': 'nonlinear failure'},
+                    {'success': True, 'dt_s': 10., 'temporal_error_ratio': .1}):
+        assert limit(SimpleNamespace(last_attempt=attempt), 5., failed_dt_s=10.) == 5.
+
+
+@pytest.mark.parametrize('error', [True, 1., -1., math.nan, math.inf])
+def test_dynamic_receiver_rejects_invalid_retry_estimate(error):
+    state = SimpleNamespace(last_attempt={
+        'success': False, 'dt_s': 10., 'temporal_error_ratio': error,
+    })
+    with pytest.raises(ValueError, match='rejected coupled temporal'):
+        DynamicReceiverCoupledFIM.limit_rejected_time_step_s(state, 5., failed_dt_s=10.)
+
+
+def test_real_driver_uses_dynamic_receiver_rejection_policy():
+    sim = make(maximum=10.)
+    sim.sim_params.update(initial_time_step_days=10. / 86400, newton_target_iter=100)
+
+    class MeasuredStepper(ErrorControlledStepper):
+        limit_rejected_time_step_s = DynamicReceiverCoupledFIM.limit_rejected_time_step_s
+
+        def step(self, dt, current_time=None):
+            accepted = super().step(dt, current_time)
+            if not accepted:
+                self.last_attempt = {
+                    'success': False, 'dt_s': dt, 'temporal_error_ratio': dt * dt,
+                }
+            return accepted
+
+    coupled = MeasuredStepper(sim.fim_solver)
+    sim.facility_coupling = coupled
+    assert sim.run_step(10.)
+    assert coupled.rejected == [10.]
+    assert sim.current_time == 10.
+    assert all(dt <= 1. for _, dt in coupled.accepted)

@@ -205,7 +205,8 @@ def main():
     cells = [tuple(int(v) for v in c.split(",")) for c in a.cell]
     summary, info = run_deck(a.deck, device=torch.device("cuda" if a.cuda else "cpu"), cells=cells,
                              max_days=a.days, sim_overrides={"convergence_profile": a.convergence_profile})
-    print(f"Расчёт: {info['wall_s']:.1f} с, подшагов {info['substeps']}, итераций Ньютона {info['newton_iters']}")
+    print(f"Расчёт: {info['wall_s']:.1f} с, подшагов {info['substeps']}, "
+          f"поправок Ньютона на принятой траектории {info['accepted_newton_iters']}")
     rows = compare(summary, refs, a.metric, a.start_day, a.end_day)
     table = {r["vector"]: r for r in rows} if a.all else family_table(rows)
     names = sorted({k for r in table.values() for k in r if k != "vector"}, key=lambda s: ("↔" in s, s))

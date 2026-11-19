@@ -46,6 +46,7 @@ except ImportError:
 
 @dataclass(frozen=True)
 class DynamicReceiverControl:
+    surface_subcycling: bool = False
     maximum_pressure_iterations: int = 24
     pressure_tolerance_pa: float = 0.01
     pressure_relative_tolerance: float = 1e-9
@@ -56,13 +57,15 @@ class DynamicReceiverControl:
     temporal_saturation_tolerance: float = 1e-5
 
     def __post_init__(self):
+        if type(self.surface_subcycling) is not bool:
+            raise ValueError("surface_subcycling must be boolean")
         if (
             type(self.maximum_pressure_iterations) is not int
             or self.maximum_pressure_iterations < 2
         ):
             raise ValueError("At least two pressure iterations required")
         for key, value in asdict(self).items():
-            if key != "maximum_pressure_iterations" and (
+            if key not in ("maximum_pressure_iterations", "surface_subcycling") and (
                 isinstance(value, bool) or not math.isfinite(value) or value <= 0
             ):
                 raise ValueError(f"{key} must be finite and positive")
@@ -110,6 +113,8 @@ class DynamicReceiverCoupledFIM:
         )
         if not isinstance(self.control, DynamicReceiverControl):
             raise TypeError("Expected DynamicReceiverControl")
+        if self.control.surface_subcycling and type(receiver) is not StratifiedPRFlow:
+            raise PropertyModelError("Surface subcycling currently requires one PR flow vessel")
         self.outlet_openings = {}
         self.connection_openings = {}
         self.report, self.last_attempt = None, None
@@ -165,6 +170,8 @@ class DynamicReceiverCoupledFIM:
         }
         if self.boundary.network:
             result["inlet_vessel"] = self.inlet_vessel
+        if not self.control.surface_subcycling:
+            result["control"].pop("surface_subcycling")
         return result
 
     @classmethod
@@ -253,6 +260,14 @@ class DynamicReceiverCoupledFIM:
     def _pressure(self, state):
         return self.boundary.pressure(state, self.inlet_height_m)
 
+    def prepare_operating_point(self, *, verification_duration_s=0.1):
+        """Prepare, but do not install, stationary initial receiver inventories."""
+        from .receiver_operating_point import prepare_receiver_operating_point
+
+        return prepare_receiver_operating_point(
+            self, verification_duration_s=verification_duration_s
+        )
+
     def _inventory(self):
         s = self.solver
         with torch.no_grad():
@@ -260,12 +275,23 @@ class DynamicReceiverCoupledFIM:
             return v.sum(1).detach().cpu().tolist()
 
     def _flow(self, streams):
-        return self.boundary.build(
+        flow = self.boundary.build(
             streams,
             self.inlet_height_m,
             self.outlet_openings,
             getattr(self, "connection_openings", {}),
         )
+        if self.control.surface_subcycling:
+            keys = ("initial_step_s", "minimum_step_s", "maximum_step_s", "maximum_attempts")
+            flow = StratifiedPRFlow(
+                flow.column, flow.wall, feeds=flow.feeds, outlets=flow.outlets,
+                relative_tolerance=min(flow.relative_tolerance, .1*self.control.temporal_relative_tolerance),
+                temperature_tolerance_k=min(flow.temperature_tolerance_k, .1*self.control.temporal_temperature_tolerance_k),
+                **{key:getattr(flow,key) for key in keys},
+            )
+        return flow
+
+    _complete_pressure_trials = True
 
     def _backward_euler(self, old, dt, current_time, *, pressure_guess_pa=None):
         s, net = self.solver, self.solver.wells.surface_network
@@ -273,6 +299,9 @@ class DynamicReceiverCoupledFIM:
         before = self._inventory()
         trace, accepted = [], False
         point, lower, upper = self._pressure(old), None, None
+        rejected_pressure_increment = 0.0
+        lower_is_endpoint = True
+        required_supply_pressure = 0.0
         domain = net.model.pressure_bounds_pa
         fluid = self.boundary.fluid
         lo, hi = max(domain[0], fluid.min_pressure_pa), min(domain[1], fluid.max_pressure_pa)
@@ -316,14 +345,31 @@ class DynamicReceiverCoupledFIM:
                 ]
                 flow = self._flow(streams)
                 trial = self.boundary.rebind(old, flow)
+                completed_pressure_probe = False
                 try:
-                    candidate, report = self.boundary.step(
-                        flow, trial, dt, getattr(self, "connection_openings", {})
-                    )
+                    if self.control.surface_subcycling:
+                        from .receiver_subcycling import advance_receiver_locally
+
+                        candidate, report = advance_receiver_locally(
+                            flow, trial, dt,
+                            pressure_tolerance_pa=min(1., self.control.temporal_pressure_tolerance_pa),
+                            pressure_height_m=(
+                                self.inlet_height_m if self._complete_pressure_trials else None
+                            ),
+                        )
+                    else:
+                        candidate, report = self.boundary.step(
+                            flow, trial, dt, getattr(self, "connection_openings", {})
+                        )
                     pressure = self._pressure(candidate)
                     physical = True
                 except ReceiverFeedPressureError as exc:
-                    pressure, physical = exc.receiver_pressure_pa, False
+                    endpoint = getattr(exc, "endpoint_pressure_pa", None)
+                    completed_pressure_probe = endpoint is not None and math.isfinite(endpoint)
+                    pressure = endpoint if completed_pressure_probe else exc.receiver_pressure_pa
+                    physical = False
+                    if self.control.surface_subcycling:
+                        required_supply_pressure = exc.minimum_supply_pressure_pa
                 defect = pressure - point
                 tolerance = (
                     self.control.pressure_tolerance_pa
@@ -337,6 +383,9 @@ class DynamicReceiverCoupledFIM:
                         "physical_trial": physical,
                     }
                 )
+                if completed_pressure_probe:
+                    trace[-1]["completed_pressure_probe"] = True
+                    trace[-1]["minimum_supply_pressure_pa"] = required_supply_pressure
                 if physical and abs(defect) <= tolerance:
                     # The temporary model binds actual accepted feeds/commands;
                     # the persistent checkpoint uses the unforced receiver ID.
@@ -363,19 +412,41 @@ class DynamicReceiverCoupledFIM:
                             for j in range(3)
                         ],
                     }
+                if completed_pressure_probe:
+                    # The entire invalid trajectory is rejected. Its endpoint
+                    # predicts the fixed point, while its maximum pressure is
+                    # only a supply bound. Neither is an accepted physical state.
+                    # Clear brackets: an intermediate pressure peak can exceed
+                    # the endpoint and must not masquerade as an endpoint root.
+                    lower, upper = None, None
+                    point = min(hi, max(lo, pressure, required_supply_pressure) + .25*tolerance)
+                    continue
                 if defect > 0:
                     lower = (point, defect)
+                    lower_is_endpoint = physical or not self.control.surface_subcycling
                 else:
                     upper = (point, defect)
                 if lower is not None and upper is not None:
                     a, fa = lower
                     b, fb = upper
                     proposal = (a + b) / 2 if iteration % 4 == 3 else (a - fa * (b - a) / (fb - fa))
+                    if not lower_is_endpoint and iteration % 4 != 3:
+                        # The lower bound came from an intermediate local
+                        # state. Only the completed upper trajectory provides
+                        # an endpoint prediction suitable for interpolation.
+                        proposal = max(b + fb, required_supply_pressure) + .25*tolerance
                     if not a < proposal < b:
                         proposal = (a + b) / 2
                     point = proposal
                 else:
-                    point = min(hi, max(lo, point + defect + 0.25 * tolerance))
+                    increment = defect + 0.25 * tolerance
+                    if self.control.surface_subcycling and not physical and defect > 0:
+                        # A local interval can hit the feed-pressure limit
+                        # before its endpoint. Such a trial supplies only a
+                        # lower bound, not an endpoint fixed-point estimate.
+                        increment = max(increment, 2.0 * rejected_pressure_increment)
+                        rejected_pressure_increment = increment
+                    point = min(hi, max(lo, point + increment))
             raise HydraulicConvergenceError("Dynamic receiver pressure iteration budget exhausted")
         finally:
             if not accepted:
@@ -514,6 +585,31 @@ class DynamicReceiverCoupledFIM:
             return proposed_s
         return min(proposed_s, dt * 0.9 / math.sqrt(error))
 
+    def limit_rejected_time_step_s(self, proposed_s, *, failed_dt_s):
+        """Use a measured time defect, never a failed nonlinear trial, to retry.
+
+        Limit extrapolation to a tenfold reduction across phase/active-set
+        changes. The new interval still undergoes the complete coupled solve
+        and full-versus-two-half check; no acceptance tolerance is relaxed.
+        """
+        for value in (proposed_s, failed_dt_s):
+            if isinstance(value, bool) or not math.isfinite(value) or value <= 0:
+                raise ValueError("Positive finite rejected coupled time step required")
+        attempt = self.last_attempt or {}
+        error = attempt.get("temporal_error_ratio")
+        if (
+            attempt.get("success") is not False
+            or attempt.get("dt_s") != failed_dt_s
+            or error is None
+        ):
+            return proposed_s
+        # Nonfinite defects provide no quantitative prediction. Retain the
+        # driver's normal cut rather than serializing NaN/Inf into reports.
+        if isinstance(error, bool) or not math.isfinite(error) or error <= 1:
+            raise ValueError("Invalid rejected coupled temporal estimate")
+        allowed = max(0.1 * failed_dt_s, failed_dt_s * 0.9 / math.sqrt(error))
+        return min(proposed_s, allowed)
+
     def _step_impl(self, dt, current_time=None):
         if isinstance(dt, bool) or not math.isfinite(dt) or dt <= 0:
             raise ValueError("Coupled receiver step must be finite and positive")
@@ -530,6 +626,7 @@ class DynamicReceiverCoupledFIM:
         old, initial = self.receiver_state, _StepState(self.solver)
         network, previous = self.solver.wells.surface_network, self.report
         accepted = False
+        temporal_error = None
         try:
             coarse, _ = self._backward_euler(old, dt, old.time_s)
             f = self.solver.fluid
@@ -551,6 +648,8 @@ class DynamicReceiverCoupledFIM:
             )
             end, second = self._backward_euler(middle, b, middle.time_s, pressure_guess_pa=pc)
             error = self._temporal_error(coarse, end, coarse_reservoir)
+            if math.isfinite(error):
+                temporal_error = error
             if not math.isfinite(error) or error > 1:
                 raise HydraulicConvergenceError(
                     f"Whole-system temporal error above tolerance: ratio={error:.8g}"
@@ -608,7 +707,9 @@ class DynamicReceiverCoupledFIM:
             accepted = True
             return True
         except HydraulicConvergenceError as exc:
-            self.last_attempt = {"success": False, "reason": str(exc)}
+            self.last_attempt = {"success": False, "reason": str(exc), "dt_s": dt}
+            if temporal_error is not None and temporal_error > 1:
+                self.last_attempt["temporal_error_ratio"] = temporal_error
             return False
         finally:
             if not accepted:

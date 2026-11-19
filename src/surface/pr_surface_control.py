@@ -569,6 +569,10 @@ class PRControlledSurface:
 
     @classmethod
     def from_dict(cls, data, *, device="cpu"):
+        if data.get("model") == "pr_subcycled_surface_v1":
+            from .pr_subcycled_surface import PRSubcycledSurface
+
+            return PRSubcycledSurface.from_dict(data, device=device)
         data = dict(data)
         if data.pop("model", None) != "pr_controlled_surface_v1":
             raise ValueError("Unknown controlled surface model")
@@ -1017,6 +1021,9 @@ class PRControlledSurface:
             "total_work_j": plant_report["total_work_j"],
         }
 
+    def _error_openings(self, step):
+        return step["plant"].get("openings", {})
+
     def _error(self, a, b, *, plant_openings=None):
         e = self.plant._error(
             a.plant,
@@ -1157,6 +1164,7 @@ class PRControlledSurface:
         dt = min(state.next_step_s, duration_s)
         steps = []
         attempts = 0
+        previous_temporal_rejection = None
         while current.time_s < end:
             attempts += 1
             if attempts > self.maximum_attempts:
@@ -1195,6 +1203,7 @@ class PRControlledSurface:
                 )
             error = None
             reduction = 0.5
+            rejection_order = 2.0
             try:
                 coarse, fine, one, two = self._temporal_trial(
                     current, dt, first_dt, second_dt, manual, modes, plant_commands
@@ -1203,7 +1212,7 @@ class PRControlledSurface:
                     coarse,
                     fine,
                     **(
-                        {"plant_openings": two["plant"].get("openings", {})}
+                        {"plant_openings": self._error_openings(two)}
                         if getattr(self.plant, "darcy_connections", ())
                         else {}
                     ),
@@ -1214,12 +1223,25 @@ class PRControlledSurface:
                     # several expensive halvings; estimate the needed cut in
                     # one attempt, still checking the next full coarse/fine
                     # solution against the unchanged error budget.
-                    if error > 1:
-                        reduction = max(0.1, min(0.5, 0.9 / math.sqrt(error)))
+                    if math.isfinite(error) and error > 1:
+                        if previous_temporal_rejection is not None:
+                            previous_dt, previous_error = previous_temporal_rejection
+                            if dt < previous_dt:
+                                # Stiff startup can be outside the dt**2
+                                # asymptotic regime. Use two rejected trials
+                                # from the SAME state, bounded to orders 1..2.
+                                observed = ((math.log(error) - math.log(previous_error))
+                                            / (math.log(dt) - math.log(previous_dt)))
+                                rejection_order = max(1.0, min(2.0, observed))
+                        reduction = max(0.1, min(0.5, 0.9 / error ** (1.0 / rejection_order)))
+                        previous_temporal_rejection = (dt, error)
                     raise HydraulicConvergenceError(
                         "Combined plant/control temporal error exceeded"
                     )
             except (HydraulicConvergenceError, ConservationError, PropertyModelError) as exc:
+                if error is None or not math.isfinite(error):
+                    # A nonlinear failure supplies no temporal order evidence.
+                    previous_temporal_rejection = None
                 if progress is not None:
                     progress(
                         {
@@ -1230,12 +1252,14 @@ class PRControlledSurface:
                             "reason": str(exc),
                             "error": error if error is not None and math.isfinite(error) else None,
                             "next_step_s": dt * reduction,
+                            "rejection_order": rejection_order,
                         }
                     )
                 dt *= reduction
                 if dt < self.minimum_step_s:
                     raise HydraulicConvergenceError("Controlled minimum step exhausted") from exc
                 continue
+            previous_temporal_rejection = None
             nextdt = min(
                 self.maximum_step_s,
                 max(self.minimum_step_s, dt * min(1.5, 0.9 / math.sqrt(max(error, 1e-30)))),

@@ -1,0 +1,134 @@
+[
+  {
+    "time_s": 21600.0,
+    "stats": {
+      "start_time_s": 0.0,
+      "requested_duration_s": 21600.0,
+      "integrated_duration_s": 21600.0,
+      "accepted_steps": 6,
+      "rejected_steps": 0,
+      "minimum_accepted_step_s": 864.0,
+      "maximum_accepted_step_s": 10368.0,
+      "time_error_limited_proposals": 1
+    },
+    "temporal": {
+      "dt_s": 1296.0,
+      "indicator": 0.003736644069477916,
+      "errors": {
+        "pressure": 0.003736644069477916,
+        "s_w": 6.422547604856277e-06,
+        "s_g": 0.0007933751811402961,
+        "withdrawal": 0.0007698510303711035,
+        "component_mass": 0.0001733116132883924,
+        "s_o": 0.0007869526335024801
+      },
+      "accepted_stages_s": [
+        648.0,
+        648.0
+      ],
+      "reservoir_step_calls": 3,
+      "algebraic_cnv_tolerance": 1e-05,
+      "algebraic_mb_tolerance": 1e-08,
+      "scope": "Local BE full-step/two-half-step estimator; no global error guarantee"
+    }
+  },
+  {
+    "time_s": 43200.0,
+    "stats": {
+      "start_time_s": 21600.0,
+      "requested_duration_s": 21600.0,
+      "integrated_duration_s": 21600.0,
+      "accepted_steps": 4,
+      "rejected_steps": 0,
+      "minimum_accepted_step_s": 2592.0,
+      "maximum_accepted_step_s": 10368.0,
+      "time_error_limited_proposals": 1
+    },
+    "temporal": {
+      "dt_s": 3456.0,
+      "indicator": 0.012533750073611736,
+      "errors": {
+        "pressure": 0.012533750073611736,
+        "s_w": 2.2156894013969364e-05,
+        "s_g": 0.002630391095956395,
+        "withdrawal": 0.002477885851187726,
+        "component_mass": 0.0005748936579946836,
+        "s_o": 0.0026082342019506655
+      },
+      "accepted_stages_s": [
+        1728.0,
+        1728.0
+      ],
+      "reservoir_step_calls": 3,
+      "algebraic_cnv_tolerance": 1e-05,
+      "algebraic_mb_tolerance": 1e-08,
+      "scope": "Local BE full-step/two-half-step estimator; no global error guarantee"
+    }
+  },
+  {
+    "time_s": 64800.0,
+    "stats": {
+      "start_time_s": 43200.0,
+      "requested_duration_s": 21600.0,
+      "integrated_duration_s": 21600.0,
+      "accepted_steps": 3,
+      "rejected_steps": 0,
+      "minimum_accepted_step_s": 864.0,
+      "maximum_accepted_step_s": 13824.0,
+      "time_error_limited_proposals": 1
+    },
+    "temporal": {
+      "dt_s": 864.0,
+      "indicator": 0.0005500881835818291,
+      "errors": {
+        "pressure": 0.0005500881835818291,
+        "s_w": 8.603241730131828e-07,
+        "s_g": 9.486408587052603e-05,
+        "withdrawal": 0.0001412906439523865,
+        "component_mass": 2.0685261646569586e-05,
+        "s_o": 9.400376177470804e-05
+      },
+      "accepted_stages_s": [
+        432.0,
+        432.0
+      ],
+      "reservoir_step_calls": 3,
+      "algebraic_cnv_tolerance": 1e-05,
+      "algebraic_mb_tolerance": 1e-08,
+      "scope": "Local BE full-step/two-half-step estimator; no global error guarantee"
+    }
+  },
+  {
+    "time_s": 86400.0,
+    "stats": {
+      "start_time_s": 64800.0,
+      "requested_duration_s": 21600.0,
+      "integrated_duration_s": 21600.0,
+      "accepted_steps": 4,
+      "rejected_steps": 0,
+      "minimum_accepted_step_s": 1728.0,
+      "maximum_accepted_step_s": 9504.0,
+      "time_error_limited_proposals": 1
+    },
+    "temporal": {
+      "dt_s": 9504.0,
+      "indicator": 0.019709399624913932,
+      "errors": {
+        "pressure": 0.019709399624913932,
+        "s_w": 4.743180537225555e-05,
+        "s_g": 0.004186099634534771,
+        "withdrawal": 0.005838527205462514,
+        "component_mass": 0.0009108298127967658,
+        "s_o": 0.004138667829112208
+      },
+      "accepted_stages_s": [
+        4752.0,
+        4752.0
+      ],
+      "reservoir_step_calls": 3,
+      "algebraic_cnv_tolerance": 1e-05,
+      "algebraic_mb_tolerance": 1e-08,
+      "scope": "Local BE full-step/two-half-step estimator; no global error guarantee"
+    }
+  }
+]

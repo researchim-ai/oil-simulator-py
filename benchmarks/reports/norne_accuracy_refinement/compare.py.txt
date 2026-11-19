@@ -1,0 +1,46 @@
+from pathlib import Path
+import json,shutil
+import numpy as np
+root=Path('.scratch/norne_accuracy');out=Path('benchmarks/reports/norne_accuracy_refinement')
+result={}
+for window in ['early','late']:
+ paths={m:root/f'{window}_{suffix}' for m,suffix in {'step':'step','adaptive':'adaptive','tight':'cnv_ref','tighter':'cnv_ref_fine'}.items()}
+ if not all((p/'fields.npz').exists() for p in paths.values()):continue
+ data={m:np.load(p/'fields.npz') for m,p in paths.items()}
+ statuses={m:json.loads((p/'status.json').read_text()) for m,p in paths.items()}
+ assert all(s['status']=='complete' and s['source_and_inputs_verified'] for s in statuses.values())
+ records={m:json.loads((p/'steps.json').read_text()) for m,p in paths.items()}
+ control=np.array([[v['day'],v['dt']] for v in records['step']])
+ for r in records.values():assert np.allclose(control,[[v['day'],v['dt']] for v in r],rtol=0,atol=1e-8)
+ ref=data['tighter'];pv=ref['pv'].reshape(-1);mask=pv>0;weights=pv[mask]/pv[mask].sum()
+ errors={}
+ for m in ['step','adaptive','tight']:
+  errors[m]={}
+  for k in ['p','sw','sg','so','rs','rv']:
+   delta=(data[m][k].reshape(-1)-ref[k].reshape(-1))[mask]
+   errors[m][k]=dict(max_abs=float(abs(delta).max()),pv_rms=float(np.sqrt(np.sum(weights*delta**2))))
+ summaries={m:np.load(p/'summary.npz') for m,p in paths.items()}
+ sr=summaries['tighter'];window_mask=(sr['TIME']>=statuses['tighter']['start']-1e-8)
+ rates={}
+ for m in ['step','adaptive','tight']:
+  assert np.array_equal(summaries[m]['TIME'],sr['TIME'])
+  per_rate={};finite_masks_equal=True
+  for k in sr.files:
+   if k.split(':')[0] not in ['FOPR','FWPR','FGPR','FWIR','FGIR','WOPR','WWPR','WGPR','WWIR','WGIR']:continue
+   x=sr[k][window_mask];y=summaries[m][k][window_mask]
+   finite_masks_equal &= np.array_equal(np.isfinite(x),np.isfinite(y))
+   valid=np.isfinite(x)&np.isfinite(y)
+   if valid.any():per_rate[k]=float(np.max(abs(x[valid]-y[valid]))/max(1.,float(abs(x[valid]).max())))
+  worst=max(per_rate,key=per_rate.get)
+  rates[m]=dict(worst=worst,relative_peak_error=per_rate[worst],finite_masks_equal=bool(finite_masks_equal),all_rates=per_rate)
+ result[window]=dict(errors_to_tighter=errors,rates_to_tighter=rates,
+   work={m:dict(solve_s=statuses[m]['solve_s'],newton=sum(v['newton'] for v in records[m]),
+     accepted=len(records[m]),max_balance=max(max(abs(x) for x in v['balance']) for v in records[m])) for m in paths})
+ for m,p in paths.items():
+  dest=out/p.name;dest.mkdir(exist_ok=True)
+  for f in ['manifest.json','status.json','steps.json','fields.npz','summary.npz']:shutil.copyfile(p/f,dest/f)
+(out/'results.json').write_text(json.dumps(result,indent=2)+'\n')
+for w,res in result.items():
+ print(w)
+ for m,errors in res['errors_to_tighter'].items():print(m,{k:errors[k] for k in ['p','sg','sw']},res['rates_to_tighter'][m]['relative_peak_error'])
+ print('work',res['work'])

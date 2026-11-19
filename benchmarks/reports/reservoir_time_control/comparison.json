@@ -1,0 +1,39 @@
+{
+  "checked": {
+    "status": "complete",
+    "wall_s": 78.89202405600008,
+    "accepted": 38,
+    "rejected": 9,
+    "max_indicator": 0.9309020281948149,
+    "max_abs_balance": [
+      9.32048525382951e-09,
+      1.1575011668106693e-12,
+      7.690813131835364e-09
+    ],
+    "min_dt": 0.00377785725640418,
+    "max_dt": 3.445276537266804,
+    "attempt_step_calls": 141
+  },
+  "tighter": {
+    "status": "complete",
+    "wall_s": 96.60975680399952,
+    "accepted": 53,
+    "rejected": 9,
+    "max_indicator": 0.9113079401701689,
+    "max_abs_balance": [
+      9.655869921299777e-09,
+      5.886692388740201e-13,
+      8.470053090998584e-09
+    ],
+    "min_dt": 0.00236723000708035,
+    "max_dt": 2.6190577688452863,
+    "attempt_step_calls": 186
+  },
+  "max_field_difference": {
+    "pressure": 960.112393476069,
+    "s_w": 0.0004759600164607747,
+    "s_g": 0.0006753752224493148,
+    "s_o": 0.0006759369765800827
+  },
+  "deck_inputs_match_full_run": true
+}

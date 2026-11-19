@@ -235,3 +235,41 @@ def test_reduced_flow_accuracy_is_controlled_even_when_stock_errors_are_small():
     assert stock_error < 1
     assert graph._error(coarse, fine, openings={"line": True}) > 1
     assert graph._error(coarse, fine, openings={"line": False}) == stock_error
+
+
+@pytest.mark.parametrize("velocity", [-20.0, -2.0, 0.0, 2.0, 20.0])
+@pytest.mark.parametrize("device", ["cpu"] + (["cuda"] if torch.cuda.is_available() else []))
+def test_laminar_inverse_and_jacobian_do_not_iterate_friction(velocity, monkeypatch, device):
+    import surface.pr_darcy_connection as module
+
+    c = PRDarcyConnection("line", "a", "b", 0.2, 0.001, 1e-4, local_loss_coefficient=3.0)
+    rho = torch.tensor(10.0, dtype=torch.float64, device=device)
+    dp = torch.tensor(
+        640.0 * velocity + 15.0 * velocity * abs(velocity), dtype=torch.float64, device=device
+    )
+
+    def forbidden(*args, **kwargs):
+        raise AssertionError("laminar inverse entered iterative friction kernel")
+
+    monkeypatch.setattr(module, "darcy_pressure_loss", forbidden)
+    assert float(c.velocity(dp, rho)) == pytest.approx(velocity, abs=1e-12)
+    derivatives = torch.func.jacfwd(c.velocity, argnums=(0, 1))(dp, rho)
+    slope = 640.0 + 30.0 * abs(velocity)
+    assert float(derivatives[0]) == pytest.approx(1 / slope, rel=1e-12)
+    assert float(derivatives[1]) == pytest.approx(
+        -1.5 * velocity * abs(velocity) / slope, abs=1e-12
+    )
+
+
+def test_mixed_regime_vmap_and_transition_are_preserved():
+    c = PRDarcyConnection("line", "a", "b", 0.2, 0.001, 1e-4)
+    speeds = [-40.0, -20.000001, -20.0, -19.999999, 0.0, 19.999999, 20.0, 20.000001, 40.0]
+    dp = torch.tensor(
+        [reference_darcy(v, 10.0, 0.2, 0.001, 1e-4, 0.0)[0] + 5.0 * v * abs(v) for v in speeds],
+        dtype=torch.float64,
+    )
+    rho = torch.full_like(dp, 10.0)
+    result = torch.vmap(c.velocity)(dp, rho)
+    torch.testing.assert_close(
+        result, torch.tensor(speeds, dtype=torch.float64), atol=1e-11, rtol=1e-12
+    )

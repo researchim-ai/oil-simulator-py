@@ -1,0 +1,42 @@
+{
+  "seconds": 163.84341447399856,
+  "audit": {
+    "accepted": true,
+    "checked_substeps": 10,
+    "maximum_local_energy_residual_j": 7.695665615869984e-08,
+    "checked_control_substeps": 10
+  },
+  "regressions": {
+    "passed": 70,
+    "seconds": 118.4,
+    "device": "cpu",
+    "scope": [
+      "subcycling",
+      "model_reduction",
+      "darcy_connections",
+      "surface_control"
+    ]
+  },
+  "boundary_experiment": {
+    "riemann": {
+      "seconds": 79.47487738600103,
+      "audit": {
+        "accepted": true,
+        "checked_substeps": 170,
+        "maximum_local_component_residual_mol": 1.5272799829261395e-13,
+        "maximum_local_energy_residual_j": 5.816460342731942e-11
+      },
+      "final_velocity_m_s": 0.26580231620834754
+    },
+    "stagnation_single_phase": {
+      "seconds": 265.2011115130008,
+      "audit": {
+        "accepted": true,
+        "checked_substeps": 320,
+        "maximum_local_component_residual_mol": 1.5742772959855225e-13,
+        "maximum_local_energy_residual_j": 5.725556742957862e-11
+      },
+      "final_velocity_m_s": 9.071310255075586
+    }
+  }
+}

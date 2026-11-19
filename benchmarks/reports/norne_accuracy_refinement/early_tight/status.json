@@ -1,0 +1,7 @@
+{
+  "status": "failed",
+  "error": "RuntimeError('Prescribed step failed; refinement cannot be compared on this grid')",
+  "wall_s": 15.519173323998984,
+  "solve_s": 0,
+  "accepted": 0
+}

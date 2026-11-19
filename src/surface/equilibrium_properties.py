@@ -18,7 +18,7 @@ from .equilibrium_cache import (
     cached_equilibrium,
     cached_stability_result,
 )
-from .equilibrium_stability_batch import stability_candidates
+from .equilibrium_minimization_batch import minimize_stability_candidates as stability_candidates
 from .liquid import HydraulicConvergenceError, PropertyModelError, _name, _number
 from .operation import _digest
 from .peng_robinson import PengRobinsonFluid, R

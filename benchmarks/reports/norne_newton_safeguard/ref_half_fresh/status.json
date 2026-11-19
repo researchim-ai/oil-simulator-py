@@ -1,0 +1,10 @@
+{
+  "status": "complete",
+  "day": 755.0000000000001,
+  "start": 0.0,
+  "source_and_inputs_verified": true,
+  "line_search_retries": 1,
+  "wall_s": 197.91589381799713,
+  "solve_s": 187.17014981996908,
+  "accepted": 272
+}

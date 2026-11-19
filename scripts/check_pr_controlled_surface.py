@@ -78,6 +78,10 @@ def column_measurement(old, port, plant, controller):
 
 
 def audit(config, report):
+    if config["model"].get("model") == "pr_subcycled_surface_v1":
+        from check_pr_subcycled_surface import audit as audit_subcycled
+
+        return audit_subcycled(config, report)
     if config != report["config"]:
         raise ValueError("Controlled request differs")
     parsed = PRControlledSurface.from_dict(config["model"])

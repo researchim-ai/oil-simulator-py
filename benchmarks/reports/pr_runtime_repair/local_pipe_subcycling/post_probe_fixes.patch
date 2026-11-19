@@ -1,0 +1,172 @@
+--- scripts/check_pr_subcycled_surface.py
++++ scripts/check_pr_subcycled_surface.py
+@@ -27,6 +27,8 @@
+     close(_clock(actual), _clock(expected), atol=8 * max(math.ulp(_clock(expected)), 1e-30), rtol=0)
+     _transport(actual)["time_s"] = _clock(expected)
+     if schedule_hint:
++        if not math.isfinite(actual["next_step_s"]) or actual["next_step_s"] <= 0:
++            raise ValueError("Invalid outer timestep hint")
+         actual["next_step_s"] = expected["next_step_s"]
+     if actual != expected:
+         raise ValueError("Split projection/merge changed or lost a physical/controller state")
+@@ -212,6 +214,16 @@
+                         model.slow.plant.model_id,
+                         model.slow.model_id,
+                     )
++                    # The outer controller updates its next-step hint between
++                    # accepted macrosteps. It is not a conserved coordinate
++                    # and is absent from the preceding fine halfstep record.
++                    hint = stage["initial"]["next_step_s"]
++                    if (
++                        not math.isfinite(hint)
++                        or not model.minimum_step_s <= hint <= model.maximum_step_s
++                    ):
++                        raise ValueError("Invalid outer timestep hint")
++                    expected["next_step_s"] = hint
+                     if stage["initial"] != expected:
+                         raise ValueError("Slow stage did not receive the updated boundary stocks")
+                     request = {
+--- src/surface/pr_subcycled_surface.py
++++ src/surface/pr_subcycled_surface.py
+@@ -264,6 +264,12 @@
+             model_id=self.model_id,
+         )
+         return result, {"operator": "slow", "initial": initial.to_dict(), "report": report}
++
++    def _error_openings(self, step):
++        # Darcy links belong to the slow operator; include actual actuator
++        # isolation, not merely the user's requested command dictionary.
++        slow = step["local_subcycling"]["stages"][1]["report"]
++        return self.slow._error_openings(slow)
+ 
+     def _step(self, state, dt, manual, modes, commands, *, _probe_quadrature_order=None):
+         if _probe_quadrature_order is not None:
+--- src/surface/pr_surface_control.py
++++ src/surface/pr_surface_control.py
+@@ -1020,6 +1020,9 @@
+             "total_heat_j": plant_report["total_heat_j"],
+             "total_work_j": plant_report["total_work_j"],
+         }
++
++    def _error_openings(self, step):
++        return step["plant"].get("openings", {})
+ 
+     def _error(self, a, b, *, plant_openings=None):
+         e = self.plant._error(
+@@ -1209,7 +1212,7 @@
+                     coarse,
+                     fine,
+                     **(
+-                        {"plant_openings": two["plant"].get("openings", {})}
++                        {"plant_openings": self._error_openings(two)}
+                         if getattr(self.plant, "darcy_connections", ())
+                         else {}
+                     ),
+--- tests/test_surface_pr_subcycling.py
++++ tests/test_surface_pr_subcycling.py
+@@ -55,7 +55,7 @@
+     assert abs(checked["conservation_residuals"][-1]) < 1e-5
+ 
+ 
+-@pytest.mark.parametrize("corruption", ["transfer", "pipe", "stage", "initial", "energy"])
++@pytest.mark.parametrize("corruption", ["transfer", "pipe", "stage", "initial", "energy", "hint"])
+ def test_independent_audit_rejects_corrupt_split(subcycle_config, result, corruption):
+     damaged = copy.deepcopy(result)
+     step = damaged["intervals"][0]["steps"][0]
+@@ -69,6 +69,8 @@
+         stages.pop()
+     elif corruption == "initial":
+         stages[1]["initial"]["plant"]["transport"]["nodes"]["gas_export"]["total_energy_j"] += 1
++    elif corruption == "hint":
++        damaged["intervals"][0]["state"]["next_step_s"] = -1.0
+     else:
+         step["total_heat_j"] += 1
+     with pytest.raises((ValueError, AssertionError)):
+@@ -130,7 +132,7 @@
+     assert original["initial"]["state"]["model_id"] == model.reference_surface.model_id
+ 
+ 
+-def small_network(reverse=False):
++def small_network(reverse=False, darcy=False):
+     import math
+ 
+     from check_pr_collocation import thermal_fixture
+@@ -183,7 +185,16 @@
+             for n in nodes
+         }
+     )
+-    plant = PRGravityTransportNetwork(transport, {}, [])
++    from surface.pr_darcy_connection import PRDarcyConnection
++
++    plant = PRGravityTransportNetwork(
++        transport,
++        {},
++        [],
++        darcy_connections=(
++            [PRDarcyConnection("bypass", "b", "c", 1.0, 0.001, 1e-4)] if darcy else []
++        ),
++    )
+     original = PRControlledSurface(
+         plant,
+         [PRControlValve("v", "sc", 1.0, ConnectionActuator(1.0, 1.0, 0.0))],
+@@ -218,3 +229,60 @@
+     for exchange in report["boundary_transfers"].values():
+         assert exchange["component_moles"] == [0.0, 0.0]
+         assert exchange["total_energy_j"] == 0.0
++
++
++def test_small_restart_advances_and_fast_controls_are_rejected():
++    original, _, model, state = small_network()
++    with pytest.raises(ValueError, match="Actuated"):
++        PRSubcycledSurface(original, ["slow"])
++    first = model.advance(state, 1e-5, targets={"v": 1.0})
++    restored = PRControlledSurface.from_dict(json.loads(json.dumps(model.to_dict())))
++    resumed = restored.advance(
++        PRControlledSurfaceState.from_dict(first["state"]), 1e-5, targets={"v": 1.0}
++    )
++    terminal = PRControlledSurfaceState.from_dict(resumed["state"])
++    restored.inspect(terminal)
++    assert terminal.time_s == 2e-5
++    assert abs(resumed["conservation_residuals"][-1]) < 1e-5
++
++
++def test_fast_heating_is_applied_once_with_closed_boundaries():
++    _, _, model, state = small_network()
++    result, report = model._fast_stage(
++        state,
++        0.0,
++        1e-5,
++        {
++            "openings": {"af": False, "fb": False},
++            "heat_w": {"fast": 1.0},
++            "utility_temperature_k": {"fast": 400.0},
++        },
++    )
++    before = dict(state.plant.transport.nodes)["fast"].total_energy_j
++    after = dict(result.plant.transport.nodes)["fast"].total_energy_j
++    assert report["report"]["total_heat_j"] == pytest.approx(1e-5, rel=1e-10)
++    assert after - before == pytest.approx(1e-5, abs=1e-9)
++
++
++@pytest.mark.parametrize("opened", [False, True])
++def test_slow_darcy_error_control_receives_actual_isolation(opened):
++    _, _, model, state = small_network(darcy=True)
++    report = model.advance(state, 1e-5, targets={"v": 1.0}, openings={"bypass": opened})
++    assert report["state"]["plant"]["transport"]["time_s"] == 1e-5
++    assert model._error_openings(report["steps"][-1])["bypass"] is opened
++
++
++def test_audit_accepts_outer_hint_changes_between_macrosteps():
++    _, _, model, state = small_network()
++    config = json.loads(
++        json.dumps(
++            {
++                "model": model.to_dict(),
++                "initial": {"state": state.to_dict()},
++                "schedule": [{"duration_s": 4e-5, "targets": {"v": 1.0}}],
++            }
++        )
++    )
++    result = json.loads(json.dumps(run(config)))
++    assert result["intervals"][0]["attempts"] > 1
++    assert audit(config, result)["accepted"]

@@ -1,0 +1,2527 @@
+{
+  "current": ".scratch/norne_full_safeguard/run",
+  "historical": ".scratch/norne_full_newton/run",
+  "note": "Different source versions; historical comparison is not an isolated optimization benchmark.",
+  "inputs_equal": true,
+  "changed_sources": [
+    "scripts/run_norne.py",
+    "scripts/validate_norne.py",
+    "src/simulator/blackoil_fim.py"
+  ],
+  "summary.npz": {
+    "clocks_equal": true,
+    "vectors": {
+      "FGIR": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "FGOR": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "FGPR": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "FGPT": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "FOPR": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "FOPT": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "FWCT": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "FWIR": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "FWPR": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "FWPT": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "GGIR:FIELD": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "GGIT:FIELD": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "GGPR:FIELD": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "GGPT:FIELD": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "GOPR:FIELD": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "GOPT:FIELD": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "GPR:B1-DUMMY": {
+        "equal": true,
+        "max_absolute_difference": null,
+        "max_scaled_difference": null,
+        "finite_mask_mismatches": 0
+      },
+      "GPR:D2-DUMMY": {
+        "equal": true,
+        "max_absolute_difference": null,
+        "max_scaled_difference": null,
+        "finite_mask_mismatches": 0
+      },
+      "GPR:FIELD": {
+        "equal": true,
+        "max_absolute_difference": null,
+        "max_scaled_difference": null,
+        "finite_mask_mismatches": 0
+      },
+      "GPR:INJE": {
+        "equal": true,
+        "max_absolute_difference": null,
+        "max_scaled_difference": null,
+        "finite_mask_mismatches": 0
+      },
+      "GPR:MANI-B1": {
+        "equal": true,
+        "max_absolute_difference": null,
+        "max_scaled_difference": null,
+        "finite_mask_mismatches": 0
+      },
+      "GPR:MANI-B2": {
+        "equal": true,
+        "max_absolute_difference": null,
+        "max_scaled_difference": null,
+        "finite_mask_mismatches": 0
+      },
+      "GPR:MANI-C": {
+        "equal": true,
+        "max_absolute_difference": null,
+        "max_scaled_difference": null,
+        "finite_mask_mismatches": 0
+      },
+      "GPR:MANI-D1": {
+        "equal": true,
+        "max_absolute_difference": null,
+        "max_scaled_difference": null,
+        "finite_mask_mismatches": 0
+      },
+      "GPR:MANI-D2": {
+        "equal": true,
+        "max_absolute_difference": null,
+        "max_scaled_difference": null,
+        "finite_mask_mismatches": 0
+      },
+      "GPR:MANI-E1": {
+        "equal": true,
+        "max_absolute_difference": null,
+        "max_scaled_difference": null,
+        "finite_mask_mismatches": 0
+      },
+      "GPR:MANI-E2": {
+        "equal": true,
+        "max_absolute_difference": null,
+        "max_scaled_difference": null,
+        "finite_mask_mismatches": 0
+      },
+      "GPR:MANI-F": {
+        "equal": true,
+        "max_absolute_difference": null,
+        "max_scaled_difference": null,
+        "finite_mask_mismatches": 0
+      },
+      "GPR:MANI-K1": {
+        "equal": true,
+        "max_absolute_difference": null,
+        "max_scaled_difference": null,
+        "finite_mask_mismatches": 0
+      },
+      "GPR:MANI-K2": {
+        "equal": true,
+        "max_absolute_difference": null,
+        "max_scaled_difference": null,
+        "finite_mask_mismatches": 0
+      },
+      "GPR:PROD": {
+        "equal": true,
+        "max_absolute_difference": null,
+        "max_scaled_difference": null,
+        "finite_mask_mismatches": 0
+      },
+      "GPR:WI-GSEG": {
+        "equal": true,
+        "max_absolute_difference": null,
+        "max_scaled_difference": null,
+        "finite_mask_mismatches": 0
+      },
+      "GWIR:FIELD": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "GWPR:FIELD": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "GWPT:FIELD": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "TIME": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WBHP:B-1AH": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WBHP:B-1BH": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WBHP:B-1H": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WBHP:B-2H": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WBHP:B-3H": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WBHP:B-4AH": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WBHP:B-4BH": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WBHP:B-4DH": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WBHP:B-4H": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WBHP:C-1H": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WBHP:C-2H": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WBHP:C-3H": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WBHP:C-4AH": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WBHP:C-4H": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WBHP:D-1CH": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WBHP:D-1H": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WBHP:D-2H": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WBHP:D-3AH": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WBHP:D-3BH": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WBHP:D-3H": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WBHP:D-4AH": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WBHP:D-4H": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WBHP:E-1H": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WBHP:E-2AH": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WBHP:E-2H": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WBHP:E-3AH": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WBHP:E-3BH": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WBHP:E-3CH": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WBHP:E-3H": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WBHP:E-4AH": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WBHP:E-4H": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WBHP:F-1H": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WBHP:F-2H": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WBHP:F-3H": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WBHP:F-4H": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WBHP:K-3H": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WGIR:C-1H": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WGIR:C-2H": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WGIR:C-3H": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WGIR:C-4AH": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WGIR:C-4H": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WGIR:F-1H": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WGIR:F-2H": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WGIR:F-3H": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WGIR:F-4H": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WGIT:C-1H": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WGIT:C-2H": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WGIT:C-3H": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WGIT:C-4AH": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WGIT:C-4H": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WGIT:F-1H": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WGIT:F-2H": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WGIT:F-3H": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WGIT:F-4H": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WGOR:B-1AH": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WGOR:B-1BH": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WGOR:B-1H": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WGOR:B-2H": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WGOR:B-3H": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WGOR:B-4AH": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WGOR:B-4BH": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WGOR:B-4DH": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WGOR:B-4H": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WGOR:C-1H": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WGOR:C-2H": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WGOR:C-3H": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WGOR:C-4AH": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WGOR:C-4H": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WGOR:D-1CH": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WGOR:D-1H": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WGOR:D-2H": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WGOR:D-3AH": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WGOR:D-3BH": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WGOR:D-3H": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WGOR:D-4AH": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WGOR:D-4H": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WGOR:E-1H": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WGOR:E-2AH": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WGOR:E-2H": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WGOR:E-3AH": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WGOR:E-3BH": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WGOR:E-3CH": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WGOR:E-3H": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WGOR:E-4AH": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WGOR:E-4H": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WGOR:F-1H": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WGOR:F-2H": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WGOR:F-3H": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WGOR:F-4H": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WGOR:K-3H": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WGPR:B-1AH": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WGPR:B-1BH": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WGPR:B-1H": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WGPR:B-2H": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WGPR:B-3H": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WGPR:B-4AH": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WGPR:B-4BH": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WGPR:B-4DH": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WGPR:B-4H": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WGPR:C-1H": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WGPR:C-2H": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WGPR:C-3H": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WGPR:C-4AH": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WGPR:C-4H": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WGPR:D-1CH": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WGPR:D-1H": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WGPR:D-2H": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WGPR:D-3AH": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WGPR:D-3BH": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WGPR:D-3H": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WGPR:D-4AH": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WGPR:D-4H": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WGPR:E-1H": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WGPR:E-2AH": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WGPR:E-2H": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WGPR:E-3AH": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WGPR:E-3BH": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WGPR:E-3CH": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WGPR:E-3H": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WGPR:E-4AH": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WGPR:E-4H": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WGPR:F-1H": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WGPR:F-2H": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WGPR:F-3H": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WGPR:F-4H": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WGPR:K-3H": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WGPT:B-1AH": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WGPT:B-1BH": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WGPT:B-1H": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WGPT:B-2H": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WGPT:B-3H": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WGPT:B-4AH": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WGPT:B-4BH": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WGPT:B-4DH": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WGPT:B-4H": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WGPT:C-1H": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WGPT:C-2H": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WGPT:C-3H": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WGPT:C-4AH": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WGPT:C-4H": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WGPT:D-1CH": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WGPT:D-1H": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WGPT:D-2H": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WGPT:D-3AH": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WGPT:D-3BH": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WGPT:D-3H": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WGPT:D-4AH": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WGPT:D-4H": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WGPT:E-1H": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WGPT:E-2AH": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WGPT:E-2H": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WGPT:E-3AH": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WGPT:E-3BH": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WGPT:E-3CH": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WGPT:E-3H": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WGPT:E-4AH": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WGPT:E-4H": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WGPT:F-1H": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WGPT:F-2H": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WGPT:F-3H": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WGPT:F-4H": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WGPT:K-3H": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WOPR:B-1AH": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WOPR:B-1BH": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WOPR:B-1H": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WOPR:B-2H": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WOPR:B-3H": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WOPR:B-4AH": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WOPR:B-4BH": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WOPR:B-4DH": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WOPR:B-4H": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WOPR:C-1H": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WOPR:C-2H": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WOPR:C-3H": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WOPR:C-4AH": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WOPR:C-4H": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WOPR:D-1CH": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WOPR:D-1H": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WOPR:D-2H": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WOPR:D-3AH": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WOPR:D-3BH": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WOPR:D-3H": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WOPR:D-4AH": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WOPR:D-4H": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WOPR:E-1H": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WOPR:E-2AH": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WOPR:E-2H": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WOPR:E-3AH": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WOPR:E-3BH": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WOPR:E-3CH": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WOPR:E-3H": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WOPR:E-4AH": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WOPR:E-4H": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WOPR:F-1H": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WOPR:F-2H": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WOPR:F-3H": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WOPR:F-4H": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WOPR:K-3H": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WOPT:B-1AH": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WOPT:B-1BH": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WOPT:B-1H": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WOPT:B-2H": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WOPT:B-3H": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WOPT:B-4AH": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WOPT:B-4BH": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WOPT:B-4DH": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WOPT:B-4H": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WOPT:C-1H": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WOPT:C-2H": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WOPT:C-3H": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WOPT:C-4AH": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WOPT:C-4H": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WOPT:D-1CH": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WOPT:D-1H": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WOPT:D-2H": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WOPT:D-3AH": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WOPT:D-3BH": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WOPT:D-3H": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WOPT:D-4AH": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WOPT:D-4H": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WOPT:E-1H": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WOPT:E-2AH": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WOPT:E-2H": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WOPT:E-3AH": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WOPT:E-3BH": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WOPT:E-3CH": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WOPT:E-3H": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WOPT:E-4AH": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WOPT:E-4H": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WOPT:F-1H": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WOPT:F-2H": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WOPT:F-3H": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WOPT:F-4H": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WOPT:K-3H": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WTHP:B-1AH": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WTHP:B-1BH": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WTHP:B-1H": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WTHP:B-2H": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WTHP:B-3H": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WTHP:B-4AH": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WTHP:B-4BH": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WTHP:B-4DH": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WTHP:B-4H": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WTHP:C-1H": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WTHP:C-2H": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WTHP:C-3H": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WTHP:C-4AH": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WTHP:C-4H": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WTHP:D-1CH": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WTHP:D-1H": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WTHP:D-2H": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WTHP:D-3AH": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WTHP:D-3BH": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WTHP:D-3H": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WTHP:D-4AH": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WTHP:D-4H": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WTHP:E-1H": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WTHP:E-2AH": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WTHP:E-2H": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WTHP:E-3AH": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WTHP:E-3BH": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WTHP:E-3CH": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WTHP:E-3H": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WTHP:E-4AH": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WTHP:E-4H": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WTHP:F-1H": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WTHP:F-2H": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WTHP:F-3H": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WTHP:F-4H": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WTHP:K-3H": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WWIR:C-1H": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WWIR:C-2H": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WWIR:C-3H": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WWIR:C-4AH": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WWIR:C-4H": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WWIR:F-1H": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WWIR:F-2H": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WWIR:F-3H": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WWIR:F-4H": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WWIT:C-1H": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WWIT:C-2H": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WWIT:C-3H": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WWIT:C-4AH": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WWIT:C-4H": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WWIT:F-1H": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WWIT:F-2H": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WWIT:F-3H": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WWIT:F-4H": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WWPR:B-1AH": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WWPR:B-1BH": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WWPR:B-1H": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WWPR:B-2H": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WWPR:B-3H": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WWPR:B-4AH": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WWPR:B-4BH": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WWPR:B-4DH": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WWPR:B-4H": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WWPR:C-1H": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WWPR:C-2H": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WWPR:C-3H": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WWPR:C-4AH": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WWPR:C-4H": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WWPR:D-1CH": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WWPR:D-1H": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WWPR:D-2H": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WWPR:D-3AH": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WWPR:D-3BH": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WWPR:D-3H": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WWPR:D-4AH": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WWPR:D-4H": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WWPR:E-1H": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WWPR:E-2AH": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WWPR:E-2H": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WWPR:E-3AH": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WWPR:E-3BH": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WWPR:E-3CH": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WWPR:E-3H": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WWPR:E-4AH": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WWPR:E-4H": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WWPR:F-1H": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WWPR:F-2H": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WWPR:F-3H": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WWPR:F-4H": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WWPR:K-3H": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WWPT:B-1AH": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WWPT:B-1BH": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WWPT:B-1H": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WWPT:B-2H": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WWPT:B-3H": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WWPT:B-4AH": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WWPT:B-4BH": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WWPT:B-4DH": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WWPT:B-4H": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WWPT:C-1H": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WWPT:C-2H": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WWPT:C-3H": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WWPT:C-4AH": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WWPT:C-4H": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WWPT:D-1CH": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WWPT:D-1H": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WWPT:D-2H": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WWPT:D-3AH": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WWPT:D-3BH": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WWPT:D-3H": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WWPT:D-4AH": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WWPT:D-4H": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WWPT:E-1H": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WWPT:E-2AH": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WWPT:E-2H": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WWPT:E-3AH": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WWPT:E-3BH": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WWPT:E-3CH": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WWPT:E-3H": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WWPT:E-4AH": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WWPT:E-4H": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WWPT:F-1H": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WWPT:F-2H": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WWPT:F-3H": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WWPT:F-4H": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "WWPT:K-3H": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      }
+    }
+  },
+  "fields.npz": {
+    "clocks_equal": true,
+    "vectors": {
+      "p": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "pv": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "rs": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "sg": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "so": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "sw": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      },
+      "t": {
+        "equal": true,
+        "max_absolute_difference": 0.0,
+        "max_scaled_difference": 0.0,
+        "finite_mask_mismatches": 0
+      }
+    }
+  },
+  "timing": {
+    "current": {
+      "status": "done",
+      "error": null,
+      "wall_s": 499.4526643753052,
+      "invocation_solver_s": 476.824725151062,
+      "invocation_outside_solver_s": 22.627939224243164,
+      "invocation_substeps": 572,
+      "thread_policy": {
+        "source": "NORNE_THREADS",
+        "before": 1,
+        "effective": 1
+      },
+      "cells_total": 113344,
+      "dims": [
+        46,
+        112,
+        22
+      ],
+      "cells_computed": 44431,
+      "cells_active": 44431,
+      "wells": 36,
+      "substeps": 572,
+      "failed_substeps": 3,
+      "newton_iters": 3073,
+      "days": 3312.0,
+      "cpu": "AMD Ryzen 9 9900X 12-Core Processor",
+      "threads": 1,
+      "device": "NVIDIA GeForce RTX 3090",
+      "torch": "2.7.0+cu126",
+      "python": "3.12.9",
+      "convergence": {
+        "tol_cnv": 0.001,
+        "tol_mb": 1e-07,
+        "max_strict_iter": 8,
+        "relaxed_max_pv_fraction": 0.0,
+        "tol_cnv_relaxed": 1.0,
+        "tol_mb_relaxed": 1e-06
+      },
+      "well_events": [],
+      "adaptive_amg": null,
+      "amg_rebuild": "step",
+      "newton_line_search_fallback": true,
+      "line_search_retries": 3
+    },
+    "historical": {
+      "status": "done",
+      "error": null,
+      "wall_s": 511.2811563014984,
+      "invocation_solver_s": 486.725878238678,
+      "invocation_outside_solver_s": 24.555278062820435,
+      "invocation_substeps": 572,
+      "thread_policy": {
+        "source": "NORNE_THREADS",
+        "before": 1,
+        "effective": 1
+      },
+      "cells_total": 113344,
+      "dims": [
+        46,
+        112,
+        22
+      ],
+      "cells_computed": 44431,
+      "cells_active": 44431,
+      "wells": 36,
+      "substeps": 572,
+      "failed_substeps": 3,
+      "newton_iters": 3073,
+      "days": 3312.0,
+      "cpu": "AMD Ryzen 9 9900X 12-Core Processor",
+      "threads": 1,
+      "device": "NVIDIA GeForce RTX 3090",
+      "torch": "2.7.0+cu126",
+      "python": "3.12.9",
+      "convergence": {
+        "tol_cnv": 0.001,
+        "tol_mb": 1e-07,
+        "max_strict_iter": 8,
+        "relaxed_max_pv_fraction": 0.0,
+        "tol_cnv_relaxed": 1.0,
+        "tol_mb_relaxed": 1e-06
+      },
+      "well_events": [],
+      "adaptive_amg": null,
+      "amg_rebuild": "step"
+    }
+  }
+}

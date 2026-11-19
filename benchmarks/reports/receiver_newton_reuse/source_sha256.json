@@ -1,0 +1,10 @@
+{
+  "src/surface/stratified_pr.py": "c84dd878fe30f3db324856706ff4dc380c7e25b224eb0a1c69ea4a404eee6aa9",
+  "src/surface/stratified_pr_flow.py": "8e8716078b3b7fb30dff74e8520533de29afaa6a76407fce4f8aa9dfa8752bc8",
+  "src/surface/stratified_pr_thermal.py": "740d3abe2494cf77d9ceca0491e7ff4045b16b79858d2f43b22168a1ace3a3a3",
+  "src/surface/pr_operating_point.py": "cd196681d42dd1ce396ca11262907ebe6fec3ef0817373d59062292622a2048c",
+  "src/surface/torch_linear.py": "b7bda1aae66d9e979c147f821efba9990d6460d60b32a05c6fc5f9b873b752d5",
+  "src/surface/torch_nonlinear.py": "24ba9f9804690bae74ccb7c28074d0d6a054dfb7ad73c29675169b1884422ac5",
+  "src/simulator/dynamic_receiver_coupling.py": "29f11ba909c8eb932476f1294794398cebb11a787e92e4bdae4898cc1acfa77c",
+  "src/simulator/receiver_subcycling.py": "cf0a8a970aee99fb47b178e58db62dbf5d71140be7eca8b221cb70dded142607"
+}

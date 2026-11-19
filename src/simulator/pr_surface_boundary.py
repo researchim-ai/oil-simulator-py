@@ -161,18 +161,26 @@ class PRSurfaceBoundary:
             "maximum_attempts",
         )
         for name, v in self.vessels.items():
+            outlets = []
+            for port in v.outlets:
+                key = f"{name}/{port.name}" if self.network else port.name
+                if key in outlet_openings:
+                    # Explicit actuator position overrides automatic control
+                    # for this trial only. Otherwise _problem recomputes the
+                    # opening and can reopen an operator-closed outlet.
+                    port = replace(
+                        port,
+                        opening=outlet_openings[key],
+                        pressure_setpoint_pa=None,
+                        opening_gain_per_pa=0.0,
+                        opening_bias=0.0,
+                        level_control=None,
+                    )
+                outlets.append(port)
             vessels[name] = StratifiedPRFlow(
                 v.column,
                 v.wall,
-                outlets=[
-                    replace(
-                        p,
-                        opening=outlet_openings.get(
-                            f"{name}/{p.name}" if self.network else p.name, p.opening
-                        ),
-                    )
-                    for p in v.outlets
-                ],
+                outlets=outlets,
                 feeds=[StratifiedFeed(height, s) for s in streams]
                 if name == self.inlet_name
                 else (),

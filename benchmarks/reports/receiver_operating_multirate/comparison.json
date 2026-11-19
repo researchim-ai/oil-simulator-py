@@ -1,0 +1,3932 @@
+{
+  "initialization": {
+    "pressure_trials": [
+      {
+        "pressure_pa": 1000884.7085884674,
+        "receiver_pressure_pa": 999277.3436045097,
+        "defect_pa": -1607.3649839577265,
+        "physical": true,
+        "well_solve": {
+          "iterations": 3,
+          "well_error_ratio": 0.7016796292737126,
+          "reservoir_advanced": false
+        }
+      },
+      {
+        "pressure_pa": 999277.3463547309,
+        "receiver_pressure_pa": 999281.6261604854,
+        "defect_pa": 4.279805754544213,
+        "physical": false,
+        "well_solve": {
+          "iterations": 3,
+          "well_error_ratio": 0.7029165048152208,
+          "reservoir_advanced": false
+        }
+      },
+      {
+        "pressure_pa": 999281.6289103058,
+        "receiver_pressure_pa": 999281.614911078,
+        "defect_pa": -0.01399922778364271,
+        "physical": true,
+        "well_solve": {
+          "iterations": 3,
+          "well_error_ratio": 0.7029100507497787,
+          "reservoir_advanced": false
+        }
+      },
+      {
+        "pressure_pa": 999281.6176608984,
+        "receiver_pressure_pa": 999281.6149406296,
+        "defect_pa": -0.0027202687924727798,
+        "physical": true,
+        "well_solve": {
+          "iterations": 3,
+          "well_error_ratio": 0.7029100740328431,
+          "reservoir_advanced": false
+        }
+      }
+    ],
+    "accepted_wells": {
+      "P1": {
+        "node": "bottom_1",
+        "mode": "surface",
+        "bhp_pa": 2307235.5568969687,
+        "network_reference_pressure_pa": 2307235.627187976,
+        "component_mass_rates_kg_s": [
+          0.08947858587719502,
+          0.0432977742529413,
+          0.006621223926670693
+        ],
+        "standard_control_rate_m3_s": 0.0001485666988143472
+      },
+      "P2": {
+        "node": "bottom_2",
+        "mode": "surface",
+        "bhp_pa": 2307235.5568969687,
+        "network_reference_pressure_pa": 2307235.627187976,
+        "component_mass_rates_kg_s": [
+          0.08947858587719502,
+          0.0432977742529413,
+          0.006621223926670693
+        ],
+        "standard_control_rate_m3_s": 0.0001485666988143472
+      }
+    },
+    "well_boundaries": {
+      "P1": {
+        "boundary_type": "prescribed_temperature_external_energy",
+        "energy_supplied_by_thermal_boundary_w": 3234.7583725085433,
+        "reservoir_energy_balance_available": false,
+        "assay_id": "69bdb0e2b32be2b2256434b07db46edbf1662b1cbbda7d24e8c7b7a4466973f0",
+        "mass_residual_kg_s": 0.0,
+        "stream": {
+          "component_molar_rates_mol_s": [
+            1.7568377175266636,
+            3.6985879137501647
+          ],
+          "pressure_pa": 2307235.5568969687,
+          "total_energy_rate_w": 3234.7583725085433,
+          "model_id": "aa2016c1a0d812a3aa1ec5b5d93d0e60f06a350d3786f212a0f1b3740a080ee8",
+          "elevation_m": -40.0,
+          "velocity_m_s": 0.0,
+          "gravity_m_s2": 9.80665
+        }
+      },
+      "P2": {
+        "boundary_type": "prescribed_temperature_external_energy",
+        "energy_supplied_by_thermal_boundary_w": 3234.7583725085433,
+        "reservoir_energy_balance_available": false,
+        "assay_id": "69bdb0e2b32be2b2256434b07db46edbf1662b1cbbda7d24e8c7b7a4466973f0",
+        "mass_residual_kg_s": 0.0,
+        "stream": {
+          "component_molar_rates_mol_s": [
+            1.7568377175266636,
+            3.6985879137501647
+          ],
+          "pressure_pa": 2307235.5568969687,
+          "total_energy_rate_w": 3234.7583725085433,
+          "model_id": "aa2016c1a0d812a3aa1ec5b5d93d0e60f06a350d3786f212a0f1b3740a080ee8",
+          "elevation_m": -40.0,
+          "velocity_m_s": 0.0,
+          "gravity_m_s2": 9.80665
+        }
+      }
+    },
+    "inlet_streams": [
+      {
+        "component_molar_rates_mol_s": [
+          1.7568377175266636,
+          3.6985879137501647
+        ],
+        "pressure_pa": 999281.6176608984,
+        "total_energy_rate_w": 3234.7583725085433,
+        "model_id": "aa2016c1a0d812a3aa1ec5b5d93d0e60f06a350d3786f212a0f1b3740a080ee8",
+        "elevation_m": 0.0,
+        "velocity_m_s": 0.0,
+        "gravity_m_s2": 9.80665
+      },
+      {
+        "component_molar_rates_mol_s": [
+          1.7568377175266636,
+          3.6985879137501647
+        ],
+        "pressure_pa": 999281.6176608984,
+        "total_energy_rate_w": 3234.7583725085433,
+        "model_id": "aa2016c1a0d812a3aa1ec5b5d93d0e60f06a350d3786f212a0f1b3740a080ee8",
+        "elevation_m": 0.0,
+        "velocity_m_s": 0.0,
+        "gravity_m_s2": 9.80665
+      }
+    ],
+    "vessel_verification": {
+      "model_id": "43af5a47575fa08c36568bdec0da0ebcae23cef3cea4f4a54bd1024c4f3510c5",
+      "fixed_feeds": true,
+      "reservoir_feedback_solved": false,
+      "component_balance_mol_s": [
+        -2.121858244663599e-12,
+        1.8776091792460647e-12
+      ],
+      "energy_balance_w": -1.2369127944111824e-10,
+      "verification_duration_s": 0.1,
+      "verification_drift": {
+        "pressure_pa": 4.827743396162987e-07,
+        "temperature_k": 2.2680524125462398e-11,
+        "wall_temperature_k": 0.0,
+        "component_moles": 3.154809746774845e-12
+      },
+      "verification_flow": {
+        "dt_s": 0.1,
+        "profile_acceptance": "verified_joint_flow_iterate",
+        "column_state": {
+          "component_moles": [
+            20.02389181668392,
+            42.13329740136743
+          ],
+          "total_energy_j": -119826.73646818828,
+          "temperature_k": 319.160804266527,
+          "chemical_constants": [
+            1.1588952600452147,
+            1.845472713415232
+          ],
+          "interface_heights_m": [],
+          "phase_seeds": [
+            [
+              0.32202729009874115,
+              0.6779727099012588
+            ]
+          ],
+          "phase_roots": [
+            "stable"
+          ],
+          "quadrature_order": 8,
+          "solution_variables": [
+            13.814752469775495,
+            -0.744470742434591,
+            13.814589941187538,
+            -0.7443755318979115,
+            13.814320628856336,
+            -0.7442177668314093,
+            13.813980843149386,
+            -0.7440187183788252,
+            13.813616470104712,
+            -0.743805267032269,
+            13.813276715654641,
+            -0.7436062378423811,
+            13.813007449524317,
+            -0.7434485012481249,
+            13.812844957985295,
+            -0.7433533135436174,
+            1.1588952600452147,
+            1.845472713415232,
+            1.0704705828157874
+          ],
+          "model_id": "868f228cf2af18775202704c88bcc3dc2771882e0211bb4d49e85685668e483a"
+        },
+        "wall_temperature_k": 316.10720284436644,
+        "ambient_heat_j": -0.6107202844366442,
+        "fluid_heat_j": -0.6107202844321137,
+        "energy_residual_j": 8.691358743817628e-12,
+        "entropy_production_j_k": 5.665164835510321e-05,
+        "feed_energy_j": 646.9516745017087,
+        "outlet_energy_j": 646.3409542188961,
+        "feed_component_moles": [
+          0.3513675435053327,
+          0.739717582750033
+        ],
+        "outlet_component_moles": [
+          0.3513675435070151,
+          0.7397175827531893
+        ],
+        "quadrature_error_ratio": 1.1505101141827485e-05,
+        "phase_count": 1,
+        "outlets": [
+          {
+            "name": "export",
+            "opening": 1.0,
+            "volume_rate_m3_s": 0.027547078196950646,
+            "component_rates_mol_s": [
+              3.5136754350701507,
+              7.397175827531893
+            ],
+            "total_energy_rate_w": 6463.40954218896,
+            "phase_area_fractions": [
+              1.0000000000000002
+            ]
+          }
+        ]
+      },
+      "initial_inventory_change_mol": [
+        -10.695166033923009,
+        11.41423955076197
+      ],
+      "initial_energy_change_j": -2208.3929524208215
+    },
+    "reservoir_advanced": false,
+    "reservoir_stationary": false,
+    "receiver_stationary": true,
+    "initial_state": {
+      "column": {
+        "component_moles": [
+          30.719057850608614,
+          30.719057850608614
+        ],
+        "total_energy_j": -117618.34351576584,
+        "temperature_k": 320.00002325069767,
+        "chemical_constants": [
+          1.596773321177102,
+          1.5457225418656266
+        ],
+        "interface_heights_m": [],
+        "phase_seeds": [
+          [
+            0.499863641565038,
+            0.500136358434962
+          ]
+        ],
+        "phase_roots": [
+          "stable"
+        ],
+        "quadrature_order": 8,
+        "solution_variables": [
+          13.816359753532305,
+          -0.000545433753370071,
+          13.816215037678901,
+          -0.0004524621121194777,
+          13.815975241337961,
+          -0.0002984057935899493,
+          13.815672695370326,
+          -0.00010403457023996411,
+          13.815348256824938,
+          0.00010440359973217203,
+          13.815045738770685,
+          0.00029876065712505545,
+          13.814805983688588,
+          0.00045279603691389365,
+          13.814661300921053,
+          0.0005457508871836,
+          1.596773321177102,
+          1.5457225418656266,
+          1.0732853370809918
+        ],
+        "model_id": "868f228cf2af18775202704c88bcc3dc2771882e0211bb4d49e85685668e483a"
+      },
+      "wall_temperature_k": 320.00002325069767,
+      "time_s": 0.0,
+      "next_step_s": 0.02,
+      "model_id": "ef5757dbd67ab0c8dabc3a7dd0bf4ff69882d52004c80dbce8bbeecd5d64aa4f"
+    },
+    "state": {
+      "column": {
+        "component_moles": [
+          20.023891816685605,
+          42.133297401370584
+        ],
+        "total_energy_j": -119826.73646818666,
+        "temperature_k": 319.1608042665497,
+        "chemical_constants": [
+          1.1588952600459128,
+          1.845472713415593
+        ],
+        "interface_heights_m": [],
+        "phase_seeds": [
+          [
+            0.32202729009881476,
+            0.6779727099011853
+          ]
+        ],
+        "phase_roots": [
+          "stable"
+        ],
+        "quadrature_order": 8,
+        "solution_variables": [
+          13.814752469775454,
+          -0.744470742434254,
+          13.8145899411875,
+          -0.7443755318975744,
+          13.814320628856295,
+          -0.7442177668310721,
+          13.813980843149341,
+          -0.7440187183784865,
+          13.813616470104664,
+          -0.7438052670319296,
+          13.813276715654588,
+          -0.7436062378420398,
+          13.813007449524259,
+          -0.7434485012477814,
+          13.812844957985233,
+          -0.7433533135432732,
+          1.1588952600459128,
+          1.845472713415593,
+          1.0704705828158636
+        ],
+        "model_id": "868f228cf2af18775202704c88bcc3dc2771882e0211bb4d49e85685668e483a"
+      },
+      "wall_temperature_k": 316.10720284436644,
+      "time_s": 0.0,
+      "next_step_s": 0.02,
+      "model_id": "ef5757dbd67ab0c8dabc3a7dd0bf4ff69882d52004c80dbce8bbeecd5d64aa4f"
+    }
+  },
+  "runs": [
+    {
+      "subcycling": false,
+      "accepted": false,
+      "wall_s": 5.570914274001552,
+      "reservoir_calls": [
+        0.05,
+        0.05,
+        0.05,
+        0.025,
+        0.025,
+        0.025,
+        0.025,
+        0.025,
+        0.025
+      ],
+      "attempt": {
+        "success": false,
+        "reason": "Whole-system temporal error above tolerance: ratio=5.2626758",
+        "dt_s": 0.05,
+        "temporal_error_ratio": 5.2626758499559925
+      }
+    },
+    {
+      "subcycling": true,
+      "accepted": true,
+      "wall_s": 284.29785672599974,
+      "reservoir_calls": [
+        0.05,
+        0.05,
+        0.05,
+        0.05,
+        0.05,
+        0.05,
+        0.05,
+        0.025,
+        0.025,
+        0.025,
+        0.025,
+        0.025,
+        0.025,
+        0.025,
+        0.025,
+        0.025
+      ],
+      "attempt": {
+        "success": true
+      },
+      "report": {
+        "model": "dynamic_pr_receiver_fim_v1",
+        "model_id": "1a0d6e0c81833ce8313ab4e3e6cb9dbdf4966fe4e178d813235d49c7be20888a",
+        "state": {
+          "column": {
+            "component_moles": [
+              20.034714309649303,
+              42.15608143656663
+            ],
+            "total_energy_j": -119807.35662346194,
+            "temperature_k": 319.1991399501877,
+            "chemical_constants": [
+              1.1595401550840285,
+              1.8460988539752718
+            ],
+            "interface_heights_m": [],
+            "phase_seeds": [
+              [
+                0.3220272386131973,
+                0.6779727613868027
+              ]
+            ],
+            "phase_roots": [
+              "stable"
+            ],
+            "quadrature_order": 8,
+            "solution_variables": [
+              13.815398564768076,
+              -0.7444709782544812,
+              13.815236053347627,
+              -0.7443757755295272,
+              13.814966769463567,
+              -0.7442180234082313,
+              13.814627019648354,
+              -0.7440189912902269,
+              13.814262685093302,
+              -0.7438055574625775,
+              13.813922966532997,
+              -0.743606544610122,
+              13.8136537288469,
+              -0.7434488209652885,
+              13.813491254473046,
+              -0.7433536410758887,
+              1.1595401550840285,
+              1.8460988539752718,
+              1.0705991613288202
+            ],
+            "model_id": "868f228cf2af18775202704c88bcc3dc2771882e0211bb4d49e85685668e483a"
+          },
+          "wall_temperature_k": 316.10720514633016,
+          "time_s": 0.05,
+          "next_step_s": 0.0009374999999999488,
+          "model_id": "ef5757dbd67ab0c8dabc3a7dd0bf4ff69882d52004c80dbce8bbeecd5d64aa4f"
+        },
+        "initial_state": {
+          "column": {
+            "component_moles": [
+              20.023891816685605,
+              42.133297401370584
+            ],
+            "total_energy_j": -119826.73646818666,
+            "temperature_k": 319.1608042665497,
+            "chemical_constants": [
+              1.1588952600459128,
+              1.845472713415593
+            ],
+            "interface_heights_m": [],
+            "phase_seeds": [
+              [
+                0.32202729009881476,
+                0.6779727099011853
+              ]
+            ],
+            "phase_roots": [
+              "stable"
+            ],
+            "quadrature_order": 8,
+            "solution_variables": [
+              13.814752469775454,
+              -0.744470742434254,
+              13.8145899411875,
+              -0.7443755318975744,
+              13.814320628856295,
+              -0.7442177668310721,
+              13.813980843149341,
+              -0.7440187183784865,
+              13.813616470104664,
+              -0.7438052670319296,
+              13.813276715654588,
+              -0.7436062378420398,
+              13.813007449524259,
+              -0.7434485012477814,
+              13.812844957985233,
+              -0.7433533135432732,
+              1.1588952600459128,
+              1.845472713415593,
+              1.0704705828158636
+            ],
+            "model_id": "868f228cf2af18775202704c88bcc3dc2771882e0211bb4d49e85685668e483a"
+          },
+          "wall_temperature_k": 316.10720284436644,
+          "time_s": 0.0,
+          "next_step_s": 0.02,
+          "model_id": "ef5757dbd67ab0c8dabc3a7dd0bf4ff69882d52004c80dbce8bbeecd5d64aa4f"
+        },
+        "dt_s": 0.05,
+        "temporal_error_ratio": 0.036192561523280535,
+        "stages": [
+          {
+            "dt_s": 0.025,
+            "accepted_newton_iterations": 3,
+            "pressure_trials": [
+              {
+                "pressure_pa": 999604.333542329,
+                "receiver_pressure_pa": 999620.8789618969,
+                "pressure_defect_pa": 16.545419567846693,
+                "physical_trial": false
+              },
+              {
+                "pressure_pa": 999620.8817118021,
+                "receiver_pressure_pa": 999621.2922219633,
+                "pressure_defect_pa": 0.4105101611930877,
+                "physical_trial": false
+              },
+              {
+                "pressure_pa": 999653.9780507482,
+                "receiver_pressure_pa": 999669.6643765478,
+                "pressure_defect_pa": 15.68632579955738,
+                "physical_trial": false
+              },
+              {
+                "pressure_pa": 999720.1707286405,
+                "receiver_pressure_pa": 999686.2640499083,
+                "pressure_defect_pa": -33.90667873225175,
+                "physical_trial": true
+              },
+              {
+                "pressure_pa": 999687.0743896944,
+                "receiver_pressure_pa": 999686.3028692987,
+                "pressure_defect_pa": -0.7715203956468031,
+                "physical_trial": true
+              },
+              {
+                "pressure_pa": 999686.3056192205,
+                "receiver_pressure_pa": 999686.3037709184,
+                "pressure_defect_pa": -0.0018483020830899477,
+                "physical_trial": true
+              }
+            ],
+            "flow": {
+              "ambient_heat_j": -0.15268007766836403,
+              "feed_energy_j": 161.71046788637003,
+              "outlet_energy_j": 149.24656078178086,
+              "energy_residual_j": 3.2596858545730356e-10,
+              "entropy_production_j_k": 0.00039245517022927067,
+              "dt_s": 0.025,
+              "column_state": {
+                "component_moles": [
+                  20.030669147112786,
+                  42.14756538188269
+                ],
+                "total_energy_j": -119814.42592638455,
+                "temperature_k": 319.18488742314,
+                "chemical_constants": [
+                  1.1592994155364116,
+                  1.8458651466134246
+                ],
+                "interface_heights_m": [],
+                "phase_seeds": [
+                  [
+                    0.32202725779660696,
+                    0.677972742203393
+                  ]
+                ],
+                "phase_roots": [
+                  "stable"
+                ],
+                "quadrature_order": 8,
+                "solution_variables": [
+                  13.815157370175127,
+                  -0.744470890388464,
+                  13.81499485238111,
+                  -0.7443756847711729,
+                  13.814725557935827,
+                  -0.7442179278568322,
+                  13.81438579479552,
+                  -0.7440188896908325,
+                  13.81402144595088,
+                  -0.743805449376667,
+                  13.813681714066192,
+                  -0.7436064304751305,
+                  13.813412465819926,
+                  -0.7434487020356478,
+                  13.813249985073352,
+                  -0.7433535192526239,
+                  1.1592994155364116,
+                  1.8458651466134246,
+                  1.0705513581188666
+                ],
+                "model_id": "868f228cf2af18775202704c88bcc3dc2771882e0211bb4d49e85685668e483a"
+              },
+              "wall_temperature_k": 316.1072035295916,
+              "surface_steps": [
+                {
+                  "dt_s": 0.00125,
+                  "profile_acceptance": "verified_joint_flow_iterate",
+                  "column_state": {
+                    "component_moles": [
+                      20.024319441521442,
+                      42.13419765975836
+                    ],
+                    "total_energy_j": -119825.95109545233,
+                    "temperature_k": 319.16232782299767,
+                    "chemical_constants": [
+                      1.158920778364862,
+                      1.8454974932124246
+                    ],
+                    "interface_heights_m": [],
+                    "phase_seeds": [
+                      [
+                        0.3220272880572804,
+                        0.6779727119427196
+                      ]
+                    ],
+                    "phase_roots": [
+                      "stable"
+                    ],
+                    "quadrature_order": 8,
+                    "solution_variables": [
+                      13.814778034771473,
+                      -0.7444707517851192,
+                      13.81461550686685,
+                      -0.7443755415602742,
+                      13.814346195667953,
+                      -0.7442177770105283,
+                      13.814006411389633,
+                      -0.7440187292099983,
+                      13.813642039876996,
+                      -0.7438052785627718,
+                      13.813302286855473,
+                      -0.743606250025049,
+                      13.813033021857336,
+                      -0.7434485139477125,
+                      13.812870531001552,
+                      -0.7433533265551716,
+                      1.158920778364862,
+                      1.8454974932124246,
+                      1.0704756928492292
+                    ],
+                    "model_id": "868f228cf2af18775202704c88bcc3dc2771882e0211bb4d49e85685668e483a"
+                  },
+                  "wall_temperature_k": 316.10720284817535,
+                  "ambient_heat_j": -0.007634003560219185,
+                  "fluid_heat_j": -0.0076378124370558,
+                  "energy_residual_j": 2.7296720439551336e-11,
+                  "entropy_production_j_k": 4.1729150810443025e-05,
+                  "feed_energy_j": 8.085523394318502,
+                  "outlet_energy_j": 7.292512847546853,
+                  "feed_component_moles": [
+                    0.004391590987847502,
+                    0.009245410186848326
+                  ],
+                  "outlet_component_moles": [
+                    0.0039639661520112545,
+                    0.008345151799077778
+                  ],
+                  "quadrature_error_ratio": 1.652213294162668e-05,
+                  "phase_count": 1,
+                  "outlets": [
+                    {
+                      "name": "export",
+                      "opening": 0.9,
+                      "volume_rate_m3_s": 0.02486134098924682,
+                      "component_rates_mol_s": [
+                        3.1711729216090037,
+                        6.676121439262222
+                      ],
+                      "total_energy_rate_w": 5834.010278037482,
+                      "phase_area_fractions": [
+                        1.0000000000000002
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "dt_s": 0.00125,
+                  "profile_acceptance": "verified_joint_flow_iterate",
+                  "column_state": {
+                    "component_moles": [
+                      20.024736265023442,
+                      42.13507517852802
+                    ],
+                    "total_energy_j": -119825.18637257189,
+                    "temperature_k": 319.16381250384194,
+                    "chemical_constants": [
+                      1.1589456502872137,
+                      1.845521645161139
+                    ],
+                    "interface_heights_m": [],
+                    "phase_seeds": [
+                      [
+                        0.3220272860677122,
+                        0.6779727139322879
+                      ]
+                    ],
+                    "phase_roots": [
+                      "stable"
+                    ],
+                    "quadrature_order": 8,
+                    "solution_variables": [
+                      13.814802952221882,
+                      -0.7444707608979636,
+                      13.814640424983109,
+                      -0.7443755509769353,
+                      13.814371114887546,
+                      -0.7442177869306583,
+                      13.8140313320013,
+                      -0.7440187397654165,
+                      13.813666961981495,
+                      -0.7438052897995385,
+                      13.81332721035197,
+                      -0.7436062618972118,
+                      13.81305794645705,
+                      -0.7434485263235047,
+                      13.812895456267023,
+                      -0.743353339234908,
+                      1.1589456502872137,
+                      1.845521645161139,
+                      1.0704806724931812
+                    ],
+                    "model_id": "868f228cf2af18775202704c88bcc3dc2771882e0211bb4d49e85685668e483a"
+                  },
+                  "wall_temperature_k": 316.10720285569596,
+                  "ambient_heat_j": -0.00763400356961995,
+                  "fluid_heat_j": -0.007641524120364949,
+                  "energy_residual_j": 6.606737379399874e-11,
+                  "entropy_production_j_k": 3.903713039143768e-05,
+                  "feed_energy_j": 8.085523394318502,
+                  "outlet_energy_j": 7.313158989761564,
+                  "feed_component_moles": [
+                    0.004391590987847502,
+                    0.009245410186848326
+                  ],
+                  "outlet_component_moles": [
+                    0.003974767485847986,
+                    0.008367891417182787
+                  ],
+                  "quadrature_error_ratio": 1.641872393417461e-05,
+                  "phase_count": 1,
+                  "outlets": [
+                    {
+                      "name": "export",
+                      "opening": 0.9,
+                      "volume_rate_m3_s": 0.0249285663148735,
+                      "component_rates_mol_s": [
+                        3.1798139886783883,
+                        6.694313133746229
+                      ],
+                      "total_energy_rate_w": 5850.527191809251,
+                      "phase_area_fractions": [
+                        1.0000000000000002
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "dt_s": 0.00125,
+                  "profile_acceptance": "verified_joint_flow_iterate",
+                  "column_state": {
+                    "component_moles": [
+                      20.02514256009663,
+                      42.135930532215276
+                    ],
+                    "total_energy_j": -119824.4417816365,
+                    "temperature_k": 319.1652592925949,
+                    "chemical_constants": [
+                      1.158969892170775,
+                      1.8455451851508697
+                    ],
+                    "interface_heights_m": [],
+                    "phase_seeds": [
+                      [
+                        0.32202728412872783,
+                        0.6779727158712722
+                      ]
+                    ],
+                    "phase_roots": [
+                      "stable"
+                    ],
+                    "quadrature_order": 8,
+                    "solution_variables": [
+                      13.814827238514342,
+                      -0.7444707697791177,
+                      13.814664711924376,
+                      -0.7443755601540911,
+                      13.814395402903909,
+                      -0.7442177965983333,
+                      13.81405562137411,
+                      -0.7440187500520395,
+                      13.81369125280893,
+                      -0.7438053007499836,
+                      13.813351502535774,
+                      -0.7436062734667102,
+                      13.813082239715838,
+                      -0.7434485383836767,
+                      13.812919750174526,
+                      -0.7433533515912071,
+                      1.158969892170775,
+                      1.8455451851508697,
+                      1.070485525046436
+                    ],
+                    "model_id": "868f228cf2af18775202704c88bcc3dc2771882e0211bb4d49e85685668e483a"
+                  },
+                  "wall_temperature_k": 316.10720286683346,
+                  "ambient_heat_j": -0.007634003583541826,
+                  "fluid_heat_j": -0.007645141064403589,
+                  "energy_residual_j": 2.6233459848867824e-11,
+                  "entropy_production_j_k": 3.641310778363695e-05,
+                  "feed_energy_j": 8.085523394318502,
+                  "outlet_energy_j": 7.333287317874984,
+                  "feed_component_moles": [
+                    0.004391590987847502,
+                    0.009245410186848326
+                  ],
+                  "outlet_component_moles": [
+                    0.003985295914659173,
+                    0.008390056499593599
+                  ],
+                  "quadrature_error_ratio": 1.6438468022121415e-05,
+                  "phase_count": 1,
+                  "outlets": [
+                    {
+                      "name": "export",
+                      "opening": 0.9,
+                      "volume_rate_m3_s": 0.02499409043772466,
+                      "component_rates_mol_s": [
+                        3.188236731727338,
+                        6.712045199674879
+                      ],
+                      "total_energy_rate_w": 5866.629854299987,
+                      "phase_area_fractions": [
+                        1.0000000000000002
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "dt_s": 0.00125,
+                  "profile_acceptance": "verified_joint_flow_iterate",
+                  "column_state": {
+                    "component_moles": [
+                      20.025538592773653,
+                      42.136764280887704
+                    ],
+                    "total_energy_j": -119823.71681757759,
+                    "temperature_k": 319.1666691479498,
+                    "chemical_constants": [
+                      1.1589935199606458,
+                      1.8455681286695498
+                    ],
+                    "interface_heights_m": [],
+                    "phase_seeds": [
+                      [
+                        0.3220272822390472,
+                        0.6779727177609528
+                      ]
+                    ],
+                    "phase_roots": [
+                      "stable"
+                    ],
+                    "quadrature_order": 8,
+                    "solution_variables": [
+                      13.814850909622347,
+                      -0.7444707784344458,
+                      13.814688383664578,
+                      -0.7443755690978043,
+                      13.814419075691681,
+                      -0.7442178060199439,
+                      13.814079295483602,
+                      -0.7440187600766703,
+                      13.81371492833581,
+                      -0.7438053114213554,
+                      13.813375179384298,
+                      -0.7436062847412054,
+                      13.813105917611823,
+                      -0.7434485501362207,
+                      13.81294342870262,
+                      -0.7433533636322569,
+                      1.1589935199606458,
+                      1.8455681286695498,
+                      1.070490253724467
+                    ],
+                    "model_id": "868f228cf2af18775202704c88bcc3dc2771882e0211bb4d49e85685668e483a"
+                  },
+                  "wall_temperature_k": 316.10720288149554,
+                  "ambient_heat_j": -0.0076340036018694235,
+                  "fluid_heat_j": -0.007648665666135628,
+                  "energy_residual_j": 7.042366689802293e-12,
+                  "entropy_production_j_k": 3.385572190489454e-05,
+                  "feed_energy_j": 8.085523394318502,
+                  "outlet_energy_j": 7.352910669731561,
+                  "feed_component_moles": [
+                    0.004391590987847502,
+                    0.009245410186848326
+                  ],
+                  "outlet_component_moles": [
+                    0.003995558310822199,
+                    0.008411661514422828
+                  ],
+                  "quadrature_error_ratio": 1.6424359532286833e-05,
+                  "phase_count": 1,
+                  "outlets": [
+                    {
+                      "name": "export",
+                      "opening": 0.9,
+                      "volume_rate_m3_s": 0.025057956331613736,
+                      "component_rates_mol_s": [
+                        3.1964466486577594,
+                        6.729329211538262
+                      ],
+                      "total_energy_rate_w": 5882.328535785249,
+                      "phase_area_fractions": [
+                        1.0000000000000002
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "dt_s": 0.00125,
+                  "profile_acceptance": "verified_joint_flow_iterate",
+                  "column_state": {
+                    "component_moles": [
+                      20.025924622386704,
+                      42.1375769705067
+                    ],
+                    "total_energy_j": -119823.0109878557,
+                    "temperature_k": 319.1680430043963,
+                    "chemical_constants": [
+                      1.159016549199072,
+                      1.8455904908137903
+                    ],
+                    "interface_heights_m": [],
+                    "phase_seeds": [
+                      [
+                        0.3220272803974219,
+                        0.6779727196025781
+                      ]
+                    ],
+                    "phase_roots": [
+                      "stable"
+                    ],
+                    "quadrature_order": 8,
+                    "solution_variables": [
+                      13.814873981115815,
+                      -0.7444707868696653,
+                      13.814711455774054,
+                      -0.7443755778139851,
+                      13.814442148821902,
+                      -0.7442178152017181,
+                      13.814102369901693,
+                      -0.7440187698459425,
+                      13.813738004134988,
+                      -0.7438053218207197,
+                      13.813398256471277,
+                      -0.7436062957281663,
+                      13.81312899571944,
+                      -0.7434485615889239,
+                      13.81296650742616,
+                      -0.7433533753660402,
+                      1.159016549199072,
+                      1.8455904908137903,
+                      1.0704948616615673
+                    ],
+                    "model_id": "868f228cf2af18775202704c88bcc3dc2771882e0211bb4d49e85685668e483a"
+                  },
+                  "wall_temperature_k": 316.10720289959215,
+                  "ambient_heat_j": -0.007634003624490191,
+                  "fluid_heat_j": -0.007652100262010322,
+                  "energy_residual_j": -1.958389006517791e-11,
+                  "entropy_production_j_k": 3.136328139313402e-05,
+                  "feed_energy_j": 8.085523394318502,
+                  "outlet_energy_j": 7.372041572170401,
+                  "feed_component_moles": [
+                    0.004391590987847502,
+                    0.009245410186848326
+                  ],
+                  "outlet_component_moles": [
+                    0.004005561374797397,
+                    0.008432720567854738
+                  ],
+                  "quadrature_error_ratio": 1.6358064879171786e-05,
+                  "phase_count": 1,
+                  "outlets": [
+                    {
+                      "name": "export",
+                      "opening": 0.9,
+                      "volume_rate_m3_s": 0.025120205888629822,
+                      "component_rates_mol_s": [
+                        3.204449099837917,
+                        6.746176454283791
+                      ],
+                      "total_energy_rate_w": 5897.633257736321,
+                      "phase_area_fractions": [
+                        1.0000000000000002
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "dt_s": 0.00125,
+                  "profile_acceptance": "verified_joint_flow_iterate",
+                  "column_state": {
+                    "component_moles": [
+                      20.026300901735176,
+                      42.13836913328046
+                    ],
+                    "total_energy_j": -119822.32381215671,
+                    "temperature_k": 319.1693817728282,
+                    "chemical_constants": [
+                      1.1590389950355902,
+                      1.8456122862987359
+                    ],
+                    "interface_heights_m": [],
+                    "phase_seeds": [
+                      [
+                        0.3220272786026355,
+                        0.6779727213973645
+                      ]
+                    ],
+                    "phase_roots": [
+                      "stable"
+                    ],
+                    "quadrature_order": 8,
+                    "solution_variables": [
+                      13.81489646817125,
+                      -0.744470795090348,
+                      13.814733943429715,
+                      -0.7443755863083928,
+                      13.814464637472161,
+                      -0.7442178241497295,
+                      13.814124859806833,
+                      -0.7440187793663202,
+                      13.813760495385841,
+                      -0.7438053319549613,
+                      13.81342074897694,
+                      -0.7436063064348729,
+                      13.813151489219596,
+                      -0.7434485727493785,
+                      13.812989001526459,
+                      -0.7433533868003355,
+                      1.1590389950355902,
+                      1.8456122862987359,
+                      1.0704993519128903
+                    ],
+                    "model_id": "868f228cf2af18775202704c88bcc3dc2771882e0211bb4d49e85685668e483a"
+                  },
+                  "wall_temperature_k": 316.10720292103565,
+                  "ambient_heat_j": -0.007634003651294563,
+                  "fluid_heat_j": -0.007655447129481416,
+                  "energy_residual_j": 1.2195466858599957e-11,
+                  "entropy_production_j_k": 2.89341313287738e-05,
+                  "feed_energy_j": 8.085523394318502,
+                  "outlet_energy_j": 7.390692248195947,
+                  "feed_component_moles": [
+                    0.004391590987847502,
+                    0.009245410186848326
+                  ],
+                  "outlet_component_moles": [
+                    0.004015311639374654,
+                    0.008453247413085348
+                  ],
+                  "quadrature_error_ratio": 1.6251623801887167e-05,
+                  "phase_count": 1,
+                  "outlets": [
+                    {
+                      "name": "export",
+                      "opening": 0.9,
+                      "volume_rate_m3_s": 0.02518087994619577,
+                      "component_rates_mol_s": [
+                        3.212249311499723,
+                        6.762597930468278
+                      ],
+                      "total_energy_rate_w": 5912.553798556757,
+                      "phase_area_fractions": [
+                        1.0000000000000002
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "dt_s": 0.00125,
+                  "profile_acceptance": "verified_joint_flow_iterate",
+                  "column_state": {
+                    "component_moles": [
+                      20.02666767724921,
+                      42.139141288008275
+                    ],
+                    "total_energy_j": -119821.65482209488,
+                    "temperature_k": 319.17068634113747,
+                    "chemical_constants": [
+                      1.159060872236916,
+                      1.8456335294676702
+                    ],
+                    "interface_heights_m": [],
+                    "phase_seeds": [
+                      [
+                        0.3220272768535023,
+                        0.6779727231464978
+                      ]
+                    ],
+                    "phase_roots": [
+                      "stable"
+                    ],
+                    "quadrature_order": 8,
+                    "solution_variables": [
+                      13.814918385581652,
+                      -0.744470803101925,
+                      13.814755861424965,
+                      -0.7443755945866422,
+                      13.814486556436522,
+                      -0.744217832869895,
+                      13.814146779993921,
+                      -0.7440187886441053,
+                      13.813782416884157,
+                      -0.7438053418307948,
+                      13.813442671697915,
+                      -0.7436063168684209,
+                      13.813173412909581,
+                      -0.7434485836249831,
+                      13.81301092580121,
+                      -0.7433533979427253,
+                      1.159060872236916,
+                      1.8456335294676702,
+                      1.0705037274564397
+                    ],
+                    "model_id": "868f228cf2af18775202704c88bcc3dc2771882e0211bb4d49e85685668e483a"
+                  },
+                  "wall_temperature_k": 316.1072029457405,
+                  "ambient_heat_j": -0.007634003682175603,
+                  "fluid_heat_j": -0.007658708488492465,
+                  "energy_residual_j": 2.3192670006721983e-11,
+                  "entropy_production_j_k": 2.65666609189745e-05,
+                  "feed_energy_j": 8.085523394318502,
+                  "outlet_energy_j": 7.408874623990894,
+                  "feed_component_moles": [
+                    0.004391590987847502,
+                    0.009245410186848326
+                  ],
+                  "outlet_component_moles": [
+                    0.00402481547381133,
+                    0.008473255459033699
+                  ],
+                  "quadrature_error_ratio": 1.626827978907454e-05,
+                  "phase_count": 1,
+                  "outlets": [
+                    {
+                      "name": "export",
+                      "opening": 0.9,
+                      "volume_rate_m3_s": 0.025240018313417666,
+                      "component_rates_mol_s": [
+                        3.2198523790490636,
+                        6.77860436722696
+                      ],
+                      "total_energy_rate_w": 5927.099699192715,
+                      "phase_area_fractions": [
+                        1.0000000000000002
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "dt_s": 0.00125,
+                  "profile_acceptance": "verified_joint_flow_iterate",
+                  "column_state": {
+                    "component_moles": [
+                      20.02702518914918,
+                      42.139893940416265
+                    ],
+                    "total_energy_j": -119821.00356092285,
+                    "temperature_k": 319.1719575747927,
+                    "chemical_constants": [
+                      1.1590821951965884,
+                      1.8456542343013858
+                    ],
+                    "interface_heights_m": [],
+                    "phase_seeds": [
+                      [
+                        0.3220272751488664,
+                        0.6779727248511337
+                      ]
+                    ],
+                    "phase_roots": [
+                      "stable"
+                    ],
+                    "quadrature_order": 8,
+                    "solution_variables": [
+                      13.814939747766179,
+                      -0.7444708109096901,
+                      13.814777224179348,
+                      -0.7443756026542062,
+                      13.814507920135176,
+                      -0.7442178413679833,
+                      13.814168144883961,
+                      -0.7440187976854395,
+                      13.813803783051817,
+                      -0.7438053514547616,
+                      13.813464039056894,
+                      -0.7436063270357266,
+                      13.813194781212731,
+                      -0.7434485942229506,
+                      13.813032294674137,
+                      -0.7433534088006017,
+                      1.1590821951965884,
+                      1.8456542343013858,
+                      1.0705079911950117
+                    ],
+                    "model_id": "868f228cf2af18775202704c88bcc3dc2771882e0211bb4d49e85685668e483a"
+                  },
+                  "wall_temperature_k": 316.1072029736233,
+                  "ambient_heat_j": -0.007634003717029146,
+                  "fluid_heat_j": -0.007661886502923494,
+                  "energy_residual_j": 5.3308912839611367e-11,
+                  "entropy_production_j_k": 2.4259303996443035e-05,
+                  "feed_energy_j": 8.085523394318502,
+                  "outlet_energy_j": 7.4266003357964285,
+                  "feed_component_moles": [
+                    0.004391590987847502,
+                    0.009245410186848326
+                  ],
+                  "outlet_component_moles": [
+                    0.00403407908787686,
+                    0.008492757778856766
+                  ],
+                  "quadrature_error_ratio": 1.6172879892099418e-05,
+                  "phase_count": 1,
+                  "outlets": [
+                    {
+                      "name": "export",
+                      "opening": 0.9,
+                      "volume_rate_m3_s": 0.025297659796822945,
+                      "component_rates_mol_s": [
+                        3.2272632703014876,
+                        6.794206223085412
+                      ],
+                      "total_energy_rate_w": 5941.280268637142,
+                      "phase_area_fractions": [
+                        1.0000000000000002
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "dt_s": 0.00125,
+                  "profile_acceptance": "verified_joint_flow_iterate",
+                  "column_state": {
+                    "component_moles": [
+                      20.027373671601232,
+                      42.140627583484864
+                    ],
+                    "total_energy_j": -119820.36958324845,
+                    "temperature_k": 319.17319631740315,
+                    "chemical_constants": [
+                      1.1591029779443713,
+                      1.845674414427316
+                    ],
+                    "interface_heights_m": [],
+                    "phase_seeds": [
+                      [
+                        0.32202727348760124,
+                        0.6779727265123988
+                      ]
+                    ],
+                    "phase_roots": [
+                      "stable"
+                    ],
+                    "quadrature_order": 8,
+                    "solution_variables": [
+                      13.814960568779558,
+                      -0.7444708185188039,
+                      13.814798045747972,
+                      -0.7443756105164179,
+                      13.814528742623862,
+                      -0.7442178496496172,
+                      13.814188968533484,
+                      -0.7440188064963096,
+                      13.8138246079462,
+                      -0.7438053608332389,
+                      13.813484865112052,
+                      -0.7436063369435307,
+                      13.813215608187855,
+                      -0.7434486045503108,
+                      13.81305312220443,
+                      -0.7433534193811684,
+                      1.1591029779443713,
+                      1.845674414427316,
+                      1.0705121459580855
+                    ],
+                    "model_id": "868f228cf2af18775202704c88bcc3dc2771882e0211bb4d49e85685668e483a"
+                  },
+                  "wall_temperature_k": 316.1072030046028,
+                  "ambient_heat_j": -0.007634003755753511,
+                  "fluid_heat_j": -0.007664983282000861,
+                  "energy_residual_j": -2.956046518676203e-11,
+                  "entropy_production_j_k": 2.201053121235301e-05,
+                  "feed_energy_j": 8.085523394318502,
+                  "outlet_energy_j": 7.443880736641518,
+                  "feed_component_moles": [
+                    0.004391590987847502,
+                    0.009245410186848326
+                  ],
+                  "outlet_component_moles": [
+                    0.004043108535795453,
+                    0.008511767118249738
+                  ],
+                  "quadrature_error_ratio": 1.6227542978523328e-05,
+                  "phase_count": 1,
+                  "outlets": [
+                    {
+                      "name": "export",
+                      "opening": 0.9,
+                      "volume_rate_m3_s": 0.025353842225434884,
+                      "component_rates_mol_s": [
+                        3.2344868286363626,
+                        6.80941369459979
+                      ],
+                      "total_energy_rate_w": 5955.104589313214,
+                      "phase_area_fractions": [
+                        1.0000000000000002
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "dt_s": 0.00125,
+                  "profile_acceptance": "verified_joint_flow_iterate",
+                  "column_state": {
+                    "component_moles": [
+                      20.027713352868986,
+                      42.14134269776816
+                    ],
+                    "total_energy_j": -119819.75245475795,
+                    "temperature_k": 319.17440339126887,
+                    "chemical_constants": [
+                      1.1591232341554172,
+                      1.8456940831284387
+                    ],
+                    "interface_heights_m": [],
+                    "phase_seeds": [
+                      [
+                        0.32202727186860874,
+                        0.6779727281313912
+                      ]
+                    ],
+                    "phase_roots": [
+                      "stable"
+                    ],
+                    "quadrature_order": 8,
+                    "solution_variables": [
+                      13.814980862321274,
+                      -0.7444708259342956,
+                      13.814818339830692,
+                      -0.7443756181784782,
+                      13.814549037603044,
+                      -0.7442178577202782,
+                      13.814209264643734,
+                      -0.7440188150825516,
+                      13.813844905269383,
+                      -0.7438053699724434,
+                      13.813505163566237,
+                      -0.7436063465984051,
+                      13.813235907538408,
+                      -0.743448614613917,
+                      13.813073422095913,
+                      -0.7433534296914471,
+                      1.1591232341554172,
+                      1.8456940831284387,
+                      1.070516194503669
+                    ],
+                    "model_id": "868f228cf2af18775202704c88bcc3dc2771882e0211bb4d49e85685668e483a"
+                  },
+                  "wall_temperature_k": 316.10720303859995,
+                  "ambient_heat_j": -0.007634003798249935,
+                  "fluid_heat_j": -0.007668000881672299,
+                  "energy_residual_j": 5.451117335297795e-11,
+                  "entropy_production_j_k": 1.981885214804094e-05,
+                  "feed_energy_j": 8.085523394318502,
+                  "outlet_energy_j": 7.460726902935983,
+                  "feed_component_moles": [
+                    0.004391590987847502,
+                    0.009245410186848326
+                  ],
+                  "outlet_component_moles": [
+                    0.004051909720095504,
+                    0.00853029590354998
+                  ],
+                  "quadrature_error_ratio": 1.6166004467324206e-05,
+                  "phase_count": 1,
+                  "outlets": [
+                    {
+                      "name": "export",
+                      "opening": 0.9,
+                      "volume_rate_m3_s": 0.025408602475239003,
+                      "component_rates_mol_s": [
+                        3.241527776076403,
+                        6.824236722839983
+                      ],
+                      "total_energy_rate_w": 5968.581522348786,
+                      "phase_area_fractions": [
+                        1.0000000000000002
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "dt_s": 0.00125,
+                  "profile_acceptance": "verified_joint_flow_iterate",
+                  "column_state": {
+                    "component_moles": [
+                      20.028044455461465,
+                      42.14203975170536
+                    ],
+                    "total_energy_j": -119819.15175194587,
+                    "temperature_k": 319.175579597917,
+                    "chemical_constants": [
+                      1.1591429771592063,
+                      1.8457132533519582
+                    ],
+                    "interface_heights_m": [],
+                    "phase_seeds": [
+                      [
+                        0.32202727029081873,
+                        0.6779727297091812
+                      ]
+                    ],
+                    "phase_roots": [
+                      "stable"
+                    ],
+                    "quadrature_order": 8,
+                    "solution_variables": [
+                      13.81500064174452,
+                      -0.7444708331610672,
+                      13.814838119781063,
+                      -0.7443756256454535,
+                      13.814568818426878,
+                      -0.7442178655853061,
+                      13.814229046569613,
+                      -0.7440188234498524,
+                      13.813864688377075,
+                      -0.7438053788784327,
+                      13.813524947775912,
+                      -0.7436063560067537,
+                      13.813255692621455,
+                      -0.743448624420446,
+                      13.813093207706013,
+                      -0.7433534397382826,
+                      1.1591429771592063,
+                      1.8457132533519582,
+                      1.0705201395200974
+                    ],
+                    "model_id": "868f228cf2af18775202704c88bcc3dc2771882e0211bb4d49e85685668e483a"
+                  },
+                  "wall_temperature_k": 316.10720307553737,
+                  "ambient_heat_j": -0.007634003844421713,
+                  "fluid_heat_j": -0.007670941305949129,
+                  "energy_residual_j": -4.5651371571864274e-11,
+                  "entropy_production_j_k": 1.7682817272405768e-05,
+                  "feed_energy_j": 8.085523394318502,
+                  "outlet_energy_j": 7.477149640926147,
+                  "feed_component_moles": [
+                    0.004391590987847502,
+                    0.009245410186848326
+                  ],
+                  "outlet_component_moles": [
+                    0.0040604883953665755,
+                    0.008548356249646378
+                  ],
+                  "quadrature_error_ratio": 1.612912271959177e-05,
+                  "phase_count": 1,
+                  "outlets": [
+                    {
+                      "name": "export",
+                      "opening": 0.9,
+                      "volume_rate_m3_s": 0.025461976493047905,
+                      "component_rates_mol_s": [
+                        3.2483907162932604,
+                        6.838684999717103
+                      ],
+                      "total_energy_rate_w": 5981.719712740917,
+                      "phase_area_fractions": [
+                        1.0000000000000002
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "dt_s": 0.00125,
+                  "profile_acceptance": "verified_joint_flow_iterate",
+                  "column_state": {
+                    "component_moles": [
+                      20.02836719627739,
+                      42.142719201924514
+                    ],
+                    "total_energy_j": -119818.56706185108,
+                    "temperature_k": 319.1767257186248,
+                    "chemical_constants": [
+                      1.1591622199482559,
+                      1.845731937717768
+                    ],
+                    "interface_heights_m": [],
+                    "phase_seeds": [
+                      [
+                        0.3220272687531876,
+                        0.6779727312468123
+                      ]
+                    ],
+                    "phase_roots": [
+                      "stable"
+                    ],
+                    "quadrature_order": 8,
+                    "solution_variables": [
+                      13.815019920064929,
+                      -0.7444708402038984,
+                      13.814857398615068,
+                      -0.7443756329222844,
+                      13.814588098111926,
+                      -0.7442178732499098,
+                      13.814248327328423,
+                      -0.7440188316037569,
+                      13.813883970287366,
+                      -0.7438053875571142,
+                      13.813544230759906,
+                      -0.7436063651748201,
+                      13.813274976456405,
+                      -0.7434486339764098,
+                      13.813112492054485,
+                      -0.7433534495283463,
+                      1.1591622199482559,
+                      1.845731937717768,
+                      1.0705239836277876
+                    ],
+                    "model_id": "868f228cf2af18775202704c88bcc3dc2771882e0211bb4d49e85685668e483a"
+                  },
+                  "wall_temperature_k": 316.10720311534,
+                  "ambient_heat_j": -0.007634003894174981,
+                  "fluid_heat_j": -0.007673806508212096,
+                  "energy_residual_j": -3.3855140912919524e-12,
+                  "entropy_production_j_k": 1.560100871980316e-05,
+                  "feed_energy_j": 8.085523394318502,
+                  "outlet_energy_j": 7.493159493011907,
+                  "feed_component_moles": [
+                    0.004391590987847502,
+                    0.009245410186848326
+                  ],
+                  "outlet_component_moles": [
+                    0.00406885017192406,
+                    0.00856595996769435
+                  ],
+                  "quadrature_error_ratio": 1.6102067719674377e-05,
+                  "phase_count": 1,
+                  "outlets": [
+                    {
+                      "name": "export",
+                      "opening": 0.9,
+                      "volume_rate_m3_s": 0.02551399931976646,
+                      "component_rates_mol_s": [
+                        3.2550801375392475,
+                        6.85276797415548
+                      ],
+                      "total_energy_rate_w": 5994.527594409526,
+                      "phase_area_fractions": [
+                        1.0000000000000002
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "dt_s": 0.00125,
+                  "profile_acceptance": "verified_joint_flow_iterate",
+                  "column_state": {
+                    "component_moles": [
+                      20.02868178674585,
+                      42.14338149353871
+                    ],
+                    "total_energy_j": -119817.99798179908,
+                    "temperature_k": 319.17784251492947,
+                    "chemical_constants": [
+                      1.1591809751866184,
+                      1.845750148526704
+                    ],
+                    "interface_heights_m": [],
+                    "phase_seeds": [
+                      [
+                        0.3220272672546988,
+                        0.6779727327453012
+                      ]
+                    ],
+                    "phase_roots": [
+                      "stable"
+                    ],
+                    "quadrature_order": 8,
+                    "solution_variables": [
+                      13.815038709969075,
+                      -0.7444708470674457,
+                      13.814876189019623,
+                      -0.7443756400137851,
+                      13.814606889345676,
+                      -0.7442178807191637,
+                      13.814267119608365,
+                      -0.7440188395496683,
+                      13.813902763689226,
+                      -0.7438053960142428,
+                      13.813563025207902,
+                      -0.7436063741086888,
+                      13.813293771733509,
+                      -0.7434486432881533,
+                      13.81313128783193,
+                      -0.7433534590681409,
+                      1.1591809751866184,
+                      1.845750148526704,
+                      1.0705277293809474
+                    ],
+                    "model_id": "868f228cf2af18775202704c88bcc3dc2771882e0211bb4d49e85685668e483a"
+                  },
+                  "wall_temperature_k": 316.1072031579344,
+                  "ambient_heat_j": -0.007634003947418009,
+                  "fluid_heat_j": -0.007676598392487648,
+                  "energy_residual_j": -1.881728106667424e-11,
+                  "entropy_production_j_k": 1.3572051780113073e-05,
+                  "feed_energy_j": 8.085523394318502,
+                  "outlet_energy_j": 7.508766743934939,
+                  "feed_component_moles": [
+                    0.004391590987847502,
+                    0.009245410186848326
+                  ],
+                  "outlet_component_moles": [
+                    0.004077000519387864,
+                    0.008583118572649822
+                  ],
+                  "quadrature_error_ratio": 1.6068584406312398e-05,
+                  "phase_count": 1,
+                  "outlets": [
+                    {
+                      "name": "export",
+                      "opening": 0.9,
+                      "volume_rate_m3_s": 0.025564705113098395,
+                      "component_rates_mol_s": [
+                        3.2616004155102916,
+                        6.866494858119857
+                      ],
+                      "total_energy_rate_w": 6007.013395147951,
+                      "phase_area_fractions": [
+                        1.0000000000000002
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "dt_s": 0.00125,
+                  "profile_acceptance": "verified_joint_flow_iterate",
+                  "column_state": {
+                    "component_moles": [
+                      20.028988432963526,
+                      42.144027060434944
+                    ],
+                    "total_energy_j": -119817.4441191504,
+                    "temperature_k": 319.178930729125,
+                    "chemical_constants": [
+                      1.1591992552181598,
+                      1.8457678977685874
+                    ],
+                    "interface_heights_m": [],
+                    "phase_seeds": [
+                      [
+                        0.3220272657943611,
+                        0.6779727342056389
+                      ]
+                    ],
+                    "phase_roots": [
+                      "stable"
+                    ],
+                    "quadrature_order": 8,
+                    "solution_variables": [
+                      13.815057023822778,
+                      -0.744470853756249,
+                      13.814894503360883,
+                      -0.7443756469246485,
+                      13.814625204494833,
+                      -0.7442178879980142,
+                      13.814285435776846,
+                      -0.7440188472928545,
+                      13.813921080950811,
+                      -0.7438054042554291,
+                      13.813581343488753,
+                      -0.7436063828142901,
+                      13.813312090822174,
+                      -0.7434486523618608,
+                      13.813149607408084,
+                      -0.7433534683640036,
+                      1.1591992552181598,
+                      1.8457678977685874,
+                      1.0705313792692437
+                    ],
+                    "model_id": "868f228cf2af18775202704c88bcc3dc2771882e0211bb4d49e85685668e483a"
+                  },
+                  "wall_temperature_k": 316.10720320324924,
+                  "ambient_heat_j": -0.007634004004061552,
+                  "fluid_heat_j": -0.007679318814689396,
+                  "energy_residual_j": 3.016376037834334e-11,
+                  "entropy_production_j_k": 1.159459907126674e-05,
+                  "feed_energy_j": 8.085523394318502,
+                  "outlet_energy_j": 7.523981426828664,
+                  "feed_component_moles": [
+                    0.004391590987847502,
+                    0.009245410186848326
+                  ],
+                  "outlet_component_moles": [
+                    0.004084944770170993,
+                    0.00859984329061355
+                  ],
+                  "quadrature_error_ratio": 1.6059410471127526e-05,
+                  "phase_count": 1,
+                  "outlets": [
+                    {
+                      "name": "export",
+                      "opening": 0.9,
+                      "volume_rate_m3_s": 0.025614127169669373,
+                      "component_rates_mol_s": [
+                        3.2679558161367943,
+                        6.879874632490839
+                      ],
+                      "total_energy_rate_w": 6019.185141462931,
+                      "phase_area_fractions": [
+                        1.0000000000000002
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "dt_s": 0.00125,
+                  "profile_acceptance": "verified_joint_flow_iterate",
+                  "column_state": {
+                    "component_moles": [
+                      20.02928733582849,
+                      42.14465632555579
+                    ],
+                    "total_energy_j": -119816.90509105481,
+                    "temperature_k": 319.1799910847473,
+                    "chemical_constants": [
+                      1.159217072074633,
+                      1.8457851971300685
+                    ],
+                    "interface_heights_m": [],
+                    "phase_seeds": [
+                      [
+                        0.3220272643712083,
+                        0.6779727356287917
+                      ]
+                    ],
+                    "phase_roots": [
+                      "stable"
+                    ],
+                    "quadrature_order": 8,
+                    "solution_variables": [
+                      13.815074873679187,
+                      -0.7444708602747337,
+                      13.814912353692321,
+                      -0.7443756536594497,
+                      13.814643055613411,
+                      -0.7442178950912842,
+                      13.81430328788856,
+                      -0.7440188548384483,
+                      13.813938934127544,
+                      -0.7438054122861424,
+                      13.813599197658565,
+                      -0.7436063912974062,
+                      13.813329945779046,
+                      -0.7434486612035615,
+                      13.813167462839921,
+                      -0.7433534774221136,
+                      1.159217072074633,
+                      1.8457851971300685,
+                      1.0705349357194276
+                    ],
+                    "model_id": "868f228cf2af18775202704c88bcc3dc2771882e0211bb4d49e85685668e483a"
+                  },
+                  "wall_temperature_k": 316.1072032512148,
+                  "ambient_heat_j": -0.007634004064018499,
+                  "fluid_heat_j": -0.00768196958383129,
+                  "energy_residual_j": 3.569322615248893e-11,
+                  "entropy_production_j_k": 9.667346312903363e-06,
+                  "feed_energy_j": 8.085523394318502,
+                  "outlet_energy_j": 7.538813329142551,
+                  "feed_component_moles": [
+                    0.004391590987847502,
+                    0.009245410186848326
+                  ],
+                  "outlet_component_moles": [
+                    0.004092688122885442,
+                    0.008616145066001371
+                  ],
+                  "quadrature_error_ratio": 1.609873591781614e-05,
+                  "phase_count": 1,
+                  "outlets": [
+                    {
+                      "name": "export",
+                      "opening": 0.9,
+                      "volume_rate_m3_s": 0.02566229794661438,
+                      "component_rates_mol_s": [
+                        3.2741504983083534,
+                        6.892916052801096
+                      ],
+                      "total_energy_rate_w": 6031.05066331404,
+                      "phase_area_fractions": [
+                        1.0000000000000002
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "dt_s": 0.00125,
+                  "profile_acceptance": "verified_joint_flow_iterate",
+                  "column_state": {
+                    "component_moles": [
+                      20.02957869117067,
+                      42.1452697011741
+                    ],
+                    "total_energy_j": -119816.38052421139,
+                    "temperature_k": 319.1810242870465,
+                    "chemical_constants": [
+                      1.1592344374835517,
+                      1.8458020580022723
+                    ],
+                    "interface_heights_m": [],
+                    "phase_seeds": [
+                      [
+                        0.32202726298429885,
+                        0.677972737015701
+                      ]
+                    ],
+                    "phase_roots": [
+                      "stable"
+                    ],
+                    "quadrature_order": 8,
+                    "solution_variables": [
+                      13.815092271286668,
+                      -0.7444708666272127,
+                      13.814929751762623,
+                      -0.744375660222647,
+                      13.814660454450621,
+                      -0.7442179020036724,
+                      13.81432068769338,
+                      -0.7440188621914544,
+                      13.813956334970007,
+                      -0.743805420111713,
+                      13.813616599468583,
+                      -0.7436063995636712,
+                      13.813347348355894,
+                      -0.7434486698191302,
+                      13.813184865879526,
+                      -0.7433534862484912,
+                      1.1592344374835517,
+                      1.8458020580022723,
+                      1.0705384010969194
+                    ],
+                    "model_id": "868f228cf2af18775202704c88bcc3dc2771882e0211bb4d49e85685668e483a"
+                  },
+                  "wall_temperature_k": 316.10720330176315,
+                  "ambient_heat_j": -0.007634004127203937,
+                  "fluid_heat_j": -0.0076845524632084055,
+                  "energy_residual_j": 2.1690982343613996e-11,
+                  "entropy_production_j_k": 7.78901223078693e-06,
+                  "feed_energy_j": 8.085523394318502,
+                  "outlet_energy_j": 7.553271998439925,
+                  "feed_component_moles": [
+                    0.004391590987847502,
+                    0.009245410186848326
+                  ],
+                  "outlet_component_moles": [
+                    0.004100235645666148,
+                    0.0086320345685419
+                  ],
+                  "quadrature_error_ratio": 1.588209346053013e-05,
+                  "phase_count": 1,
+                  "outlets": [
+                    {
+                      "name": "export",
+                      "opening": 0.9,
+                      "volume_rate_m3_s": 0.02570924908263457,
+                      "component_rates_mol_s": [
+                        3.280188516532918,
+                        6.90562765483352
+                      ],
+                      "total_energy_rate_w": 6042.61759875194,
+                      "phase_area_fractions": [
+                        1.0000000000000002
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "dt_s": 0.001875,
+                  "profile_acceptance": "verified_joint_flow_iterate",
+                  "column_state": {
+                    "component_moles": [
+                      20.029999378579713,
+                      42.14615535284405
+                    ],
+                    "total_energy_j": -119815.62499729692,
+                    "temperature_k": 319.18251529620017,
+                    "chemical_constants": [
+                      1.1592595080445864,
+                      1.8458263998219016
+                    ],
+                    "interface_heights_m": [],
+                    "phase_seeds": [
+                      [
+                        0.32202726098241097,
+                        0.677972739017589
+                      ]
+                    ],
+                    "phase_roots": [
+                      "stable"
+                    ],
+                    "quadrature_order": 8,
+                    "solution_variables": [
+                      13.815117388410098,
+                      -0.7444708757964853,
+                      13.814954869553848,
+                      -0.744375669695876,
+                      13.814685573348408,
+                      -0.7442179119806034,
+                      13.814345807987312,
+                      -0.7440188728039683,
+                      13.813981456761141,
+                      -0.7438054314058927,
+                      13.813641722655788,
+                      -0.7436064114935445,
+                      13.813372472649545,
+                      -0.7434486822528688,
+                      13.813209990840882,
+                      -0.7433534989863174,
+                      1.1592595080445864,
+                      1.8458263998219016,
+                      1.070543401966125
+                    ],
+                    "model_id": "868f228cf2af18775202704c88bcc3dc2771882e0211bb4d49e85685668e483a"
+                  },
+                  "wall_temperature_k": 316.1072033831765,
+                  "ambient_heat_j": -0.011451006343455958,
+                  "fluid_heat_j": -0.011532419673838702,
+                  "energy_residual_j": 3.823608096809039e-11,
+                  "entropy_production_j_k": 7.659275144998937e-06,
+                  "feed_energy_j": 12.128285091477752,
+                  "outlet_energy_j": 11.361225757346137,
+                  "feed_component_moles": [
+                    0.006587386481771253,
+                    0.013868115280272488
+                  ],
+                  "outlet_component_moles": [
+                    0.006166699072728039,
+                    0.012982463610326234
+                  ],
+                  "quadrature_error_ratio": 1.59015681793484e-05,
+                  "phase_count": 1,
+                  "outlets": [
+                    {
+                      "name": "export",
+                      "opening": 0.9,
+                      "volume_rate_m3_s": 0.025777034411286696,
+                      "component_rates_mol_s": [
+                        3.288906172121621,
+                        6.923980592173992
+                      ],
+                      "total_energy_rate_w": 6059.32040391794,
+                      "phase_area_fractions": [
+                        1.0000000000000002
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "dt_s": 0.001875,
+                  "profile_acceptance": "verified_joint_flow_iterate",
+                  "column_state": {
+                    "component_moles": [
+                      20.030404332804416,
+                      42.147007882059405
+                    ],
+                    "total_energy_j": -119814.89962549756,
+                    "temperature_k": 319.1839497061182,
+                    "chemical_constants": [
+                      1.1592836376080933,
+                      1.845849827655273
+                    ],
+                    "interface_heights_m": [],
+                    "phase_seeds": [
+                      [
+                        0.32202725905606827,
+                        0.6779727409439317
+                      ]
+                    ],
+                    "phase_roots": [
+                      "stable"
+                    ],
+                    "quadrature_order": 8,
+                    "solution_variables": [
+                      13.81514156286581,
+                      -0.7444708846197372,
+                      13.814979044651906,
+                      -0.7443756788114155,
+                      13.814709749510858,
+                      -0.7442179215805077,
+                      13.814369985492704,
+                      -0.7440188830150555,
+                      13.814005635706677,
+                      -0.7438054422724755,
+                      13.81366590294419,
+                      -0.7436064229714177,
+                      13.813396654002231,
+                      -0.7434486942152639,
+                      13.813234172835827,
+                      -0.7433535112411265,
+                      1.1592836376080933,
+                      1.845849827655273,
+                      1.0705482130005641
+                    ],
+                    "model_id": "868f228cf2af18775202704c88bcc3dc2771882e0211bb4d49e85685668e483a"
+                  },
+                  "wall_temperature_k": 316.1072034699684,
+                  "ambient_heat_j": -0.011451006506190744,
+                  "fluid_heat_j": -0.011537798385561756,
+                  "energy_residual_j": 1.2017609130055007e-11,
+                  "entropy_production_j_k": 3.741603785221287e-06,
+                  "feed_energy_j": 12.128285091477752,
+                  "outlet_energy_j": 11.391375493738918,
+                  "feed_component_moles": [
+                    0.006587386481771253,
+                    0.013868115280272488
+                  ],
+                  "outlet_component_moles": [
+                    0.006182432257069596,
+                    0.013015586064914566
+                  ],
+                  "quadrature_error_ratio": 1.583180101150786e-05,
+                  "phase_count": 1,
+                  "outlets": [
+                    {
+                      "name": "export",
+                      "opening": 0.9,
+                      "volume_rate_m3_s": 0.025842277304548467,
+                      "component_rates_mol_s": [
+                        3.2972972037704515,
+                        6.941645901287769
+                      ],
+                      "total_energy_rate_w": 6075.400263327423,
+                      "phase_area_fractions": [
+                        1.0000000000000002
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "dt_s": 0.0006250000000000006,
+                  "profile_acceptance": "verified_joint_flow_iterate",
+                  "column_state": {
+                    "component_moles": [
+                      20.030537591785187,
+                      42.14728842528811
+                    ],
+                    "total_energy_j": -119814.66114299133,
+                    "temperature_k": 319.18442162884554,
+                    "chemical_constants": [
+                      1.1592915775168187,
+                      1.8458575366164924
+                    ],
+                    "interface_heights_m": [],
+                    "phase_seeds": [
+                      [
+                        0.32202725842224783,
+                        0.6779727415777523
+                      ]
+                    ],
+                    "phase_roots": [
+                      "stable"
+                    ],
+                    "quadrature_order": 8,
+                    "solution_variables": [
+                      13.815149517555453,
+                      -0.7444708875228335,
+                      13.814986999552872,
+                      -0.7443756818106587,
+                      13.81471770476199,
+                      -0.7442179247390811,
+                      13.814377941185638,
+                      -0.7440188863746761,
+                      13.814013591873394,
+                      -0.74380544584772,
+                      13.813673859552688,
+                      -0.7436064267477445,
+                      13.813404610960857,
+                      -0.7434486981509734,
+                      13.813242130005746,
+                      -0.7433535152730245,
+                      1.1592915775168187,
+                      1.8458575366164924,
+                      1.0705497958371477
+                    ],
+                    "model_id": "868f228cf2af18775202704c88bcc3dc2771882e0211bb4d49e85685668e483a"
+                  },
+                  "wall_temperature_k": 316.1072034994889,
+                  "ambient_heat_j": -0.003817002187180559,
+                  "fluid_heat_j": -0.003846522661695818,
+                  "energy_residual_j": 1.974054253395252e-11,
+                  "entropy_production_j_k": 7.915382850103014e-07,
+                  "feed_energy_j": 4.042761697159254,
+                  "outlet_energy_j": 3.800432668266412,
+                  "feed_component_moles": [
+                    0.002195795493923753,
+                    0.004622705093424166
+                  ],
+                  "outlet_component_moles": [
+                    0.0020625365131523255,
+                    0.004342161864717318
+                  ],
+                  "quadrature_error_ratio": 1.5789022669552678e-05,
+                  "phase_count": 1,
+                  "outlets": [
+                    {
+                      "name": "export",
+                      "opening": 0.9,
+                      "volume_rate_m3_s": 0.025863746052797267,
+                      "component_rates_mol_s": [
+                        3.300058421043718,
+                        6.947458983547703
+                      ],
+                      "total_energy_rate_w": 6080.692269226253,
+                      "phase_area_fractions": [
+                        1.0000000000000002
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "dt_s": 0.0006250000000000006,
+                  "profile_acceptance": "verified_joint_flow_iterate",
+                  "column_state": {
+                    "component_moles": [
+                      20.030669147112786,
+                      42.14756538188269
+                    ],
+                    "total_energy_j": -119814.42592638455,
+                    "temperature_k": 319.18488742314,
+                    "chemical_constants": [
+                      1.1592994155364116,
+                      1.8458651466134246
+                    ],
+                    "interface_heights_m": [],
+                    "phase_seeds": [
+                      [
+                        0.32202725779660696,
+                        0.677972742203393
+                      ]
+                    ],
+                    "phase_roots": [
+                      "stable"
+                    ],
+                    "quadrature_order": 8,
+                    "solution_variables": [
+                      13.815157370175127,
+                      -0.744470890388464,
+                      13.81499485238111,
+                      -0.7443756847711729,
+                      13.814725557935827,
+                      -0.7442179278568322,
+                      13.81438579479552,
+                      -0.7440188896908325,
+                      13.81402144595088,
+                      -0.743805449376667,
+                      13.813681714066192,
+                      -0.7436064304751305,
+                      13.813412465819926,
+                      -0.7434487020356478,
+                      13.813249985073352,
+                      -0.7433535192526239,
+                      1.1592994155364116,
+                      1.8458651466134246,
+                      1.0705513581188666
+                    ],
+                    "model_id": "868f228cf2af18775202704c88bcc3dc2771882e0211bb4d49e85685668e483a"
+                  },
+                  "wall_temperature_k": 316.1072035295916,
+                  "ambient_heat_j": -0.0038170022059947364,
+                  "fluid_heat_j": -0.0038471048669355703,
+                  "energy_residual_j": 1.5580314816077134e-11,
+                  "entropy_production_j_k": 3.6804573862962014e-07,
+                  "feed_energy_j": 4.042761697159254,
+                  "outlet_energy_j": 3.8036979854991193,
+                  "feed_component_moles": [
+                    0.002195795493923753,
+                    0.004622705093424166
+                  ],
+                  "outlet_component_moles": [
+                    0.0020642401663250637,
+                    0.0043457484988390785
+                  ],
+                  "quadrature_error_ratio": 1.5953801136788197e-05,
+                  "phase_count": 1,
+                  "outlets": [
+                    {
+                      "name": "export",
+                      "opening": 0.9,
+                      "volume_rate_m3_s": 0.025884939493965455,
+                      "component_rates_mol_s": [
+                        3.302784266120099,
+                        6.953197598142519
+                      ],
+                      "total_energy_rate_w": 6085.9167767985855,
+                      "phase_area_fractions": [
+                        1.0000000000000002
+                      ]
+                    }
+                  ]
+                }
+              ],
+              "surface_attempts": 13,
+              "feed_component_moles": [
+                0.08783181975695004,
+                0.1849082037369665
+              ],
+              "outlet_component_moles": [
+                0.08105448932976791,
+                0.17064022322485184
+              ]
+            },
+            "well_boundary": {
+              "P1": {
+                "boundary_type": "prescribed_temperature_external_energy",
+                "energy_supplied_by_thermal_boundary_w": 3234.2093577274004,
+                "reservoir_energy_balance_available": false,
+                "assay_id": "69bdb0e2b32be2b2256434b07db46edbf1662b1cbbda7d24e8c7b7a4466973f0",
+                "mass_residual_kg_s": 0.0,
+                "stream": {
+                  "component_molar_rates_mol_s": [
+                    1.7566363951390007,
+                    3.69816407473933
+                  ],
+                  "pressure_pa": 2307314.9413193273,
+                  "total_energy_rate_w": 3234.2093577274004,
+                  "model_id": "aa2016c1a0d812a3aa1ec5b5d93d0e60f06a350d3786f212a0f1b3740a080ee8",
+                  "elevation_m": -40.0,
+                  "velocity_m_s": 0.0,
+                  "gravity_m_s2": 9.80665
+                }
+              },
+              "P2": {
+                "boundary_type": "prescribed_temperature_external_energy",
+                "energy_supplied_by_thermal_boundary_w": 3234.2093577274004,
+                "reservoir_energy_balance_available": false,
+                "assay_id": "69bdb0e2b32be2b2256434b07db46edbf1662b1cbbda7d24e8c7b7a4466973f0",
+                "mass_residual_kg_s": 0.0,
+                "stream": {
+                  "component_molar_rates_mol_s": [
+                    1.7566363951390007,
+                    3.69816407473933
+                  ],
+                  "pressure_pa": 2307314.9413193273,
+                  "total_energy_rate_w": 3234.2093577274004,
+                  "model_id": "aa2016c1a0d812a3aa1ec5b5d93d0e60f06a350d3786f212a0f1b3740a080ee8",
+                  "elevation_m": -40.0,
+                  "velocity_m_s": 0.0,
+                  "gravity_m_s2": 9.80665
+                }
+              }
+            },
+            "accepted_wells": {
+              "P1": {
+                "node": "bottom_1",
+                "mode": "surface",
+                "bhp_pa": 2307314.9413193273,
+                "network_reference_pressure_pa": 2307315.0115601434,
+                "component_mass_rates_kg_s": [
+                  0.08946833209929153,
+                  0.04329281254426529,
+                  0.006620465206279026
+                ],
+                "standard_control_rate_m3_s": 0.00014854967383754944
+              },
+              "P2": {
+                "node": "bottom_2",
+                "mode": "surface",
+                "bhp_pa": 2307314.9413193273,
+                "network_reference_pressure_pa": 2307315.0115601434,
+                "component_mass_rates_kg_s": [
+                  0.08946833209929153,
+                  0.04329281254426529,
+                  0.006620465206279026
+                ],
+                "standard_control_rate_m3_s": 0.00014854967383754944
+              }
+            },
+            "inlet_well_names": [
+              "P1",
+              "P2"
+            ],
+            "inlet_streams": [
+              {
+                "component_molar_rates_mol_s": [
+                  1.7566363951390007,
+                  3.69816407473933
+                ],
+                "pressure_pa": 999686.3056192205,
+                "total_energy_rate_w": 3234.2093577274004,
+                "model_id": "aa2016c1a0d812a3aa1ec5b5d93d0e60f06a350d3786f212a0f1b3740a080ee8",
+                "elevation_m": 0.0,
+                "velocity_m_s": 0.0,
+                "gravity_m_s2": 9.80665
+              },
+              {
+                "component_molar_rates_mol_s": [
+                  1.7566363951390007,
+                  3.69816407473933
+                ],
+                "pressure_pa": 999686.3056192205,
+                "total_energy_rate_w": 3234.2093577274004,
+                "model_id": "aa2016c1a0d812a3aa1ec5b5d93d0e60f06a350d3786f212a0f1b3740a080ee8",
+                "elevation_m": 0.0,
+                "velocity_m_s": 0.0,
+                "gravity_m_s2": 9.80665
+              }
+            ],
+            "reservoir_inventory_before_kg": [
+              9198545.55292563,
+              6719999.885559082,
+              660829.0975960817
+            ],
+            "reservoir_inventory_after_kg": [
+              9198545.548452213,
+              6719999.8833944425,
+              660829.0972650585
+            ],
+            "actual_stock_component_mass_kg": [
+              0.004473416604964577,
+              0.0021646406272132646,
+              0.00033102326031395134
+            ]
+          },
+          {
+            "dt_s": 0.025,
+            "accepted_newton_iterations": 1,
+            "pressure_trials": [
+              {
+                "pressure_pa": 999927.0521440285,
+                "receiver_pressure_pa": 999927.4356054191,
+                "pressure_defect_pa": 0.38346139062196016,
+                "physical_trial": false
+              },
+              {
+                "pressure_pa": 999927.4383554009,
+                "receiver_pressure_pa": 999927.4502530794,
+                "pressure_defect_pa": 0.01189767848700285,
+                "physical_trial": true
+              },
+              {
+                "pressure_pa": 999927.4530030612,
+                "receiver_pressure_pa": 999927.4502359476,
+                "pressure_defect_pa": -0.0027671136194840074,
+                "physical_trial": true
+              }
+            ],
+            "flow": {
+              "ambient_heat_j": -0.1526801084783475,
+              "feed_energy_j": 161.69407408102302,
+              "outlet_energy_j": 154.4704743117086,
+              "energy_residual_j": 3.5998937164549716e-10,
+              "entropy_production_j_k": 0.0002342715756820748,
+              "dt_s": 0.025,
+              "column_state": {
+                "component_moles": [
+                  20.034714309649303,
+                  42.15608143656663
+                ],
+                "total_energy_j": -119807.35662346194,
+                "temperature_k": 319.1991399501877,
+                "chemical_constants": [
+                  1.1595401550840285,
+                  1.8460988539752718
+                ],
+                "interface_heights_m": [],
+                "phase_seeds": [
+                  [
+                    0.3220272386131973,
+                    0.6779727613868027
+                  ]
+                ],
+                "phase_roots": [
+                  "stable"
+                ],
+                "quadrature_order": 8,
+                "solution_variables": [
+                  13.815398564768076,
+                  -0.7444709782544812,
+                  13.815236053347627,
+                  -0.7443757755295272,
+                  13.814966769463567,
+                  -0.7442180234082313,
+                  13.814627019648354,
+                  -0.7440189912902269,
+                  13.814262685093302,
+                  -0.7438055574625775,
+                  13.813922966532997,
+                  -0.743606544610122,
+                  13.8136537288469,
+                  -0.7434488209652885,
+                  13.813491254473046,
+                  -0.7433536410758887,
+                  1.1595401550840285,
+                  1.8460988539752718,
+                  1.0705991613288202
+                ],
+                "model_id": "868f228cf2af18775202704c88bcc3dc2771882e0211bb4d49e85685668e483a"
+              },
+              "wall_temperature_k": 316.10720514633016,
+              "surface_steps": [
+                {
+                  "dt_s": 0.0009375000000000008,
+                  "profile_acceptance": "verified_joint_flow_iterate",
+                  "column_state": {
+                    "component_moles": [
+                      20.030862499030953,
+                      42.147972435570786
+                    ],
+                    "total_energy_j": -119814.08091621727,
+                    "temperature_k": 319.185571721436,
+                    "chemical_constants": [
+                      1.1593109342405357,
+                      1.845876330095561
+                    ],
+                    "interface_heights_m": [],
+                    "phase_seeds": [
+                      [
+                        0.32202725687725575,
+                        0.6779727431227442
+                      ]
+                    ],
+                    "phase_roots": [
+                      "stable"
+                    ],
+                    "quadrature_order": 8,
+                    "solution_variables": [
+                      13.815168910363775,
+                      -0.7444708945993801,
+                      13.815006392876128,
+                      -0.7443756891214365,
+                      13.814737098938508,
+                      -0.7442179324380147,
+                      13.814397336438718,
+                      -0.7440188945633952,
+                      13.814032988280958,
+                      -0.7438054545617359,
+                      13.813693257036755,
+                      -0.743606435951631,
+                      13.8134240092981,
+                      -0.7434487077431428,
+                      13.813261528857852,
+                      -0.7433535250995269,
+                      1.1593109342405357,
+                      1.845876330095561,
+                      1.0705536532665976
+                    ],
+                    "model_id": "868f228cf2af18775202704c88bcc3dc2771882e0211bb4d49e85685668e483a"
+                  },
+                  "wall_temperature_k": 316.1072035760285,
+                  "ambient_heat_j": -0.00572550335252672,
+                  "fluid_heat_j": -0.0057719402726391115,
+                  "energy_residual_j": -2.6672553055107073e-12,
+                  "entropy_production_j_k": 1.9124299575221104e-05,
+                  "feed_energy_j": 6.063527778038371,
+                  "outlet_energy_j": 5.7127456704807225,
+                  "feed_component_moles": [
+                    0.003293467793209529,
+                    0.00693358300740063
+                  ],
+                  "outlet_component_moles": [
+                    0.003100115875042399,
+                    0.006526529319307995
+                  ],
+                  "quadrature_error_ratio": 1.5785203018116545e-05,
+                  "phase_count": 1,
+                  "outlets": [
+                    {
+                      "name": "export",
+                      "opening": 0.9,
+                      "volume_rate_m3_s": 0.025916085619696445,
+                      "component_rates_mol_s": [
+                        3.3067902667118894,
+                        6.961631273928521
+                      ],
+                      "total_energy_rate_w": 6093.5953818460985,
+                      "phase_area_fractions": [
+                        1.0000000000000002
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "dt_s": 0.0009375000000000008,
+                  "profile_acceptance": "verified_joint_flow_iterate",
+                  "column_state": {
+                    "component_moles": [
+                      20.031052167035657,
+                      42.148371733660426
+                    ],
+                    "total_energy_j": -119813.74296911295,
+                    "temperature_k": 319.1862427682258,
+                    "chemical_constants": [
+                      1.1593222326309662,
+                      1.845887299588488
+                    ],
+                    "interface_heights_m": [],
+                    "phase_seeds": [
+                      [
+                        0.3220272559755914,
+                        0.6779727440244085
+                      ]
+                    ],
+                    "phase_roots": [
+                      "stable"
+                    ],
+                    "quadrature_order": 8,
+                    "solution_variables": [
+                      13.815180229847726,
+                      -0.7444708987292848,
+                      13.815017712660488,
+                      -0.7443756933879564,
+                      13.81474841922066,
+                      -0.7442179369309276,
+                      13.814408657348931,
+                      -0.7440188993419748,
+                      13.814044309864695,
+                      -0.7438054596466955,
+                      13.813704579248517,
+                      -0.743606441322308,
+                      13.813435332007604,
+                      -0.7434487133402865,
+                      13.813272851867724,
+                      -0.7433535308333454,
+                      1.1593222326309662,
+                      1.845887299588488,
+                      1.0705559039685588
+                    ],
+                    "model_id": "868f228cf2af18775202704c88bcc3dc2771882e0211bb4d49e85685668e483a"
+                  },
+                  "wall_temperature_k": 316.10720362372354,
+                  "ambient_heat_j": -0.005725503397240819,
+                  "fluid_heat_j": -0.005773198395941717,
+                  "energy_residual_j": 3.901934331196344e-11,
+                  "entropy_production_j_k": 1.820836229282554e-05,
+                  "feed_energy_j": 6.063527778038371,
+                  "outlet_energy_j": 5.71980747532573,
+                  "feed_component_moles": [
+                    0.003293467793209529,
+                    0.00693358300740063
+                  ],
+                  "outlet_component_moles": [
+                    0.003103799788503935,
+                    0.006534284917763906
+                  ],
+                  "quadrature_error_ratio": 1.5763154232864962e-05,
+                  "phase_count": 1,
+                  "outlets": [
+                    {
+                      "name": "export",
+                      "opening": 0.9,
+                      "volume_rate_m3_s": 0.02594663642866976,
+                      "component_rates_mol_s": [
+                        3.3107197744041943,
+                        6.969903912281493
+                      ],
+                      "total_energy_rate_w": 6101.127973680774,
+                      "phase_area_fractions": [
+                        1.0000000000000002
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "dt_s": 0.0014062500000000012,
+                  "profile_acceptance": "verified_joint_flow_iterate",
+                  "column_state": {
+                    "component_moles": [
+                      20.031328615445876,
+                      42.14895372587331
+                    ],
+                    "total_energy_j": -119813.2514908478,
+                    "temperature_k": 319.1872203733342,
+                    "chemical_constants": [
+                      1.1593386986353675,
+                      1.8459032860729894
+                    ],
+                    "interface_heights_m": [],
+                    "phase_seeds": [
+                      [
+                        0.3220272546617549,
+                        0.6779727453382451
+                      ]
+                    ],
+                    "phase_roots": [
+                      "stable"
+                    ],
+                    "quadrature_order": 8,
+                    "solution_variables": [
+                      13.815196726637627,
+                      -0.744470904747067,
+                      13.815034209887983,
+                      -0.7443756996046911,
+                      13.81476491717326,
+                      -0.7442179434773563,
+                      13.814425156216402,
+                      -0.7440189063044205,
+                      13.81406080971325,
+                      -0.7438054670553214,
+                      13.813721080011893,
+                      -0.743606449147024,
+                      13.81345183349601,
+                      -0.7434487214948047,
+                      13.813289353793667,
+                      -0.7433535391869031,
+                      1.1593386986353675,
+                      1.8459032860729894,
+                      1.070559182872159
+                    ],
+                    "model_id": "868f228cf2af18775202704c88bcc3dc2771882e0211bb4d49e85685668e483a"
+                  },
+                  "wall_temperature_k": 316.1072036980152,
+                  "ambient_heat_j": -0.0085882552003339,
+                  "fluid_heat_j": -0.008662546899334619,
+                  "energy_residual_j": -1.9106938253798944e-11,
+                  "entropy_production_j_k": 2.532891980550414e-05,
+                  "feed_energy_j": 9.095291667057557,
+                  "outlet_energy_j": 8.59515085501458,
+                  "feed_component_moles": [
+                    0.004940201689814293,
+                    0.010400374511100945
+                  ],
+                  "outlet_component_moles": [
+                    0.004663753279594442,
+                    0.009818382298212473
+                  ],
+                  "quadrature_error_ratio": 1.5709982619538476e-05,
+                  "phase_count": 1,
+                  "outlets": [
+                    {
+                      "name": "export",
+                      "opening": 0.9,
+                      "volume_rate_m3_s": 0.02599116118671976,
+                      "component_rates_mol_s": [
+                        3.316446776600489,
+                        6.981960745395529
+                      ],
+                      "total_energy_rate_w": 6112.10727467703,
+                      "phase_area_fractions": [
+                        1.0000000000000002
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "dt_s": 0.0014062500000000012,
+                  "profile_acceptance": "verified_joint_flow_iterate",
+                  "column_state": {
+                    "component_moles": [
+                      20.03159723877014,
+                      42.14951924423944
+                    ],
+                    "total_energy_j": -119812.77501850495,
+                    "temperature_k": 319.18816983170575,
+                    "chemical_constants": [
+                      1.1593546966884127,
+                      1.8459188180398391
+                    ],
+                    "interface_heights_m": [],
+                    "phase_seeds": [
+                      [
+                        0.322027253385486,
+                        0.6779727466145141
+                      ]
+                    ],
+                    "phase_roots": [
+                      "stable"
+                    ],
+                    "quadrature_order": 8,
+                    "solution_variables": [
+                      13.815212754645723,
+                      -0.7444709105927778,
+                      13.81505023832102,
+                      -0.7443757056435517,
+                      13.814780946310435,
+                      -0.744217949836296,
+                      13.814441186241986,
+                      -0.7440189130672441,
+                      13.81407684069155,
+                      -0.7438054742513123,
+                      13.813737111878554,
+                      -0.7436064567469698,
+                      13.813467866066741,
+                      -0.743448729414935,
+                      13.813305386789278,
+                      -0.743353547300268,
+                      1.1593546966884127,
+                      1.8459188180398391,
+                      1.0705623673711413
+                    ],
+                    "model_id": "868f228cf2af18775202704c88bcc3dc2771882e0211bb4d49e85685668e483a"
+                  },
+                  "wall_temperature_k": 316.10720377497694,
+                  "ambient_heat_j": -0.008588255308561327,
+                  "fluid_heat_j": -0.008665217034549791,
+                  "energy_residual_j": -5.912326184187577e-12,
+                  "entropy_production_j_k": 2.3382595004161136e-05,
+                  "feed_energy_j": 9.095291667057557,
+                  "outlet_energy_j": 8.610154107164698,
+                  "feed_component_moles": [
+                    0.004940201689814293,
+                    0.010400374511100945
+                  ],
+                  "outlet_component_moles": [
+                    0.004671578365552491,
+                    0.009834856144968712
+                  ],
+                  "quadrature_error_ratio": 1.5866924869772937e-05,
+                  "phase_count": 1,
+                  "outlets": [
+                    {
+                      "name": "export",
+                      "opening": 0.9,
+                      "volume_rate_m3_s": 0.026034421408194203,
+                      "component_rates_mol_s": [
+                        3.3220112821706573,
+                        6.993675480866633
+                      ],
+                      "total_energy_rate_w": 6122.77625398378,
+                      "phase_area_fractions": [
+                        1.0000000000000002
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "dt_s": 0.0014062500000000012,
+                  "profile_acceptance": "verified_joint_flow_iterate",
+                  "column_state": {
+                    "component_moles": [
+                      20.031858259047986,
+                      42.1500687562098
+                    ],
+                    "total_energy_j": -119812.31312786519,
+                    "temperature_k": 319.18909194269537,
+                    "chemical_constants": [
+                      1.159370240081009,
+                      1.8459339083986233
+                    ],
+                    "interface_heights_m": [],
+                    "phase_seeds": [
+                      [
+                        0.32202725214571737,
+                        0.6779727478542826
+                      ]
+                    ],
+                    "phase_roots": [
+                      "stable"
+                    ],
+                    "quadrature_order": 8,
+                    "solution_variables": [
+                      13.815228327186537,
+                      -0.7444709162713059,
+                      13.815065811274476,
+                      -0.744375711509592,
+                      13.814796519947656,
+                      -0.7442179560130734,
+                      13.814456760741914,
+                      -0.7440189196361165,
+                      13.814092416116628,
+                      -0.7438054812407096,
+                      13.81375268816629,
+                      -0.7436064641285324,
+                      13.813483443038171,
+                      -0.7434487371073368,
+                      13.813320964173297,
+                      -0.7433535551802646,
+                      1.159370240081009,
+                      1.8459339083986233,
+                      1.070565460146555
+                    ],
+                    "model_id": "868f228cf2af18775202704c88bcc3dc2771882e0211bb4d49e85685668e483a"
+                  },
+                  "wall_temperature_k": 316.1072038545318,
+                  "ambient_heat_j": -0.008588255420435356,
+                  "fluid_heat_j": -0.008667810247960038,
+                  "energy_residual_j": 3.886091448634943e-11,
+                  "entropy_production_j_k": 2.149166900218373e-05,
+                  "feed_energy_j": 9.095291667057557,
+                  "outlet_energy_j": 8.624733217043824,
+                  "feed_component_moles": [
+                    0.004940201689814293,
+                    0.010400374511100945
+                  ],
+                  "outlet_component_moles": [
+                    0.0046791814119655105,
+                    0.009850862540747102
+                  ],
+                  "quadrature_error_ratio": 1.5780917405624613e-05,
+                  "phase_count": 1,
+                  "outlets": [
+                    {
+                      "name": "export",
+                      "opening": 0.9,
+                      "volume_rate_m3_s": 0.026076452969529547,
+                      "component_rates_mol_s": [
+                        3.3274178929532487,
+                        7.005057806753488
+                      ],
+                      "total_energy_rate_w": 6133.143621008936,
+                      "phase_area_fractions": [
+                        1.0000000000000002
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "dt_s": 0.0014062500000000012,
+                  "profile_acceptance": "verified_joint_flow_iterate",
+                  "column_state": {
+                    "component_moles": [
+                      20.032111892030194,
+                      42.15060271599586
+                    ],
+                    "total_energy_j": -119811.86540661982,
+                    "temperature_k": 319.1899874829861,
+                    "chemical_constants": [
+                      1.159385341726942,
+                      1.8459485696926154
+                    ],
+                    "interface_heights_m": [],
+                    "phase_seeds": [
+                      [
+                        0.3220272509414123,
+                        0.6779727490585876
+                      ]
+                    ],
+                    "phase_roots": [
+                      "stable"
+                    ],
+                    "quadrature_order": 8,
+                    "solution_variables": [
+                      13.815243457196795,
+                      -0.7444709217873995,
+                      13.815080941685432,
+                      -0.7443757172077217,
+                      13.814811651022582,
+                      -0.7442179620128624,
+                      13.814471892654568,
+                      -0.7440189260165482,
+                      13.81410754892765,
+                      -0.7438054880293824,
+                      13.813767821814997,
+                      -0.7436064712979148,
+                      13.81349857735078,
+                      -0.7434487445784793,
+                      13.81333609888655,
+                      -0.7433535628335222,
+                      1.159385341726942,
+                      1.8459485696926154,
+                      1.070568463803408
+                    ],
+                    "model_id": "868f228cf2af18775202704c88bcc3dc2771882e0211bb4d49e85685668e483a"
+                  },
+                  "wall_temperature_k": 316.107203936605,
+                  "ambient_heat_j": -0.008588255535850794,
+                  "fluid_heat_j": -0.008670328724196876,
+                  "energy_residual_j": 1.6529111412921793e-11,
+                  "entropy_production_j_k": 1.9654564675647412e-05,
+                  "feed_energy_j": 9.095291667057557,
+                  "outlet_energy_j": 8.638900092974506,
+                  "feed_component_moles": [
+                    0.004940201689814293,
+                    0.010400374511100945
+                  ],
+                  "outlet_component_moles": [
+                    0.004686568707607163,
+                    0.009866414725041052
+                  ],
+                  "quadrature_error_ratio": 1.5632615955239158e-05,
+                  "phase_count": 1,
+                  "outlets": [
+                    {
+                      "name": "export",
+                      "opening": 0.9,
+                      "volume_rate_m3_s": 0.026117290731394925,
+                      "component_rates_mol_s": [
+                        3.332671080965091,
+                        7.0161171378069636
+                      ],
+                      "total_energy_rate_w": 6143.217843892977,
+                      "phase_area_fractions": [
+                        1.0000000000000002
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "dt_s": 0.002109375000000002,
+                  "profile_acceptance": "verified_joint_flow_iterate",
+                  "column_state": {
+                    "component_moles": [
+                      20.03247641782154,
+                      42.15137013217033
+                    ],
+                    "total_energy_j": -119811.22437120428,
+                    "temperature_k": 319.1912735278415,
+                    "chemical_constants": [
+                      1.159407042100747,
+                      1.845969636874945
+                    ],
+                    "interface_heights_m": [],
+                    "phase_seeds": [
+                      [
+                        0.3220272492113859,
+                        0.6779727507886141
+                      ]
+                    ],
+                    "phase_roots": [
+                      "stable"
+                    ],
+                    "quadrature_order": 8,
+                    "solution_variables": [
+                      13.81526519842743,
+                      -0.7444709297114617,
+                      13.815102683491368,
+                      -0.7443757253930328,
+                      13.814833393781813,
+                      -0.7442179706311035,
+                      13.814493636616572,
+                      -0.7440189351810724,
+                      13.814129294179484,
+                      -0.7438054977797974,
+                      13.813789568269538,
+                      -0.7436064815947098,
+                      13.813520324758521,
+                      -0.7434487553083484,
+                      13.813357846869517,
+                      -0.7433535738247556,
+                      1.159407042100747,
+                      1.845969636874945,
+                      1.0705727772189888
+                    ],
+                    "model_id": "868f228cf2af18775202704c88bcc3dc2771882e0211bb4d49e85685668e483a"
+                  },
+                  "wall_temperature_k": 316.1072040651395,
+                  "ambient_heat_j": -0.01288238357490367,
+                  "fluid_heat_j": -0.013010918045773912,
+                  "energy_residual_j": 4.363565064835484e-11,
+                  "entropy_production_j_k": 2.555465803627012e-05,
+                  "feed_energy_j": 13.642937500586335,
+                  "outlet_energy_j": 12.988891167008036,
+                  "feed_component_moles": [
+                    0.0074103025347214396,
+                    0.015600561766651418
+                  ],
+                  "outlet_component_moles": [
+                    0.007045776743372625,
+                    0.014833145592180498
+                  ],
+                  "quadrature_error_ratio": 1.5688225259105632e-05,
+                  "phase_count": 1,
+                  "outlets": [
+                    {
+                      "name": "export",
+                      "opening": 0.9,
+                      "volume_rate_m3_s": 0.02617597407301087,
+                      "component_rates_mol_s": [
+                        3.3402200857470192,
+                        7.032009762218896
+                      ],
+                      "total_energy_rate_w": 6157.696553248249,
+                      "phase_area_fractions": [
+                        1.0000000000000002
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "dt_s": 0.002109375000000002,
+                  "profile_acceptance": "verified_joint_flow_iterate",
+                  "column_state": {
+                    "component_moles": [
+                      20.032825688329837,
+                      42.15210543199379
+                    ],
+                    "total_energy_j": -119810.61260413834,
+                    "temperature_k": 319.19250470535684,
+                    "chemical_constants": [
+                      1.1594278302943692,
+                      1.8459898180653849
+                    ],
+                    "interface_heights_m": [],
+                    "phase_seeds": [
+                      [
+                        0.3220272475545893,
+                        0.6779727524454107
+                      ]
+                    ],
+                    "phase_roots": [
+                      "stable"
+                    ],
+                    "quadrature_order": 8,
+                    "solution_variables": [
+                      13.81528602585932,
+                      -0.7444709373001085,
+                      13.815123511473894,
+                      -0.7443757332316193,
+                      13.81485422267676,
+                      -0.7442179788838773,
+                      13.81451446666272,
+                      -0.7440189439564789,
+                      13.81415012546016,
+                      -0.7438055071157319,
+                      13.813810400701353,
+                      -0.743606491453371,
+                      13.813541158102666,
+                      -0.7434487655813352,
+                      13.813378680764222,
+                      -0.7433535843477928,
+                      1.1594278302943692,
+                      1.8459898180653849,
+                      1.0705769066086093
+                    ],
+                    "model_id": "868f228cf2af18775202704c88bcc3dc2771882e0211bb4d49e85685668e483a"
+                  },
+                  "wall_temperature_k": 316.1072041988672,
+                  "ambient_heat_j": -0.01288238385698547,
+                  "fluid_heat_j": -0.013016111511753262,
+                  "energy_residual_j": 1.8487877895267957e-11,
+                  "entropy_production_j_k": 2.1759127514512505e-05,
+                  "feed_energy_j": 13.642937500586335,
+                  "outlet_energy_j": 13.018154323136525,
+                  "feed_component_moles": [
+                    0.0074103025347214396,
+                    0.015600561766651418
+                  ],
+                  "outlet_component_moles": [
+                    0.0070610320264257705,
+                    0.014865261943188839
+                  ],
+                  "quadrature_error_ratio": 1.56514321584144e-05,
+                  "phase_count": 1,
+                  "outlets": [
+                    {
+                      "name": "export",
+                      "opening": 0.9,
+                      "volume_rate_m3_s": 0.026232192109854002,
+                      "component_rates_mol_s": [
+                        3.3474522199351773,
+                        7.047235291585814
+                      ],
+                      "total_energy_rate_w": 6171.569456894347,
+                      "phase_area_fractions": [
+                        1.0000000000000002
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "dt_s": 0.002109375000000002,
+                  "profile_acceptance": "verified_joint_flow_iterate",
+                  "column_state": {
+                    "component_moles": [
+                      20.033160343943326,
+                      42.152809963650164
+                    ],
+                    "total_energy_j": -119810.02888046592,
+                    "temperature_k": 319.1936833205725,
+                    "chemical_constants": [
+                      1.1594477446313562,
+                      1.8460091504878424
+                    ],
+                    "interface_heights_m": [],
+                    "phase_seeds": [
+                      [
+                        0.3220272459679455,
+                        0.6779727540320545
+                      ]
+                    ],
+                    "phase_roots": [
+                      "stable"
+                    ],
+                    "quadrature_order": 8,
+                    "solution_variables": [
+                      13.815305977884071,
+                      -0.7444709445674333,
+                      13.815143464025649,
+                      -0.7443757407380485,
+                      13.81487417610178,
+                      -0.7442179867865399,
+                      13.814534421189538,
+                      -0.7440189523591195,
+                      13.814170081168525,
+                      -0.7438055160546027,
+                      13.813830357511458,
+                      -0.7436065008923096,
+                      13.81356111578595,
+                      -0.7434487754166398,
+                      13.81339863897444,
+                      -0.7433535944223089,
+                      1.1594477446313562,
+                      1.8460091504878424,
+                      1.0705808597034128
+                    ],
+                    "model_id": "868f228cf2af18775202704c88bcc3dc2771882e0211bb4d49e85685668e483a"
+                  },
+                  "wall_temperature_k": 316.10720433756626,
+                  "ambient_heat_j": -0.012882384149553838,
+                  "fluid_heat_j": -0.013021083209557667,
+                  "energy_residual_j": 1.6686652060116103e-11,
+                  "entropy_production_j_k": 1.8123461960487322e-05,
+                  "feed_energy_j": 13.642937500586335,
+                  "outlet_energy_j": 13.046192744956306,
+                  "feed_component_moles": [
+                    0.0074103025347214396,
+                    0.015600561766651418
+                  ],
+                  "outlet_component_moles": [
+                    0.007075646921231775,
+                    0.014896030110276032
+                  ],
+                  "quadrature_error_ratio": 1.5712300632465443e-05,
+                  "phase_count": 1,
+                  "outlets": [
+                    {
+                      "name": "export",
+                      "opening": 0.9,
+                      "volume_rate_m3_s": 0.02628604831878059,
+                      "component_rates_mol_s": [
+                        3.3543807626580238,
+                        7.061821681908631
+                      ],
+                      "total_energy_rate_w": 6184.861745757058,
+                      "phase_area_fractions": [
+                        1.0000000000000002
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "dt_s": 0.002109375000000002,
+                  "profile_acceptance": "verified_joint_flow_iterate",
+                  "column_state": {
+                    "component_moles": [
+                      20.033480998209622,
+                      42.153485018816895
+                    ],
+                    "total_energy_j": -119809.47202619207,
+                    "temperature_k": 319.19481158179974,
+                    "chemical_constants": [
+                      1.1594668218264792,
+                      1.8460276698035734
+                    ],
+                    "interface_heights_m": [],
+                    "phase_seeds": [
+                      [
+                        0.3220272444485069,
+                        0.6779727555514931
+                      ]
+                    ],
+                    "phase_roots": [
+                      "stable"
+                    ],
+                    "quadrature_order": 8,
+                    "solution_variables": [
+                      13.815325091281643,
+                      -0.7444709515269375,
+                      13.815162577927588,
+                      -0.7443757479262783,
+                      13.814893290839473,
+                      -0.7442179943538034,
+                      13.814553536981702,
+                      -0.7440189604046585,
+                      13.814189198091485,
+                      -0.7438055246130947,
+                      13.813849475488835,
+                      -0.7436065099291636,
+                      13.813580234598996,
+                      -0.7434487848326553,
+                      13.813417758291788,
+                      -0.7433536040671523,
+                      1.1594668218264792,
+                      1.8460276698035734,
+                      1.0705846439101117
+                    ],
+                    "model_id": "868f228cf2af18775202704c88bcc3dc2771882e0211bb4d49e85685668e483a"
+                  },
+                  "wall_temperature_k": 316.1072044810243,
+                  "ambient_heat_j": -0.012882384452160698,
+                  "fluid_heat_j": -0.013025842456396293,
+                  "energy_residual_j": 6.592171253316792e-11,
+                  "entropy_production_j_k": 1.4640921934015033e-05,
+                  "feed_energy_j": 13.642937500586335,
+                  "outlet_energy_j": 13.073057384285915,
+                  "feed_component_moles": [
+                    0.0074103025347214396,
+                    0.015600561766651418
+                  ],
+                  "outlet_component_moles": [
+                    0.007089648268423928,
+                    0.014925506599922624
+                  ],
+                  "quadrature_error_ratio": 1.5688801705790743e-05,
+                  "phase_count": 1,
+                  "outlets": [
+                    {
+                      "name": "export",
+                      "opening": 0.9,
+                      "volume_rate_m3_s": 0.026337641840896688,
+                      "component_rates_mol_s": [
+                        3.361018438363933,
+                        7.075795721444793
+                      ],
+                      "total_energy_rate_w": 6197.597574772577,
+                      "phase_area_fractions": [
+                        1.0000000000000002
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "dt_s": 0.002109375000000002,
+                  "profile_acceptance": "verified_joint_flow_iterate",
+                  "column_state": {
+                    "component_moles": [
+                      20.033788238957175,
+                      42.154131835025915
+                    ],
+                    "total_energy_j": -119808.94091618518,
+                    "temperature_k": 319.1958916046725,
+                    "chemical_constants": [
+                      1.1594850970531636,
+                      1.8460454101766806
+                    ],
+                    "interface_heights_m": [],
+                    "phase_seeds": [
+                      [
+                        0.3220272429934495,
+                        0.6779727570065506
+                      ]
+                    ],
+                    "phase_roots": [
+                      "stable"
+                    ],
+                    "quadrature_order": 8,
+                    "solution_variables": [
+                      13.81534340128791,
+                      -0.7444709581915558,
+                      13.815180888416537,
+                      -0.7443757548096794,
+                      13.814911602128243,
+                      -0.7442180015997615,
+                      13.814571849279606,
+                      -0.7440189681081006,
+                      13.814207511471563,
+                      -0.7438055328071932,
+                      13.813867789877994,
+                      -0.7436065185808294,
+                      13.813598549787896,
+                      -0.7434487938470012,
+                      13.813436073963306,
+                      -0.7433536133003797,
+                      1.1594850970531636,
+                      1.8460454101766806,
+                      1.0705882663245767
+                    ],
+                    "model_id": "868f228cf2af18775202704c88bcc3dc2771882e0211bb4d49e85685668e483a"
+                  },
+                  "wall_temperature_k": 316.10720462903777,
+                  "ambient_heat_j": -0.012882384764376552,
+                  "fluid_heat_j": -0.013030398178459086,
+                  "energy_residual_j": 2.9416802327375535e-11,
+                  "entropy_production_j_k": 1.130504464613366e-05,
+                  "feed_energy_j": 13.642937500586335,
+                  "outlet_energy_j": 13.098797095516003,
+                  "feed_component_moles": [
+                    0.0074103025347214396,
+                    0.015600561766651418
+                  ],
+                  "outlet_component_moles": [
+                    0.007103061787167635,
+                    0.014953745557632079
+                  ],
+                  "quadrature_error_ratio": 1.565153218107303e-05,
+                  "phase_count": 1,
+                  "outlets": [
+                    {
+                      "name": "export",
+                      "opening": 0.9,
+                      "volume_rate_m3_s": 0.026387067662617773,
+                      "component_rates_mol_s": [
+                        3.367377439842431,
+                        7.08918307917372
+                      ],
+                      "total_energy_rate_w": 6209.800104540915,
+                      "phase_area_fractions": [
+                        1.0000000000000002
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "dt_s": 0.002109375000000002,
+                  "profile_acceptance": "verified_joint_flow_iterate",
+                  "column_state": {
+                    "component_moles": [
+                      20.034082629370168,
+                      42.15475159792659
+                    ],
+                    "total_energy_j": -119808.43447216363,
+                    "temperature_k": 319.19692541602905,
+                    "chemical_constants": [
+                      1.159502604008097,
+                      1.8460624043368732
+                    ],
+                    "interface_heights_m": [],
+                    "phase_seeds": [
+                      [
+                        0.3220272416000681,
+                        0.677972758399932
+                      ]
+                    ],
+                    "phase_roots": [
+                      "stable"
+                    ],
+                    "quadrature_order": 8,
+                    "solution_variables": [
+                      13.815360941659378,
+                      -0.7444709645736785,
+                      13.81519842924991,
+                      -0.7443757614010599,
+                      13.814929143727014,
+                      -0.7442180085379156,
+                      13.814589391844077,
+                      -0.744018975483823,
+                      13.814225055071638,
+                      -0.743805540652211,
+                      13.813885334443716,
+                      -0.7436065268634956,
+                      13.813616095118942,
+                      -0.7434488024765583,
+                      13.813453619756197,
+                      -0.7433536221392892,
+                      1.159502604008097,
+                      1.8460624043368732,
+                      1.070591733744857
+                    ],
+                    "model_id": "868f228cf2af18775202704c88bcc3dc2771882e0211bb4d49e85685668e483a"
+                  },
+                  "wall_temperature_k": 316.1072047814116,
+                  "ambient_heat_j": -0.012882385085790126,
+                  "fluid_heat_j": -0.013034758927292318,
+                  "energy_residual_j": -2.963407297329468e-12,
+                  "entropy_production_j_k": 8.109646839730283e-06,
+                  "feed_energy_j": 13.642937500586335,
+                  "outlet_energy_j": 13.123458720104137,
+                  "feed_component_moles": [
+                    0.0074103025347214396,
+                    0.015600561766651418
+                  ],
+                  "outlet_component_moles": [
+                    0.007115912121730184,
+                    0.014980798865971843
+                  ],
+                  "quadrature_error_ratio": 1.5559862109075762e-05,
+                  "phase_count": 1,
+                  "outlets": [
+                    {
+                      "name": "export",
+                      "opening": 0.9,
+                      "volume_rate_m3_s": 0.02643441678921394,
+                      "component_rates_mol_s": [
+                        3.373469450301714,
+                        7.102008351275534
+                      ],
+                      "total_energy_rate_w": 6221.491541382697,
+                      "phase_area_fractions": [
+                        1.0000000000000002
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "dt_s": 0.002109375000000002,
+                  "profile_acceptance": "verified_joint_flow_iterate",
+                  "column_state": {
+                    "component_moles": [
+                      20.03436470901875,
+                      42.15534544345465
+                    ],
+                    "total_energy_j": -119807.95166076376,
+                    "temperature_k": 319.1979149576326,
+                    "chemical_constants": [
+                      1.1595193749731363,
+                      1.8460786836396033
+                    ],
+                    "interface_heights_m": [],
+                    "phase_seeds": [
+                      [
+                        0.3220272402657709,
+                        0.6779727597342291
+                      ]
+                    ],
+                    "phase_roots": [
+                      "stable"
+                    ],
+                    "quadrature_order": 8,
+                    "solution_variables": [
+                      13.815377744735205,
+                      -0.7444709706851771,
+                      13.815215232767745,
+                      -0.744375767712693,
+                      13.814945947977266,
+                      -0.7442180151812005,
+                      13.814606197018424,
+                      -0.7440189825455974,
+                      13.814241861236969,
+                      -0.743805548162819,
+                      13.813902141533093,
+                      -0.7436065347926689,
+                      13.813632902940666,
+                      -0.7434488107374981,
+                      13.813470428019873,
+                      -0.7433536306004541,
+                      1.1595193749731363,
+                      1.8460786836396033,
+                      1.0705950526836578
+                    ],
+                    "model_id": "868f228cf2af18775202704c88bcc3dc2771882e0211bb4d49e85685668e483a"
+                  },
+                  "wall_temperature_k": 316.1072049379591,
+                  "ambient_heat_j": -0.01288238541600754,
+                  "fluid_heat_j": -0.013038932895497386,
+                  "energy_residual_j": 2.907457608003483e-11,
+                  "entropy_production_j_k": 5.048802072037811e-06,
+                  "feed_energy_j": 13.642937500586335,
+                  "outlet_energy_j": 13.147087167818418,
+                  "feed_component_moles": [
+                    0.0074103025347214396,
+                    0.015600561766651418
+                  ],
+                  "outlet_component_moles": [
+                    0.007128222886138793,
+                    0.015006716238589728
+                  ],
+                  "quadrature_error_ratio": 1.5517009368586704e-05,
+                  "phase_count": 1,
+                  "outlets": [
+                    {
+                      "name": "export",
+                      "opening": 0.9,
+                      "volume_rate_m3_s": 0.02647977641114648,
+                      "component_rates_mol_s": [
+                        3.379305664539869,
+                        7.114295105701791
+                      ],
+                      "total_energy_rate_w": 6232.693175854652,
+                      "phase_area_fractions": [
+                        1.0000000000000002
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "dt_s": 0.002109375000000002,
+                  "profile_acceptance": "verified_joint_flow_iterate",
+                  "column_state": {
+                    "component_moles": [
+                      20.034634994846463,
+                      42.15591445991093
+                    ],
+                    "total_energy_j": -119807.49149168596,
+                    "temperature_k": 319.1988620897358,
+                    "chemical_constants": [
+                      1.159535440874631,
+                      1.8460942781236858
+                    ],
+                    "interface_heights_m": [],
+                    "phase_seeds": [
+                      [
+                        0.32202723898807517,
+                        0.6779727610119247
+                      ]
+                    ],
+                    "phase_roots": [
+                      "stable"
+                    ],
+                    "quadrature_order": 8,
+                    "solution_variables": [
+                      13.815393841496629,
+                      -0.7444709765374231,
+                      13.81523132995211,
+                      -0.7443757737563322,
+                      13.814962045862462,
+                      -0.7442180215420079,
+                      13.814622295787858,
+                      -0.7440189893066174,
+                      13.814257960954642,
+                      -0.7438055553530699,
+                      13.813918242134958,
+                      -0.7436065423832062,
+                      13.813649004243292,
+                      -0.7434488186453128,
+                      13.813486529745385,
+                      -0.7433536386997494,
+                      1.159535440874631,
+                      1.8460942781236858,
+                      1.070598229380298
+                    ],
+                    "model_id": "868f228cf2af18775202704c88bcc3dc2771882e0211bb4d49e85685668e483a"
+                  },
+                  "wall_temperature_k": 316.10720509850137,
+                  "ambient_heat_j": -0.012882385754651334,
+                  "fluid_heat_j": -0.013042927931770384,
+                  "energy_residual_j": 6.220968185033371e-11,
+                  "entropy_production_j_k": 2.116838779679317e-06,
+                  "feed_energy_j": 13.642937500586335,
+                  "outlet_energy_j": 13.16972549484406,
+                  "feed_component_moles": [
+                    0.0074103025347214396,
+                    0.015600561766651418
+                  ],
+                  "outlet_component_moles": [
+                    0.007140016707005964,
+                    0.015031545310372034
+                  ],
+                  "quadrature_error_ratio": 1.5454360930197657e-05,
+                  "phase_count": 1,
+                  "outlets": [
+                    {
+                      "name": "export",
+                      "opening": 0.9,
+                      "volume_rate_m3_s": 0.02652323006350062,
+                      "component_rates_mol_s": [
+                        3.3848968092472687,
+                        7.126065924917106
+                      ],
+                      "total_energy_rate_w": 6243.425419777919,
+                      "phase_area_fractions": [
+                        1.0000000000000002
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "dt_s": 0.00031249999999998293,
+                  "profile_acceptance": "verified_joint_flow_iterate",
+                  "column_state": {
+                    "component_moles": [
+                      20.034674780009237,
+                      42.155998217209785
+                    ],
+                    "total_energy_j": -119807.4238122723,
+                    "temperature_k": 319.19900147936187,
+                    "chemical_constants": [
+                      1.15953780561695,
+                      1.8460965734677897
+                    ],
+                    "interface_heights_m": [],
+                    "phase_seeds": [
+                      [
+                        0.3220272388000231,
+                        0.677972761199977
+                      ]
+                    ],
+                    "phase_roots": [
+                      "stable"
+                    ],
+                    "quadrature_order": 8,
+                    "solution_variables": [
+                      13.815396210783522,
+                      -0.7444709773987606,
+                      13.815233699301245,
+                      -0.7443757746458329,
+                      13.814964415314734,
+                      -0.7442180224781796,
+                      13.814624665370255,
+                      -0.7440189903016798,
+                      13.814260330676586,
+                      -0.743805556411294,
+                      13.813920611987024,
+                      -0.7436065435003325,
+                      13.813651374198484,
+                      -0.7434488198091256,
+                      13.81348889976281,
+                      -0.7433536398917387,
+                      1.15953780561695,
+                      1.8460965734677897,
+                      1.0705986968953947
+                    ],
+                    "model_id": "868f228cf2af18775202704c88bcc3dc2771882e0211bb4d49e85685668e483a"
+                  },
+                  "wall_temperature_k": 316.1072051223725,
+                  "ambient_heat_j": -0.0019085016007412948,
+                  "fluid_heat_j": -0.001932372723118264,
+                  "energy_residual_j": -1.192640430858205e-11,
+                  "entropy_production_j_k": 2.4305121321425635e-07,
+                  "feed_energy_j": 2.021175926012678,
+                  "outlet_energy_j": 1.9515641396379637,
+                  "feed_component_moles": [
+                    0.0010978225977364487,
+                    0.0023111943358000817
+                  ],
+                  "outlet_component_moles": [
+                    0.001058037434963803,
+                    0.0022274370369450547
+                  ],
+                  "quadrature_error_ratio": 1.5443003285113027e-05,
+                  "phase_count": 1,
+                  "outlets": [
+                    {
+                      "name": "export",
+                      "opening": 0.9,
+                      "volume_rate_m3_s": 0.026529626077998546,
+                      "component_rates_mol_s": [
+                        3.3857197918843545,
+                        7.127798518224564
+                      ],
+                      "total_energy_rate_w": 6245.005246841825,
+                      "phase_area_fractions": [
+                        1.0000000000000002
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "dt_s": 0.00031249999999998293,
+                  "profile_acceptance": "verified_joint_flow_iterate",
+                  "column_state": {
+                    "component_moles": [
+                      20.034714309649303,
+                      42.15608143656663
+                    ],
+                    "total_energy_j": -119807.35662346194,
+                    "temperature_k": 319.1991399501877,
+                    "chemical_constants": [
+                      1.1595401550840285,
+                      1.8460988539752718
+                    ],
+                    "interface_heights_m": [],
+                    "phase_seeds": [
+                      [
+                        0.3220272386131973,
+                        0.6779727613868027
+                      ]
+                    ],
+                    "phase_roots": [
+                      "stable"
+                    ],
+                    "quadrature_order": 8,
+                    "solution_variables": [
+                      13.815398564768076,
+                      -0.7444709782544812,
+                      13.815236053347627,
+                      -0.7443757755295272,
+                      13.814966769463567,
+                      -0.7442180234082313,
+                      13.814627019648354,
+                      -0.7440189912902269,
+                      13.814262685093302,
+                      -0.7438055574625775,
+                      13.813922966532997,
+                      -0.743606544610122,
+                      13.8136537288469,
+                      -0.7434488209652885,
+                      13.813491254473046,
+                      -0.7433536410758887,
+                      1.1595401550840285,
+                      1.8460988539752718,
+                      1.0705991613288202
+                    ],
+                    "model_id": "868f228cf2af18775202704c88bcc3dc2771882e0211bb4d49e85685668e483a"
+                  },
+                  "wall_temperature_k": 316.10720514633016,
+                  "ambient_heat_j": -0.0019085016082280705,
+                  "fluid_heat_j": -0.0019324592524108662,
+                  "energy_residual_j": 4.274948450788685e-11,
+                  "entropy_production_j_k": 1.7961233045142577e-07,
+                  "feed_energy_j": 2.021175926012678,
+                  "outlet_energy_j": 1.952054656397187,
+                  "feed_component_moles": [
+                    0.0010978225977364487,
+                    0.0023111943358000817
+                  ],
+                  "outlet_component_moles": [
+                    0.001058292957671857,
+                    0.0022279749789557157
+                  ],
+                  "quadrature_error_ratio": 1.5418470131934024e-05,
+                  "phase_count": 1,
+                  "outlets": [
+                    {
+                      "name": "export",
+                      "opening": 0.9,
+                      "volume_rate_m3_s": 0.02653598079801922,
+                      "component_rates_mol_s": [
+                        3.386537464550127,
+                        7.129519932658679
+                      ],
+                      "total_energy_rate_w": 6246.57490047134,
+                      "phase_area_fractions": [
+                        1.0000000000000002
+                      ]
+                    }
+                  ]
+                }
+              ],
+              "surface_attempts": 8,
+              "feed_component_moles": [
+                0.08782580781892065,
+                0.18489554686401655
+              ],
+              "outlet_component_moles": [
+                0.08378064528239827,
+                0.17637949218007568
+              ]
+            },
+            "well_boundary": {
+              "P1": {
+                "boundary_type": "prescribed_temperature_external_energy",
+                "energy_supplied_by_thermal_boundary_w": 3233.8814816204617,
+                "reservoir_energy_balance_available": false,
+                "assay_id": "69bdb0e2b32be2b2256434b07db46edbf1662b1cbbda7d24e8c7b7a4466973f0",
+                "mass_residual_kg_s": 0.0,
+                "stream": {
+                  "component_molar_rates_mol_s": [
+                    1.7565161563784137,
+                    3.6979109372803327
+                  ],
+                  "pressure_pa": 2307362.35246788,
+                  "total_energy_rate_w": 3233.8814816204617,
+                  "model_id": "aa2016c1a0d812a3aa1ec5b5d93d0e60f06a350d3786f212a0f1b3740a080ee8",
+                  "elevation_m": -40.0,
+                  "velocity_m_s": 0.0,
+                  "gravity_m_s2": 9.80665
+                }
+              },
+              "P2": {
+                "boundary_type": "prescribed_temperature_external_energy",
+                "energy_supplied_by_thermal_boundary_w": 3233.8814816204617,
+                "reservoir_energy_balance_available": false,
+                "assay_id": "69bdb0e2b32be2b2256434b07db46edbf1662b1cbbda7d24e8c7b7a4466973f0",
+                "mass_residual_kg_s": 0.0,
+                "stream": {
+                  "component_molar_rates_mol_s": [
+                    1.7565161563784137,
+                    3.6979109372803327
+                  ],
+                  "pressure_pa": 2307362.35246788,
+                  "total_energy_rate_w": 3233.8814816204617,
+                  "model_id": "aa2016c1a0d812a3aa1ec5b5d93d0e60f06a350d3786f212a0f1b3740a080ee8",
+                  "elevation_m": -40.0,
+                  "velocity_m_s": 0.0,
+                  "gravity_m_s2": 9.80665
+                }
+              }
+            },
+            "accepted_wells": {
+              "P1": {
+                "node": "bottom_1",
+                "mode": "surface",
+                "bhp_pa": 2307362.35246788,
+                "network_reference_pressure_pa": 2307362.353181051,
+                "component_mass_rates_kg_s": [
+                  0.08946220804165383,
+                  0.04328984916506922,
+                  0.006620012076344362
+                ],
+                "standard_control_rate_m3_s": 0.00014853950568466195
+              },
+              "P2": {
+                "node": "bottom_2",
+                "mode": "surface",
+                "bhp_pa": 2307362.35246788,
+                "network_reference_pressure_pa": 2307362.353181051,
+                "component_mass_rates_kg_s": [
+                  0.08946220804165383,
+                  0.04328984916506922,
+                  0.006620012076344362
+                ],
+                "standard_control_rate_m3_s": 0.00014853950568466195
+              }
+            },
+            "inlet_well_names": [
+              "P1",
+              "P2"
+            ],
+            "inlet_streams": [
+              {
+                "component_molar_rates_mol_s": [
+                  1.7565161563784137,
+                  3.6979109372803327
+                ],
+                "pressure_pa": 999927.4530030612,
+                "total_energy_rate_w": 3233.8814816204617,
+                "model_id": "aa2016c1a0d812a3aa1ec5b5d93d0e60f06a350d3786f212a0f1b3740a080ee8",
+                "elevation_m": 0.0,
+                "velocity_m_s": 0.0,
+                "gravity_m_s2": 9.80665
+              },
+              {
+                "component_molar_rates_mol_s": [
+                  1.7565161563784137,
+                  3.6979109372803327
+                ],
+                "pressure_pa": 999927.4530030612,
+                "total_energy_rate_w": 3233.8814816204617,
+                "model_id": "aa2016c1a0d812a3aa1ec5b5d93d0e60f06a350d3786f212a0f1b3740a080ee8",
+                "elevation_m": 0.0,
+                "velocity_m_s": 0.0,
+                "gravity_m_s2": 9.80665
+              }
+            ],
+            "reservoir_inventory_before_kg": [
+              9198545.548452213,
+              6719999.8833944425,
+              660829.0972650585
+            ],
+            "reservoir_inventory_after_kg": [
+              9198545.5439791,
+              6719999.88122995,
+              660829.0969340578
+            ],
+            "actual_stock_component_mass_kg": [
+              0.0044731104020826916,
+              0.0021644924582534613,
+              0.00033100060381721814
+            ]
+          }
+        ],
+        "outlet_openings": {
+          "export": 0.9
+        },
+        "component_residuals_mol": [
+          -6.938893903907228e-15,
+          -8.881784197001252e-15
+        ],
+        "energy_residual_j": 6.832835408587812e-10,
+        "reservoir_residual_kg": [
+          1.6512235676002796e-09,
+          -1.1693013744762393e-09,
+          3.594557746074145e-11
+        ],
+        "cumulative": {
+          "feed_component_moles": [
+            0.17565762757587067,
+            0.369803750600983
+          ],
+          "export_component_moles": [
+            0.1648351346121662,
+            0.3470197154049275
+          ],
+          "thermal_boundary_energy_j": 323.404541967393,
+          "export_energy_j": 303.71703509348947,
+          "ambient_heat_j": -0.30536018614671157,
+          "produced_stock_component_kg": [
+            0.008946527007047268,
+            0.004329133085466726,
+            0.0006620238641311695
+          ],
+          "elapsed_s": 0.05
+        },
+        "reservoir_energy_equation_solved": false,
+        "pressure_feedback_from_caloric_process": true,
+        "pvt_eos_characterization_calibrated": false,
+        "scope": "Producer-only two-way finite-receiver pressure feedback. Steady PVT gathering, conservative adiabatic energy transfer, explicit thermal boundary; no pipe storage or reservoir energy equation.",
+        "property_evaluations": {
+          "enabled": true,
+          "hits": 1275,
+          "misses": 2058,
+          "evictions": 1802,
+          "entries": 256,
+          "maximum_entries": 256,
+          "caloric_fast_accepts": 367,
+          "caloric_bracket_fallbacks": 0,
+          "stability_seeds": 115752,
+          "stability_batched_seeds": 115752,
+          "stability_reference_seeds": 0,
+          "spatial_stability_batches": 2295,
+          "spatial_stability_points": 13768,
+          "spatial_stability_confirmed": 13768
+        }
+      },
+      "audit": {
+        "accepted": true,
+        "checked_stages": 2,
+        "stage_audits": [
+          {
+            "accepted": true,
+            "checked_substeps": 20,
+            "reference_port_quadrature": 32,
+            "maximum_energy_residual_j": 1.1421941170652872e-10
+          },
+          {
+            "accepted": true,
+            "checked_substeps": 16,
+            "reference_port_quadrature": 32,
+            "maximum_energy_residual_j": 1.476061495253589e-10
+          }
+        ],
+        "maximum_pressure_defect_pa": 0.0027671136194840074,
+        "feed_component_moles": [
+          0.17565762757587067,
+          0.369803750600983
+        ],
+        "export_component_moles": [
+          0.1648351346121662,
+          0.3470197154049275
+        ],
+        "produced_stock_component_kg": [
+          0.008946527007047268,
+          0.004329133085466726,
+          0.0006620238641311695
+        ],
+        "thermal_boundary_energy_j": 323.404541967393,
+        "export_energy_j": 303.71703509348947,
+        "ambient_heat_j": -0.30536018614671157,
+        "qualification": "Scalar PR profile/32-node finite-aperture audit, explicit stock assay and passive stream transfer. Does not re-solve reservoir, certify temporal error estimate, global stability or experimental equipment calibration."
+      }
+    }
+  ]
+}

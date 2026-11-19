@@ -1,0 +1,326 @@
+{
+  "scope": "cProfile: tests/test_fim_receiver_subcycling.py, includes setup and independent audits; not a standalone timestep timing",
+  "total_s": 73.5030148740001,
+  "functions": [
+    {
+      "file": "/home/user/workspace/oil-simulator-py-impes/src/surface/equilibrium_properties.py",
+      "line": 212,
+      "function": "tensor_homogeneous",
+      "calls": 19626,
+      "self_s": 12.744984705,
+      "cumulative_s": 52.621626534
+    },
+    {
+      "file": "/home/user/workspace/oil-simulator-py-impes/src/surface/chemical_kernel.py",
+      "line": 19,
+      "function": "residual",
+      "calls": 2672,
+      "self_s": 0.276446102,
+      "cumulative_s": 23.510814472
+    },
+    {
+      "file": "/home/user/workspace/oil-simulator-py-impes/src/surface/stratified_pr.py",
+      "line": 419,
+      "function": "_check_locals",
+      "calls": 288,
+      "self_s": 0.006416055,
+      "cumulative_s": 17.439210925
+    },
+    {
+      "file": "/home/user/workspace/oil-simulator-py-impes/src/surface/equilibrium_properties.py",
+      "line": 384,
+      "function": "homogeneous_stability_mask",
+      "calls": 288,
+      "self_s": 0.046835509000000004,
+      "cumulative_s": 17.429651271
+    },
+    {
+      "file": "/home/user/workspace/oil-simulator-py-impes/src/surface/equilibrium_properties.py",
+      "line": 171,
+      "function": "_roots",
+      "calls": 19626,
+      "self_s": 5.026191431,
+      "cumulative_s": 13.627077392
+    },
+    {
+      "file": "/home/user/workspace/oil-simulator-py-impes/src/surface/stratified_pr.py",
+      "line": 875,
+      "function": "sample",
+      "calls": 306,
+      "self_s": 0.013639124,
+      "cumulative_s": 12.718057919000001
+    },
+    {
+      "file": "/home/user/workspace/oil-simulator-py-impes/src/surface/stratified_pr.py",
+      "line": 228,
+      "function": "_decode_nodes",
+      "calls": 5570,
+      "self_s": 0.014485906000000002,
+      "cumulative_s": 12.712108641
+    },
+    {
+      "file": "/home/user/workspace/oil-simulator-py-impes/src/surface/stratified_pr.py",
+      "line": 230,
+      "function": "<lambda>",
+      "calls": 5570,
+      "self_s": 0.042608073,
+      "cumulative_s": 11.795569995000001
+    },
+    {
+      "file": "/home/user/workspace/oil-simulator-py-impes/src/surface/stratified_pr.py",
+      "line": 308,
+      "function": "evaluate",
+      "calls": 3582,
+      "self_s": 0.5141394610000001,
+      "cumulative_s": 10.462947061000001
+    },
+    {
+      "file": "/home/user/workspace/oil-simulator-py-impes/src/surface/stratified_pr.py",
+      "line": 697,
+      "function": "_seed",
+      "calls": 71,
+      "self_s": 0.0010520590000000002,
+      "cumulative_s": 10.455306287
+    },
+    {
+      "file": "/home/user/workspace/oil-simulator-py-impes/src/surface/equilibrium_properties.py",
+      "line": 1232,
+      "function": "flash_uv",
+      "calls": 71,
+      "self_s": 0.010050690000000001,
+      "cumulative_s": 10.386424586
+    },
+    {
+      "file": "/home/user/workspace/oil-simulator-py-impes/src/surface/stratified_pr.py",
+      "line": 509,
+      "function": "_accept",
+      "calls": 148,
+      "self_s": 0.011071759,
+      "cumulative_s": 9.099517864000001
+    },
+    {
+      "file": "/home/user/workspace/oil-simulator-py-impes/src/surface/stratified_pr.py",
+      "line": 233,
+      "function": "_decode_grouped_nodes",
+      "calls": 3582,
+      "self_s": 0.015320039,
+      "cumulative_s": 8.310198141
+    },
+    {
+      "file": "/home/user/workspace/oil-simulator-py-impes/src/surface/pr_phase_batch.py",
+      "line": 29,
+      "function": "properties",
+      "calls": 3582,
+      "self_s": 0.068982683,
+      "cumulative_s": 8.163935249
+    },
+    {
+      "file": "/home/user/workspace/oil-simulator-py-impes/src/surface/pr_phase_batch.py",
+      "line": 33,
+      "function": "eos",
+      "calls": 3582,
+      "self_s": 0.028886068,
+      "cumulative_s": 7.436884802000001
+    },
+    {
+      "file": "/home/user/workspace/oil-simulator-py-impes/src/surface/stratified_pr.py",
+      "line": 465,
+      "function": "_check_local",
+      "calls": 124,
+      "self_s": 0.0020824990000000002,
+      "cumulative_s": 6.918191855000001
+    },
+    {
+      "file": "/home/user/workspace/oil-simulator-py-impes/src/surface/equilibrium_stability_batch.py",
+      "line": 187,
+      "function": "tangent_gradient",
+      "calls": 668,
+      "self_s": 0.20685363,
+      "cumulative_s": 6.272385166
+    },
+    {
+      "file": "/home/user/workspace/oil-simulator-py-impes/src/surface/equilibrium_properties.py",
+      "line": 339,
+      "function": "tensor_chemical",
+      "calls": 668,
+      "self_s": 0.015955683000000002,
+      "cumulative_s": 5.768061315000001
+    },
+    {
+      "file": "/home/user/workspace/oil-simulator-py-impes/src/surface/stratified_pr.py",
+      "line": 913,
+      "function": "evaluate",
+      "calls": 2232,
+      "self_s": 0.080700954,
+      "cumulative_s": 5.1660103930000005
+    },
+    {
+      "file": "/home/user/workspace/oil-simulator-py-impes/src/surface/equilibrium_properties.py",
+      "line": 356,
+      "function": "<lambda>",
+      "calls": 5344,
+      "self_s": 0.032930216000000005,
+      "cumulative_s": 4.033678996
+    },
+    {
+      "file": "/home/user/workspace/oil-simulator-py-impes/src/surface/component_energy.py",
+      "line": 123,
+      "function": "equilibrate",
+      "calls": 192,
+      "self_s": 0.000717177,
+      "cumulative_s": 3.243649565
+    },
+    {
+      "file": "/home/user/workspace/oil-simulator-py-impes/src/surface/equilibrium_properties.py",
+      "line": 1126,
+      "function": "flash_ph",
+      "calls": 93,
+      "self_s": 0.000604562,
+      "cumulative_s": 3.2263837320000004
+    },
+    {
+      "file": "/home/user/workspace/oil-simulator-py-impes/src/surface/equilibrium_properties.py",
+      "line": 982,
+      "function": "_flash_property",
+      "calls": 93,
+      "self_s": 0.0047085550000000006,
+      "cumulative_s": 3.22577917
+    },
+    {
+      "file": "/home/user/workspace/oil-simulator-py-impes/src/surface/component_energy.py",
+      "line": 135,
+      "function": "transport",
+      "calls": 28,
+      "self_s": 0.000312143,
+      "cumulative_s": 2.292424296
+    },
+    {
+      "file": "/home/user/workspace/oil-simulator-py-impes/src/surface/blackoil_network.py",
+      "line": 277,
+      "function": "solve",
+      "calls": 44,
+      "self_s": 0.0054986440000000004,
+      "cumulative_s": 1.3470383430000001
+    },
+    {
+      "file": "/home/user/workspace/oil-simulator-py-impes/src/surface/blackoil_pipe.py",
+      "line": 345,
+      "function": "required_inlet",
+      "calls": 132,
+      "self_s": 0.00012007300000000001,
+      "cumulative_s": 1.337514147
+    },
+    {
+      "file": "/home/user/workspace/oil-simulator-py-impes/src/surface/blackoil_pipe.py",
+      "line": 158,
+      "function": "_solve",
+      "calls": 132,
+      "self_s": 0.010419775000000001,
+      "cumulative_s": 1.330192633
+    },
+    {
+      "file": "/home/user/workspace/oil-simulator-py-impes/src/surface/component_energy.py",
+      "line": 455,
+      "function": "from_isothermal_boundary",
+      "calls": 28,
+      "self_s": 0.00030059,
+      "cumulative_s": 1.187543562
+    },
+    {
+      "file": "/home/user/workspace/oil-simulator-py-impes/src/surface/component_energy.py",
+      "line": 76,
+      "function": "from_pt",
+      "calls": 28,
+      "self_s": 0.000286875,
+      "cumulative_s": 1.1837003110000002
+    },
+    {
+      "file": "/home/user/workspace/oil-simulator-py-impes/src/surface/blackoil_pipe.py",
+      "line": 127,
+      "function": "_checked_integral",
+      "calls": 893,
+      "self_s": 0.022946334000000002,
+      "cumulative_s": 0.9929708930000001
+    },
+    {
+      "file": "/home/user/workspace/oil-simulator-py-impes/src/surface/blackoil_pipe.py",
+      "line": 95,
+      "function": "_integral",
+      "calls": 1786,
+      "self_s": 0.110441224,
+      "cumulative_s": 0.957935898
+    },
+    {
+      "file": "/home/user/workspace/oil-simulator-py-impes/src/surface/stratified_pr_flow.py",
+      "line": 395,
+      "function": "<genexpr>",
+      "calls": 204,
+      "self_s": 0.000821751,
+      "cumulative_s": 0.95352625
+    },
+    {
+      "file": "/home/user/workspace/oil-simulator-py-impes/src/surface/stratified_pr.py",
+      "line": 748,
+      "function": "equilibrate",
+      "calls": 3,
+      "self_s": 0.00022831900000000002,
+      "cumulative_s": 0.925835618
+    },
+    {
+      "file": "/home/user/workspace/oil-simulator-py-impes/src/surface/blackoil_pipe.py",
+      "line": 172,
+      "function": "distance",
+      "calls": 1025,
+      "self_s": 0.0032766500000000003,
+      "cumulative_s": 0.846757461
+    },
+    {
+      "file": "/home/user/workspace/oil-simulator-py-impes/src/surface/stratified_pr.py",
+      "line": 499,
+      "function": "_solve",
+      "calls": 6,
+      "self_s": 0.00021915700000000002,
+      "cumulative_s": 0.7477822860000001
+    },
+    {
+      "file": "/home/user/workspace/oil-simulator-py-impes/src/surface/stratified_pr.py",
+      "line": 186,
+      "function": "_grid",
+      "calls": 4058,
+      "self_s": 0.10081693800000001,
+      "cumulative_s": 0.715058674
+    },
+    {
+      "file": "/home/user/workspace/oil-simulator-py-impes/src/surface/blackoil_pipe.py",
+      "line": 247,
+      "function": "<lambda>",
+      "calls": 893,
+      "self_s": 0.000639275,
+      "cumulative_s": 0.697080094
+    },
+    {
+      "file": "/home/user/workspace/oil-simulator-py-impes/src/surface/three_phase_properties.py",
+      "line": 209,
+      "function": "disk_band_area",
+      "calls": 2883,
+      "self_s": 0.007236220000000001,
+      "cumulative_s": 0.623819713
+    },
+    {
+      "file": "/home/user/workspace/oil-simulator-py-impes/src/surface/peng_robinson_mixture.py",
+      "line": 205,
+      "function": "flash_pt",
+      "calls": 76,
+      "self_s": 0.000231969,
+      "cumulative_s": 0.618052589
+    },
+    {
+      "file": "/home/user/workspace/oil-simulator-py-impes/src/surface/peng_robinson_mixture.py",
+      "line": 193,
+      "function": "stability",
+      "calls": 76,
+      "self_s": 0.000323095,
+      "cumulative_s": 0.61071113
+    }
+  ]
+}

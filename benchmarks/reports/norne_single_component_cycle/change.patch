@@ -1,0 +1,51 @@
+--- a/src/simulator/blackoil_fim.py
++++ b/src/simulator/blackoil_fim.py
+@@ -1980,7 +1980,9 @@
+             self._p_bh_cur = None
+             return False
+ 
+-        for k in range(self.max_newton):
++        # Inspect the state after the final allowed correction as well.
++        # The budget counts Newton corrections, not residual evaluations.
++        for k in range(self.max_newton + 1):
+             dbg.begin_iter(k)
+             timer = dbg.timer()
+             with timer('assemble'):
+@@ -2057,6 +2059,9 @@
+                 dbg.end_step(True, "converged", p.view(shp), sw.view(shp))
+                 log("  Converged!")
+                 return True
++
++            if k == self.max_newton:
++                return fail("max_newton_iter", R, J)
+ 
+             dbg.jacobian(J, self.builder.diag_map)
+             # допуск линейного решателя — по норме всей системы, а CNV — максимум по ячейкам: локальная невязка
+@@ -2131,13 +2136,13 @@
+             dbg.line_search([], 1.0, True)
+             dbg.end_iter(timer.t if dbg.enabled else {})
+ 
+-        R, J, _ = self.assemble_bo(p, sw, x, sat, acc_old, dt, p_bh, state, ug)
+-        return fail("max_newton_iter", R, J)
++        raise AssertionError("Newton loop must terminate at the correction budget")
+ 
+     def _oscillating(self, hist):
+         """
+-        Колебания Ньютона (как detectOscillations в OPM): по ≥2 уравнениям невязка вернулась к значению
+-        двух итераций назад (|F0 − F2| < tol·F0), но отличается от предыдущей (|F0 − F1| > tol·F0).
++        Двухточечный цикл: невязка вернулась к значению двух итераций назад,
++        но отличается от предыдущей. Требуем два колеблющихся компонента,
++        кроме случая, когда несошедшимся остался только один компонент.
+         hist — невязки уравнений, нормированные на допуск: max(CNV/tol_cnv, MB/tol_mb).
+         """
+         if len(hist) < 3:
+@@ -2149,7 +2154,8 @@
+                 continue
+             if abs(f0 - f2) < tol * f0 and abs(f0 - f1) > tol * f0:
+                 n += 1
+-        return n >= min(2, len(hist[-1]))
++        active = sum(f > 1.0 for f in hist[-1])
++        return n > 0 and n >= min(2, active)
+ 
+     @staticmethod
+     def _clamp_x(x, sw, sat, es):

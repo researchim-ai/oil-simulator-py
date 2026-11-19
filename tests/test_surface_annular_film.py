@@ -66,6 +66,32 @@ def test_film_domain_and_blocked_roots_do_not_silently_extrapolate():
         countercurrent_film(1000.0, 0.06, 1.2)
 
 
+@pytest.mark.parametrize("diameter,flow", [(1., 1e-8), (.5, 1e-9)])
+@pytest.mark.parametrize("device", ["cpu"] + (["cuda"] if torch.cuda.is_available() else []))
+def test_thin_film_below_old_scan_floor_recovers_gravity_limit(diameter, flow, device):
+    rho, gas_rho, mu, gravity = 998.2, 1.2, .001002, 9.80665
+    # Independent planar Stokes integral: Gamma=rho*(rho-rho_g)*g*h^3/(3*mu).
+    expected = (3 * mu * flow / (math.pi * diameter * rho * (rho-gas_rho) * gravity))**(1/3)
+    r = countercurrent_film(torch.tensor(1e-8, dtype=torch.float64, device=device),
+                           flow, gas_rho, diameter_m=diameter,
+                           shear_velocity="interface")
+    assert r["film_thickness_m"].device.type == device
+    assert float(r["liquid_holdup"]) < 1e-5
+    assert float(r["film_thickness_m"]) == pytest.approx(expected, rel=1e-4)
+    assert abs(float(r["liquid_velocity_residual_m_s"])) < 1e-12
+
+
+def test_mixed_thin_and_ordinary_brackets_are_independent():
+    flows = torch.tensor([[1e-8, .06], [1e-9, .03]], dtype=torch.float64)
+    batch = countercurrent_film(1e-8, flows, 1.2, diameter_m=1., shear_velocity="interface")
+    for i in range(2):
+        for j in range(2):
+            single = countercurrent_film(1e-8, flows[i,j], 1.2, diameter_m=1.,
+                                         shear_velocity="interface")
+            for name in batch:
+                torch.testing.assert_close(batch[name][i,j], single[name], rtol=1e-12, atol=1e-12)
+
+
 @pytest.mark.skipif(not torch.cuda.is_available(), reason="CUDA unavailable")
 def test_cuda_film_keeps_outputs_on_device_and_matches_cpu():
     jg = torch.tensor([3.0, 5.0, 7.0], dtype=torch.float64)

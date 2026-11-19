@@ -1,0 +1,487 @@
+{
+  "scope": "Instrumented first operating day; timings include profiling overhead",
+  "solve_wall_s": 13.346794958000828,
+  "accepted_steps": 26,
+  "functions": [
+    {
+      "file": "/home/user/workspace/oil-simulator-py-impes/src/surface/blackoil_properties.py",
+      "line": 127,
+      "function": "interpolate",
+      "calls": 28140,
+      "self_s": 0.270430489,
+      "cumulative_s": 0.270430489
+    },
+    {
+      "file": "/home/user/workspace/oil-simulator-py-impes/src/simulator/blackoil_fim.py",
+      "line": 1762,
+      "function": "assemble_bo",
+      "calls": 335,
+      "self_s": 0.22661371300000002,
+      "cumulative_s": 4.1908838600000005
+    },
+    {
+      "file": "/home/user/workspace/oil-simulator-py-impes/src/simulator/blackoil_props.py",
+      "line": 20,
+      "function": "interp1",
+      "calls": 4684,
+      "self_s": 0.220057627,
+      "cumulative_s": 1.326118401
+    },
+    {
+      "file": "/home/user/workspace/oil-simulator-py-impes/src/surface/blackoil_pressure_lookup.py",
+      "line": 38,
+      "function": "interpolate",
+      "calls": 18760,
+      "self_s": 0.183045424,
+      "cumulative_s": 0.20188592600000002
+    },
+    {
+      "file": "/home/user/workspace/oil-simulator-py-impes/src/surface/blackoil_pipe_batch.py",
+      "line": 21,
+      "function": "tensor_state",
+      "calls": 2680,
+      "self_s": 0.176340154,
+      "cumulative_s": 0.6162165740000001
+    },
+    {
+      "file": "/home/user/workspace/oil-simulator-py-impes/src/surface/blackoil_pipe.py",
+      "line": 95,
+      "function": "_integral",
+      "calls": 3350,
+      "self_s": 0.162799055,
+      "cumulative_s": 1.13747172
+    },
+    {
+      "file": "/home/user/workspace/oil-simulator-py-impes/src/surface/blackoil_properties.py",
+      "line": 213,
+      "function": "tensor_state",
+      "calls": 4020,
+      "self_s": 0.14287454300000002,
+      "cumulative_s": 0.566720925
+    },
+    {
+      "file": "/home/user/workspace/oil-simulator-py-impes/src/surface/blackoil_properties.py",
+      "line": 112,
+      "function": "interpolate",
+      "calls": 10624,
+      "self_s": 0.14018001100000002,
+      "cumulative_s": 0.175081653
+    },
+    {
+      "file": "/home/user/workspace/oil-simulator-py-impes/src/simulator/tree_well_system.py",
+      "line": 245,
+      "function": "solve",
+      "calls": 1241,
+      "self_s": 0.13335882100000002,
+      "cumulative_s": 0.31764285600000003
+    },
+    {
+      "file": "/home/user/workspace/oil-simulator-py-impes/src/solver/classical_amg.py",
+      "line": 1271,
+      "function": "_spmv_csr",
+      "calls": 15792,
+      "self_s": 0.132656875,
+      "cumulative_s": 0.267750982
+    },
+    {
+      "file": "/home/user/workspace/oil-simulator-py-impes/src/surface/blackoil_quadrature_plan.py",
+      "line": 33,
+      "function": "evaluate",
+      "calls": 2010,
+      "self_s": 0.132402131,
+      "cumulative_s": 1.2066469610000001
+    },
+    {
+      "file": "/home/user/workspace/oil-simulator-py-impes/src/surface/blackoil_pipe_batch.py",
+      "line": 110,
+      "function": "_integrand",
+      "calls": 2010,
+      "self_s": 0.12980998600000002,
+      "cumulative_s": 0.957099295
+    },
+    {
+      "file": "/home/user/workspace/oil-simulator-py-impes/src/surface/blackoil_pipe_batch.py",
+      "line": 163,
+      "function": "solve",
+      "calls": 335,
+      "self_s": 0.11804022,
+      "cumulative_s": 2.4904859310000003
+    },
+    {
+      "file": "/home/user/workspace/oil-simulator-py-impes/src/simulator/blackoil_fim.py",
+      "line": 1658,
+      "function": "fn",
+      "calls": 265,
+      "self_s": 0.112489635,
+      "cumulative_s": 3.7206774840000003
+    },
+    {
+      "file": "/home/user/workspace/oil-simulator-py-impes/src/simulator/blackoil_props.py",
+      "line": 391,
+      "function": "evaluate",
+      "calls": 1214,
+      "self_s": 0.111544208,
+      "cumulative_s": 0.45566154900000005
+    },
+    {
+      "file": "/home/user/workspace/oil-simulator-py-impes/src/surface/tree_pressure_tangent.py",
+      "line": 153,
+      "function": "apply",
+      "calls": 2243,
+      "self_s": 0.093474712,
+      "cumulative_s": 0.187887137
+    },
+    {
+      "file": "/home/user/workspace/oil-simulator-py-impes/src/simulator/fim_transaction.py",
+      "line": 30,
+      "function": "_copy_value",
+      "calls": 142154,
+      "self_s": 0.073205449,
+      "cumulative_s": 0.12824003
+    },
+    {
+      "file": "/home/user/workspace/oil-simulator-py-impes/src/simulator/blackoil_fim.py",
+      "line": 424,
+      "function": "_production_connection_flows",
+      "calls": 623,
+      "self_s": 0.071057382,
+      "cumulative_s": 0.078278176
+    },
+    {
+      "file": "/home/user/workspace/oil-simulator-py-impes/src/surface/blackoil_properties.py",
+      "line": 135,
+      "function": "validate",
+      "calls": 1342,
+      "self_s": 0.070384659,
+      "cumulative_s": 0.275844362
+    },
+    {
+      "file": "/home/user/workspace/oil-simulator-py-impes/src/simulator/tree_well_system.py",
+      "line": 23,
+      "function": "__init__",
+      "calls": 335,
+      "self_s": 0.069205687,
+      "cumulative_s": 0.28572161
+    },
+    {
+      "file": "/home/user/workspace/oil-simulator-py-impes/src/surface/blackoil_properties.py",
+      "line": 184,
+      "function": "split_pressures",
+      "calls": 3350,
+      "self_s": 0.067368438,
+      "cumulative_s": 0.090337832
+    },
+    {
+      "file": "/home/user/workspace/oil-simulator-py-impes/src/surface/blackoil_pipe_batch.py",
+      "line": 88,
+      "function": "_pressure_points",
+      "calls": 1005,
+      "self_s": 0.066827709,
+      "cumulative_s": 0.119656249
+    },
+    {
+      "file": "/home/user/workspace/oil-simulator-py-impes/src/simulator/blackoil_surface_coupling.py",
+      "line": 293,
+      "function": "assemble",
+      "calls": 335,
+      "self_s": 0.06385898100000001,
+      "cumulative_s": 3.8702303330000003
+    },
+    {
+      "file": "/home/user/workspace/oil-simulator-py-impes/src/surface/blackoil_network.py",
+      "line": 277,
+      "function": "solve",
+      "calls": 335,
+      "self_s": 0.058620483,
+      "cumulative_s": 4.626216216
+    },
+    {
+      "file": "/home/user/workspace/oil-simulator-py-impes/src/simulator/blackoil_props.py",
+      "line": 478,
+      "function": "_two_phase",
+      "calls": 265,
+      "self_s": 0.058269753,
+      "cumulative_s": 0.483056888
+    },
+    {
+      "file": "/home/user/workspace/oil-simulator-py-impes/src/simulator/blackoil_fim.py",
+      "line": 1613,
+      "function": "_phase_state",
+      "calls": 415,
+      "self_s": 0.057000974,
+      "cumulative_s": 2.480213716
+    },
+    {
+      "file": "/home/user/workspace/oil-simulator-py-impes/src/surface/blackoil_pipe.py",
+      "line": 49,
+      "function": "_darcy",
+      "calls": 6030,
+      "self_s": 0.056404577000000004,
+      "cumulative_s": 0.111432705
+    },
+    {
+      "file": "/home/user/workspace/oil-simulator-py-impes/src/simulator/blackoil_props.py",
+      "line": 368,
+      "function": "oil",
+      "calls": 607,
+      "self_s": 0.05474362000000001,
+      "cumulative_s": 1.1205658410000001
+    },
+    {
+      "file": "/home/user/workspace/oil-simulator-py-impes/src/surface/blackoil_batch_admission.py",
+      "line": 21,
+      "function": "validate_inputs",
+      "calls": 335,
+      "self_s": 0.049490391,
+      "cumulative_s": 0.14953316700000002
+    },
+    {
+      "file": "/home/user/workspace/oil-simulator-py-impes/src/surface/blackoil_pipe.py",
+      "line": 127,
+      "function": "_checked_integral",
+      "calls": 1675,
+      "self_s": 0.044095747000000005,
+      "cumulative_s": 1.204761672
+    },
+    {
+      "file": "/home/user/workspace/oil-simulator-py-impes/src/surface/liquid.py",
+      "line": 24,
+      "function": "_number",
+      "calls": 128056,
+      "self_s": 0.044003439000000005,
+      "cumulative_s": 0.144516148
+    },
+    {
+      "file": "/home/user/workspace/oil-simulator-py-impes/src/solver/classical_amg.py",
+      "line": 1343,
+      "function": "_jacobi_smooth",
+      "calls": 3948,
+      "self_s": 0.04339963,
+      "cumulative_s": 0.240700814
+    },
+    {
+      "file": "/home/user/workspace/oil-simulator-py-impes/src/surface/blackoil_properties.py",
+      "line": 117,
+      "function": "_column_interpolator",
+      "calls": 4020,
+      "self_s": 0.042514059,
+      "cumulative_s": 0.07074182000000001
+    },
+    {
+      "file": "/home/user/workspace/oil-simulator-py-impes/src/surface/blackoil_pressure_lookup.py",
+      "line": 11,
+      "function": "__init__",
+      "calls": 2680,
+      "self_s": 0.040222273,
+      "cumulative_s": 0.060569808
+    },
+    {
+      "file": "/home/user/workspace/oil-simulator-py-impes/src/solver/classical_amg.py",
+      "line": 219,
+      "function": "build_prolongation_rs_full",
+      "calls": 93,
+      "self_s": 0.039906995,
+      "cumulative_s": 0.068080919
+    },
+    {
+      "file": "/home/user/workspace/oil-simulator-py-impes/src/solver/classical_amg.py",
+      "line": 784,
+      "function": "_drop_small_entries_csr",
+      "calls": 876,
+      "self_s": 0.039834863000000005,
+      "cumulative_s": 0.10393429400000001
+    },
+    {
+      "file": "/home/user/workspace/oil-simulator-py-impes/src/solver/classical_amg.py",
+      "line": 1230,
+      "function": "_extract_diag",
+      "calls": 1499,
+      "self_s": 0.038072821,
+      "cumulative_s": 0.072988468
+    },
+    {
+      "file": "/home/user/workspace/oil-simulator-py-impes/src/surface/tree_pressure_tangent.py",
+      "line": 18,
+      "function": "__init__",
+      "calls": 335,
+      "self_s": 0.035726087000000004,
+      "cumulative_s": 0.15241601500000002
+    },
+    {
+      "file": "/home/user/workspace/oil-simulator-py-impes/src/simulator/blackoil_fim.py",
+      "line": 1961,
+      "function": "step",
+      "calls": 95,
+      "self_s": 0.034269816,
+      "cumulative_s": 0.0
+    },
+    {
+      "file": "/home/user/workspace/oil-simulator-py-impes/src/surface/blackoil_quadrature_plan.py",
+      "line": 11,
+      "function": "__init__",
+      "calls": 1005,
+      "self_s": 0.028841029,
+      "cumulative_s": 0.061480213000000006
+    },
+    {
+      "file": "/home/user/workspace/oil-simulator-py-impes/src/simulator/blackoil_props.py",
+      "line": 497,
+      "function": "__call__",
+      "calls": 265,
+      "self_s": 0.027968805000000003,
+      "cumulative_s": 0.6515251980000001
+    },
+    {
+      "file": "/home/user/workspace/oil-simulator-py-impes/src/surface/blackoil_pipe.py",
+      "line": 158,
+      "function": "_solve",
+      "calls": 335,
+      "self_s": 0.027077653,
+      "cumulative_s": 1.9530450220000002
+    },
+    {
+      "file": "/home/user/workspace/oil-simulator-py-impes/src/solver/fgmres.py",
+      "line": 4,
+      "function": "fgmres",
+      "calls": 239,
+      "self_s": 0.025899952,
+      "cumulative_s": 0.821560944
+    },
+    {
+      "file": "/home/user/workspace/oil-simulator-py-impes/src/simulator/manual_assembly_solver.py",
+      "line": 262,
+      "function": "_pv",
+      "calls": 846,
+      "self_s": 0.025549825,
+      "cumulative_s": 0.15227731
+    },
+    {
+      "file": "/home/user/workspace/oil-simulator-py-impes/src/surface/process.py",
+      "line": 37,
+      "function": "__post_init__",
+      "calls": 27598,
+      "self_s": 0.024763829,
+      "cumulative_s": 0.15856068
+    },
+    {
+      "file": "/home/user/workspace/oil-simulator-py-impes/src/simulator/manual_assembly_solver.py",
+      "line": 513,
+      "function": "solve_linear",
+      "calls": 239,
+      "self_s": 0.023643531000000002,
+      "cumulative_s": 1.9853365440000001
+    },
+    {
+      "file": "/home/user/workspace/oil-simulator-py-impes/src/simulator/blackoil_fim.py",
+      "line": 1867,
+      "function": "convergence",
+      "calls": 335,
+      "self_s": 0.021681816000000003,
+      "cumulative_s": 0.06286324
+    },
+    {
+      "file": "/home/user/workspace/oil-simulator-py-impes/src/surface/blackoil_pipe_batch.py",
+      "line": 144,
+      "function": "checked",
+      "calls": 1005,
+      "self_s": 0.020452595,
+      "cumulative_s": 1.4625482390000002
+    },
+    {
+      "file": "/home/user/workspace/oil-simulator-py-impes/src/surface/blackoil_pipe_batch.py",
+      "line": 138,
+      "function": "integral",
+      "calls": 2010,
+      "self_s": 0.019801661,
+      "cumulative_s": 1.2264486220000002
+    },
+    {
+      "file": "/home/user/workspace/oil-simulator-py-impes/src/solver/classical_amg.py",
+      "line": 1316,
+      "function": "_row_idx",
+      "calls": 15792,
+      "self_s": 0.018733484,
+      "cumulative_s": 0.042159276
+    },
+    {
+      "file": "/home/user/workspace/oil-simulator-py-impes/src/simulator/cpr_gpu.py",
+      "line": 31,
+      "function": "__init__",
+      "calls": 239,
+      "self_s": 0.018559091,
+      "cumulative_s": 0.8325181260000001
+    },
+    {
+      "file": "/home/user/workspace/oil-simulator-py-impes/src/simulator/fim_transaction.py",
+      "line": 59,
+      "function": "__init__",
+      "calls": 165,
+      "self_s": 0.018499374000000002,
+      "cumulative_s": 0.11888802000000001
+    },
+    {
+      "file": "/home/user/workspace/oil-simulator-py-impes/src/simulator/manual_assembly_solver.py",
+      "line": 571,
+      "function": "matvec",
+      "calls": 763,
+      "self_s": 0.018162215000000002,
+      "cumulative_s": 0.382389187
+    },
+    {
+      "file": "/home/user/workspace/oil-simulator-py-impes/src/surface/blackoil_pipe_batch.py",
+      "line": 25,
+      "function": "<genexpr>",
+      "calls": 10720,
+      "self_s": 0.017962341,
+      "cumulative_s": 0.028346991000000002
+    },
+    {
+      "file": "/home/user/workspace/oil-simulator-py-impes/src/solver/krylov_cuda.py",
+      "line": 62,
+      "function": "rotate_givens",
+      "calls": 524,
+      "self_s": 0.017775791000000003,
+      "cumulative_s": 0.023393254000000002
+    },
+    {
+      "file": "/home/user/workspace/oil-simulator-py-impes/src/simulator/tree_well_system.py",
+      "line": 231,
+      "function": "apply_D",
+      "calls": 1241,
+      "self_s": 0.017093973000000002,
+      "cumulative_s": 0.12275819
+    },
+    {
+      "file": "/home/user/workspace/oil-simulator-py-impes/src/solver/classical_amg.py",
+      "line": 1389,
+      "function": "_v_cycle",
+      "calls": 2498,
+      "self_s": 0.016297606000000003,
+      "cumulative_s": 0.39238540600000005
+    },
+    {
+      "file": "/home/user/workspace/oil-simulator-py-impes/src/simulator/tree_well_system.py",
+      "line": 220,
+      "function": "Bx",
+      "calls": 1002,
+      "self_s": 0.016238206,
+      "cumulative_s": 0.124889074
+    },
+    {
+      "file": "/home/user/workspace/oil-simulator-py-impes/src/surface/liquid.py",
+      "line": 590,
+      "function": "solve",
+      "calls": 96,
+      "self_s": 0.015862915000000002,
+      "cumulative_s": 0.21125897000000002
+    },
+    {
+      "file": "/home/user/workspace/oil-simulator-py-impes/src/solver/classical_amg.py",
+      "line": 1705,
+      "function": "_update_level_metrics",
+      "calls": 1115,
+      "self_s": 0.014334023000000001,
+      "cumulative_s": 0.110084416
+    }
+  ]
+}

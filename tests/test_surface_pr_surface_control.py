@@ -226,3 +226,42 @@ def test_step_doubling_uses_measured_error_without_relaxing_acceptance(monkeypat
     assert final.time_s == 0.1
     assert dict(final.positions)["v"] == pytest.approx(0.5 + 0.5 * 0.1**2, abs=5e-4)
     assert state.to_dict() == before
+
+
+def test_stiff_rejections_use_observed_order_and_reset_after_acceptance(monkeypatch):
+    from dataclasses import replace
+    from surface.pr_plant_registry import align_physical_clock
+
+    base, initial = controlled()
+    model = PRControlledSurface(base.plant, base.valves, initial_step_s=.1,
+                                maximum_step_s=.1, minimum_step_s=1e-10,
+                                position_tolerance=.001)
+    state = model.initialize(initial.plant, {'v': .5})
+
+    def trial(old, dt, first_dt, second_dt, *args):
+        # Manufactured local O(dt) defect models order reduction. No
+        # numerical trajectory is used as its own error reference.
+        half = replace(old, plant=align_physical_clock(old.plant, old.time_s + first_dt))
+        fine = replace(old, plant=align_physical_clock(old.plant, old.time_s + dt))
+        coarse = replace(fine, positions=(('v', .5 + .25 * dt),))
+        records = [{'state': x.to_dict(), 'total_heat_j': 0., 'total_work_j': 0.}
+                   for x in (half, fine)]
+        return coarse, fine, *records
+
+    monkeypatch.setattr(model, '_temporal_trial', trial)
+    events = []
+    out = model.advance(state, .1, progress=events.append)
+    first = next(i for i, e in enumerate(events) if e['event'] == 'accepted')
+    rejects = [e for e in events[:first] if e['event'] == 'rejected']
+    assert len(rejects) == 2
+    assert rejects[0]['rejection_order'] == 2.
+    assert rejects[1]['rejection_order'] == pytest.approx(1.)
+    assert all(e['error'] <= 1 for e in events if e['event'] == 'accepted')
+    last_kind = None
+    for event in events:
+        if event['event'] == 'rejected' and last_kind == 'accepted':
+            assert event['rejection_order'] == 2.
+        if event['event'] != 'attempt':
+            last_kind = event['event']
+    assert out['state']['plant']['transport']['time_s'] == .1
+    assert dict(state.positions)['v'] == .5

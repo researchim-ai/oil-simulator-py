@@ -1,0 +1,159 @@
+"""Transactional local time-error control for uncoupled black-oil FIM.
+
+Accept two BE half steps, never the full-step probe or an extrapolated state.
+The tolerances control a local estimator, not accumulated global error.
+"""
+import math
+import torch
+
+from .facility_temporal_control import FacilityTemporalControl, HydraulicConvergenceError
+from .fim_transaction import _StepState
+try:
+    from ..surface.time_interval import split_step_s
+except ImportError:
+    from surface.time_interval import split_step_s
+
+
+class ReservoirTimeControl:
+    def __init__(self, solver, config):
+        from .blackoil_fim import BlackOilFIMSolver, BlackOilWells
+        if not isinstance(solver, BlackOilFIMSolver) or type(solver.wells) is not BlackOilWells:
+            raise ValueError('reservoir_time_control requires ordinary black-oil wells')
+        if solver.wells.network is not None:
+            raise ValueError('Use coupled temporal control for a surface network')
+        options = dict(config)
+        for required in ('pressure_tolerance_pa', 'saturation_tolerance'):
+            if required not in options:
+                raise ValueError(f'Explicit {required} required')
+        self.component_relative_tolerance = options.pop('component_relative_tolerance', 1e-3)
+        self.component_absolute_tolerance_kg = options.pop('component_absolute_tolerance_kg', 1e-6)
+        self.algebraic_cnv_tolerance = options.pop('algebraic_cnv_tolerance', 1e-5)
+        self.algebraic_mb_tolerance = options.pop('algebraic_mb_tolerance', 1e-8)
+        for value in (self.component_relative_tolerance, self.component_absolute_tolerance_kg,
+                      self.algebraic_cnv_tolerance, self.algebraic_mb_tolerance):
+            if isinstance(value, bool) or not math.isfinite(value) or value <= 0:
+                raise ValueError('Component tolerances must be positive and finite')
+        if self.component_relative_tolerance >= 1:
+            raise ValueError('Component relative tolerance must be below one')
+        # Rs/Rv are not compared without phase inventories. Component masses
+        # cover dissolved/vaporized material even when a phase disappears.
+        if 'solution_ratio_tolerance' in options or 'well_bhp_tolerance_pa' in options:
+            raise ValueError('Use component mass tolerances; ratio/BHP options are unsupported here')
+        self.policy = FacilityTemporalControl(**options)
+        self.solver = solver
+        self.report = None
+        self.last_attempt = None
+
+    def limit_initial_time_step_s(self, proposed_s, *, clipped=False):
+        return self.limit_next_time_step_s(proposed_s, clipped=clipped)
+
+    def limit_next_time_step_s(self, proposed_s, *, clipped=False):
+        row = self.report
+        return self.policy.limit(proposed_s, None if row is None else row['dt_s'],
+                                 None if row is None else row['indicator'], clipped=clipped)
+
+    def limit_rejected_time_step_s(self, proposed_s, *, failed_dt_s):
+        ratio = (self.last_attempt or {}).get('indicator')
+        if ratio is None:
+            return proposed_s
+        return self.policy.rejected_step(proposed_s, failed_dt_s, ratio)
+
+    def _fields(self):
+        return {name: getattr(self.solver.fluid, name).detach().clone()
+                for name in ('pressure', 's_w', 's_g', 's_o')}
+
+    def _masses(self):
+        s = self.solver
+        return s.masses(s.fluid.pressure.reshape(-1), s.fluid.s_w.reshape(-1),
+                        s.x, s.sat, s.ug).detach().clone()
+
+    def _withdrawal(self):
+        s = self.solver
+        # Keep well/component identity; cancellation across wells is forbidden.
+        rows = [[(getattr(w, 'cum_surface', None) or {}).get(ph, 0.) * s.pvt.rho_sc[i]
+                 for i, ph in enumerate(('oil', 'water', 'gas'))] for w in s.wells.wells]
+        return torch.tensor(rows or [[0., 0., 0.]], dtype=torch.float64)
+
+    def _pore_mass_scale(self):
+        from .blackoil_fim import I_B
+        s = self.solver
+        p, sw = s.fluid.pressure.reshape(-1), s.fluid.s_w.reshape(-1)
+        values, _ = s.cell_state(p, sw, s.x, s.sat, s.ug)
+        # As with CNV, normalize by pore mass, not the vanishing inventory
+        # of a trace component. Fix this scale at the start of the macrostep.
+        return (s._pv(p)[None, :] * s.rho_sc[:, None] * values[I_B:I_B+3]).detach().clone()
+
+    def step(self, dt, current_time=None):
+        start = 0. if current_time is None else current_time
+        if isinstance(dt, bool) or not math.isfinite(dt) or dt <= 0 or not math.isfinite(start):
+            raise ValueError('Finite positive duration and finite start required')
+        a, b = split_step_s(start, dt)
+        s = self.solver
+        initial = _StepState(s)
+        old_fields, old_mass, old_withdrawal = self._fields(), self._masses(), self._withdrawal()
+        reference_mass = torch.maximum(old_mass.abs(), self._pore_mass_scale().abs())
+        accepted = False
+        calls = 0
+        self.last_attempt = dict(success=False, reason='nonlinear stage failed')
+        settings = {name: getattr(s, name) for name in
+                    ('tol_cnv', 'tol_mb', 'min_newton', 'lin_tol_max', 'lin_tol_min',
+                     'lin_accept', 'relaxed_max_pv_fraction')}
+        s.tol_cnv = min(s.tol_cnv, self.algebraic_cnv_tolerance,
+                        .1*self.policy.saturation_tolerance, .1*self.component_relative_tolerance)
+        s.tol_mb = min(s.tol_mb, self.algebraic_mb_tolerance)
+        s.min_newton = max(s.min_newton, 1)
+        s.lin_tol_max, s.lin_tol_min = min(s.lin_tol_max, 1e-8), min(s.lin_tol_min, 1e-9)
+        s.lin_accept = min(s.lin_accept, 1e-7)
+        s.relaxed_max_pv_fraction = 0.
+        try:
+            calls += 1
+            if not s.step(dt, current_time=start):
+                return False
+            coarse, coarse_mass, coarse_total = self._fields(), self._masses(), self._withdrawal()
+            initial.restore(reusable=True)
+            calls += 1
+            if not s.step(a, current_time=start):
+                return False
+            first_iterations = s.last_newton_iters
+            calls += 1
+            if not s.step(b, current_time=start+a):
+                return False
+            fine, fine_mass, fine_total = self._fields(), self._masses(), self._withdrawal()
+            errors = self.policy.defect(coarse, fine, coarse_total-old_withdrawal,
+                                        fine_total-old_withdrawal,
+                                        coarse_total_mass=coarse_total, fine_total_mass=fine_total)
+            scale = self.component_absolute_tolerance_kg + self.component_relative_tolerance * torch.maximum(
+                reference_mass, torch.maximum(coarse_mass.abs(), fine_mass.abs()))
+            packet = torch.stack([
+                ((fine_mass-coarse_mass).abs()/scale).amax(),
+                ((fine['s_o']-coarse['s_o']).abs()/self.policy.saturation_tolerance).amax()])
+            errors['component_mass'], errors['s_o'] = packet.detach().cpu().tolist()
+            if not all(math.isfinite(x) and x >= 0 for x in errors.values()):
+                self.last_attempt = dict(success=False, reason='nonfinite temporal defect')
+                return False
+            ratio = max(errors.values())
+            self.last_attempt = dict(success=ratio <= 1, indicator=ratio, errors=errors,
+                                     reason='accepted' if ratio <= 1 else 'local temporal defect exceeds tolerance')
+            if ratio > 1:
+                return False
+            accepted_newton_iters = first_iterations + s.last_newton_iters
+            s.last_newton_iters = max(first_iterations, s.last_newton_iters)
+            s.last_max_dp = float((fine['pressure']-old_fields['pressure']).abs().amax())
+            s.last_max_dsw = float(torch.stack([(fine[k]-old_fields[k]).abs().amax()
+                                               for k in ('s_w', 's_g', 's_o')]).amax())
+            self.report = dict(dt_s=dt, indicator=ratio, errors=errors,
+                               accepted_newton_iters=accepted_newton_iters,
+                               accepted_stages_s=[a, b], reservoir_step_calls=calls,
+                               algebraic_cnv_tolerance=s.tol_cnv, algebraic_mb_tolerance=s.tol_mb,
+                               scope='Local BE full-step/two-half-step estimator; no global error guarantee')
+            accepted = True
+            return True
+        except HydraulicConvergenceError as exc:
+            self.last_attempt = dict(success=False, reason=str(exc))
+            return False
+        finally:
+            self.last_attempt['reservoir_step_calls'] = calls
+            if not accepted:
+                initial.restore()
+            for name, value in settings.items():
+                setattr(s, name, value)

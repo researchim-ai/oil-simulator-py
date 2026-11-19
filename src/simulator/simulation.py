@@ -92,6 +92,13 @@ class Simulator:
                 energy_process=energy_process, energy_controls=spec.get('energy_controls'),
                 time_control=spec.get('time_control'), temporal_control=spec.get('temporal_control'))
 
+        self.reservoir_time_control = None
+        if sim_params.get('reservoir_time_control') is not None:
+            if self.solver_type != 'fully_implicit' or self.facility_coupling is not None:
+                raise ValueError('reservoir_time_control requires uncoupled black-oil FIM')
+            from .reservoir_time_control import ReservoirTimeControl
+            self.reservoir_time_control = ReservoirTimeControl(self.fim_solver, sim_params['reservoir_time_control'])
+
         # Инициализация проводимостей для IMPES схемы
         if self.solver_type == 'impes':
             # Получаем размеры ячеек и проницаемости
@@ -288,6 +295,9 @@ class Simulator:
             "integrated_duration_s": 0.0, "accepted_steps": 0, "rejected_steps": 0,
             "minimum_accepted_step_s": None, "maximum_accepted_step_s": None,
             "time_error_limited_proposals": 0,
+            # Coupled drivers can contain additional solves; do not infer their
+            # work from last_newton_iters (which is a timestep-control metric).
+            "accepted_newton_iters": 0 if getattr(self, "facility_coupling", None) is None else None,
         }
         self.last_fim_interval_stats = stats
 
@@ -306,14 +316,16 @@ class Simulator:
                 proposed = limited
             return min(max(proposed, dt_min), dt_max)
 
-        initial_stepper = getattr(self, "facility_coupling", None) or self.fim_solver
+        initial_stepper = (getattr(self, "facility_coupling", None)
+                           or getattr(self, "reservoir_time_control", None) or self.fim_solver)
         initial_limiter = getattr(initial_stepper, "limit_initial_time_step_s", None)
         if coupled_time_control and callable(initial_limiter):
             h = limit_proposal(h, initial_limiter, False)
         cuts = 0
         restarted = False
         while self.current_time < t_end:
-            stepper = getattr(self, "facility_coupling", None) or self.fim_solver
+            stepper = (getattr(self, "facility_coupling", None)
+                       or getattr(self, "reservoir_time_control", None) or self.fim_solver)
             coupled_limiter = (
                 getattr(stepper, "limit_next_time_step_s", None) if coupled_time_control else None
             )
@@ -331,6 +343,11 @@ class Simulator:
             if stepper.step(h_try, current_time=self.current_time):
                 self.current_time = t_end if h_try >= t_end - self.current_time else self.current_time + h_try
                 stats["accepted_steps"] += 1
+                if stats["accepted_newton_iters"] is not None:
+                    controller = getattr(self, "reservoir_time_control", None)
+                    stats["accepted_newton_iters"] += (
+                        controller.report["accepted_newton_iters"] if controller is not None
+                        else self.fim_solver.last_newton_iters)
                 stats["integrated_duration_s"] = self.current_time - stats["start_time_s"]
                 for key, choose in (("minimum_accepted_step_s", min), ("maximum_accepted_step_s", max)):
                     stats[key] = h_try if stats[key] is None else choose(stats[key], h_try)

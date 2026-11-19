@@ -163,16 +163,26 @@ class FacilityCoupledFIM:
         if net.by_name[net.root].pressure_pa != facility.stages[0].pressure_pa:
             raise PropertyModelError("Gathering receiver must match first separator pressure")
         pvt = net.model.pvt
-        other = facility.stages[0].pvt
-        for key in ("P", "Bo", "Bw", "Bg", "Rs", "Rv", "mu_o", "mu_w", "mu_g", "oil_rs"):
-            if not np.array_equal(getattr(pvt, key), getattr(other, key)):
-                raise PropertyModelError("Gathering/facility PVT differs")
-        if set(pvt.oil_tables) != set(other.oil_tables) or any(
-            not np.array_equal(value, other.oil_tables[rs].get(key))
-            for rs, table in pvt.oil_tables.items()
-            for key, value in table.items()
-        ):
-            raise PropertyModelError("Gathering/facility PVTO differs")
+        # Every isothermal stage shares the reservoir stock-component model.
+        # A matching first stage must not hide incompatible downstream PVT.
+        for stage in facility.stages:
+            other = stage.pvt
+            for key in ("P", "Bo", "Bw", "Bg", "Rs", "Rv", "mu_o", "mu_w", "mu_g", "oil_rs"):
+                if not np.array_equal(getattr(pvt, key), getattr(other, key)):
+                    raise PropertyModelError(
+                        f"Gathering/facility PVT differs at separator {stage.name}: {key}"
+                    )
+            if set(pvt.oil_tables) != set(other.oil_tables) or any(
+                set(table) != set(other.oil_tables[rs])
+                or any(
+                    not np.array_equal(value, other.oil_tables[rs][key])
+                    for key, value in table.items()
+                )
+                for rs, table in pvt.oil_tables.items()
+            ):
+                raise PropertyModelError(
+                    f"Gathering/facility PVTO differs at separator {stage.name}"
+                )
         if energy_process is not None:
             from .accepted_well_energy import AcceptedWellEnergyProcess
 

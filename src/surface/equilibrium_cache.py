@@ -68,6 +68,35 @@ def _signature(fluid):
     )
 
 
+def validated_state_key(owner, state, *, scheduling_fields=()):
+    """Key a physical audit by exact stocks and the current EOS parameters.
+
+    Callers must validate scheduling metadata before omitting it. Keep model
+    tensors alive so replacement cannot reuse an old tensor id; in-place
+    changes invalidate through the version counters. AD requests never reuse
+    detached validation decisions.
+    """
+    from .operation import _digest
+
+    try:
+        signature = _signature(owner.fluid)
+    except (TypeError, RuntimeError):
+        owner._verified.clear()
+        owner._verified_signature = None
+        owner._verified_model_tensors = ()
+        return None
+    if signature != getattr(owner, "_verified_signature", None):
+        owner._verified.clear()
+        owner._verified_signature = signature
+        owner._verified_model_tensors = tuple(
+            getattr(owner.fluid, name) for name in _MODEL_TENSORS
+        )
+    data = state.to_dict()
+    for name in scheduling_fields:
+        data.pop(name)
+    return _digest(data)
+
+
 class FlashCache:
     def __init__(self, maximum_entries):
         self.maximum_entries = maximum_entries

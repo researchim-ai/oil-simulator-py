@@ -427,11 +427,15 @@ def iter_deck(path, device=None, sim_overrides=None, cells=(), quiet=True, max_d
     if state is None:
         record_initial()
         newton = substeps = n0 = 0
+        accepted_newton = 0
         t = 0.0
         wtest = WellTestState() if fw is not None and hasattr(fw, "set_open") and hasattr(fw, "conn_open") else None
     else:
         summary, wtest = state["summary"], state["wtest"]
         newton, substeps, n0, t = state["newton"], state["substeps"], state["n"], state["t"]
+        # Older checkpoints contain log-derived counts only. Missing history
+        # must remain unknown rather than being silently replaced with zero.
+        accepted_newton = state.get("accepted_newton")
         del state
     if context is not None:
         context.update(case=case, sim=sim, wm=wm, solver=solver, fluid=fluid, n0=n0, t0=t)
@@ -441,7 +445,8 @@ def iter_deck(path, device=None, sim_overrides=None, cells=(), quiet=True, max_d
     def save_checkpoint(n_next):
         tmp = f"{checkpoint}.tmp"
         torch.save({"sim": sim, "wm": wm, "fluid": fluid, "summary": summary, "wtest": wtest,
-                    "newton": newton, "substeps": substeps, "n": n_next, "t": t}, tmp)
+                    "newton": newton, "accepted_newton": accepted_newton,
+                    "substeps": substeps, "n": n_next, "t": t}, tmp)
         os.replace(tmp, checkpoint)
 
     for n, d in enumerate(case.report_days):
@@ -477,7 +482,12 @@ def iter_deck(path, device=None, sim_overrides=None, cells=(), quiet=True, max_d
         sim.substep_hook = None
         log = buf.getvalue()
         newton += log.count("Iter ") - log.count("Converged!")
-        substeps += log.count("Converged!")
+        # A converged nonlinear solve may be a discarded temporal-error probe.
+        # Count physical advances at the driver boundary, independent of logging.
+        substeps += sim.last_fim_interval_stats["accepted_steps"]
+        interval_newton = sim.last_fim_interval_stats["accepted_newton_iters"]
+        accepted_newton = (accepted_newton + interval_newton
+                           if accepted_newton is not None and interval_newton is not None else None)
         if not ok:
             raise RuntimeError(f"расчёт остановлен на шаге {n} (t = {t:.1f} сут):\n{log[-4000:]}")
         t += d
@@ -490,6 +500,9 @@ def iter_deck(path, device=None, sim_overrides=None, cells=(), quiet=True, max_d
             save_checkpoint(n + 1)
     summary = {k: np.array(v, dtype=np.float64) for k, v in summary.items()}
     info = {"wall_s": time.perf_counter() - t0, "newton_iters": newton, "substeps": substeps,
+            "accepted_newton_iters": accepted_newton,
+            "substeps_scope": "accepted driver steps; excludes discarded temporal probes",
+            "newton_iters_scope": "legacy console-log count; not total solver work",
             "units": case.units_name, "case": case, "solver": solver,
             "convergence": {"tol_cnv": solver.tol_cnv, "tol_mb": solver.tol_mb,
                             "relaxed_max_pv_fraction": solver.relaxed_max_pv_fraction,

@@ -1,0 +1,11 @@
+{"event": "initialized", "time_s": 0.0}
+{"event": "attempt", "time_s": 0.0, "dt_s": 0.0001, "attempt": 1, "end_time_s": 0.001}
+{"event": "accepted", "time_s": 0.0001, "dt_s": 0.0001, "attempt": 1, "error": 0.11547970888983851, "next_step_s": 0.00015000000000000001}
+{"event": "attempt", "time_s": 0.0001, "dt_s": 0.00015000000000000001, "attempt": 2, "end_time_s": 0.001}
+{"event": "accepted", "time_s": 0.00025, "dt_s": 0.00015000000000000001, "attempt": 2, "error": 0.05461569814386662, "next_step_s": 0.00022500000000000002}
+{"event": "attempt", "time_s": 0.00025, "dt_s": 0.00022500000000000005, "attempt": 3, "end_time_s": 0.001}
+{"event": "accepted", "time_s": 0.00047500000000000005, "dt_s": 0.00022500000000000005, "attempt": 3, "error": 0.034287041395182655, "next_step_s": 0.00033750000000000007}
+{"event": "attempt", "time_s": 0.00047500000000000005, "dt_s": 0.0003375, "attempt": 4, "end_time_s": 0.001}
+{"event": "accepted", "time_s": 0.0008125000000000001, "dt_s": 0.0003375, "attempt": 4, "error": 0.07647491387763335, "next_step_s": 0.00050625}
+{"event": "attempt", "time_s": 0.0008125000000000001, "dt_s": 0.00018749999999999995, "attempt": 5, "end_time_s": 0.001}
+{"event": "accepted", "time_s": 0.001, "dt_s": 0.00018749999999999995, "attempt": 5, "error": 0.023898879354714745, "next_step_s": 0.0002812499999999999}

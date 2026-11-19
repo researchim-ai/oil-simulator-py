@@ -1,0 +1,27 @@
+{
+  "legacy_wall_s": 301.84281689499767,
+  "optimized_wall_s": 244.33866112800024,
+  "observed_speedup": 1.2353461196092625,
+  "legacy_counters": {
+    "solves": 2218,
+    "residual_evaluations": 35488
+  },
+  "optimized_counters": {
+    "solves": 2218,
+    "residual_evaluations": 15590
+  },
+  "reservoir_max_absolute_differences": {
+    "pressure": 0.0,
+    "s_w": 0.0,
+    "s_g": 0.0,
+    "rs": 0.0
+  },
+  "receiver_differences": {
+    "time_s": 0.0,
+    "wall_temperature_k": 0.0,
+    "component_moles": 6.998845947236987e-12,
+    "total_energy_j": 5.50062395632267e-09,
+    "temperature_k": 2.6204816094832495e-11,
+    "interface_heights_m": 0.0
+  }
+}

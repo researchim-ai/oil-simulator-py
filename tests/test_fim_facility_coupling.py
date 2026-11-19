@@ -126,7 +126,9 @@ def test_infeasible_property_and_feed_scaling_are_not_successes():
 def test_actual_capacity_feedback_cpu_cuda():
     a, b = build(), build(device="cuda")
     assert a.step(86400) and b.step(86400)
-    assert a.report["fraction"] == b.report["fraction"]
+    # CPU/CUDA reductions need not be bitwise identical. This is still
+    # seven orders tighter than the configured 1e-3 search tolerance.
+    assert a.report["fraction"] == pytest.approx(b.report["fraction"], rel=0, abs=1e-10)
     assert torch.allclose(
         a.solver.fluid.pressure, b.solver.fluid.pressure.cpu(), rtol=1e-9, atol=0.001
     )

@@ -1,0 +1,5 @@
+{
+  "scripts/validate_operational_forecast.py": "a536faec273bee787a34401fbcdc241a567e23f8ea7e57cb067dbda39578e1f6",
+  "configs/fim_blackoil_facility_depletion_operational.json": "53c67a08af25ec0f3e5d86b5768db82ad957fe6a963e881b59449b258ce09ac9",
+  "configs/fim_facility_forecast_budgets.json": "6bd89750eebc4385dc9064c10c58da10fb67c148752781952c2a4d2d96a3913b"
+}

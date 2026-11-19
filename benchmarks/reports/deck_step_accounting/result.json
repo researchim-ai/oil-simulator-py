@@ -1,0 +1,28 @@
+{
+  "scope": "Driver step and accepted Newton accounting; no new speedup claim",
+  "validation": [
+    {
+      "name": "pytest",
+      "errors": "0",
+      "failures": "0",
+      "skipped": "0",
+      "tests": "76",
+      "time": "52.033",
+      "timestamp": "2026-11-19T13:14:39.207024+05:00",
+      "hostname": "computer"
+    }
+  ],
+  "source_sha256_after_tests": {
+    "src/simulator/eclipse_run.py": "8cc299711ca95f0e7de731b672af44658711db16b06fb1e2d69d4e2477f40cdb",
+    "src/simulator/simulation.py": "9b1791ba52f1e67823504a15c8bb0a33c24b711a05ab512e7707226616e07314",
+    "src/simulator/reservoir_time_control.py": "71ef37163c20b1c26f1faee264120d4b3704ef38546bbfd3e4e697a434e1ec69",
+    "scripts/compare_eclipse.py": "5b379429e3da44e84c4819469cb36853c499e3cb2a70a2437fc7e814e4c70f9e",
+    "tests/test_deck_step_accounting.py": "c71c5c10a37b32c14f3d120a1441b18e8b4bbf80f210de45e94052ccdb1e80fc"
+  },
+  "limitations": [
+    "Accepted Newton count excludes rejected attempts and discarded temporal probes.",
+    "Old checkpoints without accepted-iteration history report null.",
+    "Composite facility drivers without this accounting report null.",
+    "Existing full Norne timing is historical, not rerun in this validation."
+  ]
+}

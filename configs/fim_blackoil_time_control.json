@@ -1,0 +1,100 @@
+{
+  "simulation": {
+    "solver_type": "fully_implicit",
+    "fim_model": "blackoil",
+    "newton_max_iter": 25,
+    "max_time_step_attempts": 12,
+    "dt_reduction_factor": 2.0,
+    "dt_increase_factor": 2.0,
+    "time_step_days": 0.25,
+    "total_time_days": 1.0,
+    "initial_time_step_days": 0.01,
+    "max_time_step_days": 0.25,
+    "min_time_step_days": 1e-06,
+    "newton_relaxed_max_pv_fraction": 0.0,
+    "reservoir_time_control": {
+      "pressure_tolerance_pa": 10000.0,
+      "saturation_tolerance": 0.001,
+      "component_relative_tolerance": 0.005,
+      "withdrawal_relative_tolerance": 0.005,
+      "withdrawal_absolute_tolerance_kg": 1.0,
+      "startup_step_days": 0.01
+    }
+  },
+  "reservoir": {
+    "dimensions": [
+      6,
+      5,
+      3
+    ],
+    "grid_size": [
+      30.0,
+      30.0,
+      5.0
+    ],
+    "porosity": 0.2,
+    "permeability": 100.0,
+    "k_vertical_fraction": 0.2
+  },
+  "fluid": {
+    "pressure": 18.0,
+    "s_w": 0.25,
+    "s_g": 0.0,
+    "pvt_path": "configs/pvt/pvt_synthetic.json",
+    "rho_oil": 850.0,
+    "rho_water": 1000.0,
+    "rho_gas": 0.9,
+    "c_rock": 1e-05,
+    "relative_permeability": {
+      "nw": 2.0,
+      "no": 2.0,
+      "ng": 2.0,
+      "sw_cr": 0.2,
+      "so_r": 0.15,
+      "sg_cr": 0.02
+    }
+  },
+  "wells": [
+    {
+      "name": "GI",
+      "type": "injector",
+      "i": 0,
+      "j": 0,
+      "k": 0,
+      "radius": 0.1,
+      "control_type": "rate",
+      "control_value": 2000.0,
+      "injected_phase": "gas",
+      "bhp_max": 40.0
+    },
+    {
+      "name": "P",
+      "type": "producer",
+      "i": 5,
+      "j": 4,
+      "k": 0,
+      "radius": 0.1,
+      "control_type": "rate",
+      "control_value": 20.0,
+      "surface_phase": "oil",
+      "bhp_min": 5.0,
+      "perforations": [
+        [
+          5,
+          4,
+          0
+        ],
+        [
+          5,
+          4,
+          1
+        ],
+        [
+          5,
+          4,
+          2
+        ]
+      ]
+    }
+  ]
+}

@@ -1,0 +1,9 @@
+{
+  "status": "complete",
+  "day": 2521.0,
+  "start": 2431.0,
+  "source_and_inputs_verified": true,
+  "wall_s": 20.967891890002647,
+  "solve_s": 18.64494501498848,
+  "accepted": 17
+}

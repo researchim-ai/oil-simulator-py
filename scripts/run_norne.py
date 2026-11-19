@@ -35,6 +35,9 @@ REPLAY = os.environ.get("NORNE_CPR_REUSE_GRAPH", "0")
 if REPLAY not in ("0", "1"):
     raise ValueError("NORNE_CPR_REUSE_GRAPH must be 0 or 1")
 AMG_REBUILD = os.environ.get("NORNE_AMG_REBUILD", "step")
+NEWTON_FALLBACK = os.environ.get("NORNE_NEWTON_FALLBACK", "0")
+if NEWTON_FALLBACK not in ("0", "1"):
+    raise ValueError("NORNE_NEWTON_FALLBACK must be 0 or 1")
 if AMG_REBUILD not in ("step", "iteration", "adaptive"):
     raise ValueError("Invalid NORNE_AMG_REBUILD")
 t0 = time.time()
@@ -64,6 +67,8 @@ def init(self, *a, **k):
 
 
 def step(self, dt, current_time=None):
+    if RESUME and H["solver"] is None and "NORNE_NEWTON_FALLBACK" in os.environ:
+        self.newton_line_search_fallback = NEWTON_FALLBACK == "1"
     if RESUME and H["solver"] is None and "NORNE_AMG_REBUILD" in os.environ:
         self.amg_rebuild = AMG_REBUILD
         self._adaptive_amg_policy = None
@@ -131,6 +136,8 @@ def save_meta(info=None):
     policy = getattr(sol, "_adaptive_amg_policy", None)
     meta["adaptive_amg"] = policy.report() if policy is not None else None
     meta["amg_rebuild"] = sol.amg_rebuild
+    meta["newton_line_search_fallback"] = getattr(sol, "newton_line_search_fallback", False)
+    meta["line_search_retries"] = getattr(sol, "newton_line_search_retries", 0)
     try:
         meta["cpu"] = next(l.split(":", 1)[1].strip() for l in open("/proc/cpuinfo") if l.startswith("model name"))
     except (OSError, StopIteration):
@@ -175,7 +182,8 @@ DEV = torch.device(os.environ.get("NORNE_DEVICE", "cuda:0" if torch.cuda.is_avai
 thread_policy = configure_norne_threads(DEV)
 try:
     s, info = run_deck(DECK, device=DEV, progress=progress, quiet=False,
-                       sim_overrides={"convergence_profile": PROFILE, "cpr_reuse_graph": REPLAY == "1", "amg_rebuild": AMG_REBUILD},
+                       sim_overrides={"convergence_profile": PROFILE, "cpr_reuse_graph": REPLAY == "1", "amg_rebuild": AMG_REBUILD,
+                                      "newton_line_search_fallback": NEWTON_FALLBACK == "1"},
                        max_days=float(sys.argv[1]) if len(sys.argv) > 1 else None,
                        checkpoint=CKPT, checkpoint_every=int(os.environ.get("NORNE_CKPT_EVERY", "1")),
                        resume=RESUME)

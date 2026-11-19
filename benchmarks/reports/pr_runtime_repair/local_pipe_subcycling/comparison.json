@@ -1,0 +1,122 @@
+{
+  "time_s": 0.0001,
+  "original_error_norm": 2.0243783176773498,
+  "nodes": {
+    "flowline_1_0": {
+      "pressure_pa": 0.010287695447914302,
+      "temperature_k": 2.58464183389151e-08,
+      "velocity_m_s": 1.560387771962153e-05,
+      "energy_j": 3.317357050036662e-05,
+      "component_moles_max": 7.154616898930044e-10
+    },
+    "flowline_1_1": {
+      "pressure_pa": 0.002313452656380832,
+      "temperature_k": 5.810818493046099e-09,
+      "velocity_m_s": 1.3359752244011634e-05,
+      "energy_j": 6.880477485537995e-06,
+      "component_moles_max": 1.4835886685826694e-10
+    },
+    "flowline_2_0": {
+      "pressure_pa": 0.010287695447914302,
+      "temperature_k": 2.58464183389151e-08,
+      "velocity_m_s": 1.5603877719621477e-05,
+      "energy_j": 3.317357050036662e-05,
+      "component_moles_max": 7.154616898930044e-10
+    },
+    "flowline_2_1": {
+      "pressure_pa": 0.002313452656380832,
+      "temperature_k": 5.810818493046099e-09,
+      "velocity_m_s": 1.3359752244011824e-05,
+      "energy_j": 6.880477485537995e-06,
+      "component_moles_max": 1.4835886685826694e-10
+    },
+    "gas_export": {
+      "pressure_pa": 4.353933036327362e-08,
+      "temperature_k": 2.1032064978498966e-12,
+      "velocity_m_s": 0.0,
+      "energy_j": 5.471520125865936e-09,
+      "component_moles_max": 1.0743406164692715e-11
+    },
+    "gas_recycle_0": {
+      "pressure_pa": 0.004279095446690917,
+      "temperature_k": 1.4696796029056713e-06,
+      "velocity_m_s": 0.00202437831767735,
+      "energy_j": 3.0360844394117237e-09,
+      "component_moles_max": 7.421560382307041e-15
+    },
+    "gas_suction": {
+      "pressure_pa": 2.7690548449754715e-06,
+      "temperature_k": 1.6041212802520022e-10,
+      "velocity_m_s": 0.0,
+      "energy_j": 9.022187441587448e-09,
+      "component_moles_max": 6.708944511046866e-11
+    },
+    "gas_takeoff_0": {
+      "pressure_pa": 0.00026191258803009987,
+      "temperature_k": 1.0258554539177567e-07,
+      "velocity_m_s": 0.0001384804346229512,
+      "energy_j": 2.614085659047305e-08,
+      "component_moles_max": 2.3071041604927345e-13
+    },
+    "injection_sink": {
+      "pressure_pa": 0.06298121926374733,
+      "temperature_k": 4.909395556751406e-09,
+      "velocity_m_s": 0.0,
+      "energy_j": 0.01681208610534668,
+      "component_moles_max": 3.8879079511389136e-07
+    },
+    "oil_export": {
+      "pressure_pa": 9.086530189961195e-05,
+      "temperature_k": 4.098410499864258e-11,
+      "velocity_m_s": 0.0,
+      "energy_j": 6.726384162902832e-05,
+      "component_moles_max": 2.293745637871325e-09
+    },
+    "oil_suction": {
+      "pressure_pa": 0.0009520001476630569,
+      "temperature_k": 4.270077624823898e-10,
+      "velocity_m_s": 0.0,
+      "energy_j": 6.971880793571472e-05,
+      "component_moles_max": 2.4084556571324356e-09
+    },
+    "oil_takeoff_0": {
+      "pressure_pa": 0.08761743281502277,
+      "temperature_k": 3.928823844034923e-08,
+      "velocity_m_s": 1.9912436392778964e-06,
+      "energy_j": 1.0130761438631453e-06,
+      "component_moles_max": 3.503398959825432e-11
+    },
+    "water_suction": {
+      "pressure_pa": 0.639971223892644,
+      "temperature_k": 4.98904455525917e-08,
+      "velocity_m_s": 0.0,
+      "energy_j": 0.017074555158615112,
+      "component_moles_max": 3.950690370402299e-07
+    },
+    "water_takeoff_0": {
+      "pressure_pa": 14.879940916202031,
+      "temperature_k": 1.1599805134210328e-06,
+      "velocity_m_s": 1.8373328543613656e-06,
+      "energy_j": 6.23681626166217e-05,
+      "component_moles_max": 1.4428671590849262e-09
+    },
+    "wellhead_1": {
+      "pressure_pa": 5.681067705154419e-08,
+      "temperature_k": 1.1368683772161603e-13,
+      "velocity_m_s": 0.0,
+      "energy_j": 2.3305416107177734e-05,
+      "component_moles_max": 5.529727786779404e-10
+    },
+    "wellhead_2": {
+      "pressure_pa": 5.681067705154419e-08,
+      "temperature_k": 1.1368683772161603e-13,
+      "velocity_m_s": 0.0,
+      "energy_j": 2.3305416107177734e-05,
+      "component_moles_max": 5.529727786779404e-10
+    }
+  },
+  "reference_wall_seconds": 468.7886251530017,
+  "reference_reporting_intervals": 6,
+  "reference_attempts": 16,
+  "reference_timing_caveat": "Additional reporting boundaries and model reconstruction; not a clean speedup measurement."
+}

@@ -1,0 +1,8 @@
+{
+  "status": "failed",
+  "error": "RuntimeError('Solver deviated from prescribed timestep grid')",
+  "line_search_retries": 1,
+  "wall_s": 192.391627514,
+  "solve_s": 181.7787236580116,
+  "accepted": 271
+}

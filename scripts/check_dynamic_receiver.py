@@ -19,6 +19,20 @@ from check_stratified_pr_flow import close, profile
 from surface.operation import _digest
 
 
+def commanded_outlet(port, commands, name):
+    """Reconstruct explicit manual position independently of the solver."""
+    if name not in commands:
+        return dict(port)
+    return {
+        **port,
+        "opening": commands[name],
+        "pressure_setpoint_pa": None,
+        "opening_gain_per_pa": 0.0,
+        "opening_bias": 0.0,
+        "level_control": None,
+    }
+
+
 def stream_state(stream, fluid):
     n = np.asarray(stream["component_molar_rates_mol_s"])
     active = np.flatnonzero(n > 0)
@@ -113,6 +127,8 @@ def audit_inlet_packets(spec, stage, f, system, height):
 
 def audit_step(spec, report):
     model = {k: v for k, v in spec.items() if k != "initial_state"}
+    if model["control"].get("surface_subcycling") is False:
+        model["control"] = {k:v for k,v in model["control"].items() if k != "surface_subcycling"}
     if report["model_id"] != _digest(model) or report["model"] != model["model"]:
         raise ValueError("Dynamic receiver model differs from requested model")
     if (
@@ -157,6 +173,17 @@ def audit_step(spec, report):
         dt, step = stage["dt_s"], stage["flow"]
         if not math.isfinite(dt) or dt <= 0:
             raise ValueError("Invalid coupled substep")
+        subcycling = spec["control"].get("surface_subcycling", False)
+        if ("surface_steps" in step) != subcycling:
+            raise ValueError("Surface substep report differs from declared integration mode")
+        local_steps = step["surface_steps"] if subcycling else [step]
+        if not local_steps:
+            raise ValueError("Empty surface substep history")
+        if subcycling:
+            for key in ("feed_component_moles", "outlet_component_moles"):
+                summed = [math.fsum(s[key][j] for s in local_steps)
+                          for j in range(assay.shape[1])]
+                close(step[key], summed, atol=1e-9, rtol=1e-10)
         final = {
             "column": step["column_state"],
             "wall_temperature_k": step["wall_temperature_k"],
@@ -169,7 +196,7 @@ def audit_step(spec, report):
             "durations_s": [dt],
             "feeds": [{"height_m": height, "stream": s} for s in stage["inlet_streams"]],
             "outlets": [
-                {**p, "opening": report["outlet_openings"].get(p["name"], p["opening"])}
+                commanded_outlet(p, report["outlet_openings"], p["name"])
                 for p in receiver["outlets"]
             ],
         }
@@ -180,7 +207,7 @@ def audit_step(spec, report):
                 "initial": {"state": old["column"]},
                 "intervals": [
                     {
-                        "steps": [step],
+                        "steps": local_steps,
                         "state": final,
                         **{
                             k: step[k]

@@ -1,0 +1,44 @@
+{
+  "full_cycle_qualified": false,
+  "runs": {
+    "cycle": {
+      "accepted": false,
+      "sources_unchanged": true,
+      "elapsed_s": 792.7319725280013,
+      "accepted_steps": 17,
+      "last_accepted_time_s": 0.00023512084591982687,
+      "max_accepted_indicator": 0.7046075332896168,
+      "termination": "operator_stopped_to_prioritize_operational_forecast",
+      "failure": "RuntimeError: Facility solver exited with code -2; inspect cycle.log"
+    },
+    "local_wave_cycle": {
+      "accepted": false,
+      "sources_unchanged": true,
+      "elapsed_s": 300.0202032340003,
+      "accepted_steps": 5,
+      "last_accepted_time_s": 7.889841338724839e-05,
+      "max_accepted_indicator": 0.7793032619799467,
+      "termination": "wall_time_budget",
+      "failure": "TimeoutExpired: Command '['/home/user/miniconda3/bin/python', '/home/user/workspace/oil-simulator-py-impes/scripts/run_pr_controlled_surface.py', 'benchmarks/reports/pr_runtime_repair/local_wave_config.json', '--device', 'cpu', '--output', '/home/user/workspace/oil-simulator-py-impes/benchmarks/reports/pr_runtime_repair/local_wave_cycle.trajectory.json', '--progress']' timed out after 299.99999239499994 seconds"
+    },
+    "reduced_cycle": {
+      "accepted": false,
+      "sources_unchanged": true,
+      "elapsed_s": 272.10322749899933,
+      "accepted_steps": 6,
+      "last_accepted_time_s": 0.002078125,
+      "max_accepted_indicator": 0.3733897506945936,
+      "termination": "operator_stopped_to_prioritize_operational_forecast",
+      "failure": "RuntimeError: Facility solver exited with code -2; inspect reduced_cycle.log"
+    }
+  },
+  "source_sha256": {
+    "src/surface/pr_equilibrium_transport.py": "ef7243a16a7399d14d654f4f0d0f1e3d82922194964d47b315f8d6c15ec994e0",
+    "src/surface/pr_surface_control.py": "f80a35d2e1e35496b903457b02326fee39259a603e2de2004ac53a8e8a3974e1",
+    "src/surface/equilibrium_stability_batch.py": "c3a530a365926c3b64e862bf5221f63b027acaf298946dd51085c27efb73af52",
+    "tests/test_surface_temporal_velocity.py": "e87c89ff698428f08b085447ee66a29db3542122fbdf629dde4ffc8b2ee75fef",
+    "tests/test_surface_stability_stall.py": "d66a54df53b222c2a66f71ba9fe70f450444ed2d826f213d4fee7343990602a9",
+    "tests/test_surface_pr_surface_control.py": "511ccbae22437c2f8573887e5c7cb9580621c221f0d4d67ecc0104b009162d84"
+  },
+  "scope": "Three numerical work reductions, exact first-trial equivalence, passing regression sets. No whole-plant speedup claim; no physics calibration or release qualification."
+}

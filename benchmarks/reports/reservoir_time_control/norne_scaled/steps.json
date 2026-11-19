@@ -1,0 +1,6317 @@
+[
+  {
+    "day": 0.0,
+    "dt": 0.5,
+    "accepted": false,
+    "attempt": {
+      "success": false,
+      "indicator": 6.703689097519219,
+      "errors": {
+        "pressure": 6.703689097519219,
+        "s_w": 0.14236475566431483,
+        "s_g": 0.2328796690161145,
+        "withdrawal": 0.2521621583062179,
+        "component_mass": 0.04668554343835301,
+        "s_o": 0.23231632477282993
+      },
+      "reason": "local temporal defect exceeds tolerance",
+      "reservoir_step_calls": 3
+    }
+  },
+  {
+    "day": 0.0,
+    "dt": 0.15,
+    "accepted": false,
+    "attempt": {
+      "success": false,
+      "indicator": 6.247324386667833,
+      "errors": {
+        "pressure": 6.247324386667833,
+        "s_w": 0.010423541144194415,
+        "s_g": 0.0023237824027244613,
+        "withdrawal": 0.2761592029049549,
+        "component_mass": 0.02867546725975986,
+        "s_o": 0.01042354114422217
+      },
+      "reason": "local temporal defect exceeds tolerance",
+      "reservoir_step_calls": 3
+    }
+  },
+  {
+    "day": 0.0,
+    "dt": 0.045,
+    "accepted": false,
+    "attempt": {
+      "success": false,
+      "indicator": 6.684565942129866,
+      "errors": {
+        "pressure": 6.684565942129866,
+        "s_w": 0.011151596954861454,
+        "s_g": 0.0010723403206513993,
+        "withdrawal": 0.04765490599395863,
+        "component_mass": 0.030710375926030382,
+        "s_o": 0.011151596954972476
+      },
+      "reason": "local temporal defect exceeds tolerance",
+      "reservoir_step_calls": 3
+    }
+  },
+  {
+    "day": 0.0,
+    "dt": 0.013499999999999998,
+    "accepted": false,
+    "attempt": {
+      "success": false,
+      "indicator": 3.612599334209785,
+      "errors": {
+        "pressure": 3.612599334209785,
+        "s_w": 0.005863599705391298,
+        "s_g": 0.0009160512758343842,
+        "withdrawal": 0.07041345373900199,
+        "component_mass": 0.016551746110284996,
+        "s_o": 0.005863599705335787
+      },
+      "reason": "local temporal defect exceeds tolerance",
+      "reservoir_step_calls": 3
+    }
+  },
+  {
+    "day": 0.0,
+    "dt": 0.00405,
+    "accepted": false,
+    "attempt": {
+      "success": false,
+      "indicator": 1.136733917075023,
+      "errors": {
+        "pressure": 1.136733917075023,
+        "s_w": 0.0018113844993394856,
+        "s_g": 0.0010778561085889038,
+        "withdrawal": 0.027360034233678866,
+        "component_mass": 0.005199119419551265,
+        "s_o": 0.0018113844992839745
+      },
+      "reason": "local temporal defect exceeds tolerance",
+      "reservoir_step_calls": 3
+    }
+  },
+  {
+    "day": 0.0,
+    "dt": 0.0012149999999999997,
+    "accepted": true,
+    "attempt": {
+      "success": true,
+      "indicator": 0.14550082641877235,
+      "errors": {
+        "pressure": 0.14550082641877235,
+        "s_w": 0.00021040388575865876,
+        "s_g": 0.0004708818525100966,
+        "withdrawal": 0.0053467039782376,
+        "component_mass": 0.001517210511570521,
+        "s_o": 0.0004262983147595989
+      },
+      "reason": "accepted",
+      "reservoir_step_calls": 3
+    },
+    "balance": [
+      2.1578643960403886e-11,
+      1.641434370926581e-12,
+      -6.901756187490231e-10
+    ]
+  },
+  {
+    "day": 0.0012149999999999997,
+    "dt": 0.0024299999999999994,
+    "accepted": true,
+    "attempt": {
+      "success": true,
+      "indicator": 0.3709211351517588,
+      "errors": {
+        "pressure": 0.3709211351517588,
+        "s_w": 0.0005459565566856561,
+        "s_g": 0.00048023665810692506,
+        "withdrawal": 0.008997169565893135,
+        "component_mass": 0.0017417180766306874,
+        "s_o": 0.0005459565567411673
+      },
+      "reason": "accepted",
+      "reservoir_step_calls": 3
+    },
+    "balance": [
+      2.1983884944218285e-11,
+      1.9036519116397364e-12,
+      -6.899389622112777e-10
+    ]
+  },
+  {
+    "day": 0.0036449999999999994,
+    "dt": 0.0035909387121862654,
+    "accepted": true,
+    "attempt": {
+      "success": true,
+      "indicator": 0.5552202743988485,
+      "errors": {
+        "pressure": 0.5552202743988485,
+        "s_w": 0.0008597465612492083,
+        "s_g": 0.00022712273317626597,
+        "withdrawal": 0.013009522311777983,
+        "component_mass": 0.002534465179636837,
+        "s_o": 0.0008597465612769639
+      },
+      "reason": "accepted",
+      "reservoir_step_calls": 3
+    },
+    "balance": [
+      1.6745340337564526e-11,
+      3.4853826851921974e-12,
+      -6.933415761795812e-10
+    ]
+  },
+  {
+    "day": 0.007235938712186265,
+    "dt": 0.004337283840395136,
+    "accepted": true,
+    "attempt": {
+      "success": true,
+      "indicator": 0.5562799390010535,
+      "errors": {
+        "pressure": 0.5562799390010535,
+        "s_w": 0.000863149592494894,
+        "s_g": 0.00010638811875907095,
+        "withdrawal": 0.0124869228072703,
+        "component_mass": 0.0025402153050209856,
+        "s_o": 0.0008631495925781607
+      },
+      "reason": "accepted",
+      "reservoir_step_calls": 3
+    },
+    "balance": [
+      1.5875296223178874e-11,
+      6.6164281115408716e-12,
+      -6.938711817823028e-10
+    ]
+  },
+  {
+    "day": 0.0115732225525814,
+    "dt": 0.005233758201125963,
+    "accepted": true,
+    "attempt": {
+      "success": true,
+      "indicator": 0.6566756252359599,
+      "errors": {
+        "pressure": 0.6566756252359599,
+        "s_w": 0.0010166282697898765,
+        "s_g": 9.601830863736893e-05,
+        "withdrawal": 0.011074749829330292,
+        "component_mass": 0.002998270638090179,
+        "s_o": 0.0010166282697898765
+      },
+      "reason": "accepted",
+      "reservoir_step_calls": 3
+    },
+    "balance": [
+      2.371734651223133e-11,
+      1.2020593864351226e-11,
+      -6.886370422568377e-10
+    ]
+  },
+  {
+    "day": 0.016806980753707363,
+    "dt": 0.005812737564682656,
+    "accepted": true,
+    "attempt": {
+      "success": true,
+      "indicator": 0.5282833281662316,
+      "errors": {
+        "pressure": 0.5282833281662316,
+        "s_w": 0.0008183364224312317,
+        "s_g": 7.818483782617847e-05,
+        "withdrawal": 0.007428255530207417,
+        "component_mass": 0.002412661246411994,
+        "s_o": 0.0008183364224034761
+      },
+      "reason": "accepted",
+      "reservoir_step_calls": 3
+    },
+    "balance": [
+      3.203706443916416e-11,
+      1.873287059712962e-11,
+      -6.830319597622472e-10
+    ]
+  },
+  {
+    "day": 0.02261971831839002,
+    "dt": 0.007197634225058009,
+    "accepted": true,
+    "attempt": {
+      "success": true,
+      "indicator": 0.3835908835873008,
+      "errors": {
+        "pressure": 0.3835908835873008,
+        "s_w": 0.0006000929075600236,
+        "s_g": 7.456621331503044e-05,
+        "withdrawal": 0.0035791472516860227,
+        "component_mass": 0.0017536437756602106,
+        "s_o": 0.0006000929075877792
+      },
+      "reason": "accepted",
+      "reservoir_step_calls": 3
+    },
+    "balance": [
+      1.4537450963391553e-11,
+      2.8580039399341403e-11,
+      -6.939771547316399e-10
+    ]
+  },
+  {
+    "day": 0.029817352543448028,
+    "dt": 0.010459192191949643,
+    "accepted": true,
+    "attempt": {
+      "success": true,
+      "indicator": 0.32523563081994655,
+      "errors": {
+        "pressure": 0.32523563081994655,
+        "s_w": 0.0005206496937193439,
+        "s_g": 6.343106229156348e-05,
+        "withdrawal": 0.00367254785057323,
+        "component_mass": 0.0014896908091418391,
+        "s_o": 0.0005206496936915883
+      },
+      "reason": "accepted",
+      "reservoir_step_calls": 3
+    },
+    "balance": [
+      -1.3447250767513614e-09,
+      8.644881737095702e-11,
+      -1.6312295082140704e-09
+    ]
+  },
+  {
+    "day": 0.04027654473539767,
+    "dt": 0.016505990612129342,
+    "accepted": true,
+    "attempt": {
+      "success": true,
+      "indicator": 0.42618902317695323,
+      "errors": {
+        "pressure": 0.42618902317695323,
+        "s_w": 0.000684670889594674,
+        "s_g": 5.5869727288992976e-05,
+        "withdrawal": 0.023196881632380203,
+        "component_mass": 0.00195330921270694,
+        "s_o": 0.0006846708896501852
+      },
+      "reason": "accepted",
+      "reservoir_step_calls": 3
+    },
+    "balance": [
+      -1.2917590790600405e-09,
+      1.262083303133657e-10,
+      -1.6089921515298971e-09
+    ]
+  },
+  {
+    "day": 0.056782535347527016,
+    "dt": 0.02275532136346201,
+    "accepted": false,
+    "attempt": {
+      "success": false,
+      "indicator": 7.297024658098072,
+      "errors": {
+        "pressure": 7.297024658098072,
+        "s_w": 0.015620343879418908,
+        "s_g": 0.00856592223497099,
+        "withdrawal": 0.16819385853466642,
+        "component_mass": 0.032565277368873755,
+        "s_o": 0.015620343879363396
+      },
+      "reason": "local temporal defect exceeds tolerance",
+      "reservoir_step_calls": 3
+    }
+  },
+  {
+    "day": 0.056782535347527016,
+    "dt": 0.0068265964090386015,
+    "accepted": true,
+    "attempt": {
+      "success": true,
+      "indicator": 3.7712143607986746e-08,
+      "errors": {
+        "pressure": 0.0,
+        "s_w": 0.0,
+        "s_g": 0.0,
+        "withdrawal": 3.7712143607986746e-08,
+        "component_mass": 0.0,
+        "s_o": 0.0
+      },
+      "reason": "accepted",
+      "reservoir_step_calls": 3
+    },
+    "balance": [
+      1.8423982506357172e-07,
+      2.053102688853977e-10,
+      1.1823643279227319e-07
+    ]
+  },
+  {
+    "day": 0.06360913175656562,
+    "dt": 0.013653192818077203,
+    "accepted": false,
+    "attempt": {
+      "success": false,
+      "indicator": 4.745609182321653,
+      "errors": {
+        "pressure": 4.745609182321653,
+        "s_w": 0.010050202038536238,
+        "s_g": 0.005151833626038105,
+        "withdrawal": 0.06698353948891168,
+        "component_mass": 0.021179011328869412,
+        "s_o": 0.010050202038480727
+      },
+      "reason": "local temporal defect exceeds tolerance",
+      "reservoir_step_calls": 3
+    }
+  },
+  {
+    "day": 0.06360913175656562,
+    "dt": 0.0040959578454231645,
+    "accepted": true,
+    "attempt": {
+      "success": true,
+      "indicator": 3.7350178650297256e-13,
+      "errors": {
+        "pressure": 0.0,
+        "s_w": 0.0,
+        "s_g": 0.0,
+        "withdrawal": 3.7350178650297256e-13,
+        "component_mass": 0.0,
+        "s_o": 0.0
+      },
+      "reason": "accepted",
+      "reservoir_step_calls": 3
+    },
+    "balance": [
+      2.955587755279969e-07,
+      2.527714320241586e-10,
+      1.9014368774492158e-07
+    ]
+  },
+  {
+    "day": 0.06770508960198877,
+    "dt": 0.008191915690846329,
+    "accepted": true,
+    "attempt": {
+      "success": true,
+      "indicator": 3.75913917787093e-13,
+      "errors": {
+        "pressure": 0.0,
+        "s_w": 0.0,
+        "s_g": 0.0,
+        "withdrawal": 3.75913917787093e-13,
+        "component_mass": 0.0,
+        "s_o": 0.0
+      },
+      "reason": "accepted",
+      "reservoir_step_calls": 3
+    },
+    "balance": [
+      5.181966764568465e-07,
+      3.476937583016808e-10,
+      3.339581976502186e-07
+    ]
+  },
+  {
+    "day": 0.0758970052928351,
+    "dt": 0.016383831381692658,
+    "accepted": false,
+    "attempt": {
+      "success": false,
+      "indicator": 5.550767956034094,
+      "errors": {
+        "pressure": 5.550767956034094,
+        "s_w": 0.011797826965559421,
+        "s_g": 0.006178089290154176,
+        "withdrawal": 0.09389524191323989,
+        "component_mass": 0.024772238973073905,
+        "s_o": 0.011797826965587177
+      },
+      "reason": "local temporal defect exceeds tolerance",
+      "reservoir_step_calls": 3
+    }
+  },
+  {
+    "day": 0.0758970052928351,
+    "dt": 0.004915149414507796,
+    "accepted": true,
+    "attempt": {
+      "success": true,
+      "indicator": 0.0,
+      "errors": {
+        "pressure": 0.0,
+        "s_w": 0.0,
+        "s_g": 0.0,
+        "withdrawal": 0.0,
+        "component_mass": 0.0,
+        "s_o": 0.0
+      },
+      "reason": "accepted",
+      "reservoir_step_calls": 3
+    },
+    "balance": [
+      6.517794170141566e-07,
+      4.0464715406819405e-10,
+      4.202469035933969e-07
+    ]
+  },
+  {
+    "day": 0.0808121547073429,
+    "dt": 0.009830298829015592,
+    "accepted": true,
+    "attempt": {
+      "success": true,
+      "indicator": 0.0,
+      "errors": {
+        "pressure": 0.0,
+        "s_w": 0.0,
+        "s_g": 0.0,
+        "withdrawal": 0.0,
+        "component_mass": 0.0,
+        "s_o": 0.0
+      },
+      "reason": "accepted",
+      "reservoir_step_calls": 3
+    },
+    "balance": [
+      9.189448981287761e-07,
+      5.185539456012206e-10,
+      5.928243154797532e-07
+    ]
+  },
+  {
+    "day": 0.0906424535363585,
+    "dt": 0.019660597658031194,
+    "accepted": false,
+    "attempt": {
+      "success": false,
+      "indicator": 6.470157391631976,
+      "errors": {
+        "pressure": 6.470157391631976,
+        "s_w": 0.013805584661963355,
+        "s_g": 0.007406865033310339,
+        "withdrawal": 0.13031917297161874,
+        "component_mass": 0.02887522179390918,
+        "s_o": 0.013805584661907844
+      },
+      "reason": "local temporal defect exceeds tolerance",
+      "reservoir_step_calls": 3
+    }
+  },
+  {
+    "day": 0.0906424535363585,
+    "dt": 0.005898179297409361,
+    "accepted": true,
+    "attempt": {
+      "success": true,
+      "indicator": 0.0,
+      "errors": {
+        "pressure": 0.0,
+        "s_w": 0.0,
+        "s_g": 0.0,
+        "withdrawal": 0.0,
+        "component_mass": 0.0,
+        "s_o": 0.0
+      },
+      "reason": "accepted",
+      "reservoir_step_calls": 3
+    },
+    "balance": [
+      1.0792441867975482e-06,
+      5.868980205210366e-10,
+      6.96370762611567e-07
+    ]
+  },
+  {
+    "day": 0.09654063283376786,
+    "dt": 0.011796358594818722,
+    "accepted": false,
+    "attempt": {
+      "success": false,
+      "indicator": 4.174894156564772,
+      "errors": {
+        "pressure": 4.174894156564772,
+        "s_w": 0.008816196179012303,
+        "s_g": 0.004452989920911143,
+        "withdrawal": 0.05081450089058762,
+        "component_mass": 0.018632033721367947,
+        "s_o": 0.008816196178984548
+      },
+      "reason": "local temporal defect exceeds tolerance",
+      "reservoir_step_calls": 3
+    }
+  },
+  {
+    "day": 0.09654063283376786,
+    "dt": 0.0035389075784456104,
+    "accepted": true,
+    "attempt": {
+      "success": true,
+      "indicator": 0.0,
+      "errors": {
+        "pressure": 0.0,
+        "s_w": 0.0,
+        "s_g": 0.0,
+        "withdrawal": 0.0,
+        "component_mass": 0.0,
+        "s_o": 0.0
+      },
+      "reason": "accepted",
+      "reservoir_step_calls": 3
+    },
+    "balance": [
+      1.1754237599988116e-06,
+      6.279044654729262e-10,
+      7.584986308906553e-07
+    ]
+  },
+  {
+    "day": 0.10007954041221347,
+    "dt": 0.007077815156891221,
+    "accepted": true,
+    "attempt": {
+      "success": true,
+      "indicator": 0.0,
+      "errors": {
+        "pressure": 0.0,
+        "s_w": 0.0,
+        "s_g": 0.0,
+        "withdrawal": 0.0,
+        "component_mass": 0.0,
+        "s_o": 0.0
+      },
+      "reason": "accepted",
+      "reservoir_step_calls": 3
+    },
+    "balance": [
+      1.3677829064013379e-06,
+      7.099173553767052e-10,
+      8.827543674488317e-07
+    ]
+  },
+  {
+    "day": 0.10715735556910469,
+    "dt": 0.014155630313782442,
+    "accepted": false,
+    "attempt": {
+      "success": false,
+      "indicator": 4.897474752423167,
+      "errors": {
+        "pressure": 4.897474752423167,
+        "s_w": 0.010377990399962345,
+        "s_g": 0.005342395138385747,
+        "withdrawal": 0.0717147844944943,
+        "component_mass": 0.02185675159852634,
+        "s_o": 0.010377990399934589
+      },
+      "reason": "local temporal defect exceeds tolerance",
+      "reservoir_step_calls": 3
+    }
+  },
+  {
+    "day": 0.10715735556910469,
+    "dt": 0.004246689094134737,
+    "accepted": true,
+    "attempt": {
+      "success": true,
+      "indicator": 0.0,
+      "errors": {
+        "pressure": 0.0,
+        "s_w": 0.0,
+        "s_g": 0.0,
+        "withdrawal": 0.0,
+        "component_mass": 0.0,
+        "s_o": 0.0
+      },
+      "reason": "accepted",
+      "reservoir_step_calls": 3
+    },
+    "balance": [
+      1.4831983942428532e-06,
+      7.591250893189726e-10,
+      9.573078093837377e-07
+    ]
+  },
+  {
+    "day": 0.11140404466323943,
+    "dt": 0.008493378188269474,
+    "accepted": true,
+    "attempt": {
+      "success": true,
+      "indicator": 3.9915204247915794e-13,
+      "errors": {
+        "pressure": 0.0,
+        "s_w": 0.0,
+        "s_g": 0.0,
+        "withdrawal": 3.9915204247915794e-13,
+        "component_mass": 0.0,
+        "s_o": 0.0
+      },
+      "reason": "accepted",
+      "reservoir_step_calls": 3
+    },
+    "balance": [
+      1.7140293699258845e-06,
+      8.575405572035076e-10,
+      1.1064146932535493e-06
+    ]
+  },
+  {
+    "day": 0.1198974228515089,
+    "dt": 0.016986756376538948,
+    "accepted": false,
+    "attempt": {
+      "success": false,
+      "indicator": 5.723494155890123,
+      "errors": {
+        "pressure": 5.723494155890123,
+        "s_w": 0.012174171746731632,
+        "s_g": 0.0064042026197697055,
+        "withdrawal": 0.10027676006014073,
+        "component_mass": 0.025543070980866993,
+        "s_o": 0.012174171746703877
+      },
+      "reason": "local temporal defect exceeds tolerance",
+      "reservoir_step_calls": 3
+    }
+  },
+  {
+    "day": 0.1198974228515089,
+    "dt": 0.005096026912961688,
+    "accepted": true,
+    "attempt": {
+      "success": true,
+      "indicator": 1.0126940054450054e-13,
+      "errors": {
+        "pressure": 0.0,
+        "s_w": 0.0,
+        "s_g": 0.0,
+        "withdrawal": 1.0126940054450054e-13,
+        "component_mass": 0.0,
+        "s_o": 0.0
+      },
+      "reason": "accepted",
+      "reservoir_step_calls": 3
+    },
+    "balance": [
+      1.8525279553357036e-06,
+      9.165898379342288e-10,
+      1.1958788235754365e-06
+    ]
+  },
+  {
+    "day": 0.12499344976447059,
+    "dt": 0.010192053825923376,
+    "accepted": true,
+    "attempt": {
+      "success": true,
+      "indicator": 3.3569602899007805e-13,
+      "errors": {
+        "pressure": 0.0,
+        "s_w": 0.0,
+        "s_g": 0.0,
+        "withdrawal": 3.3569602899007805e-13,
+        "component_mass": 0.0,
+        "s_o": 0.0
+      },
+      "reason": "accepted",
+      "reservoir_step_calls": 3
+    },
+    "balance": [
+      2.129525126155341e-06,
+      1.0346883993956707e-09,
+      1.3748070842192109e-06
+    ]
+  },
+  {
+    "day": 0.13518550359039397,
+    "dt": 0.020384107651846752,
+    "accepted": false,
+    "attempt": {
+      "success": false,
+      "indicator": 6.66692954357788,
+      "errors": {
+        "pressure": 6.66692954357788,
+        "s_w": 0.01423671028938367,
+        "s_g": 0.007678086677787022,
+        "withdrawal": 0.13889728480564753,
+        "component_mass": 0.029753357898159527,
+        "s_o": 0.014236710289328158
+      },
+      "reason": "local temporal defect exceeds tolerance",
+      "reservoir_step_calls": 3
+    }
+  },
+  {
+    "day": 0.13518550359039397,
+    "dt": 0.006115232295554018,
+    "accepted": true,
+    "attempt": {
+      "success": true,
+      "indicator": 1.0049385168150033e-12,
+      "errors": {
+        "pressure": 0.0,
+        "s_w": 0.0,
+        "s_g": 0.0,
+        "withdrawal": 1.0049385168150033e-12,
+        "component_mass": 0.0,
+        "s_o": 0.0
+      },
+      "reason": "accepted",
+      "reservoir_step_calls": 3
+    },
+    "balance": [
+      2.2957234286471244e-06,
+      1.1055475362725355e-09,
+      1.4821640406054754e-06
+    ]
+  },
+  {
+    "day": 0.141300735885948,
+    "dt": 0.012230464591108036,
+    "accepted": false,
+    "attempt": {
+      "success": false,
+      "indicator": 4.309700396153331,
+      "errors": {
+        "pressure": 4.309700396153331,
+        "s_w": 0.009107276031095068,
+        "s_g": 0.004616031948678767,
+        "withdrawal": 0.0544238078224507,
+        "component_mass": 0.01923364594094926,
+        "s_o": 0.009107276031095068
+      },
+      "reason": "local temporal defect exceeds tolerance",
+      "reservoir_step_calls": 3
+    }
+  },
+  {
+    "day": 0.141300735885948,
+    "dt": 0.0036691393773324106,
+    "accepted": true,
+    "attempt": {
+      "success": true,
+      "indicator": 1.6653138067944586e-12,
+      "errors": {
+        "pressure": 0.0,
+        "s_w": 0.0,
+        "s_g": 0.0,
+        "withdrawal": 1.6653138067944586e-12,
+        "component_mass": 0.0,
+        "s_o": 0.0
+      },
+      "reason": "accepted",
+      "reservoir_step_calls": 3
+    },
+    "balance": [
+      2.3954424101421934e-06,
+      1.1480630183986545e-09,
+      1.5465782144372339e-06
+    ]
+  },
+  {
+    "day": 0.1449698752632804,
+    "dt": 0.007338278754664821,
+    "accepted": true,
+    "attempt": {
+      "success": true,
+      "indicator": 9.16052745132063e-13,
+      "errors": {
+        "pressure": 0.0,
+        "s_w": 0.0,
+        "s_g": 0.0,
+        "withdrawal": 9.16052745132063e-13,
+        "component_mass": 0.0,
+        "s_o": 0.0
+      },
+      "reason": "accepted",
+      "reservoir_step_calls": 3
+    },
+    "balance": [
+      2.594880373132334e-06,
+      1.2330939826508927e-09,
+      1.6754065621007518e-06
+    ]
+  },
+  {
+    "day": 0.1523081540179452,
+    "dt": 0.014676557509329642,
+    "accepted": false,
+    "attempt": {
+      "success": false,
+      "indicator": 5.052742282218859,
+      "errors": {
+        "pressure": 5.052742282218859,
+        "s_w": 0.010714809706102724,
+        "s_g": 0.005538243060709824,
+        "withdrawal": 0.07670158379235369,
+        "component_mass": 0.022549673887896884,
+        "s_o": 0.010714809706047213
+      },
+      "reason": "local temporal defect exceeds tolerance",
+      "reservoir_step_calls": 3
+    }
+  },
+  {
+    "day": 0.1523081540179452,
+    "dt": 0.004402967252798888,
+    "accepted": true,
+    "attempt": {
+      "success": true,
+      "indicator": 1.3910780529049655e-12,
+      "errors": {
+        "pressure": 0.0,
+        "s_w": 0.0,
+        "s_g": 0.0,
+        "withdrawal": 1.3910780529049655e-12,
+        "component_mass": 0.0,
+        "s_o": 0.0
+      },
+      "reason": "accepted",
+      "reservoir_step_calls": 3
+    },
+    "balance": [
+      2.7145431509264173e-06,
+      1.2841125612022357e-09,
+      1.752703570698862e-06
+    ]
+  },
+  {
+    "day": 0.1567111212707441,
+    "dt": 0.008805934505597777,
+    "accepted": true,
+    "attempt": {
+      "success": true,
+      "indicator": 9.381002589663307e-14,
+      "errors": {
+        "pressure": 0.0,
+        "s_w": 0.0,
+        "s_g": 0.0,
+        "withdrawal": 9.381002589663307e-14,
+        "component_mass": 0.0,
+        "s_o": 0.0
+      },
+      "reason": "accepted",
+      "reservoir_step_calls": 3
+    },
+    "balance": [
+      2.9538687065145835e-06,
+      1.386149718304921e-09,
+      1.9072975878950828e-06
+    ]
+  },
+  {
+    "day": 0.16551705577634188,
+    "dt": 0.017611869011195554,
+    "accepted": false,
+    "attempt": {
+      "success": false,
+      "indicator": 5.900829017418251,
+      "errors": {
+        "pressure": 5.900829017418251,
+        "s_w": 0.012561001936084448,
+        "s_g": 0.006638613874399013,
+        "withdrawal": 0.10705138396076727,
+        "component_mass": 0.026334469107851144,
+        "s_o": 0.012561001936028937
+      },
+      "reason": "local temporal defect exceeds tolerance",
+      "reservoir_step_calls": 3
+    }
+  },
+  {
+    "day": 0.16551705577634188,
+    "dt": 0.005283560703358666,
+    "accepted": true,
+    "attempt": {
+      "success": true,
+      "indicator": 1.1615449797514845e-12,
+      "errors": {
+        "pressure": 0.0,
+        "s_w": 0.0,
+        "s_g": 0.0,
+        "withdrawal": 1.1615449797514845e-12,
+        "component_mass": 0.0,
+        "s_o": 0.0
+      },
+      "reason": "accepted",
+      "reservoir_step_calls": 3
+    },
+    "balance": [
+      3.0974640398674846e-06,
+      1.4473720125665324e-09,
+      2.000053998212815e-06
+    ]
+  },
+  {
+    "day": 0.17080061647970055,
+    "dt": 0.010567121406717332,
+    "accepted": true,
+    "attempt": {
+      "success": true,
+      "indicator": 9.06405386175042e-14,
+      "errors": {
+        "pressure": 0.0,
+        "s_w": 0.0,
+        "s_g": 0.0,
+        "withdrawal": 9.06405386175042e-14,
+        "component_mass": 0.0,
+        "s_o": 0.0
+      },
+      "reason": "accepted",
+      "reservoir_step_calls": 3
+    },
+    "balance": [
+      3.384654706573285e-06,
+      1.5698166010897555e-09,
+      2.1855668188482798e-06
+    ]
+  },
+  {
+    "day": 0.18136773788641788,
+    "dt": 0.021134242813434644,
+    "accepted": false,
+    "attempt": {
+      "success": false,
+      "indicator": 6.8682731264889245,
+      "errors": {
+        "pressure": 6.8682731264889245,
+        "s_w": 0.014678447846777631,
+        "s_g": 0.007958664392848647,
+        "withdrawal": 0.14796330766557125,
+        "component_mass": 0.03065189361917127,
+        "s_o": 0.014678447846749876
+      },
+      "reason": "local temporal defect exceeds tolerance",
+      "reservoir_step_calls": 3
+    }
+  },
+  {
+    "day": 0.18136773788641788,
+    "dt": 0.0063402728440303865,
+    "accepted": true,
+    "attempt": {
+      "success": true,
+      "indicator": 9.863886386033132e-14,
+      "errors": {
+        "pressure": 0.0,
+        "s_w": 0.0,
+        "s_g": 0.0,
+        "withdrawal": 9.863886386033132e-14,
+        "component_mass": 0.0,
+        "s_o": 0.0
+      },
+      "reason": "accepted",
+      "reservoir_step_calls": 3
+    },
+    "balance": [
+      3.5569691065967643e-06,
+      1.6432833542036886e-09,
+      2.296874511229558e-06
+    ]
+  },
+  {
+    "day": 0.18770801073044827,
+    "dt": 0.012680545688060773,
+    "accepted": false,
+    "attempt": {
+      "success": false,
+      "indicator": 4.449420537168533,
+      "errors": {
+        "pressure": 4.449420537168533,
+        "s_w": 0.009408975512381623,
+        "s_g": 0.004786352003960381,
+        "withdrawal": 0.0582946986207313,
+        "component_mass": 0.01985718697067218,
+        "s_o": 0.009408975512381623
+      },
+      "reason": "local temporal defect exceeds tolerance",
+      "reservoir_step_calls": 3
+    }
+  },
+  {
+    "day": 0.18770801073044827,
+    "dt": 0.0038041637064182192,
+    "accepted": true,
+    "attempt": {
+      "success": true,
+      "indicator": 1.607021390507372e-12,
+      "errors": {
+        "pressure": 0.0,
+        "s_w": 0.0,
+        "s_g": 0.0,
+        "withdrawal": 1.607021390507372e-12,
+        "component_mass": 0.0,
+        "s_o": 0.0
+      },
+      "reason": "accepted",
+      "reservoir_step_calls": 3
+    },
+    "balance": [
+      3.660357746610851e-06,
+      1.687363406072049e-09,
+      2.3636591266583247e-06
+    ]
+  },
+  {
+    "day": 0.1915121744368665,
+    "dt": 0.0076083274128364384,
+    "accepted": true,
+    "attempt": {
+      "success": true,
+      "indicator": 8.855170913248089e-13,
+      "errors": {
+        "pressure": 0.0,
+        "s_w": 0.0,
+        "s_g": 0.0,
+        "withdrawal": 8.855170913248089e-13,
+        "component_mass": 0.0,
+        "s_o": 0.0
+      },
+      "reason": "accepted",
+      "reservoir_step_calls": 3
+    },
+    "balance": [
+      3.867135026639026e-06,
+      1.7755235098087687e-09,
+      2.4972283575158586e-06
+    ]
+  },
+  {
+    "day": 0.19912050184970292,
+    "dt": 0.015216654825672877,
+    "accepted": false,
+    "attempt": {
+      "success": false,
+      "indicator": 5.212250569975376,
+      "errors": {
+        "pressure": 5.212250569975376,
+        "s_w": 0.011061181206750703,
+        "s_g": 0.005741230843736567,
+        "withdrawal": 0.08200762737237258,
+        "component_mass": 0.023261520743415146,
+        "s_o": 0.011061181206750703
+      },
+      "reason": "local temporal defect exceeds tolerance",
+      "reservoir_step_calls": 3
+    }
+  },
+  {
+    "day": 0.19912050184970292,
+    "dt": 0.00456499644770188,
+    "accepted": true,
+    "attempt": {
+      "success": true,
+      "indicator": 1.4183230336536173e-12,
+      "errors": {
+        "pressure": 0.0,
+        "s_w": 0.0,
+        "s_g": 0.0,
+        "withdrawal": 1.4183230336536173e-12,
+        "component_mass": 0.0,
+        "s_o": 0.0
+      },
+      "reason": "accepted",
+      "reservoir_step_calls": 3
+    },
+    "balance": [
+      3.991201394655932e-06,
+      1.828419572050801e-09,
+      2.57736989603038e-06
+    ]
+  },
+  {
+    "day": 0.20368549829740482,
+    "dt": 0.00912999289540376,
+    "accepted": true,
+    "attempt": {
+      "success": true,
+      "indicator": 0.0,
+      "errors": {
+        "pressure": 0.0,
+        "s_w": 0.0,
+        "s_g": 0.0,
+        "withdrawal": 0.0,
+        "component_mass": 0.0,
+        "s_o": 0.0
+      },
+      "reason": "accepted",
+      "reservoir_step_calls": 3
+    },
+    "balance": [
+      4.239334130689743e-06,
+      1.9342116965348654e-09,
+      2.737652973059421e-06
+    ]
+  },
+  {
+    "day": 0.21281549119280857,
+    "dt": 0.01825998579080752,
+    "accepted": false,
+    "attempt": {
+      "success": false,
+      "indicator": 6.0829045857291675,
+      "errors": {
+        "pressure": 6.0829045857291675,
+        "s_w": 0.012958593604339708,
+        "s_g": 0.006881687391491198,
+        "withdrawal": 0.11424089699239424,
+        "component_mass": 0.027147022532481354,
+        "s_o": 0.012958593604284196
+      },
+      "reason": "local temporal defect exceeds tolerance",
+      "reservoir_step_calls": 3
+    }
+  },
+  {
+    "day": 0.21281549119280857,
+    "dt": 0.005477995737242265,
+    "accepted": true,
+    "attempt": {
+      "success": true,
+      "indicator": 2.0089410679030125e-13,
+      "errors": {
+        "pressure": 0.0,
+        "s_w": 0.0,
+        "s_g": 0.0,
+        "withdrawal": 2.0089410679030125e-13,
+        "component_mass": 0.0,
+        "s_o": 0.0
+      },
+      "reason": "accepted",
+      "reservoir_step_calls": 3
+    },
+    "balance": [
+      4.3882137723100295e-06,
+      1.9976869712253034e-09,
+      2.8338228192768457e-06
+    ]
+  },
+  {
+    "day": 0.21829348693005082,
+    "dt": 0.01095599147448453,
+    "accepted": true,
+    "attempt": {
+      "success": true,
+      "indicator": 6.265931404353701e-13,
+      "errors": {
+        "pressure": 0.0,
+        "s_w": 0.0,
+        "s_g": 0.0,
+        "withdrawal": 6.265931404353701e-13,
+        "component_mass": 0.0,
+        "s_o": 0.0
+      },
+      "reason": "accepted",
+      "reservoir_step_calls": 3
+    },
+    "balance": [
+      4.685973055550603e-06,
+      2.1246375206061806e-09,
+      3.0261625117116953e-06
+    ]
+  },
+  {
+    "day": 0.22924947840453536,
+    "dt": 0.02191198294896906,
+    "accepted": false,
+    "attempt": {
+      "success": false,
+      "indicator": 7.075016594585404,
+      "errors": {
+        "pressure": 7.075016594585404,
+        "s_w": 0.015132407414297777,
+        "s_g": 0.008250015504862596,
+        "withdrawal": 0.15756315231805498,
+        "component_mass": 0.031574525800605054,
+        "s_o": 0.015132407414242266
+      },
+      "reason": "local temporal defect exceeds tolerance",
+      "reservoir_step_calls": 3
+    }
+  },
+  {
+    "day": 0.22924947840453536,
+    "dt": 0.006573594884690734,
+    "accepted": true,
+    "attempt": {
+      "success": true,
+      "indicator": 0.0,
+      "errors": {
+        "pressure": 0.0,
+        "s_w": 0.0,
+        "s_g": 0.0,
+        "withdrawal": 0.0,
+        "component_mass": 0.0,
+        "s_o": 0.0
+      },
+      "reason": "accepted",
+      "reservoir_step_calls": 3
+    },
+    "balance": [
+      4.864628625494947e-06,
+      2.2008078502347076e-09,
+      3.141566327172606e-06
+    ]
+  },
+  {
+    "day": 0.23582307328922608,
+    "dt": 0.013147189769381468,
+    "accepted": false,
+    "attempt": {
+      "success": false,
+      "indicator": 4.592091809053347,
+      "errors": {
+        "pressure": 4.592091809053347,
+        "s_w": 0.00971768492660785,
+        "s_g": 0.004961642762757457,
+        "withdrawal": 0.06240130633095544,
+        "component_mass": 0.020493897693222442,
+        "s_o": 0.009717684926524583
+      },
+      "reason": "local temporal defect exceeds tolerance",
+      "reservoir_step_calls": 3
+    }
+  },
+  {
+    "day": 0.23582307328922608,
+    "dt": 0.0039441569308144575,
+    "accepted": true,
+    "attempt": {
+      "success": true,
+      "indicator": 2.0766574295386764e-13,
+      "errors": {
+        "pressure": 0.0,
+        "s_w": 0.0,
+        "s_g": 0.0,
+        "withdrawal": 2.0766574295386764e-13,
+        "component_mass": 0.0,
+        "s_o": 0.0
+      },
+      "reason": "accepted",
+      "reservoir_step_calls": 3
+    },
+    "balance": [
+      4.9718219674615535e-06,
+      2.2465100480118234e-09,
+      3.210808616449153e-06
+    ]
+  },
+  {
+    "day": 0.23976723022004054,
+    "dt": 0.007888313861628915,
+    "accepted": true,
+    "attempt": {
+      "success": true,
+      "indicator": 8.559354185249281e-13,
+      "errors": {
+        "pressure": 0.0,
+        "s_w": 0.0,
+        "s_g": 0.0,
+        "withdrawal": 8.559354185249281e-13,
+        "component_mass": 0.0,
+        "s_o": 0.0
+      },
+      "reason": "accepted",
+      "reservoir_step_calls": 3
+    },
+    "balance": [
+      5.186208651394767e-06,
+      2.3379144435660565e-09,
+      3.349293195002246e-06
+    ]
+  },
+  {
+    "day": 0.24765554408166945,
+    "dt": 0.01577662772325783,
+    "accepted": false,
+    "attempt": {
+      "success": false,
+      "indicator": 5.376073416457698,
+      "errors": {
+        "pressure": 5.376073416457698,
+        "s_w": 0.011417320446127643,
+        "s_g": 0.005951606377174734,
+        "withdrawal": 0.08764973863577359,
+        "component_mass": 0.02399262144457631,
+        "s_o": 0.011417320446072132
+      },
+      "reason": "local temporal defect exceeds tolerance",
+      "reservoir_step_calls": 3
+    }
+  },
+  {
+    "day": 0.24765554408166945,
+    "dt": 0.004732988316977332,
+    "accepted": true,
+    "attempt": {
+      "success": true,
+      "indicator": 2.5903206096968208e-12,
+      "errors": {
+        "pressure": 0.0,
+        "s_w": 0.0,
+        "s_g": 0.0,
+        "withdrawal": 2.5903206096968208e-12,
+        "component_mass": 0.0,
+        "s_o": 0.0
+      },
+      "reason": "accepted",
+      "reservoir_step_calls": 3
+    },
+    "balance": [
+      5.3148406617546965e-06,
+      2.3927570808985954e-09,
+      3.4323839421341013e-06
+    ]
+  },
+  {
+    "day": 0.2523885323986468,
+    "dt": 0.009465976633954664,
+    "accepted": true,
+    "attempt": {
+      "success": true,
+      "indicator": 1.8519311987776444e-13,
+      "errors": {
+        "pressure": 0.0,
+        "s_w": 0.0,
+        "s_g": 0.0,
+        "withdrawal": 1.8519311987776444e-13,
+        "component_mass": 0.0,
+        "s_o": 0.0
+      },
+      "reason": "accepted",
+      "reservoir_step_calls": 3
+    },
+    "balance": [
+      5.572104682474553e-06,
+      2.5024423555636745e-09,
+      3.5985654363978117e-06
+    ]
+  },
+  {
+    "day": 0.26185450903260143,
+    "dt": 0.018931953267909328,
+    "accepted": false,
+    "attempt": {
+      "success": false,
+      "indicator": 6.269824335112051,
+      "errors": {
+        "pressure": 6.269824335112051,
+        "s_w": 0.013367198085673104,
+        "s_g": 0.0071337413358740775,
+        "withdrawal": 0.12186582904394674,
+        "component_mass": 0.027981192961866765,
+        "s_o": 0.013367198085645349
+      },
+      "reason": "local temporal defect exceeds tolerance",
+      "reservoir_step_calls": 3
+    }
+  },
+  {
+    "day": 0.26185450903260143,
+    "dt": 0.005679585980372781,
+    "accepted": true,
+    "attempt": {
+      "success": true,
+      "indicator": 1.1622144385679595e-12,
+      "errors": {
+        "pressure": 0.0,
+        "s_w": 0.0,
+        "s_g": 0.0,
+        "withdrawal": 1.1622144385679595e-12,
+        "component_mass": 0.0,
+        "s_o": 0.0
+      },
+      "reason": "accepted",
+      "reservoir_step_calls": 3
+    },
+    "balance": [
+      5.726463094906466e-06,
+      2.5682535203627217e-09,
+      3.698274332956038e-06
+    ]
+  },
+  {
+    "day": 0.26753409501297426,
+    "dt": 0.011359171960745562,
+    "accepted": true,
+    "attempt": {
+      "success": true,
+      "indicator": 0.0,
+      "errors": {
+        "pressure": 0.0,
+        "s_w": 0.0,
+        "s_g": 0.0,
+        "withdrawal": 0.0,
+        "component_mass": 0.0,
+        "s_o": 0.0
+      },
+      "reason": "accepted",
+      "reservoir_step_calls": 3
+    },
+    "balance": [
+      6.035179919770294e-06,
+      2.6998758499608147e-09,
+      3.89769212607249e-06
+    ]
+  },
+  {
+    "day": 0.2788932669737198,
+    "dt": 0.022718343921491125,
+    "accepted": false,
+    "attempt": {
+      "success": false,
+      "indicator": 7.287363939039037,
+      "errors": {
+        "pressure": 7.287363939039037,
+        "s_w": 0.01559902498898813,
+        "s_g": 0.008552045533183339,
+        "withdrawal": 0.16772431269055446,
+        "component_mass": 0.03252216469638798,
+        "s_o": 0.01559902498893262
+      },
+      "reason": "local temporal defect exceeds tolerance",
+      "reservoir_step_calls": 3
+    }
+  },
+  {
+    "day": 0.2788932669737198,
+    "dt": 0.0068155031764473295,
+    "accepted": true,
+    "attempt": {
+      "success": true,
+      "indicator": 1.9631558835538843e-12,
+      "errors": {
+        "pressure": 0.0,
+        "s_w": 0.0,
+        "s_g": 0.0,
+        "withdrawal": 1.9631558835538843e-12,
+        "component_mass": 0.0,
+        "s_o": 0.0
+      },
+      "reason": "accepted",
+      "reservoir_step_calls": 3
+    },
+    "balance": [
+      6.22041001468859e-06,
+      2.7788492477196706e-09,
+      4.0173428019423625e-06
+    ]
+  },
+  {
+    "day": 0.28570877015016716,
+    "dt": 0.013631006352894659,
+    "accepted": false,
+    "attempt": {
+      "success": false,
+      "indicator": 4.7389112107217315,
+      "errors": {
+        "pressure": 4.7389112107217315,
+        "s_w": 0.01003568581228742,
+        "s_g": 0.005143501065285605,
+        "withdrawal": 0.06677998723065257,
+        "component_mass": 0.021149119800488416,
+        "s_o": 0.010035685812259665
+      },
+      "reason": "local temporal defect exceeds tolerance",
+      "reservoir_step_calls": 3
+    }
+  },
+  {
+    "day": 0.28570877015016716,
+    "dt": 0.004089301905868381,
+    "accepted": true,
+    "attempt": {
+      "success": true,
+      "indicator": 0.0,
+      "errors": {
+        "pressure": 0.0,
+        "s_w": 0.0,
+        "s_g": 0.0,
+        "withdrawal": 0.0,
+        "component_mass": 0.0,
+        "s_o": 0.0
+      },
+      "reason": "accepted",
+      "reservoir_step_calls": 3
+    },
+    "balance": [
+      6.331548071639567e-06,
+      2.826233286374984e-09,
+      4.089133207464285e-06
+    ]
+  },
+  {
+    "day": 0.2897980720560355,
+    "dt": 0.008178603811736762,
+    "accepted": true,
+    "attempt": {
+      "success": true,
+      "indicator": 1.8998640821087433e-13,
+      "errors": {
+        "pressure": 0.0,
+        "s_w": 0.0,
+        "s_g": 0.0,
+        "withdrawal": 1.8998640821087433e-13,
+        "component_mass": 0.0,
+        "s_o": 0.0
+      },
+      "reason": "accepted",
+      "reservoir_step_calls": 3
+    },
+    "balance": [
+      6.553824185541521e-06,
+      2.92100136368561e-09,
+      4.232714018508131e-06
+    ]
+  },
+  {
+    "day": 0.29797667586777227,
+    "dt": 0.016357207623473525,
+    "accepted": false,
+    "attempt": {
+      "success": false,
+      "indicator": 5.543096762353927,
+      "errors": {
+        "pressure": 5.543096762353927,
+        "s_w": 0.011781123887638634,
+        "s_g": 0.0061680981146006175,
+        "withdrawal": 0.09361684867718079,
+        "component_mass": 0.024738004409322764,
+        "s_o": 0.011781123887555367
+      },
+      "reason": "local temporal defect exceeds tolerance",
+      "reservoir_step_calls": 3
+    }
+  },
+  {
+    "day": 0.29797667586777227,
+    "dt": 0.004907162287042065,
+    "accepted": true,
+    "attempt": {
+      "success": true,
+      "indicator": 2.0336201087117122e-13,
+      "errors": {
+        "pressure": 0.0,
+        "s_w": 0.0,
+        "s_g": 0.0,
+        "withdrawal": 2.0336201087117122e-13,
+        "component_mass": 0.0,
+        "s_o": 0.0
+      },
+      "reason": "accepted",
+      "reservoir_step_calls": 3
+    },
+    "balance": [
+      6.6871898538826935e-06,
+      2.977862210071987e-09,
+      4.318862505134439e-06
+    ]
+  },
+  {
+    "day": 0.30288383815481434,
+    "dt": 0.00981432457408413,
+    "accepted": true,
+    "attempt": {
+      "success": true,
+      "indicator": 1.2564272701878695e-12,
+      "errors": {
+        "pressure": 0.0,
+        "s_w": 0.0,
+        "s_g": 0.0,
+        "withdrawal": 1.2564272701878695e-12,
+        "component_mass": 0.0,
+        "s_o": 0.0
+      },
+      "reason": "accepted",
+      "reservoir_step_calls": 3
+    },
+    "balance": [
+      6.953921190565042e-06,
+      3.0915839028447393e-09,
+      4.4911594783870535e-06
+    ]
+  },
+  {
+    "day": 0.3126981627288985,
+    "dt": 0.01962864914816826,
+    "accepted": false,
+    "attempt": {
+      "success": false,
+      "indicator": 6.461417298120633,
+      "errors": {
+        "pressure": 6.461417298120633,
+        "s_w": 0.013786456203701558,
+        "s_g": 0.00739489080414657,
+        "withdrawal": 0.12994437578723605,
+        "component_mass": 0.028836217302591997,
+        "s_o": 0.013786456203646047
+      },
+      "reason": "local temporal defect exceeds tolerance",
+      "reservoir_step_calls": 3
+    }
+  },
+  {
+    "day": 0.3126981627288985,
+    "dt": 0.0058885947444504705,
+    "accepted": true,
+    "attempt": {
+      "success": true,
+      "indicator": 1.9915566722155855e-13,
+      "errors": {
+        "pressure": 0.0,
+        "s_w": 0.0,
+        "s_g": 0.0,
+        "withdrawal": 1.9915566722155855e-13,
+        "component_mass": 0.0,
+        "s_o": 0.0
+      },
+      "reason": "accepted",
+      "reservoir_step_calls": 3
+    },
+    "balance": [
+      7.113959992574448e-06,
+      3.1598169185083897e-09,
+      4.594537662338622e-06
+    ]
+  },
+  {
+    "day": 0.31858675747334897,
+    "dt": 0.011777189488900941,
+    "accepted": false,
+    "attempt": {
+      "success": false,
+      "indicator": 4.168920776400715,
+      "errors": {
+        "pressure": 4.168920776400715,
+        "s_w": 0.008803304009596946,
+        "s_g": 0.004445794895779898,
+        "withdrawal": 0.05065760961883606,
+        "component_mass": 0.018605375750395205,
+        "s_o": 0.008803304009541435
+      },
+      "reason": "local temporal defect exceeds tolerance",
+      "reservoir_step_calls": 3
+    }
+  },
+  {
+    "day": 0.31858675747334897,
+    "dt": 0.0035331568466702907,
+    "accepted": true,
+    "attempt": {
+      "success": true,
+      "indicator": 3.4569120474105814e-12,
+      "errors": {
+        "pressure": 0.0,
+        "s_w": 0.0,
+        "s_g": 0.0,
+        "withdrawal": 3.4569120474105814e-12,
+        "component_mass": 0.0,
+        "s_o": 0.0
+      },
+      "reason": "accepted",
+      "reservoir_step_calls": 3
+    },
+    "balance": [
+      7.209983273780093e-06,
+      3.200756727906581e-09,
+      4.656564572709563e-06
+    ]
+  },
+  {
+    "day": 0.32211991432001924,
+    "dt": 0.007066313693340581,
+    "accepted": true,
+    "attempt": {
+      "success": true,
+      "indicator": 1.8980201768470625e-12,
+      "errors": {
+        "pressure": 0.0,
+        "s_w": 0.0,
+        "s_g": 0.0,
+        "withdrawal": 1.8980201768470625e-12,
+        "component_mass": 0.0,
+        "s_o": 0.0
+      },
+      "reason": "accepted",
+      "reservoir_step_calls": 3
+    },
+    "balance": [
+      7.402029836191381e-06,
+      3.2826363467029638e-09,
+      4.7806183934514446e-06
+    ]
+  },
+  {
+    "day": 0.32918622801335984,
+    "dt": 0.014132627386681163,
+    "accepted": false,
+    "attempt": {
+      "success": false,
+      "indicator": 4.890584708383679,
+      "errors": {
+        "pressure": 4.890584708383679,
+        "s_w": 0.010363055609030614,
+        "s_g": 0.005333744227509207,
+        "withdrawal": 0.07149754133959701,
+        "component_mass": 0.021826002939236304,
+        "s_o": 0.010363055608975102
+      },
+      "reason": "local temporal defect exceeds tolerance",
+      "reservoir_step_calls": 3
+    }
+  },
+  {
+    "day": 0.32918622801335984,
+    "dt": 0.0042397882160043485,
+    "accepted": true,
+    "attempt": {
+      "success": true,
+      "indicator": 3.0315637129662457e-12,
+      "errors": {
+        "pressure": 0.0,
+        "s_w": 0.0,
+        "s_g": 0.0,
+        "withdrawal": 3.0315637129662457e-12,
+        "component_mass": 0.0,
+        "s_o": 0.0
+      },
+      "reason": "accepted",
+      "reservoir_step_calls": 3
+    },
+    "balance": [
+      7.517257773638152e-06,
+      3.3317641179807924e-09,
+      4.8550506858965726e-06
+    ]
+  },
+  {
+    "day": 0.3334260162293642,
+    "dt": 0.008479576432008697,
+    "accepted": true,
+    "attempt": {
+      "success": true,
+      "indicator": 1.8884370389242438e-13,
+      "errors": {
+        "pressure": 0.0,
+        "s_w": 0.0,
+        "s_g": 0.0,
+        "withdrawal": 1.8884370389242438e-13,
+        "component_mass": 0.0,
+        "s_o": 0.0
+      },
+      "reason": "accepted",
+      "reservoir_step_calls": 3
+    },
+    "balance": [
+      7.7477136485317e-06,
+      3.4300196605364513e-09,
+      5.003915270786833e-06
+    ]
+  },
+  {
+    "day": 0.3419055926613729,
+    "dt": 0.016959152864017394,
+    "accepted": false,
+    "attempt": {
+      "success": false,
+      "indicator": 5.7156201323617255,
+      "errors": {
+        "pressure": 5.7156201323617255,
+        "s_w": 0.012157006734153653,
+        "s_g": 0.0063938483697567605,
+        "withdrawal": 0.09998123150251595,
+        "component_mass": 0.025507931290060338,
+        "s_o": 0.012157006734181408
+      },
+      "reason": "local temporal defect exceeds tolerance",
+      "reservoir_step_calls": 3
+    }
+  },
+  {
+    "day": 0.3419055926613729,
+    "dt": 0.00508774585920521,
+    "accepted": true,
+    "attempt": {
+      "success": true,
+      "indicator": 0.0,
+      "errors": {
+        "pressure": 0.0,
+        "s_w": 0.0,
+        "s_g": 0.0,
+        "withdrawal": 0.0,
+        "component_mass": 0.0,
+        "s_o": 0.0
+      },
+      "reason": "accepted",
+      "reservoir_step_calls": 3
+    },
+    "balance": [
+      7.885987173467828e-06,
+      3.4889729860698466e-09,
+      5.093234021720987e-06
+    ]
+  },
+  {
+    "day": 0.34699333852057807,
+    "dt": 0.01017549171841042,
+    "accepted": true,
+    "attempt": {
+      "success": true,
+      "indicator": 1.8265334081580694e-13,
+      "errors": {
+        "pressure": 0.0,
+        "s_w": 0.0,
+        "s_g": 0.0,
+        "withdrawal": 1.8265334081580694e-13,
+        "component_mass": 0.0,
+        "s_o": 0.0
+      },
+      "reason": "accepted",
+      "reservoir_step_calls": 3
+    },
+    "balance": [
+      8.162534223340084e-06,
+      3.6068796371366373e-09,
+      5.271871523589298e-06
+    ]
+  },
+  {
+    "day": 0.3571688302389885,
+    "dt": 0.02035098343682084,
+    "accepted": false,
+    "attempt": {
+      "success": false,
+      "indicator": 6.657961315388605,
+      "errors": {
+        "pressure": 6.657961315388605,
+        "s_w": 0.014217018681150773,
+        "s_g": 0.0076656578299472145,
+        "withdrawal": 0.13850082456140514,
+        "component_mass": 0.02971333538557438,
+        "s_o": 0.014217018681095261
+      },
+      "reason": "local temporal defect exceeds tolerance",
+      "reservoir_step_calls": 3
+    }
+  },
+  {
+    "day": 0.3571688302389885,
+    "dt": 0.006105295031046244,
+    "accepted": true,
+    "attempt": {
+      "success": true,
+      "indicator": 1.9825025210622666e-13,
+      "errors": {
+        "pressure": 0.0,
+        "s_w": 0.0,
+        "s_g": 0.0,
+        "withdrawal": 1.9825025210622666e-13,
+        "component_mass": 0.0,
+        "s_o": 0.0
+      },
+      "reason": "accepted",
+      "reservoir_step_calls": 3
+    },
+    "balance": [
+      8.328462453263435e-06,
+      3.6776236277767108e-09,
+      5.3790540247102845e-06
+    ]
+  },
+  {
+    "day": 0.3632741252700347,
+    "dt": 0.012210590062092488,
+    "accepted": false,
+    "attempt": {
+      "success": false,
+      "indicator": 4.303552957043052,
+      "errors": {
+        "pressure": 4.303552957043052,
+        "s_w": 0.00909399432369451,
+        "s_g": 0.004608569969311027,
+        "withdrawal": 0.05425635137410267,
+        "component_mass": 0.019206211212576128,
+        "s_o": 0.00909399432369451
+      },
+      "reason": "local temporal defect exceeds tolerance",
+      "reservoir_step_calls": 3
+    }
+  },
+  {
+    "day": 0.3632741252700347,
+    "dt": 0.0036631770186277292,
+    "accepted": true,
+    "attempt": {
+      "success": true,
+      "indicator": 0.0,
+      "errors": {
+        "pressure": 0.0,
+        "s_w": 0.0,
+        "s_g": 0.0,
+        "withdrawal": 0.0,
+        "component_mass": 0.0,
+        "s_o": 0.0
+      },
+      "reason": "accepted",
+      "reservoir_step_calls": 3
+    },
+    "balance": [
+      8.428019391217447e-06,
+      3.720070022160755e-09,
+      5.443363525382877e-06
+    ]
+  },
+  {
+    "day": 0.36693730228866245,
+    "dt": 0.0073263540372554585,
+    "accepted": true,
+    "attempt": {
+      "success": true,
+      "indicator": 0.0,
+      "errors": {
+        "pressure": 0.0,
+        "s_w": 0.0,
+        "s_g": 0.0,
+        "withdrawal": 0.0,
+        "component_mass": 0.0,
+        "s_o": 0.0
+      },
+      "reason": "accepted",
+      "reservoir_step_calls": 3
+    },
+    "balance": [
+      8.62713326712547e-06,
+      3.804962810928843e-09,
+      5.571982526728058e-06
+    ]
+  },
+  {
+    "day": 0.3742636563259179,
+    "dt": 0.014652708074510875,
+    "accepted": false,
+    "attempt": {
+      "success": false,
+      "indicator": 5.045667930599302,
+      "errors": {
+        "pressure": 5.045667930599302,
+        "s_w": 0.010699450669587884,
+        "s_g": 0.005529281246086093,
+        "withdrawal": 0.07647054536360942,
+        "component_mass": 0.022518102749535546,
+        "s_o": 0.010699450669560129
+      },
+      "reason": "local temporal defect exceeds tolerance",
+      "reservoir_step_calls": 3
+    }
+  },
+  {
+    "day": 0.3742636563259179,
+    "dt": 0.004395812422353249,
+    "accepted": true,
+    "attempt": {
+      "success": true,
+      "indicator": 0.0,
+      "errors": {
+        "pressure": 0.0,
+        "s_w": 0.0,
+        "s_g": 0.0,
+        "withdrawal": 0.0,
+        "component_mass": 0.0,
+        "s_o": 0.0
+      },
+      "reason": "accepted",
+      "reservoir_step_calls": 3
+    },
+    "balance": [
+      8.746601592670283e-06,
+      3.855898484189696e-09,
+      5.6491539275351684e-06
+    ]
+  },
+  {
+    "day": 0.37865946874827117,
+    "dt": 0.008791624844706499,
+    "accepted": true,
+    "attempt": {
+      "success": true,
+      "indicator": 0.0,
+      "errors": {
+        "pressure": 0.0,
+        "s_w": 0.0,
+        "s_g": 0.0,
+        "withdrawal": 0.0,
+        "component_mass": 0.0,
+        "s_o": 0.0
+      },
+      "reason": "accepted",
+      "reservoir_step_calls": 3
+    },
+    "balance": [
+      8.985538243759909e-06,
+      3.9577698307114005e-09,
+      5.803496729149386e-06
+    ]
+  },
+  {
+    "day": 0.3874510935929777,
+    "dt": 0.017583249689412998,
+    "accepted": false,
+    "attempt": {
+      "success": false,
+      "indicator": 5.892749999444932,
+      "errors": {
+        "pressure": 5.892749999444932,
+        "s_w": 0.012543367677614325,
+        "s_g": 0.006627886451893161,
+        "withdrawal": 0.10673794916248215,
+        "component_mass": 0.026298414631421765,
+        "s_o": 0.012543367677642081
+      },
+      "reason": "local temporal defect exceeds tolerance",
+      "reservoir_step_calls": 3
+    }
+  },
+  {
+    "day": 0.3874510935929777,
+    "dt": 0.005274974906823934,
+    "accepted": true,
+    "attempt": {
+      "success": true,
+      "indicator": 0.0,
+      "errors": {
+        "pressure": 0.0,
+        "s_w": 0.0,
+        "s_g": 0.0,
+        "withdrawal": 0.0,
+        "component_mass": 0.0,
+        "s_o": 0.0
+      },
+      "reason": "accepted",
+      "reservoir_step_calls": 3
+    },
+    "balance": [
+      9.128900234413685e-06,
+      4.0188926386244244e-09,
+      5.896102410117918e-06
+    ]
+  },
+  {
+    "day": 0.39272606849980163,
+    "dt": 0.010549949813647867,
+    "accepted": true,
+    "attempt": {
+      "success": true,
+      "indicator": 0.0,
+      "errors": {
+        "pressure": 0.0,
+        "s_w": 0.0,
+        "s_g": 0.0,
+        "withdrawal": 0.0,
+        "component_mass": 0.0,
+        "s_o": 0.0
+      },
+      "reason": "accepted",
+      "reservoir_step_calls": 3
+    },
+    "balance": [
+      9.415624215721237e-06,
+      4.141138254450471e-09,
+      6.081313772054981e-06
+    ]
+  },
+  {
+    "day": 0.40327601831344945,
+    "dt": 0.021099899627295735,
+    "accepted": false,
+    "attempt": {
+      "success": false,
+      "indicator": 6.859088139456138,
+      "errors": {
+        "pressure": 6.859088139456138,
+        "s_w": 0.014658234465586562,
+        "s_g": 0.007945768314532309,
+        "withdrawal": 0.1475441010141679,
+        "component_mass": 0.030610903836306567,
+        "s_o": 0.014658234465558806
+      },
+      "reason": "local temporal defect exceeds tolerance",
+      "reservoir_step_calls": 3
+    }
+  },
+  {
+    "day": 0.40327601831344945,
+    "dt": 0.006329969888188737,
+    "accepted": true,
+    "attempt": {
+      "success": true,
+      "indicator": 1.9422628415598193e-12,
+      "errors": {
+        "pressure": 0.0,
+        "s_w": 0.0,
+        "s_g": 0.0,
+        "withdrawal": 1.9422628415598193e-12,
+        "component_mass": 0.0,
+        "s_o": 0.0
+      },
+      "reason": "accepted",
+      "reservoir_step_calls": 3
+    },
+    "balance": [
+      9.587658604505767e-06,
+      4.2144856239460985e-09,
+      6.19244058921722e-06
+    ]
+  },
+  {
+    "day": 0.4096059882016382,
+    "dt": 0.012659939776377475,
+    "accepted": false,
+    "attempt": {
+      "success": false,
+      "indicator": 4.443093699834496,
+      "errors": {
+        "pressure": 4.443093699834496,
+        "s_w": 0.009395293192382415,
+        "s_g": 0.004778611655043008,
+        "withdrawal": 0.05811601897354787,
+        "component_mass": 0.019828951659489027,
+        "s_o": 0.009395293192326903
+      },
+      "reason": "local temporal defect exceeds tolerance",
+      "reservoir_step_calls": 3
+    }
+  },
+  {
+    "day": 0.4096059882016382,
+    "dt": 0.003797981932913259,
+    "accepted": true,
+    "attempt": {
+      "success": true,
+      "indicator": 2.0833498311551238e-13,
+      "errors": {
+        "pressure": 0.0,
+        "s_w": 0.0,
+        "s_g": 0.0,
+        "withdrawal": 2.0833498311551238e-13,
+        "component_mass": 0.0,
+        "s_o": 0.0
+      },
+      "reason": "accepted",
+      "reservoir_step_calls": 3
+    },
+    "balance": [
+      9.690879237776488e-06,
+      4.258494045643476e-09,
+      6.259116679514563e-06
+    ]
+  },
+  {
+    "day": 0.4134039701345515,
+    "dt": 0.007595963865826518,
+    "accepted": true,
+    "attempt": {
+      "success": true,
+      "indicator": 1.620805816267612e-12,
+      "errors": {
+        "pressure": 0.0,
+        "s_w": 0.0,
+        "s_g": 0.0,
+        "withdrawal": 1.620805816267612e-12,
+        "component_mass": 0.0,
+        "s_o": 0.0
+      },
+      "reason": "accepted",
+      "reservoir_step_calls": 3
+    },
+    "balance": [
+      9.897320504317927e-06,
+      4.34651088903823e-09,
+      6.392468860109249e-06
+    ]
+  },
+  {
+    "day": 0.420999934000378,
+    "dt": 0.015191927731653036,
+    "accepted": false,
+    "attempt": {
+      "success": false,
+      "indicator": 5.204980474876613,
+      "errors": {
+        "pressure": 5.204980474876613,
+        "s_w": 0.011045389431779684,
+        "s_g": 0.005731941146391861,
+        "withdrawal": 0.08176175587420545,
+        "component_mass": 0.023229076088930455,
+        "s_o": 0.011045389431751929
+      },
+      "reason": "local temporal defect exceeds tolerance",
+      "reservoir_step_calls": 3
+    }
+  },
+  {
+    "day": 0.420999934000378,
+    "dt": 0.004557578319495911,
+    "accepted": true,
+    "attempt": {
+      "success": true,
+      "indicator": 2.68886435187677e-12,
+      "errors": {
+        "pressure": 0.0,
+        "s_w": 0.0,
+        "s_g": 0.0,
+        "withdrawal": 2.68886435187677e-12,
+        "component_mass": 0.0,
+        "s_o": 0.0
+      },
+      "reason": "accepted",
+      "reservoir_step_calls": 3
+    },
+    "balance": [
+      1.0021185264242792e-05,
+      4.399320995075082e-09,
+      6.472480168466061e-06
+    ]
+  },
+  {
+    "day": 0.4255575123198739,
+    "dt": 0.009115156638991822,
+    "accepted": true,
+    "attempt": {
+      "success": true,
+      "indicator": 1.4932857187009885e-12,
+      "errors": {
+        "pressure": 0.0,
+        "s_w": 0.0,
+        "s_g": 0.0,
+        "withdrawal": 1.4932857187009885e-12,
+        "component_mass": 0.0,
+        "s_o": 0.0
+      },
+      "reason": "accepted",
+      "reservoir_step_calls": 3
+    },
+    "balance": [
+      1.026891478409252e-05,
+      4.504941207148788e-09,
+      6.6325027851796835e-06
+    ]
+  },
+  {
+    "day": 0.4346726689588657,
+    "dt": 0.018230313277983645,
+    "accepted": false,
+    "attempt": {
+      "success": false,
+      "indicator": 6.074610453520343,
+      "errors": {
+        "pressure": 6.074610453520343,
+        "s_w": 0.012940448780640601,
+        "s_g": 0.006870549410176174,
+        "withdrawal": 0.11390839035921753,
+        "component_mass": 0.0271100081265239,
+        "s_o": 0.012940448780640601
+      },
+      "reason": "local temporal defect exceeds tolerance",
+      "reservoir_step_calls": 3
+    }
+  },
+  {
+    "day": 0.4346726689588657,
+    "dt": 0.00546909398339511,
+    "accepted": true,
+    "attempt": {
+      "success": true,
+      "indicator": 4.0186426441855047e-13,
+      "errors": {
+        "pressure": 0.0,
+        "s_w": 0.0,
+        "s_g": 0.0,
+        "withdrawal": 4.0186426441855047e-13,
+        "component_mass": 0.0,
+        "s_o": 0.0
+      },
+      "reason": "accepted",
+      "reservoir_step_calls": 3
+    },
+    "balance": [
+      1.0417552496002357e-05,
+      4.56831333439301e-09,
+      6.7285163552078595e-06
+    ]
+  },
+  {
+    "day": 0.4401417629422608,
+    "dt": 0.01093818796679022,
+    "accepted": true,
+    "attempt": {
+      "success": true,
+      "indicator": 3.599995118746144e-13,
+      "errors": {
+        "pressure": 0.0,
+        "s_w": 0.0,
+        "s_g": 0.0,
+        "withdrawal": 3.599995118746144e-13,
+        "component_mass": 0.0,
+        "s_o": 0.0
+      },
+      "reason": "accepted",
+      "reservoir_step_calls": 3
+    },
+    "balance": [
+      1.071482791982203e-05,
+      4.695057588881457e-09,
+      6.920543495264207e-06
+    ]
+  },
+  {
+    "day": 0.45107995090905106,
+    "dt": 0.02187637593358044,
+    "accepted": false,
+    "attempt": {
+      "success": false,
+      "indicator": 7.0656079014297575,
+      "errors": {
+        "pressure": 7.0656079014297575,
+        "s_w": 0.015111742606876977,
+        "s_g": 0.008236696115604403,
+        "withdrawal": 0.15711975451995,
+        "component_mass": 0.03153253773474059,
+        "s_o": 0.015111742606821466
+      },
+      "reason": "local temporal defect exceeds tolerance",
+      "reservoir_step_calls": 3
+    }
+  },
+  {
+    "day": 0.45107995090905106,
+    "dt": 0.006562912780074115,
+    "accepted": true,
+    "attempt": {
+      "success": true,
+      "indicator": 3.9273005939286417e-13,
+      "errors": {
+        "pressure": 0.0,
+        "s_w": 0.0,
+        "s_g": 0.0,
+        "withdrawal": 3.9273005939286417e-13,
+        "component_mass": 0.0,
+        "s_o": 0.0
+      },
+      "reason": "accepted",
+      "reservoir_step_calls": 3
+    },
+    "balance": [
+      1.0893193174113833e-05,
+      4.7711041415745255e-09,
+      7.035759779298017e-06
+    ]
+  },
+  {
+    "day": 0.45764286368912516,
+    "dt": 0.01312582556014823,
+    "accepted": false,
+    "attempt": {
+      "success": false,
+      "indicator": 4.58558819199875,
+      "errors": {
+        "pressure": 4.58558819199875,
+        "s_w": 0.009703603976840558,
+        "s_g": 0.004953622798842261,
+        "withdrawal": 0.06221092959958688,
+        "component_mass": 0.020464873485614175,
+        "s_o": 0.009703603976785047
+      },
+      "reason": "local temporal defect exceeds tolerance",
+      "reservoir_step_calls": 3
+    }
+  },
+  {
+    "day": 0.45764286368912516,
+    "dt": 0.003937747668044435,
+    "accepted": true,
+    "attempt": {
+      "success": true,
+      "indicator": 0.0,
+      "errors": {
+        "pressure": 0.0,
+        "s_w": 0.0,
+        "s_g": 0.0,
+        "withdrawal": 0.0,
+        "component_mass": 0.0,
+        "s_o": 0.0
+      },
+      "reason": "accepted",
+      "reservoir_step_calls": 3
+    },
+    "balance": [
+      1.1000212326688917e-05,
+      4.816732073190366e-09,
+      7.104889549718301e-06
+    ]
+  },
+  {
+    "day": 0.4615806113571696,
+    "dt": 0.00787549533608887,
+    "accepted": true,
+    "attempt": {
+      "success": true,
+      "indicator": 3.8230256827317785e-13,
+      "errors": {
+        "pressure": 0.0,
+        "s_w": 0.0,
+        "s_g": 0.0,
+        "withdrawal": 3.8230256827317785e-13,
+        "component_mass": 0.0,
+        "s_o": 0.0
+      },
+      "reason": "accepted",
+      "reservoir_step_calls": 3
+    },
+    "balance": [
+      1.1214250631839079e-05,
+      4.907987936422046e-09,
+      7.2431490905588725e-06
+    ]
+  },
+  {
+    "day": 0.4694561066932585,
+    "dt": 0.01575099067217774,
+    "accepted": false,
+    "attempt": {
+      "success": false,
+      "indicator": 5.3686093464620415,
+      "errors": {
+        "pressure": 5.3686093464620415,
+        "s_w": 0.01140108636490944,
+        "s_g": 0.005941978923229563,
+        "withdrawal": 0.08738843498115925,
+        "component_mass": 0.02395931117312318,
+        "s_o": 0.011401086364881685
+      },
+      "reason": "local temporal defect exceeds tolerance",
+      "reservoir_step_calls": 3
+    }
+  },
+  {
+    "day": 0.4694561066932585,
+    "dt": 0.0047252972016532885,
+    "accepted": true,
+    "attempt": {
+      "success": true,
+      "indicator": 4.0832212157083375e-13,
+      "errors": {
+        "pressure": 0.0,
+        "s_w": 0.0,
+        "s_g": 0.0,
+        "withdrawal": 4.0832212157083375e-13,
+        "component_mass": 0.0,
+        "s_o": 0.0
+      },
+      "reason": "accepted",
+      "reservoir_step_calls": 3
+    },
+    "balance": [
+      1.1342673614929174e-05,
+      4.962741454361053e-09,
+      7.3261048150632135e-06
+    ]
+  },
+  {
+    "day": 0.47418140389491176,
+    "dt": 0.009450594403306577,
+    "accepted": true,
+    "attempt": {
+      "success": true,
+      "indicator": 2.60902626987277e-12,
+      "errors": {
+        "pressure": 0.0,
+        "s_w": 0.0,
+        "s_g": 0.0,
+        "withdrawal": 2.60902626987277e-12,
+        "component_mass": 0.0,
+        "s_o": 0.0
+      },
+      "reason": "accepted",
+      "reservoir_step_calls": 3
+    },
+    "balance": [
+      1.1599519581109364e-05,
+      5.07224849023907e-09,
+      7.492016264071895e-06
+    ]
+  },
+  {
+    "day": 0.48363199829821835,
+    "dt": 0.018901188806613154,
+    "accepted": false,
+    "attempt": {
+      "success": false,
+      "indicator": 6.261323745544255,
+      "errors": {
+        "pressure": 6.261323745544255,
+        "s_w": 0.013348609207347595,
+        "s_g": 0.0071222285027428,
+        "withdrawal": 0.12151342461752038,
+        "component_mass": 0.02794325723533992,
+        "s_o": 0.01334860920731984
+      },
+      "reason": "local temporal defect exceeds tolerance",
+      "reservoir_step_calls": 3
+    }
+  },
+  {
+    "day": 0.48363199829821835,
+    "dt": 0.005670356641983963,
+    "accepted": true,
+    "attempt": {
+      "success": true,
+      "indicator": 2.3279096102128837e-12,
+      "errors": {
+        "pressure": 0.0,
+        "s_w": 0.0,
+        "s_g": 0.0,
+        "withdrawal": 2.3279096102128837e-12,
+        "component_mass": 0.0,
+        "s_o": 0.0
+      },
+      "reason": "accepted",
+      "reservoir_step_calls": 3
+    },
+    "balance": [
+      1.175362716081748e-05,
+      5.137952711765879e-09,
+      7.591563133477104e-06
+    ]
+  },
+  {
+    "day": 0.4893023549402023,
+    "dt": 0.011340713283967926,
+    "accepted": true,
+    "attempt": {
+      "success": true,
+      "indicator": 1.088110364052679e-12,
+      "errors": {
+        "pressure": 0.0,
+        "s_w": 0.0,
+        "s_g": 0.0,
+        "withdrawal": 1.088110364052679e-12,
+        "component_mass": 0.0,
+        "s_o": 0.0
+      },
+      "reason": "accepted",
+      "reservoir_step_calls": 3
+    },
+    "balance": [
+      1.2061842320233716e-05,
+      5.269361154819498e-09,
+      7.790656872287524e-06
+    ]
+  },
+  {
+    "day": 0.5006430682241703,
+    "dt": 0.022681426567935852,
+    "accepted": false,
+    "attempt": {
+      "success": false,
+      "indicator": 7.277721614405886,
+      "errors": {
+        "pressure": 7.277721614405886,
+        "s_w": 0.0155778814829588,
+        "s_g": 0.008538259402945947,
+        "withdrawal": 0.16725531728296886,
+        "component_mass": 0.03247913406955421,
+        "s_o": 0.015577881482986555
+      },
+      "reason": "local temporal defect exceeds tolerance",
+      "reservoir_step_calls": 3
+    }
+  },
+  {
+    "day": 0.5006430682241703,
+    "dt": 0.006804427970380739,
+    "accepted": true,
+    "attempt": {
+      "success": true,
+      "indicator": 3.907689110704946e-13,
+      "errors": {
+        "pressure": 0.0,
+        "s_w": 0.0,
+        "s_g": 0.0,
+        "withdrawal": 3.907689110704946e-13,
+        "component_mass": 0.0,
+        "s_o": 0.0
+      },
+      "reason": "accepted",
+      "reservoir_step_calls": 3
+    },
+    "balance": [
+      1.2246771415883457e-05,
+      5.348206220651671e-09,
+      7.910113115573776e-06
+    ]
+  },
+  {
+    "day": 0.507447496194551,
+    "dt": 0.013608855940761479,
+    "accepted": false,
+    "attempt": {
+      "success": false,
+      "indicator": 4.732223171196878,
+      "errors": {
+        "pressure": 4.732223171196878,
+        "s_w": 0.0100211909828396,
+        "s_g": 0.005135183717031033,
+        "withdrawal": 0.0665770528107615,
+        "component_mass": 0.021119272594656294,
+        "s_o": 0.010021190982811845
+      },
+      "reason": "local temporal defect exceeds tolerance",
+      "reservoir_step_calls": 3
+    }
+  },
+  {
+    "day": 0.507447496194551,
+    "dt": 0.004082656782228427,
+    "accepted": true,
+    "attempt": {
+      "success": true,
+      "indicator": 3.1356702336232442e-12,
+      "errors": {
+        "pressure": 0.0,
+        "s_w": 0.0,
+        "s_g": 0.0,
+        "withdrawal": 3.1356702336232442e-12,
+        "component_mass": 0.0,
+        "s_o": 0.0
+      },
+      "reason": "accepted",
+      "reservoir_step_calls": 3
+    },
+    "balance": [
+      1.2357728873273298e-05,
+      5.395513260150973e-09,
+      7.981786861545527e-06
+    ]
+  },
+  {
+    "day": 0.5115301529767794,
+    "dt": 0.008165313564456853,
+    "accepted": true,
+    "attempt": {
+      "success": true,
+      "indicator": 1.5085227558991449e-12,
+      "errors": {
+        "pressure": 0.0,
+        "s_w": 0.0,
+        "s_g": 0.0,
+        "withdrawal": 1.5085227558991449e-12,
+        "component_mass": 0.0,
+        "s_o": 0.0
+      },
+      "reason": "accepted",
+      "reservoir_step_calls": 3
+    },
+    "balance": [
+      1.2579643788052983e-05,
+      5.490127339149578e-09,
+      8.125134353489028e-06
+    ]
+  },
+  {
+    "day": 0.5196954665412362,
+    "dt": 0.016330627128913706,
+    "accepted": false,
+    "attempt": {
+      "success": false,
+      "indicator": 5.535720492719487,
+      "errors": {
+        "pressure": 5.535720492719487,
+        "s_w": 0.011764954792020665,
+        "s_g": 0.006158482817486544,
+        "withdrawal": 0.0933464806306865,
+        "component_mass": 0.024705085967565044,
+        "s_o": 0.011764954791937399
+      },
+      "reason": "local temporal defect exceeds tolerance",
+      "reservoir_step_calls": 3
+    }
+  },
+  {
+    "day": 0.5196954665412362,
+    "dt": 0.004899188138674112,
+    "accepted": true,
+    "attempt": {
+      "success": true,
+      "indicator": 5.00678303488279e-12,
+      "errors": {
+        "pressure": 0.0,
+        "s_w": 0.0,
+        "s_g": 0.0,
+        "withdrawal": 5.00678303488279e-12,
+        "component_mass": 0.0,
+        "s_o": 0.0
+      },
+      "reason": "accepted",
+      "reservoir_step_calls": 3
+    },
+    "balance": [
+      1.2712792736920796e-05,
+      5.546895786548741e-09,
+      8.211142848655129e-06
+    ]
+  },
+  {
+    "day": 0.5245946546799104,
+    "dt": 0.009798376277348224,
+    "accepted": true,
+    "attempt": {
+      "success": true,
+      "indicator": 0.0,
+      "errors": {
+        "pressure": 0.0,
+        "s_w": 0.0,
+        "s_g": 0.0,
+        "withdrawal": 0.0,
+        "component_mass": 0.0,
+        "s_o": 0.0
+      },
+      "reason": "accepted",
+      "reservoir_step_calls": 3
+    },
+    "balance": [
+      1.2979090634656419e-05,
+      5.660432681347069e-09,
+      8.383159838987331e-06
+    ]
+  },
+  {
+    "day": 0.5343930309572585,
+    "dt": 0.019596752554696447,
+    "accepted": false,
+    "attempt": {
+      "success": false,
+      "indicator": 6.4526954808428885,
+      "errors": {
+        "pressure": 6.4526954808428885,
+        "s_w": 0.013767390452695816,
+        "s_g": 0.007382953570611583,
+        "withdrawal": 0.1295706713660329,
+        "component_mass": 0.028797294354812927,
+        "s_o": 0.01376739045266806
+      },
+      "reason": "local temporal defect exceeds tolerance",
+      "reservoir_step_calls": 3
+    }
+  },
+  {
+    "day": 0.5343930309572585,
+    "dt": 0.0058790257664089,
+    "accepted": true,
+    "attempt": {
+      "success": true,
+      "indicator": 4.179809403525829e-12,
+      "errors": {
+        "pressure": 0.0,
+        "s_w": 0.0,
+        "s_g": 0.0,
+        "withdrawal": 4.179809403525829e-12,
+        "component_mass": 0.0,
+        "s_o": 0.0
+      },
+      "reason": "accepted",
+      "reservoir_step_calls": 3
+    },
+    "balance": [
+      1.3138869373297795e-05,
+      5.728554818226065e-09,
+      8.486370033186651e-06
+    ]
+  },
+  {
+    "day": 0.5402720567236675,
+    "dt": 0.0117580515328178,
+    "accepted": false,
+    "attempt": {
+      "success": false,
+      "indicator": 4.162948472386971,
+      "errors": {
+        "pressure": 4.162948472386971,
+        "s_w": 0.008790417548448781,
+        "s_g": 0.004438601898026917,
+        "withdrawal": 0.05050099624538423,
+        "component_mass": 0.018578722583643743,
+        "s_o": 0.008790417548421026
+      },
+      "reason": "local temporal defect exceeds tolerance",
+      "reservoir_step_calls": 3
+    }
+  },
+  {
+    "day": 0.5402720567236675,
+    "dt": 0.0035274154598453236,
+    "accepted": true,
+    "attempt": {
+      "success": true,
+      "indicator": 0.0,
+      "errors": {
+        "pressure": 0.0,
+        "s_w": 0.0,
+        "s_g": 0.0,
+        "withdrawal": 0.0,
+        "component_mass": 0.0,
+        "s_o": 0.0
+      },
+      "reason": "accepted",
+      "reservoir_step_calls": 3
+    },
+    "balance": [
+      1.323473661648262e-05,
+      5.769428100353462e-09,
+      8.548296149706243e-06
+    ]
+  },
+  {
+    "day": 0.5437994721835128,
+    "dt": 0.007054830919690647,
+    "accepted": true,
+    "attempt": {
+      "success": true,
+      "indicator": 1.7441965905995326e-12,
+      "errors": {
+        "pressure": 0.0,
+        "s_w": 0.0,
+        "s_g": 0.0,
+        "withdrawal": 1.7441965905995326e-12,
+        "component_mass": 0.0,
+        "s_o": 0.0
+      },
+      "reason": "accepted",
+      "reservoir_step_calls": 3
+    },
+    "balance": [
+      1.3426471102852268e-05,
+      5.851174664608255e-09,
+      8.672148382745426e-06
+    ]
+  },
+  {
+    "day": 0.5508543031032035,
+    "dt": 0.014109661839381294,
+    "accepted": false,
+    "attempt": {
+      "success": false,
+      "indicator": 4.883704600750655,
+      "errors": {
+        "pressure": 4.883704600750655,
+        "s_w": 0.010348138746896218,
+        "s_g": 0.005325107943265905,
+        "withdrawal": 0.07128095981168779,
+        "component_mass": 0.02179529862318937,
+        "s_o": 0.010348138746896218
+      },
+      "reason": "local temporal defect exceeds tolerance",
+      "reservoir_step_calls": 3
+    }
+  },
+  {
+    "day": 0.5508543031032035,
+    "dt": 0.004232898551814388,
+    "accepted": true,
+    "attempt": {
+      "success": true,
+      "indicator": 5.785096830798914e-12,
+      "errors": {
+        "pressure": 0.0,
+        "s_w": 0.0,
+        "s_g": 0.0,
+        "withdrawal": 5.785096830798914e-12,
+        "component_mass": 0.0,
+        "s_o": 0.0
+      },
+      "reason": "accepted",
+      "reservoir_step_calls": 3
+    },
+    "balance": [
+      1.3541511794674055e-05,
+      5.900222603161132e-09,
+      8.746459722568938e-06
+    ]
+  },
+  {
+    "day": 0.5550872016550178,
+    "dt": 0.008465797103628776,
+    "accepted": true,
+    "attempt": {
+      "success": true,
+      "indicator": 2.9106283668574065e-12,
+      "errors": {
+        "pressure": 0.0,
+        "s_w": 0.0,
+        "s_g": 0.0,
+        "withdrawal": 2.9106283668574065e-12,
+        "component_mass": 0.0,
+        "s_o": 0.0
+      },
+      "reason": "accepted",
+      "reservoir_step_calls": 3
+    },
+    "balance": [
+      1.3771593178317633e-05,
+      5.998318480266885e-09,
+      8.89508240221596e-06
+    ]
+  },
+  {
+    "day": 0.5635529987586466,
+    "dt": 0.016931594207257553,
+    "accepted": false,
+    "attempt": {
+      "success": false,
+      "indicator": 5.707754880660027,
+      "errors": {
+        "pressure": 5.707754880660027,
+        "s_w": 0.01213987193690591,
+        "s_g": 0.0063835158178315865,
+        "withdrawal": 0.09968644022024784,
+        "component_mass": 0.025472830739694724,
+        "s_o": 0.012139871936822644
+      },
+      "reason": "local temporal defect exceeds tolerance",
+      "reservoir_step_calls": 3
+    }
+  },
+  {
+    "day": 0.5635529987586466,
+    "dt": 0.005079478262177283,
+    "accepted": true,
+    "attempt": {
+      "success": true,
+      "indicator": 0.0,
+      "errors": {
+        "pressure": 0.0,
+        "s_w": 0.0,
+        "s_g": 0.0,
+        "withdrawal": 0.0,
+        "component_mass": 0.0,
+        "s_o": 0.0
+      },
+      "reason": "accepted",
+      "reservoir_step_calls": 3
+    },
+    "balance": [
+      1.390964200850378e-05,
+      6.057176006530337e-09,
+      8.984256010004172e-06
+    ]
+  },
+  {
+    "day": 0.5686324770208239,
+    "dt": 0.010158956524354565,
+    "accepted": true,
+    "attempt": {
+      "success": true,
+      "indicator": 2.4280530741925955e-12,
+      "errors": {
+        "pressure": 0.0,
+        "s_w": 0.0,
+        "s_g": 0.0,
+        "withdrawal": 2.4280530741925955e-12,
+        "component_mass": 0.0,
+        "s_o": 0.0
+      },
+      "reason": "accepted",
+      "reservoir_step_calls": 3
+    },
+    "balance": [
+      1.418573966887607e-05,
+      6.174891059057241e-09,
+      9.162603225580597e-06
+    ]
+  },
+  {
+    "day": 0.5787914335451785,
+    "dt": 0.02031791304870913,
+    "accepted": false,
+    "attempt": {
+      "success": false,
+      "indicator": 6.649085339218378,
+      "errors": {
+        "pressure": 6.649085339218378,
+        "s_w": 0.014197555105566195,
+        "s_g": 0.007653361831505556,
+        "withdrawal": 0.1381072890073783,
+        "component_mass": 0.02967372452447327,
+        "s_o": 0.014197555105566195
+      },
+      "reason": "local temporal defect exceeds tolerance",
+      "reservoir_step_calls": 3
+    }
+  },
+  {
+    "day": 0.5787914335451785,
+    "dt": 0.006095373914612773,
+    "accepted": true,
+    "attempt": {
+      "success": true,
+      "indicator": 4.032736781415131e-12,
+      "errors": {
+        "pressure": 0.0,
+        "s_w": 0.0,
+        "s_g": 0.0,
+        "withdrawal": 4.032736781415131e-12,
+        "component_mass": 0.0,
+        "s_o": 0.0
+      },
+      "reason": "accepted",
+      "reservoir_step_calls": 3
+    },
+    "balance": [
+      1.4351398265099445e-05,
+      6.245520090573384e-09,
+      9.269611554926454e-06
+    ]
+  },
+  {
+    "day": 0.5848868074597913,
+    "dt": 0.012190747829225546,
+    "accepted": false,
+    "attempt": {
+      "success": false,
+      "indicator": 4.297413372667134,
+      "errors": {
+        "pressure": 4.297413372667134,
+        "s_w": 0.009080731320776358,
+        "s_g": 0.004601120035419015,
+        "withdrawal": 0.05408937061322753,
+        "component_mass": 0.01917881153694498,
+        "s_o": 0.009080731320776358
+      },
+      "reason": "local temporal defect exceeds tolerance",
+      "reservoir_step_calls": 3
+    }
+  },
+  {
+    "day": 0.5848868074597913,
+    "dt": 0.0036572243487676638,
+    "accepted": true,
+    "attempt": {
+      "success": true,
+      "indicator": 6.914207513972002e-12,
+      "errors": {
+        "pressure": 0.0,
+        "s_w": 0.0,
+        "s_g": 0.0,
+        "withdrawal": 6.914207513972002e-12,
+        "component_mass": 0.0,
+        "s_o": 0.0
+      },
+      "reason": "accepted",
+      "reservoir_step_calls": 3
+    },
+    "balance": [
+      1.4450793422833472e-05,
+      6.28789750948307e-09,
+      9.333816552533966e-06
+    ]
+  },
+  {
+    "day": 0.5885440318085589,
+    "dt": 0.0073144486975353275,
+    "accepted": true,
+    "attempt": {
+      "success": true,
+      "indicator": 3.3654716144166e-12,
+      "errors": {
+        "pressure": 0.0,
+        "s_w": 0.0,
+        "s_g": 0.0,
+        "withdrawal": 3.3654716144166e-12,
+        "component_mass": 0.0,
+        "s_o": 0.0
+      },
+      "reason": "accepted",
+      "reservoir_step_calls": 3
+    },
+    "balance": [
+      1.4649583738301526e-05,
+      6.37265234730244e-09,
+      9.462226547748995e-06
+    ]
+  },
+  {
+    "day": 0.5958584805060942,
+    "dt": 0.014628897395070655,
+    "accepted": false,
+    "attempt": {
+      "success": false,
+      "indicator": 5.038592078593001,
+      "errors": {
+        "pressure": 5.038592078593001,
+        "s_w": 0.010684097551089122,
+        "s_g": 0.005520321178176246,
+        "withdrawal": 0.0762398430844484,
+        "component_mass": 0.02248652491367871,
+        "s_o": 0.010684097551116878
+      },
+      "reason": "local temporal defect exceeds tolerance",
+      "reservoir_step_calls": 3
+    }
+  },
+  {
+    "day": 0.5958584805060942,
+    "dt": 0.004388669218521196,
+    "accepted": true,
+    "attempt": {
+      "success": true,
+      "indicator": 2.939106853895988e-12,
+      "errors": {
+        "pressure": 0.0,
+        "s_w": 0.0,
+        "s_g": 0.0,
+        "withdrawal": 2.939106853895988e-12,
+        "component_mass": 0.0,
+        "s_o": 0.0
+      },
+      "reason": "accepted",
+      "reservoir_step_calls": 3
+    },
+    "balance": [
+      1.4768857927582356e-05,
+      6.423505249994063e-09,
+      9.539272544878011e-06
+    ]
+  },
+  {
+    "day": 0.6002471497246155,
+    "dt": 0.008777338437042393,
+    "accepted": true,
+    "attempt": {
+      "success": true,
+      "indicator": 3.754532722253481e-13,
+      "errors": {
+        "pressure": 0.0,
+        "s_w": 0.0,
+        "s_g": 0.0,
+        "withdrawal": 3.754532722253481e-13,
+        "component_mass": 0.0,
+        "s_o": 0.0
+      },
+      "reason": "accepted",
+      "reservoir_step_calls": 3
+    },
+    "balance": [
+      1.500740630614402e-05,
+      6.52521105537731e-09,
+      9.693364539136045e-06
+    ]
+  },
+  {
+    "day": 0.6090244881616578,
+    "dt": 0.017554676874084785,
+    "accepted": false,
+    "attempt": {
+      "success": false,
+      "indicator": 5.884677367476002,
+      "errors": {
+        "pressure": 5.884677367476002,
+        "s_w": 0.01252574755339353,
+        "s_g": 0.006617168234468451,
+        "withdrawal": 0.10642513854359259,
+        "component_mass": 0.026262388655191413,
+        "s_o": 0.01252574755339353
+      },
+      "reason": "local temporal defect exceeds tolerance",
+      "reservoir_step_calls": 3
+    }
+  },
+  {
+    "day": 0.6090244881616578,
+    "dt": 0.00526640306222547,
+    "accepted": true,
+    "attempt": {
+      "success": true,
+      "indicator": 4.0360374954130236e-13,
+      "errors": {
+        "pressure": 0.0,
+        "s_w": 0.0,
+        "s_g": 0.0,
+        "withdrawal": 4.0360374954130236e-13,
+        "component_mass": 0.0,
+        "s_o": 0.0
+      },
+      "reason": "accepted",
+      "reservoir_step_calls": 3
+    },
+    "balance": [
+      1.5150535333281016e-05,
+      6.586234538607257e-09,
+      9.785819735690863e-06
+    ]
+  },
+  {
+    "day": 0.6142908912238833,
+    "dt": 0.01053280612445094,
+    "accepted": true,
+    "attempt": {
+      "success": true,
+      "indicator": 3.628009852758092e-13,
+      "errors": {
+        "pressure": 0.0,
+        "s_w": 0.0,
+        "s_g": 0.0,
+        "withdrawal": 3.628009852758092e-13,
+        "component_mass": 0.0,
+        "s_o": 0.0
+      },
+      "reason": "accepted",
+      "reservoir_step_calls": 3
+    },
+    "balance": [
+      1.543679338755501e-05,
+      6.708281505067154e-09,
+      9.970730128800504e-06
+    ]
+  },
+  {
+    "day": 0.6248236973483342,
+    "dt": 0.02106561224890188,
+    "accepted": false,
+    "attempt": {
+      "success": false,
+      "indicator": 6.849913353175298,
+      "errors": {
+        "pressure": 6.849913353175298,
+        "s_w": 0.014638093962265897,
+        "s_g": 0.007932933845156143,
+        "withdrawal": 0.14712584276691412,
+        "component_mass": 0.030569959563802374,
+        "s_o": 0.014638093962293652
+      },
+      "reason": "local temporal defect exceeds tolerance",
+      "reservoir_step_calls": 3
+    }
+  },
+  {
+    "day": 0.6248236973483342,
+    "dt": 0.006319683674670597,
+    "accepted": true,
+    "attempt": {
+      "success": true,
+      "indicator": 0.0,
+      "errors": {
+        "pressure": 0.0,
+        "s_w": 0.0,
+        "s_g": 0.0,
+        "withdrawal": 0.0,
+        "component_mass": 0.0,
+        "s_o": 0.0
+      },
+      "reason": "accepted",
+      "reservoir_step_calls": 3
+    },
+    "balance": [
+      1.560854822011941e-05,
+      6.781509684943092e-09,
+      1.0081676364666288e-05
+    ]
+  },
+  {
+    "day": 0.6311433810230048,
+    "dt": 0.012639367349341193,
+    "accepted": false,
+    "attempt": {
+      "success": false,
+      "indicator": 4.436774851866439,
+      "errors": {
+        "pressure": 4.436774851866439,
+        "s_w": 0.009381628650995122,
+        "s_g": 0.004770883587856822,
+        "withdrawal": 0.057937842960167095,
+        "component_mass": 0.019800752001985996,
+        "s_o": 0.00938162865093961
+      },
+      "reason": "local temporal defect exceeds tolerance",
+      "reservoir_step_calls": 3
+    }
+  },
+  {
+    "day": 0.6311433810230048,
+    "dt": 0.003791810204802375,
+    "accepted": true,
+    "attempt": {
+      "success": true,
+      "indicator": 0.0,
+      "errors": {
+        "pressure": 0.0,
+        "s_w": 0.0,
+        "s_g": 0.0,
+        "withdrawal": 0.0,
+        "component_mass": 0.0,
+        "s_o": 0.0
+      },
+      "reason": "accepted",
+      "reservoir_step_calls": 3
+    },
+    "balance": [
+      1.5711601119658047e-05,
+      6.825446592868654e-09,
+      1.0148244106185759e-05
+    ]
+  },
+  {
+    "day": 0.6349351912278072,
+    "dt": 0.00758362040960475,
+    "accepted": true,
+    "attempt": {
+      "success": true,
+      "indicator": 3.2468510430353128e-12,
+      "errors": {
+        "pressure": 0.0,
+        "s_w": 0.0,
+        "s_g": 0.0,
+        "withdrawal": 3.2468510430353128e-12,
+        "component_mass": 0.0,
+        "s_o": 0.0
+      },
+      "reason": "accepted",
+      "reservoir_step_calls": 3
+    },
+    "balance": [
+      1.5917706918735325e-05,
+      6.913320408719781e-09,
+      1.02813795892247e-05
+    ]
+  },
+  {
+    "day": 0.642518811637412,
+    "dt": 0.0151672408192095,
+    "accepted": false,
+    "attempt": {
+      "success": false,
+      "indicator": 5.197718613838032,
+      "errors": {
+        "pressure": 5.197718613838032,
+        "s_w": 0.011029609368606863,
+        "s_g": 0.00572266299769808,
+        "withdrawal": 0.08151656139057532,
+        "component_mass": 0.023196668182008016,
+        "s_o": 0.011029609368606863
+      },
+      "reason": "local temporal defect exceeds tolerance",
+      "reservoir_step_calls": 3
+    }
+  },
+  {
+    "day": 0.642518811637412,
+    "dt": 0.004550172245762867,
+    "accepted": true,
+    "attempt": {
+      "success": true,
+      "indicator": 4.0987290803893414e-13,
+      "errors": {
+        "pressure": 0.0,
+        "s_w": 0.0,
+        "s_g": 0.0,
+        "withdrawal": 4.0987290803893414e-13,
+        "component_mass": 0.0,
+        "s_o": 0.0
+      },
+      "reason": "accepted",
+      "reservoir_step_calls": 3
+    },
+    "balance": [
+      1.6041370398181694e-05,
+      6.966044698230457e-09,
+      1.0361260879048066e-05
+    ]
+  },
+  {
+    "day": 0.6470689838831748,
+    "dt": 0.009100344491525735,
+    "accepted": true,
+    "attempt": {
+      "success": true,
+      "indicator": 2.7088571471453983e-12,
+      "errors": {
+        "pressure": 0.0,
+        "s_w": 0.0,
+        "s_g": 0.0,
+        "withdrawal": 2.7088571471453983e-12,
+        "component_mass": 0.0,
+        "s_o": 0.0
+      },
+      "reason": "accepted",
+      "reservoir_step_calls": 3
+    },
+    "balance": [
+      1.6288697357074434e-05,
+      7.071493277251807e-09,
+      1.0521023458694796e-05
+    ]
+  },
+  {
+    "day": 0.6561693283747005,
+    "dt": 0.01820068898305147,
+    "accepted": false,
+    "attempt": {
+      "success": false,
+      "indicator": 6.066323319580406,
+      "errors": {
+        "pressure": 6.066323319580406,
+        "s_w": 0.012922352923466773,
+        "s_g": 0.006859441054163362,
+        "withdrawal": 0.11357644467975543,
+        "component_mass": 0.02707302493768864,
+        "s_o": 0.012922352923494529
+      },
+      "reason": "local temporal defect exceeds tolerance",
+      "reservoir_step_calls": 3
+    }
+  },
+  {
+    "day": 0.6561693283747005,
+    "dt": 0.005460206694915457,
+    "accepted": true,
+    "attempt": {
+      "success": true,
+      "indicator": 0.0,
+      "errors": {
+        "pressure": 0.0,
+        "s_w": 0.0,
+        "s_g": 0.0,
+        "withdrawal": 0.0,
+        "component_mass": 0.0,
+        "s_o": 0.0
+      },
+      "reason": "accepted",
+      "reservoir_step_calls": 3
+    },
+    "balance": [
+      1.6437093532410077e-05,
+      7.134762424664618e-09,
+      1.0616881006482836e-05
+    ]
+  },
+  {
+    "day": 0.661629535069616,
+    "dt": 0.010920413389830914,
+    "accepted": true,
+    "attempt": {
+      "success": true,
+      "indicator": 2.5141854800859968e-12,
+      "errors": {
+        "pressure": 0.0,
+        "s_w": 0.0,
+        "s_g": 0.0,
+        "withdrawal": 2.5141854800859968e-12,
+        "component_mass": 0.0,
+        "s_o": 0.0
+      },
+      "reason": "accepted",
+      "reservoir_step_calls": 3
+    },
+    "balance": [
+      1.6733885883081356e-05,
+      7.26130071949024e-09,
+      1.0808596102058911e-05
+    ]
+  },
+  {
+    "day": 0.6725499484594469,
+    "dt": 0.02184082677966183,
+    "accepted": false,
+    "attempt": {
+      "success": false,
+      "indicator": 7.056214962682501,
+      "errors": {
+        "pressure": 7.056214962682501,
+        "s_w": 0.015091106256220899,
+        "s_g": 0.00822339685635498,
+        "withdrawal": 0.15667761892025492,
+        "component_mass": 0.031490619979164816,
+        "s_o": 0.015091106256193143
+      },
+      "reason": "local temporal defect exceeds tolerance",
+      "reservoir_step_calls": 3
+    }
+  },
+  {
+    "day": 0.6725499484594469,
+    "dt": 0.006552248033898549,
+    "accepted": true,
+    "attempt": {
+      "success": true,
+      "indicator": 3.753809519945124e-12,
+      "errors": {
+        "pressure": 0.0,
+        "s_w": 0.0,
+        "s_g": 0.0,
+        "withdrawal": 3.753809519945124e-12,
+        "component_mass": 0.0,
+        "s_o": 0.0
+      },
+      "reason": "accepted",
+      "reservoir_step_calls": 3
+    },
+    "balance": [
+      1.6911961293484126e-05,
+      7.337223696385614e-09,
+      1.092362515940456e-05
+    ]
+  },
+  {
+    "day": 0.6791021964933455,
+    "dt": 0.013104496067797098,
+    "accepted": false,
+    "attempt": {
+      "success": false,
+      "indicator": 4.579090348340198,
+      "errors": {
+        "pressure": 4.579090348340198,
+        "s_w": 0.009689537947554783,
+        "s_g": 0.0049456108776047,
+        "withdrawal": 0.06202096832372498,
+        "component_mass": 0.020435875044274094,
+        "s_o": 0.009689537947554783
+      },
+      "reason": "local temporal defect exceeds tolerance",
+      "reservoir_step_calls": 3
+    }
+  },
+  {
+    "day": 0.6791021964933455,
+    "dt": 0.003931348820339096,
+    "accepted": true,
+    "attempt": {
+      "success": true,
+      "indicator": 4.1544842208063704e-13,
+      "errors": {
+        "pressure": 0.0,
+        "s_w": 0.0,
+        "s_g": 0.0,
+        "withdrawal": 4.1544842208063704e-13,
+        "component_mass": 0.0,
+        "s_o": 0.0
+      },
+      "reason": "accepted",
+      "reservoir_step_calls": 3
+    },
+    "balance": [
+      1.701880653972579e-05,
+      7.382777482522837e-09,
+      1.0992642593811948e-05
+    ]
+  },
+  {
+    "day": 0.6830335453136845,
+    "dt": 0.007862697640678191,
+    "accepted": true,
+    "attempt": {
+      "success": true,
+      "indicator": 3.824015626406498e-13,
+      "errors": {
+        "pressure": 0.0,
+        "s_w": 0.0,
+        "s_g": 0.0,
+        "withdrawal": 3.824015626406498e-13,
+        "component_mass": 0.0,
+        "s_o": 0.0
+      },
+      "reason": "accepted",
+      "reservoir_step_calls": 3
+    },
+    "balance": [
+      1.7232497032209115e-05,
+      7.473885054797284e-09,
+      1.1130677462626723e-05
+    ]
+  },
+  {
+    "day": 0.6908962429543628,
+    "dt": 0.015725395281356382,
+    "accepted": false,
+    "attempt": {
+      "success": false,
+      "indicator": 5.361150494021177,
+      "errors": {
+        "pressure": 5.361150494021177,
+        "s_w": 0.0113848628376656,
+        "s_g": 0.0059323624033158495,
+        "withdrawal": 0.08712771952209473,
+        "component_mass": 0.023926024186799174,
+        "s_o": 0.011384862837582332
+      },
+      "reason": "local temporal defect exceeds tolerance",
+      "reservoir_step_calls": 3
+    }
+  },
+  {
+    "day": 0.6908962429543628,
+    "dt": 0.004717618584406948,
+    "accepted": true,
+    "attempt": {
+      "success": true,
+      "indicator": 4.0838987210661195e-13,
+      "errors": {
+        "pressure": 0.0,
+        "s_w": 0.0,
+        "s_g": 0.0,
+        "withdrawal": 4.0838987210661195e-13,
+        "component_mass": 0.0,
+        "s_o": 0.0
+      },
+      "reason": "accepted",
+      "reservoir_step_calls": 3
+    },
+    "balance": [
+      1.7360711327699112e-05,
+      7.528549598161953e-09,
+      1.1213498383915588e-05
+    ]
+  },
+  {
+    "day": 0.6956138615387697,
+    "dt": 0.009435237168813896,
+    "accepted": true,
+    "attempt": {
+      "success": true,
+      "indicator": 2.890285966528464e-12,
+      "errors": {
+        "pressure": 0.0,
+        "s_w": 0.0,
+        "s_g": 0.0,
+        "withdrawal": 2.890285966528464e-12,
+        "component_mass": 0.0,
+        "s_o": 0.0
+      },
+      "reason": "accepted",
+      "reservoir_step_calls": 3
+    },
+    "balance": [
+      1.76171399186791e-05,
+      7.63787868489129e-09,
+      1.1379140226493315e-05
+    ]
+  },
+  {
+    "day": 0.7050490987075836,
+    "dt": 0.018870474337627792,
+    "accepted": false,
+    "attempt": {
+      "success": false,
+      "indicator": 6.252824160141126,
+      "errors": {
+        "pressure": 6.252824160141126,
+        "s_w": 0.01333000496719916,
+        "s_g": 0.0071107081209831335,
+        "withdrawal": 0.12116167404198704,
+        "component_mass": 0.027905326001691523,
+        "s_o": 0.013330004967171405
+      },
+      "reason": "local temporal defect exceeds tolerance",
+      "reservoir_step_calls": 3
+    }
+  },
+  {
+    "day": 0.7050490987075836,
+    "dt": 0.005661142301288338,
+    "accepted": true,
+    "attempt": {
+      "success": true,
+      "indicator": 4.0022989112003113e-13,
+      "errors": {
+        "pressure": 0.0,
+        "s_w": 0.0,
+        "s_g": 0.0,
+        "withdrawal": 4.0022989112003113e-13,
+        "component_mass": 0.0,
+        "s_o": 0.0
+      },
+      "reason": "accepted",
+      "reservoir_step_calls": 3
+    },
+    "balance": [
+      1.7770997073267095e-05,
+      7.70347613692889e-09,
+      1.1478525332039953e-05
+    ]
+  },
+  {
+    "day": 0.7107102410088719,
+    "dt": 0.011322284602576676,
+    "accepted": true,
+    "attempt": {
+      "success": true,
+      "indicator": 0.0,
+      "errors": {
+        "pressure": 0.0,
+        "s_w": 0.0,
+        "s_g": 0.0,
+        "withdrawal": 0.0,
+        "component_mass": 0.0,
+        "s_o": 0.0
+      },
+      "reason": "accepted",
+      "reservoir_step_calls": 3
+    },
+    "balance": [
+      1.8078711382443084e-05,
+      7.834671041004097e-09,
+      1.1677295543133234e-05
+    ]
+  },
+  {
+    "day": 0.7220325256114486,
+    "dt": 0.022644569205153352,
+    "accepted": false,
+    "attempt": {
+      "success": false,
+      "indicator": 7.268088880921528,
+      "errors": {
+        "pressure": 7.268088880921528,
+        "s_w": 0.015556721771919912,
+        "s_g": 0.008524479076732483,
+        "withdrawal": 0.16678742967531204,
+        "component_mass": 0.03243614624814681,
+        "s_o": 0.015556721771892157
+      },
+      "reason": "local temporal defect exceeds tolerance",
+      "reservoir_step_calls": 3
+    }
+  },
+  {
+    "day": 0.7220325256114486,
+    "dt": 0.006793370761546006,
+    "accepted": true,
+    "attempt": {
+      "success": true,
+      "indicator": 3.938238001017555e-12,
+      "errors": {
+        "pressure": 0.0,
+        "s_w": 0.0,
+        "s_g": 0.0,
+        "withdrawal": 3.938238001017555e-12,
+        "component_mass": 0.0,
+        "s_o": 0.0
+      },
+      "reason": "accepted",
+      "reservoir_step_calls": 3
+    },
+    "balance": [
+      1.8263339967948678e-05,
+      7.913387983449218e-09,
+      1.1796557669789198e-05
+    ]
+  },
+  {
+    "day": 0.7288258963729947,
+    "dt": 0.013586741523092012,
+    "accepted": false,
+    "attempt": {
+      "success": false,
+      "indicator": 4.725542593334243,
+      "errors": {
+        "pressure": 4.725542593334243,
+        "s_w": 0.010006713168697612,
+        "s_g": 0.005126878925176825,
+        "withdrawal": 0.06637468178280245,
+        "component_mass": 0.021089458686800778,
+        "s_o": 0.0100067131686421
+      },
+      "reason": "local temporal defect exceeds tolerance",
+      "reservoir_step_calls": 3
+    }
+  },
+  {
+    "day": 0.7288258963729947,
+    "dt": 0.00407602245692757,
+    "accepted": true,
+    "attempt": {
+      "success": true,
+      "indicator": 0.0,
+      "errors": {
+        "pressure": 0.0,
+        "s_w": 0.0,
+        "s_g": 0.0,
+        "withdrawal": 0.0,
+        "component_mass": 0.0,
+        "s_o": 0.0
+      },
+      "reason": "accepted",
+      "reservoir_step_calls": 3
+    },
+    "balance": [
+      1.837411711925203e-05,
+      7.960618148916292e-09,
+      1.1868114945782776e-05
+    ]
+  },
+  {
+    "day": 0.7329019188299222,
+    "dt": 0.00815204491385514,
+    "accepted": true,
+    "attempt": {
+      "success": true,
+      "indicator": 3.319294703203283e-12,
+      "errors": {
+        "pressure": 0.0,
+        "s_w": 0.0,
+        "s_g": 0.0,
+        "withdrawal": 3.319294703203283e-12,
+        "component_mass": 0.0,
+        "s_o": 0.0
+      },
+      "reason": "accepted",
+      "reservoir_step_calls": 3
+    },
+    "balance": [
+      1.859567142185874e-05,
+      8.055078479850438e-09,
+      1.2011229497769935e-05
+    ]
+  },
+  {
+    "day": 0.7410539637437773,
+    "dt": 0.01630408982771028,
+    "accepted": false,
+    "attempt": {
+      "success": false,
+      "indicator": 5.528083744617552,
+      "errors": {
+        "pressure": 5.528083744617552,
+        "s_w": 0.011748329082322817,
+        "s_g": 0.006148546702222646,
+        "withdrawal": 0.09307001934173506,
+        "component_mass": 0.02467100511677565,
+        "s_o": 0.01174832908223955
+      },
+      "reason": "local temporal defect exceeds tolerance",
+      "reservoir_step_calls": 3
+    }
+  },
+  {
+    "day": 0.7410539637437773,
+    "dt": 0.0048912269483131,
+    "accepted": true,
+    "attempt": {
+      "success": true,
+      "indicator": 4.068635498641653e-13,
+      "errors": {
+        "pressure": 0.0,
+        "s_w": 0.0,
+        "s_g": 0.0,
+        "withdrawal": 4.068635498641653e-13,
+        "component_mass": 0.0,
+        "s_o": 0.0
+      },
+      "reason": "accepted",
+      "reservoir_step_calls": 3
+    },
+    "balance": [
+      1.8728604003422765e-05,
+      8.111754678410926e-09,
+      1.209709822896223e-05
+    ]
+  },
+  {
+    "day": 0.7459451906920904,
+    "dt": 0.0097824538966262,
+    "accepted": true,
+    "attempt": {
+      "success": true,
+      "indicator": 2.5209969559487854e-12,
+      "errors": {
+        "pressure": 0.0,
+        "s_w": 0.0,
+        "s_g": 0.0,
+        "withdrawal": 2.5209969559487854e-12,
+        "component_mass": 0.0,
+        "s_o": 0.0
+      },
+      "reason": "accepted",
+      "reservoir_step_calls": 3
+    },
+    "balance": [
+      1.899446916655082e-05,
+      8.225107075531903e-09,
+      1.2268835691346824e-05
+    ]
+  },
+  {
+    "day": 0.7557276445887167,
+    "dt": 0.0195649077932524,
+    "accepted": false,
+    "attempt": {
+      "success": false,
+      "indicator": 6.443982475861535,
+      "errors": {
+        "pressure": 6.443982475861535,
+        "s_w": 0.013748297692905975,
+        "s_g": 0.0073710181039965406,
+        "withdrawal": 0.12919831214549546,
+        "component_mass": 0.028758410739609053,
+        "s_o": 0.013748297692850464
+      },
+      "reason": "local temporal defect exceeds tolerance",
+      "reservoir_step_calls": 3
+    }
+  },
+  {
+    "day": 0.7557276445887167,
+    "dt": 0.005869472337975721,
+    "accepted": true,
+    "attempt": {
+      "success": true,
+      "indicator": 0.0,
+      "errors": {
+        "pressure": 0.0,
+        "s_w": 0.0,
+        "s_g": 0.0,
+        "withdrawal": 0.0,
+        "component_mass": 0.0,
+        "s_o": 0.0
+      },
+      "reason": "accepted",
+      "reservoir_step_calls": 3
+    },
+    "balance": [
+      1.9153988264427647e-05,
+      8.29311851380449e-09,
+      1.2371878168777575e-05
+    ]
+  },
+  {
+    "day": 0.7615971169266924,
+    "dt": 0.011738944675951442,
+    "accepted": false,
+    "attempt": {
+      "success": false,
+      "indicator": 4.156989349457621,
+      "errors": {
+        "pressure": 4.156989349457621,
+        "s_w": 0.008777557732125851,
+        "s_g": 0.004431428668683068,
+        "withdrawal": 0.050344988226707146,
+        "component_mass": 0.018552128237732033,
+        "s_o": 0.008777557732098096
+      },
+      "reason": "local temporal defect exceeds tolerance",
+      "reservoir_step_calls": 3
+    }
+  },
+  {
+    "day": 0.7615971169266924,
+    "dt": 0.0035216834027854325,
+    "accepted": true,
+    "attempt": {
+      "success": true,
+      "indicator": 6.936013432806721e-12,
+      "errors": {
+        "pressure": 0.0,
+        "s_w": 0.0,
+        "s_g": 0.0,
+        "withdrawal": 6.936013432806721e-12,
+        "component_mass": 0.0,
+        "s_o": 0.0
+      },
+      "reason": "accepted",
+      "reservoir_step_calls": 3
+    },
+    "balance": [
+      1.924969972315375e-05,
+      8.33392537676804e-09,
+      1.2433703655236029e-05
+    ]
+  },
+  {
+    "day": 0.7651188003294778,
+    "dt": 0.007043366805570865,
+    "accepted": true,
+    "attempt": {
+      "success": true,
+      "indicator": 3.4940284503621227e-12,
+      "errors": {
+        "pressure": 0.0,
+        "s_w": 0.0,
+        "s_g": 0.0,
+        "withdrawal": 3.4940284503621227e-12,
+        "component_mass": 0.0,
+        "s_o": 0.0
+      },
+      "reason": "accepted",
+      "reservoir_step_calls": 3
+    },
+    "balance": [
+      1.9441122640605942e-05,
+      8.415539102695144e-09,
+      1.2557354628152934e-05
+    ]
+  },
+  {
+    "day": 0.7721621671350487,
+    "dt": 0.01408673361114173,
+    "accepted": false,
+    "attempt": {
+      "success": false,
+      "indicator": 4.876835701518878,
+      "errors": {
+        "pressure": 4.876835701518878,
+        "s_w": 0.010333249102656428,
+        "s_g": 0.005316490757523162,
+        "withdrawal": 0.07106505682085043,
+        "component_mass": 0.02176464432348568,
+        "s_o": 0.010333249102600917
+      },
+      "reason": "local temporal defect exceeds tolerance",
+      "reservoir_step_calls": 3
+    }
+  },
+  {
+    "day": 0.7721621671350487,
+    "dt": 0.004226020083342519,
+    "accepted": true,
+    "attempt": {
+      "success": true,
+      "indicator": 0.0,
+      "errors": {
+        "pressure": 0.0,
+        "s_w": 0.0,
+        "s_g": 0.0,
+        "withdrawal": 0.0,
+        "component_mass": 0.0,
+        "s_o": 0.0
+      },
+      "reason": "accepted",
+      "reservoir_step_calls": 3
+    },
+    "balance": [
+      1.955597639107726e-05,
+      8.464507338251406e-09,
+      1.2631545211903077e-05
+    ]
+  },
+  {
+    "day": 0.7763881872183912,
+    "dt": 0.008452040166685038,
+    "accepted": true,
+    "attempt": {
+      "success": true,
+      "indicator": 2.9153361824730087e-12,
+      "errors": {
+        "pressure": 0.0,
+        "s_w": 0.0,
+        "s_g": 0.0,
+        "withdrawal": 2.9153361824730087e-12,
+        "component_mass": 0.0,
+        "s_o": 0.0
+      },
+      "reason": "accepted",
+      "reservoir_step_calls": 3
+    },
+    "balance": [
+      1.97856838920199e-05,
+      8.56244380936393e-09,
+      1.2779926379403364e-05
+    ]
+  },
+  {
+    "day": 0.7848402273850762,
+    "dt": 0.016904080333370076,
+    "accepted": false,
+    "attempt": {
+      "success": false,
+      "indicator": 5.6999379109825945,
+      "errors": {
+        "pressure": 5.6999379109825945,
+        "s_w": 0.01212281246226743,
+        "s_g": 0.006373234693657359,
+        "withdrawal": 0.0993933454389634,
+        "component_mass": 0.025437945661370504,
+        "s_o": 0.012122812462211918
+      },
+      "reason": "local temporal defect exceeds tolerance",
+      "reservoir_step_calls": 3
+    }
+  },
+  {
+    "day": 0.7848402273850762,
+    "dt": 0.005071224100011023,
+    "accepted": true,
+    "attempt": {
+      "success": true,
+      "indicator": 0.0,
+      "errors": {
+        "pressure": 0.0,
+        "s_w": 0.0,
+        "s_g": 0.0,
+        "withdrawal": 0.0,
+        "component_mass": 0.0,
+        "s_o": 0.0
+      },
+      "reason": "accepted",
+      "reservoir_step_calls": 3
+    },
+    "balance": [
+      1.9923508392585485e-05,
+      8.621205692031444e-09,
+      1.2868955079903539e-05
+    ]
+  },
+  {
+    "day": 0.7899114514850872,
+    "dt": 0.010142448200022046,
+    "accepted": true,
+    "attempt": {
+      "success": true,
+      "indicator": 2.698094220636945e-12,
+      "errors": {
+        "pressure": 0.0,
+        "s_w": 0.0,
+        "s_g": 0.0,
+        "withdrawal": 2.698094220636945e-12,
+        "component_mass": 0.0,
+        "s_o": 0.0
+      },
+      "reason": "accepted",
+      "reservoir_step_calls": 3
+    },
+    "balance": [
+      2.0199157393716652e-05,
+      8.738729457366474e-09,
+      1.3047012480903884e-05
+    ]
+  },
+  {
+    "day": 0.8000538996851093,
+    "dt": 0.020284896400044092,
+    "accepted": false,
+    "attempt": {
+      "success": false,
+      "indicator": 6.640164296437055,
+      "errors": {
+        "pressure": 6.640164296437055,
+        "s_w": 0.014178007025800188,
+        "s_g": 0.007641013575532263,
+        "withdrawal": 0.13771303475705937,
+        "component_mass": 0.029633912559322337,
+        "s_o": 0.014178007025744677
+      },
+      "reason": "local temporal defect exceeds tolerance",
+      "reservoir_step_calls": 3
+    }
+  },
+  {
+    "day": 0.8000538996851093,
+    "dt": 0.006085468920013294,
+    "accepted": true,
+    "attempt": {
+      "success": true,
+      "indicator": 4.362028568305284e-12,
+      "errors": {
+        "pressure": 0.0,
+        "s_w": 0.0,
+        "s_g": 0.0,
+        "withdrawal": 4.362028568305284e-12,
+        "component_mass": 0.0,
+        "s_o": 0.0
+      },
+      "reason": "accepted",
+      "reservoir_step_calls": 3
+    },
+    "balance": [
+      2.0364546794395352e-05,
+      8.809243716567491e-09,
+      1.315384692150409e-05
+    ]
+  },
+  {
+    "day": 0.8061393686051226,
+    "dt": 0.012170937840026588,
+    "accepted": false,
+    "attempt": {
+      "success": false,
+      "indicator": 4.291282782882452,
+      "errors": {
+        "pressure": 4.291282782882452,
+        "s_w": 0.009067488686731462,
+        "s_g": 0.004593682785936082,
+        "withdrawal": 0.05392287313478013,
+        "component_mass": 0.01915145200183142,
+        "s_o": 0.00906748868667595
+      },
+      "reason": "local temporal defect exceeds tolerance",
+      "reservoir_step_calls": 3
+    }
+  },
+  {
+    "day": 0.8061393686051226,
+    "dt": 0.0036512813520079767,
+    "accepted": true,
+    "attempt": {
+      "success": true,
+      "indicator": 6.6933664176785724e-12,
+      "errors": {
+        "pressure": 0.0,
+        "s_w": 0.0,
+        "s_g": 0.0,
+        "withdrawal": 6.6933664176785724e-12,
+        "component_mass": 0.0,
+        "s_o": 0.0
+      },
+      "reason": "accepted",
+      "reservoir_step_calls": 3
+    },
+    "balance": [
+      2.0463780434802575e-05,
+      8.851552272088102e-09,
+      1.3217947585864214e-05
+    ]
+  },
+  {
+    "day": 0.8097906499571306,
+    "dt": 0.0073025627040159535,
+    "accepted": true,
+    "attempt": {
+      "success": true,
+      "indicator": 3.867851937664671e-13,
+      "errors": {
+        "pressure": 0.0,
+        "s_w": 0.0,
+        "s_g": 0.0,
+        "withdrawal": 3.867851937664671e-13,
+        "component_mass": 0.0,
+        "s_o": 0.0
+      },
+      "reason": "accepted",
+      "reservoir_step_calls": 3
+    },
+    "balance": [
+      2.0662247715617014e-05,
+      8.936169383129321e-09,
+      1.334614891458446e-05
+    ]
+  },
+  {
+    "day": 0.8170932126611465,
+    "dt": 0.014605125408031907,
+    "accepted": false,
+    "attempt": {
+      "success": false,
+      "indicator": 5.031531917653978,
+      "errors": {
+        "pressure": 5.031531917653978,
+        "s_w": 0.010668777339045699,
+        "s_g": 0.00551138617110869,
+        "withdrawal": 0.07600998200063684,
+        "component_mass": 0.022455017099413666,
+        "s_o": 0.010668777339017943
+      },
+      "reason": "local temporal defect exceeds tolerance",
+      "reservoir_step_calls": 3
+    }
+  },
+  {
+    "day": 0.8170932126611465,
+    "dt": 0.004381537622409639,
+    "accepted": true,
+    "attempt": {
+      "success": true,
+      "indicator": 5.886813742134755e-12,
+      "errors": {
+        "pressure": 0.0,
+        "s_w": 0.0,
+        "s_g": 0.0,
+        "withdrawal": 5.886813742134755e-12,
+        "component_mass": 0.0,
+        "s_o": 0.0
+      },
+      "reason": "accepted",
+      "reservoir_step_calls": 3
+    },
+    "balance": [
+      2.0781328084105676e-05,
+      8.986939649754054e-09,
+      1.3423069711816615e-05
+    ]
+  },
+  {
+    "day": 0.8214747502835561,
+    "dt": 0.008763075244819278,
+    "accepted": true,
+    "attempt": {
+      "success": true,
+      "indicator": 0.0,
+      "errors": {
+        "pressure": 0.0,
+        "s_w": 0.0,
+        "s_g": 0.0,
+        "withdrawal": 0.0,
+        "component_mass": 0.0,
+        "s_o": 0.0
+      },
+      "reason": "accepted",
+      "reservoir_step_calls": 3
+    },
+    "balance": [
+      2.101948882108301e-05,
+      9.088480183003522e-09,
+      1.3576911306280914e-05
+    ]
+  },
+  {
+    "day": 0.8302378255283754,
+    "dt": 0.017526150489638556,
+    "accepted": false,
+    "attempt": {
+      "success": false,
+      "indicator": 5.876613991411776,
+      "errors": {
+        "pressure": 5.876613991411776,
+        "s_w": 0.012508151806894796,
+        "s_g": 0.006606469564407469,
+        "withdrawal": 0.10611315781636912,
+        "component_mass": 0.026226403981763274,
+        "s_o": 0.01250815180686704
+      },
+      "reason": "local temporal defect exceeds tolerance",
+      "reservoir_step_calls": 3
+    }
+  },
+  {
+    "day": 0.8302378255283754,
+    "dt": 0.005257845146891635,
+    "accepted": true,
+    "attempt": {
+      "success": true,
+      "indicator": 4.668676058122503e-12,
+      "errors": {
+        "pressure": 0.0,
+        "s_w": 0.0,
+        "s_g": 0.0,
+        "withdrawal": 4.668676058122503e-12,
+        "component_mass": 0.0,
+        "s_o": 0.0
+      },
+      "reason": "accepted",
+      "reservoir_step_calls": 3
+    },
+    "balance": [
+      2.116238526326941e-05,
+      9.149404502953202e-09,
+      1.3669216262959495e-05
+    ]
+  },
+  {
+    "day": 0.8354956706752671,
+    "dt": 0.01051569029378327,
+    "accepted": true,
+    "attempt": {
+      "success": true,
+      "indicator": 2.6066170466158425e-12,
+      "errors": {
+        "pressure": 0.0,
+        "s_w": 0.0,
+        "s_g": 0.0,
+        "withdrawal": 2.6066170466158425e-12,
+        "component_mass": 0.0,
+        "s_o": 0.0
+      },
+      "reason": "accepted",
+      "reservoir_step_calls": 3
+    },
+    "balance": [
+      2.1448178147642212e-05,
+      9.271253142852564e-09,
+      1.385382617631666e-05
+    ]
+  },
+  {
+    "day": 0.8460113609690503,
+    "dt": 0.02103138058756654,
+    "accepted": false,
+    "attempt": {
+      "success": false,
+      "indicator": 6.840910186774284,
+      "errors": {
+        "pressure": 6.840910186774284,
+        "s_w": 0.014618344739758538,
+        "s_g": 0.007920341021261379,
+        "withdrawal": 0.14671273924548414,
+        "component_mass": 0.030529781133917244,
+        "s_o": 0.014618344739703026
+      },
+      "reason": "local temporal defect exceeds tolerance",
+      "reservoir_step_calls": 3
+    }
+  },
+  {
+    "day": 0.8460113609690503,
+    "dt": 0.006309414176269928,
+    "accepted": true,
+    "attempt": {
+      "success": true,
+      "indicator": 0.0,
+      "errors": {
+        "pressure": 0.0,
+        "s_w": 0.0,
+        "s_g": 0.0,
+        "withdrawal": 0.0,
+        "component_mass": 0.0,
+        "s_o": 0.0
+      },
+      "reason": "accepted",
+      "reservoir_step_calls": 3
+    },
+    "balance": [
+      2.1619653878265892e-05,
+      9.34436232679218e-09,
+      1.3964592124330955e-05
+    ]
+  },
+  {
+    "day": 0.8523207751453202,
+    "dt": 0.012618828352539855,
+    "accepted": false,
+    "attempt": {
+      "success": false,
+      "indicator": 4.430461507847905,
+      "errors": {
+        "pressure": 4.430461507847905,
+        "s_w": 0.009367978393209908,
+        "s_g": 0.00476316436370805,
+        "withdrawal": 0.05776009794899167,
+        "component_mass": 0.019772576906892193,
+        "s_o": 0.009367978393237664
+      },
+      "reason": "local temporal defect exceeds tolerance",
+      "reservoir_step_calls": 3
+    }
+  },
+  {
+    "day": 0.8523207751453202,
+    "dt": 0.0037856485057619904,
+    "accepted": true,
+    "attempt": {
+      "success": true,
+      "indicator": 0.0,
+      "errors": {
+        "pressure": 0.0,
+        "s_w": 0.0,
+        "s_g": 0.0,
+        "withdrawal": 0.0,
+        "component_mass": 0.0,
+        "s_o": 0.0
+      },
+      "reason": "accepted",
+      "reservoir_step_calls": 3
+    },
+    "balance": [
+      2.1722539316640104e-05,
+      9.388227837155951e-09,
+      1.4031051693139534e-05
+    ]
+  },
+  {
+    "day": 0.8561064236510822,
+    "dt": 0.007571297011523981,
+    "accepted": true,
+    "attempt": {
+      "success": true,
+      "indicator": 3.55833320363153e-12,
+      "errors": {
+        "pressure": 0.0,
+        "s_w": 0.0,
+        "s_g": 0.0,
+        "withdrawal": 3.55833320363153e-12,
+        "component_mass": 0.0,
+        "s_o": 0.0
+      },
+      "reason": "accepted",
+      "reservoir_step_calls": 3
+    },
+    "balance": [
+      2.192831019338852e-05,
+      9.475958857883494e-09,
+      1.416397083075669e-05
+    ]
+  },
+  {
+    "day": 0.8636777206626062,
+    "dt": 0.015142594023047962,
+    "accepted": false,
+    "attempt": {
+      "success": false,
+      "indicator": 5.190460095734522,
+      "errors": {
+        "pressure": 5.190460095734522,
+        "s_w": 0.011013849326418912,
+        "s_g": 0.005713396199813481,
+        "withdrawal": 0.08127185294757035,
+        "component_mass": 0.023164275189367648,
+        "s_o": 0.011013849326335645
+      },
+      "reason": "local temporal defect exceeds tolerance",
+      "reservoir_step_calls": 3
+    }
+  },
+  {
+    "day": 0.8636777206626062,
+    "dt": 0.004542778206914422,
+    "accepted": true,
+    "attempt": {
+      "success": true,
+      "indicator": 8.198772875840325e-13,
+      "errors": {
+        "pressure": 0.0,
+        "s_w": 0.0,
+        "s_g": 0.0,
+        "withdrawal": 8.198772875840325e-13,
+        "component_mass": 0.0,
+        "s_o": 0.0
+      },
+      "reason": "accepted",
+      "reservoir_step_calls": 3
+    },
+    "balance": [
+      2.205177271943757e-05,
+      9.52859747032002e-09,
+      1.4243722313326985e-05
+    ]
+  },
+  {
+    "day": 0.8682204988695207,
+    "dt": 0.009085556413828844,
+    "accepted": true,
+    "attempt": {
+      "success": true,
+      "indicator": 2.9958007344625248e-12,
+      "errors": {
+        "pressure": 0.0,
+        "s_w": 0.0,
+        "s_g": 0.0,
+        "withdrawal": 2.9958007344625248e-12,
+        "component_mass": 0.0,
+        "s_o": 0.0
+      },
+      "reason": "accepted",
+      "reservoir_step_calls": 3
+    },
+    "balance": [
+      2.2298697771535676e-05,
+      9.633874695193068e-09,
+      1.4403225278467575e-05
+    ]
+  },
+  {
+    "day": 0.8773060552833495,
+    "dt": 0.01817111282765769,
+    "accepted": false,
+    "attempt": {
+      "success": false,
+      "indicator": 6.058054344928637,
+      "errors": {
+        "pressure": 6.058054344928637,
+        "s_w": 0.01290427815095474,
+        "s_g": 0.0068483542562391975,
+        "withdrawal": 0.11324583606674585,
+        "component_mass": 0.027036122785073065,
+        "s_o": 0.012904278150926984
+      },
+      "reason": "local temporal defect exceeds tolerance",
+      "reservoir_step_calls": 3
+    }
+  },
+  {
+    "day": 0.8773060552833495,
+    "dt": 0.005451333848297374,
+    "accepted": true,
+    "attempt": {
+      "success": true,
+      "indicator": 4.8273663524815735e-12,
+      "errors": {
+        "pressure": 0.0,
+        "s_w": 0.0,
+        "s_g": 0.0,
+        "withdrawal": 4.8273663524815735e-12,
+        "component_mass": 0.0,
+        "s_o": 0.0
+      },
+      "reason": "accepted",
+      "reservoir_step_calls": 3
+    },
+    "balance": [
+      2.2446852802794536e-05,
+      9.697041030116899e-09,
+      1.4498927057551928e-05
+    ]
+  },
+  {
+    "day": 0.8827573891316468,
+    "dt": 0.010902667696594748,
+    "accepted": true,
+    "attempt": {
+      "success": true,
+      "indicator": 7.204865026952832e-13,
+      "errors": {
+        "pressure": 0.0,
+        "s_w": 0.0,
+        "s_g": 0.0,
+        "withdrawal": 7.204865026952832e-13,
+        "component_mass": 0.0,
+        "s_o": 0.0
+      },
+      "reason": "accepted",
+      "reservoir_step_calls": 3
+    },
+    "balance": [
+      2.2743162865312266e-05,
+      9.823373699964562e-09,
+      1.4690330615720642e-05
+    ]
+  },
+  {
+    "day": 0.8936600568282416,
+    "dt": 0.021805335393189497,
+    "accepted": false,
+    "attempt": {
+      "success": false,
+      "indicator": 7.046824618405849,
+      "errors": {
+        "pressure": 7.046824618405849,
+        "s_w": 0.01507048979004777,
+        "s_g": 0.008210110690631822,
+        "withdrawal": 0.1562361075503908,
+        "component_mass": 0.03144871379708507,
+        "s_o": 0.015070489789992259
+      },
+      "reason": "local temporal defect exceeds tolerance",
+      "reservoir_step_calls": 3
+    }
+  },
+  {
+    "day": 0.8936600568282416,
+    "dt": 0.006541600617956815,
+    "accepted": true,
+    "attempt": {
+      "success": true,
+      "indicator": 7.858081274144391e-13,
+      "errors": {
+        "pressure": 0.0,
+        "s_w": 0.0,
+        "s_g": 0.0,
+        "withdrawal": 7.858081274144391e-13,
+        "component_mass": 0.0,
+        "s_o": 0.0
+      },
+      "reason": "accepted",
+      "reservoir_step_calls": 3
+    },
+    "balance": [
+      2.2920948902822902e-05,
+      9.89917330187316e-09,
+      1.4805172750621868e-05
+    ]
+  },
+  {
+    "day": 0.9002016574461984,
+    "dt": 0.01308320123591363,
+    "accepted": false,
+    "attempt": {
+      "success": false,
+      "indicator": 4.57260054631196,
+      "errors": {
+        "pressure": 4.57260054631196,
+        "s_w": 0.009675489757166034,
+        "s_g": 0.004937612431699101,
+        "withdrawal": 0.06183156838593279,
+        "component_mass": 0.020406912488804635,
+        "s_o": 0.009675489757166034
+      },
+      "reason": "local temporal defect exceeds tolerance",
+      "reservoir_step_calls": 3
+    }
+  },
+  {
+    "day": 0.9002016574461984,
+    "dt": 0.003924960370774089,
+    "accepted": true,
+    "attempt": {
+      "success": true,
+      "indicator": 0.0,
+      "errors": {
+        "pressure": 0.0,
+        "s_w": 0.0,
+        "s_g": 0.0,
+        "withdrawal": 0.0,
+        "component_mass": 0.0,
+        "s_o": 0.0
+      },
+      "reason": "accepted",
+      "reservoir_step_calls": 3
+    },
+    "balance": [
+      2.3027620525329286e-05,
+      9.944653063018314e-09,
+      1.4874078031562604e-05
+    ]
+  },
+  {
+    "day": 0.9041266178169725,
+    "dt": 0.007849920741548179,
+    "accepted": true,
+    "attempt": {
+      "success": true,
+      "indicator": 7.650008945961861e-13,
+      "errors": {
+        "pressure": 0.0,
+        "s_w": 0.0,
+        "s_g": 0.0,
+        "withdrawal": 7.650008945961861e-13,
+        "component_mass": 0.0,
+        "s_o": 0.0
+      },
+      "reason": "accepted",
+      "reservoir_step_calls": 3
+    },
+    "balance": [
+      2.3240963770342048e-05,
+      1.0035612585308629e-08,
+      1.5011888593444076e-05
+    ]
+  },
+  {
+    "day": 0.9119765385585207,
+    "dt": 0.015699841483096357,
+    "accepted": false,
+    "attempt": {
+      "success": false,
+      "indicator": 5.353700232836232,
+      "errors": {
+        "pressure": 5.353700232836232,
+        "s_w": 0.011368664402600093,
+        "s_g": 0.005922762744026144,
+        "withdrawal": 0.08686770450460955,
+        "component_mass": 0.023892775535916858,
+        "s_o": 0.011368664402544582
+      },
+      "reason": "local temporal defect exceeds tolerance",
+      "reservoir_step_calls": 3
+    }
+  },
+  {
+    "day": 0.9119765385585207,
+    "dt": 0.004709952444928873,
+    "accepted": true,
+    "attempt": {
+      "success": true,
+      "indicator": 0.0,
+      "errors": {
+        "pressure": 0.0,
+        "s_w": 0.0,
+        "s_g": 0.0,
+        "withdrawal": 0.0,
+        "component_mass": 0.0,
+        "s_o": 0.0
+      },
+      "reason": "accepted",
+      "reservoir_step_calls": 3
+    },
+    "balance": [
+      2.3368969717349707e-05,
+      1.0090188298682818e-08,
+      1.5094574930572959e-05
+    ]
+  },
+  {
+    "day": 0.9166864910034496,
+    "dt": 0.009419904889857746,
+    "accepted": true,
+    "attempt": {
+      "success": true,
+      "indicator": 0.0,
+      "errors": {
+        "pressure": 0.0,
+        "s_w": 0.0,
+        "s_g": 0.0,
+        "withdrawal": 0.0,
+        "component_mass": 0.0,
+        "s_o": 0.0
+      },
+      "reason": "accepted",
+      "reservoir_step_calls": 3
+    },
+    "balance": [
+      2.3624981611365016e-05,
+      1.0199339725431196e-08,
+      1.5259947604830725e-05
+    ]
+  },
+  {
+    "day": 0.9261063958933073,
+    "dt": 0.018839809779715493,
+    "accepted": false,
+    "attempt": {
+      "success": false,
+      "indicator": 6.244334327235445,
+      "errors": {
+        "pressure": 6.244334327235445,
+        "s_w": 0.013311458398918008,
+        "s_g": 0.007099221364104125,
+        "withdrawal": 0.12081087387273823,
+        "component_mass": 0.027867438272302494,
+        "s_o": 0.013311458398890252
+      },
+      "reason": "local temporal defect exceeds tolerance",
+      "reservoir_step_calls": 3
+    }
+  },
+  {
+    "day": 0.9261063958933073,
+    "dt": 0.005651942933914648,
+    "accepted": true,
+    "attempt": {
+      "success": true,
+      "indicator": 4.6697707138726786e-12,
+      "errors": {
+        "pressure": 0.0,
+        "s_w": 0.0,
+        "s_g": 0.0,
+        "withdrawal": 4.6697707138726786e-12,
+        "component_mass": 0.0,
+        "s_o": 0.0
+      },
+      "reason": "accepted",
+      "reservoir_step_calls": 3
+    },
+    "balance": [
+      2.3778588747774208e-05,
+      1.0264830581480222e-08,
+      1.5359171209385383e-05
+    ]
+  },
+  {
+    "day": 0.9317583388272219,
+    "dt": 0.011303885867829296,
+    "accepted": true,
+    "attempt": {
+      "success": true,
+      "indicator": 2.4324586307845568e-12,
+      "errors": {
+        "pressure": 0.0,
+        "s_w": 0.0,
+        "s_g": 0.0,
+        "withdrawal": 2.4324586307845568e-12,
+        "component_mass": 0.0,
+        "s_o": 0.0
+      },
+      "reason": "accepted",
+      "reservoir_step_calls": 3
+    },
+    "balance": [
+      2.4085803020592584e-05,
+      1.0395812293578275e-08,
+      1.55576184184947e-05
+    ]
+  },
+  {
+    "day": 0.9430622246950513,
+    "dt": 0.022607771735658592,
+    "accepted": false,
+    "attempt": {
+      "success": false,
+      "indicator": 7.258469964746014,
+      "errors": {
+        "pressure": 7.258469964746014,
+        "s_w": 0.01553555108579907,
+        "s_g": 0.008510703520148155,
+        "withdrawal": 0.1663213861809921,
+        "component_mass": 0.03239322009353147,
+        "s_o": 0.01553555108579907
+      },
+      "reason": "local temporal defect exceeds tolerance",
+      "reservoir_step_calls": 3
+    }
+  },
+  {
+    "day": 0.9430622246950513,
+    "dt": 0.006782331520697611,
+    "accepted": true,
+    "attempt": {
+      "success": true,
+      "indicator": 0.0,
+      "errors": {
+        "pressure": 0.0,
+        "s_w": 0.0,
+        "s_g": 0.0,
+        "withdrawal": 0.0,
+        "component_mass": 0.0,
+        "s_o": 0.0
+      },
+      "reason": "accepted",
+      "reservoir_step_calls": 3
+    },
+    "balance": [
+      2.427013158428361e-05,
+      1.047440132083711e-08,
+      1.5676686743960293e-05
+    ]
+  },
+  {
+    "day": 0.9498445562157488,
+    "dt": 0.013564663041395222,
+    "accepted": false,
+    "attempt": {
+      "success": false,
+      "indicator": 4.718869889994711,
+      "errors": {
+        "pressure": 4.718869889994711,
+        "s_w": 0.009992252899826415,
+        "s_g": 0.005118587657060303,
+        "withdrawal": 0.06617288902436615,
+        "component_mass": 0.021059679919204013,
+        "s_o": 0.009992252899770904
+      },
+      "reason": "local temporal defect exceeds tolerance",
+      "reservoir_step_calls": 3
+    }
+  },
+  {
+    "day": 0.9498445562157488,
+    "dt": 0.004069398912418499,
+    "accepted": true,
+    "attempt": {
+      "success": true,
+      "indicator": 8.283830087574134e-13,
+      "errors": {
+        "pressure": 0.0,
+        "s_w": 0.0,
+        "s_g": 0.0,
+        "withdrawal": 8.283830087574134e-13,
+        "component_mass": 0.0,
+        "s_o": 0.0
+      },
+      "reason": "accepted",
+      "reservoir_step_calls": 3
+    },
+    "balance": [
+      2.4380728722498225e-05,
+      1.0521554737192406e-08,
+      1.5748127739239646e-05
+    ]
+  },
+  {
+    "day": 0.9539139551281673,
+    "dt": 0.008138797824836999,
+    "accepted": true,
+    "attempt": {
+      "success": true,
+      "indicator": 7.605543043808892e-13,
+      "errors": {
+        "pressure": 0.0,
+        "s_w": 0.0,
+        "s_g": 0.0,
+        "withdrawal": 7.605543043808892e-13,
+        "component_mass": 0.0,
+        "s_o": 0.0
+      },
+      "reason": "accepted",
+      "reservoir_step_calls": 3
+    },
+    "balance": [
+      2.4601922998927455e-05,
+      1.0615861569903006e-08,
+      1.589100972979835e-05
+    ]
+  },
+  {
+    "day": 0.9620527529530044,
+    "dt": 0.016277595649673997,
+    "accepted": false,
+    "attempt": {
+      "success": false,
+      "indicator": 5.520662743280083,
+      "errors": {
+        "pressure": 5.520662743280083,
+        "s_w": 0.011732111442785964,
+        "s_g": 0.006138894413143525,
+        "withdrawal": 0.09279942615617448,
+        "component_mass": 0.024637887044471642,
+        "s_o": 0.011732111442785964
+      },
+      "reason": "local temporal defect exceeds tolerance",
+      "reservoir_step_calls": 3
+    }
+  },
+  {
+    "day": 0.9620527529530044,
+    "dt": 0.004883278694902166,
+    "accepted": true,
+    "attempt": {
+      "success": true,
+      "indicator": 0.0,
+      "errors": {
+        "pressure": 0.0,
+        "s_w": 0.0,
+        "s_g": 0.0,
+        "withdrawal": 0.0,
+        "component_mass": 0.0,
+        "s_o": 0.0
+      },
+      "reason": "accepted",
+      "reservoir_step_calls": 3
+    },
+    "balance": [
+      2.473463956478499e-05,
+      1.0672445669529364e-08,
+      1.5976738924133575e-05
+    ]
+  },
+  {
+    "day": 0.9669360316479065,
+    "dt": 0.009766557389804332,
+    "accepted": true,
+    "attempt": {
+      "success": true,
+      "indicator": 7.364343561408485e-13,
+      "errors": {
+        "pressure": 0.0,
+        "s_w": 0.0,
+        "s_g": 0.0,
+        "withdrawal": 7.364343561408485e-13,
+        "component_mass": 0.0,
+        "s_o": 0.0
+      },
+      "reason": "accepted",
+      "reservoir_step_calls": 3
+    },
+    "balance": [
+      2.5000072696500063e-05,
+      1.0785613868782082e-08,
+      1.6148197312804027e-05
+    ]
+  },
+  {
+    "day": 0.9767025890377109,
+    "dt": 0.019533114779608663,
+    "accepted": false,
+    "attempt": {
+      "success": false,
+      "indicator": 6.435276650131867,
+      "errors": {
+        "pressure": 6.435276650131867,
+        "s_w": 0.013729244204285784,
+        "s_g": 0.007359107706772505,
+        "withdrawal": 0.12882658548941733,
+        "component_mass": 0.02871955916189251,
+        "s_o": 0.013729244204285784
+      },
+      "reason": "local temporal defect exceeds tolerance",
+      "reservoir_step_calls": 3
+    }
+  },
+  {
+    "day": 0.9767025890377109,
+    "dt": 0.005859934433882598,
+    "accepted": true,
+    "attempt": {
+      "success": true,
+      "indicator": 4.193304357393941e-12,
+      "errors": {
+        "pressure": 0.0,
+        "s_w": 0.0,
+        "s_g": 0.0,
+        "withdrawal": 4.193304357393941e-12,
+        "component_mass": 0.0,
+        "s_o": 0.0
+      },
+      "reason": "accepted",
+      "reservoir_step_calls": 3
+    },
+    "balance": [
+      2.51593325755291e-05,
+      1.0853514788333711e-08,
+      1.6251072346006296e-05
+    ]
+  },
+  {
+    "day": 0.9825625234715935,
+    "dt": 0.011719868867765196,
+    "accepted": false,
+    "attempt": {
+      "success": false,
+      "indicator": 4.151033342307434,
+      "errors": {
+        "pressure": 4.151033342307434,
+        "s_w": 0.008764707185415777,
+        "s_g": 0.004424260935609325,
+        "withdrawal": 0.05018933214589575,
+        "component_mass": 0.01852554779685594,
+        "s_o": 0.008764707185360265
+      },
+      "reason": "local temporal defect exceeds tolerance",
+      "reservoir_step_calls": 3
+    }
+  },
+  {
+    "day": 0.9825625234715935,
+    "dt": 0.003515960660329593,
+    "accepted": true,
+    "attempt": {
+      "success": true,
+      "indicator": 6.947134388880225e-12,
+      "errors": {
+        "pressure": 0.0,
+        "s_w": 0.0,
+        "s_g": 0.0,
+        "withdrawal": 6.947134388880225e-12,
+        "component_mass": 0.0,
+        "s_o": 0.0
+      },
+      "reason": "accepted",
+      "reservoir_step_calls": 3
+    },
+    "balance": [
+      2.5254888502946526e-05,
+      1.0894255340064688e-08,
+      1.6312797365927658e-05
+    ]
+  },
+  {
+    "day": 0.986078484131923,
+    "dt": 0.007031921320659186,
+    "accepted": true,
+    "attempt": {
+      "success": true,
+      "indicator": 0.0,
+      "errors": {
+        "pressure": 0.0,
+        "s_w": 0.0,
+        "s_g": 0.0,
+        "withdrawal": 0.0,
+        "component_mass": 0.0,
+        "s_o": 0.0
+      },
+      "reason": "accepted",
+      "reservoir_step_calls": 3
+    },
+    "balance": [
+      2.5446000357781384e-05,
+      1.0975736443526645e-08,
+      1.643624740577038e-05
+    ]
+  },
+  {
+    "day": 0.9931104054525822,
+    "dt": 0.014063842641318372,
+    "accepted": false,
+    "attempt": {
+      "success": false,
+      "indicator": 4.86997296063602,
+      "errors": {
+        "pressure": 4.86997296063602,
+        "s_w": 0.010318372444251267,
+        "s_g": 0.005307883634397825,
+        "withdrawal": 0.07084970615360378,
+        "component_mass": 0.021734017506896783,
+        "s_o": 0.010318372444251267
+      },
+      "reason": "local temporal defect exceeds tolerance",
+      "reservoir_step_calls": 3
+    }
+  },
+  {
+    "day": 0.9931104054525822,
+    "dt": 0.004219152792395478,
+    "accepted": true,
+    "attempt": {
+      "success": true,
+      "indicator": 1.1607418886185797e-11,
+      "errors": {
+        "pressure": 0.0,
+        "s_w": 0.0,
+        "s_g": 0.0,
+        "withdrawal": 1.1607418886185797e-11,
+        "component_mass": 0.0,
+        "s_o": 0.0
+      },
+      "reason": "accepted",
+      "reservoir_step_calls": 3
+    },
+    "balance": [
+      2.5560667470682287e-05,
+      1.1024625105603819e-08,
+      1.6510317429676012e-05
+    ]
+  },
+  {
+    "day": 0.9973295582449777,
+    "dt": 0.008438305584790955,
+    "accepted": true,
+    "attempt": {
+      "success": true,
+      "indicator": 5.8401031294532665e-12,
+      "errors": {
+        "pressure": 0.0,
+        "s_w": 0.0,
+        "s_g": 0.0,
+        "withdrawal": 5.8401031294532665e-12,
+        "component_mass": 0.0,
+        "s_o": 0.0
+      },
+      "reason": "accepted",
+      "reservoir_step_calls": 3
+    },
+    "balance": [
+      2.5790001696484118e-05,
+      1.1122402429758166e-08,
+      1.665845747748728e-05
+    ]
+  },
+  {
+    "day": 1.0057678638297687,
+    "dt": 0.01687661116958191,
+    "accepted": false,
+    "attempt": {
+      "success": false,
+      "indicator": 5.691929140426219,
+      "errors": {
+        "pressure": 5.691929140426219,
+        "s_w": 0.012105403643464241,
+        "s_g": 0.006362714492502697,
+        "withdrawal": 0.09909594999959415,
+        "component_mass": 0.025402204659868616,
+        "s_o": 0.012105403643491996
+      },
+      "reason": "local temporal defect exceeds tolerance",
+      "reservoir_step_calls": 3
+    }
+  },
+  {
+    "day": 1.0057678638297687,
+    "dt": 0.00506298335087464,
+    "accepted": true,
+    "attempt": {
+      "success": true,
+      "indicator": 9.692983613838642e-12,
+      "errors": {
+        "pressure": 0.0,
+        "s_w": 0.0,
+        "s_g": 0.0,
+        "withdrawal": 9.692983613838642e-12,
+        "component_mass": 0.0,
+        "s_o": 0.0
+      },
+      "reason": "accepted",
+      "reservoir_step_calls": 3
+    },
+    "balance": [
+      2.592760223196522e-05,
+      1.1181068824250773e-08,
+      1.6747341506174042e-05
+    ]
+  },
+  {
+    "day": 1.0108308471806433,
+    "dt": 0.01012596670174928,
+    "accepted": true,
+    "attempt": {
+      "success": true,
+      "indicator": 7.313134270854805e-13,
+      "errors": {
+        "pressure": 0.0,
+        "s_w": 0.0,
+        "s_g": 0.0,
+        "withdrawal": 7.313134270854805e-13,
+        "component_mass": 0.0,
+        "s_o": 0.0
+      },
+      "reason": "accepted",
+      "reservoir_step_calls": 3
+    },
+    "balance": [
+      2.6202803302927406e-05,
+      1.1298401613235995e-08,
+      1.6925109563547564e-05
+    ]
+  },
+  {
+    "day": 1.0209568138823926,
+    "dt": 0.02025193340349856,
+    "accepted": false,
+    "attempt": {
+      "success": false,
+      "indicator": 6.6312359107963745,
+      "errors": {
+        "pressure": 6.6312359107963745,
+        "s_w": 0.014158432769750817,
+        "s_g": 0.007628664389414119,
+        "withdrawal": 0.13731967746360882,
+        "component_mass": 0.029594067826747776,
+        "s_o": 0.014158432769750817
+      },
+      "reason": "local temporal defect exceeds tolerance",
+      "reservoir_step_calls": 3
+    }
+  },
+  {
+    "day": 1.0209568138823926,
+    "dt": 0.006075580021049603,
+    "accepted": true,
+    "attempt": {
+      "success": true,
+      "indicator": 7.934956789483637e-13,
+      "errors": {
+        "pressure": 0.0,
+        "s_w": 0.0,
+        "s_g": 0.0,
+        "withdrawal": 7.934956789483637e-13,
+        "component_mass": 0.0,
+        "s_o": 0.0
+      },
+      "reason": "accepted",
+      "reservoir_step_calls": 3
+    },
+    "balance": [
+      2.6367923945504724e-05,
+      1.1368801286627125e-08,
+      1.7031770397971677e-05
+    ]
+  },
+  {
+    "day": 1.0270323939034423,
+    "dt": 0.012151160042099205,
+    "accepted": false,
+    "attempt": {
+      "success": false,
+      "indicator": 4.28515780663304,
+      "errors": {
+        "pressure": 4.28515780663304,
+        "s_w": 0.009054258821861172,
+        "s_g": 0.004586255073490975,
+        "withdrawal": 0.05375682684083093,
+        "component_mass": 0.019124117517176343,
+        "s_o": 0.00905425882180566
+      },
+      "reason": "local temporal defect exceeds tolerance",
+      "reservoir_step_calls": 3
+    }
+  },
+  {
+    "day": 1.0270323939034423,
+    "dt": 0.003645348012629694,
+    "accepted": true,
+    "attempt": {
+      "success": true,
+      "indicator": 1.3408208016094183e-11,
+      "errors": {
+        "pressure": 0.0,
+        "s_w": 0.0,
+        "s_g": 0.0,
+        "withdrawal": 1.3408208016094183e-11,
+        "component_mass": 0.0,
+        "s_o": 0.0
+      },
+      "reason": "accepted",
+      "reservoir_step_calls": 3
+    },
+    "balance": [
+      2.6466996331051106e-05,
+      1.1411041090661806e-08,
+      1.7095766898626148e-05
+    ]
+  },
+  {
+    "day": 1.030677741916072,
+    "dt": 0.007290696025259388,
+    "accepted": true,
+    "attempt": {
+      "success": true,
+      "indicator": 6.752713258218225e-12,
+      "errors": {
+        "pressure": 0.0,
+        "s_w": 0.0,
+        "s_g": 0.0,
+        "withdrawal": 6.752713258218225e-12,
+        "component_mass": 0.0,
+        "s_o": 0.0
+      },
+      "reason": "accepted",
+      "reservoir_step_calls": 3
+    },
+    "balance": [
+      2.6665141102143885e-05,
+      1.1495520698731161e-08,
+      1.722375989993508e-05
+    ]
+  },
+  {
+    "day": 1.0379684379413312,
+    "dt": 0.014581392050518775,
+    "accepted": false,
+    "attempt": {
+      "success": false,
+      "indicator": 5.024482756634802,
+      "errors": {
+        "pressure": 5.024482756634802,
+        "s_w": 0.01065348010143019,
+        "s_g": 0.00550246824304601,
+        "withdrawal": 0.0757808340803482,
+        "component_mass": 0.02242355837248202,
+        "s_o": 0.01065348010143019
+      },
+      "reason": "local temporal defect exceeds tolerance",
+      "reservoir_step_calls": 3
+    }
+  },
+  {
+    "day": 1.0379684379413312,
+    "dt": 0.0043744176151557,
+    "accepted": true,
+    "attempt": {
+      "success": true,
+      "indicator": 5.895424941129119e-12,
+      "errors": {
+        "pressure": 0.0,
+        "s_w": 0.0,
+        "s_g": 0.0,
+        "withdrawal": 5.895424941129119e-12,
+        "component_mass": 0.0,
+        "s_o": 0.0
+      },
+      "reason": "accepted",
+      "reservoir_step_calls": 3
+    },
+    "balance": [
+      2.678402796479955e-05,
+      1.1546208463572779e-08,
+      1.7300555700720442e-05
+    ]
+  },
+  {
+    "day": 1.0423428555564869,
+    "dt": 0.0087488352303114,
+    "accepted": true,
+    "attempt": {
+      "success": true,
+      "indicator": 7.513319795649033e-13,
+      "errors": {
+        "pressure": 0.0,
+        "s_w": 0.0,
+        "s_g": 0.0,
+        "withdrawal": 7.513319795649033e-13,
+        "component_mass": 0.0,
+        "s_o": 0.0
+      },
+      "reason": "accepted",
+      "reservoir_step_calls": 3
+    },
+    "balance": [
+      2.7021801690110887e-05,
+      1.1647583993256004e-08,
+      1.745414730229117e-05
+    ]
+  },
+  {
+    "day": 1.0510916907867984,
+    "dt": 0.0174976704606228,
+    "accepted": false,
+    "attempt": {
+      "success": false,
+      "indicator": 5.868558170948923,
+      "errors": {
+        "pressure": 5.868558170948923,
+        "s_w": 0.012490567783046691,
+        "s_g": 0.006595780943308149,
+        "withdrawal": 0.1058018731888832,
+        "component_mass": 0.026190453029521134,
+        "s_o": 0.012490567782963424
+      },
+      "reason": "local temporal defect exceeds tolerance",
+      "reservoir_step_calls": 3
+    }
+  },
+  {
+    "day": 1.0510916907867984,
+    "dt": 0.005249301138186874,
+    "accepted": true,
+    "attempt": {
+      "success": true,
+      "indicator": 8.075024133856361e-13,
+      "errors": {
+        "pressure": 0.0,
+        "s_w": 0.0,
+        "s_g": 0.0,
+        "withdrawal": 8.075024133856361e-13,
+        "component_mass": 0.0,
+        "s_o": 0.0
+      },
+      "reason": "accepted",
+      "reservoir_step_calls": 3
+    },
+    "balance": [
+      2.7164465925297685e-05,
+      1.1708409311065946e-08,
+      1.7546302263233602e-05
+    ]
+  },
+  {
+    "day": 1.0563409919249853,
+    "dt": 0.010498602276373748,
+    "accepted": true,
+    "attempt": {
+      "success": true,
+      "indicator": 0.0,
+      "errors": {
+        "pressure": 0.0,
+        "s_w": 0.0,
+        "s_g": 0.0,
+        "withdrawal": 0.0,
+        "component_mass": 0.0,
+        "s_o": 0.0
+      },
+      "reason": "accepted",
+      "reservoir_step_calls": 3
+    },
+    "balance": [
+      2.7449794395671288e-05,
+      1.1830059946685819e-08,
+      1.773061218511847e-05
+    ]
+  },
+  {
+    "day": 1.066839594201359,
+    "dt": 0.020997204552747496,
+    "accepted": false,
+    "attempt": {
+      "success": false,
+      "indicator": 6.831759497530387,
+      "errors": {
+        "pressure": 6.831759497530387,
+        "s_w": 0.014598240940383311,
+        "s_g": 0.007907529992801088,
+        "withdrawal": 0.14629678727407358,
+        "component_mass": 0.03048894439337253,
+        "s_o": 0.014598240940300045
+      },
+      "reason": "local temporal defect exceeds tolerance",
+      "reservoir_step_calls": 3
+    }
+  },
+  {
+    "day": 1.066839594201359,
+    "dt": 0.006299161365824249,
+    "accepted": true,
+    "attempt": {
+      "success": true,
+      "indicator": 7.806730451334345e-12,
+      "errors": {
+        "pressure": 0.0,
+        "s_w": 0.0,
+        "s_g": 0.0,
+        "withdrawal": 7.806730451334345e-12,
+        "component_mass": 0.0,
+        "s_o": 0.0
+      },
+      "reason": "accepted",
+      "reservoir_step_calls": 3
+    },
+    "balance": [
+      2.7620991477895444e-05,
+      1.1903050328057747e-08,
+      1.7841198138249393e-05
+    ]
+  },
+  {
+    "day": 1.0731387555671832,
+    "dt": 0.012598322731648497,
+    "accepted": false,
+    "attempt": {
+      "success": false,
+      "indicator": 4.424156922127679,
+      "errors": {
+        "pressure": 4.424156922127679,
+        "s_w": 0.009354347482531944,
+        "s_g": 0.004755458416494385,
+        "withdrawal": 0.057582880394263465,
+        "component_mass": 0.01974444089672437,
+        "s_o": 0.009354347482504188
+      },
+      "reason": "local temporal defect exceeds tolerance",
+      "reservoir_step_calls": 3
+    }
+  },
+  {
+    "day": 1.0731387555671832,
+    "dt": 0.0037794968194945493,
+    "accepted": true,
+    "attempt": {
+      "success": true,
+      "indicator": 0.0,
+      "errors": {
+        "pressure": 0.0,
+        "s_w": 0.0,
+        "s_g": 0.0,
+        "withdrawal": 0.0,
+        "component_mass": 0.0,
+        "s_o": 0.0
+      },
+      "reason": "accepted",
+      "reservoir_step_calls": 3
+    },
+    "balance": [
+      2.772370972722994e-05,
+      1.19468445568809e-08,
+      1.7907549710127945e-05
+    ]
+  },
+  {
+    "day": 1.0769182523866778,
+    "dt": 0.007558993638989099,
+    "accepted": true,
+    "attempt": {
+      "success": true,
+      "indicator": 3.5637703155571182e-12,
+      "errors": {
+        "pressure": 0.0,
+        "s_w": 0.0,
+        "s_g": 0.0,
+        "withdrawal": 3.5637703155571182e-12,
+        "component_mass": 0.0,
+        "s_o": 0.0
+      },
+      "reason": "accepted",
+      "reservoir_step_calls": 3
+    },
+    "balance": [
+      2.792914622589893e-05,
+      1.2034433014527212e-08,
+      1.804025285388505e-05
+    ]
+  },
+  {
+    "day": 1.0844772460256669,
+    "dt": 0.015117987277978197,
+    "accepted": false,
+    "attempt": {
+      "success": false,
+      "indicator": 5.18321727809459,
+      "errors": {
+        "pressure": 5.18321727809459,
+        "s_w": 0.01099811448240784,
+        "s_g": 0.00570415096101673,
+        "withdrawal": 0.08102805543415151,
+        "component_mass": 0.02313195226292939,
+        "s_o": 0.010998114482352328
+      },
+      "reason": "local temporal defect exceeds tolerance",
+      "reservoir_step_calls": 3
+    }
+  },
+  {
+    "day": 1.0844772460256669,
+    "dt": 0.004535396183393493,
+    "accepted": true,
+    "attempt": {
+      "success": true,
+      "indicator": 8.200085875237634e-13,
+      "errors": {
+        "pressure": 0.0,
+        "s_w": 0.0,
+        "s_g": 0.0,
+        "withdrawal": 8.200085875237634e-13,
+        "component_mass": 0.0,
+        "s_o": 0.0
+      },
+      "reason": "accepted",
+      "reservoir_step_calls": 3
+    },
+    "balance": [
+      2.8052408125100327e-05,
+      1.2086986089114998e-08,
+      1.8119874740139315e-05
+    ]
+  },
+  {
+    "day": 1.0890126422090605,
+    "dt": 0.009070792366786986,
+    "accepted": true,
+    "attempt": {
+      "success": true,
+      "indicator": 2.717630944334295e-12,
+      "errors": {
+        "pressure": 0.0,
+        "s_w": 0.0,
+        "s_g": 0.0,
+        "withdrawal": 2.717630944334295e-12,
+        "component_mass": 0.0,
+        "s_o": 0.0
+      },
+      "reason": "accepted",
+      "reservoir_step_calls": 3
+    },
+    "balance": [
+      2.8298931923503125e-05,
+      1.2192092238290573e-08,
+      1.8279118512647845e-05
+    ]
+  },
+  {
+    "day": 1.0980834345758475,
+    "dt": 0.01814158473357397,
+    "accepted": false,
+    "attempt": {
+      "success": false,
+      "indicator": 6.0497407679211355,
+      "errors": {
+        "pressure": 6.0497407679211355,
+        "s_w": 0.012886151496388498,
+        "s_g": 0.006837229684197865,
+        "withdrawal": 0.11291429026592739,
+        "component_mass": 0.026999021589342326,
+        "s_o": 0.012886151496305231
+      },
+      "reason": "local temporal defect exceeds tolerance",
+      "reservoir_step_calls": 3
+    }
+  },
+  {
+    "day": 1.0980834345758475,
+    "dt": 0.005442475420072191,
+    "accepted": true,
+    "attempt": {
+      "success": true,
+      "indicator": 4.8345709985703805e-12,
+      "errors": {
+        "pressure": 0.0,
+        "s_w": 0.0,
+        "s_g": 0.0,
+        "withdrawal": 4.8345709985703805e-12,
+        "component_mass": 0.0,
+        "s_o": 0.0
+      },
+      "reason": "accepted",
+      "reservoir_step_calls": 3
+    },
+    "balance": [
+      2.84468462025448e-05,
+      1.2255155927795917e-08,
+      1.837466477615296e-05
+    ]
+  },
+  {
+    "day": 1.1035259099959196,
+    "dt": 0.010884950840144382,
+    "accepted": true,
+    "attempt": {
+      "success": true,
+      "indicator": 5.044043300617986e-12,
+      "errors": {
+        "pressure": 0.0,
+        "s_w": 0.0,
+        "s_g": 0.0,
+        "withdrawal": 5.044043300617986e-12,
+        "component_mass": 0.0,
+        "s_o": 0.0
+      },
+      "reason": "accepted",
+      "reservoir_step_calls": 3
+    },
+    "balance": [
+      2.8742674760628154e-05,
+      1.2381283306806602e-08,
+      1.856575730316319e-05
+    ]
+  },
+  {
+    "day": 1.1144108608360639,
+    "dt": 0.021769901680288764,
+    "accepted": false,
+    "attempt": {
+      "success": false,
+      "indicator": 7.037484935799986,
+      "errors": {
+        "pressure": 7.037484935799986,
+        "s_w": 0.015049860937005333,
+        "s_g": 0.008196861092213403,
+        "withdrawal": 0.15579811548137334,
+        "component_mass": 0.03140703373156387,
+        "s_o": 0.015049860937033088
+      },
+      "reason": "local temporal defect exceeds tolerance",
+      "reservoir_step_calls": 3
+    }
+  },
+  {
+    "day": 1.1144108608360639,
+    "dt": 0.0065309705040866636,
+    "accepted": true,
+    "attempt": {
+      "success": true,
+      "indicator": 7.859818230001162e-13,
+      "errors": {
+        "pressure": 0.0,
+        "s_w": 0.0,
+        "s_g": 0.0,
+        "withdrawal": 7.859818230001162e-13,
+        "component_mass": 0.0,
+        "s_o": 0.0
+      },
+      "reason": "accepted",
+      "reservoir_step_calls": 3
+    },
+    "balance": [
+      2.892017189547817e-05,
+      1.2456959734213015e-08,
+      1.8680412819369333e-05
+    ]
+  },
+  {
+    "day": 1.1209418313401507,
+    "dt": 0.013061941008173327,
+    "accepted": false,
+    "attempt": {
+      "success": false,
+      "indicator": 4.56611683200337,
+      "errors": {
+        "pressure": 4.56611683200337,
+        "s_w": 0.009661456160964255,
+        "s_g": 0.004929623239946501,
+        "withdrawal": 0.06164262598070498,
+        "component_mass": 0.020377977101296678,
+        "s_o": 0.009661456160880988
+      },
+      "reason": "local temporal defect exceeds tolerance",
+      "reservoir_step_calls": 3
+    }
+  },
+  {
+    "day": 1.1209418313401507,
+    "dt": 0.003918582302451931,
+    "accepted": true,
+    "attempt": {
+      "success": true,
+      "indicator": 1.3009167009096896e-11,
+      "errors": {
+        "pressure": 0.0,
+        "s_w": 0.0,
+        "s_g": 0.0,
+        "withdrawal": 1.3009167009096896e-11,
+        "component_mass": 0.0,
+        "s_o": 0.0
+      },
+      "reason": "accepted",
+      "reservoir_step_calls": 3
+    },
+    "balance": [
+      2.9026670176388173e-05,
+      1.2502365590656862e-08,
+      1.8749206129093018e-05
+    ]
+  },
+  {
+    "day": 1.1248604136426026,
+    "dt": 0.007837164604903862,
+    "accepted": true,
+    "attempt": {
+      "success": true,
+      "indicator": 6.88952866289645e-12,
+      "errors": {
+        "pressure": 0.0,
+        "s_w": 0.0,
+        "s_g": 0.0,
+        "withdrawal": 6.88952866289645e-12,
+        "component_mass": 0.0,
+        "s_o": 0.0
+      },
+      "reason": "accepted",
+      "reservoir_step_calls": 3
+    },
+    "balance": [
+      2.9239666738208185e-05,
+      1.2593177303544553e-08,
+      1.888679274854038e-05
+    ]
+  },
+  {
+    "day": 1.1326975782475064,
+    "dt": 0.015674329209807724,
+    "accepted": false,
+    "attempt": {
+      "success": false,
+      "indicator": 5.346271414843202,
+      "errors": {
+        "pressure": 5.346271414843202,
+        "s_w": 0.01135250740974536,
+        "s_g": 0.005913193192985666,
+        "withdrawal": 0.08660867502565826,
+        "component_mass": 0.023859622579863415,
+        "s_o": 0.01135250740968985
+      },
+      "reason": "local temporal defect exceeds tolerance",
+      "reservoir_step_calls": 3
+    }
+  },
+  {
+    "day": 1.1326975782475064,
+    "dt": 0.004702298762942384,
+    "accepted": true,
+    "attempt": {
+      "success": true,
+      "indicator": 8.170502205403889e-13,
+      "errors": {
+        "pressure": 0.0,
+        "s_w": 0.0,
+        "s_g": 0.0,
+        "withdrawal": 8.170502205403889e-13,
+        "component_mass": 0.0,
+        "s_o": 0.0
+      },
+      "reason": "accepted",
+      "reservoir_step_calls": 3
+    },
+    "balance": [
+      2.936746467530019e-05,
+      1.264766433127717e-08,
+      1.89693447202088e-05
+    ]
+  },
+  {
+    "day": 1.1373998770104488,
+    "dt": 0.009404597525884769,
+    "accepted": true,
+    "attempt": {
+      "success": true,
+      "indicator": 2.899233337901847e-12,
+      "errors": {
+        "pressure": 0.0,
+        "s_w": 0.0,
+        "s_g": 0.0,
+        "withdrawal": 2.899233337901847e-12,
+        "component_mass": 0.0,
+        "s_o": 0.0
+      },
+      "reason": "accepted",
+      "reservoir_step_calls": 3
+    },
+    "balance": [
+      2.962306054948421e-05,
+      1.2756638386742404e-08,
+      1.913444866354564e-05
+    ]
+  },
+  {
+    "day": 1.1468044745363335,
+    "dt": 0.018809195051769537,
+    "accepted": false,
+    "attempt": {
+      "success": false,
+      "indicator": 6.235855561473221,
+      "errors": {
+        "pressure": 6.235855561473221,
+        "s_w": 0.013292894483291073,
+        "s_g": 0.007087733329913526,
+        "withdrawal": 0.12046102987430897,
+        "component_mass": 0.027829599945740933,
+        "s_o": 0.013292894483263318
+      },
+      "reason": "local temporal defect exceeds tolerance",
+      "reservoir_step_calls": 3
+    }
+  },
+  {
+    "day": 1.1468044745363335,
+    "dt": 0.005642758515530794,
+    "accepted": true,
+    "attempt": {
+      "success": true,
+      "indicator": 0.0,
+      "errors": {
+        "pressure": 0.0,
+        "s_w": 0.0,
+        "s_g": 0.0,
+        "withdrawal": 0.0,
+        "component_mass": 0.0,
+        "s_o": 0.0
+      },
+      "reason": "accepted",
+      "reservoir_step_calls": 3
+    },
+    "balance": [
+      2.9776418073994617e-05,
+      1.2822022820021542e-08,
+      1.9233511029547743e-05
+    ]
+  },
+  {
+    "day": 1.1524472330518643,
+    "dt": 0.011285517031061587,
+    "accepted": true,
+    "attempt": {
+      "success": true,
+      "indicator": 4.373628811944216e-12,
+      "errors": {
+        "pressure": 0.0,
+        "s_w": 0.0,
+        "s_g": 0.0,
+        "withdrawal": 4.373628811944216e-12,
+        "component_mass": 0.0,
+        "s_o": 0.0
+      },
+      "reason": "accepted",
+      "reservoir_step_calls": 3
+    },
+    "balance": [
+      3.0083133123015432e-05,
+      1.295279168657982e-08,
+      1.9431635761551956e-05
+    ]
+  },
+  {
+    "day": 1.163732750082926,
+    "dt": 0.022571034062123175,
+    "accepted": false,
+    "attempt": {
+      "success": false,
+      "indicator": 7.248798919305206,
+      "errors": {
+        "pressure": 7.248798919305206,
+        "s_w": 0.015514296680646522,
+        "s_g": 0.008496851560346741,
+        "withdrawal": 0.16585422923592794,
+        "component_mass": 0.03235006133000756,
+        "s_o": 0.015514296680674278
+      },
+      "reason": "local temporal defect exceeds tolerance",
+      "reservoir_step_calls": 3
+    }
+  },
+  {
+    "day": 1.163732750082926,
+    "dt": 0.006771310218636986,
+    "accepted": true,
+    "attempt": {
+      "success": true,
+      "indicator": 7.900395649559071e-12,
+      "errors": {
+        "pressure": 0.0,
+        "s_w": 0.0,
+        "s_g": 0.0,
+        "withdrawal": 7.900395649559071e-12,
+        "component_mass": 0.0,
+        "s_o": 0.0
+      },
+      "reason": "accepted",
+      "reservoir_step_calls": 3
+    },
+    "balance": [
+      3.0267162152427922e-05,
+      1.3031253006514787e-08,
+      1.9550510600754475e-05
+    ]
+  },
+  {
+    "day": 1.1705040603015628,
+    "dt": 0.013542620437273972,
+    "accepted": false,
+    "attempt": {
+      "success": false,
+      "indicator": 4.712204842684791,
+      "errors": {
+        "pressure": 4.712204842684791,
+        "s_w": 0.009977812578332301,
+        "s_g": 0.005110307835787253,
+        "withdrawal": 0.06597159934802709,
+        "component_mass": 0.021029935318710533,
+        "s_o": 0.00997781257827679
+      },
+      "reason": "local temporal defect exceeds tolerance",
+      "reservoir_step_calls": 3
+    }
+  },
+  {
+    "day": 1.1705040603015628,
+    "dt": 0.004062786131182158,
+    "accepted": true,
+    "attempt": {
+      "success": true,
+      "indicator": 6.298693831828685e-12,
+      "errors": {
+        "pressure": 0.0,
+        "s_w": 0.0,
+        "s_g": 0.0,
+        "withdrawal": 6.298693831828685e-12,
+        "component_mass": 0.0,
+        "s_o": 0.0
+      },
+      "reason": "accepted",
+      "reservoir_step_calls": 3
+    },
+    "balance": [
+      3.037757957007542e-05,
+      1.307832979847577e-08,
+      1.9621835504275995e-05
+    ]
+  },
+  {
+    "day": 1.174566846432745,
+    "dt": 0.008125572262364315,
+    "accepted": true,
+    "attempt": {
+      "success": true,
+      "indicator": 6.063410975764542e-12,
+      "errors": {
+        "pressure": 0.0,
+        "s_w": 0.0,
+        "s_g": 0.0,
+        "withdrawal": 6.063410975764542e-12,
+        "component_mass": 0.0,
+        "s_o": 0.0
+      },
+      "reason": "accepted",
+      "reservoir_step_calls": 3
+    },
+    "balance": [
+      3.05984144053704e-05,
+      1.3172483382397731e-08,
+      1.9764485311319024e-05
+    ]
+  },
+  {
+    "day": 1.1826924186951093,
+    "dt": 0.01625114452472863,
+    "accepted": false,
+    "attempt": {
+      "success": false,
+      "indicator": 5.513147135651857,
+      "errors": {
+        "pressure": 5.513147135651857,
+        "s_w": 0.011715701964981617,
+        "s_g": 0.00612911525932347,
+        "withdrawal": 0.09252715658607906,
+        "component_mass": 0.024604346793423413,
+        "s_o": 0.011715701965009373
+      },
+      "reason": "local temporal defect exceeds tolerance",
+      "reservoir_step_calls": 3
+    }
+  },
+  {
+    "day": 1.1826924186951093,
+    "dt": 0.004875343357418589,
+    "accepted": true,
+    "attempt": {
+      "success": true,
+      "indicator": 8.140054403709969e-13,
+      "errors": {
+        "pressure": 0.0,
+        "s_w": 0.0,
+        "s_g": 0.0,
+        "withdrawal": 8.140054403709969e-13,
+        "component_mass": 0.0,
+        "s_o": 0.0
+      },
+      "reason": "accepted",
+      "reservoir_step_calls": 3
+    },
+    "balance": [
+      3.073091530654739e-05,
+      1.322897553275091e-08,
+      1.985007519554484e-05
+    ]
+  },
+  {
+    "day": 1.187567762052528,
+    "dt": 0.009750686714837179,
+    "accepted": true,
+    "attempt": {
+      "success": true,
+      "indicator": 5.6025616284834846e-12,
+      "errors": {
+        "pressure": 0.0,
+        "s_w": 0.0,
+        "s_g": 0.0,
+        "withdrawal": 5.6025616284834846e-12,
+        "component_mass": 0.0,
+        "s_o": 0.0
+      },
+      "reason": "accepted",
+      "reservoir_step_calls": 3
+    },
+    "balance": [
+      3.099591710890138e-05,
+      1.334195983345726e-08,
+      2.0021254963996476e-05
+    ]
+  },
+  {
+    "day": 1.1973184487673652,
+    "dt": 0.019501373429674358,
+    "accepted": false,
+    "attempt": {
+      "success": false,
+      "indicator": 6.426581437512115,
+      "errors": {
+        "pressure": 6.426581437512115,
+        "s_w": 0.013710216472589964,
+        "s_g": 0.007347218419551105,
+        "withdrawal": 0.1284558576597406,
+        "component_mass": 0.02868075494682496,
+        "s_o": 0.013710216472562209
+      },
+      "reason": "local temporal defect exceeds tolerance",
+      "reservoir_step_calls": 3
+    }
+  },
+  {
+    "day": 1.1973184487673652,
+    "dt": 0.005850412028902341,
+    "accepted": true,
+    "attempt": {
+      "success": true,
+      "indicator": 9.047330350965159e-12,
+      "errors": {
+        "pressure": 0.0,
+        "s_w": 0.0,
+        "s_g": 0.0,
+        "withdrawal": 9.047330350965159e-12,
+        "component_mass": 0.0,
+        "s_o": 0.0
+      },
+      "reason": "accepted",
+      "reservoir_step_calls": 3
+    },
+    "balance": [
+      3.1154918190313766e-05,
+      1.3409750413881076e-08,
+      2.012396282506746e-05
+    ]
+  },
+  {
+    "day": 1.2031688607962674,
+    "dt": 0.011700824057804681,
+    "accepted": false,
+    "attempt": {
+      "success": false,
+      "indicator": 4.145085944705084,
+      "errors": {
+        "pressure": 4.145085944705084,
+        "s_w": 0.008751875634122053,
+        "s_g": 0.004417105684884071,
+        "withdrawal": 0.05003413897545972,
+        "component_mass": 0.018499005777544226,
+        "s_o": 0.008751875634094297
+      },
+      "reason": "local temporal defect exceeds tolerance",
+      "reservoir_step_calls": 3
+    }
+  }
+]

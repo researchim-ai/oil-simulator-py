@@ -1,0 +1,16 @@
+[
+  {
+    "time_days": 0,
+    "controls": {}
+  },
+  {
+    "time_days": 10,
+    "controls": {
+      "gas_valve_max_opening": 0.8
+    }
+  },
+  {
+    "time_days": 20,
+    "controls": {}
+  }
+]

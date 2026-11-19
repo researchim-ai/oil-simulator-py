@@ -16,6 +16,7 @@ import numpy as np
 import torch
 
 from .component_energy import ComponentEnergyStream
+from .equilibrium_cache import validated_state_key
 from .equilibrium_properties import EquilibriumFluid
 from .inclined_cylinder import InclinedCylinderGeometry, geometry_from_dict
 from .liquid import ConservationError, HydraulicConvergenceError, PropertyModelError, _number
@@ -24,7 +25,7 @@ from .peng_robinson import R
 from .pr_phase_batch import PhaseEOSGroups
 from .separator_geometry import SeparatorGeometry
 from .three_phase_properties import disk_area_moment, level_tensor
-from .torch_linear import TorchNewton
+from .torch_nonlinear import TorchNewton
 
 
 @dataclass(frozen=True)
@@ -597,9 +598,12 @@ class StratifiedPRColumn:
         return state, report
 
     def _remember(self, state):
+        key = validated_state_key(self, state)
+        if key is None:
+            return
         if len(self._verified) >= 8:
             self._verified.pop(next(iter(self._verified)))
-        self._verified[_digest(state.to_dict())] = True
+        self._verified[key] = True
 
     def _check_topology(self, data, roots):
         bounds = torch.cat((self._zero.reshape(1), data["interfaces"], self._height.reshape(1)))
@@ -622,7 +626,8 @@ class StratifiedPRColumn:
         self._identity()
         if not isinstance(state, StratifiedPRState) or state.model_id != self.model_id:
             raise PropertyModelError("Column state/model mismatch")
-        if _digest(state.to_dict()) in self._verified:
+        key = validated_state_key(self, state)
+        if key is not None and key in self._verified:
             return
         f = self.fluid
         if len(state.component_moles) != len(f.names) or len(state.chemical_constants) != len(

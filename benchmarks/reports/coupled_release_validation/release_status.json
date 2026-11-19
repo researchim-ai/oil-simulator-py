@@ -1,0 +1,34 @@
+{
+  "scope": "Current synthetic release-validation scenarios; not industrial certification or a Norne surface-network qualification.",
+  "complete_surface_validation_passed": false,
+  "coupled_quasi_steady_30d": {
+    "accepted": true,
+    "cells": 1024,
+    "producer_connections": 16,
+    "cpu_solve_wall_s": 167.20558851399983,
+    "gpu_solve_wall_s": 234.38513741099996,
+    "shared_host_timings": true,
+    "comparison": "device_comparison.json",
+    "note": "Gathering backend remains cpu_reference in both runs; CUDA run is not an entirely GPU-resident facility."
+  },
+  "detailed_pr_operating_cycle": {
+    "accepted": false,
+    "elapsed_s": 180.01705653700083,
+    "last_accepted_time_s": 3.816854184757475e-06,
+    "required_time_s": 1.0,
+    "report": "pr_facility.json",
+    "first_rejection_node": "gas_recycle_0",
+    "first_rejection_velocity_defect": 22.274250199161266,
+    "diagnostic": "pr_error_diagnostic/velocity_attribution.json"
+  },
+  "external_experiments": {
+    "accepted": false,
+    "report": "experiments/summary.json",
+    "fit_performed": false
+  },
+  "strict_temporal_forecast": {
+    "complete": false,
+    "reason": "Operator stopped diagnostic-only profile after slow initial progress; KeyboardInterrupt is not a numerical solver failure. Not used as successful validation or speed result.",
+    "failure": "forecast_gpu/failure.json"
+  }
+}

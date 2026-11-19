@@ -1,0 +1,348 @@
+{
+  "initialization_seconds": 0.8838017609996314,
+  "model": {
+    "model": "stratified_pr_flow_v1",
+    "column": {
+      "fluid": {
+        "components": [
+          {
+            "name": "Methane",
+            "critical_temperature_k": 190.564,
+            "critical_pressure_pa": 4599200.0,
+            "acentric_factor": 0.01142,
+            "molar_mass_kg_mol": 0.0160428,
+            "ideal_cp_j_mol_k": 35.7,
+            "min_temperature_k": 160.0,
+            "max_temperature_k": 500.0,
+            "reference_temperature_k": 298.15,
+            "reference_pressure_pa": 100000.0
+          },
+          {
+            "name": "Ethane",
+            "critical_temperature_k": 305.322,
+            "critical_pressure_pa": 4872200.0,
+            "acentric_factor": 0.099,
+            "molar_mass_kg_mol": 0.03006904,
+            "ideal_cp_j_mol_k": 52.5,
+            "min_temperature_k": 160.0,
+            "max_temperature_k": 500.0,
+            "reference_temperature_k": 298.15,
+            "reference_pressure_pa": 100000.0
+          }
+        ],
+        "binary_interactions": [
+          [
+            0.0,
+            0.0
+          ],
+          [
+            0.0,
+            0.0
+          ]
+        ],
+        "min_pressure_pa": 100.0,
+        "max_pressure_pa": 1000000000.0,
+        "max_phases": 3
+      },
+      "geometry": {
+        "diameter_m": 0.1,
+        "length_m": 2.0,
+        "orientation": "vertical"
+      },
+      "gravity_m_s2": 9.80665,
+      "elevation_m": 1000.0,
+      "quadrature_order": 4,
+      "maximum_quadrature_order": 16,
+      "relative_tolerance": 1e-06,
+      "temperature_tolerance_k": 1e-05
+    },
+    "wall": {
+      "heat_capacity_j_k": 1000.0,
+      "fluid_ua_w_k": 2.0,
+      "ambient_ua_w_k": 1.0,
+      "ambient_temperature_k": 310.0,
+      "reference_temperature_k": 298.15,
+      "min_temperature_k": 1.0,
+      "max_temperature_k": 2000.0,
+      "max_temperature_change_k": 5.0
+    },
+    "initial_step_s": 1.0,
+    "minimum_step_s": 1e-05,
+    "maximum_step_s": 60.0,
+    "temperature_tolerance_k": 0.002,
+    "relative_tolerance": 1e-05,
+    "maximum_attempts": 1000,
+    "outlets": [
+      {
+        "name": "export",
+        "back_pressure_pa": 990000.0,
+        "volume_conductance_m3_s_pa": 3e-06,
+        "selection": "bulk",
+        "component": null,
+        "minimum_mole_fraction": 0.5,
+        "opening": 1.0,
+        "maximum_pressure_drop_fraction": 0.05,
+        "pressure_setpoint_pa": null,
+        "opening_gain_per_pa": 0.0,
+        "opening_bias": 0.0,
+        "height_m": 1.0,
+        "diameter_m": 0.05,
+        "level_control": null
+      }
+    ],
+    "feeds": [
+      {
+        "height_m": 1.0,
+        "stream": {
+          "component_molar_rates_mol_s": [
+            3.5,
+            7.4
+          ],
+          "pressure_pa": 1040000.0,
+          "total_energy_rate_w": 14815.325285917595,
+          "model_id": "aa2016c1a0d812a3aa1ec5b5d93d0e60f06a350d3786f212a0f1b3740a080ee8",
+          "elevation_m": 1001.0,
+          "velocity_m_s": 0.0,
+          "gravity_m_s2": 9.80665
+        }
+      }
+    ]
+  },
+  "guess": {
+    "column": {
+      "component_moles": [
+        3.0719057850608618,
+        3.0719057850608618
+      ],
+      "total_energy_j": -10385.212452103688,
+      "temperature_k": 320.00000023250715,
+      "chemical_constants": [
+        1.5962411277125943,
+        1.544725229511057
+      ],
+      "interface_heights_m": [],
+      "phase_seeds": [
+        [
+          0.49998636058726964,
+          0.5000136394127304
+        ]
+      ],
+      "phase_roots": [
+        "stable"
+      ],
+      "quadrature_order": 8,
+      "solution_variables": [
+        13.815595480296292,
+        -5.4557650935072235e-05,
+        13.815581010198553,
+        -4.526124192087783e-05,
+        13.815557032418731,
+        -2.9856551162050912e-05,
+        13.815526779074736,
+        -1.0420064434477194e-05,
+        13.815494335216478,
+        1.0423754735961447e-05,
+        13.815464082151617,
+        2.9860099803807026e-05,
+        13.815440104784383,
+        4.5264581175285616e-05,
+        13.815425635017505,
+        5.456082227920127e-05,
+        1.5962411277125943,
+        1.544725229511057,
+        1.0732852598776024
+      ],
+      "model_id": "558dc04ce280c3eec3dc2e50bed312197181174cc8c42ee8afe83032a84412e7"
+    },
+    "wall_temperature_k": 320.00000023250715,
+    "time_s": 0.0,
+    "next_step_s": 1.0,
+    "model_id": "4206f437c9f4d643e1d1ee42748713d2f1301e36dd8a5e6a7fc2ba6fac55bd54"
+  },
+  "state": {
+    "column": {
+      "component_moles": [
+        1.9252936914356529,
+        4.070620954577002
+      ],
+      "total_energy_j": -7557.936746937612,
+      "temperature_k": 329.6564645505923,
+      "chemical_constants": [
+        1.1575710233782401,
+        1.853415066880708
+      ],
+      "interface_heights_m": [],
+      "phase_seeds": [
+        [
+          0.3210892461688729,
+          0.678910753831127
+        ]
+      ],
+      "phase_roots": [
+        "stable"
+      ],
+      "quadrature_order": 8,
+      "solution_variables": [
+        13.81512091070928,
+        -0.7487705713270437,
+        13.815105244479449,
+        -0.7487614486771542,
+        13.815079284633807,
+        -0.7487463319205849,
+        13.815046530457902,
+        -0.7487272587369534,
+        13.81501140467891,
+        -0.7487068045379601,
+        13.814978650778425,
+        -0.7486877315147711,
+        13.814952691339878,
+        -0.7486726149953518,
+        13.814937025436503,
+        -0.7486634925356355,
+        1.1575710233782401,
+        1.853415066880708,
+        1.1056731999013663
+      ],
+      "model_id": "558dc04ce280c3eec3dc2e50bed312197181174cc8c42ee8afe83032a84412e7"
+    },
+    "wall_temperature_k": 323.1043097003949,
+    "time_s": 0.0,
+    "next_step_s": 1.0,
+    "model_id": "4206f437c9f4d643e1d1ee42748713d2f1301e36dd8a5e6a7fc2ba6fac55bd54"
+  },
+  "initialization_report": {
+    "model_id": "4206f437c9f4d643e1d1ee42748713d2f1301e36dd8a5e6a7fc2ba6fac55bd54",
+    "fixed_feeds": true,
+    "reservoir_feedback_solved": false,
+    "component_balance_mol_s": [
+      1.687538997430238e-14,
+      3.552713678800501e-14
+    ],
+    "energy_balance_w": 4.3655745685100555e-11,
+    "verification_duration_s": 0.1,
+    "verification_drift": {
+      "pressure_pa": 0.0,
+      "temperature_k": 1.1368683772161603e-13,
+      "wall_temperature_k": 0.0,
+      "component_moles": 6.838973831690964e-14
+    },
+    "verification_flow": {
+      "dt_s": 0.1,
+      "profile_acceptance": "verified_joint_flow_iterate",
+      "column_state": {
+        "component_moles": [
+          1.9252936914356247,
+          4.070620954576934
+        ],
+        "total_energy_j": -7557.9367469377385,
+        "temperature_k": 329.6564645505922,
+        "chemical_constants": [
+          1.1575710233782333,
+          1.8534150668807121
+        ],
+        "interface_heights_m": [],
+        "phase_seeds": [
+          [
+            0.32108924616887047,
+            0.6789107538311295
+          ]
+        ],
+        "phase_roots": [
+          "stable"
+        ],
+        "quadrature_order": 8,
+        "solution_variables": [
+          13.81512091070928,
+          -0.7487705713270552,
+          13.815105244479449,
+          -0.7487614486771658,
+          13.815079284633807,
+          -0.7487463319205965,
+          13.815046530457902,
+          -0.7487272587369651,
+          13.81501140467891,
+          -0.7487068045379714,
+          13.814978650778423,
+          -0.7486877315147819,
+          13.814952691339878,
+          -0.7486726149953631,
+          13.814937025436501,
+          -0.7486634925356465,
+          1.1575710233782333,
+          1.8534150668807121,
+          1.1056731999013658
+        ],
+        "model_id": "558dc04ce280c3eec3dc2e50bed312197181174cc8c42ee8afe83032a84412e7"
+      },
+      "wall_temperature_k": 323.1043097003949,
+      "ambient_heat_j": -1.310430970039488,
+      "fluid_heat_j": -1.3104309700394652,
+      "energy_residual_j": -1.818989403545753e-13,
+      "entropy_production_j_k": 0.34370045127058485,
+      "feed_energy_j": 1481.5325285917597,
+      "outlet_energy_j": 1480.2220976218464,
+      "feed_component_moles": [
+        0.35000000000000003,
+        0.7400000000000001
+      ],
+      "outlet_component_moles": [
+        0.3500000000000283,
+        0.7400000000000682
+      ],
+      "quadrature_error_ratio": 7.434293411009294e-06,
+      "phase_count": 1,
+      "outlets": [
+        {
+          "name": "export",
+          "opening": 1.0,
+          "volume_rate_m3_s": 0.028555576595647003,
+          "component_rates_mol_s": [
+            3.5000000000002824,
+            7.400000000000681
+          ],
+          "total_energy_rate_w": 14802.220976218463,
+          "phase_area_fractions": [
+            1.0000000000000002
+          ]
+        }
+      ]
+    },
+    "initial_inventory_change_mol": [
+      -1.1466120936252089,
+      0.9987151695161405
+    ],
+    "initial_energy_change_j": 2827.2757051660756
+  },
+  "comparisons": [
+    {
+      "initialization": "unbalanced",
+      "dt_s": 0.02,
+      "wall_seconds": 1.7523856820007495,
+      "pressure_difference_pa": 39.8953049936099,
+      "temperature_difference_k": 0.0006206796963965644,
+      "component_difference_mol": 0.000459040777985642
+    },
+    {
+      "initialization": "stationary",
+      "dt_s": 0.02,
+      "wall_seconds": 1.6381728779997502,
+      "pressure_difference_pa": 0.0,
+      "temperature_difference_k": 0.0,
+      "component_difference_mol": 1.0658141036401503e-14
+    },
+    {
+      "initialization": "stationary",
+      "dt_s": 1.0,
+      "wall_seconds": 1.9667253640000126,
+      "pressure_difference_pa": 3.4924596548080444e-09,
+      "temperature_difference_k": 1.9326762412674725e-12,
+      "component_difference_mol": 9.103828801926284e-13
+    }
+  ],
+  "independent_audit": {
+    "accepted": true,
+    "checked_substeps": 1,
+    "reference_port_quadrature": 32,
+    "maximum_energy_residual_j": 4.065441316924989e-10
+  }
+}

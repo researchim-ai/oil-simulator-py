@@ -1,0 +1,31 @@
+from pathlib import Path
+import sys,runpy,json
+import torch
+r=Path.cwd();sys.path[:0]=[str(r/'src'),str(r/'scripts')]
+from simulator.blackoil_fim import BlackOilFIMSolver,I_B,GAS
+original_step=BlackOilFIMSolver.step
+original_conv=BlackOilFIMSolver.convergence
+original_update=BlackOilFIMSolver._apply_update
+state={};file=(r/'.scratch/norne_oscillation/cells.jsonl').open('w',buffering=1)
+def step(self,dt,current_time=None):
+ state['day']=(current_time or 0)/86400
+ return original_step(self,dt,current_time)
+def conv(self,R,dt,pv,wsys,p_bh,v=None):
+ ok,detail=original_conv(self,R,dt,pv,wsys,p_bh,v)
+ if state.get('day',0)>=2510:
+  scaled=dt*(1/v[I_B+GAS]).mean()/self.rho_sc[GAS]*R.view(-1,3)[:,GAS]/pv
+  _,idx=scaled.abs().topk(3)
+  state['idx']=idx
+  file.write(json.dumps(dict(kind='residual',day=state['day'],iteration=self._newton_iter,indices=idx.cpu().tolist(),signed_gas_cnv=scaled[idx].cpu().tolist(),criteria=detail))+'\n')
+ return ok,detail
+def update(self,p,sw,x,sat,ug,dx,dbg):
+ result=original_update(self,p,sw,x,sat,ug,dx,dbg)
+ if state.get('day',0)>=2510 and 'idx' in state:
+  i=state['idx'];record=dict(kind='update',iteration=self._newton_iter,indices=i.cpu().tolist())
+  for name,value in [('p',p),('sw',sw),('x',x),('sat',sat),('ug',ug),('dp',dx[:,0]),('dsw',dx[:,1]),('dx',dx[:,2]),('next_p',result[0]),('next_sw',result[1]),('next_x',result[2]),('next_sat',result[3]),('next_ug',result[4])]:
+   record[name]=None if value is None else value[i].detach().cpu().tolist()
+  file.write(json.dumps(record)+'\n')
+ return result
+BlackOilFIMSolver.step=step;BlackOilFIMSolver.convergence=conv;BlackOilFIMSolver._apply_update=update
+sys.argv=[str(r/'scripts/benchmark_norne_accuracy.py'),'--deck',str(r/'.scratch/ot2/norne/NORNE_ATW2013.DATA'), '--grid',str(r/'.scratch/norne_adaptive_amg/late_reference_0/substeps.npz'), '--checkpoint',str(r/'results/norne_gpu_packets_3090_20261031/checkpoint_day_2431.pt'),'--mode','cnv_ref_fine','--out',str(r/'.scratch/norne_oscillation/before'),'--verbose']
+runpy.run_path(sys.argv[0],run_name='__main__')

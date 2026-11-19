@@ -1,0 +1,77 @@
+{
+  "selected": "two_hour",
+  "accepted": true,
+  "basis": "two_hour_vs_refined.json",
+  "work": {
+    "operating": {
+      "solve_wall_s": 182.2540039680025,
+      "accepted_substeps": 490,
+      "reservoir_evaluations": 1683,
+      "linear_attempts": 5006,
+      "execution": {
+        "torch_version": "2.7.0+cu126",
+        "torch_threads": 1,
+        "device_name": "cpu",
+        "cuda_peak_allocated_bytes": null,
+        "cuda_peak_reserved_bytes": null,
+        "memory_scope": "PyTorch allocator peak from before model construction through the forecast; excludes CUDA context and other processes",
+        "gathering_backend": "cpu_reference",
+        "hydraulic_backend": "torch_batch"
+      }
+    },
+    "two_hour": {
+      "solve_wall_s": 137.41992024799765,
+      "accepted_substeps": 370,
+      "reservoir_evaluations": 1300,
+      "linear_attempts": 3682,
+      "execution": {
+        "torch_version": "2.7.0+cu126",
+        "torch_threads": 1,
+        "device_name": "cpu",
+        "cuda_peak_allocated_bytes": null,
+        "cuda_peak_reserved_bytes": null,
+        "memory_scope": "PyTorch allocator peak from before model construction through the forecast; excludes CUDA context and other processes",
+        "gathering_backend": "cpu_reference",
+        "hydraulic_backend": "torch_batch"
+      }
+    },
+    "fast": {
+      "solve_wall_s": 61.421846199002175,
+      "accepted_substeps": 132,
+      "reservoir_evaluations": 549,
+      "linear_attempts": 1623,
+      "execution": {
+        "torch_version": "2.7.0+cu126",
+        "torch_threads": 1,
+        "device_name": "cpu",
+        "cuda_peak_allocated_bytes": null,
+        "cuda_peak_reserved_bytes": null,
+        "memory_scope": "PyTorch allocator peak from before model construction through the forecast; excludes CUDA context and other processes",
+        "gathering_backend": "cpu_reference",
+        "hydraulic_backend": "torch_batch"
+      }
+    },
+    "refined": {
+      "solve_wall_s": 304.6225459109992,
+      "accepted_substeps": 969,
+      "reservoir_evaluations": 3077,
+      "linear_attempts": 8323,
+      "execution": {
+        "torch_version": "2.7.0+cu126",
+        "torch_threads": 1,
+        "device_name": "cpu",
+        "cuda_peak_allocated_bytes": null,
+        "cuda_peak_reserved_bytes": null,
+        "memory_scope": "PyTorch allocator peak from before model construction through the forecast; excludes CUDA context and other processes",
+        "gathering_backend": "cpu_reference",
+        "hydraulic_backend": "torch_batch"
+      }
+    }
+  },
+  "accuracy_scope": "This synthetic 1024-cell, 16-well, 30-day operational scenario; no exact-solution, Norne, experimental or dynamic-vessel qualification",
+  "timing_scope": "Shared-host CPU observations with one Torch thread; no GPU speed claim",
+  "regression_tests": {
+    "passed": 33,
+    "seconds": 4.34
+  }
+}

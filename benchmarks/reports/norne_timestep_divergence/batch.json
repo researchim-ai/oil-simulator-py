@@ -1,0 +1,14 @@
+[
+  {
+    "name": "current_step",
+    "exit_code": 0
+  },
+  {
+    "name": "historical_step",
+    "exit_code": 0
+  },
+  {
+    "name": "current_ref",
+    "exit_code": 1
+  }
+]

@@ -1,0 +1,22 @@
+{
+  "historical_step": {
+    "sources_and_inputs_unchanged": true,
+    "changed": []
+  },
+  "half_ref": {
+    "sources_and_inputs_unchanged": true,
+    "changed": []
+  },
+  "current_step": {
+    "sources_and_inputs_unchanged": true,
+    "changed": []
+  },
+  "current_ref": {
+    "sources_and_inputs_unchanged": true,
+    "changed": []
+  },
+  "half_step": {
+    "sources_and_inputs_unchanged": true,
+    "changed": []
+  }
+}

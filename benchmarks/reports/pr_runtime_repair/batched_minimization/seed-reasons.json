@@ -1,0 +1,9 @@
+{
+  "all": 3888,
+  "accepted": 3232,
+  "invalid": 0,
+  "chemical_residual": 656,
+  "gradient": 656,
+  "curvature_or_predictor_rounding": 0,
+  "seconds": 38.26899028900152
+}

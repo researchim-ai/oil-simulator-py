@@ -1,0 +1,2354 @@
+"""
+Полностью неявный трёхфазный black-oil (FIM): нефть, вода, газ с растворённым газом Rs.
+
+Неизвестные в ячейке: P (давление нефти), Sw и переменная X с переключением (как в OPM Flow):
+  насыщенная ячейка (нефть и газ):            X = Sg,  Rs = Rs_sat(P), Rv = Rv_sat(P)
+  недонасыщенная нефть (свободного газа нет): X = Rs,  Sg = 0
+  недонасыщенный газ (нефти нет, VAPOIL):     X = Rv,  Sg = 1 − Sw
+Уравнения — массовые балансы компонентов [кг/с]:
+  нефть: d/dt(φ (So bo + Sg bg Rv) ρo_sc) + div(ρo_sc (bo kro/μo ∇Φo + Rv bg krg/μg ∇Φg))
+  вода:  d/dt(φ Sw bw ρw_sc) + div(ρw_sc bw krw/μw ∇Φw)
+  газ:   d/dt(φ (Sg bg + So bo Rs) ρg_sc) + div(ρg_sc (bg krg/μg ∇Φg + Rs bo kro/μo ∇Φo))
+где b = 1/B. Свойства ячейки и их производные по (P, Sw, X) берутся прямым режимом AD (torch.func.jvp),
+потоки по граням и скважины собираются вручную с upwind по потенциалу каждой фазы.
+"""
+import numpy as np
+import torch
+import torch.nn.functional as F
+from torch.func import jacfwd, jvp, vmap
+
+from .blackoil_props import BlackOilPVT, ThreePhaseRelPerm
+from .cuda_graphs import capture
+from .fim_wells import FIMWells, G, DAY
+from .manual_assembly_solver import ManualFIMSolver
+from .fim_transaction import atomic_fim_step
+from .fim_initial_cell_cache import initial_cell_state
+from .facility_tangent import capture_facility_tangent
+from .surface_coupling import surface_step_failure
+from .sparse_utils import SparseMatrixBuilder
+
+OIL, WAT, GAS = 0, 1, 2
+PHASE_IDX = {"oil": OIL, "water": WAT, "gas": GAS}
+
+# строки массива свойств ячейки
+I_ACC = 0          # 0..2  массы компонентов в ячейке, кг
+I_P = 3            # 3..5  давления фаз o, w, g
+I_RHO = 6          # 6..8  пластовые плотности фаз
+I_MOO, I_MWW, I_MGG, I_MGO = 9, 10, 11, 12  # массовые подвижности компонент/фаза
+I_LT = 13          # суммарная объёмная подвижность Σ kr/μ
+I_B = 14           # 14..16 bo, bw, bg
+I_MOG = 17         # масса нефти (испарённой, Rv) в газовой фазе
+I_RS, I_RV = 18, 19  # свойства состояния, в том числе при нулевой подвижности фазы
+N_PROPS = 20
+# (компонент, фаза, строка подвижности)
+FLUX_TERMS = ((OIL, OIL, I_MOO), (WAT, WAT, I_MWW), (GAS, GAS, I_MGG), (GAS, OIL, I_MGO))
+FLUX_TERMS_WET = FLUX_TERMS + ((OIL, GAS, I_MOG),)
+# зона нечувствительности переключения переменных: без «дребезга» ячеек на линии насыщения от шума округления
+SWITCH_EPS_S = 1e-12   # по насыщенности
+SWITCH_EPS_R = 1e-10   # относительная, по Rs / Rv
+# ячейка без нефти и газа (Sw ≥ 1 − SO_EMPTY) ведётся по Sg, а не по Rs (как в OPM): масса газа So·bo·Rs
+# при So = 0 не зависит от Rs, и пришедший газ (нагнетательная в водоносной ячейке) не может появиться
+SO_EMPTY = 1e-6
+# обратно на Rs — только при заметной нефти: иначе водоносные ячейки (Sw ≈ 1, Sg ≈ 0) дребезжат на пороге
+SO_FILLED = 1e-4
+
+def surface_to_reservoir(pvt, p, qo, qw, qg, rs_max=None, rv_max=None, with_mu=False):
+    """
+    Пластовые объёмы фаз по поверхностным (Qo, Qw, Qg) при давлении p (разгазирование и выпадение конденсата):
+    Rs = min(Rs_max, Qg/Qo), Rv = min(Rv_max, Qo/Qg), D = 1 − Rs·Rv,
+    Vo = (Qo − Rv·Qg)/(bo·D), Vg = (Qg − Rs·Qo)/(bg·D), Vw = Qw/bw.
+    Rs_max, Rv_max по умолчанию — насыщенные при p. with_mu — ещё и вязкости фаз (μo, μw, μg).
+    """
+    rs_s, rv_s = pvt.rs_sat(p), pvt.rv_sat(p)
+    rs_cap = rs_s if rs_max is None else torch.minimum(rs_s, rs_max)
+    rv_cap = rv_s if rv_max is None else torch.minimum(rv_s, rv_max)
+    rs = torch.where(qo > 0, torch.minimum(rs_cap, qg / qo.clamp_min(1e-300)), torch.zeros_like(p))
+    rv = torch.where(qg > 0, torch.minimum(rv_cap, qo / qg.clamp_min(1e-300)), torch.zeros_like(p))
+    bo, mu_o = pvt.oil(p, rs, rs >= rs_s - 1e-12)
+    bw, mu_w = pvt.water(p)
+    bg, mu_g = pvt.gas(p, rv, rv >= rv_s - 1e-12) if getattr(pvt, "wet", False) else pvt.gas(p)
+    D = (1.0 - rs * rv).clamp_min(1e-12)
+    vo = ((qo - rv * qg) / (bo * D)).clamp_min(0.0)
+    vg = ((qg - rs * qo) / (bg * D)).clamp_min(0.0)
+    if with_mu:
+        return vo, qw / bw, vg, (mu_o, mu_w, mu_g)
+    return vo, qw / bw, vg
+
+
+def friction_factor(re, diam, rough):
+    """Фаннинг (как OPM Flow): 16/Re при Re < 2000, Хааланд при Re > 4000, между — линейно."""
+    def haaland(r):
+        s = -3.6 * torch.log10(6.9 / r + (rough / (3.7 * diam)) ** (10.0 / 9.0))
+        return 1.0 / (s * s)
+    re_s = re.clamp_min(1e-30)
+    f1 = 16.0 / 2000.0
+    f2 = haaland(torch.full_like(re_s, 4000.0))
+    lin = f1 + (f2 - f1) * (re_s - 2000.0) / 2000.0
+    f = torch.where(re_s < 2000.0, 16.0 / re_s, torch.where(re_s > 4000.0, haaland(re_s.clamp_min(4000.0)), lin))
+    return torch.where(re > 0, f, torch.zeros_like(f))
+
+
+class BlackOilWells(FIMWells):
+    """Скважины трёхфазной модели: те же p_bh-неизвестные, режимы и дополнение Шура, что в FIMWells."""
+
+    def __init__(self, well_manager, reservoir, fluid, dims, device):
+        super().__init__(well_manager, reservoir, fluid, dims, device)
+        self.rho_sc = torch.tensor([fluid.rho_oil_ref, fluid.rho_water_ref, fluid.rho_gas_ref],
+                                   dtype=torch.float64, device=device)
+        inj_ph, weights = [], []
+        for w in self.wells:
+            a = [0.0, 0.0, 0.0]
+            if w.type == 'injector':
+                ph = PHASE_IDX.get((w.injected_phase or 'water').lower())
+                if ph is None or ph == OIL:
+                    raise ValueError(f"Скважина {w.name}: закачка '{w.injected_phase}' не поддерживается (water|gas)")
+                a[ph] = -1.0
+                inj_ph.append(ph)
+            else:
+                ph = (w.surface_phase or 'liquid').lower()
+                sel = {'oil': (OIL,), 'water': (WAT,), 'gas': (GAS,), 'liquid': (OIL, WAT)}.get(ph)
+                if sel is None:
+                    raise ValueError(f"Скважина {w.name}: surface_phase '{w.surface_phase}' не поддерживается")
+                for s in sel:
+                    a[s] = 1.0
+                inj_ph.append(OIL)
+            weights.append(a)
+        self.inj_phase = torch.tensor(inj_ph, dtype=torch.long, device=device)
+        self.rate_w = torch.tensor(weights, dtype=torch.float64, device=device).reshape(-1, 3) / self.rho_sc
+        self.pvt = None
+        self.wellbore_density = 'flash'   # 'flash' (OPM/Eclipse) | 'cell' (средняя по ячейкам)
+        self.conn_head = torch.zeros_like(self.conn_dz)
+        self.msw = {}
+        for w_idx, w in enumerate(self.wells):
+            m = getattr(w, "msw", None)
+            if m is None:
+                continue
+            T = lambda a: torch.tensor(a, dtype=torch.float64, device=device)
+            outlet = list(m["outlet"])
+            level = [0] * len(outlet)
+            for s in range(len(outlet)):
+                o, n = outlet[s], 0
+                while o >= 0:
+                    o, n = outlet[o], n + 1
+                level[s] = n
+            idx = (self.conn_well == w_idx).nonzero().view(-1)
+            anc = []
+            for s in m["conn_seg"]:
+                chain, o = set(), s
+                while o >= 0:
+                    chain.add(o)
+                    o = outlet[o]
+                anc.append(chain)
+            # sub[i, j] = 1: сегмент соединения j — в поддереве сегмента соединения i (поток j проходит через него)
+            sub = T([[1.0 if si in anc[j] else 0.0 for j in range(len(anc))] for si in m["conn_seg"]])
+            self.msw[w_idx] = dict(
+                sub=sub,
+                conns=idx, conn_seg=torch.tensor(m["conn_seg"], dtype=torch.long, device=device),
+                conn_depth=T(m["conn_depth"]), depth=T(m["depth"]), outlet=outlet,
+                order=sorted(range(len(outlet)), key=lambda s: level[s]),     # сверху вниз
+                length=T(m["length"]), diam=T(m["diam"]), rough=T(m["rough"]), area=T(m["area"]),
+                friction="F" in m["comp"], head=None)
+        self.conn_open = torch.tensor([w.control_type != 'shut' for w in self.wells],
+                                      dtype=torch.float64, device=device)[self.conn_well]
+        self.conn_a = self.rate_w[self.conn_well]         # веса уравнения дебита по соединениям (на шаг)
+        self.conn_eff = torch.ones_like(self.conn_wi)     # WEFAC скважины по соединениям
+        self._mix_sel = None
+        self.p_avg = None                                 # среднее пластовое давление (для RESV), Па
+        self.vfp, self.depth_top = {}, 0.0                # таблицы VFPPROD {номер: VFPProd}; верх пласта, м
+        self._Q = None                                    # поверхностные дебиты скважин с последней сборки
+        self._lin, self.p_cell_max = None, None           # линеаризация притока; макс. давление ячеек скважины
+        self.liftopt, self.wliftopt = None, {}            # LIFTOPT, WLIFTOPT текущего шага расписания
+        self.alq_opt, self._lift_t = {}, None             # оптимизированный газлифт {скважина: ALQ}; время, сут
+        self.alq_si = 1.0 / DAY                           # ALQ (ед. deck) → ст. м³/с газа
+        self.pbh_override = {}                            # забой при переходе на THP (устойчивая ветвь)
+        self.network = None                               # расширенная сеть шага (BRANPROP/NODEPROP/NETBALAN)
+        self.node_p, self._net_iter = {}, 0               # давления узлов сети, Па; балансировок за шаг
+        self.rs_avg = self.rv_avg = None                  # средние Rs, Rv (для RESV)
+        self.flux_terms = FLUX_TERMS
+        self.groups = None                                # (GroupTree, [ограничения]) — групповые контроли
+        self.group_controlled = set()
+        self.reinit_bhp = set()                           # скважины, сменившие тип: p_bh — заново с начального
+        # смешение в стволе нагнетательных: переток пласт → ствол закачивается обратно через закачивающие
+        # перфорации. Ячейки одной скважины связаны — пары перфораций (pair_c, pair_d) входят в шаблон матрицы
+        # (позиции блоков pair_pos задаёт решатель), Якобиан точный
+        self.wellbore_mixing = True
+        cw_np = self.conn_well.cpu().numpy()
+        pc, pd = [], []
+        for w_idx in range(self.n_w):
+            idx = np.nonzero(cw_np == w_idx)[0]
+            if idx.size > 1:
+                pc.append(np.repeat(idx, idx.size))
+                pd.append(np.tile(idx, idx.size))
+        cat = (lambda a: torch.as_tensor(np.concatenate(a), dtype=torch.long, device=device)) if pc else \
+            (lambda a: torch.zeros(0, dtype=torch.long, device=device))
+        self.pair_c, self.pair_d = cat(pc), cat(pd)
+        self.pair_pos = None
+        self._mix = None
+
+    def set_surface_phase(self, w_idx, phase):
+        w = self.wells[w_idx]
+        if w.type == 'injector':
+            return
+        sel = {'oil': (OIL,), 'water': (WAT,), 'gas': (GAS,), 'liquid': (OIL, WAT)}.get((phase or 'liquid').lower())
+        if sel is None:
+            raise ValueError(f"Скважина {w.name}: surface_phase '{phase}' не поддерживается")
+        a = torch.zeros(3, dtype=torch.float64, device=self.device)
+        a[list(sel)] = 1.0
+        self.rate_w[w_idx] = a / self.rho_sc
+
+    def set_type(self, w_idx, well_type, injected_phase=None, surface_phase=None):
+        """Смена типа скважины (добыча ↔ закачка) или фазы закачки по расписанию."""
+        w = self.wells[w_idx]
+        if well_type == 'injector':
+            ph = PHASE_IDX.get((injected_phase or 'water').lower())
+            if ph is None or ph == OIL:
+                raise ValueError(f"Скважина {w.name}: закачка '{injected_phase}' не поддерживается (water|gas)")
+        elif well_type != 'producer':
+            raise ValueError(f"Скважина {w.name}: тип {well_type}")
+        w.type = well_type
+        w.injected_phase = injected_phase if well_type == 'injector' else w.injected_phase
+        self.is_inj[w_idx] = well_type == 'injector'
+        if well_type == 'injector':
+            self.inj_phase[w_idx] = ph
+            a = torch.zeros(3, dtype=torch.float64, device=self.device)
+            a[ph] = -1.0
+            self.rate_w[w_idx] = a / self.rho_sc
+        else:
+            self.inj_phase[w_idx] = OIL
+            w.surface_phase = surface_phase
+            self.set_surface_phase(w_idx, surface_phase)
+        self.mode[w_idx] = w.control_type
+        self.reinit_bhp.add(w_idx)
+
+    def set_open(self, w_idx, is_open):
+        self.conn_open[self.conn_well == w_idx] = 1.0 if is_open else 0.0
+
+    def _apply_groups(self, v, q, dqb, d=None, current_bhp=None):
+        """Групповые цели по переданному состоянию: guide rate = потенциал при предельном BHP."""
+        from .groups import group_targets
+        tree, constraints = self.groups
+        if not constraints:
+            return
+        cw = self.conn_well
+        rho = self.rho_sc
+        zeros = torch.zeros(self.n_w, dtype=torch.float64, device=self.device)
+        rw = self._resv_weights(v)
+        lim = torch.tensor([self.bhp_limit(w) for w in self.wells], dtype=torch.float64, device=self.device)
+        pb = current_bhp if current_bhp is not None else (self.p_bh if self.p_bh is not None else lim)
+        sign = torch.where(self.is_inj, -1.0, 1.0).double()
+
+        def per_well(weights, p):
+            q0 = zeros.clone().index_add_(0, cw, (weights * q).sum(1))
+            D = zeros.clone().index_add_(0, cw, (weights * dqb).sum(1))
+            return (sign * (q0 + D * p)).clamp_min(0.0).tolist()
+
+        onehot = [torch.zeros(3, dtype=torch.float64, device=self.device) for _ in range(3)]
+        for m in range(3):
+            onehot[m][m] = 1.0 / rho[m]
+        pot_ph = [per_well(onehot[m].expand_as(q), lim) for m in range(3)]
+        cur_ph = [per_well(onehot[m].expand_as(q), pb) for m in range(3)]
+        if d is not None and bool(self.is_inj.any()):
+            # линеаризация q(0) + D·pb — по ветви притока; закачка идёт с полной подвижностью ячейки
+            for p_w, out in ((lim, pot_ph), (pb, cur_ph)):
+                qi = self._conn_flows(v, d, p_w)[0]
+                for m in range(3):
+                    tot = (-zeros.clone().index_add_(0, cw, qi[:, m] / rho[m])).clamp_min(0.0).tolist()
+                    for i in range(self.n_w):
+                        if self.wells[i].type == 'injector':
+                            out[m][i] = tot[i]
+        pot_res, cur_res = per_well(rw, lim), per_well(rw, pb)
+        pot, cur, prod_res, info = {}, {}, {}, []
+        names = {0: "oil", 1: "water", 2: "gas"}
+        base_targets = getattr(self, "_group_base_targets", self.step_targets)
+        eff = [float(getattr(w, "eff", 1.0) or 1.0) for w in self.wells]
+        for i, w in enumerate(self.wells):
+            pot[w.name] = {names[m]: pot_ph[m][i] for m in range(3)} | {"resv": pot_res[i]}
+            lifted = self.liftopt is not None and (self.wliftopt or {}).get(w.name, {}).get("opt")
+            if w.type == 'producer' and self.has_thp(i) and self.p_cell_max is not None and not lifted:
+                # потенциал с учётом THP (как в Eclipse): дебит на устойчивой ветви при текущем газлифте
+                st = self._thp_stable(i, float(lim[i]), lin=(q, dqb, torch.zeros_like(lim)), phases=True)
+                Qt = st[1].tolist() if st is not None else [0.0, 0.0, 0.0]
+                pot[w.name].update({names[m]: min(pot_ph[m][i], Qt[m]) for m in range(3)})
+            # группа считает дебиты с коэффициентом эксплуатации (WEFAC)
+            pot[w.name] = {k: x * eff[i] for k, x in pot[w.name].items()}
+            cur[w.name] = {names[m]: cur_ph[m][i] * eff[i] for m in range(3)}
+            prod_res[w.name] = cur_res[i] * eff[i]
+            ctrl, val = base_targets[i]
+            if w.type == 'injector':
+                phase = (w.injected_phase or 'water').lower() if ctrl == 'rate' else None
+            else:
+                phase = 'resv' if i in self._resv_idx else \
+                    {'rate': (w.surface_phase or 'liquid').lower()}.get(ctrl)
+            grup = bool(getattr(w, 'grup', False))
+            info.append(dict(name=w.name, type=w.type, open=ctrl != 'shut' and not getattr(w, 'stopped', False), grup=grup,
+                             phase=None if grup else phase, value=None if grup else val * eff[i],
+                             limits={ph: x * eff[i] / DAY for ph, x in (getattr(w, "rate_limits", None) or {}).items()},
+                             inj_phase=(w.injected_phase or 'water').lower() if w.type == 'injector' else None))
+        cons = [dict(c, target=c["target"] / DAY) for c in constraints]
+        new = group_targets(tree, cons, info, pot, cur, prod_res)
+        # Повторное согласование не должно превращать предыдущую долю в новый
+        # индивидуальный предел и навсегда запрещать обратное увеличение дебита.
+        self.step_targets = list(base_targets)
+        self._active_resv_idx = set(self._resv_idx)
+        if hasattr(self, "_group_base_a"):
+            self.conn_a.copy_(self._group_base_a)
+        self.group_controlled = set(new)
+        self._group_capacity_limited = set()
+        for name, (ph, val) in new.items():
+            i = next(k for k, w in enumerate(self.wells) if w.name == name)
+            m = cw == i
+            if ph == 'resv':
+                a = rw[m]
+                self._active_resv_idx.add(i)
+            elif self.wells[i].type == 'injector':
+                a = -onehot[{'water': WAT, 'gas': GAS}[ph]].expand(int(m.sum()), 3)
+                self._active_resv_idx.discard(i)
+            else:
+                sel = {'oil': (OIL,), 'water': (WAT,), 'gas': (GAS,), 'liquid': (OIL, WAT)}[ph]
+                a = sum(onehot[k] for k in sel).expand(int(m.sum()), 3)
+                self._active_resv_idx.discard(i)
+            self.conn_a[m] = a
+            self.step_targets[i] = ('rate', val / eff[i])
+            capacity = pot[name].get(ph, 0.0)
+            if (getattr(self, "network", None) is not None and self.wells[i].type == 'producer'
+                    and self.has_thp(i) and capacity > 0 and val >= capacity * (1 - 1e-9)):
+                # Доля упёрлась в потенциал на THP: активное уравнение — давление,
+                # а не равенство расхода обновляемой оценке того же потенциала.
+                self._group_capacity_limited.add(i)
+
+    def _resv_weights(self, v):
+        """
+        Пересчёт масс компонентов в пластовый объём на соединениях: q_res = Σ a_c q_c. Как в Eclipse/OPM
+        (RateConverter::calcCoeff) — при средних по углеводородному поровому объёму давлении, Rs и Rv
+        (PVT-регион соединения); без средних — по состоянию ячеек соединений.
+        """
+        c = self.conn_cell
+        rho = self.rho_sc
+        if self.p_avg is not None and self.rs_avg is not None and self.pvt is not None:
+            pvt = self.pvt.at(c)
+            p = torch.full((c.numel(),), float(self.p_avg), dtype=torch.float64, device=self.device)
+            rs_s = pvt.rs_sat(p)
+            rs = torch.minimum(torch.full_like(p, float(self.rs_avg)), rs_s)
+            bo = pvt.oil(p, rs, rs >= rs_s)[0]
+            bw = pvt.water(p)[0]
+            if getattr(pvt, "wet", False) and self.rv_avg is not None:
+                rv_s = pvt.rv_sat(p)
+                rv = torch.minimum(torch.full_like(p, float(self.rv_avg)), rv_s)
+                bg = pvt.gas(p, rv, rv >= rv_s)[0]
+            else:
+                rv = torch.zeros_like(p)
+                bg = pvt.gas(p)[0]
+        else:
+            bo, bw, bg = (v[I_B + m][c].clamp_min(1e-12) for m in range(3))
+            rs, rv = v[I_RS][c], v[I_RV][c]
+        D = (1.0 - rs * rv).clamp_min(1e-12)
+        return torch.stack([(1.0 / bo - rs / bg) / (rho[OIL] * D), 1.0 / (rho[WAT] * bw),
+                            (1.0 / bg - rv / bo) / (rho[GAS] * D)], dim=1)
+
+    def _resv_target(self, w, p):
+        """
+        Пластовый объём исторических поверхностных дебитов (Qo, Qw, Qg), м³/с — как в Eclipse/OPM
+        (SurfaceToReservoirVoidage): давление p и ограничения Rs, Rv — средние по углеводородному поровому
+        объёму пласта; Rs = min(Qg/Qo, Rs_ср), Rv = min(Qo/Qg, Rv_ср).
+        """
+        qo, qw, qg = (x / DAY for x in w.hist_rates)
+        pt = torch.tensor([float(p)], dtype=torch.float64, device=self.device)
+        pvt = self.pvt.at(self.conn_cell[self.conn_well == self.wells.index(w)][:1])
+        T = lambda a: torch.tensor([a], dtype=torch.float64, device=self.device)
+        rs_max = None if self.rs_avg is None else T(self.rs_avg)
+        rv_max = None if self.rv_avg is None else T(self.rv_avg)
+        vo, vw, vg = surface_to_reservoir(pvt, pt, T(qo), T(qw), T(qg), rs_max, rv_max)
+        return float(vo + vw + vg)
+
+    def _producer_resv_rate(self, w_idx, mass_rate):
+        value, gradient = self._producer_resv_rates([w_idx], mass_rate.unsqueeze(0))
+        return value[0], gradient[0]
+
+    def _producer_resv_rates(self, well_indices, mass_rate):
+        """Reservoir rate and its full gradient for the produced composition.
+
+        The field-average Rs/Rv are upper bounds. Using them directly can
+        subtract gas that is not present in an undersaturated produced stream.
+        Differentiate this three-component map only, with the average state
+        fixed for the substep, including the PVT dependence on stream Rs/Rv.
+        """
+        cells = torch.cat([self.conn_cell[self.conn_well == i][:1] for i in well_indices])
+        pvt = self.pvt.at(cells)
+        p = mass_rate.new_full((len(well_indices),), self.p_avg)
+        rs_max = mass_rate.new_full(p.shape, self.rs_avg)
+        rv_max = mass_rate.new_full(p.shape, self.rv_avg or 0.0)
+        rs_sat, rv_sat = pvt.rs_sat(p), pvt.rv_sat(p)
+        bw = pvt.water(p)[0]
+
+        def volume(m):
+            qo, qw, qg = (m / self.rho_sc).unbind(-1)
+            # Signed epsilon also defines finite derivatives at zero flow.
+            eps_o = torch.where(qo >= 0, 1e-15, -1e-15)
+            eps_g = torch.where(qg >= 0, 1e-15, -1e-15)
+            rs = torch.minimum((qg / (qo + eps_o)).clamp_min(0.0), rs_max)
+            rv = torch.minimum((qo / (qg + eps_g)).clamp_min(0.0), rv_max)
+            bo = pvt.oil(p, rs, rs >= rs_sat)[0]
+            bg = pvt.gas(p, rv, rv >= rv_sat)[0] if getattr(pvt, "wet", False) else pvt.gas(p)[0]
+            det = (1.0 - rs * rv).clamp_min(1e-12)
+            result = ((qo - rv * qg) / bo + (qg - rs * qo) / bg) / det + qw / bw
+            return result
+
+        # Each well depends on its own three rates only. Three batched JVPs
+        # avoid a dense (n_well x 3*n_well) Jacobian and per-well PVT launches.
+        tangents = torch.eye(3, dtype=mass_rate.dtype, device=mass_rate.device)[:, None, :]
+        tangents = tangents.expand(3, mass_rate.shape[0], 3)
+        value, columns = vmap(lambda t: jvp(volume, (mass_rate,), (t,)))(tangents)
+        return value[0].detach(), columns.T.detach()
+
+    def _production_connection_flows(self, v, d, p_bh):
+        """Массовые потоки компонентов по перфорациям q [n_conn,3], dq/dx [n_conn,3,3], dq/dp_bh [n_conn,3]."""
+        c, cw, wi = self.conn_cell, self.conn_well, self.conn_wi * self.conn_open * self.conn_sched
+        n_c = c.numel()
+        p_wc = p_bh[cw] + self.conn_head
+        q = torch.zeros((n_c, 3), dtype=torch.float64, device=self.device)
+        dq = torch.zeros((n_c, 3, 3), dtype=torch.float64, device=self.device)
+        dqb = torch.zeros((n_c, 3), dtype=torch.float64, device=self.device)
+        # депрессия по давлению нефти ячейки для всех фаз, без капиллярного давления (как OPM Flow)
+        dpp = v[I_P][c] - p_wc
+        for comp, ph, mi in self.flux_terms:
+            M, dM = v[mi][c], d[mi][c]
+            q[:, comp] += wi * M * dpp
+            dq[:, comp, :] += wi.unsqueeze(1) * (dM * dpp.unsqueeze(1) + M.unsqueeze(1) * d[I_P][c])
+            dqb[:, comp] -= wi * M
+
+        return q, dq, dqb, dpp, wi, p_wc
+
+    def _conn_flows(self, v, d, p_bh):
+        self._mix = None
+        self._producer_mix = {}
+        c, cw = self.conn_cell, self.conn_well
+        n_c = c.numel()
+        q, dq, dqb, dpp, wi, p_wc = self._production_connection_flows(v, d, p_bh)
+
+        inj = self.is_inj[cw]
+        if bool(inj.any()):
+            ph = self.inj_phase[cw]
+            E = F.one_hot(ph, 3).double()
+            b = v[I_B:I_B + 3][:, c].gather(0, ph.unsqueeze(0)).squeeze(0)
+            db = d[I_B:I_B + 3][:, c, :].gather(0, ph.view(1, -1, 1).expand(1, n_c, 3)).squeeze(0)
+            lt, dlt = v[I_LT][c], d[I_LT][c]
+            rho = self.rho_sc[ph]
+            dpp = v[I_P][c] - p_wc
+            m = wi * rho * b * lt
+            dm = (wi * rho).unsqueeze(1) * (db * lt.unsqueeze(1) + b.unsqueeze(1) * dlt)
+            qi = E * (m * dpp).unsqueeze(1)
+            dqi = E.unsqueeze(2) * (dm * dpp.unsqueeze(1) + m.unsqueeze(1) * d[I_P][c]).unsqueeze(1)
+            # переток из пласта в ствол нагнетательной несёт флюиды ячейки по фазовым подвижностям (как у
+            # добывающей): гладко по dpp и без «несуществующей» закачиваемой фазы
+            is_inj_w = inj
+            inj = inj & (dpp <= 0.0)
+            q = torch.where(inj.unsqueeze(1), qi, q)
+            dq = torch.where(inj.view(-1, 1, 1), dqi, dq)
+            dqb = torch.where(inj.unsqueeze(1), -E * m.unsqueeze(1), dqb)
+            self._mix = None
+            if self.wellbore_mixing:
+                q, dqb = self._wellbore_mixing(q, is_inj_w & ~inj, inj, dq, dqb)
+        if self.wellbore_mixing:
+            back = ~self.is_inj[cw] & (dpp < 0.0) & (wi > 0)
+            if bool(back.any()):
+                q, dq, dqb = self._producer_crossflow(v, d, q, dq, dqb, dpp, back, wi)
+        return q, dq, dqb
+
+    @staticmethod
+    def _standard_crossflow_blocks(rho, raw, raw_jac, raw_bhp, props, prop_jac,
+                                   dp_jac, draw, wi, positive, back):
+        """Exact standard-well mixture derivatives without a dense AD trace.
+
+        With incoming component masses S, the backflow is S*q_res/V(S).
+        V is linear in S at fixed cell PVT. Its derivative therefore splits
+        into a mixture matrix and a local PVT/drawdown contribution.
+        Degenerate volume conversions retain the general AD implementation.
+        """
+        incoming_raw = torch.where(positive[:, None], raw, torch.zeros_like(raw)).sum(0)
+        incoming = incoming_raw.clamp_min(0.0)
+        if not bool((incoming / rho).sum() > 1e-100):
+            return None
+        bo, bw, bg = props[:3].clamp_min(1e-12).unbind(0)
+        dbo, dbw, dbg = (prop_jac[:3] * (props[:3] >= 1e-12)[:, :, None]).unbind(0)
+        rs, rv, lt = props[3], props[4], props[5]
+        drs, drv, dlt = prop_jac[3], prop_jac[4], prop_jac[5]
+        determinant = 1.0 - rs * rv
+        det = determinant.clamp_min(1e-12)
+        ddet = -(rv[:, None] * drs + rs[:, None] * drv)
+        ddet = ddet * (determinant >= 1e-12)[:, None]
+        ao, ag = 1.0 / (det * bo), 1.0 / (det * bg)
+        dao = -ao[:, None] * (dbo / bo[:, None] + ddet / det[:, None])
+        dag = -ag[:, None] * (dbg / bg[:, None] + ddet / det[:, None])
+        alpha = torch.stack(((ao - rs * ag) / rho[OIL], 1.0 / (bw * rho[WAT]),
+                             (ag - rv * ao) / rho[GAS]), 1)
+        dalpha = torch.stack(((dao - drs * ag[:, None] - rs[:, None] * dag) / rho[OIL],
+                              -dbw / (bw.square() * rho[WAT])[:, None],
+                              (dag - drv * ao[:, None] - rv[:, None] * dao) / rho[GAS]), 1)
+        volume = alpha @ incoming
+        if not bool(torch.isfinite(volume[back]).all() & (volume[back] > 1e-100).all()):
+            return None
+        volume = volume.clamp_min(1e-100)
+        reservoir_rate = wi * lt * draw
+        factor = reservoir_rate / volume
+        mixture_jac = factor[:, None, None] * (
+            torch.eye(3, dtype=raw.dtype, device=raw.device)[None]
+            - incoming[None, :, None] * alpha[:, None, :] / volume[:, None, None])
+        # Match clamp_min's derivative, including its value at zero.
+        source_jac = raw_jac * positive[:, None, None] * (incoming_raw >= 0)[None, :, None]
+        source_bhp = (raw_bhp * positive[:, None] * (incoming_raw >= 0)[None]).sum(0)
+        blocks = torch.einsum('iac,jck->ijak', mixture_jac, source_jac)
+        dvolume = torch.einsum('ick,c->ik', dalpha, incoming)
+        drate = wi[:, None] * (dlt * draw[:, None] + lt[:, None] * dp_jac)
+        local = incoming[None, :, None] * (
+            drate / volume[:, None] - factor[:, None] * dvolume / volume[:, None])[:, None, :]
+        diagonal = torch.arange(raw.shape[0], device=raw.device)
+        blocks[diagonal, diagonal] += local
+        blocks = torch.where(back[:, None, None, None], blocks, torch.zeros_like(blocks))
+        blocks[diagonal, diagonal] += torch.where(back[:, None, None], torch.zeros_like(raw_jac), raw_jac)
+        value = torch.where(back[:, None], incoming[None] * factor[:, None], raw)
+        bhp = torch.einsum('iac,c->ia', mixture_jac, source_bhp)
+        bhp -= incoming[None] * (wi * lt / volume)[:, None]
+        bhp = torch.where(back[:, None], bhp, raw_bhp)
+        return blocks.detach(), value.detach(), bhp.detach()
+
+    def _producer_crossflow(self, v, d, q, dq, dqb, dpp, back, wi):
+        """Mixture backflow with full cell/cell and BHP derivatives.
+
+        Standard wells use analytic derivatives of their single mixture;
+        MSW differentiate the six subtree-mixture iterations. Cell PVT values
+        enter through their already computed derivatives; the reservoir
+        Jacobian and its unknown count are unchanged.
+        """
+        c, cw, rho = self.conn_cell, self.conn_well, self.rho_sc
+        q, dq, dqb = q.clone(), dq.clone(), dqb.clone()
+        self._producer_mix = {}
+        prop_rows = [I_B, I_B + 1, I_B + 2, I_RS, I_RV, I_LT]
+        for w_idx in cw[back].unique().cpu().tolist():
+            idx = (cw == w_idx).nonzero().view(-1)
+            n = idx.numel()
+            if n < 2:
+                continue
+            cells = c[idx]
+            base_q, base_dq, base_db = q[idx], dq[idx], dqb[idx]
+            props = v[:, cells][prop_rows]
+            prop_jac = d[:, cells][prop_rows]
+            dp_jac = d[I_P][cells]
+            draw0, wi_local, mask_back = dpp[idx], wi[idx], back[idx]
+            positive = draw0 > 0
+            msw = getattr(self, "msw", {}).get(w_idx)
+            subtree = None if msw is None else msw["sub"]
+
+            def through(qq):
+                return (qq.sum(0).expand_as(qq) if subtree is None else subtree @ qq) / rho
+
+            def mixture(delta):
+                dx, db = delta[:-1].view(n, 3), delta[-1]
+                raw = base_q + torch.einsum("ncj,nj->nc", base_dq, dx) + base_db * db
+                pr = props + torch.einsum("cnj,nj->cn", prop_jac, dx)
+                bo, bw, bg = pr[:3].clamp_min(1e-12).unbind(0)
+                rs, rv, lt = pr[3], pr[4], pr[5]
+                det = (1.0 - rs * rv).clamp_min(1e-12)
+                draw = draw0 + (dp_jac * dx).sum(1) - db
+                incoming = through(torch.where(positive[:, None], raw, torch.zeros_like(raw))).clamp_min(0.0)
+                mixed = raw
+                for _ in range(1 if subtree is None else 6):
+                    if subtree is None:
+                        surface = incoming
+                    else:
+                        net = through(mixed)
+                        weak = ((net.clamp_min(0.0).sum(1) < 1e-3 * incoming.sum(1))
+                                | (net < -1e-9 * incoming.sum(1, keepdim=True)).any(1))
+                        surface = torch.where(weak[:, None], incoming, net.clamp_min(0.0))
+                    total = surface.sum(1)
+                    cm = surface / total.clamp_min(1e-300)[:, None]
+                    vr = (cm[:, WAT] / bw + (cm[:, OIL] - rv * cm[:, GAS]) / (det * bo)
+                          + (cm[:, GAS] - rs * cm[:, OIL]) / (det * bg))
+                    factor = rho * cm / vr.clamp_min(1e-300)[:, None]
+                    flow = factor * (wi_local * lt * draw)[:, None]
+                    mixed = torch.where((mask_back & (total > 0))[:, None], flow, raw)
+                return mixed, mixed
+
+            analytic = (BlackOilWells._standard_crossflow_blocks(rho, base_q, base_dq, base_db, props, prop_jac,
+                        dp_jac, draw0, wi_local, positive, mask_back) if subtree is None else None)
+            if analytic is None:
+                zero = torch.zeros(3 * n + 1, dtype=q.dtype, device=q.device)
+                jac, value = jacfwd(mixture, has_aux=True)(zero)
+                blocks = jac[:, :, :-1].reshape(n, 3, n, 3).permute(0, 2, 1, 3).detach()
+                bhp_derivative = jac[:, :, -1].detach()
+            else:
+                blocks, value, bhp_derivative = analytic
+            diagonal = torch.arange(n, device=q.device)
+            q[idx] = value.detach()
+            dq[idx] = blocks[diagonal, diagonal]
+            dqb[idx] = bhp_derivative
+            pc, pd = idx.repeat_interleave(n), idx.repeat(n)
+            off = pc != pd
+            pos = None
+            if getattr(self, "pair_pos", None) is not None:
+                select = (cw[self.pair_c] == w_idx) & (self.pair_c != self.pair_d)
+                pos = self.pair_pos[select]
+            self._producer_mix[w_idx] = (pc[off], pd[off], blocks.reshape(n * n, 3, 3)[off], pos)
+        return q, dq, dqb
+
+    def _wellbore_mixing(self, q, back, into, dq=None, dqb=None):
+        """
+        Смешение в стволе нагнетательной: поток B = Σ_b q_b, вошедший в ствол через перфорации b с обратным
+        потоком, закачивается обратно через закачивающие перфорации c в долях f_c = t_c / S (t_c — расход
+        закачки, S = Σ_c t_c). Масса закачки через c остаётся равной t_c, меняется только состав:
+        q_c −= f_c·B', B' = B − (Σ B)·e_inj. Нетто-закачка с поверхности — S + Σ B, она непрерывна по p_bh,
+        в том числе при нулевой уставке (остановленная скважина с внутренним перетоком).
+        Возвращает (q, dq/dp_bh); блоки по ячейкам других перфораций (∂q_c/∂x_b = −f_c·∂q_b/∂x_b и
+        ∂q_c/∂x_d = −B ⊗ (δ_cd·∂t_c − f_c·∂t_d)/S) сборка добавляет по self._mix.
+        """
+        cw, n_w = self.conn_well, self.n_w
+        if not bool(back.any()) or not bool(into.any()):
+            return q, dqb
+        zeros = lambda *s: torch.zeros(s, dtype=torch.float64, device=q.device)
+        E_w = F.one_hot(self.inj_phase, 3).double()
+        B = zeros(n_w, 3).index_add_(0, cw, torch.where(back.unsqueeze(1), q, torch.zeros_like(q)))
+        B = B - B.sum(1, keepdim=True) * E_w
+        tot = q.sum(1)
+        S = zeros(n_w).index_add_(0, cw, torch.where(into, tot, torch.zeros_like(tot)))
+        act = (S < 0.0)[cw]
+        S_c = torch.where(S < 0.0, S, -torch.ones_like(S))[cw]
+        into, back = into & act, back & act
+        frac = torch.where(into, tot / S_c, torch.zeros_like(tot))
+        B_c = torch.where(act.unsqueeze(1), B[cw], torch.zeros_like(q))
+        q = q - frac.unsqueeze(1) * B_c
+        if dqb is not None:
+            dB = zeros(n_w, 3).index_add_(0, cw, torch.where(back.unsqueeze(1), dqb, torch.zeros_like(dqb)))
+            dB = dB - dB.sum(1, keepdim=True) * E_w
+            dt = dqb.sum(1)
+            dS = zeros(n_w).index_add_(0, cw, torch.where(into, dt, torch.zeros_like(dt)))
+            dfrac = torch.where(into, (dt - frac * dS[cw]) / S_c, torch.zeros_like(dt))
+            dqb = dqb - frac.unsqueeze(1) * torch.where(act.unsqueeze(1), dB[cw], torch.zeros_like(dqb)) \
+                - dfrac.unsqueeze(1) * B_c
+        if dq is not None:
+            self._mix = (back, into, frac, B_c, S_c, dq, E_w[cw])
+        return q, dqb
+
+    def _mixing_blocks(self):
+        """Блоки Якобиана смешения в стволе: (позиции в values[], блоки 3×3) или None."""
+        if self._mix is None or self.pair_pos is None or self.pair_c.numel() == 0:
+            return None
+        back, into, frac, B_c, S_c, dq, E = self._mix
+        pc, pd = self.pair_c, self.pair_d
+        sel = into[pc] & (back[pd] | into[pd])
+        if not bool(sel.any()):
+            return None
+        self._mix_sel = sel
+        pc, pd, pos = pc[sel], pd[sel], self.pair_pos[sel]
+        f = frac[pc].view(-1, 1, 1)
+        dq_b = dq[pd] - E[pc].unsqueeze(2) * dq[pd].sum(1, keepdim=True)
+        blk = torch.where(back[pd].view(-1, 1, 1), -f * dq_b, torch.zeros_like(dq[pd]))
+        dt_c, dt_d = dq[pc].sum(1), dq[pd].sum(1)
+        g = ((pc == pd).double().unsqueeze(1) * dt_c - frac[pc].unsqueeze(1) * dt_d) / S_c[pc].unsqueeze(1)
+        blk = blk + torch.where(into[pd].view(-1, 1, 1), -B_c[pc].unsqueeze(2) * g.unsqueeze(1), torch.zeros_like(blk))
+        return pos, blk
+
+    def _lift(self, w_idx):
+        """Таблица VFP скважины (VFPPROD добывающей, VFPINJ нагнетательной) или None."""
+        w = self.wells[w_idx]
+        tab = getattr(self, "vfp", {}).get(getattr(w, "vfp_table", None) or 0)
+        if tab is None or isinstance(w.vfp_table, tuple) != (w.type == 'injector'):
+            return None
+        return tab
+
+    def _sgn(self, w_idx):
+        """Знак дебитов таблицы VFP: добыча > 0 у VFPPROD, закачка > 0 у VFPINJ."""
+        return 1.0 if self.wells[w_idx].type == 'producer' else -1.0
+
+    def _vfp_hydro(self, w_idx, tab):
+        """Перевод BHP с опорной глубины таблицы на опорную глубину скважины, Па."""
+        ref = self.ref_depth[w_idx] + getattr(self, "depth_top", 0.0)
+        return float(self.rho_wb[w_idx]) * G * (ref - tab.datum)
+
+    def _well_Q(self, q, w_idx):
+        """Поверхностные дебиты добычи (Qo, Qw, Qg) скважины, ст. м³/с (тензор [3])."""
+        return q[self.conn_well == w_idx].sum(0) / self.rho_sc
+
+    def _vfp_bhp(self, w_idx, Q, grad=False, alq=None):
+        """BHP при ограничении THP на опорной глубине скважины и (по запросу) ∂BHP/∂(Qo, Qw, Qg)."""
+        w, tab, sg = self.wells[w_idx], self._lift(w_idx), self._sgn(w_idx)
+        thp = float(w.thp_limit) * 1e6
+        if alq is None:
+            alq = float(getattr(w, "alq", 0.0) or 0.0)
+        hydro = self._vfp_hydro(w_idx, tab)
+        if not grad:
+            with torch.no_grad():
+                return float(tab.bhp(sg * Q[0:1], sg * Q[1:2], sg * Q[2:3], thp, alq)) + hydro
+        with torch.enable_grad():
+            x = Q.detach().clone().requires_grad_(True)
+            b = tab.bhp(sg * x[0:1], sg * x[1:2], sg * x[2:3], thp, alq).sum()
+            g, = torch.autograd.grad(b, x)
+        return float(b) + hydro, g.detach()
+
+    def _thp_stable(self, w_idx, lim, lin=None, alq=None, phases=False):
+        """
+        Забой на устойчивой ветви THP-ограничения добывающей при линеаризованном притоке
+        Q(pb) = Q(pb₀) + ∂Q/∂pb·(pb − pb₀): первое снизу (со стороны больших дебитов) пересечение
+        f(pb) = pb − BHP_VFP(Q(pb)) из «−» в «+», как устойчивое решение в OPM. Возвращает (pb*, дебит
+        уставки при pb*) или None: f > 0 уже у BHP-ограничения (THP не работает) — (lim, None);
+        пересечения нет (скважина под THP не течёт) — None. lin = (q, ∂q/∂pb, pb₀) по соединениям,
+        по умолчанию — с последней сборки; phases — вместо дебита уставки вернуть (Qo, Qw, Qg).
+        """
+        q, Cv, pb0 = self._lin if lin is None else lin
+        m = self.conn_well == w_idx
+        qw, cw_, a = q[m], Cv[m], self.conn_a[m]
+        p0 = float(pb0[w_idx])
+        hi = float(self.p_cell_max[w_idx]) if getattr(self, "p_cell_max", None) is not None else p0 * 1.5
+        grid = torch.linspace(lim, max(hi, lim + 1e5), 41, dtype=torch.float64, device=q.device)
+        # весь скан — одним вызовом таблицы
+        w, tab, sg = self.wells[w_idx], self._lift(w_idx), self._sgn(w_idx)
+        QG = ((qw.sum(0) + cw_.sum(0) * (grid - p0).unsqueeze(1)) / self.rho_sc).clamp_min(0.0)
+        a_ = float(getattr(w, "alq", 0.0) or 0.0) if alq is None else alq
+        with torch.no_grad():
+            FG = (grid - tab.bhp(sg * QG[:, 0], sg * QG[:, 1], sg * QG[:, 2], float(w.thp_limit) * 1e6, a_)
+                  - self._vfp_hydro(w_idx, tab)).tolist()
+        prev = None
+        for pb, f, Q in zip(grid.tolist(), FG, QG):
+            if prev is None and f > 0:
+                return (lim, Q.clamp_min(0.0)) if phases else (lim, None)
+            if prev is not None and prev[1] <= 0 < f:
+                # бисекция внутри интервала: f кусочно-линейна (изломы таблицы), интерполяция неточна
+                pa, pr = prev[0], pb
+                for _ in range(40):
+                    pm = 0.5 * (pa + pr)
+                    Qm = ((qw + cw_ * (pm - p0)).sum(0) / self.rho_sc).clamp_min(0.0)
+                    if pm - self._vfp_bhp(w_idx, Qm, alq=alq) <= 0:
+                        pa = pm
+                    else:
+                        pr = pm
+                    if pr - pa < 1.0:
+                        break
+                pr = 0.5 * (pa + pr)
+                if phases:
+                    return pr, ((qw + cw_ * (pr - p0)).sum(0) / self.rho_sc).clamp_min(0.0)
+                qr = float((a * (qw + cw_ * (pr - p0))).sum())
+                return pr, qr
+            prev = (pb, f)
+        return None
+
+    def _allocate_lift(self, lin):
+        """
+        Газлифт (LIFTOPT/WLIFTOPT) пошаговым распределением, как в Eclipse: очередная порция inc уходит скважине
+        с наибольшим приростом нефти на единицу газа (с весом WLIFTOPT), пока он не ниже экономического градиента,
+        не исчерпан максимум газлифта скважины и не выполнены цели GCONPROD её групп. Дебиты — на устойчивой ветви
+        THP при замороженных ячейках, не выше собственной уставки скважины.
+        """
+        lo, si = self.liftopt, self.alq_si
+        lim_of = {}
+        for w_idx, w in enumerate(self.wells):
+            cfg = self.wliftopt.get(w.name)
+            if cfg is not None and cfg["opt"] and w.type == 'producer' and self.has_thp(w_idx) \
+                    and self.step_targets[w_idx][0] == 'rate':
+                tab = self._lift(w_idx)
+                lim_of[w_idx] = float(cfg["max"]) if cfg.get("max") is not None else float(tab.alq.max())
+        if not lim_of:
+            return {}
+        cache = {}
+
+        def rates(w_idx, alq):
+            """(Qo, Qw, Qg), ст. м³/с, при газлифте alq — с учётом собственной уставки скважины."""
+            key = (w_idx, alq)
+            if key not in cache:
+                w = self.wells[w_idx]
+                st = self._thp_stable(w_idx, self.bhp_limit(w), lin=lin, alq=alq, phases=True)
+                Q = torch.zeros(3, dtype=torch.float64, device=self.device) if st is None else st[1]
+                # не выше текущей уставки (доля группы или собственная), в её фазе
+                own = self.step_targets[w_idx][1]
+                a_c = self.conn_a[self.conn_well == w_idx][0] * self.rho_sc
+                qt = float((a_c * Q).sum())
+                if qt > own > 0:
+                    Q = Q * (own / qt)
+                cache[key] = Q
+            return cache[key]
+
+        alq = {i: max(float(self.wliftopt[self.wells[i].name].get("min", 0.0)), 0.0) for i in lim_of}
+        tree, cons = self.groups if self.groups is not None else (None, [])
+        cons = [c for c in cons if c["kind"] == "prod" and c["phase"] in ("oil", "water", "gas", "liquid")]
+        ph_idx = {"oil": (0,), "water": (1,), "gas": (2,), "liquid": (0, 1)}
+        names = [w.name for w in self.wells]
+        members = [(c, {names.index(n) for n in tree.wells_of(c["group"], names)}) for c in cons] if tree else []
+
+        eff = {i: float(getattr(self.wells[i], "eff", 1.0) or 1.0) for i in lim_of}
+        glim = [(lim, {names.index(n) for n in tree.wells_of(g, names)})
+                for g, lim in (getattr(self, "gliftopt", None) or {}).items()] if tree else []
+
+        def group_full(i):
+            for c, mem in members:
+                if i not in mem:
+                    continue
+                tot = sum(float(rates(j, alq[j])[list(ph_idx[c["phase"]])].sum()) * eff[j] if j in alq
+                          else 0.0 for j in mem) * DAY
+                if tot >= c["target"] * (1 - 1e-9):
+                    return True
+            # GLIFTOPT: максимум газлифта группы (с WEFAC, как групповой дебит)
+            for lim, mem in glim:
+                if i in mem and sum(alq[j] * eff[j] for j in mem if j in alq) + lo["inc"] * eff[i] > lim * (1 + 1e-9):
+                    return True
+            return False
+
+        while lo["inc"] > 0:
+            best, best_g, best_k = None, lo["grad"], 1
+            for i in lim_of:
+                if alq[i] + lo["inc"] > lim_of[i] * (1 + 1e-12) or group_full(i):
+                    continue
+                q0 = float(rates(i, alq[i])[0])
+                # не текущей без газлифта скважине одной порции может не хватить: градиент — по первому
+                # числу порций k, при котором она начинает течь
+                k = 1
+                while q0 <= 0 and float(rates(i, alq[i] + k * lo["inc"])[0]) <= 0 \
+                        and alq[i] + (k + 1) * lo["inc"] <= lim_of[i] * (1 + 1e-12):
+                    k += 1
+                gain = float(rates(i, alq[i] + k * lo["inc"])[0]) - q0
+                g = gain * self.wliftopt[self.wells[i].name].get("weight", 1.0) / (k * lo["inc"] * si)
+                if gain > 0 and g >= best_g and (best is None or g > best_g):
+                    best, best_g, best_k = i, g, k
+            if best is None:
+                break
+            alq[best] += best_k * lo["inc"]
+        return {self.wells[i].name: a for i, a in alq.items()}
+
+    def _network_pressures(self, Q):
+        """Existing VFP network: collect actual well rates, then evaluate its tree."""
+        try:
+            from ..surface.vfp_network import evaluate_vfp_network
+        except ImportError:
+            from surface.vfp_network import evaluate_vfp_network
+
+        tree = self.groups[0] if self.groups is not None else None
+        own_rates = {}
+        if tree is not None:
+            for i, w in enumerate(self.wells):
+                if w.type != 'producer' or self.step_targets[i][0] == 'shut':
+                    continue
+                node = tree.well_group.get(w.name, 'FIELD')
+                eff = float(getattr(w, 'eff', 1.0) or 1.0)
+                lift = None
+                if self.network['nodes'].get(node, {}).get('lift', False):
+                    lift = eff * float(getattr(w, 'alq', 0.0) or 0.0) * self.alq_si
+                own_rates.setdefault(node, []).append((eff * Q[i].clamp_min(0.), lift))
+        zero = torch.zeros(3, dtype=torch.float64, device=self.device)
+        return evaluate_vfp_network(self.network, self.vfp, own_rates, zero)
+
+    def _balance_network(self, lin):
+        """
+        Балансировка сети при замороженных ячейках (начало шага): давление узла p — корень
+        VFP_ветки(расход узла при p, p_верх) = p, расход узла — сумма дебитов его скважин на устойчивой ветви
+        THP = p (не выше уставки) и подчинённых узлов, сбалансированных при p. Из корней — с наибольшим
+        расходом (первый снизу). Простая итерация «дебиты → давления» на нулевых дебитах застревает:
+        остановленные скважины дают высокое давление узла и не запускаются.
+        """
+        net = self.network
+        tree = self.groups[0] if self.groups is not None else None
+        children = {}
+        for down, br in net["branches"].items():
+            children.setdefault(br["up"], []).append(down)
+        p_max = float(self.p_cell_max.max()) if self.p_cell_max is not None else None
+        zero = torch.zeros(3, dtype=torch.float64, device=self.device)
+        out = {}
+
+        def wells_rate(node, p):
+            R = zero.clone()
+            for i, w in enumerate(self.wells):
+                if tree is None or tree.well_group.get(w.name, "FIELD") != node or w.type != 'producer' \
+                        or self.step_targets[i][0] != 'rate' or self._lift(i) is None:
+                    continue
+                old = w.thp_limit
+                w.thp_limit = p / 1e6
+                try:
+                    st = self._thp_stable(i, self.bhp_limit(w), lin=lin, phases=True)
+                finally:
+                    w.thp_limit = old
+                if st is None:
+                    continue
+                Qw = st[1]
+                own = self.step_targets[i][1]
+                a_c = self.conn_a[self.conn_well == i][0] * self.rho_sc
+                qt = float((a_c * Qw).sum())
+                if qt > own > 0:
+                    Qw = Qw * (own / qt)
+                R = R + float(getattr(w, "eff", 1.0) or 1.0) * Qw
+            if net["nodes"].get(node, {}).get("lift", False):
+                R[2] = R[2] + sum(float(getattr(w, "eff", 1.0) or 1.0) * float(getattr(w, "alq", 0.0) or 0.0)
+                                  * self.alq_si for w in self.wells if tree is not None and w.type == 'producer'
+                                  and tree.well_group.get(w.name, "FIELD") == node)
+            return R
+
+        # расход узла как функция его давления — таблицей на сетке P: дебиты скважин считаются один раз на точку,
+        # корни вложенных узлов — по интерполяции таблиц
+        fixed = [nd["p"] for nd in net["nodes"].values() if nd.get("p") is not None]
+        if not fixed:
+            return out
+        lo = min(fixed)
+        hi = max(p_max or lo, lo) + 1e5
+        # верх сетки — давление, выше которого не течёт ни одна скважина сети: дебит падает до нуля на
+        # нескольких барах, и грубая сетка теряет рабочий корень
+        leaves = {tree.well_group.get(w.name, "FIELD") for w in self.wells} if tree is not None else set()
+        for p in torch.linspace(lo, hi, 21, dtype=torch.float64).tolist()[1:]:
+            if not any(float(wells_rate(n, p).sum()) > 0 for n in leaves):
+                hi = p
+                break
+        P = torch.linspace(lo, hi, 41, dtype=torch.float64, device=self.device)
+        tabs = {}
+
+        def interp(T, p):
+            x = (p - lo) / (hi - lo) * (P.numel() - 1)
+            k = int(min(max(x, 0.0), P.numel() - 2))
+            f = min(max(x - k, 0.0), 1.0)
+            return T[k] * (1 - f) + T[k + 1] * f
+
+        def solve(ch, p_up):
+            """Давление и расход узла ch при давлении верхнего узла p_up."""
+            br, T = net["branches"][ch], table(ch)
+            if br["vfp"] == 9999:
+                return p_up, interp(T, p_up)
+            tab = self.vfp.get(br["vfp"])
+            if tab is None:
+                return None, zero
+
+            def h(p):
+                R = interp(T, p)
+                with torch.no_grad():
+                    return float(tab.bhp(R[0:1], R[1:2], R[2:3], p_up, br["alq"])) - p
+
+            with torch.no_grad():
+                hv = (tab.bhp(T[:, 0], T[:, 1], T[:, 2], p_up, br["alq"]) - P).tolist()
+            pts = [(p_up, h(p_up))] + [(float(P[j]), hv[j]) for j in range(P.numel()) if float(P[j]) > p_up]
+            if pts[0][1] <= 0:
+                return p_up, interp(T, p_up)
+            for (a, _), (b, hb) in zip(pts, pts[1:]):
+                if hb <= 0:
+                    for _ in range(30):
+                        m = 0.5 * (a + b)
+                        if h(m) > 0:
+                            a = m
+                        else:
+                            b = m
+                    return b, interp(T, b)
+            return hi, zero
+
+        def table(node, depth=0):
+            if node not in tabs:
+                T = torch.stack([wells_rate(node, float(p)) for p in P])
+                for ch in children.get(node, []):
+                    if depth > 20:
+                        break
+                    table(ch, depth + 1)
+                    T = T + torch.stack([solve(ch, float(p))[1] for p in P])
+                tabs[node] = T
+            return tabs[node]
+
+        def down(node, p):
+            out[node] = p
+            for ch in children.get(node, []):
+                pc, _ = solve(ch, p)
+                if pc is not None:
+                    down(ch, pc)
+
+        for root, nd in net["nodes"].items():
+            if nd.get("p") is not None and root not in net["branches"]:
+                down(root, nd["p"])
+        return out
+
+    def _apply_network(self, Q, pressures=None):
+        """Давление узла сети — ограничение THP скважин его группы. True, если оно сдвинулось больше допуска."""
+        self.node_p = pressures if pressures is not None else self._network_pressures(Q)
+        tol = self.network["balan"]["tol"]
+        moved = False
+        for i, w in enumerate(self.wells):
+            if w.type != 'producer' or getattr(w, "vfp_table", None) is None:
+                continue
+            p = self.node_p.get(self.groups[0].well_group.get(w.name, "FIELD")) if self.groups else None
+            if p is None:
+                continue
+            old = getattr(w, "thp_limit", None)
+            if old is None or abs(old * 1e6 - p) > tol:
+                moved = True
+            w.thp_limit = p / 1e6
+        return moved
+
+    def solve_thp(self, p_bh):
+        """
+        Локальное решение уравнения THP после шага Ньютона (как solveWellEquation в OPM): забой скважин в режиме
+        THP — на устойчивой ветви при линеаризации притока с последней сборки. Кусочно-линейная таблица иначе
+        даёт циклы Ньютона на изломах.
+        """
+        if self._lin is None or not any(m == 'thp_limit' for m in self.step_mode):
+            return p_bh
+        p_bh = p_bh.clone()
+        for i, m in enumerate(self.step_mode):
+            if m == 'thp_limit' and self.step_targets[i][0] == 'rate' and self._sgn(i) > 0:
+                st = self._thp_stable(i, self.bhp_limit(self.wells[i]))
+                if st is not None:
+                    p_bh[i] = st[0]
+        return p_bh
+
+    def has_thp(self, w_idx):
+        return self._lift(w_idx) is not None and getattr(self.wells[w_idx], "thp_limit", None) is not None
+
+    def update_controls(self, p_bh, q_surf):
+        """Переключение дебит ↔ BHP ↔ THP: работает самое жёсткое из ограничений (как в Eclipse/OPM)."""
+        msgs = []
+        self.pbh_override = {}
+        if self.network is not None and self._Q is not None and self._net_iter < self.network["balan"]["iters"]:
+            if self._apply_network(self._Q):
+                self._net_iter += 1
+                msgs.append("сеть: " + ", ".join(f"{k} {v / 1e5:.2f} бар" for k, v in self.node_p.items()
+                                                  if v is not None))
+        # One small host snapshot instead of a device wait per well/value.
+        host_values = torch.cat([p_bh, q_surf]).detach().cpu().tolist()
+        host_bhp, host_rate = host_values[:self.n_w], host_values[self.n_w:]
+        capped = self.switches >= 4 * max(1, self.n_w)
+        for w_idx, w in enumerate(self.wells):
+            ctrl, val = self.step_targets[w_idx]
+            if ctrl != 'rate':
+                continue
+            lim = self.bhp_limit(w)
+            pb = host_bhp[w_idx]
+            mode = self.step_mode[w_idx]
+            if mode == 'stop':
+                continue
+            thp_b = None
+            if self.has_thp(w_idx) and self._Q is not None:
+                thp_b = self._vfp_bhp(w_idx, self._Q[w_idx])
+            # sg·p: у добывающей ограничения снизу, у нагнетательной — сверху; работает самое жёсткое
+            sg = self._sgn(w_idx)
+            thp_harder = thp_b is not None and sg * thp_b > sg * lim + 1e-9 * abs(lim)
+            new = None
+            if mode == 'rate' and thp_b is not None and sg > 0 and getattr(self, "_lin", None) is not None:
+                # дебит уставки сравнивается с потенциалом на устойчивой ветви THP, а не с BHP_VFP(текущий дебит):
+                # на неустойчивой (левой) ветви кривая лифта выше при меньших дебитах
+                st = self._thp_stable(w_idx, lim)
+                if st is None and pb < self._vfp_bhp(w_idx, self._Q[w_idx]):
+                    new = 'stop'
+                elif st is not None and st[1] is not None and (
+                        st[1] < val * (1 - 1e-9) or w_idx in getattr(self, "_group_capacity_limited", ())):
+                    new = 'thp_limit'
+                    self.pbh_override[w_idx] = st[0]
+                elif pb < lim:
+                    new = 'bhp_limit'
+            elif mode == 'rate':
+                eff = thp_b if thp_harder else lim
+                if sg * pb < sg * eff:
+                    new = 'thp_limit' if thp_harder else 'bhp_limit'
+            else:
+                q = host_rate[w_idx]
+                if q > val * (1 + 1e-9) and w_idx not in getattr(self, "_group_capacity_limited", ()):
+                    new = 'rate'
+                elif mode == 'bhp_limit' and thp_harder:
+                    new = 'thp_limit'
+                elif mode == 'thp_limit' and (thp_b is None or sg * pb < sg * lim):
+                    new = 'bhp_limit'
+            # не больше 3 переключений скважины за шаг (как max_number_of_well_switches в OPM); возврат на дебит
+            # разрешён всегда: решение на ограничении с дебитом выше уставки недопустимо
+            exhausted = capped or self.well_switches[w_idx] >= 3
+            if new is not None and (not exhausted or new == 'rate'):
+                self.step_mode[w_idx] = new
+                self.switches += 1
+                self.well_switches[w_idx] += 1
+                msgs.append(f"{w.name}: {mode}→{new} (p_bh {pb/1e6:.3f} МПа, дебит {host_rate[w_idx]*DAY:.2f})")
+        return msgs
+
+    def begin_step(self, v, d, t_days):
+        if self.n_w == 0:
+            return
+        self.step_targets = self.targets(t_days)
+        self._group_capacity_limited = set()
+        self.conn_eff = torch.tensor([float(getattr(w, "eff", 1.0) or 1.0) for w in self.wells],
+                                     dtype=torch.float64, device=self.device)[self.conn_well]
+        self._mix_sel = None
+        self.step_mode = []
+        self.switches = 0
+        self.well_switches = [0] * self.n_w
+        c, cw = self.conn_cell, self.conn_well
+        a = self.rate_w[cw].clone()
+        resv_w = None
+        self._resv_idx = set()
+        for w_idx, w in enumerate(self.wells):
+            ctrl, val = self.step_targets[w_idx]
+            if getattr(w, "stopped", False):
+                # Sum of all surface components: zero gas alone must also
+                # constrain an oil-free stopped well. Mixture conservation
+                # then makes each component's net surface flow zero.
+                a = torch.where((cw == w_idx)[:, None], (1.0 / self.rho_sc).expand_as(a), a)
+                self.step_targets[w_idx] = ('rate', 0.0)
+                continue
+            if ctrl != 'resv':
+                continue
+            if resv_w is None:
+                resv_w = self._resv_weights(v)
+            m = cw == w_idx
+            a[m] = resv_w[m]
+            if getattr(w, 'hist_rates', None) is not None:
+                p_ref = self.p_avg if self.p_avg is not None else float(v[I_P][c[m]].mean())
+                val = self._resv_target(w, p_ref)
+            self.step_targets[w_idx] = ('rate', val)
+            self._resv_idx.add(w_idx)
+        self.conn_a = a
+        self._active_resv_idx = set(self._resv_idx)
+        self._group_base_targets = list(self.step_targets)
+        self._group_base_a = a.clone()
+        lam = torch.stack([v[I_MOO], v[I_MWW], v[I_MGG]])[:, c] / (self.rho_sc.view(3, 1) * v[I_B:I_B + 3][:, c])
+        rho = v[I_RHO:I_RHO + 3][:, c]
+        mix = (lam * rho).sum(0) / lam.sum(0).clamp_min(1e-30)
+        rho_inj = rho.gather(0, self.inj_phase[cw].unsqueeze(0)).squeeze(0)
+        mix = torch.where(self.is_inj[cw], rho_inj, mix)
+        zeros = torch.zeros(self.n_w, dtype=torch.float64, device=self.device)
+        cnt = zeros.clone().index_add_(0, cw, torch.ones_like(mix))
+        self.rho_wb = zeros.clone().index_add_(0, cw, mix) / cnt.clamp_min(1)
+        if self.pvt is not None and self.wellbore_density == 'flash':
+            self.conn_head = self._flash_heads(v, mix)
+        else:
+            self.conn_head = self.rho_wb[cw] * G * self.conn_dz
+        if self.pvt is not None:
+            for w_idx in getattr(self, "msw", {}):
+                self._msw_heads(v, mix[self.msw[w_idx]["conns"]], w_idx)
+
+        # дебит линеен по p_bh при замороженной ячейке: q(pb) = q(0) + D·pb
+        q, _, dqb = self._conn_flows(v, d, zeros)
+        self.p_cell_max = zeros.clone().index_reduce_(0, cw, v[I_P][c], "amax", include_self=False)
+        lin0 = (q, dqb, zeros)
+        if self.network is not None:
+            self._net_iter = 0
+            self._apply_network(None, self._balance_network(lin0))
+        if self.groups is not None:
+            self._apply_groups(v, q, dqb, d)
+        # газлифт — после групповых долей: каждой скважине — до её доли (как стадия 1 газлифта OPM)
+        if self.liftopt is not None and self.wliftopt:
+            due = self._lift_t is None or t_days - self._lift_t >= self.liftopt["interval"] - 1e-9
+            if due:
+                self.alq_opt = self._allocate_lift(lin0)
+                self._lift_t = t_days
+            for w in self.wells:
+                if w.name in self.alq_opt and self.wliftopt.get(w.name, {}).get("opt"):
+                    w.alq = self.alq_opt[w.name]
+        q0 = zeros.clone().index_add_(0, cw, (a * q).sum(1))
+        D = zeros.clone().index_add_(0, cw, (a * dqb).sum(1))
+        p_init = torch.zeros_like(zeros)
+        for w_idx, w in enumerate(self.wells):
+            ctrl, val = self.step_targets[w_idx]
+            mode = 'bhp' if ctrl == 'bhp' else ('bhp_limit' if self.mode[w_idx] == 'bhp_limit' else 'rate')
+            if ctrl == 'rate' and self.mode[w_idx] in ('thp_limit', 'stop') and self.has_thp(w_idx):
+                mode = 'thp_limit'
+            if ctrl == 'shut':
+                mode = 'shut'
+                p_init[w_idx] = float(v[I_P][c[cw == w_idx]].mean())
+            elif getattr(w, "stopped", False):
+                mode = 'stop'
+                Dw = float(D[w_idx])
+                p_init[w_idx] = (-float(q0[w_idx]) / Dw if abs(Dw) > 1e-30
+                                 else float(v[I_P][c[cw == w_idx]].mean()))
+            elif mode == 'thp_limit':
+                # p_bh = VFP(Q(p_bh)) при замороженных ячейках: несколько подстановок от BHP-ограничения
+                m, sg, lim = cw == w_idx, self._sgn(w_idx), self.bhp_limit(w)
+                st = self._thp_stable(w_idx, lim, lin=lin0) if sg > 0 else None
+                if sg > 0 and st is None:
+                    # под THP скважина не течёт (нет устойчивого решения) — остановлена на шаг (как OPM)
+                    mode = 'stop'
+                    p_init[w_idx] = float(v[I_P][c[m]].max())
+                    self.step_mode.append(mode)
+                    continue
+                pb = st[0] if st is not None else lim
+                for _ in range(0 if st is not None else 5):
+                    Q = sg * ((sg * (q[m] + dqb[m] * pb).sum(0) / self.rho_sc).clamp_min(0.0))
+                    b = self._vfp_bhp(w_idx, Q)
+                    pb = max(lim, b) if sg > 0 else min(lim, b)
+                p_init[w_idx] = pb
+            elif mode != 'rate':
+                p_init[w_idx] = val if ctrl == 'bhp' else self.bhp_limit(w)
+            else:
+                Dw = float(D[w_idx])
+                pb = (val - float(q0[w_idx])) / Dw if abs(Dw) > 1e-30 else float(v[I_P][c[cw == w_idx]].mean())
+                p_init[w_idx] = self._clamp_bhp(w, torch.tensor(pb, dtype=torch.float64, device=self.device))
+            self.step_mode.append(mode)
+        if self.p_bh is None:
+            self.p_bh = p_init
+        else:
+            fixed = torch.tensor([m not in ('rate', 'thp_limit', 'stop') or k in self.reinit_bhp
+                                  for k, m in enumerate(self.step_mode)],
+                                 device=self.device)
+            self.p_bh = torch.where(fixed, p_init, self.p_bh)
+        self.reinit_bhp = set()
+
+    def _flash_heads(self, v, mix_cell):
+        """
+        Гидростатика ствола по соединениям (как StandardWell в OPM): поверхностные притоки накапливаются
+        снизу вверх, плотность смеси на соединении — при давлении ствола с разгазированием
+        (Rs = min(Rs_sat(p), Qg/Qo)); участок между соединениями несёт смесь от нижележащих перфораций.
+        Явно по состоянию начала шага. Возвращает p_conn − p_bh, Па.
+        """
+        c, cw, wi = self.conn_cell, self.conn_well, self.conn_wi * self.conn_sched
+        rho_sc = self.rho_sc
+        qo = wi * (v[I_MOO][c] + v[I_MOG][c]) / rho_sc[OIL]
+        qw = wi * v[I_MWW][c] / rho_sc[WAT]
+        qg = wi * (v[I_MGG][c] + v[I_MGO][c]) / rho_sc[GAS]
+        p_cell = v[I_P][c]
+        head_old = self.conn_head if self.p_bh is not None else None
+        if head_old is not None:
+            dd = (p_cell - self.p_bh[cw] - head_old).clamp_min(0.0)
+            use = torch.zeros(self.n_w, dtype=torch.float64, device=self.device).index_add_(0, cw, dd)[cw] > 0
+            dd = torch.where(use, dd, torch.ones_like(dd))
+        else:
+            dd = torch.ones_like(p_cell)
+        qo, qw, qg = qo * dd, qw * dd, qg * dd
+        p_bh = self.p_bh if self.p_bh is not None else torch.zeros(self.n_w, dtype=torch.float64, device=self.device)
+        heads = torch.zeros_like(p_cell)
+        heads.copy_(mix_cell * G * self.conn_dz)
+        dz_all = self.conn_dz
+        # Independent one-connection producers share the same two flash
+        # iterations. Batch them without changing path integration for longer
+        # wells, stopped wells or injectors. Closed connections keep cell heads.
+        single = [i for i, w in enumerate(self.wells)
+                  if w.type != 'injector' and not getattr(w, 'stopped', False)
+                  and self.well_conn_order[i].numel() == 1]
+        if single:
+            order = torch.cat([self.well_conn_order[i] for i in single])
+            order = order[self.conn_sched[order] > 0]
+            if order.numel():
+                Qo, Qw, Qg = qo[order], qw[order], qg[order]
+                mass = Qo * rho_sc[OIL] + Qw * rho_sc[WAT] + Qg * rho_sc[GAS]
+                dz = dz_all[order]
+                if head_old is None:
+                    h = mix_cell[order] * G * dz
+                    pb = p_cell[order] - h
+                else:
+                    h, pb = head_old[order], p_bh[cw[order]]
+                for _ in range(2):
+                    p = (pb + 0.5 * h).clamp_min(1e5)
+                    vo, vw, vg = surface_to_reservoir(self.pvt.at(c[order]), p, Qo, Qw, Qg)
+                    vol = vo + vw + vg
+                    rho = torch.where((mass > 0) & (vol > 0),
+                                      mass / vol.clamp_min(1e-300), mix_cell[order])
+                    h = rho * G * dz
+                heads[order] = h
+        single = set(single)
+        for w_idx, w in enumerate(self.wells):
+            if w_idx in single:
+                continue
+            idx = (cw == w_idx).nonzero().view(-1)
+            if w.type == 'injector' or idx.numel() == 0:
+                heads[idx] = mix_cell[idx] * G * dz_all[idx]
+                continue
+            # ствол — только открытые соединения (как в OPM); закрытым напор не нужен (WI = 0)
+            op = idx[self.conn_sched[idx] > 0]
+            if op.numel() == 0:
+                heads[idx] = mix_cell[idx] * G * dz_all[idx]
+                continue
+            heads[idx] = mix_cell[idx] * G * dz_all[idx]
+            idx = op
+            # Integrate along the well path, not sorted true vertical depth:
+            # TRACK/INPUT can turn upwards and then downwards again.
+            order = self.well_conn_order[w_idx]
+            order = order[self.conn_sched[order] > 0]
+            if getattr(w, "stopped", False):
+                # OPM's stopped producer density uses cell mobilities rather
+                # than an undefined surface-stream composition at zero rate.
+                seg = torch.diff(dz_all[order], prepend=torch.zeros(1, dtype=dz_all.dtype, device=dz_all.device))
+                heads[order] = torch.cumsum(mix_cell[order] * G * seg, 0)
+                continue
+            Qo = torch.flip(torch.cumsum(torch.flip(qo[order], [0]), 0), [0])
+            Qw = torch.flip(torch.cumsum(torch.flip(qw[order], [0]), 0), [0])
+            Qg = torch.flip(torch.cumsum(torch.flip(qg[order], [0]), 0), [0])
+            mass = Qo * rho_sc[OIL] + Qw * rho_sc[WAT] + Qg * rho_sc[GAS]
+            dz = dz_all[order]
+            if head_old is None:
+                h = mix_cell[order] * G * dz
+                pb = (p_cell[order] - h).min()
+            else:
+                h = head_old[order]
+                pb = p_bh[w_idx]
+            for _ in range(2):
+                # A segment spans the previous connection (or BHP datum)
+                # and this connection. Evaluate compressible-fluid density
+                # at its mean pressure, as in StandardWellConnections.
+                h_above = torch.cat((torch.zeros_like(h[:1]), h[:-1]))
+                p = (pb + 0.5 * (h_above + h)).clamp_min(1e5)
+                vo, vw, vg = surface_to_reservoir(self.pvt.at(c[order]), p, Qo, Qw, Qg)
+                vol = vo + vw + vg
+                rho = torch.where((mass > 0) & (vol > 0), mass / vol.clamp_min(1e-300), mix_cell[order])
+                seg = torch.diff(dz, prepend=torch.zeros(1, dtype=dz.dtype, device=dz.device))
+                h = torch.cumsum(rho * G * seg, 0)
+            heads[order] = h
+        return heads
+
+    def _msw_heads(self, v, mix_cell, w_idx):
+        """
+        Многосегментная скважина (WELSEGS/COMPSEGS, однородная модель HO), явно по состоянию начала шага.
+        Поверхностные притоки соединений (по депрессии прошлого шага) копятся по дереву сегментов к верхнему;
+        давление сегмента = давление выходного + ρ_сегм·g·Δz + трение (HFA, Фаннинг: 2fLw²/(A²Dρ)), ρ и μ
+        смеси — по составу потока при давлении сегмента. Напор соединения (p_conn − p_bh): давление сегмента,
+        перепад сегмент → перфорация по плотности сегмента и перфорация → центр ячейки по плотности ячейки.
+        """
+        m = self.msw[w_idx]
+        idx, cs = m["conns"], m["conn_seg"]
+        c = self.conn_cell[idx]
+        wi = (self.conn_wi * self.conn_sched * self.conn_open)[idx]
+        rho_sc = self.rho_sc
+        p_cell = v[I_P][c]
+        d_cell = self.conn_dz[idx] + self.ref_depth[w_idx]
+        if self.p_bh is not None and m["head"] is not None:
+            pb = self.p_bh[w_idx]
+            dd = p_cell - pb - m["head"]
+        else:
+            pb = (p_cell - mix_cell * G * self.conn_dz[idx]).min()
+            dd = torch.ones_like(p_cell)
+        if self.is_inj[w_idx]:
+            ph = int(self.inj_phase[w_idx])
+            q = torch.zeros((idx.numel(), 3), dtype=torch.float64, device=self.device)
+            b = v[I_B + ph][c]
+            q[:, ph] = -wi * b * v[I_LT][c] * (-dd).clamp_min(0.0)
+        else:
+            q = torch.stack([wi * (v[I_MOO][c] + v[I_MOG][c]) / rho_sc[OIL], wi * v[I_MWW][c] / rho_sc[WAT],
+                             wi * (v[I_MGG][c] + v[I_MGO][c]) / rho_sc[GAS]], 1) * dd.clamp_min(0.0).unsqueeze(1)
+        n_s = len(m["outlet"])
+        Q = torch.zeros((n_s, 3), dtype=torch.float64, device=self.device).index_add_(0, cs, q)
+        for s in reversed(m["order"]):
+            o = m["outlet"][s]
+            if o >= 0:
+                Q[o] += Q[s]
+        cnt = torch.zeros(n_s, dtype=torch.float64, device=self.device).index_add_(0, cs, torch.ones_like(p_cell))
+        rho_c = torch.zeros(n_s, dtype=torch.float64, device=self.device).index_add_(0, cs, mix_cell)
+        rho_def = torch.where(cnt > 0, rho_c / cnt.clamp_min(1), mix_cell.mean())
+        pvt = self.pvt.at(c[0:1].expand(n_s))
+        p_seg = torch.full((n_s,), float(pb), dtype=torch.float64, device=self.device)
+        Qa = Q.abs()
+        mass = (Qa * rho_sc).sum(1)
+        for _ in range(2):
+            vo, vw, vg, (mu_o, mu_w, mu_g) = surface_to_reservoir(pvt, p_seg.clamp_min(1e5), Qa[:, 0], Qa[:, 1],
+                                                                  Qa[:, 2], with_mu=True)
+            vol = vo + vw + vg
+            flow = (mass > 0) & (vol > 0)
+            rho = torch.where(flow, mass / vol.clamp_min(1e-300), rho_def)
+            mu = torch.where(flow, (vo * mu_o + vw * mu_w + vg * mu_g) / vol.clamp_min(1e-300), torch.ones_like(vol))
+            fr = torch.zeros_like(p_seg)
+            if m["friction"]:
+                A, D = m["area"], m["diam"]
+                ok = (A > 0) & (D > 0) & flow
+                A_, D_ = torch.where(ok, A, 1.0), torch.where(ok, D, 1.0)
+                re = D_ * mass / (A_ * mu)
+                f = friction_factor(re, D_, m["rough"])
+                sgn = torch.sign((Q * rho_sc).sum(1))
+                fr = torch.where(ok, sgn * 2.0 * f * m["length"] * mass ** 2 / (A_ ** 2 * D_ * rho), 0.0 * fr)
+            new = p_seg.clone()
+            for s in m["order"]:
+                o = m["outlet"][s]
+                if o >= 0:
+                    new[s] = new[o] + rho[s] * G * (m["depth"][s] - m["depth"][o]) + fr[s]
+            p_seg = new
+        head = (p_seg[cs] - pb) + rho[cs] * G * (m["conn_depth"] - m["depth"][cs]) \
+            - mix_cell * G * (m["conn_depth"] - d_cell)
+        m["head"] = head
+        m["p_seg"], m["rho"] = p_seg, rho
+        self.conn_head[idx] = head
+
+    def assemble_connections(self, R, J_vals, diag_map, v, d, p_bh):
+        """Reservoir flux/Jacobian contributions, without choosing well control rows."""
+        c = self.conn_cell
+        q, dq, Cv = self._conn_flows(v, d, p_bh)
+        # WEFAC: пласт видит средний во времени отбор ε·q, уравнение скважины — рабочий дебит q
+        eff = self.conn_eff
+        R.view(-1, 3).index_add_(0, c, q * eff.unsqueeze(1))
+        jd = diag_map[c]
+        J_vals.index_add_(0, jd, dq * eff.view(-1, 1, 1))
+        mix = self._mixing_blocks()
+        if mix is not None:
+            J_vals.index_add_(0, mix[0], mix[1] * eff[self.pair_c[self._mix_sel]].view(-1, 1, 1)
+                              if self._mix_sel is not None else mix[1])
+        for pc, pd, blocks, positions in self._producer_mix.values():
+            if positions is not None:
+                J_vals.index_add_(0, positions, blocks * eff[pc, None, None])
+
+        return q, dq, Cv, jd
+
+    def assemble(self, R, J_vals, diag_map, v, d, p_bh):
+        if self.n_w == 0:
+            return None
+        if self.step_targets is None:
+            raise RuntimeError("BlackOilWells.begin_step() не вызван")
+        cw = self.conn_well
+        q, dq, Cv, jd = self.assemble_connections(R, J_vals, diag_map, v, d, p_bh)
+        eff = self.conn_eff
+        a = self.conn_a.clone()
+        zeros = torch.zeros(self.n_w, dtype=torch.float64, device=self.device)
+        resv_indices = []
+        if self.p_avg is not None and self.rs_avg is not None and self.pvt is not None:
+            resv_indices = sorted(i for i in getattr(self, "_active_resv_idx", self._resv_idx)
+                                  if self.wells[i].type == 'producer')
+            if resv_indices:
+                rates = zeros.new_zeros((self.n_w, 3)).index_add_(0, cw, q)
+                resv_rates, gradients = self._producer_resv_rates(resv_indices, rates[resv_indices])
+                by_well = zeros.new_zeros((self.n_w, 3))
+                by_well[resv_indices] = gradients
+                active = torch.zeros(self.n_w, dtype=torch.bool, device=self.device)
+                active[resv_indices] = True
+                a = torch.where(active[cw, None], by_well[cw], a)
+        self.conn_a = a
+        q_surf = zeros.clone().index_add_(0, cw, (a * q).sum(1))
+        if resv_indices:
+            q_surf[resv_indices] = resv_rates
+        dq_dpbh = zeros.clone().index_add_(0, cw, (a * Cv).sum(1))
+        B_rate = (a.unsqueeze(2) * dq).sum(1)
+        if self._mix is not None:
+            # через ячейку перфорации с обратным потоком дебит скважины зависит только от суммарной массы
+            # перетока: его состав уходит на смешение, а нетто-закачка уменьшается на его массу
+            back, E = self._mix[0], self._mix[6]
+            B_back = (a * E).sum(1, keepdim=True) * dq.sum(1)
+            B_rate = torch.where(back.unsqueeze(1), B_back, B_rate)
+        for pc, pd, blocks, _ in self._producer_mix.values():
+            B_rate.index_add_(0, pd, (a[pc, :, None] * blocks).sum(1))
+
+        is_rate = torch.zeros(self.n_w, dtype=torch.bool, device=self.device)
+        target = torch.zeros_like(zeros)
+        for w_idx, w in enumerate(self.wells):
+            ctrl, val = self.step_targets[w_idx]
+            mode = self.step_mode[w_idx]
+            if ctrl == 'rate' and mode == 'rate':
+                is_rate[w_idx] = True
+                target[w_idx] = val
+            elif ctrl == 'rate' and mode == 'stop':
+                is_rate[w_idx] = True
+            elif ctrl == 'shut':
+                target[w_idx] = p_bh[w_idx]
+            elif ctrl == 'bhp':
+                target[w_idx] = val
+            else:
+                target[w_idx] = self.bhp_limit(w)
+        r_w = torch.where(is_rate, q_surf - target, p_bh - target)
+        D = torch.where(is_rate, dq_dpbh, torch.ones_like(zeros))
+        degenerate = is_rate & (D.abs() < 1e-30)
+        D = torch.where(degenerate, torch.ones_like(D), D)
+        r_w = torch.where(degenerate, torch.zeros_like(r_w), r_w)
+        conn_rate = is_rate[cw] & ~degenerate[cw]
+        Bv = torch.where(conn_rate.unsqueeze(1), B_rate, torch.zeros_like(B_rate))
+        self._Q = zeros.new_zeros((self.n_w, 3)).index_add_(0, cw, q) / self.rho_sc
+        self._lin = (q, Cv, p_bh.clone())
+        for w_idx in range(self.n_w):
+            if self.step_mode[w_idx] != 'thp_limit' or self.step_targets[w_idx][0] != 'rate':
+                continue
+            # r = p_bh − VFP(Q(x, p_bh), THP) − ρgΔz; Q_m = Σ q_m / ρ_sc,m
+            m = cw == w_idx
+            bt, g = self._vfp_bhp(w_idx, self._Q[w_idx], grad=True)
+            gm = g / self.rho_sc
+            r_w[w_idx] = p_bh[w_idx] - bt
+            D[w_idx] = 1.0 - (gm * Cv[m]).sum()
+            Bv[m] = -(gm.view(1, 3, 1) * dq[m]).sum(1)
+            if w_idx in self._producer_mix:
+                pc, pd, blocks, _ = self._producer_mix[w_idx]
+                Bv.index_add_(0, pd, -(gm[None, :, None] * blocks).sum(1))
+            target[w_idx] = bt
+        is_thp = torch.tensor([m == 'thp_limit' for m in self.step_mode], device=self.device)
+        return {"Cv": Cv * eff.unsqueeze(1), "Bv": Bv, "D": D, "r_w": r_w, "q_surf": q_surf, "is_rate": is_rate,
+                "is_thp": is_thp,
+                "is_stopped": torch.tensor([getattr(w, "stopped", False) for w in self.wells],
+                                            dtype=torch.bool, device=self.device),
+                "component_rates": self._Q,
+                "target": target, "q": q, "q_o": q[:, OIL], "q_w": q[:, WAT], "q_g": q[:, GAS], "diag_pos": jd}
+
+    def records(self, sys, p_bh, p):
+        recs = []
+        for w_idx, w in enumerate(self.wells):
+            m = self.conn_well == w_idx
+            recs.append({"name": w.name, "type": w.type, "mode": self.step_mode[w_idx],
+                         "p_bh_mpa": float(p_bh[w_idx]) / 1e6,
+                         "q_surf_m3_day": float(sys["q_surf"][w_idx]) * DAY,
+                         "q_kg_s": sys["q"][m].sum(0).tolist(), "eq_res": float(sys["r_w"][w_idx]),
+                         "p_cells_mpa": [float(x) / 1e6 for x in p.view(-1)[self.conn_cell[m]]]})
+        return recs
+
+
+class BlackOilFIMSolver(ManualFIMSolver):
+    """FIM black-oil: блоки Якобиана 3×3 (уравнения o, w, g × переменные P, Sw, X)."""
+
+    nb = 3
+
+    def __init__(self, reservoir, fluid, well_manager, params):
+        surface_spec = params.get("physical_surface_network")
+        if surface_spec is not None and surface_spec.get("network", {}).get("model") != "homogeneous_blackoil_tree":
+            raise NotImplementedError("Single-liquid physical network requires oil_water; black-oil FIM requires homogeneous_blackoil_tree")
+        self.reservoir = reservoir
+        self.fluid = fluid
+        self.well_manager = well_manager
+        self.device = reservoir.device
+        self.nx, self.ny, self.nz = reservoir.dimensions
+        self.n_cells = self.nx * self.ny * self.nz
+        self._init_params(params)
+        # Ньютон работает в float64; принятый слой должен сохранять ту же точность.
+        # Иначе JSON-модель округляет P/Sw обратно в float32 после каждого шага,
+        # нарушая уже проверенный материальный баланс.
+        for name in ("pressure", "s_w", "s_g", "s_o", "rs", "rv"):
+            value = getattr(fluid, name, None)
+            if torch.is_tensor(value):
+                setattr(fluid, name, value.double())
+        self.drs_max_rel = float(params.get('newton_drs_max_rel', 0.2))
+        self.relax_min = float(params.get('newton_relax_min', 0.5))
+        self.relax_increment = float(params.get('newton_relax_increment', 0.1))
+        self.relax_rel_tol = float(params.get('newton_relax_rel_tol', 0.2))
+        self.debug.eq_names = ("oil", "water", "gas")
+
+        dev = self.device
+        self.pore_volume = (reservoir.cell_volume * reservoir.porosity).reshape(-1).double().to(dev)
+        c_rock = getattr(fluid, 'rock_compressibility', 0.0)
+        self.c_rock = (c_rock.reshape(-1).double().to(dev) if torch.is_tensor(c_rock) else float(c_rock))
+        p_ref = getattr(fluid, 'rock_ref_pressure', None)
+        self.rock_eclipse = p_ref is not None
+        if self.rock_eclipse:
+            self.p_ref_rock = (p_ref.reshape(-1).double().to(dev) if torch.is_tensor(p_ref)
+                               else torch.full((self.n_cells,), float(p_ref), dtype=torch.float64, device=dev))
+        else:
+            self.p_ref_rock = fluid.pressure.detach().reshape(-1).double().clone().to(dev)
+        self.pvt = getattr(fluid, 'blackoil_pvt', None) or BlackOilPVT(fluid, dev)
+        self.kr = getattr(fluid, 'blackoil_relperm', None) or ThreePhaseRelPerm(fluid, dev)
+        drsdt = params.get('drsdt')
+        self.drsdt = None if drsdt is None else float(drsdt)
+        self._rs_cap = None
+        self._graphs = {} if self.device.type == "cuda" else None
+        self.rho_sc = torch.tensor(self.pvt.rho_sc, dtype=torch.float64, device=dev)
+        vp = getattr(fluid, 'vappars', None)
+        if vp is not None and float(vp[1]) != 0.0:
+            raise NotImplementedError("VAPPARS: VAP2 ≠ 0 не поддерживается")
+        self.vap1 = float(vp[0]) if vp is not None and float(vp[0]) > 0.0 else None
+
+        if surface_spec is None:
+            self.wells = BlackOilWells(well_manager, reservoir, fluid, reservoir.dimensions, dev)
+        else:
+            from .blackoil_surface_coupling import SurfaceCoupledBlackOilWells
+            self.wells = SurfaceCoupledBlackOilWells(well_manager, reservoir, fluid, reservoir.dimensions, dev, surface_spec)
+        print("Building sparse matrix structure (black-oil, блоки 3x3)...")
+        wc = self.wells.conn_cell
+        self.builder = SparseMatrixBuilder(self.nx, self.ny, self.nz, block_size=3, device=self.device,
+                                           pairs=self._conn_pairs(),
+                                           extra_pairs=(wc[self.wells.pair_c], wc[self.wells.pair_d]))
+        self.wells.pair_pos = self.builder.position(wc[self.wells.pair_c], wc[self.wells.pair_d])
+        self._build_connections()
+        self.wells.pvt = self.pvt
+        self.wet = bool(getattr(self.pvt, "wet", False))
+        self.flux_terms = FLUX_TERMS_WET if self.wet else FLUX_TERMS
+        self.wells.flux_terms = self.flux_terms
+        self.wells.wellbore_density = str(params.get('wellbore_density', 'flash')).lower()
+        for w in self.wells.wells:
+            print(f"  Скважина {w.name}: перфораций {len(w.perforations)}, WI = "
+                  + ", ".join(f"{x:.3e}" for x in w.connection_wi) + " м³")
+        self._p_bh_cur = None
+
+        p = fluid.pressure.detach().reshape(-1).double().to(dev)
+        sg = fluid.s_g.detach().reshape(-1).double().to(dev)
+        rs = getattr(fluid, 'rs', None)
+        rs = self.pvt.rs_sat(p) if rs is None else rs.detach().reshape(-1).double().to(dev)
+        self.sat = (sg > 0) | torch.full_like(sg, not self.pvt.has_pvt, dtype=torch.bool)
+        rs = torch.where(self.sat, self.pvt.rs_sat(p), torch.minimum(rs, self.pvt.rs_sat(p)))
+        self.x = torch.where(self.sat, sg, rs)
+        sw0 = fluid.s_w.detach().reshape(-1).double().to(dev)
+        rv = getattr(fluid, 'rv', None)
+        pg = self._phase_pressures(p, sw0, sg)[1]
+        rv_s = self.pvt.rv_sat(pg)
+        rv = rv_s if rv is None else torch.minimum(rv.detach().reshape(-1).double().to(dev), rv_s)
+        self.ug = (sg > 0) & (1.0 - sw0 - sg <= 1e-12) & self.wet
+        self.sat = self.sat & ~self.ug
+        if self.pvt.has_pvt:
+            empty = (1.0 - sw0 - sg <= SO_EMPTY) & ~self.ug & ~self.sat
+            self.sat = self.sat | empty
+            self.x = torch.where(empty, sg, self.x)
+            rs = torch.where(empty, self.pvt.rs_sat(p), rs)
+        self.x = torch.where(self.ug, rv, self.x)
+        fluid.rs = rs.view(self.nx, self.ny, self.nz)
+        fluid.rv = torch.where(self.ug, rv, rv_s).view(self.nx, self.ny, self.nz)
+        self.so_max = (1.0 - sw0 - sg).clamp_min(0.0)   # VAPPARS: максимальная So ячейки (на начало шага)
+        print(f"  Black-oil FIM: PVT={'таблица' if self.pvt.has_pvt else 'постоянные сжимаемости'}, "
+              f"насыщенных ячеек {int(self.sat.sum())}/{self.n_cells}"
+              + (f", газ без нефти (X = Rv) {int(self.ug.sum())}" if self.wet else ""))
+
+    # ------------------------------------------------------------ свойства
+    def _pv(self, p_flat):
+        if not self.rock_eclipse:
+            return super()._pv(p_flat)
+        X = self.c_rock * (p_flat - self.p_ref_rock)
+        return self.pore_volume * (1.0 + X + 0.5 * X * X)
+
+    def rs_sat_eff(self, p):
+        """Rs в насыщенной ячейке: Rs_sat(P), ограниченное сверху DRSDT (Rs_old + DRSDT·dt)."""
+        rs = self.pvt.rs_sat(p)
+        return rs if self._rs_cap is None else torch.minimum(rs, self._rs_cap)
+
+    def rv_sat_eff(self, p, so):
+        """
+        Rv насыщенного газа: Rv_sat(P), при VAPPARS — ·(max(So, 1e-3)/So_max)^VAP1, если So < So_max и So_max > 0.01
+        (как saturatedVaporizationFactor в OPM): остаточная нефть испаряется хуже.
+        """
+        rv = self.pvt.rv_sat(p)
+        if self.vap1 is None:
+            return rv
+        som = self.so_max
+        f = (so.clamp_min(1e-3) / som.clamp_min(1e-30)) ** self.vap1
+        return rv * torch.where((som > 0.01) & (so < som), f, torch.ones_like(f))
+
+    def _phase_pressures(self, p, sw, sg):
+        pcow, pcog = self.kr.pc(sw, sg)
+        return p - pcow, p + pcog
+
+    def _phase_state(self, p, sw, x, sat, ug, phase_pressures=None):
+        """Phase properties and component masses, using each phase's pressure."""
+        pvt = self.pvt
+        rho_o, rho_w, rho_g = pvt.rho_sc
+        cap = self._rs_cap
+        wet = self.wet and ug is not None
+        if wet:
+            sg = torch.where(sat, x, torch.where(ug, 1.0 - sw, 0.0 * x))
+        else:
+            sg = torch.where(sat, x, 0.0 * x)
+        pw, pg = self._phase_pressures(p, sw, sg) if phase_pressures is None else phase_pressures
+        rs_s = pvt.rs_sat(p)
+        on_sat_line = sat if cap is None else sat & (rs_s.detach() <= cap)
+        rs_sat = rs_s if cap is None else torch.minimum(rs_s, cap)
+        rs = torch.where(sat, rs_sat, torch.where(ug, rs_sat, x) if wet else x)
+        so = 1.0 - sw - sg
+        bo, mu_o = pvt.oil(p, rs, on_sat_line | ug if wet else on_sat_line)
+        bw, mu_w = pvt.water(pw)
+        if wet:
+            rv = torch.where(ug, x, self.rv_sat_eff(pg, so))
+            # при VAPPARS насыщенный газ недонасыщен относительно PVTG — по Rv (ветви непрерывны)
+            bg, mu_g = pvt.gas(pg, rv, ~ug if self.vap1 is None else None)
+        else:
+            rv = None
+            bg, mu_g = pvt.gas(pg)
+        pv = self._pv(p)
+        if wet:
+            acc_o = pv * so * bo * rho_o + pv * sg * bg * rv * rho_o
+        else:
+            acc_o = pv * so * bo * rho_o
+        acc = (acc_o, pv * sw * bw * rho_w, pv * (sg * bg + so * bo * rs) * rho_g)
+        return dict(sg=sg, rs=rs, so=so, rv=rv, bo=bo, mu_o=mu_o, bw=bw, mu_w=mu_w,
+                    bg=bg, mu_g=mu_g, pw=pw, pg=pg, acc=acc)
+
+    def masses(self, p, sw, x, sat, ug=None):
+        """Массы компонентов ячеек [3, N] (o, w, g) — то же, что строки I_ACC свойств, без ОФП и Pc."""
+        return torch.stack(self._phase_state(p, sw, x, sat, ug)["acc"])
+
+    def _cell_fn(self, sat, ug=None):
+        kr = self.kr
+        rho_o, rho_w, rho_g = self.pvt.rho_sc
+        rho_cell = getattr(self.pvt, "rho_cell", None)
+        ro, rw, rg = (rho_o, rho_w, rho_g) if rho_cell is None else rho_cell
+        wet = self.wet and ug is not None
+
+        def fn(p, sw, x):
+            sg = torch.where(sat, x, torch.where(ug, 1.0 - sw, 0.0 * x)) if wet else torch.where(sat, x, 0.0 * x)
+            if hasattr(kr, "kr_pc"):
+                (krw, kro, krg), (pcow, pcog) = kr.kr_pc(sw, sg)
+            else:
+                krw, kro, krg = kr(sw, sg)
+                pcow, pcog = kr.pc(sw, sg)
+            st = self._phase_state(p, sw, x, sat, ug, (p - pcow, p + pcog))
+            sg, rs, so, rv = st["sg"], st["rs"], st["so"], st["rv"]
+            bo, mu_o, bw, mu_w, bg, mu_g = st["bo"], st["mu_o"], st["bw"], st["mu_w"], st["bg"], st["mu_g"]
+            mo, mw, mg = kro * bo / mu_o, krw * bw / mu_w, krg * bg / mu_g
+            if wet:
+                rho_gr = (rg + rv * ro) * bg
+                m_og = rho_o * rv * mg
+            else:
+                rho_gr, m_og = rg * bg, 0.0 * p
+            return torch.stack([
+                *st["acc"],
+                p, p - pcow, p + pcog,
+                (ro + rs * rg) * bo, rw * bw, rho_gr,
+                rho_o * mo, rho_w * mw, rho_g * mg, rho_g * rs * mo,
+                kro / mu_o + krw / mu_w + krg / mu_g,
+                bo, bw, bg, m_og, rs, rv if wet else torch.zeros_like(p)])
+        return fn
+
+    def cell_values(self, p, sw, x, sat, ug=None):
+        return self._cell_fn(sat, ug)(p, sw, x)
+
+    def cell_state(self, p, sw, x, sat, ug=None):
+        """Свойства [N_PROPS, N] и производные [N_PROPS, N, 3] по (P, Sw, X)."""
+        if self._graphs is not None and p.is_cuda:
+            try:
+                with torch.cuda.device(p.device):
+                    return self._cell_state_graph(p, sw, x, sat, ug)
+            except RuntimeError as e:
+                print(f"  ⚠ CUDA-граф свойств отключён: {str(e).splitlines()[0][:120]}")
+                self._graphs = None
+                torch.cuda.synchronize(p.device)
+        return self._cell_state_eager(p, sw, x, sat, ug)
+
+    def __getstate__(self):
+        st = super().__getstate__()
+        if st.get("_graphs") is not None:
+            st["_graphs"] = {}
+        return st
+
+    def _graph_state_attrs(self):
+        """Тензоры, которые cell_state читает помимо аргументов и которые меняются между шагами."""
+        out = [(self, "_rs_cap"), (self, "so_max")]
+        h = getattr(self.kr, "hyst", None)
+        if h is not None:
+            out += [(h, a) for a in ("sw_min", "sg_max", "shift_w", "shift_g", "on_w", "on_g")]
+        return [(o, a) for o, a in out if hasattr(o, a)]
+
+    def _cell_state_graph(self, p, sw, x, sat, ug):
+        """
+        cell_state через CUDA-граф: тысячи мелких ядер vmap(jvp) воспроизводятся одним вызовом.
+        Аргументы и изменяемое состояние копируются в постоянные буферы графа; граф — на каждую
+        структуру (None-ность состояния, ветви гистерезиса).
+        """
+        attrs = self._graph_state_attrs()
+        h = getattr(self.kr, "hyst", None)
+        flags = (bool(h.on_w.any()), bool(h.on_g.any())) if h is not None else None
+        key = (ug is None, tuple(getattr(o, a) is None for o, a in attrs), flags)
+        args = (p, sw, x, sat) + (() if ug is None else (ug,))
+        if h is not None:
+            h.flags = flags
+        try:
+            g = self._graphs.get(key)
+            if g is None:
+                self._cell_state_eager(p, sw, x, sat, ug)   # кэши таблиц заполняются вне записи
+                statics = []
+                for o, a in attrs:
+                    v = getattr(o, a)
+                    if v is not None:
+                        st = v.clone()
+                        setattr(o, a, st)
+                        statics.append((o, a, st))
+                inp = tuple(t.clone() for t in args)
+                graph, out = capture(lambda: self._cell_state_eager(*inp[:4], inp[4] if len(inp) > 4 else None),
+                                     p.device)
+                g = self._graphs[key] = (graph, inp, statics, out)
+            graph, inp, statics, out = g
+            for t, st in zip(args, inp):
+                st.copy_(t)
+            for o, a, st in statics:
+                v = getattr(o, a)
+                if v is not st:
+                    st.copy_(v)
+                    setattr(o, a, st)
+            graph.replay()
+            return out[0].clone(), out[1].clone()
+        finally:
+            if h is not None:
+                h.flags = None
+
+    def _cell_state_eager(self, p, sw, x, sat, ug=None):
+        fn = self._cell_fn(sat, ug)
+        # три направления (P, Sw, X) — одним проходом vmap
+        tang = torch.eye(3, dtype=p.dtype, device=p.device)[:, :, None].expand(3, 3, p.numel())
+        val, dv = vmap(lambda t: jvp(fn, (p, sw, x), (t[0], t[1], t[2])))(tang)
+        return val[0], dv.permute(1, 2, 0)
+
+    # ------------------------------------------------------------ сборка
+    def assemble_bo(self, p, sw, x, sat, acc_old, dt, p_bh, state=None, ug=None):
+        n, dev = self.n_cells, self.device
+        v, d = state if state is not None else self.cell_state(p, sw, x, sat, ug)
+        R = torch.zeros((n, 3), dtype=torch.float64, device=dev)
+        J = torch.zeros((self.builder.n_nonzero, 3, 3), dtype=torch.float64, device=dev)
+        dm = self.builder.diag_map
+        R += (v[I_ACC:I_ACC + 3] - acc_old).T / dt
+        J[dm] += d[I_ACC:I_ACC + 3].permute(1, 0, 2) / dt
+
+        # вырожденная строка газа в недонасыщенной ячейке без нефти (So → 0): малая регуляризация
+        so = 1.0 - sw - torch.where(sat, x, 0.0 * x)
+        if ug is not None and self.wet:
+            so = torch.where(ug, torch.zeros_like(so), so)
+            # строка нефти газовой ячейки при Sg → 0 (Sw → 1) вырождается по Rv
+            weak_o = ug & (1.0 - sw < 1e-6)
+            if bool(weak_o.any()):
+                J[dm[weak_o], OIL, 2] += 1e-8 * self.pore_volume[weak_o] * self.pvt.rho_sc[OIL] / dt
+            weak = (~sat) & (~ug) & (so < 1e-6)
+        else:
+            weak = (~sat) & (so < 1e-6)
+        if bool(weak.any()):
+            J[dm[weak], GAS, 2] += 1e-8 * self.pore_volume[weak] * self.pvt.rho_sc[GAS] / dt
+
+        L, Rr = self.face_L, self.face_R
+        if L.numel():
+            T, gdz = self.face_T, G * self.face_dZ
+            pot = []
+            th = self._face_thresholds(v)
+            for ph in range(3):
+                ip, ir = I_P + ph, I_RHO + ph
+                rho_avg = 0.5 * (v[ir][L] + v[ir][Rr])
+                dpot = (v[ip][L] - v[ip][Rr]) - rho_avg * gdz
+                dpL = d[ip][L] - 0.5 * gdz.unsqueeze(1) * d[ir][L]
+                dpR = -d[ip][Rr] - 0.5 * gdz.unsqueeze(1) * d[ir][Rr]
+                up = dpot >= 0
+                if th is not None:
+                    # THPRES: поток через границу регионов — только сверх порога, Δφ_eff = sign·max(|Δφ| − θ, 0)
+                    theta = torch.where(up, th[0], th[1])
+                    over = (dpot.abs() > theta) | (theta == 0)
+                    dpot = torch.where(over, dpot - torch.sign(dpot) * theta, torch.zeros_like(dpot))
+                    gate = over.double().unsqueeze(1)
+                    dpL, dpR = dpL * gate, dpR * gate
+                pot.append((dpot, dpL, dpR, up))
+            for comp, ph, mi in self.flux_terms:
+                dpot, dpL, dpR, up = pot[ph]
+                upd = up.double().unsqueeze(1)
+                M = torch.where(up, v[mi][L], v[mi][Rr])
+                flux = T * M * dpot
+                R[:, comp].index_add_(0, L, flux)
+                R[:, comp].index_add_(0, Rr, -flux)
+                Tc = T.unsqueeze(1)
+                dFL = Tc * (d[mi][L] * upd * dpot.unsqueeze(1) + M.unsqueeze(1) * dpL)
+                dFR = Tc * (d[mi][Rr] * (1.0 - upd) * dpot.unsqueeze(1) + M.unsqueeze(1) * dpR)
+                Jc = J[:, comp, :]
+                Jc.index_add_(0, self.diag_L, dFL)
+                Jc.index_add_(0, self.face_pos_LR, dFR)
+                Jc.index_add_(0, self.diag_R, -dFR)
+                Jc.index_add_(0, self.face_pos_RL, -dFL)
+
+        wsys = self.wells.assemble(R, J, dm, v, d, p_bh) if self.wells.n_w else None
+        return R.view(-1), J, wsys
+
+    def _face_thresholds(self, v):
+        """
+        Пороговые давления THPRES по граням: (θ для потока L→R, θ для R→L) или None.
+        Обратимые (по умолчанию) — одно значение для пары регионов в обе стороны; IRREVERS — по направлению.
+        Порог по умолчанию — максимальная по фазам |Δφ| через границу пары в начальном состоянии (первая сборка).
+        """
+        spec = getattr(self.reservoir, "thpres", None)
+        if spec is None:
+            return None
+        cached = getattr(self, "_th_cache", None)
+        if cached is not None:
+            return cached
+        eql = self.reservoir.cell_eqlnum.to(self.device).long().view(-1)
+        L, Rr = self.face_L, self.face_R
+        rL, rR = eql[L], eql[Rr]
+        cross = rL != rR
+        n_r = int(eql.max()) + 1
+        gdz = G * self.face_dZ
+        dmax = torch.zeros_like(self.face_T)
+        for ph, im in ((OIL, I_MOO), (WAT, I_MWW), (GAS, I_MGG)):
+            ip, ir = I_P + ph, I_RHO + ph
+            dpot = (v[ip][L] - v[ip][Rr]) - 0.5 * (v[ir][L] + v[ir][Rr]) * gdz
+            mob = torch.where(dpot >= 0, v[im][L], v[im][Rr])
+            dmax = torch.maximum(dmax, torch.where(mob > 0, dpot.abs(), torch.zeros_like(dpot)))
+        table = {}
+        for r1, r2, val in spec["records"]:
+            if not (0 <= r1 < n_r and 0 <= r2 < n_r):
+                raise ValueError(f"THPRES: регионы {r1 + 1}, {r2 + 1} вне EQLNUM 1..{n_r}")
+            if val is None:
+                m = cross & (((rL == r1) & (rR == r2)) | ((rL == r2) & (rR == r1)))
+                val = float(dmax[m].max()) if bool(m.any()) else 0.0
+            table[(r1, r2)] = val
+            if not spec["irreversible"]:
+                table[(r2, r1)] = val
+        lut = torch.zeros(n_r, n_r, dtype=torch.float64, device=self.device)
+        for (a, b), val in table.items():
+            lut[a, b] = val
+        th_lr = torch.where(cross, lut[rL, rR], torch.zeros_like(self.face_T))
+        th_rl = torch.where(cross, lut[rR, rL], torch.zeros_like(self.face_T))
+        self._th_cache = (th_lr, th_rl)
+        return self._th_cache
+
+    # ------------------------------------------------------------ критерии
+    def convergence(self, R, dt, pv, wsys, p_bh, v=None):
+        Rb = R.view(-1, 3)
+        b_avg = (1.0 / v[I_B:I_B + 3]).mean(dim=1)
+        scale = dt * b_avg / self.rho_sc
+        cnv_cell = scale * Rb.abs() / pv.unsqueeze(1)
+        cnv = cnv_cell.max(dim=0).values
+        mb = scale * Rb.sum(dim=0).abs() / pv.sum()
+        bad = cnv_cell.max(dim=1).values > self.tol_cnv
+        # Keep the original selected-PV reduction (including its floating
+        # point order), but compute/read it once, rather than repeatedly.
+        fraction = pv[bad].sum() / pv.sum()
+        packet = [cnv, mb, fraction.reshape(1), bad.any().to(cnv.dtype).reshape(1),
+                  torch.isfinite(R).all().to(cnv.dtype).reshape(1)]
+        has_wells = wsys is not None and wsys["is_rate"].numel() > 0
+        missing_stopped_rates = False
+        if has_wells:
+            rate = wsys["is_rate"]
+            rel = wsys["r_w"].abs() / torch.clamp(wsys["target"].abs(), min=0.01 / DAY)
+            rate_err = torch.where(rate, rel, torch.zeros_like(rel))
+            bhp_err = torch.where(rate, torch.zeros_like(rel), wsys["r_w"].abs())
+            tol_thp = 1e3 if getattr(self, "_newton_iter", 0) < 4 else 1e4
+            tol_p = torch.where(wsys.get("is_thp", torch.zeros_like(rate)),
+                                torch.full_like(rel, max(self.tol_well_bhp, tol_thp)),
+                                torch.full_like(rel, self.tol_well_bhp))
+            well_ok_tensor = (rate_err <= self.tol_well_rate).all() & (bhp_err <= tol_p).all()
+            component_max = rate_err.new_zeros(())
+            stopped = wsys.get("is_stopped")
+            if stopped is not None:
+                if "component_rates" in wsys:
+                    # Masked maximum has the same nonnegative selected max
+                    # without a second dynamically-sized CUDA nonzero/index.
+                    error = torch.where(stopped[:,None], wsys["component_rates"].abs() / (0.01/DAY), 0.)
+                    component_max = error.max()
+                    well_ok_tensor = well_ok_tensor & (error <= self.tol_well_rate).all()
+                else:
+                    missing_stopped_rates = True
+            packet.extend([rate_err.max().reshape(1), well_ok_tensor.to(cnv.dtype).reshape(1), component_max.reshape(1)])
+            if missing_stopped_rates:
+                packet.append(stopped.any().to(cnv.dtype).reshape(1))
+        factor_status = wsys.get("_surface_factor_bad") if wsys is not None else None
+        if factor_status is not None:
+            packet.append(factor_status.to(cnv.dtype).reshape(1))
+        host = torch.cat(packet).detach().cpu().tolist()
+        if factor_status is not None:
+            wsys["_surface_factor_validated"]=not bool(host.pop())
+        cnv_l, mb_l = host[:3], host[3:6]
+        fraction_value, any_bad, residual_finite = host[6], bool(host[7]), bool(host[8])
+        prev = getattr(self, "_prev_norm", None)
+        norm = max(max(c/self.tol_cnv, m/self.tol_mb) for c,m in zip(cnv_l,mb_l))
+        stagnant = prev is not None and norm > 0.99*prev
+        relaxed = ((getattr(self, "_newton_iter", 0) >= self.max_strict_iter or stagnant)
+                   and any_bad and fraction_value <= self.relaxed_max_pv_fraction)
+        tol_cnv = self.tol_cnv_relaxed if relaxed else self.tol_cnv
+        tol_mb = self.tol_mb_relaxed if relaxed else self.tol_mb
+        well_err, well_ok = (max(host[9],host[11]),bool(host[10])) if has_wells else (0.,True)
+        if missing_stopped_rates and bool(host[12]):
+            raise KeyError("component_rates")
+        ok = max(cnv_l) <= tol_cnv and max(mb_l) <= tol_mb and well_ok
+        return ok, {"cnv":cnv_l,"mb":mb_l,"well_rate_rel_err":well_err,"cnv_relaxed":relaxed,
+                    "tol_cnv_used":tol_cnv,"tol_mb_used":tol_mb,
+                    "unrelaxed_converged":max(cnv_l)<=self.tol_cnv and max(mb_l)<=self.tol_mb and well_ok,
+                    "cnv_bad_pv_fraction":fraction_value,"residual_finite":residual_finite}
+
+    # ------------------------------------------------------------ шаг
+    def _sg_rs(self, p, x, sat, ug=None, sw=None):
+        rs_s = self.rs_sat_eff(p)
+        if ug is None or not self.wet:
+            return torch.where(sat, x, torch.zeros_like(x)), torch.where(sat, rs_s, x)
+        sg = torch.where(sat, x, torch.where(ug, 1.0 - sw, torch.zeros_like(x)))
+        return sg, torch.where(sat | ug, rs_s, x)
+
+    def _rv(self, p, sw, x, ug, so):
+        pg = self._phase_pressures(p, sw, 1.0 - sw - so)[1]
+        return torch.where(ug, x, self.rv_sat_eff(pg, so))
+
+    def _update_resv_averages(self, p, sw):
+        """RateConverter averages: identical reductions, one host packet."""
+        pv_current = self._pv(p.view(-1))
+        hc = pv_current * (1.0 - sw.view(-1)).clamp_min(0.0)
+        hc = torch.where(hc.sum() <= 0, pv_current, hc)
+        hc_sum = hc.sum().clamp_min(1e-30)
+        values = [(hc * p.view(-1)).sum() / hc_sum]
+        rv = getattr(self.fluid, "rv", None)
+        has_rv = self.wet and rv is not None
+        if self.pvt.has_pvt:
+            values.append((hc * self.fluid.rs.reshape(-1).double()).sum() / hc_sum)
+            if has_rv:
+                values.append((hc * rv.reshape(-1).double()).sum() / hc_sum)
+        host = torch.stack(values).detach().cpu().tolist()
+        self.wells.p_avg = host[0]
+        if self.pvt.has_pvt:
+            self.wells.rs_avg = host[1]
+            self.wells.rv_avg = host[2] if has_rv else None
+
+    @surface_step_failure
+    @atomic_fim_step
+    def step(self, dt, current_time=None):
+        dbg = self.debug
+        log = (lambda *a, **k: None) if (dbg.enabled and dbg.console) else print
+        t_days = (current_time or 0.0) / 86400.0
+        shp = (self.nx, self.ny, self.nz)
+
+        p_old = self._step_initial['pressure'].reshape(-1)
+        sw_old = self._step_initial['s_w'].reshape(-1)
+        sat_old, x_old, ug_old = self.sat.clone(), self.x.clone(), self.ug.clone()
+        if self.drsdt is not None and self.pvt.has_pvt:
+            rs_old = self.fluid.rs.reshape(-1).double()
+            # Массы прошлого слоя считаются с уже принятым Rs, а не с новым пределом
+            # растворения: иначе DRSDT создаёт газ и нефть даже в закрытой ячейке.
+            self._rs_cap = rs_old
+        sg_old, _ = self._sg_rs(p_old, x_old, sat_old, ug_old, sw_old)
+        acc_old = self.masses(p_old, sw_old, x_old, sat_old, ug_old)
+        if self.drsdt is not None and self.pvt.has_pvt:
+            self._rs_cap = rs_old + self.drsdt * dt
+        mass_total = acc_old.sum(dim=1).tolist() if dbg.enabled else None
+
+        p, sw, x, sat, ug = p_old.clone(), sw_old.clone(), x_old.clone(), sat_old.clone(), ug_old.clone()
+        state = initial_cell_state(self, dt, current_time, p, sw, x, sat, ug)
+        if self.wells.n_w:
+            self._update_resv_averages(p, sw)
+            self.wells.begin_step(state[0], state[1], t_days)
+            p_bh = self.wells.p_bh.clone()
+        else:
+            p_bh = torch.zeros(0, dtype=torch.float64, device=self.device)
+        self._p_bh_cur = p_bh
+        dbg.begin_step(dt, current_time, p_old, sw_old)
+        initial_cnv = None
+        n_switch = 0
+        cnv_hist, omega = [], 1.0
+        prev_norm, lin_scale = None, 1.0
+
+        def fail(reason, R=None, J=None):
+            st = self._last_linear_stats if reason == "linear_solver_failed" else {}
+            log(f"    ✖ {reason}" + (f": невязка {st.get('true_rel_res', float('nan')):.2e} при допуске "
+                                     f"{st.get('tol', float('nan')):.1e}" if st else ""))
+            dbg.end_step(False, reason, p.view(shp), sw.view(shp), R, J, self.builder)
+            self._p_bh_cur = None
+            return False
+
+        for k in range(self.max_newton):
+            dbg.begin_iter(k)
+            timer = dbg.timer()
+            with timer('assemble'):
+                R, J, wsys = self.assemble_bo(p, sw, x, sat, acc_old, dt, p_bh, state, ug)
+                if wsys is not None and k > 0:
+                    msgs = self.wells.update_controls(p_bh, wsys["q_surf"])
+                    # После изменения давления сети старые доли группы уже не соответствуют
+                    # потенциалам скважин. Согласовываем цели с текущим состоянием, а не
+                    # сохраняем их до следующего временного шага (особенно при смене маршрута).
+                    refresh_groups = (self.wells.network is not None and self.wells.groups is not None
+                                      and bool(self.wells.groups[1]))
+                    if refresh_groups:
+                        old_targets = list(self.wells.step_targets)
+                        q0, _, dq0 = self.wells._conn_flows(state[0], state[1], torch.zeros_like(p_bh))
+                        self.wells._apply_groups(state[0], q0, dq0, state[1], current_bhp=p_bh)
+                        moved = any(a[0] != b[0] or abs(a[1] - b[1]) > self.tol_well_rate * max(abs(b[1]), 0.01 / DAY)
+                                    for a, b in zip(old_targets, self.wells.step_targets))
+                        if moved:
+                            msgs.append("группы: цели согласованы с текущим давлением сети")
+                            msgs.extend(self.wells.update_controls(p_bh, wsys["q_surf"]))
+                    for m in msgs:
+                        log(f"    ⇄ {m}")
+                    if msgs or refresh_groups:
+                        if dbg.enabled:
+                            dbg.iter_rec["control_switch"] = msgs
+                        p_bh = self._reset_bhp_targets(p_bh)
+                        self._p_bh_cur = p_bh
+                        R, J, wsys = self.assemble_bo(p, sw, x, sat, acc_old, dt, p_bh, state, ug)
+            pv = self._pv(p)
+            self._newton_iter, self._prev_norm = k, prev_norm
+            ok, crit = self.convergence(R, dt, pv, wsys, p_bh, state[0])
+            dbg.residual(R, dt, mass_total)
+            if dbg.enabled:
+                dbg.iter_rec["criteria"] = crit
+                dbg.iter_rec["n_saturated"] = int(sat.sum())
+                if wsys is not None and dbg.level >= 2:
+                    dbg.wells(self.wells.records(wsys, p_bh, p))
+            log(f"  Iter {k}: CNV o/w/g = " + "/".join(f"{c:.2e}" for c in crit['cnv'])
+                + f", MB = {max(crit['mb']):.2e}, wells = {crit['well_rate_rel_err']:.1e}"
+                + (f", переключений фаз {n_switch}" if n_switch else ""))
+
+            if not crit["residual_finite"]:
+                dbg.converged_iter()
+                return fail("nan_residual", R, J)
+            if initial_cnv is None:
+                initial_cnv = max(crit["cnv"]) + 1e-300
+
+            if ok and k >= self.min_newton:
+                sg, rs = self._sg_rs(p, x, sat, ug, sw)
+                so, so_old = 1.0 - sw - sg, 1.0 - sw_old - sg_old
+                self.last_newton_iters = k
+                self.last_max_dsw = float(torch.stack([(sw - sw_old).abs().max(), (sg - sg_old).abs().max(),
+                                                       (so - so_old).abs().max()]).max())
+                self.last_max_dp = float((p - p_old).abs().max())
+                dbg.converged_iter()
+                f = self.fluid
+                dtp = f.pressure.dtype
+                f.pressure.copy_(p.view(shp).to(dtp))
+                f.s_w.copy_(sw.view(shp).to(f.s_w.dtype))
+                f.s_g = sg.view(shp).to(dtp).clone()
+                f.s_o = so.view(shp).to(dtp).clone()
+                f.rs = rs.view(shp).clone()
+                f.rv = state[0][I_RV].view(shp).clone()
+                self.so_max = torch.maximum(self.so_max, so.clamp_min(0.0))
+                self.sat, self.x, self.ug = sat, x, ug
+                hyst = getattr(self.kr, "hyst", None)
+                if hyst is not None:
+                    hyst.commit(sw, sg)
+                if self.wells.n_w:
+                    self.wells.commit(p_bh)
+                    self._store_well_results(wsys, p_bh, dt)
+                self._p_bh_cur = None
+                capture_facility_tangent(self, J, wsys)
+                dbg.end_step(True, "converged", p.view(shp), sw.view(shp))
+                log("  Converged!")
+                return True
+
+            dbg.jacobian(J, self.builder.diag_map)
+            # допуск линейного решателя — по норме всей системы, а CNV — максимум по ячейкам: локальная невязка
+            # (например, в водоносной ячейке) может не уменьшаться при «решённой» системе; при застое Ньютона
+            # (нормированная невязка не упала вдвое) допуск ужесточается в 100 раз
+            norm = max(max(c / self.tol_cnv, m / self.tol_mb) for c, m in zip(crit["cnv"], crit["mb"]))
+            if prev_norm is not None and norm > 0.5 * prev_norm:
+                lin_scale *= 0.01
+            prev_norm = norm
+            rel = max(crit["cnv"]) / initial_cnv * lin_scale
+            with timer('linear'):
+                amg_scope = getattr(self, '_capacity_amg_scope', None)
+                adaptive = None
+                if amg_scope is not None:
+                    self._adaptive_amg_policy = None
+                elif self.amg_rebuild == 'adaptive':
+                    from .adaptive_amg import AdaptiveAMG
+                    adaptive = getattr(self, '_adaptive_amg_policy', None)
+                    if adaptive is None:
+                        adaptive = self._adaptive_amg_policy = AdaptiveAMG()
+                carry = (amg_scope.reuse(self, dt, current_time, k) if amg_scope is not None
+                         else adaptive.reuse(self, dt, current_time, k) if adaptive is not None else False)
+                rebuild = ((k == 0 and not carry) or self.amg_rebuild == 'iteration'
+                           or (adaptive is not None and adaptive.refresh))
+                retry_fresh = ((amg_scope is not None and amg_scope.enabled) or adaptive is not None) and not rebuild and self._amg is not None
+                sol = self.solve_linear(J, R, wsys, newton_rel=rel,
+                                        rebuild_amg=rebuild)
+                if amg_scope is not None:
+                    amg_scope.ready = self._amg is not None
+                    amg_scope.record(self._last_linear_stats)
+                if adaptive is not None:
+                    adaptive.record(self, self._last_linear_stats, sol is not None)
+                if sol is None and retry_fresh:
+                    # solve_linear modifies J by Schur elimination/scaling.
+                    # Reassemble the SAME iterate instead of retaining a
+                    # reservoir-sized backup solely for a rare retry.
+                    if amg_scope is not None:
+                        amg_scope.retries += 1
+                    if adaptive is not None:
+                        adaptive.retries += 1
+                    R, J, wsys = self.assemble_bo(p, sw, x, sat, acc_old, dt, p_bh, state, ug)
+                    sol = self.solve_linear(J, R, wsys, newton_rel=rel, rebuild_amg=True)
+                    if amg_scope is not None:
+                        amg_scope.record(self._last_linear_stats)
+                        amg_scope.ready = self._amg is not None
+                    if adaptive is not None:
+                        adaptive.record(self, self._last_linear_stats, sol is not None)
+            dbg.linear(self._last_linear_stats)
+            if sol is None:
+                dbg.end_iter(timer.t if dbg.enabled else {})
+                return fail("linear_solver_failed", R, J)
+            dx, dpw = sol
+            cnv_hist.append([max(c / self.tol_cnv, m / self.tol_mb) for c, m in zip(crit["cnv"], crit["mb"])])
+            if self._oscillating(cnv_hist):
+                omega = max(omega - self.relax_increment, self.relax_min)
+                log(f"    ~ колебания Ньютона: релаксация ω = {omega:.2f}")
+            if omega < 1.0:
+                dx, dpw = dx * omega, dpw * omega
+            # Появление/исчезновение фазы обязано менять первичную переменную независимо
+            # от числа прежних переключений. Фиксация неверной ветви делает задачу нерешаемой.
+            p, sw, x, sat, ug, n_sw = self._apply_update(p, sw, x, sat, ug, dx, dbg)
+            n_switch += n_sw
+            if dpw.numel():
+                dpw_lim = torch.clamp(self.dbhp_max_rel * p_bh.abs(), min=self.dp_max_abs)
+                p_bh = (p_bh + torch.maximum(torch.minimum(dpw, dpw_lim), -dpw_lim)).clamp_min(1e3)
+                p_bh = self.wells.solve_thp(p_bh)
+            self._p_bh_cur = p_bh
+            state = self.cell_state(p, sw, x, sat, ug)
+            if not torch.isfinite(state[0]).all():
+                dbg.end_iter(timer.t if dbg.enabled else {})
+                return fail("nan_state")
+            dbg.line_search([], 1.0, True)
+            dbg.end_iter(timer.t if dbg.enabled else {})
+
+        R, J, _ = self.assemble_bo(p, sw, x, sat, acc_old, dt, p_bh, state, ug)
+        return fail("max_newton_iter", R, J)
+
+    def _oscillating(self, hist):
+        """
+        Колебания Ньютона (как detectOscillations в OPM): по ≥2 уравнениям невязка вернулась к значению
+        двух итераций назад (|F0 − F2| < tol·F0), но отличается от предыдущей (|F0 − F1| > tol·F0).
+        hist — невязки уравнений, нормированные на допуск: max(CNV/tol_cnv, MB/tol_mb).
+        """
+        if len(hist) < 3:
+            return False
+        tol = self.relax_rel_tol
+        n = 0
+        for f0, f1, f2 in zip(hist[-1], hist[-2], hist[-3]):
+            if f0 <= 1.0:
+                continue
+            if abs(f0 - f2) < tol * f0 and abs(f0 - f1) > tol * f0:
+                n += 1
+        return n >= min(2, len(hist[-1]))
+
+    @staticmethod
+    def _clamp_x(x, sw, sat, es):
+        """Sg насыщенной ячейки — в полосе [−es, 1 − Sw + es] без обрезки (обрезка теряет массу), Rs/Rv ≥ 0."""
+        return torch.where(sat, torch.minimum(torch.maximum(x, -es + 0.0 * x), 1.0 - sw + es), x.clamp_min(0.0))
+
+    def _conservative_switch(self, p, sw, x, sat_old, ug_old, sat, ug, changed):
+        """
+        Первичная переменная ячейки в новом состоянии (sat, ug) так, чтобы масса компонента, по которому
+        произошло переключение, совпала с массой в исходном состоянии (sat_old, ug_old) — по той же функции
+        свойств ячейки: при появлении/исчезновении газа сохраняется газ, нефти — нефть.
+        Sg may enter nonlinearly through capillary phase pressures and VAPPARS;
+        refine its initial linear estimate with a bracketed secant solve.
+        """
+        target_m = self.masses(p, sw, x, sat_old, ug_old)
+        a = 1.0 - sw
+        to_sat = changed & sat
+        if ug is None:
+            comp_gas = torch.ones_like(sat)
+        else:
+            comp_gas = (sat_old & ~ug) | (~sat_old & ~ug_old)
+        k = torch.where(comp_gas, GAS, OIL)
+
+        def mass(xx):
+            m = self.masses(p, sw, xx, sat, ug)
+            return torch.gather(m, 0, k.view(1, -1)).view(-1)
+
+        tgt = torch.gather(target_m, 0, k.view(1, -1)).view(-1)
+        x_new = x.clone()
+        if bool(to_sat.any()):
+            z0, z1 = torch.zeros_like(x), a
+            f0, f1 = mass(torch.where(to_sat, z0, x)), mass(torch.where(to_sat, z1, x))
+            den = torch.where((f1 - f0).abs() > 1e-300, f1 - f0, torch.ones_like(f0))
+            x_new = torch.where(to_sat, (a * (tgt - f0) / den).clamp(min=0.0).minimum(a), x_new)
+            lo, hi = z0, z1
+            flo, fhi = f0 - tgt, f1 - tgt
+            bracketed = to_sat & ((flo * fhi) <= 0)
+            previous_x, previous_f = z0, flo
+            for _ in range(12):
+                fx = mass(x_new) - tgt
+                active = bracketed & (fx.abs() > 1e-12 * tgt.abs().clamp_min(1.0))
+                if not bool(active.any()):
+                    break
+                upper = active & ((flo * fx) <= 0)
+                lower = active & ~upper
+                lo, flo = torch.where(lower, x_new, lo), torch.where(lower, fx, flo)
+                hi, fhi = torch.where(upper, x_new, hi), torch.where(upper, fx, fhi)
+                delta = fx - previous_f
+                den = torch.where(delta.abs() > 1e-300, delta, torch.ones_like(delta))
+                root = x_new - fx * (x_new - previous_x) / den
+                safe = torch.isfinite(root) & (root > lo) & (root < hi) & (delta.abs() > 1e-300)
+                bracket_den = torch.where((fhi - flo).abs() > 1e-300, fhi - flo, torch.ones_like(flo))
+                fallback = lo - flo * (hi - lo) / bracket_den
+                root = torch.where(safe, root, fallback).maximum(lo).minimum(hi)
+                previous_x, previous_f = x_new, fx
+                x_new = torch.where(active, root, x_new)
+        to_us = changed & ~sat
+        if bool(to_us.any()):
+            rs_s = self.rs_sat_eff(p)
+            pg = self._phase_pressures(p, sw, 1.0 - sw)[1] if self.wet else p
+            rv_s = self.rv_sat_eff(pg, torch.zeros_like(p)) if self.wet else torch.zeros_like(p)
+            hi = rs_s if ug is None else torch.where(ug, rv_s, rs_s)
+            xa, xb = torch.zeros_like(x), hi
+            fa = mass(torch.where(to_us, xa, x_new)) - tgt
+            fb = mass(torch.where(to_us, xb, x_new)) - tgt
+            for _ in range(6):
+                den = torch.where((fb - fa).abs() > 1e-300, fb - fa, torch.ones_like(fa))
+                xc = (xb - fb * (xb - xa) / den).clamp(min=0.0).minimum(hi)
+                fc = mass(torch.where(to_us, xc, x_new)) - tgt
+                xa, fa, xb, fb = xb, fb, xc, fc
+            x_new = torch.where(to_us, xb, x_new)
+        return x_new
+
+    def _apply_update(self, p, sw, x, sat, ug, dx, dbg):
+        """Ограничение поправок по ячейке (Appleyard) и переключение переменных Rs ↔ Sg ↔ Rv."""
+        dp, dsw, dxx = dx[:, 0], dx[:, 1], dx[:, 2]
+        dp_lim = torch.clamp(self.dp_max_rel * p.abs(), min=self.dp_max_abs)
+        dp = torch.maximum(torch.minimum(dp, dp_lim), -dp_lim)
+        dsg = torch.where(sat, dxx, torch.zeros_like(dxx))
+        ds_max = torch.stack([dsw.abs(), dsg.abs(), (dsw + dsg).abs()]).max(dim=0).values
+        fs = torch.clamp(self.ds_max / ds_max.clamp_min(1e-300), max=1.0)
+        dsw, dsg = dsw * fs, dsg * fs
+        drs_lim = self.drs_max_rel * max(self.pvt.rs_max, 1e-12)
+        drs = torch.where(sat, torch.zeros_like(dxx), dxx.clamp(-drs_lim, drs_lim))
+        if self.wet:
+            drv_lim = self.drs_max_rel * max(self.pvt.rv_max, 1e-12)
+            drs = torch.where(ug, dxx.clamp(-drv_lim, drv_lim), drs)
+        if dbg.enabled:
+            dbg.update(dp, torch.maximum(dsw.abs(), dsg.abs()), 1.0)
+            dbg.iter_rec["update"].update(n_chopped_p=int((dx[:, 0].abs() > dp_lim).sum()),
+                                          n_chopped_s=int((fs < 1).sum()))
+
+        p = (p + dp).clamp_min(1e3)
+        sw = (sw + dsw).clamp(0.0, 1.0)
+        x = x + torch.where(sat, dsg, drs)
+        n_switch = 0
+        if self.wet:
+            pg = self._phase_pressures(p, sw, 1.0 - sw)[1]
+            rs_s, rv_s = self.rs_sat_eff(p), self.rv_sat_eff(pg, torch.zeros_like(p))   # rv_s — для ячеек без нефти
+            uo = ~sat & ~ug
+            es, er = SWITCH_EPS_S, SWITCH_EPS_R
+            no_oil = 1.0 - sw <= SO_EMPTY
+            sat_to_uo = sat & (x < -es) & (1.0 - sw > SO_FILLED)
+            sat_to_ug = sat & (x > 1.0 - sw + es)
+            uo_to_sat = uo & ((x > rs_s * (1.0 + er) + 1e-300) | no_oil)
+            ug_to_sat = ug & (x > rv_s * (1.0 + er) + 1e-300)
+            ug_n = (ug & ~ug_to_sat) | sat_to_ug
+            sat_n = (sat & ~sat_to_uo & ~sat_to_ug) | uo_to_sat | ug_to_sat
+            changed = sat_to_uo | sat_to_ug | uo_to_sat | ug_to_sat
+            if bool(changed.any()):
+                x = self._conservative_switch(p, sw, x, sat, ug, sat_n, ug_n, changed)
+            sat, ug = sat_n, ug_n
+            n_switch = int(sat_to_uo.sum() + sat_to_ug.sum() + uo_to_sat.sum() + ug_to_sat.sum())
+            x = self._clamp_x(x, sw, sat, es)
+            return p, sw, x, sat, ug, n_switch
+        if self.pvt.has_pvt:
+            rs_s = self.rs_sat_eff(p)
+            es, er = SWITCH_EPS_S, SWITCH_EPS_R
+            no_oil = 1.0 - sw <= SO_EMPTY
+            to_us = sat & (x < -es) & (1.0 - sw > SO_FILLED)
+            to_sat = (~sat) & ((x > rs_s * (1.0 + er) + 1e-300) | no_oil)
+            sat_n = (sat & ~to_us) | to_sat
+            if bool((to_us | to_sat).any()):
+                x = self._conservative_switch(p, sw, x, sat, None, sat_n, None, to_us | to_sat)
+            sat = sat_n
+            n_switch = int(to_us.sum() + to_sat.sum())
+            x = self._clamp_x(x, sw, sat, es)
+            return p, sw, x, sat, ug, n_switch
+        x = torch.where(sat, torch.minimum(x.clamp_min(0.0), 1.0 - sw), x.clamp_min(0.0))
+        return p, sw, x, sat, ug, n_switch
+
+    def _store_well_results(self, wsys, p_bh, dt):
+        rho = self.pvt.rho_sc
+        if not self.wells.wells:
+            return
+        groups = getattr(self, "_well_report_groups", None)
+        if groups is None or groups[0] is not self.wells.conn_well:
+            owners = self.wells.conn_well.detach().cpu().tolist()
+            indices = [
+                torch.tensor([i for i, owner in enumerate(owners) if owner == w],
+                             dtype=torch.long, device=wsys["q"].device)
+                for w in range(len(self.wells.wells))
+            ]
+            self._well_report_groups = (self.wells.conn_well, indices)
+        else:
+            indices = groups[1]
+        # Preserve each original reduction's shape and connection ordering.
+        selected = [wsys["q"].index_select(0, idx) for idx in indices]
+        net = torch.stack([q.sum(dim=0) for q in selected])
+        production = torch.stack([q.clamp_min(0.0).sum(dim=0) for q in selected])
+        packet = torch.cat([net.reshape(-1), production.reshape(-1), p_bh]).detach().cpu().tolist()
+        nw = len(self.wells.wells)
+        for w_idx, w in enumerate(self.wells.wells):
+            q = net[w_idx]
+            q_o, q_w, q_g = (packet[3 * w_idx + i] / rho[i] * DAY for i in range(3))
+            w.last_net_connection_rates = {"oil": q_o, "water": q_w, "gas": q_g}
+            if getattr(w, "stopped", False):
+                # Prescribed zero surface boundary; keep the actual connection
+                # imbalance above for diagnostics and check it in convergence.
+                q_o = q_w = q_g = 0.0
+            w.bhp_mpa = packet[6 * nw + w_idx] / 1e6
+            tab = self.wells._lift(w_idx)
+            if tab is not None:
+                Q = self.wells._sgn(w_idx) * q / self.wells.rho_sc
+                with torch.no_grad():
+                    thp = tab.thp_from_bhp(p_bh[w_idx:w_idx + 1] - self.wells._vfp_hydro(w_idx, tab),
+                                           Q[0:1], Q[1:2], Q[2:3], float(getattr(w, "alq", 0.0) or 0.0))
+                w.thp_mpa = float(thp) / 1e6
+            w.last_surface_rates = {"oil": q_o, "water": q_w, "gas": q_g, "liquid": q_o + q_w}
+            # добыча без перетоков (перфорации с обратным потоком в пласт не вычитаются, как в Eclipse)
+            w.last_surface_prod = {ph: packet[3 * nw + 3 * w_idx + i] / rho[i] * DAY
+                                   for i, ph in enumerate(("oil", "water", "gas"))}
+            # накопленные поверхностные объёмы, м³ (знак как у дебитов: + отбор); отдельно — за периоды
+            # добычи (cum_prod) и закачки (cum_inj, + закачка) у скважин, меняющих тип
+            zero = {"oil": 0.0, "water": 0.0, "gas": 0.0}
+            cum = getattr(w, "cum_surface", None) or dict(zero)
+            cp = getattr(w, "cum_prod", None) or dict(zero)
+            ci = getattr(w, "cum_inj", None) or dict(zero)
+            e = float(getattr(w, "eff", 1.0) or 1.0)
+            for ph, val in (("oil", q_o * e), ("water", q_w * e), ("gas", q_g * e)):
+                cum[ph] += val * dt / DAY
+                if w.type == 'producer':
+                    cp[ph] += val * dt / DAY
+                else:
+                    ci[ph] -= val * dt / DAY
+            w.cum_surface, w.cum_prod, w.cum_inj = cum, cp, ci
+
+
+def needs_blackoil(fluid, well_manager):
+    """Нужна ли трёхфазная модель: PVT-таблица, свободный газ или газовые скважины."""
+    if getattr(fluid, 'pvt', None) is not None or getattr(fluid, 'blackoil_pvt', None) is not None:
+        return True
+    if float(fluid.s_g.max()) > 0:
+        return True
+    for w in well_manager.wells:
+        if getattr(w, 'stopped', False):
+            return True
+        if w.type == 'injector' and (w.injected_phase or '').lower() == 'gas':
+            return True
+        if w.type == 'producer' and (w.surface_phase or '').lower() == 'gas':
+            return True
+    return False

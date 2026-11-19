@@ -1,0 +1,374 @@
+{
+  "initialization": {
+    "pressure_trials": [
+      {
+        "pressure_pa": 1000884.7085884674,
+        "receiver_pressure_pa": 999277.3436045097,
+        "defect_pa": -1607.3649839577265,
+        "physical": true,
+        "well_solve": {
+          "iterations": 3,
+          "well_error_ratio": 0.7016796292737126,
+          "reservoir_advanced": false
+        }
+      },
+      {
+        "pressure_pa": 999277.3463547309,
+        "receiver_pressure_pa": 999281.6261604854,
+        "defect_pa": 4.279805754544213,
+        "physical": false,
+        "well_solve": {
+          "iterations": 3,
+          "well_error_ratio": 0.7029165048152208,
+          "reservoir_advanced": false
+        }
+      },
+      {
+        "pressure_pa": 999281.6289103058,
+        "receiver_pressure_pa": 999281.614911078,
+        "defect_pa": -0.01399922778364271,
+        "physical": true,
+        "well_solve": {
+          "iterations": 3,
+          "well_error_ratio": 0.7029100507497787,
+          "reservoir_advanced": false
+        }
+      },
+      {
+        "pressure_pa": 999281.6176608984,
+        "receiver_pressure_pa": 999281.6149406296,
+        "defect_pa": -0.0027202687924727798,
+        "physical": true,
+        "well_solve": {
+          "iterations": 3,
+          "well_error_ratio": 0.7029100740328431,
+          "reservoir_advanced": false
+        }
+      }
+    ],
+    "accepted_wells": {
+      "P1": {
+        "node": "bottom_1",
+        "mode": "surface",
+        "bhp_pa": 2307235.5568969687,
+        "network_reference_pressure_pa": 2307235.627187976,
+        "component_mass_rates_kg_s": [
+          0.08947858587719502,
+          0.0432977742529413,
+          0.006621223926670693
+        ],
+        "standard_control_rate_m3_s": 0.0001485666988143472
+      },
+      "P2": {
+        "node": "bottom_2",
+        "mode": "surface",
+        "bhp_pa": 2307235.5568969687,
+        "network_reference_pressure_pa": 2307235.627187976,
+        "component_mass_rates_kg_s": [
+          0.08947858587719502,
+          0.0432977742529413,
+          0.006621223926670693
+        ],
+        "standard_control_rate_m3_s": 0.0001485666988143472
+      }
+    },
+    "well_boundaries": {
+      "P1": {
+        "boundary_type": "prescribed_temperature_external_energy",
+        "energy_supplied_by_thermal_boundary_w": 3234.7583725085433,
+        "reservoir_energy_balance_available": false,
+        "assay_id": "69bdb0e2b32be2b2256434b07db46edbf1662b1cbbda7d24e8c7b7a4466973f0",
+        "mass_residual_kg_s": 0.0,
+        "stream": {
+          "component_molar_rates_mol_s": [
+            1.7568377175266636,
+            3.6985879137501647
+          ],
+          "pressure_pa": 2307235.5568969687,
+          "total_energy_rate_w": 3234.7583725085433,
+          "model_id": "aa2016c1a0d812a3aa1ec5b5d93d0e60f06a350d3786f212a0f1b3740a080ee8",
+          "elevation_m": -40.0,
+          "velocity_m_s": 0.0,
+          "gravity_m_s2": 9.80665
+        }
+      },
+      "P2": {
+        "boundary_type": "prescribed_temperature_external_energy",
+        "energy_supplied_by_thermal_boundary_w": 3234.7583725085433,
+        "reservoir_energy_balance_available": false,
+        "assay_id": "69bdb0e2b32be2b2256434b07db46edbf1662b1cbbda7d24e8c7b7a4466973f0",
+        "mass_residual_kg_s": 0.0,
+        "stream": {
+          "component_molar_rates_mol_s": [
+            1.7568377175266636,
+            3.6985879137501647
+          ],
+          "pressure_pa": 2307235.5568969687,
+          "total_energy_rate_w": 3234.7583725085433,
+          "model_id": "aa2016c1a0d812a3aa1ec5b5d93d0e60f06a350d3786f212a0f1b3740a080ee8",
+          "elevation_m": -40.0,
+          "velocity_m_s": 0.0,
+          "gravity_m_s2": 9.80665
+        }
+      }
+    },
+    "inlet_streams": [
+      {
+        "component_molar_rates_mol_s": [
+          1.7568377175266636,
+          3.6985879137501647
+        ],
+        "pressure_pa": 999281.6176608984,
+        "total_energy_rate_w": 3234.7583725085433,
+        "model_id": "aa2016c1a0d812a3aa1ec5b5d93d0e60f06a350d3786f212a0f1b3740a080ee8",
+        "elevation_m": 0.0,
+        "velocity_m_s": 0.0,
+        "gravity_m_s2": 9.80665
+      },
+      {
+        "component_molar_rates_mol_s": [
+          1.7568377175266636,
+          3.6985879137501647
+        ],
+        "pressure_pa": 999281.6176608984,
+        "total_energy_rate_w": 3234.7583725085433,
+        "model_id": "aa2016c1a0d812a3aa1ec5b5d93d0e60f06a350d3786f212a0f1b3740a080ee8",
+        "elevation_m": 0.0,
+        "velocity_m_s": 0.0,
+        "gravity_m_s2": 9.80665
+      }
+    ],
+    "vessel_verification": {
+      "model_id": "43af5a47575fa08c36568bdec0da0ebcae23cef3cea4f4a54bd1024c4f3510c5",
+      "fixed_feeds": true,
+      "reservoir_feedback_solved": false,
+      "component_balance_mol_s": [
+        -2.121858244663599e-12,
+        1.8776091792460647e-12
+      ],
+      "energy_balance_w": -1.2369127944111824e-10,
+      "verification_duration_s": 0.1,
+      "verification_drift": {
+        "pressure_pa": 4.827743396162987e-07,
+        "temperature_k": 2.2680524125462398e-11,
+        "wall_temperature_k": 0.0,
+        "component_moles": 3.154809746774845e-12
+      },
+      "verification_flow": {
+        "dt_s": 0.1,
+        "profile_acceptance": "verified_joint_flow_iterate",
+        "column_state": {
+          "component_moles": [
+            20.02389181668392,
+            42.13329740136743
+          ],
+          "total_energy_j": -119826.73646818828,
+          "temperature_k": 319.160804266527,
+          "chemical_constants": [
+            1.1588952600452147,
+            1.845472713415232
+          ],
+          "interface_heights_m": [],
+          "phase_seeds": [
+            [
+              0.32202729009874115,
+              0.6779727099012588
+            ]
+          ],
+          "phase_roots": [
+            "stable"
+          ],
+          "quadrature_order": 8,
+          "solution_variables": [
+            13.814752469775495,
+            -0.744470742434591,
+            13.814589941187538,
+            -0.7443755318979115,
+            13.814320628856336,
+            -0.7442177668314093,
+            13.813980843149386,
+            -0.7440187183788252,
+            13.813616470104712,
+            -0.743805267032269,
+            13.813276715654641,
+            -0.7436062378423811,
+            13.813007449524317,
+            -0.7434485012481249,
+            13.812844957985295,
+            -0.7433533135436174,
+            1.1588952600452147,
+            1.845472713415232,
+            1.0704705828157874
+          ],
+          "model_id": "868f228cf2af18775202704c88bcc3dc2771882e0211bb4d49e85685668e483a"
+        },
+        "wall_temperature_k": 316.10720284436644,
+        "ambient_heat_j": -0.6107202844366442,
+        "fluid_heat_j": -0.6107202844321137,
+        "energy_residual_j": 8.691358743817628e-12,
+        "entropy_production_j_k": 5.665164835510321e-05,
+        "feed_energy_j": 646.9516745017087,
+        "outlet_energy_j": 646.3409542188961,
+        "feed_component_moles": [
+          0.3513675435053327,
+          0.739717582750033
+        ],
+        "outlet_component_moles": [
+          0.3513675435070151,
+          0.7397175827531893
+        ],
+        "quadrature_error_ratio": 1.1505101141827485e-05,
+        "phase_count": 1,
+        "outlets": [
+          {
+            "name": "export",
+            "opening": 1.0,
+            "volume_rate_m3_s": 0.027547078196950646,
+            "component_rates_mol_s": [
+              3.5136754350701507,
+              7.397175827531893
+            ],
+            "total_energy_rate_w": 6463.40954218896,
+            "phase_area_fractions": [
+              1.0000000000000002
+            ]
+          }
+        ]
+      },
+      "initial_inventory_change_mol": [
+        -10.695166033923009,
+        11.41423955076197
+      ],
+      "initial_energy_change_j": -2208.3929524208215
+    },
+    "reservoir_advanced": false,
+    "reservoir_stationary": false,
+    "receiver_stationary": true,
+    "initial_state": {
+      "column": {
+        "component_moles": [
+          30.719057850608614,
+          30.719057850608614
+        ],
+        "total_energy_j": -117618.34351576584,
+        "temperature_k": 320.00002325069767,
+        "chemical_constants": [
+          1.596773321177102,
+          1.5457225418656266
+        ],
+        "interface_heights_m": [],
+        "phase_seeds": [
+          [
+            0.499863641565038,
+            0.500136358434962
+          ]
+        ],
+        "phase_roots": [
+          "stable"
+        ],
+        "quadrature_order": 8,
+        "solution_variables": [
+          13.816359753532305,
+          -0.000545433753370071,
+          13.816215037678901,
+          -0.0004524621121194777,
+          13.815975241337961,
+          -0.0002984057935899493,
+          13.815672695370326,
+          -0.00010403457023996411,
+          13.815348256824938,
+          0.00010440359973217203,
+          13.815045738770685,
+          0.00029876065712505545,
+          13.814805983688588,
+          0.00045279603691389365,
+          13.814661300921053,
+          0.0005457508871836,
+          1.596773321177102,
+          1.5457225418656266,
+          1.0732853370809918
+        ],
+        "model_id": "868f228cf2af18775202704c88bcc3dc2771882e0211bb4d49e85685668e483a"
+      },
+      "wall_temperature_k": 320.00002325069767,
+      "time_s": 0.0,
+      "next_step_s": 0.02,
+      "model_id": "ef5757dbd67ab0c8dabc3a7dd0bf4ff69882d52004c80dbce8bbeecd5d64aa4f"
+    },
+    "state": {
+      "column": {
+        "component_moles": [
+          20.023891816685605,
+          42.133297401370584
+        ],
+        "total_energy_j": -119826.73646818666,
+        "temperature_k": 319.1608042665497,
+        "chemical_constants": [
+          1.1588952600459128,
+          1.845472713415593
+        ],
+        "interface_heights_m": [],
+        "phase_seeds": [
+          [
+            0.32202729009881476,
+            0.6779727099011853
+          ]
+        ],
+        "phase_roots": [
+          "stable"
+        ],
+        "quadrature_order": 8,
+        "solution_variables": [
+          13.814752469775454,
+          -0.744470742434254,
+          13.8145899411875,
+          -0.7443755318975744,
+          13.814320628856295,
+          -0.7442177668310721,
+          13.813980843149341,
+          -0.7440187183784865,
+          13.813616470104664,
+          -0.7438052670319296,
+          13.813276715654588,
+          -0.7436062378420398,
+          13.813007449524259,
+          -0.7434485012477814,
+          13.812844957985233,
+          -0.7433533135432732,
+          1.1588952600459128,
+          1.845472713415593,
+          1.0704705828158636
+        ],
+        "model_id": "868f228cf2af18775202704c88bcc3dc2771882e0211bb4d49e85685668e483a"
+      },
+      "wall_temperature_k": 316.10720284436644,
+      "time_s": 0.0,
+      "next_step_s": 0.02,
+      "model_id": "ef5757dbd67ab0c8dabc3a7dd0bf4ff69882d52004c80dbce8bbeecd5d64aa4f"
+    }
+  },
+  "runs": [
+    {
+      "subcycling": false,
+      "accepted": false,
+      "wall_s": 5.960408464998181,
+      "reservoir_calls": [
+        0.05,
+        0.05,
+        0.05,
+        0.025,
+        0.025,
+        0.025,
+        0.025,
+        0.025,
+        0.025
+      ],
+      "attempt": {
+        "success": false,
+        "reason": "Whole-system temporal error above tolerance: ratio=5.2626758",
+        "dt_s": 0.05,
+        "temporal_error_ratio": 5.2626758499559925
+      }
+    }
+  ]
+}

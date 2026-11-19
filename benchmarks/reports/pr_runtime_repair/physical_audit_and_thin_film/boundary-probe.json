@@ -1,0 +1,28 @@
+{
+  "seconds": 38.80444099399938,
+  "error": 9.136938971589403,
+  "sources": {
+    "transport_node:gas_recycle_0": 9.136938971589403,
+    "transport_node:gas_takeoff_0": 0.22959574038047023,
+    "transport_node:water_takeoff_0": 0.17550290491500228,
+    "transport_node:flowline_2_0": 0.01485429814563637,
+    "transport_node:flowline_1_0": 0.01485429814563629,
+    "transport_node:flowline_1_1": 0.009468220146564888,
+    "transport_node:flowline_2_1": 0.009468220146564699,
+    "transport_node:water_suction": 0.006948132074707643,
+    "transport_node:oil_takeoff_0": 0.003154242502326356,
+    "positions": 0.0015823132443193444,
+    "transport_node:injection_sink": 0.0006728012334336656,
+    "integrals": 0.00024999375083933906,
+    "transport_node:oil_suction": 1.051829713752633e-05,
+    "transport_node:gas_suction": 6.37015773463645e-06,
+    "rotors": 3.650835979772991e-06,
+    "column:separator": 1.5927853095859922e-06,
+    "transport_node:oil_export": 9.877038453004582e-07,
+    "transport_node:gas_export": 6.931770712981233e-07,
+    "transport_node:wellhead_1": 4.758935753202733e-10,
+    "transport_node:wellhead_2": 4.758935753202733e-10,
+    "column_walls": 0.0,
+    "trips": 0.0
+  }
+}

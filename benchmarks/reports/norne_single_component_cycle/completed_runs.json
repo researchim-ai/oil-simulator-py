@@ -1,0 +1,218 @@
+{
+  "fixed_early_adaptive": {
+    "status": {
+      "status": "complete",
+      "day": 115.0,
+      "start": 0.0,
+      "source_and_inputs_verified": true,
+      "wall_s": 20.798071924997203,
+      "solve_s": 11.014165986984153,
+      "accepted": 17
+    },
+    "effective_settings": {
+      "tol_cnv": 0.001,
+      "tol_mb": 1e-07,
+      "lin_tol_max": 0.01,
+      "lin_tol_min": 1e-06,
+      "lin_accept": 0.1,
+      "tol_well_rate": 0.0001,
+      "tol_well_bhp": 10.0,
+      "amg_rebuild": "adaptive",
+      "max_newton": 20
+    },
+    "max_balance": 2.662829585032403e-07,
+    "newton": 69
+  },
+  "fixed_early_cnv_ref": {
+    "status": {
+      "status": "complete",
+      "day": 115.0,
+      "start": 0.0,
+      "source_and_inputs_verified": true,
+      "wall_s": 23.240994327003136,
+      "solve_s": 13.473372931002814,
+      "accepted": 17
+    },
+    "effective_settings": {
+      "tol_cnv": 0.0001,
+      "tol_mb": 1e-08,
+      "lin_tol_max": 1e-08,
+      "lin_tol_min": 1e-09,
+      "lin_accept": 1e-07,
+      "tol_well_rate": 0.0001,
+      "tol_well_bhp": 10.0,
+      "amg_rebuild": "step",
+      "max_newton": 20
+    },
+    "max_balance": 3.951656292775586e-08,
+    "newton": 64
+  },
+  "fixed_early_cnv_ref_fine": {
+    "status": {
+      "status": "complete",
+      "day": 115.0,
+      "start": 0.0,
+      "source_and_inputs_verified": true,
+      "wall_s": 24.206200333996094,
+      "solve_s": 14.539358613015793,
+      "accepted": 17
+    },
+    "effective_settings": {
+      "tol_cnv": 1e-05,
+      "tol_mb": 1e-08,
+      "lin_tol_max": 1e-08,
+      "lin_tol_min": 1e-09,
+      "lin_accept": 1e-07,
+      "tol_well_rate": 0.0001,
+      "tol_well_bhp": 10.0,
+      "amg_rebuild": "step",
+      "max_newton": 20
+    },
+    "max_balance": 3.977476692098172e-08,
+    "newton": 74
+  },
+  "fixed_early_step": {
+    "status": {
+      "status": "complete",
+      "day": 115.0,
+      "start": 0.0,
+      "source_and_inputs_verified": true,
+      "wall_s": 22.018552610999905,
+      "solve_s": 11.802569431994925,
+      "accepted": 17
+    },
+    "effective_settings": {
+      "tol_cnv": 0.001,
+      "tol_mb": 1e-07,
+      "lin_tol_max": 0.01,
+      "lin_tol_min": 1e-06,
+      "lin_accept": 0.1,
+      "tol_well_rate": 0.0001,
+      "tol_well_bhp": 10.0,
+      "amg_rebuild": "step",
+      "max_newton": 20
+    },
+    "max_balance": 1.9488108988250392e-07,
+    "newton": 68
+  },
+  "fixed_late_adaptive": {
+    "status": {
+      "status": "complete",
+      "day": 2521.0,
+      "start": 2431.0,
+      "source_and_inputs_verified": true,
+      "wall_s": 19.188039232998563,
+      "solve_s": 17.070360244004405,
+      "accepted": 17
+    },
+    "effective_settings": {
+      "tol_cnv": 0.001,
+      "tol_mb": 1e-07,
+      "lin_tol_max": 0.01,
+      "lin_tol_min": 1e-06,
+      "lin_accept": 0.1,
+      "tol_well_rate": 0.0001,
+      "tol_well_bhp": 10.0,
+      "amg_rebuild": "adaptive",
+      "max_newton": 20
+    },
+    "max_balance": 3.148506350432832e-08,
+    "newton": 102
+  },
+  "fixed_late_cnv_ref": {
+    "status": {
+      "status": "complete",
+      "day": 2521.0,
+      "start": 2431.0,
+      "source_and_inputs_verified": true,
+      "wall_s": 22.355925951000245,
+      "solve_s": 20.148298808999243,
+      "accepted": 17
+    },
+    "effective_settings": {
+      "tol_cnv": 0.0001,
+      "tol_mb": 1e-08,
+      "lin_tol_max": 1e-08,
+      "lin_tol_min": 1e-09,
+      "lin_accept": 1e-07,
+      "tol_well_rate": 0.0001,
+      "tol_well_bhp": 10.0,
+      "amg_rebuild": "step",
+      "max_newton": 20
+    },
+    "max_balance": 1.1058914072666294e-08,
+    "newton": 97
+  },
+  "fixed_late_cnv_ref_fine": {
+    "status": {
+      "status": "complete",
+      "day": 2521.0,
+      "start": 2431.0,
+      "source_and_inputs_verified": true,
+      "wall_s": 22.87688785100181,
+      "solve_s": 20.73287849600456,
+      "accepted": 17
+    },
+    "effective_settings": {
+      "tol_cnv": 1e-05,
+      "tol_mb": 1e-08,
+      "lin_tol_max": 1e-08,
+      "lin_tol_min": 1e-09,
+      "lin_accept": 1e-07,
+      "tol_well_rate": 0.0001,
+      "tol_well_bhp": 10.0,
+      "amg_rebuild": "step",
+      "max_newton": 20
+    },
+    "max_balance": 8.160006238292042e-09,
+    "newton": 102
+  },
+  "fixed_late_step": {
+    "status": {
+      "status": "complete",
+      "day": 2521.0,
+      "start": 2431.0,
+      "source_and_inputs_verified": true,
+      "wall_s": 19.389937615000235,
+      "solve_s": 17.272903027012944,
+      "accepted": 17
+    },
+    "effective_settings": {
+      "tol_cnv": 0.001,
+      "tol_mb": 1e-07,
+      "lin_tol_max": 0.01,
+      "lin_tol_min": 1e-06,
+      "lin_accept": 0.1,
+      "tol_well_rate": 0.0001,
+      "tol_well_bhp": 10.0,
+      "amg_rebuild": "step",
+      "max_newton": 20
+    },
+    "max_balance": 3.881586470918375e-08,
+    "newton": 101
+  },
+  "fixed_late_tight": {
+    "status": {
+      "status": "complete",
+      "day": 2521.0,
+      "start": 2431.0,
+      "source_and_inputs_verified": true,
+      "wall_s": 22.643478627003788,
+      "solve_s": 20.463332785984676,
+      "accepted": 17
+    },
+    "effective_settings": {
+      "tol_cnv": 1e-05,
+      "tol_mb": 1e-09,
+      "lin_tol_max": 1e-08,
+      "lin_tol_min": 1e-09,
+      "lin_accept": 1e-07,
+      "tol_well_rate": 0.0001,
+      "tol_well_bhp": 10.0,
+      "amg_rebuild": "step",
+      "max_newton": 20
+    },
+    "max_balance": 8.160006238292042e-09,
+    "newton": 102
+  }
+}

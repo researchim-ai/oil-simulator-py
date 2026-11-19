@@ -24,7 +24,7 @@ from .drift_flux_closure import (
     ZuberFindlayClosure,
     drift_closure_from_dict,
 )
-from .equilibrium_cache import cached_fluid_transaction
+from .equilibrium_cache import cached_fluid_transaction, validated_state_key
 from .equilibrium_inventory import EquilibriumInventory
 from .equilibrium_properties import EquilibriumFluid
 from .hllc_local import hllc_local
@@ -937,14 +937,19 @@ class PREquilibriumTransportNetwork:
             "tags": tuple(tags),
         }
 
+    def _state_velocity(self, s):
+        """Barycentric velocity from conserved stocks, without an EOS solve."""
+        f = self.fluid
+        mass = (f.tensor(s.component_moles) * f.molar_masses).sum()
+        return f.tensor(s.momentum_kg_m_s) / mass
+
     def _state_data(self, index, s):
         f = self.fluid
         active = torch.nonzero(f.tensor(s.component_moles) > 0).flatten()
         a = f.tensor(s.phase_component_moles)
         if a.shape != (len(s.phase_roots), len(f.names)):
             raise ValueError("Phase inventory dimensions differ")
-        mass = (f.tensor(s.component_moles) * f.molar_masses).sum()
-        u = f.tensor(s.momentum_kg_m_s) / mass
+        u = self._state_velocity(s)
         return self._decode(
             index,
             a[:, active],
@@ -1427,8 +1432,8 @@ class PREquilibriumTransportNetwork:
             or not self.minimum_step_s <= state.next_step_s <= self.maximum_step_s
         ):
             raise ValueError("Transport restart topology or timestep differs")
-        key = _digest(state.to_dict())
-        if key in self._verified:
+        key = validated_state_key(self, state, scheduling_fields=("time_s", "next_step_s"))
+        if key is not None and key in self._verified:
             return
         decoded = []
         for i, (node, (_, s)) in enumerate(zip(self.nodes, state.nodes)):
@@ -1496,7 +1501,8 @@ class PREquilibriumTransportNetwork:
             decoded.append(d)
         if any(post is not None for post in self._stable_all(decoded)):
             raise PropertyModelError("Serialized transport phase branch is unstable")
-        self._verified[key] = True
+        if key is not None:
+            self._verified[key] = True
         while len(self._verified) > 16:
             self._verified.pop(next(iter(self._verified)))
 
@@ -3141,9 +3147,11 @@ class PREquilibriumTransportNetwork:
                     + self.relative_tolerance * max(1, abs(x.total_energy_j), abs(y.total_energy_j))
                 ),
             )
-            dx = self._state_data(i, x)
-            dy = self._state_data(i, y)
-            error = max(error, float((dx["u"] - dy["u"]).abs().cpu()) / self.velocity_tolerance_m_s)
+            # These states have already passed the physical audit. Velocity
+            # needs only conserved mass and momentum; recomputing phase EOS,
+            # drift and population properties here does not change it.
+            ux, uy = self._state_velocity(x), self._state_velocity(y)
+            error = max(error, float((ux - uy).abs().cpu()) / self.velocity_tolerance_m_s)
             if self.nodes[i].wall:
                 error = max(
                     error,

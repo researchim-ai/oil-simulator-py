@@ -1,0 +1,10 @@
+{
+  "seconds": 79.47487738600103,
+  "audit": {
+    "accepted": true,
+    "checked_substeps": 170,
+    "maximum_local_component_residual_mol": 1.5272799829261395e-13,
+    "maximum_local_energy_residual_j": 5.816460342731942e-11
+  },
+  "final_velocity_m_s": 0.26580231620834754
+}

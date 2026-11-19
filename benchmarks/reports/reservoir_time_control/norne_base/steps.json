@@ -1,0 +1,21 @@
+[
+  {
+    "day": 0.0,
+    "dt": 0.5,
+    "accepted": false,
+    "attempt": {
+      "success": false,
+      "indicator": 199.0441995533153,
+      "errors": {
+        "pressure": 6.703689097519219,
+        "s_w": 0.14236475566431483,
+        "s_g": 0.2328796690161145,
+        "withdrawal": 0.2521621583062179,
+        "component_mass": 199.0441995533153,
+        "s_o": 0.23231632477282993
+      },
+      "reason": "local temporal defect exceeds tolerance",
+      "reservoir_step_calls": 3
+    }
+  }
+]

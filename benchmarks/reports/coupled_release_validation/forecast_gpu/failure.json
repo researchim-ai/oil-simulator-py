@@ -1,0 +1,7 @@
+{
+  "status": "failed",
+  "exception": "KeyboardInterrupt",
+  "stage": "solve",
+  "reason": "",
+  "requested_days": 30.0
+}
