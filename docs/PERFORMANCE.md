@@ -1447,3 +1447,28 @@ source hashes and then qualifies the merged original operating schedule.
 Without that flag source mismatches still reject resume. This does not bypass
 physical audits, establish temporal refinement or validate a changed physical
 model.
+
+## Certified arithmetic stopping and shared split-probe quadrature
+
+The surface Newton solver now recognizes a caller-certified arithmetic floor
+before assembling another tangent. Every row above the strict target must be
+covered by its own finite nonnegative roundoff bound; uncovered rows still
+meet the original target tolerance. Final success and physical balance checks
+are unchanged. Generic stagnation tolerance alone cannot activate the shortcut.
+`--confirm-roundoff-plateau` restores the reference policy for comparisons.
+
+The locally subcycled controller now lets the discarded full temporal probe
+borrow a common quadrature order independently certified by both accepted
+slow-plant halfsteps. Fast stages retain their original local integration;
+accepted slow stages keep independent spatial qualification. A missing,
+invalid or mixed certificate, or a failed probe, restores full refinement.
+`--refine-discarded-probe` disables sharing in both controller variants.
+
+Two paired accepted 0.02 s intervals of the integrated facility measured
+45.18 → 27.01 s and, with execution order reversed, 40.93 → 29.67 s. Both
+independent audits passed; endpoint difference was 7.32e-9 in the original
+error norm. Coupled-system residual evaluations fell 354 → 59 and tangent
+builds 34 → 12. Local fast-pipe solves were unchanged. The remaining interval
+cost is still unsuitable for fast operational forecasts; these observations
+must not be described as completed full-cycle qualification.
+[Evidence, shutdown check and CUDA coverage](../benchmarks/reports/step_policy_repair/README.md).

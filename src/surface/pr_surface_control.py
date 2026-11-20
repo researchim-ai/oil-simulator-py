@@ -1054,6 +1054,10 @@ class PRControlledSurface:
                 e = max(e, abs(x - y) / self.integral_tolerance)
         return e
 
+    def _probe_records(self, step):
+        """Physical records whose independent spatial certificates may be shared."""
+        return step.get("plant", {}).get("steps", ())
+
     def _temporal_trial(self, current, dt, first_dt, second_dt, manual, modes, commands):
         if not (
             self._share_probe_quadrature
@@ -1070,7 +1074,7 @@ class PRControlledSurface:
         # discarded full temporal probe borrows their common refined order.
         half, one = self._step(current, first_dt, manual, modes, commands)
         fine, two = self._step(half, second_dt, manual, modes, commands)
-        records = [r for step in (one, two) for r in step.get("plant", {}).get("steps", ())]
+        records = [r for step in (one, two) for r in self._probe_records(step)]
         orders = {r.get("quadrature_order") for r in records}
         certified = (
             len(records) == 2
@@ -1230,8 +1234,9 @@ class PRControlledSurface:
                                 # Stiff startup can be outside the dt**2
                                 # asymptotic regime. Use two rejected trials
                                 # from the SAME state, bounded to orders 1..2.
-                                observed = ((math.log(error) - math.log(previous_error))
-                                            / (math.log(dt) - math.log(previous_dt)))
+                                observed = (math.log(error) - math.log(previous_error)) / (
+                                    math.log(dt) - math.log(previous_dt)
+                                )
                                 rejection_order = max(1.0, min(2.0, observed))
                         reduction = max(0.1, min(0.5, 0.9 / error ** (1.0 / rejection_order)))
                         previous_temporal_rejection = (dt, error)

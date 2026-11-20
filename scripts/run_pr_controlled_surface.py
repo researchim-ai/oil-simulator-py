@@ -99,6 +99,7 @@ def run(config, *, device="cpu", progress=None):
             "identical_trial_reuse": TorchNewton._reuse_identical_trials,
             "stagnation_patience": TorchNewton._stagnation_patience,
             "jacobian_reuse": TorchNewton._reuse_jacobian,
+            "early_certified_roundoff": TorchNewton._early_certified_roundoff,
             "compiled_chemical": EquilibriumFluid._compiled_chemical,
             "compiled_cpu_chemical": EquilibriumFluid._compiled_chemical_cpu,
             "analytic_chemical": EquilibriumFluid._analytic_chemical,
@@ -142,6 +143,11 @@ def main():
         help="Consecutive sub-1%% improvements inside the explicit roundoff budget",
     )
     parser.add_argument(
+        "--confirm-roundoff-plateau",
+        action="store_true",
+        help="Reference Newton policy: confirm stagnation instead of stopping at certified arithmetic floor",
+    )
+    parser.add_argument(
         "--fresh-jacobians",
         action="store_true",
         help="Rebuild every Newton tangent for reference/performance comparisons",
@@ -175,9 +181,13 @@ def main():
     from surface.torch_nonlinear import TorchNewton
 
     TorchNewton._reuse_jacobian = not args.fresh_jacobians
+    TorchNewton._early_certified_roundoff = not args.confirm_roundoff_plateau
     from surface.pr_surface_control import PRControlledSurface
 
     PRControlledSurface._share_probe_quadrature = not args.refine_discarded_probe
+    from surface.pr_subcycled_surface import PRSubcycledSurface
+
+    PRSubcycledSurface._share_probe_quadrature = not args.refine_discarded_probe
     TorchNewton._reuse_identical_trials = not args.evaluate_identical_trials
     TorchNewton._stagnation_patience = args.stagnation_patience
     from surface.equilibrium_properties import EquilibriumFluid

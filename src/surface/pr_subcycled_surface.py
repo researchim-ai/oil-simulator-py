@@ -44,7 +44,7 @@ def _transport_partition(original, names, links, *, fast=False, fraction=1.0, re
 
 
 class PRSubcycledSurface(PRControlledSurface):
-    _share_probe_quadrature = False
+    _share_probe_quadrature = True
 
     def __init__(self, surface, pipe_nodes, *, local_error_fraction=0.1, fast_reservoir_ports=None):
         if fast_reservoir_ports not in (None, "riemann", "stagnation_single_phase"):
@@ -254,7 +254,9 @@ class PRSubcycledSurface(PRControlledSurface):
             "boundary_transfers": transfers,
         }
 
-    def _slow_stage(self, state, clock, dt, manual, modes, commands):
+    def _slow_stage(
+        self, state, clock, dt, manual, modes, commands, *, _probe_quadrature_order=None
+    ):
         full = state.plant.transport
         local_transport = replace(
             full,
@@ -269,7 +271,18 @@ class PRSubcycledSurface(PRControlledSurface):
             ),
             model_id=self.slow.model_id,
         )
-        local, report = self.slow._step(initial, dt, manual, modes, commands)
+        local, report = self.slow._step(
+            initial,
+            dt,
+            manual,
+            modes,
+            commands,
+            **(
+                {"_probe_quadrature_order": _probe_quadrature_order}
+                if _probe_quadrature_order is not None
+                else {}
+            ),
+        )
         values = dict(local.plant.transport.nodes)
         merged = replace(
             local.plant.transport,
@@ -290,13 +303,22 @@ class PRSubcycledSurface(PRControlledSurface):
         slow = step["local_subcycling"]["stages"][1]["report"]
         return self.slow._error_openings(slow)
 
+    def _probe_records(self, step):
+        return step["local_subcycling"]["stages"][1]["report"]["plant"]["steps"]
+
     def _step(self, state, dt, manual, modes, commands, *, _probe_quadrature_order=None):
-        if _probe_quadrature_order is not None:
-            raise ValueError("Split stages require their own spatial qualification")
         fast_commands, slow_commands = self._commands(commands)
         first, second = split_step_s(state.time_s, dt)
         middle, a = self._fast_stage(state, state.time_s, first, fast_commands)
-        middle, b = self._slow_stage(middle, state.time_s, dt, manual, modes, slow_commands)
+        middle, b = self._slow_stage(
+            middle,
+            state.time_s,
+            dt,
+            manual,
+            modes,
+            slow_commands,
+            _probe_quadrature_order=_probe_quadrature_order,
+        )
         result, c = self._fast_stage(middle, state.time_s + first, second, fast_commands)
         self.inspect(result)
         stages = [a, b, c]

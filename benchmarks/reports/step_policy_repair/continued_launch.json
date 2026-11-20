@@ -1,0 +1,9 @@
+{
+  "pid": 770729,
+  "wall_budget_s": 1200,
+  "starts_at_simulated_s": 0.20000893004954398,
+  "original_cycle_end_s": 1.0,
+  "qualification": "pending",
+  "explicit_source_migration": true,
+  "timing_scope": "Continuation excludes previously computed prefix; not a cold full-cycle speed benchmark"
+}

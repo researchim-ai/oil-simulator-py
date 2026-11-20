@@ -1,0 +1,20 @@
+{
+  "device": "cuda",
+  "difference_in_original_error_norm": 0.0,
+  "independent_audits_passed": true,
+  "audits": [
+    {
+      "accepted": true,
+      "checked_substeps": 2,
+      "maximum_local_energy_residual_j": 5.664621896110615e-14,
+      "checked_control_substeps": 2
+    },
+    {
+      "accepted": true,
+      "checked_substeps": 2,
+      "maximum_local_energy_residual_j": 5.664621896110615e-14,
+      "checked_control_substeps": 2
+    }
+  ],
+  "scope": "Small coupled separator/pipe/control interval, not full facility performance"
+}

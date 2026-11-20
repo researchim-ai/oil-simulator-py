@@ -3,10 +3,10 @@
 import copy
 
 import pytest
+from test_surface_pr_surface_control import controlled
 
 from surface.liquid import HydraulicConvergenceError
 from surface.torch_nonlinear import TorchNewton
-from test_surface_pr_surface_control import controlled
 
 
 def test_five_global_solves_keep_both_accepted_halfsteps_certified(monkeypatch):
@@ -15,7 +15,10 @@ def test_five_global_solves_keep_both_accepted_halfsteps_certified(monkeypatch):
     calls = []
 
     def counted(self, *args, **kwargs):
-        calls.append(args[1].numel())
+        # Count coupled plant systems, not the independent two-variable
+        # thermodynamic sensor sampling solve that can run during controls.
+        if args[1].numel() > 2:
+            calls.append(args[1].numel())
         return original(self, *args, **kwargs)
 
     monkeypatch.setattr(TorchNewton, "solve", counted)
@@ -112,16 +115,18 @@ def test_unverified_probe_is_not_a_public_accepted_advance():
         model.plant.advance(state.plant, 1e-7, _probe_quadrature_order=4)
     for bad in (True, 2, 3, 32):
         with pytest.raises(ValueError, match="supported refined column order"):
-            model.plant._step(state.plant, 1e-7, {"port": True}, {}, {}, {}, _probe_quadrature_order=bad)
+            model.plant._step(
+                state.plant, 1e-7, {"port": True}, {}, {}, {}, _probe_quadrature_order=bad
+            )
     assert state.to_dict() == before
 
 
 def test_independent_audit_rejects_a_probe_in_accepted_history():
+    import json
     from pathlib import Path
 
     from check_pr_controlled_surface import audit
     from run_pr_controlled_surface import run
-    import json
 
     root = Path(__file__).resolve().parents[1]
     config = json.loads((root / "configs/surface_pr_controlled_surface.json").read_text())

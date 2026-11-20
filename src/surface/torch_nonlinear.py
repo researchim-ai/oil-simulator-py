@@ -15,6 +15,7 @@ from .torch_linear import TorchNewton as _LinearNewton
 
 
 class TorchNewton(_LinearNewton):
+    _early_certified_roundoff = True
     _early_full_step = True
     _reuse_jacobian = True
     _jacobian_max_age = 3
@@ -78,6 +79,7 @@ class TorchNewton(_LinearNewton):
             objective_scale = None
             current_norm = math.inf
             qualified = False
+            certified_floor = False
             # CPU checks require no device synchronization. CUDA keeps a fixed
             # iteration budget; accepted status is read once at the API boundary.
             if (
@@ -99,8 +101,20 @@ class TorchNewton(_LinearNewton):
                         # changes globalization only, never the success budget.
                         objective_scale = scale.detach() / stagnation_tolerance
                     ratio = torch.where(good, (r.abs() / scale).max(), r.new_full((), math.inf))
-                    metrics = torch.stack((r.abs().max(), ratio)).detach().cpu().tolist()
-                    norm, eligible = metrics[0], metrics[1] <= 1
+                    # Stop only where EVERY non-target residual is covered by
+                    # its own caller-supplied arithmetic certificate. Rows with
+                    # no certificate still meet the original target tolerance.
+                    floor = (
+                        good
+                        & (r.abs() <= torch.maximum(bounds, bounds.new_full((), tolerance))).all()
+                    )
+                    metrics = (
+                        torch.stack((r.abs().max(), ratio, floor.to(r.dtype)))
+                        .detach()
+                        .cpu()
+                        .tolist()
+                    )
+                    norm, eligible, certified_floor = metrics[0], metrics[1] <= 1, bool(metrics[2])
                     if self.device.type == "cuda":
                         self.status_reads += 1
                 elif self.device.type == "cuda":
@@ -111,6 +125,9 @@ class TorchNewton(_LinearNewton):
                 current_norm = norm
                 if norm <= tolerance:
                     self.stop_reason = "target_tolerance"
+                    break
+                if self._early_certified_roundoff and certified_floor:
+                    self.stop_reason = "certified_roundoff"
                     break
                 qualified = stagnation_tolerance is not None and (
                     norm < stagnation_tolerance or eligible

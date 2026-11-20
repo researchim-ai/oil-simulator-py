@@ -1,0 +1,7 @@
+{
+  "exit_code": 0,
+  "elapsed_s": 144.4303746959995,
+  "passed": 89,
+  "skipped": 1,
+  "scope": "CPU regression; overlaps separate CUDA test set"
+}
