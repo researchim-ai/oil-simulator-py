@@ -88,9 +88,7 @@ def validated_state_key(owner, state, *, scheduling_fields=()):
     if signature != getattr(owner, "_verified_signature", None):
         owner._verified.clear()
         owner._verified_signature = signature
-        owner._verified_model_tensors = tuple(
-            getattr(owner.fluid, name) for name in _MODEL_TENSORS
-        )
+        owner._verified_model_tensors = tuple(getattr(owner.fluid, name) for name in _MODEL_TENSORS)
     data = state.to_dict()
     for name in scheduling_fields:
         data.pop(name)
@@ -101,6 +99,8 @@ class FlashCache:
     def __init__(self, maximum_entries):
         self.maximum_entries = maximum_entries
         self.entries = OrderedDict()
+        self.warm_equilibria = OrderedDict()
+        self.warm_flash_attempts = self.warm_flash_accepts = self.warm_flash_fallbacks = 0
         self.hits = self.misses = self.evictions = 0
         self.caloric_fast_accepts = self.caloric_bracket_fallbacks = 0
         self.stability_seeds = self.stability_batched_seeds = 0
@@ -110,6 +110,9 @@ class FlashCache:
     def statistics(self):
         return {
             "enabled": True,
+            "warm_flash_attempts": self.warm_flash_attempts,
+            "warm_flash_accepts": self.warm_flash_accepts,
+            "warm_flash_fallbacks": self.warm_flash_fallbacks,
             "hits": self.hits,
             "misses": self.misses,
             "evictions": self.evictions,
@@ -150,6 +153,7 @@ def cached_flashes(fluid, *, enabled=True, maximum_entries=256):
             fluid._active_flash_cache = previous
         if isinstance(cache, FlashCache):
             cache.entries.clear()
+            cache.warm_equilibria.clear()
 
 
 def _request_key(fluid, name, arguments, *, model_signature=None):

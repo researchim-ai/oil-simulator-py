@@ -73,3 +73,63 @@ def test_actual_six_cases_keep_unconfirmed_units_and_clock_alignment_visible():
         else:
             assert case["shear_free_reference_range_m"] is None
         assert all(not row["within_existing_annular_reynolds_domain"] for row in case["references"])
+
+
+def test_gas_conversion_is_applied_before_zero_flow_classification():
+    from validate_fetrig_film import CANDIDATE_UNITS
+
+    inputs = {
+        "liquid_flow": series("mass", 160.2),
+        "gas_volume_flow": series("gas", 0.36),
+        "gas_density": series("rho", 1.17),
+        "gas_viscosity": series("mu", 1.8e-5),
+    }
+    # Same physical signal in two units, with fluctuations above 2% CV but
+    # below the declared near-zero absolute threshold in SI.
+    inputs["gas_volume_flow"]["values_native"] = [0.18 + (i % 2) * 0.18 for i in range(121)]
+    units = copy.deepcopy(CANDIDATE_UNITS)
+    units["gas_volume_flow"]["scale"] = 1 / 3600
+    converted = steady_windows(inputs, units=units)
+    si = copy.deepcopy(inputs)
+    si["gas_volume_flow"]["values_native"] = [
+        v / 3600 for v in si["gas_volume_flow"]["values_native"]
+    ]
+    direct = steady_windows(si)
+    assert len(converted["accepted"]) == len(direct["accepted"]) > 0
+    for a, b in zip(converted["accepted"], direct["accepted"]):
+        assert a["candidate_SI_means"]["gas_volume_flow"] == pytest.approx(
+            b["candidate_SI_means"]["gas_volume_flow"]
+        )
+
+
+def test_public_metadata_unit_conflict_is_not_silently_resolved():
+    data = Path(__file__).resolve().parents[1] / "tests/data/surface/fetrig"
+    report = run(data)
+    declarations = report["external_unit_evidence"]["gas_unit_declarations"]
+    assert len(declarations) == 2
+    assert all(r["unit"] == "m^3/h" for r in declarations)
+    case = next(c for c in report["cases"] if "ReG12900.csv" in c["cci_member"])
+    audit = case["gas_unit_consistency"]
+    assert not audit["automatically_selected_conversion"]
+    assert not audit["uses_film_thickness"]
+    for row in audit["windows"]:
+        assert 10000 < row["reynolds_if_native_m3_s"] < 15000
+        assert row["reynolds_if_native_m3_h"] == pytest.approx(
+            row["reynolds_if_native_m3_s"] / 3600
+        )
+
+
+def test_new_public_middle_station_covers_all_gas_settings_without_fitting():
+    data = Path(__file__).resolve().parents[1] / "tests/data/surface/fetrig_middle"
+    report = run(data)
+    assert len(report["cases"]) == 6
+    assert sum(len(c["references"]) for c in report["cases"]) == 19
+    assert {
+        c["gas_unit_consistency"]["nominal_filename_reynolds_not_boundary_condition"]
+        for c in report["cases"]
+    } == {0, 4900, 8900, 12900, 16900, 20900}
+    assert not report["fit_performed"] and not report["experimentally_qualified"]
+    zero = next(c for c in report["cases"] if c["cci_member"].endswith("ReG0.csv"))
+    assert zero["observed_cci"]["go_mean_thickness_m"] == pytest.approx(0.0004996232328111007)
+    lo, hi = zero["conditional_reference_relative_difference_range"]
+    assert -0.008 < lo < hi < -0.004

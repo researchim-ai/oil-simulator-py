@@ -31,8 +31,30 @@ def resistance(alpha, diameter, viscosity):
     return eta, beta, wall, 2 * math.pi * inner
 
 
+def final_drive_coefficient(drive, alpha, diameter, mu_g, rho, beta, roughness):
+    """Independent scalar Colebrook + eliminated interface-slip resistance."""
+    core = diameter * math.sqrt(1 - alpha)
+    re = rho * abs(drive) * core / mu_g
+    z = brentq(
+        lambda z: z + 2 * math.log10(roughness / core / 3.7 + 2.51 * z / max(re, 2000.0)), 1, 100
+    )
+    b = max(0.0, min(1.0, (re - 2000) / 2000))
+    b = b * b * (3 - 2 * b)
+    linear = (1 - b) * 8 * mu_g / core
+    delta = diameter / 2 * alpha / (1 + math.sqrt(1 - alpha))
+    quadratic = b * rho * (1 + 300 * delta / diameter) / (8 * z * z)
+    a = 1 + beta * linear
+    slip = 2 * drive / (a + math.sqrt(a * a + 4 * beta * quadratic * abs(drive)))
+    friction = linear + quadratic * abs(slip)
+    return friction / (1 + beta * friction)
+
+
 def audit(pipe, before, after, report, close):
-    if report["model"] != "laminar_annular_wallis_interface_v1":
+    implicit = pipe.friction.to_dict()["model"] == "laminar_annular_colebrook_implicit_v3"
+    consistent = (
+        implicit or pipe.friction.to_dict()["model"] == "laminar_annular_colebrook_interface_v2"
+    )
+    if report["model"] != pipe.friction.to_dict()["model"]:
         raise ValueError("Annular source model differs")
     old_q, new_q = packets(pipe, before.to_dict()), packets(pipe, after.to_dict())
     mw = np.array([c.molar_mass_kg_mol for c in pipe.fluid.components])
@@ -74,6 +96,20 @@ def audit(pipe, before, after, report, close):
                 * pipe.friction.viscosity[gas]
                 / (pipe.diameter / 2 * math.sqrt(1 - alpha))
             )
+            if consistent:
+                core = pipe.diameter * math.sqrt(1 - alpha)
+                z = brentq(
+                    lambda z, core=core, re_gas=re_gas: (
+                        z
+                        + 2
+                        * math.log10(
+                            pipe.friction.roughness / core / 3.7 + 2.51 * z / max(re_gas, 2000.0)
+                        )
+                    ),
+                    1.0,
+                    100.0,
+                )
+                k0 = 0.5 / (4 * z * z) * (1 + 300 * delta / pipe.diameter) * mg / ag
             quadratic = b * k0
             aa = 1 + beta * linear
             slip = 2 * drive / (aa + math.sqrt(aa**2 + 4 * beta * quadratic * abs(drive)))
@@ -84,6 +120,43 @@ def audit(pipe, before, after, report, close):
             wall = pipe.lengths[i] * c
             matrix = np.array([[mg / dt + k, -eta * k], [-eta * k, ml / dt + eta**2 * k + wall]])
             ug, ul = np.linalg.solve(matrix, [mg / dt * speeds[gas], ml / dt * speeds[liquid]])
+            if implicit:
+                den = ml + dt * wall
+                drive0 = speeds[gas] - eta * ml / den * speeds[liquid]
+                coupling = dt * pipe.lengths[i] * perimeter * (1 / mg + eta**2 / den)
+
+                def coefficient(d, alpha=alpha, gas=gas, mg=mg, ag=ag, beta=beta):
+                    return final_drive_coefficient(
+                        d,
+                        alpha,
+                        pipe.diameter,
+                        pipe.friction.viscosity[gas],
+                        mg / ag,
+                        beta,
+                        pipe.friction.roughness,
+                    )
+
+                drive_final = (
+                    math.copysign(
+                        brentq(
+                            lambda d, coupling=coupling, coefficient=coefficient, drive0=drive0: (
+                                d + coupling * coefficient(d) * d - abs(drive0)
+                            ),
+                            0.0,
+                            abs(drive0),
+                            xtol=1e-15,
+                        ),
+                        drive0,
+                    )
+                    if drive0
+                    else 0.0
+                )
+                effective = coefficient(drive_final)
+                k = pipe.lengths[i] * perimeter * effective
+                matrix = np.array(
+                    [[mg / dt + k, -eta * k], [-eta * k, ml / dt + eta**2 * k + wall]]
+                )
+                ug, ul = np.linalg.solve(matrix, [mg / dt * speeds[gas], ml / dt * speeds[liquid]])
             re_initial = abs(stocks[liquid].momentum_kg_m_s) / (
                 pipe.lengths[i] * math.pi * pipe.diameter * pipe.friction.viscosity[liquid]
             )
@@ -180,6 +253,33 @@ def audit(pipe, before, after, report, close):
                 b = t * t * (3 - 2 * t)
                 factor = (1 - b) * 64 / re + b / z**2
                 un = 2 * u / (1 + math.sqrt(1 + 2 * dt * factor / pipe.diameter * abs(u)))
+            if consistent and re > 2000:
+                un = u / (1 + dt * factor * abs(u) / (2 * pipe.diameter))
+            if implicit:
+
+                def balance(v, rho=rho, mu=mu, u=u):
+                    reynolds = rho * v * pipe.diameter / mu
+                    if reynolds <= 2000:
+                        drag = 32 * mu / (rho * pipe.diameter**2)
+                    else:
+                        z = brentq(
+                            lambda z: (
+                                z
+                                + 2
+                                * math.log10(
+                                    pipe.friction.roughness / pipe.diameter / 3.7
+                                    + 2.51 * z / reynolds
+                                )
+                            ),
+                            1,
+                            100,
+                        )
+                        t = min(1.0, (reynolds - 2000) / 2000)
+                        b = t * t * (3 - 2 * t)
+                        drag = ((1 - b) * 64 / reynolds + b / z**2) * v / (2 * pipe.diameter)
+                    return v * (1 + dt * drag) - abs(u)
+
+                un = math.copysign(brentq(balance, 0, abs(u), xtol=1e-15), u) if u else 0.0
             final_u[name], powers[name] = un, 0.0
             phys[name] = masses[name] * un * (u - un)
         for name, stock in cell:
@@ -242,6 +342,9 @@ def audit(pipe, before, after, report, close):
         gas = cell[pipe.friction.gas_slot]
         mg = np.array(gas.component_moles) @ mw
         drive = gas.momentum_kg_m_s / mg - found["eta"] * p.momentum_kg_m_s / m
+        if implicit:
+            final_gas = dict(after.cells[int(found["cell"])])[pipe.friction.gas_slot]
+            drive = final_gas.momentum_kg_m_s / mg - found["eta"] * final_p.momentum_kg_m_s / m
         gas_re = (
             mg
             / gas.volume_m3

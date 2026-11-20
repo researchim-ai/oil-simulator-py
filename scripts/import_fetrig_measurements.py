@@ -78,7 +78,7 @@ class RangeArchive(io.RawIOBase):
         return data
 
 
-def selection():
+def selection(*, middle_station=False):
     """Fixed before comparison: two axial stations, same liquid setpoint.
 
     Names encode setpoints, not independently verified measured Reynolds numbers.
@@ -94,8 +94,10 @@ def selection():
         )
     ]
     names += [DATA + "README.md"]
-    for station, suffix in ((100, ""), (600, " 3")):
-        for gas in (0, 12900, 20900):
+    stations = ((350, " 2"),) if middle_station else ((100, ""), (600, " 3"))
+    gas_setpoints = (0, 4900, 8900, 12900, 16900, 20900) if middle_station else (0, 12900, 20900)
+    for station, suffix in stations:
+        for gas in gas_setpoints:
             stem = f"ReL500_ReG{gas}"
             base = DATA + f"Y_{station}/X_50/"
             names.extend(
@@ -107,7 +109,9 @@ def selection():
     return names
 
 
-def run(output, *, processing_only=False):
+def run(output, *, processing_only=False, middle_station=False):
+    if processing_only and middle_station:
+        raise ValueError("Choose processing descriptions or middle-station measurements")
     output = Path(output)
     if output.exists():
         raise FileExistsError("Import destination must not exist")
@@ -136,7 +140,7 @@ def run(output, *, processing_only=False):
                     PREFIX + "Post_Processing/Keyence_Data_Plotter.m",
                 ]
                 if processing_only
-                else selection()
+                else selection(middle_station=middle_station)
             )
             for name in names:
                 info = archive.getinfo(name)
@@ -168,11 +172,13 @@ def run(output, *, processing_only=False):
             "transferred_archive_bytes": remote.bytes_read,
             "selection": "Original processing descriptions only, not executed"
             if processing_only
+            else "Y_350, X_50, filename ReL500; all six gas setpoints, both instruments; selected before model scoring"
+            if middle_station
             else "Y_100 and Y_600, X_50, filename ReL500; ReG0/12900/20900, both raw instruments; chosen before model scoring",
             "geometry": {
                 "channel_width_m": 0.1,
                 "channel_depth_m": 0.03,
-                "source": "https://doi.org/10.1016/j.applthermaleng.2026.130975, section 2.1.3",
+                "source": "https://arxiv.org/html/2503.04915v1, section I.2",
             },
             "phase": "water film with countercurrent air; rectangular copper-wall channel",
             "qualified": False,
@@ -200,8 +206,11 @@ if __name__ == "__main__":
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument("--output", type=Path, required=True)
     p.add_argument("--processing-only", action="store_true")
+    p.add_argument("--middle-station", action="store_true")
     args = p.parse_args()
-    report = run(args.output, processing_only=args.processing_only)
+    report = run(
+        args.output, processing_only=args.processing_only, middle_station=args.middle_station
+    )
     print(
         json.dumps(
             {

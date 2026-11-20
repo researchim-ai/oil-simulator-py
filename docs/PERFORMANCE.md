@@ -1350,3 +1350,100 @@ PYTHONPATH=src python scripts/enable_pr_subcycling.py \
 ошибки всей установки (меньше единицы); независимые аудиты обоих расчётов
 прошли. Это подтверждает разрешение короткого интервала по времени, но не
 заменяет квалификацию длинного цикла. Целевые регрессии: 34 теста прошли.
+
+## Native CPU batching and explicit chemical-kernel fusion
+
+`tensor_homogeneous` supports native spatial batches; CPU phase groups use
+these directly. Local composition derivatives use independent reverse-mode
+pullbacks, with storage proportional to the number of rows and the square of
+component count. No dense cross-row Jacobian is assembled. Converged/stationary
+BFGS predictor rows leave the active workspace, retaining every original seed
+for the final stability and full-EOS checks.
+
+`run_pr_controlled_surface.py --compiled-cpu-chemical` explicitly enables
+float64 fused CPU chemical EOS and derivatives. It leaves EOS equations,
+physical acceptance and temporal tolerances unchanged. CUDA fusion retains
+its existing path. Differentiated inputs/parameters bypass detached compiled
+trials; compilation failures are explicit and preserve eager computation on
+the same device. Padding to fixed-width batches does not discard any row.
+
+One paired original first-trial comparison measured **33.27 → 23.68 s (1.405×)**,
+with exactly matching coarse/fine states and temporal error. It is a rejected
+trial, not a completed facility cycle; a shared-host observation does not
+establish statistical or end-to-end speedup.
+[Evidence and limitations](../benchmarks/reports/pr_native_thermo_repair/README.md).
+
+For long detailed-cycle qualification with accepted-step recovery:
+
+```bash
+OMP_NUM_THREADS=1 MKL_NUM_THREADS=1 PYTHONPATH=src:scripts \
+python scripts/run_pr_checkpointed_facility.py \
+  configs/surface_pr_integrated_facility_subcycled.json \
+  --compiled-cpu-chemical --budget-s 3600 --output /tmp/facility-cycle.json
+```
+
+Each accepted macrostep is flushed to `facility-cycle.accepted.jsonl`.
+Interrupted work can be exported and independently audited:
+
+```bash
+PYTHONPATH=src:scripts python scripts/run_pr_checkpointed_facility.py \
+  --recover-journal /tmp/facility-cycle.accepted.jsonl \
+  --output /tmp/facility-prefix.json
+```
+
+Recovery produces an audited prefix trajectory and a remaining request;
+the remaining request retains future operating stages and the exact restart
+inventories. A prefix is never called a complete qualified cycle. The runner
+requires an explicit initial checkpoint. It also guards the solver source
+hashes and reports complete-cycle qualification separately from integration
+completion. The independently checked prefix is useful after interruption,
+but does not replace whole-cycle temporal refinement or external validation.
+
+To continue a nonempty unfinished journal and assemble the original operating
+cycle for the final independent audit, use `--resume-journal` instead of a
+configuration path:
+
+```bash
+OMP_NUM_THREADS=1 MKL_NUM_THREADS=1 PYTHONPATH=src:scripts \
+python scripts/run_pr_checkpointed_facility.py \
+  --resume-journal /tmp/facility-cycle.accepted.jsonl \
+  --compiled-cpu-chemical --budget-s 3600 --output /tmp/facility-continued.json
+```
+
+The solver source must match the accepted journal. Completed continuation
+records are retained separately; a merged full-cycle trajectory is checked
+against the original schedule, including its already computed prefix. A
+successful short continuation alone is not whole-cycle qualification.
+
+## Analytic PR composition derivatives and conservative flash warm starts
+
+The chemical Newton tangent and square-root-composition Gibbs curvature now
+have analytic local Torch implementations. The cubic-root tangent includes
+the residual term of the same Newton correction as the reference AD path.
+Neither the full multistart phase search nor its curvature/final-EOS checks
+are removed. Scalar AD remains available for sensitivities and comparison.
+
+Inside an existing `cached_flashes` transaction, validated previous multiphase
+allocations can seed nearby PT flashes. New component totals are imposed
+conservatively; the result still passes equal-fugacity, full TPD, component
+balance and Gibbs checks. Failed guesses take the original cold route.
+Hints use exact model-version keys and bounded storage and disappear at the
+end of the transaction. Network transactions already supply this scope;
+standalone callers can use `with cached_flashes(fluid): ...`. This is separate
+from exact-answer memoization and never returns an old answer at a nearby state.
+
+Paired eight-point scalar sequences, including a cold first flash, measured
+44.55 → 8.23 ms/request for two-phase hydrocarbons and 175.91 → 47.50 ms for a
+synthetic three-liquid mixture. There were no exact-result cache hits.
+The integrated facility's first trial measured 30.17 → 21.48 s with exactly
+matching states; its temporal error still rejects the trial. Kernel speedups
+must not be advertised as whole-facility speedups.
+[Measurements, sources and qualification limits](../benchmarks/reports/pr_analytic_warm_repair/README.md).
+
+`run_pr_checkpointed_facility.py --resume-journal ... --allow-solver-change`
+is an explicit numerical-source migration. It retains and independently checks
+the physical prefix, validates the same serialized model/checkpoint, logs changed
+source hashes and then qualifies the merged original operating schedule.
+Without that flag source mismatches still reject resume. This does not bypass
+physical audits, establish temporal refinement or validate a changed physical
+model.

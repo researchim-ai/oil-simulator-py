@@ -67,7 +67,7 @@ def score_dry_series(cases, sensitivity):
     }
 
 
-def validate(data, *, shear_velocity="mean"):
+def validate(data, *, shear_velocity="mean", dry_consistent=False):
     baseline = run(data)
     all_rows = baseline["roughness_sensitivity"]["0.0"]["cases"]
     rows = [r for r in all_rows if r["liquid_mass_flow_kg_s"] / (math.pi * 0.085 * 0.001002) <= 400]
@@ -86,6 +86,15 @@ def validate(data, *, shear_velocity="mean"):
     cases = {}
     observed = np.array([r["measured_wet_increment_pa"] for r in rows])
     for roughness in (0.0, 0.0002):
+        if dry_consistent:
+            film = countercurrent_film(
+                jg,
+                [r["liquid_mass_flow_kg_s"] for r in rows],
+                rho,
+                shear_velocity=shear_velocity,
+                dry_consistent=True,
+                roughness_m=roughness,
+            )
         dry_friction = (
             darcy_factor(rho * jg * 0.085 / 1.81e-5, roughness / 0.085) * rho * jg**2 / (2 * 0.085)
         )
@@ -135,8 +144,12 @@ def validate(data, *, shear_velocity="mean"):
     )
     return {
         "format": "annular_film_experimental_challenge_v1",
-        "closure": "laminar_annular_wallis_interface_v1"
+        "closure": "laminar_annular_colebrook_interface_v2"
+        if dry_consistent
+        else "laminar_annular_wallis_interface_v1"
         if shear_velocity == "interface"
+        else "laminar_annular_wallis_superficial_v1"
+        if shear_velocity == "superficial"
         else "laminar_annulus_wallis_relative_v1",
         "source": baseline["source"],
         "source_sha256": baseline["source_sha256"],
@@ -159,7 +172,26 @@ def validate(data, *, shear_velocity="mean"):
             ]
         },
         "correlation_reference": "https://doi.org/10.1016/j.applthermaleng.2026.130975",
-        "correlation_variant": f"Wallis Fanning factor, relative core/{shear_velocity}-film speed, exact laminar annulus; not the superficial-gas-speed variant",
+        "dry_consistent": dry_consistent,
+        "correlation_variant": (
+            "Colebrook baseline with Wallis film enhancement; engineering extension, not the published correlation"
+            if dry_consistent
+            else "Wallis Eqs. 7-9 with Q_g/total area; coupled Stokes annulus, not the paper Nusselt thickness estimate"
+            if shear_velocity == "superficial"
+            else f"Wallis Fanning factor, relative core/{shear_velocity}-film speed, exact laminar annulus; not the superficial-gas-speed variant"
+        ),
+        "comparison_contract": {
+            "reference_shear_law_reproduced": shear_velocity == "superficial"
+            and not dry_consistent,
+            "gas_velocity_definition": "Q_g / total_pipe_area"
+            if shear_velocity == "superficial"
+            else "relative core/film velocity",
+            "film_thickness_model": "coupled exact laminar annulus, not prescribed Nusselt thickness",
+            "observable": "wet_minus_dry_pressure_increment",
+            "local_loss_cancellation": "assumed; liquid-application change not measured separately",
+            "full_wetting": "model assumption; not confirmed by this experiment",
+            "transient_model_validated": False,
+        },
         "qualification_scope": baseline["qualification_scope"],
         "baseline": {
             key: value
@@ -182,7 +214,8 @@ def validate(data, *, shear_velocity="mean"):
             for k, v in baseline["roughness_sensitivity"].items()
         },
         "matched_wet_windows": len(rows),
-        "held_out": True,
+        "held_out": False,
+        "evaluation_role": "Repeated diagnostic benchmark; previously inspected during model development, not an untouched holdout",
         "fit_performed": False,
         "excluded_by_laminar_domain": [
             {"sheet": r["sheet"], "first_row": r["first_row"], "last_row": r["last_row"]}
@@ -204,11 +237,23 @@ def main(argv=None):
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument("--data", type=Path, default=ROOT / "tests/data/surface/hannover_countercurrent")
     p.add_argument("--output", type=Path, required=True)
-    p.add_argument("--shear-velocity", choices=["mean", "interface"], default="mean")
-    p.add_argument("--report-only", action="store_true",
-                   help="Write an unsuccessful challenge without a failing exit code; qualification stays false")
+    p.add_argument("--shear-velocity", choices=["mean", "interface", "superficial"], default="mean")
+    p.add_argument(
+        "--dry-consistent",
+        action="store_true",
+        help="Challenge opt-in Colebrook-baseline variant; requires interface velocity",
+    )
+    p.add_argument(
+        "--report-only",
+        action="store_true",
+        help="Write an unsuccessful challenge without a failing exit code; qualification stays false",
+    )
     args = p.parse_args(argv)
-    result = validate(args.data, shear_velocity=args.shear_velocity)
+    result = validate(
+        args.data,
+        shear_velocity=args.shear_velocity,
+        **({"dry_consistent": True} if args.dry_consistent else {}),
+    )
     args.output.write_text(json.dumps(result, indent=2, allow_nan=False) + "\n")
     print(
         json.dumps(
@@ -217,7 +262,11 @@ def main(argv=None):
     )
     for k, v in result["roughness_sensitivity"].items():
         print(k, {key: value for key, value in v.items() if key != "cases"})
-    return 0 if result["accepted_as_validated_for_annular_countercurrent"] is True or args.report_only else 1
+    return (
+        0
+        if result["accepted_as_validated_for_annular_countercurrent"] is True or args.report_only
+        else 1
+    )
 
 
 if __name__ == "__main__":

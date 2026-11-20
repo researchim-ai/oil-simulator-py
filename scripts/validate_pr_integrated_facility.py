@@ -76,7 +76,17 @@ def operational_audit(config, report):
         totals = dict.fromkeys(names, 0.0)
         aperture = {}
         for control in interval["steps"]:
-            for physical in control["plant"]["steps"]:
+            if config["model"]["model"] == "pr_subcycled_surface_v1":
+                stages = control["local_subcycling"]["stages"]
+                if [stage["operator"] for stage in stages] != ["fast", "slow", "fast"]:
+                    raise ValueError("Missing or reordered local integration stages")
+                # Equipment/column connections belong exclusively to the slow
+                # partition, as required by PRSubcycledSurface and its independent
+                # checker. Count each physical transfer once, not three times.
+                physical_steps = stages[1]["report"]["plant"]["steps"]
+            else:
+                physical_steps = control["plant"]["steps"]
+            for physical in physical_steps:
                 t = physical["transport"]
                 machines = {**t["pump_connections"], **t["compressors"]}
                 dt = physical["dt_s"]
@@ -118,6 +128,7 @@ def main():
         "--config", type=Path, default=ROOT / "configs/surface_pr_integrated_facility.json"
     )
     parser.add_argument("--device", choices=("cpu", "cuda"), default="cpu")
+    parser.add_argument("--compiled-cpu-chemical", action="store_true")
     parser.add_argument("--timeout-s", type=float, default=600)
     parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args()
@@ -150,6 +161,7 @@ def main():
         "format": "pr_integrated_facility_acceptance_v1",
         "accepted": False,
         "device": args.device,
+        "compiled_cpu_chemical": args.compiled_cpu_chemical,
         "topology": topology,
         "source_sha256": before,
         "trajectory": trajectory.name,
@@ -169,6 +181,7 @@ def main():
                     "--output",
                     str(trajectory),
                     "--progress",
+                    *(["--compiled-cpu-chemical"] if args.compiled_cpu_chemical else []),
                 ],
                 cwd=ROOT,
                 stdout=handle,

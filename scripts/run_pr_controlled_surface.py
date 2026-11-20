@@ -100,6 +100,9 @@ def run(config, *, device="cpu", progress=None):
             "stagnation_patience": TorchNewton._stagnation_patience,
             "jacobian_reuse": TorchNewton._reuse_jacobian,
             "compiled_chemical": EquilibriumFluid._compiled_chemical,
+            "compiled_cpu_chemical": EquilibriumFluid._compiled_chemical_cpu,
+            "analytic_chemical": EquilibriumFluid._analytic_chemical,
+            "warm_equilibrium": EquilibriumFluid._warm_equilibrium,
             "grouped_column_eos": {
                 name: column._batch_column_eos
                 for name, column in getattr(model.plant, "columns", {}).items()
@@ -122,7 +125,8 @@ def main():
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--progress", action="store_true", help="JSON progress on stderr")
     parser.add_argument(
-        "--refine-discarded-probe", action="store_true",
+        "--refine-discarded-probe",
+        action="store_true",
         help="Independently refine the discarded temporal probe for reference comparisons",
     )
     parser.add_argument(
@@ -142,7 +146,13 @@ def main():
         action="store_true",
         help="Rebuild every Newton tangent for reference/performance comparisons",
     )
-    parser.add_argument(
+    chemical_policy = parser.add_mutually_exclusive_group()
+    chemical_policy.add_argument(
+        "--compiled-cpu-chemical",
+        action="store_true",
+        help="Opt in to fused float64 CPU chemical EOS and local derivatives",
+    )
+    chemical_policy.add_argument(
         "--eager-chemical",
         action="store_true",
         help="Disable fused CUDA chemical EOS for reference/performance comparisons",
@@ -172,6 +182,7 @@ def main():
     TorchNewton._stagnation_patience = args.stagnation_patience
     from surface.equilibrium_properties import EquilibriumFluid
 
+    EquilibriumFluid._compiled_chemical_cpu = args.compiled_cpu_chemical
     EquilibriumFluid._compiled_chemical = not args.eager_chemical
     from surface.stratified_pr import StratifiedPRColumn
 

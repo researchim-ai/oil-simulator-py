@@ -71,6 +71,10 @@ class EquilibriumFluid:
     No compositional inference from oil/water/gas labels is performed.
     """
 
+    _lean_allocation = True
+    _warm_equilibrium = True
+    _analytic_chemical = True
+    _compiled_chemical_cpu = False
     _compiled_chemical = True
 
     def __init__(
@@ -123,6 +127,8 @@ class EquilibriumFluid:
         self._chemical_jacobian_compile_failure = None
         self._chemical_jacobian_compiled_batches = 0
         self._chemical_jacobian_compiled_points = 0
+        self._chemical_curvature_compile_failure = None
+        self._chemical_curvature_compiled_batches = 0
         self.model_id = _digest({"model": "caloric_pr_multiphase_v1", **self.to_dict()})
 
     def tensor(self, value):
@@ -168,7 +174,7 @@ class EquilibriumFluid:
                 "Equilibrium pressure, temperature or composition outside domain"
             )
 
-    def _roots(self, A, B, derivative_order=1):
+    def _roots(self, A, B, derivative_order=1, *, _with_partials=False):
         """Both mechanically stable cubic roots, no host/numpy root solve."""
         with torch.no_grad():
             # no_grad disables reverse AD only. Forward AD (jacfwd/JVP)
@@ -196,6 +202,8 @@ class EquilibriumFluid:
         # Each differentiable Newton correction doubles the accurate derivative
         # order around the detached exact root. Two corrections are needed when
         # differentiating a sonic thermodynamic tangent (second derivatives).
+        if _with_partials:
+            za, zb = torch.zeros_like(roots), torch.zeros_like(roots)
         for _ in range(derivative_order):
             f = (
                 roots**3
@@ -205,19 +213,47 @@ class EquilibriumFluid:
             )
             fz = 3 * roots**2 + 2 * (B[..., None] - 1) * roots + (A - 3 * B * B - 2 * B)[..., None]
             safe = torch.where(fz.abs() > 1e-14, fz, torch.ones_like(fz))
+            if _with_partials:
+                faa = roots - B[..., None]
+                fbb = (
+                    roots**2 + (-6 * B - 2)[..., None] * roots + (-A + 2 * B + 3 * B * B)[..., None]
+                )
+                fzz = 6 * roots + 2 * (B - 1)[..., None]
+                fzb = 2 * roots - (6 * B + 2)[..., None]
+                nonsingular = fz.abs() > 1e-14
+                za = (
+                    za
+                    - (fz * za + faa) / safe
+                    + f * torch.where(nonsingular, fzz * za + 1, 0.0) / safe**2
+                )
+                zb = (
+                    zb
+                    - (fz * zb + fbb) / safe
+                    + f * torch.where(nonsingular, fzz * zb + fzb, 0.0) / safe**2
+                )
             roots = roots - f / safe
 
+        if _with_partials:
+            return roots, fz, za, zb
         return roots, fz
 
     def tensor_homogeneous(
-        self, p, t, x, phase="stable", *, derivative_order=1, _chemical_only=False
+        self,
+        p,
+        t,
+        x,
+        phase="stable",
+        *,
+        derivative_order=1,
+        _chemical_only=False,
+        _chemical_tangent=False,
     ):
         """Local differentiable EOS; callers validate domain before solving."""
         if derivative_order not in (1, 2):
             raise ValueError("EOS derivative order must be one or two")
         if phase not in ("stable", "liquid", "vapor"):
             raise ValueError("Unknown cubic-root selection")
-        rt = torch.sqrt(t / self.tc)
+        rt = torch.sqrt(t[..., None] / self.tc)
         m = 1 + self.kappa * (1 - rt)
         ai = self.a0 * m * m
         ait = -self.a0 * self.kappa * m / (self.tc * rt)
@@ -228,18 +264,21 @@ class EquilibriumFluid:
             * aij
             * (ait[..., :, None] / ai[..., :, None] + ait[..., None, :] / ai[..., None, :])
         )
-        ax = x @ aij
+        ax = (x[..., None, :] @ aij).squeeze(-2)
         a = (ax * x).sum(-1)
-        at = ((x @ aijt) * x).sum(-1)
+        at = ((x[..., None, :] @ aijt).squeeze(-2) * x).sum(-1)
         ar = ait / ai
         aijtt = aij * (
             0.5 * (aitt[..., :, None] / ai[..., :, None] + aitt[..., None, :] / ai[..., None, :])
             - 0.25 * (ar[..., :, None] - ar[..., None, :]) ** 2
         )
-        att = ((x @ aijtt) * x).sum(-1)
+        att = ((x[..., None, :] @ aijtt).squeeze(-2) * x).sum(-1)
         b = (x * self.b).sum(-1)
         A, B = a * p / (R * t) ** 2, b * p / (R * t)
-        roots, fz = self._roots(A, B, derivative_order)
+        if _chemical_tangent:
+            roots, fz, za, zb = self._roots(A, B, derivative_order, _with_partials=True)
+        else:
+            roots, fz = self._roots(A, B, derivative_order)
         z = roots
         ratio = torch.log1p(
             2 * math.sqrt(2) * B[..., None] / (z + (1 - math.sqrt(2)) * B[..., None])
@@ -252,9 +291,9 @@ class EquilibriumFluid:
             * (2 * ax / a[..., None] - bi)[..., None, :]
             * ratio[..., :, None]
         )
-        vol = z * R * t / p
+        vol = z * (R * t / p)[..., None]
         dpdv = (
-            -R * t / (vol - b[..., None]) ** 2
+            -R * t[..., None] / (vol - b[..., None]) ** 2
             + a[..., None]
             * (2 * vol + 2 * b[..., None])
             / (vol * vol + 2 * b[..., None] * vol - b[..., None] ** 2) ** 2
@@ -264,7 +303,7 @@ class EquilibriumFluid:
         dpdt = R / (vol - b[..., None]) - at[..., None] / (
             vol**2 + 2 * b[..., None] * vol - b[..., None] ** 2
         )
-        cp = cv - t * dpdt**2 / dpdv
+        cp = cv - t[..., None] * dpdt**2 / dpdv
         valid = (
             (z > B[..., None])
             & (dpdv < 0)
@@ -284,6 +323,21 @@ class EquilibriumFluid:
         selected_phi = torch.gather(
             ph, -2, index[..., None, None].expand(*index.shape, 1, len(self.components))
         ).squeeze(-2)
+        if _chemical_tangent:
+            return {
+                "log_fugacity_coefficients": selected_phi,
+                "valid": valid.any(-1),
+                "a": a,
+                "b": b,
+                "ax": ax,
+                "aij": aij,
+                "z": select(z),
+                "ratio": select(ratio),
+                "A": A,
+                "B": B,
+                "za": select(za),
+                "zb": select(zb),
+            }
         if _chemical_only:
             # Root selection retains ALL mechanical and caloric validity
             # checks above. A TPD trial does not need h, s or sound speed,
@@ -338,7 +392,7 @@ class EquilibriumFluid:
 
     def tensor_chemical(self, p, t, x):
         """Exact stable-root fugacities and full root admissibility for TPD."""
-        if self.device.type == "cuda":
+        if self.device.type == "cuda" or self._compiled_chemical_cpu:
             from .chemical_kernel import eligible, evaluate
 
             if p.ndim == 0 and t.ndim == 0 and x.ndim == 1 and eligible(self, p, t, x):
@@ -347,24 +401,31 @@ class EquilibriumFluid:
         return self.tensor_homogeneous(p, t, x, _chemical_only=True)
 
     def tensor_chemical_batch(self, p, t, x):
-        if self.device.type == "cuda":
+        if self.device.type == "cuda" or self._compiled_chemical_cpu:
             from .chemical_kernel import eligible, evaluate
 
             if eligible(self, p, t, x):
                 return evaluate(self, p, t, x)
-        return torch.vmap(
-            lambda pp, tt, xx: self.tensor_homogeneous(pp, tt, xx, _chemical_only=True)
-        )(p, t, x)
+        return self.tensor_homogeneous(p, t, x, _chemical_only=True)
 
     def tensor_chemical_jacobian(self, p, t, chemical, active, point):
         from .chemical_kernel import jacobian
 
         return jacobian(self, p, t, chemical, active, point)
 
+    def tensor_chemical_curvature(self, p, t, chemical, active, root, basis):
+        from .chemical_kernel import curvature
+
+        return curvature(self, p, t, chemical, active, root, basis)
+
     def chemical_kernel_statistics(self):
         return {
+            "analytic_composition_derivatives": self._analytic_chemical,
+            "curvature_compiled_batches": self._chemical_curvature_compiled_batches,
+            "curvature_compilation_failure": self._chemical_curvature_compile_failure,
             "components": list(self.names),
-            "enabled": self._compiled_chemical and self.device.type == "cuda",
+            "enabled": self._compiled_chemical
+            and (self.device.type == "cuda" or self._compiled_chemical_cpu),
             "compiled_batches": self._chemical_compiled_batches,
             "compiled_points": self._chemical_compiled_points,
             "compilation_failure": self._chemical_compile_failure,
@@ -811,12 +872,12 @@ class EquilibriumFluid:
         index = int(torch.stack([entry[0] for entry in minima]).argmin().cpu())
         return minima[index]
 
-    def _allocation(self, p, t, z, active, allocation):
+    def _allocation(self, p, t, z, active, allocation, *, _polish_only=False):
         """Conservative Gibbs minimization then equal-fugacity Newton polish."""
         za = z[active]
         u = torch.log(allocation / za).detach().clone().requires_grad_(True)
 
-        def decode(v):
+        def decode(v, *, full=False, compiled=False):
             loga = torch.log_softmax(v, dim=0) + torch.log(za)
             a = torch.exp(loga)
             logbeta = torch.logsumexp(loga, -1)
@@ -826,7 +887,12 @@ class EquilibriumFluid:
             x = torch.zeros((len(a), len(z)), dtype=z.dtype, device=z.device).index_copy(
                 -1, active, xa
             )
-            q = self.tensor_homogeneous(p, t, x)
+            if full or not self._lean_allocation:
+                q = self.tensor_homogeneous(p, t, x)
+            elif compiled:
+                q = self.tensor_chemical_batch(p.expand(len(x)), t.expand(len(x)), x)
+            else:
+                q = self.tensor_homogeneous(p, t, x, _chemical_only=True)
             mu = logxa + q["log_fugacity_coefficients"][:, active]
             return a, beta, x, q, mu
 
@@ -844,16 +910,18 @@ class EquilibriumFluid:
             optimizer.zero_grad()
             with torch.no_grad():
                 bounded = 80 * torch.tanh(u / 80)
-                a, _, _, _, mu = decode(bounded)
+                a, _, _, _, mu = decode(bounded, compiled=True)
                 weighted = a * mu
                 probabilities = torch.log_softmax(bounded, dim=0).exp()
                 u.grad = _gibbs_logit_gradient(u, weighted, probabilities, 0)
                 return weighted.sum()
 
-        with torch.enable_grad():
-            optimizer.step(closure)
-        # Fix the redundant softmax reference phase before Newton.
-        bounded = 80 * torch.tanh(u.detach() / 80)
+        if not _polish_only:
+            with torch.enable_grad():
+                optimizer.step(closure)
+        # Warm allocations already satisfy component totals; do not perturb
+        # their logits with the cold optimizer's tanh map before polishing.
+        bounded = u.detach() if _polish_only else 80 * torch.tanh(u.detach() / 80)
         v = bounded[:-1] - bounded[-1]
 
         def residual(v):
@@ -882,7 +950,7 @@ class EquilibriumFluid:
                     break
             if not accepted:
                 raise HydraulicConvergenceError("Phase-equilibrium Newton line search failed")
-        a, beta, x, q, mu = decode(torch.cat((v, v.new_zeros((1, v.shape[-1]))), dim=0))
+        a, beta, x, q, mu = decode(torch.cat((v, v.new_zeros((1, v.shape[-1]))), dim=0), full=True)
         error = (mu[:-1] - mu[-1]).abs().max()
         # A separated stream can be arbitrarily close to its bubble/dew
         # boundary. A positive trace phase still has a resolved composition
@@ -922,7 +990,25 @@ class EquilibriumFluid:
         q = {k: v[None] for k, v in feed.items()}
         fugacity_error = self.tensor(0.0)
         initial_g = (z[active] * chemical[active]).sum()
-        for phase_count in range(1, self.max_phases + 1):
+        from .pr_flash_warm_start import admissible, guess, remember
+
+        warm_ready = False
+        hint = guess(self, p, t, z, active)
+        if hint is not None:
+            try:
+                wa, wb, wx, wq, wm, we = self._allocation(p, t, z, active, hint, _polish_only=True)
+                wc = torch.zeros_like(z).index_copy(0, active, wm)
+                if admissible(self, z, active, wb, wx, wq, wc, initial_g):
+                    minimum, _, _ = self._stability(p, t, z, wc, active)
+                    warm_ready = bool((minimum >= -1e-8).cpu())
+                if warm_ready:
+                    allocation, beta, x, q, chemical, fugacity_error = wa, wb, wx, wq, wc, we
+                    self._active_flash_cache.warm_flash_accepts += 1
+            except (HydraulicConvergenceError, PropertyModelError, torch.linalg.LinAlgError):
+                pass  # A guess is never permission to suppress a cold solve.
+            if not warm_ready:
+                self._active_flash_cache.warm_flash_fallbacks += 1
+        for phase_count in () if warm_ready else range(1, self.max_phases + 1):
             minimum, trial, _ = self._stability(p, t, z, chemical, active)
             if float(minimum.cpu()) >= -1e-8:
                 break
@@ -957,6 +1043,7 @@ class EquilibriumFluid:
             ).cpu()
         ):
             raise HydraulicConvergenceError("Flash component/Gibbs audit failed")
+        remember(self, p, t, z, active, beta, x)
         phases = [
             {**{k: v[i] for k, v in q.items() if k != "valid"}, "molar_fraction": beta[i]}
             for i in range(len(beta))

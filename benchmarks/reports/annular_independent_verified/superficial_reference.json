@@ -1,0 +1,1335 @@
+{
+  "format": "annular_film_experimental_challenge_v1",
+  "closure": "laminar_annular_wallis_superficial_v1",
+  "source": "https://doi.org/10.25835/vcwbeqix",
+  "source_sha256": {
+    "dry_pipe.xlsx": "ae94e1b43830a9c027b271265dd32e863b631433eeb43916c883105773245591",
+    "countercurrent.xlsx": "15f8247c5976fbdb289389bea0ef8721fc1e51c88436489ef8be91fac6f2a643"
+  },
+  "manifest_sha256": "47963ca66c6067804f1415759eb4e34c24885704bf51d6591b4b36d47f63fcdc",
+  "annular_applicability": {
+    "full_circumferential_wetting_confirmed": false,
+    "pressure_span_includes_liquid_application": true,
+    "section_references": [
+      "2.1.2 Pilot plant",
+      "3 Results and discussion, Fig. 9"
+    ],
+    "note": "Authors cannot guarantee full circumferential wetting and observe detached drops; pressure span includes liquid application. This does not establish the actual wetted fraction or prove a particular closure erroneous."
+  },
+  "runtime_sha256": {
+    "src/surface/annular_film.py": "3c98221eb4021d3aec5bfdbadee17c2e00814b1f6f0102a9ce4c89bf4dae3d19",
+    "src/surface/pr_active_pipe_friction.py": "292c18c53da81217b35ab5ee504dc23205b287ab53d0cb5a82cafb2f89a686b6"
+  },
+  "validator_sha256": {
+    "scripts/validate_annular_film_experiment.py": "223afebd1b0246d3a61abe104e36c8080d83d58a240377a80d56b7c399eb823e",
+    "scripts/validate_multiphase_experiments.py": "ed80d173aaf9f98ba3ba7513ae4a1e05d81ac1c921aaba0f655f23fa3de47818"
+  },
+  "correlation_reference": "https://doi.org/10.1016/j.applthermaleng.2026.130975",
+  "dry_consistent": false,
+  "correlation_variant": "Wallis Eqs. 7-9 with Q_g/total area; coupled Stokes annulus, not the paper Nusselt thickness estimate",
+  "comparison_contract": {
+    "reference_shear_law_reproduced": true,
+    "gas_velocity_definition": "Q_g / total_pipe_area",
+    "film_thickness_model": "coupled exact laminar annulus, not prescribed Nusselt thickness",
+    "observable": "wet_minus_dry_pressure_increment",
+    "local_loss_cancellation": "assumed; liquid-application change not measured separately",
+    "full_wetting": "model assumption; not confirmed by this experiment",
+    "transient_model_validated": false
+  },
+  "qualification_scope": "steady constitutive pressure augmentation; not full PR water or transient validation",
+  "baseline": {
+    "format": "multiphase_experimental_challenge_v1",
+    "source": "https://doi.org/10.25835/vcwbeqix",
+    "license": "CC-BY-4.0",
+    "source_sha256": {
+      "dry_pipe.xlsx": "ae94e1b43830a9c027b271265dd32e863b631433eeb43916c883105773245591",
+      "countercurrent.xlsx": "15f8247c5976fbdb289389bea0ef8721fc1e51c88436489ef8be91fac6f2a643"
+    },
+    "annular_applicability": {
+      "full_circumferential_wetting_confirmed": false,
+      "pressure_span_includes_liquid_application": true,
+      "section_references": [
+        "2.1.2 Pilot plant",
+        "3 Results and discussion, Fig. 9"
+      ],
+      "note": "Authors cannot guarantee full circumferential wetting and observe detached drops; pressure span includes liquid application. This does not establish the actual wetted fraction or prove a particular closure erroneous."
+    },
+    "geometry": {
+      "diameter_m": 0.085,
+      "pressure_tap_spacing_m": 3.0
+    },
+    "qualification_scope": "steady constitutive pressure augmentation; not full PR water or transient validation",
+    "closure": "darcy_volume_wetted_v1, no interphase drag, no chemical transfer",
+    "held_out": true,
+    "fit_performed": false,
+    "steady_selection": "nonoverlapping 60-row blocks; input-flow CV only, no pressure-error selection",
+    "dry_windows": 6,
+    "wet_windows": 31,
+    "matched_wet_windows": 20,
+    "rejected_dry": {
+      "nonfinite_measurements": 2,
+      "gas_flow_not_steady": 2,
+      "outside_published_gas_flow_range": 16
+    },
+    "rejected_wet": {
+      "liquid_flow_not_steady": 1,
+      "gas_flow_not_steady": 60
+    },
+    "wet_outside_dry_coverage": 11,
+    "measured_wet_increment_range_pa": [
+      9.234576936010875,
+      38.67591000068307
+    ],
+    "dry_series_sensitivity": {
+      "method": "Same fixed 5 m3/h bins and linear interpolation, separately per dry sheet; no extrapolation",
+      "fit_performed": false,
+      "is_uncertainty_interval": false,
+      "selection_by_model_error": false,
+      "dry_series": {
+        "mess1": [
+          {
+            "q": 170.2871273166667,
+            "dp": 47.8052791,
+            "temperature_k": 293.98331641666664,
+            "absolute_pressure_pa": 98963.42833333333
+          },
+          {
+            "q": 182.36918146666667,
+            "dp": 58.48003561666667,
+            "temperature_k": 293.98449115,
+            "absolute_pressure_pa": 98959.40833333333
+          },
+          {
+            "q": 195.1136328833333,
+            "dp": 71.80289721666666,
+            "temperature_k": 294.00987821666666,
+            "absolute_pressure_pa": 98956.42666666668
+          }
+        ],
+        "mess2": [
+          {
+            "q": 165.1042463666667,
+            "dp": 61.70859861666667,
+            "temperature_k": 293.160560875,
+            "absolute_pressure_pa": 100489.03166666668
+          },
+          {
+            "q": 177.62626345,
+            "dp": 69.68400333333334,
+            "temperature_k": 293.2448578666666,
+            "absolute_pressure_pa": 100686.76666666668
+          },
+          {
+            "q": 187.48486423333333,
+            "dp": 78.22244203333334,
+            "temperature_k": 293.30994659166663,
+            "absolute_pressure_pa": 100469.21333333333
+          }
+        ]
+      },
+      "cases": [
+        {
+          "sheet": "mess1",
+          "first_row": 123,
+          "last_row": 182,
+          "gas_volume_flow_m3_h": 161.95011258333335,
+          "dry_series": {},
+          "all_dry_series_covered": false,
+          "dry_series_spread_pa": null
+        },
+        {
+          "sheet": "mess1",
+          "first_row": 483,
+          "last_row": 542,
+          "gas_volume_flow_m3_h": 183.95711683333332,
+          "dry_series": {
+            "mess1": {
+              "dry_pressure_pa": 60.14003983561471,
+              "wet_increment_pa": 24.231362647718633
+            },
+            "mess2": {
+              "dry_pressure_pa": 75.16709416136078,
+              "wet_increment_pa": 9.204308321972562
+            }
+          },
+          "all_dry_series_covered": true,
+          "dry_series_spread_pa": 15.027054325746072
+        },
+        {
+          "sheet": "mess1",
+          "first_row": 963,
+          "last_row": 1022,
+          "gas_volume_flow_m3_h": 181.57613810000007,
+          "dry_series": {
+            "mess1": {
+              "dry_pressure_pa": 57.77936462635136,
+              "wet_increment_pa": 34.50389617364865
+            },
+            "mess2": {
+              "dry_pressure_pa": 73.10495153003131,
+              "wet_increment_pa": 19.178309269968693
+            }
+          },
+          "all_dry_series_covered": true,
+          "dry_series_spread_pa": 15.325586903679955
+        },
+        {
+          "sheet": "mess1",
+          "first_row": 1323,
+          "last_row": 1382,
+          "gas_volume_flow_m3_h": 191.17343978333338,
+          "dry_series": {
+            "mess1": {
+              "dry_pressure_pa": 67.68387744623357,
+              "wet_increment_pa": 42.28439222043309
+            }
+          },
+          "all_dry_series_covered": false,
+          "dry_series_spread_pa": null
+        },
+        {
+          "sheet": "mess1",
+          "first_row": 1503,
+          "last_row": 1562,
+          "gas_volume_flow_m3_h": 157.61494176666667,
+          "dry_series": {},
+          "all_dry_series_covered": false,
+          "dry_series_spread_pa": null
+        },
+        {
+          "sheet": "mess1",
+          "first_row": 1623,
+          "last_row": 1682,
+          "gas_volume_flow_m3_h": 177.64610455,
+          "dry_series": {
+            "mess1": {
+              "dry_pressure_pa": 54.30709486760491,
+              "wet_increment_pa": 36.91569401572843
+            },
+            "mess2": {
+              "dry_pressure_pa": 69.701187517967,
+              "wet_increment_pa": 21.521601365366337
+            }
+          },
+          "all_dry_series_covered": true,
+          "dry_series_spread_pa": 15.39409265036209
+        },
+        {
+          "sheet": "mess1",
+          "first_row": 1683,
+          "last_row": 1742,
+          "gas_volume_flow_m3_h": 188.28928366666662,
+          "dry_series": {
+            "mess1": {
+              "dry_pressure_pa": 64.66882316740491,
+              "wet_increment_pa": 41.00597016592843
+            }
+          },
+          "all_dry_series_covered": false,
+          "dry_series_spread_pa": null
+        },
+        {
+          "sheet": "mess2",
+          "first_row": 123,
+          "last_row": 182,
+          "gas_volume_flow_m3_h": 165.36604528333334,
+          "dry_series": {
+            "mess2": {
+              "dry_pressure_pa": 61.87534110718606,
+              "wet_increment_pa": 8.365546659480614
+            }
+          },
+          "all_dry_series_covered": false,
+          "dry_series_spread_pa": null
+        },
+        {
+          "sheet": "mess2",
+          "first_row": 423,
+          "last_row": 482,
+          "gas_volume_flow_m3_h": 139.4029342833333,
+          "dry_series": {},
+          "all_dry_series_covered": false,
+          "dry_series_spread_pa": null
+        },
+        {
+          "sheet": "mess2",
+          "first_row": 543,
+          "last_row": 602,
+          "gas_volume_flow_m3_h": 163.3173843333333,
+          "dry_series": {},
+          "all_dry_series_covered": false,
+          "dry_series_spread_pa": null
+        },
+        {
+          "sheet": "mess2",
+          "first_row": 663,
+          "last_row": 722,
+          "gas_volume_flow_m3_h": 180.09311526666667,
+          "dry_series": {
+            "mess1": {
+              "dry_pressure_pa": 56.46908183354571,
+              "wet_increment_pa": 33.31332378312096
+            },
+            "mess2": {
+              "dry_pressure_pa": 71.8205198108238,
+              "wet_increment_pa": 17.96188580584287
+            }
+          },
+          "all_dry_series_covered": true,
+          "dry_series_spread_pa": 15.351437977278088
+        },
+        {
+          "sheet": "mess2",
+          "first_row": 723,
+          "last_row": 782,
+          "gas_volume_flow_m3_h": 190.18769323333333,
+          "dry_series": {
+            "mess1": {
+              "dry_pressure_pa": 66.65339253723596,
+              "wet_increment_pa": 37.71801791276404
+            }
+          },
+          "all_dry_series_covered": false,
+          "dry_series_spread_pa": null
+        },
+        {
+          "sheet": "mess2",
+          "first_row": 843,
+          "last_row": 902,
+          "gas_volume_flow_m3_h": 141.68065833333333,
+          "dry_series": {},
+          "all_dry_series_covered": false,
+          "dry_series_spread_pa": null
+        },
+        {
+          "sheet": "mess2",
+          "first_row": 963,
+          "last_row": 1022,
+          "gas_volume_flow_m3_h": 142.0506185166667,
+          "dry_series": {},
+          "all_dry_series_covered": false,
+          "dry_series_spread_pa": null
+        },
+        {
+          "sheet": "mess2",
+          "first_row": 1023,
+          "last_row": 1082,
+          "gas_volume_flow_m3_h": 143.10769921666667,
+          "dry_series": {},
+          "all_dry_series_covered": false,
+          "dry_series_spread_pa": null
+        },
+        {
+          "sheet": "mess2",
+          "first_row": 1143,
+          "last_row": 1202,
+          "gas_volume_flow_m3_h": 160.6158904,
+          "dry_series": {},
+          "all_dry_series_covered": false,
+          "dry_series_spread_pa": null
+        },
+        {
+          "sheet": "mess2",
+          "first_row": 1263,
+          "last_row": 1322,
+          "gas_volume_flow_m3_h": 186.91655928333336,
+          "dry_series": {
+            "mess1": {
+              "dry_pressure_pa": 63.233797337248156,
+              "wet_increment_pa": 30.24488587941851
+            },
+            "mess2": {
+              "dry_pressure_pa": 77.73023861774472,
+              "wet_increment_pa": 15.74844459892195
+            }
+          },
+          "all_dry_series_covered": true,
+          "dry_series_spread_pa": 14.496441280496562
+        },
+        {
+          "sheet": "mess2",
+          "first_row": 1443,
+          "last_row": 1502,
+          "gas_volume_flow_m3_h": 165.9918117,
+          "dry_series": {
+            "mess2": {
+              "dry_pressure_pa": 62.27389833624922,
+              "wet_increment_pa": 8.053426047084102
+            }
+          },
+          "all_dry_series_covered": false,
+          "dry_series_spread_pa": null
+        },
+        {
+          "sheet": "mess2",
+          "first_row": 1503,
+          "last_row": 1562,
+          "gas_volume_flow_m3_h": 179.6129946333334,
+          "dry_series": {
+            "mess1": {
+              "dry_pressure_pa": 56.04488485546308,
+              "wet_increment_pa": 26.21582317787025
+            },
+            "mess2": {
+              "dry_pressure_pa": 71.40469197821169,
+              "wet_increment_pa": 10.856016055121643
+            }
+          },
+          "all_dry_series_covered": true,
+          "dry_series_spread_pa": 15.359807122748606
+        },
+        {
+          "sheet": "mess2",
+          "first_row": 1563,
+          "last_row": 1622,
+          "gas_volume_flow_m3_h": 181.4840198666667,
+          "dry_series": {
+            "mess1": {
+              "dry_pressure_pa": 57.697976172089284,
+              "wet_increment_pa": 28.76259691124406
+            },
+            "mess2": {
+              "dry_pressure_pa": 73.02516881991296,
+              "wet_increment_pa": 13.43540426342038
+            }
+          },
+          "all_dry_series_covered": true,
+          "dry_series_spread_pa": 15.32719264782368
+        },
+        {
+          "sheet": "mess2",
+          "first_row": 1623,
+          "last_row": 1682,
+          "gas_volume_flow_m3_h": 188.67718969999996,
+          "dry_series": {
+            "mess1": {
+              "dry_pressure_pa": 65.0743344151583,
+              "wet_increment_pa": 27.20311835150835
+            }
+          },
+          "all_dry_series_covered": false,
+          "dry_series_spread_pa": null
+        },
+        {
+          "sheet": "mess2",
+          "first_row": 1743,
+          "last_row": 1802,
+          "gas_volume_flow_m3_h": 127.55968248333333,
+          "dry_series": {},
+          "all_dry_series_covered": false,
+          "dry_series_spread_pa": null
+        },
+        {
+          "sheet": "mess2",
+          "first_row": 1923,
+          "last_row": 1982,
+          "gas_volume_flow_m3_h": 175.6548731166667,
+          "dry_series": {
+            "mess1": {
+              "dry_pressure_pa": 52.547798769832816,
+              "wet_increment_pa": 31.19873159683386
+            },
+            "mess2": {
+              "dry_pressure_pa": 68.42840404304134,
+              "wet_increment_pa": 15.318126323625336
+            }
+          },
+          "all_dry_series_covered": true,
+          "dry_series_spread_pa": 15.880605273208523
+        },
+        {
+          "sheet": "mess3",
+          "first_row": 63,
+          "last_row": 122,
+          "gas_volume_flow_m3_h": 167.8386628333333,
+          "dry_series": {
+            "mess2": {
+              "dry_pressure_pa": 63.45017729687868,
+              "wet_increment_pa": 5.157296719787993
+            }
+          },
+          "all_dry_series_covered": false,
+          "dry_series_spread_pa": null
+        },
+        {
+          "sheet": "mess3",
+          "first_row": 423,
+          "last_row": 482,
+          "gas_volume_flow_m3_h": 157.91937675,
+          "dry_series": {},
+          "all_dry_series_covered": false,
+          "dry_series_spread_pa": null
+        },
+        {
+          "sheet": "mess3",
+          "first_row": 483,
+          "last_row": 542,
+          "gas_volume_flow_m3_h": 173.5958119166667,
+          "dry_series": {
+            "mess1": {
+              "dry_pressure_pa": 50.7285736041423,
+              "wet_increment_pa": 26.58850419585771
+            },
+            "mess2": {
+              "dry_pressure_pa": 67.11696625333869,
+              "wet_increment_pa": 10.200111546661319
+            }
+          },
+          "all_dry_series_covered": true,
+          "dry_series_spread_pa": 16.38839264919639
+        },
+        {
+          "sheet": "mess3",
+          "first_row": 723,
+          "last_row": 782,
+          "gas_volume_flow_m3_h": 174.3686945,
+          "dry_series": {
+            "mess1": {
+              "dry_pressure_pa": 51.411432105737035,
+              "wet_increment_pa": 27.381901777596298
+            },
+            "mess2": {
+              "dry_pressure_pa": 67.6092233201934,
+              "wet_increment_pa": 11.184110563139939
+            }
+          },
+          "all_dry_series_covered": true,
+          "dry_series_spread_pa": 16.19779121445636
+        },
+        {
+          "sheet": "mess3",
+          "first_row": 783,
+          "last_row": 842,
+          "gas_volume_flow_m3_h": 188.2930226166667,
+          "dry_series": {
+            "mess1": {
+              "dry_pressure_pa": 64.67273181060591,
+              "wet_increment_pa": 34.04339795606076
+            }
+          },
+          "all_dry_series_covered": false,
+          "dry_series_spread_pa": null
+        },
+        {
+          "sheet": "mess3",
+          "first_row": 1083,
+          "last_row": 1142,
+          "gas_volume_flow_m3_h": 190.87575898333336,
+          "dry_series": {
+            "mess1": {
+              "dry_pressure_pa": 67.37268632707789,
+              "wet_increment_pa": 35.71959823958878
+            }
+          },
+          "all_dry_series_covered": false,
+          "dry_series_spread_pa": null
+        },
+        {
+          "sheet": "mess3",
+          "first_row": 1443,
+          "last_row": 1502,
+          "gas_volume_flow_m3_h": 183.11039661666672,
+          "dry_series": {
+            "mess1": {
+              "dry_pressure_pa": 59.25489100560554,
+              "wet_increment_pa": 40.7615468277278
+            },
+            "mess2": {
+              "dry_pressure_pa": 74.433757978575,
+              "wet_increment_pa": 25.58267985475834
+            }
+          },
+          "all_dry_series_covered": true,
+          "dry_series_spread_pa": 15.178866972969459
+        },
+        {
+          "sheet": "mess3",
+          "first_row": 1563,
+          "last_row": 1622,
+          "gas_volume_flow_m3_h": 199.1803153666667,
+          "dry_series": {},
+          "all_dry_series_covered": false,
+          "dry_series_spread_pa": null
+        }
+      ]
+    },
+    "instrument_bound_note": "Each DP sensor bound is +/-2 Pa in the publication; +/-4 Pa is worst-case wet-minus-dry instrumental bound ONLY, not a statistical confidence interval; no SE independence assumption.",
+    "water_properties_assumption": {
+      "temperature_k": 293.15,
+      "density_kg_m3": 998.2,
+      "viscosity_pa_s": 0.001002
+    },
+    "accepted_as_validated_for_annular_countercurrent": false,
+    "exclusions": {
+      "relap7": "Annular alpha_g >.7 lies outside declared bubbly/slug envelope; not scored.",
+      "stratified_horizontal": "Vertical geometry is outside the declared near-horizontal envelope; not scored.",
+      "kth_hwat": "Not scored: radius/power units and the velocity definition require confirmation from the paper; no silent unit inference."
+    }
+  },
+  "baseline_mae_pa": {
+    "0.0": 22.25627001157165,
+    "0.0002": 22.172463751298572
+  },
+  "baseline_mae_on_same_16_windows_pa": {
+    "0.0": 21.744745887884292,
+    "0.0002": 21.667155557606627
+  },
+  "matched_wet_windows": 16,
+  "held_out": false,
+  "evaluation_role": "Repeated diagnostic benchmark; previously inspected during model development, not an untouched holdout",
+  "fit_performed": false,
+  "excluded_by_laminar_domain": [
+    {
+      "sheet": "mess1",
+      "first_row": 1623,
+      "last_row": 1682
+    },
+    {
+      "sheet": "mess1",
+      "first_row": 1683,
+      "last_row": 1742
+    },
+    {
+      "sheet": "mess2",
+      "first_row": 123,
+      "last_row": 182
+    },
+    {
+      "sheet": "mess3",
+      "first_row": 1443,
+      "last_row": 1502
+    }
+  ],
+  "roughness_sensitivity": {
+    "0.0": {
+      "roughness_m": 0.0,
+      "fit_performed": false,
+      "mean_absolute_error_pa": 34.955090001033696,
+      "bias_pa": 34.955090001033696,
+      "fraction_within_instrument_only_4pa_bound": 0.0,
+      "cases": [
+        {
+          "sheet": "mess1",
+          "first_row": 483,
+          "last_row": 542,
+          "measured_wet_increment_pa": 19.7632180345297,
+          "predicted_wet_increment_pa": 53.588218340051604,
+          "error_pa": 33.825000305521904,
+          "liquid_holdup": 0.021085311816250375,
+          "film_thickness_m": 0.000450449996083219
+        },
+        {
+          "sheet": "mess1",
+          "first_row": 963,
+          "last_row": 1022,
+          "measured_wet_increment_pa": 31.929856879933084,
+          "predicted_wet_increment_pa": 58.302532177688306,
+          "error_pa": 26.372675297755222,
+          "liquid_holdup": 0.02345111104027492,
+          "film_thickness_m": 0.0005012925117509905
+        },
+        {
+          "sheet": "mess1",
+          "first_row": 1323,
+          "last_row": 1382,
+          "measured_wet_increment_pa": 34.84973301298936,
+          "predicted_wet_increment_pa": 69.26441589960551,
+          "error_pa": 34.41468288661615,
+          "liquid_holdup": 0.024913645306455297,
+          "film_thickness_m": 0.0005327541031673712
+        },
+        {
+          "sheet": "mess2",
+          "first_row": 663,
+          "last_row": 722,
+          "measured_wet_increment_pa": 25.925727996873334,
+          "predicted_wet_increment_pa": 60.912048023911616,
+          "error_pa": 34.98632002703828,
+          "liquid_holdup": 0.02486565715679679,
+          "film_thickness_m": 0.0005317214224774786
+        },
+        {
+          "sheet": "mess2",
+          "first_row": 723,
+          "last_row": 782,
+          "measured_wet_increment_pa": 28.42337634451573,
+          "predicted_wet_increment_pa": 68.85273862401405,
+          "error_pa": 40.42936227949832,
+          "liquid_holdup": 0.025041715120678522,
+          "film_thickness_m": 0.000535510225152571
+        },
+        {
+          "sheet": "mess2",
+          "first_row": 1263,
+          "last_row": 1322,
+          "measured_wet_increment_pa": 17.449439589733643,
+          "predicted_wet_increment_pa": 61.92482544698631,
+          "error_pa": 44.47538585725267,
+          "liquid_holdup": 0.023425804613739276,
+          "film_thickness_m": 0.0005007483350425227
+        },
+        {
+          "sheet": "mess2",
+          "first_row": 1443,
+          "last_row": 1502,
+          "measured_wet_increment_pa": 10.999661107512097,
+          "predicted_wet_increment_pa": 44.68688681048177,
+          "error_pa": 33.68722570296967,
+          "liquid_holdup": 0.021913145661427408,
+          "film_thickness_m": 0.0004682336720303088
+        },
+        {
+          "sheet": "mess2",
+          "first_row": 1503,
+          "last_row": 1562,
+          "measured_wet_increment_pa": 17.26986447243182,
+          "predicted_wet_increment_pa": 53.40106938708496,
+          "error_pa": 36.13120491465314,
+          "liquid_holdup": 0.02207202737805805,
+          "film_thickness_m": 0.0004716476584153653
+        },
+        {
+          "sheet": "mess2",
+          "first_row": 1563,
+          "last_row": 1622,
+          "measured_wet_increment_pa": 25.889562679503342,
+          "predicted_wet_increment_pa": 54.53832655401248,
+          "error_pa": 28.648763874509136,
+          "liquid_holdup": 0.022086991989757547,
+          "film_thickness_m": 0.00047196922625923897
+        },
+        {
+          "sheet": "mess2",
+          "first_row": 1623,
+          "last_row": 1682,
+          "measured_wet_increment_pa": 15.058342610400985,
+          "predicted_wet_increment_pa": 59.69080332615583,
+          "error_pa": 44.632460715754846,
+          "liquid_holdup": 0.022214042923730207,
+          "film_thickness_m": 0.00047469946604769005
+        },
+        {
+          "sheet": "mess2",
+          "first_row": 1923,
+          "last_row": 1982,
+          "measured_wet_increment_pa": 19.93944560735482,
+          "predicted_wet_increment_pa": 48.32482546492889,
+          "error_pa": 28.385379857574073,
+          "liquid_holdup": 0.02104211821247612,
+          "film_thickness_m": 0.0004495223097440306
+        },
+        {
+          "sheet": "mess3",
+          "first_row": 63,
+          "last_row": 122,
+          "measured_wet_increment_pa": 14.234074914413021,
+          "predicted_wet_increment_pa": 40.223806690704556,
+          "error_pa": 25.989731776291535,
+          "liquid_holdup": 0.019422415957663385,
+          "film_thickness_m": 0.0004147500758701623
+        },
+        {
+          "sheet": "mess3",
+          "first_row": 483,
+          "last_row": 542,
+          "measured_wet_increment_pa": 19.648267540018864,
+          "predicted_wet_increment_pa": 49.566167863401404,
+          "error_pa": 29.91790032338254,
+          "liquid_holdup": 0.022084348061369524,
+          "film_thickness_m": 0.000471912411886366
+        },
+        {
+          "sheet": "mess3",
+          "first_row": 723,
+          "last_row": 782,
+          "measured_wet_increment_pa": 18.820480668120112,
+          "predicted_wet_increment_pa": 52.85359618838312,
+          "error_pa": 34.03311552026301,
+          "liquid_holdup": 0.02326645063329113,
+          "film_thickness_m": 0.0004973218289164577
+        },
+        {
+          "sheet": "mess3",
+          "first_row": 783,
+          "last_row": 842,
+          "measured_wet_increment_pa": 21.173746232783756,
+          "predicted_wet_increment_pa": 62.89952669331159,
+          "error_pa": 41.72578046052784,
+          "liquid_holdup": 0.023492082129856123,
+          "film_thickness_m": 0.0005021735484686378
+        },
+        {
+          "sheet": "mess3",
+          "first_row": 1083,
+          "last_row": 1142,
+          "measured_wet_increment_pa": 27.72325201721182,
+          "predicted_wet_increment_pa": 69.34970223414264,
+          "error_pa": 41.62645021693082,
+          "liquid_holdup": 0.025108599513684167,
+          "film_thickness_m": 0.0005369496803627493
+        }
+      ],
+      "dry_series_sensitivity": {
+        "common_wet_windows": 9,
+        "total_model_windows": 16,
+        "excluded_from_common_coverage": 7,
+        "maximum_dry_series_spread_pa": 16.38839264919639,
+        "is_uncertainty_interval": false,
+        "fit_performed": false,
+        "changes_legacy_score_or_bound": false,
+        "dry_series": {
+          "mess1": {
+            "cases": [
+              {
+                "sheet": "mess1",
+                "first_row": 483,
+                "last_row": 542,
+                "dry_pressure_pa": 60.14003983561471,
+                "wet_increment_pa": 24.231362647718633,
+                "predicted_wet_increment_pa": 53.588218340051604,
+                "error_pa": 29.35685569233297
+              },
+              {
+                "sheet": "mess1",
+                "first_row": 963,
+                "last_row": 1022,
+                "dry_pressure_pa": 57.77936462635136,
+                "wet_increment_pa": 34.50389617364865,
+                "predicted_wet_increment_pa": 58.302532177688306,
+                "error_pa": 23.798636004039658
+              },
+              {
+                "sheet": "mess2",
+                "first_row": 663,
+                "last_row": 722,
+                "dry_pressure_pa": 56.46908183354571,
+                "wet_increment_pa": 33.31332378312096,
+                "predicted_wet_increment_pa": 60.912048023911616,
+                "error_pa": 27.59872424079066
+              },
+              {
+                "sheet": "mess2",
+                "first_row": 1263,
+                "last_row": 1322,
+                "dry_pressure_pa": 63.233797337248156,
+                "wet_increment_pa": 30.24488587941851,
+                "predicted_wet_increment_pa": 61.92482544698631,
+                "error_pa": 31.6799395675678
+              },
+              {
+                "sheet": "mess2",
+                "first_row": 1503,
+                "last_row": 1562,
+                "dry_pressure_pa": 56.04488485546308,
+                "wet_increment_pa": 26.21582317787025,
+                "predicted_wet_increment_pa": 53.40106938708496,
+                "error_pa": 27.18524620921471
+              },
+              {
+                "sheet": "mess2",
+                "first_row": 1563,
+                "last_row": 1622,
+                "dry_pressure_pa": 57.697976172089284,
+                "wet_increment_pa": 28.76259691124406,
+                "predicted_wet_increment_pa": 54.53832655401248,
+                "error_pa": 25.775729642768418
+              },
+              {
+                "sheet": "mess2",
+                "first_row": 1923,
+                "last_row": 1982,
+                "dry_pressure_pa": 52.547798769832816,
+                "wet_increment_pa": 31.19873159683386,
+                "predicted_wet_increment_pa": 48.32482546492889,
+                "error_pa": 17.126093868095033
+              },
+              {
+                "sheet": "mess3",
+                "first_row": 483,
+                "last_row": 542,
+                "dry_pressure_pa": 50.7285736041423,
+                "wet_increment_pa": 26.58850419585771,
+                "predicted_wet_increment_pa": 49.566167863401404,
+                "error_pa": 22.977663667543695
+              },
+              {
+                "sheet": "mess3",
+                "first_row": 723,
+                "last_row": 782,
+                "dry_pressure_pa": 51.411432105737035,
+                "wet_increment_pa": 27.381901777596298,
+                "predicted_wet_increment_pa": 52.85359618838312,
+                "error_pa": 25.471694410786824
+              }
+            ],
+            "windows": 9,
+            "mean_absolute_error_pa": 25.663398144793305,
+            "bias_pa": 25.663398144793305,
+            "within_instrument_only_4pa_count": 0
+          },
+          "mess2": {
+            "cases": [
+              {
+                "sheet": "mess1",
+                "first_row": 483,
+                "last_row": 542,
+                "dry_pressure_pa": 75.16709416136078,
+                "wet_increment_pa": 9.204308321972562,
+                "predicted_wet_increment_pa": 53.588218340051604,
+                "error_pa": 44.38391001807904
+              },
+              {
+                "sheet": "mess1",
+                "first_row": 963,
+                "last_row": 1022,
+                "dry_pressure_pa": 73.10495153003131,
+                "wet_increment_pa": 19.178309269968693,
+                "predicted_wet_increment_pa": 58.302532177688306,
+                "error_pa": 39.12422290771961
+              },
+              {
+                "sheet": "mess2",
+                "first_row": 663,
+                "last_row": 722,
+                "dry_pressure_pa": 71.8205198108238,
+                "wet_increment_pa": 17.96188580584287,
+                "predicted_wet_increment_pa": 60.912048023911616,
+                "error_pa": 42.95016221806875
+              },
+              {
+                "sheet": "mess2",
+                "first_row": 1263,
+                "last_row": 1322,
+                "dry_pressure_pa": 77.73023861774472,
+                "wet_increment_pa": 15.74844459892195,
+                "predicted_wet_increment_pa": 61.92482544698631,
+                "error_pa": 46.17638084806436
+              },
+              {
+                "sheet": "mess2",
+                "first_row": 1503,
+                "last_row": 1562,
+                "dry_pressure_pa": 71.40469197821169,
+                "wet_increment_pa": 10.856016055121643,
+                "predicted_wet_increment_pa": 53.40106938708496,
+                "error_pa": 42.54505333196332
+              },
+              {
+                "sheet": "mess2",
+                "first_row": 1563,
+                "last_row": 1622,
+                "dry_pressure_pa": 73.02516881991296,
+                "wet_increment_pa": 13.43540426342038,
+                "predicted_wet_increment_pa": 54.53832655401248,
+                "error_pa": 41.1029222905921
+              },
+              {
+                "sheet": "mess2",
+                "first_row": 1923,
+                "last_row": 1982,
+                "dry_pressure_pa": 68.42840404304134,
+                "wet_increment_pa": 15.318126323625336,
+                "predicted_wet_increment_pa": 48.32482546492889,
+                "error_pa": 33.00669914130356
+              },
+              {
+                "sheet": "mess3",
+                "first_row": 483,
+                "last_row": 542,
+                "dry_pressure_pa": 67.11696625333869,
+                "wet_increment_pa": 10.200111546661319,
+                "predicted_wet_increment_pa": 49.566167863401404,
+                "error_pa": 39.366056316740085
+              },
+              {
+                "sheet": "mess3",
+                "first_row": 723,
+                "last_row": 782,
+                "dry_pressure_pa": 67.6092233201934,
+                "wet_increment_pa": 11.184110563139939,
+                "predicted_wet_increment_pa": 52.85359618838312,
+                "error_pa": 41.66948562524318
+              }
+            ],
+            "windows": 9,
+            "mean_absolute_error_pa": 41.147210299752665,
+            "bias_pa": 41.147210299752665,
+            "within_instrument_only_4pa_count": 0
+          }
+        }
+      }
+    },
+    "0.0002": {
+      "roughness_m": 0.0002,
+      "fit_performed": false,
+      "mean_absolute_error_pa": 24.401477527308508,
+      "bias_pa": 24.401477527308508,
+      "fraction_within_instrument_only_4pa_bound": 0.0,
+      "cases": [
+        {
+          "sheet": "mess1",
+          "first_row": 483,
+          "last_row": 542,
+          "measured_wet_increment_pa": 19.7632180345297,
+          "predicted_wet_increment_pa": 42.683962936048566,
+          "error_pa": 22.920744901518866,
+          "liquid_holdup": 0.021085311816250375,
+          "film_thickness_m": 0.000450449996083219
+        },
+        {
+          "sheet": "mess1",
+          "first_row": 963,
+          "last_row": 1022,
+          "measured_wet_increment_pa": 31.929856879933084,
+          "predicted_wet_increment_pa": 47.712774055353336,
+          "error_pa": 15.782917175420252,
+          "liquid_holdup": 0.02345111104027492,
+          "film_thickness_m": 0.0005012925117509905
+        },
+        {
+          "sheet": "mess1",
+          "first_row": 1323,
+          "last_row": 1382,
+          "measured_wet_increment_pa": 34.84973301298936,
+          "predicted_wet_increment_pa": 57.316485416908336,
+          "error_pa": 22.466752403918974,
+          "liquid_holdup": 0.024913645306455297,
+          "film_thickness_m": 0.0005327541031673712
+        },
+        {
+          "sheet": "mess2",
+          "first_row": 663,
+          "last_row": 722,
+          "measured_wet_increment_pa": 25.925727996873334,
+          "predicted_wet_increment_pa": 50.52397856402497,
+          "error_pa": 24.598250567151638,
+          "liquid_holdup": 0.02486565715679679,
+          "film_thickness_m": 0.0005317214224774786
+        },
+        {
+          "sheet": "mess2",
+          "first_row": 723,
+          "last_row": 782,
+          "measured_wet_increment_pa": 28.42337634451573,
+          "predicted_wet_increment_pa": 57.05337170468047,
+          "error_pa": 28.62999536016474,
+          "liquid_holdup": 0.025041715120678522,
+          "film_thickness_m": 0.000535510225152571
+        },
+        {
+          "sheet": "mess2",
+          "first_row": 1263,
+          "last_row": 1322,
+          "measured_wet_increment_pa": 17.449439589733643,
+          "predicted_wet_increment_pa": 50.59405307454321,
+          "error_pa": 33.14461348480957,
+          "liquid_holdup": 0.023425804613739276,
+          "film_thickness_m": 0.0005007483350425227
+        },
+        {
+          "sheet": "mess2",
+          "first_row": 1443,
+          "last_row": 1502,
+          "measured_wet_increment_pa": 10.999661107512097,
+          "predicted_wet_increment_pa": 36.13941071894527,
+          "error_pa": 25.139749611433174,
+          "liquid_holdup": 0.021913145661427408,
+          "film_thickness_m": 0.0004682336720303088
+        },
+        {
+          "sheet": "mess2",
+          "first_row": 1503,
+          "last_row": 1562,
+          "measured_wet_increment_pa": 17.26986447243182,
+          "predicted_wet_increment_pa": 43.09319935259955,
+          "error_pa": 25.823334880167728,
+          "liquid_holdup": 0.02207202737805805,
+          "film_thickness_m": 0.0004716476584153653
+        },
+        {
+          "sheet": "mess2",
+          "first_row": 1563,
+          "last_row": 1622,
+          "measured_wet_increment_pa": 25.889562679503342,
+          "predicted_wet_increment_pa": 43.99908912700793,
+          "error_pa": 18.109526447504585,
+          "liquid_holdup": 0.022086991989757547,
+          "film_thickness_m": 0.00047196922625923897
+        },
+        {
+          "sheet": "mess2",
+          "first_row": 1623,
+          "last_row": 1682,
+          "measured_wet_increment_pa": 15.058342610400985,
+          "predicted_wet_increment_pa": 48.128473696270405,
+          "error_pa": 33.07013108586942,
+          "liquid_holdup": 0.022214042923730207,
+          "film_thickness_m": 0.00047469946604769005
+        },
+        {
+          "sheet": "mess2",
+          "first_row": 1923,
+          "last_row": 1982,
+          "measured_wet_increment_pa": 19.93944560735482,
+          "predicted_wet_increment_pa": 38.5654136121836,
+          "error_pa": 18.625968004828778,
+          "liquid_holdup": 0.02104211821247612,
+          "film_thickness_m": 0.0004495223097440306
+        },
+        {
+          "sheet": "mess3",
+          "first_row": 63,
+          "last_row": 122,
+          "measured_wet_increment_pa": 14.234074914413021,
+          "predicted_wet_increment_pa": 31.462323474087988,
+          "error_pa": 17.228248559674967,
+          "liquid_holdup": 0.019422415957663385,
+          "film_thickness_m": 0.0004147500758701623
+        },
+        {
+          "sheet": "mess3",
+          "first_row": 483,
+          "last_row": 542,
+          "measured_wet_increment_pa": 19.648267540018864,
+          "predicted_wet_increment_pa": 40.07577443497404,
+          "error_pa": 20.42750689495518,
+          "liquid_holdup": 0.022084348061369524,
+          "film_thickness_m": 0.000471912411886366
+        },
+        {
+          "sheet": "mess3",
+          "first_row": 723,
+          "last_row": 782,
+          "measured_wet_increment_pa": 18.820480668120112,
+          "predicted_wet_increment_pa": 43.2648915482105,
+          "error_pa": 24.444410880090388,
+          "liquid_holdup": 0.02326645063329113,
+          "film_thickness_m": 0.0004973218289164577
+        },
+        {
+          "sheet": "mess3",
+          "first_row": 783,
+          "last_row": 842,
+          "measured_wet_increment_pa": 21.173746232783756,
+          "predicted_wet_increment_pa": 51.41238911266764,
+          "error_pa": 30.238642879883884,
+          "liquid_holdup": 0.023492082129856123,
+          "film_thickness_m": 0.0005021735484686378
+        },
+        {
+          "sheet": "mess3",
+          "first_row": 1083,
+          "last_row": 1142,
+          "measured_wet_increment_pa": 27.72325201721182,
+          "predicted_wet_increment_pa": 57.49609931675583,
+          "error_pa": 29.77284729954401,
+          "liquid_holdup": 0.025108599513684167,
+          "film_thickness_m": 0.0005369496803627493
+        }
+      ],
+      "dry_series_sensitivity": {
+        "common_wet_windows": 9,
+        "total_model_windows": 16,
+        "excluded_from_common_coverage": 7,
+        "maximum_dry_series_spread_pa": 16.38839264919639,
+        "is_uncertainty_interval": false,
+        "fit_performed": false,
+        "changes_legacy_score_or_bound": false,
+        "dry_series": {
+          "mess1": {
+            "cases": [
+              {
+                "sheet": "mess1",
+                "first_row": 483,
+                "last_row": 542,
+                "dry_pressure_pa": 60.14003983561471,
+                "wet_increment_pa": 24.231362647718633,
+                "predicted_wet_increment_pa": 42.683962936048566,
+                "error_pa": 18.452600288329933
+              },
+              {
+                "sheet": "mess1",
+                "first_row": 963,
+                "last_row": 1022,
+                "dry_pressure_pa": 57.77936462635136,
+                "wet_increment_pa": 34.50389617364865,
+                "predicted_wet_increment_pa": 47.712774055353336,
+                "error_pa": 13.208877881704687
+              },
+              {
+                "sheet": "mess2",
+                "first_row": 663,
+                "last_row": 722,
+                "dry_pressure_pa": 56.46908183354571,
+                "wet_increment_pa": 33.31332378312096,
+                "predicted_wet_increment_pa": 50.52397856402497,
+                "error_pa": 17.210654780904015
+              },
+              {
+                "sheet": "mess2",
+                "first_row": 1263,
+                "last_row": 1322,
+                "dry_pressure_pa": 63.233797337248156,
+                "wet_increment_pa": 30.24488587941851,
+                "predicted_wet_increment_pa": 50.59405307454321,
+                "error_pa": 20.3491671951247
+              },
+              {
+                "sheet": "mess2",
+                "first_row": 1503,
+                "last_row": 1562,
+                "dry_pressure_pa": 56.04488485546308,
+                "wet_increment_pa": 26.21582317787025,
+                "predicted_wet_increment_pa": 43.09319935259955,
+                "error_pa": 16.8773761747293
+              },
+              {
+                "sheet": "mess2",
+                "first_row": 1563,
+                "last_row": 1622,
+                "dry_pressure_pa": 57.697976172089284,
+                "wet_increment_pa": 28.76259691124406,
+                "predicted_wet_increment_pa": 43.99908912700793,
+                "error_pa": 15.236492215763867
+              },
+              {
+                "sheet": "mess2",
+                "first_row": 1923,
+                "last_row": 1982,
+                "dry_pressure_pa": 52.547798769832816,
+                "wet_increment_pa": 31.19873159683386,
+                "predicted_wet_increment_pa": 38.5654136121836,
+                "error_pa": 7.366682015349738
+              },
+              {
+                "sheet": "mess3",
+                "first_row": 483,
+                "last_row": 542,
+                "dry_pressure_pa": 50.7285736041423,
+                "wet_increment_pa": 26.58850419585771,
+                "predicted_wet_increment_pa": 40.07577443497404,
+                "error_pa": 13.487270239116334
+              },
+              {
+                "sheet": "mess3",
+                "first_row": 723,
+                "last_row": 782,
+                "dry_pressure_pa": 51.411432105737035,
+                "wet_increment_pa": 27.381901777596298,
+                "predicted_wet_increment_pa": 43.2648915482105,
+                "error_pa": 15.882989770614202
+              }
+            ],
+            "windows": 9,
+            "mean_absolute_error_pa": 15.34134561795964,
+            "bias_pa": 15.34134561795964,
+            "within_instrument_only_4pa_count": 0
+          },
+          "mess2": {
+            "cases": [
+              {
+                "sheet": "mess1",
+                "first_row": 483,
+                "last_row": 542,
+                "dry_pressure_pa": 75.16709416136078,
+                "wet_increment_pa": 9.204308321972562,
+                "predicted_wet_increment_pa": 42.683962936048566,
+                "error_pa": 33.479654614076004
+              },
+              {
+                "sheet": "mess1",
+                "first_row": 963,
+                "last_row": 1022,
+                "dry_pressure_pa": 73.10495153003131,
+                "wet_increment_pa": 19.178309269968693,
+                "predicted_wet_increment_pa": 47.712774055353336,
+                "error_pa": 28.534464785384642
+              },
+              {
+                "sheet": "mess2",
+                "first_row": 663,
+                "last_row": 722,
+                "dry_pressure_pa": 71.8205198108238,
+                "wet_increment_pa": 17.96188580584287,
+                "predicted_wet_increment_pa": 50.52397856402497,
+                "error_pa": 32.562092758182104
+              },
+              {
+                "sheet": "mess2",
+                "first_row": 1263,
+                "last_row": 1322,
+                "dry_pressure_pa": 77.73023861774472,
+                "wet_increment_pa": 15.74844459892195,
+                "predicted_wet_increment_pa": 50.59405307454321,
+                "error_pa": 34.84560847562126
+              },
+              {
+                "sheet": "mess2",
+                "first_row": 1503,
+                "last_row": 1562,
+                "dry_pressure_pa": 71.40469197821169,
+                "wet_increment_pa": 10.856016055121643,
+                "predicted_wet_increment_pa": 43.09319935259955,
+                "error_pa": 32.237183297477905
+              },
+              {
+                "sheet": "mess2",
+                "first_row": 1563,
+                "last_row": 1622,
+                "dry_pressure_pa": 73.02516881991296,
+                "wet_increment_pa": 13.43540426342038,
+                "predicted_wet_increment_pa": 43.99908912700793,
+                "error_pa": 30.563684863587547
+              },
+              {
+                "sheet": "mess2",
+                "first_row": 1923,
+                "last_row": 1982,
+                "dry_pressure_pa": 68.42840404304134,
+                "wet_increment_pa": 15.318126323625336,
+                "predicted_wet_increment_pa": 38.5654136121836,
+                "error_pa": 23.24728728855826
+              },
+              {
+                "sheet": "mess3",
+                "first_row": 483,
+                "last_row": 542,
+                "dry_pressure_pa": 67.11696625333869,
+                "wet_increment_pa": 10.200111546661319,
+                "predicted_wet_increment_pa": 40.07577443497404,
+                "error_pa": 29.875662888312725
+              },
+              {
+                "sheet": "mess3",
+                "first_row": 723,
+                "last_row": 782,
+                "dry_pressure_pa": 67.6092233201934,
+                "wet_increment_pa": 11.184110563139939,
+                "predicted_wet_increment_pa": 43.2648915482105,
+                "error_pa": 32.08078098507056
+              }
+            ],
+            "windows": 9,
+            "mean_absolute_error_pa": 30.825157772919006,
+            "bias_pa": 30.825157772919006,
+            "within_instrument_only_4pa_count": 0
+          }
+        }
+      }
+    }
+  },
+  "instrument_bound_note": "Each DP sensor bound is +/-2 Pa in the publication; +/-4 Pa is worst-case wet-minus-dry instrumental bound ONLY, not a statistical confidence interval; no SE independence assumption.",
+  "water_properties_assumption": {
+    "temperature_k": 293.15,
+    "density_kg_m3": 998.2,
+    "viscosity_pa_s": 0.001002
+  },
+  "within_declared_pressure_bounds": false,
+  "accepted_as_validated_for_annular_countercurrent": false,
+  "qualification_blockers": [
+    "pressure_increment_discrepancy",
+    "full_circumferential_wetting_not_confirmed",
+    "liquid_application_losses_not_separately_measured"
+  ],
+  "integration_status": "Steady constitutive solver only; not enabled in transient active PR pipe."
+}

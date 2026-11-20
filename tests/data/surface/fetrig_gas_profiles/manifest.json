@@ -1,0 +1,39 @@
+{
+  "format": "fetrig_dry_gas_profiles_v1",
+  "source": "https://doi.org/10.18419/DARUS-4998",
+  "license": {
+    "name": "CC BY 4.0",
+    "uri": "http://creativecommons.org/licenses/by/4.0",
+    "iconUri": "https://licensebuttons.net/l/by/4.0/88x31.png"
+  },
+  "members": [
+    {
+      "original_member": "Plot_Velocity_Profile.m",
+      "file": "Plot_Velocity_Profile.m.gz",
+      "datafile_id": 379445,
+      "original_size": 2614,
+      "md5": "53d3cb9556af90a0356ec9cb2b0b5914",
+      "sha256": "74809172a301e29922164815565a2d6dbedf765b695d794110ef8d8a32df95f7"
+    },
+    {
+      "original_member": "Overview_06_11_2024_DryChannel_Without_Honeycomb.xlsx",
+      "file": "Overview_06_11_2024_DryChannel_Without_Honeycomb.xlsx.gz",
+      "datafile_id": 379719,
+      "original_size": 35361,
+      "md5": "d6f1867a9590bdf502efd8703aac870d",
+      "sha256": "ff895b384925b6173d97b48d9a51cf07dd33bc4eccf204374b22d28bfe0cadbe"
+    },
+    {
+      "original_member": "06-11-2024_Measurement_Campaing_Fetrig.docx",
+      "file": "06-11-2024_Measurement_Campaing_Fetrig.docx.gz",
+      "datafile_id": 379536,
+      "original_size": 29044,
+      "md5": "1daab9fad268aa05919548d3c9107d23",
+      "sha256": "00cef7a00cbdfd70646ac0b7babe489b635c0b2f6d88057c69f6ea9f8e389d85"
+    }
+  ],
+  "metadata_sha256": "83ffba9ec761e3c7ebfb005c3e6e9b2fd869ae04442514909a519cba6d7fb72f",
+  "selection": "Published velocity overview, author plotting script and campaign description; no scoring-based selection",
+  "qualified_for_wet_interfacial_shear": false,
+  "importer_sha256": "8869a2d47c66fcf1482e02fff8187e023692aae44172d536636214b8b3186dd3"
+}

@@ -1,0 +1,384 @@
+{
+  "summary": {
+    "0.0": {
+      "windows": 16,
+      "offset_range_pa": [
+        -1.8767273021866666,
+        -1.2558419918697892
+      ],
+      "original_mae_pa": 58.837963642230775,
+      "offset_removed_diagnostic_mae_pa": 60.36744519780817
+    },
+    "0.0002": {
+      "windows": 16,
+      "offset_range_pa": [
+        -13.203772474566973,
+        -10.424203393723158
+      ],
+      "original_mae_pa": 48.28435116850559,
+      "offset_removed_diagnostic_mae_pa": 60.36744519780817
+    }
+  },
+  "cases": [
+    {
+      "window": [
+        "mess1",
+        483,
+        542
+      ],
+      "roughness_m": 0.0,
+      "zero_film_offset_pa": -1.470679173515797,
+      "experimental_error_pa": 53.13452985852862,
+      "error_minus_zero_film_offset_pa": 54.60520903204442
+    },
+    {
+      "window": [
+        "mess1",
+        963,
+        1022
+      ],
+      "roughness_m": 0.0,
+      "zero_film_offset_pa": -1.5273095027352823,
+      "experimental_error_pa": 51.6855117814996,
+      "error_minus_zero_film_offset_pa": 53.212821284234884
+    },
+    {
+      "window": [
+        "mess1",
+        1323,
+        1382
+      ],
+      "roughness_m": 0.0,
+      "zero_film_offset_pa": -1.2558419918697892,
+      "experimental_error_pa": 65.05219110036714,
+      "error_minus_zero_film_offset_pa": 66.30803309223693
+    },
+    {
+      "window": [
+        "mess2",
+        663,
+        722
+      ],
+      "roughness_m": 0.0,
+      "zero_film_offset_pa": -1.5648369481574924,
+      "experimental_error_pa": 64.40719247711523,
+      "error_minus_zero_film_offset_pa": 65.97202942527272
+    },
+    {
+      "window": [
+        "mess2",
+        723,
+        782
+      ],
+      "roughness_m": 0.0,
+      "zero_film_offset_pa": -1.2881770353158473,
+      "experimental_error_pa": 71.38944266860814,
+      "error_minus_zero_film_offset_pa": 72.677619703924
+    },
+    {
+      "window": [
+        "mess2",
+        1263,
+        1322
+      ],
+      "roughness_m": 0.0,
+      "zero_film_offset_pa": -1.383901354248728,
+      "experimental_error_pa": 70.16379955731254,
+      "error_minus_zero_film_offset_pa": 71.54770091156126
+    },
+    {
+      "window": [
+        "mess2",
+        1443,
+        1502
+      ],
+      "roughness_m": 0.0,
+      "zero_film_offset_pa": -1.8767273021866666,
+      "experimental_error_pa": 53.59606553814335,
+      "error_minus_zero_film_offset_pa": 55.472792840330015
+    },
+    {
+      "window": [
+        "mess2",
+        1503,
+        1562
+      ],
+      "roughness_m": 0.0,
+      "zero_film_offset_pa": -1.5833801724743868,
+      "experimental_error_pa": 57.55082592973123,
+      "error_minus_zero_film_offset_pa": 59.13420610220562
+    },
+    {
+      "window": [
+        "mess2",
+        1563,
+        1622
+      ],
+      "roughness_m": 0.0,
+      "zero_film_offset_pa": -1.5461583947042006,
+      "experimental_error_pa": 50.22491303328928,
+      "error_minus_zero_film_offset_pa": 51.77107142799348
+    },
+    {
+      "window": [
+        "mess2",
+        1623,
+        1682
+      ],
+      "roughness_m": 0.0,
+      "zero_film_offset_pa": -1.3416768391982699,
+      "experimental_error_pa": 67.08744087557785,
+      "error_minus_zero_film_offset_pa": 68.42911771477613
+    },
+    {
+      "window": [
+        "mess2",
+        1923,
+        1982
+      ],
+      "roughness_m": 0.0,
+      "zero_film_offset_pa": -1.6864149811043583,
+      "experimental_error_pa": 46.99613519361339,
+      "error_minus_zero_film_offset_pa": 48.68255017471775
+    },
+    {
+      "window": [
+        "mess3",
+        63,
+        122
+      ],
+      "roughness_m": 0.0,
+      "zero_film_offset_pa": -1.8484540398735407,
+      "experimental_error_pa": 40.64180689968027,
+      "error_minus_zero_film_offset_pa": 42.49026093955381
+    },
+    {
+      "window": [
+        "mess3",
+        483,
+        542
+      ],
+      "roughness_m": 0.0,
+      "zero_film_offset_pa": -1.7323350581484476,
+      "experimental_error_pa": 50.86349362415599,
+      "error_minus_zero_film_offset_pa": 52.59582868230444
+    },
+    {
+      "window": [
+        "mess3",
+        723,
+        782
+      ],
+      "roughness_m": 0.0,
+      "zero_film_offset_pa": -1.7162847875955922,
+      "experimental_error_pa": 58.132315702809464,
+      "error_minus_zero_film_offset_pa": 59.848600490405055
+    },
+    {
+      "window": [
+        "mess3",
+        783,
+        842
+      ],
+      "roughness_m": 0.0,
+      "zero_film_offset_pa": -1.361837763426161,
+      "experimental_error_pa": 67.67268607032359,
+      "error_minus_zero_film_offset_pa": 69.03452383374976
+    },
+    {
+      "window": [
+        "mess3",
+        1083,
+        1142
+      ],
+      "roughness_m": 0.0,
+      "zero_film_offset_pa": -1.2876895446837286,
+      "experimental_error_pa": 72.80906796493673,
+      "error_minus_zero_film_offset_pa": 74.09675750962046
+    },
+    {
+      "window": [
+        "mess1",
+        483,
+        542
+      ],
+      "roughness_m": 0.0002,
+      "zero_film_offset_pa": -12.374934577518832,
+      "experimental_error_pa": 42.23027445452559,
+      "error_minus_zero_film_offset_pa": 54.60520903204443
+    },
+    {
+      "window": [
+        "mess1",
+        963,
+        1022
+      ],
+      "roughness_m": 0.0002,
+      "zero_film_offset_pa": -12.117067625070261,
+      "experimental_error_pa": 41.095753659164615,
+      "error_minus_zero_film_offset_pa": 53.21282128423488
+    },
+    {
+      "window": [
+        "mess1",
+        1323,
+        1382
+      ],
+      "roughness_m": 0.0002,
+      "zero_film_offset_pa": -13.203772474566973,
+      "experimental_error_pa": 53.10426061766998,
+      "error_minus_zero_film_offset_pa": 66.30803309223695
+    },
+    {
+      "window": [
+        "mess2",
+        663,
+        722
+      ],
+      "roughness_m": 0.0002,
+      "zero_film_offset_pa": -11.952906408044134,
+      "experimental_error_pa": 54.019123017228594,
+      "error_minus_zero_film_offset_pa": 65.97202942527272
+    },
+    {
+      "window": [
+        "mess2",
+        723,
+        782
+      ],
+      "roughness_m": 0.0002,
+      "zero_film_offset_pa": -13.087543954649433,
+      "experimental_error_pa": 59.59007574927456,
+      "error_minus_zero_film_offset_pa": 72.677619703924
+    },
+    {
+      "window": [
+        "mess2",
+        1263,
+        1322
+      ],
+      "roughness_m": 0.0002,
+      "zero_film_offset_pa": -12.714673726691823,
+      "experimental_error_pa": 58.83302718486944,
+      "error_minus_zero_film_offset_pa": 71.54770091156126
+    },
+    {
+      "window": [
+        "mess2",
+        1443,
+        1502
+      ],
+      "roughness_m": 0.0002,
+      "zero_film_offset_pa": -10.424203393723158,
+      "experimental_error_pa": 45.04858944660685,
+      "error_minus_zero_film_offset_pa": 55.47279284033
+    },
+    {
+      "window": [
+        "mess2",
+        1503,
+        1562
+      ],
+      "roughness_m": 0.0002,
+      "zero_film_offset_pa": -11.8912502069598,
+      "experimental_error_pa": 47.242955895245814,
+      "error_minus_zero_film_offset_pa": 59.13420610220561
+    },
+    {
+      "window": [
+        "mess2",
+        1563,
+        1622
+      ],
+      "roughness_m": 0.0002,
+      "zero_film_offset_pa": -12.085395821708746,
+      "experimental_error_pa": 39.68567560628473,
+      "error_minus_zero_film_offset_pa": 51.771071427993476
+    },
+    {
+      "window": [
+        "mess2",
+        1623,
+        1682
+      ],
+      "roughness_m": 0.0002,
+      "zero_film_offset_pa": -12.904006469083699,
+      "experimental_error_pa": 55.52511124569243,
+      "error_minus_zero_film_offset_pa": 68.42911771477613
+    },
+    {
+      "window": [
+        "mess2",
+        1923,
+        1982
+      ],
+      "roughness_m": 0.0002,
+      "zero_film_offset_pa": -11.445826833849663,
+      "experimental_error_pa": 37.2367233408681,
+      "error_minus_zero_film_offset_pa": 48.68255017471777
+    },
+    {
+      "window": [
+        "mess3",
+        63,
+        122
+      ],
+      "roughness_m": 0.0002,
+      "zero_film_offset_pa": -10.609937256490111,
+      "experimental_error_pa": 31.880323683063693,
+      "error_minus_zero_film_offset_pa": 42.49026093955381
+    },
+    {
+      "window": [
+        "mess3",
+        483,
+        542
+      ],
+      "roughness_m": 0.0002,
+      "zero_film_offset_pa": -11.222728486575804,
+      "experimental_error_pa": 41.37310019572863,
+      "error_minus_zero_film_offset_pa": 52.595828682304436
+    },
+    {
+      "window": [
+        "mess3",
+        723,
+        782
+      ],
+      "roughness_m": 0.0002,
+      "zero_film_offset_pa": -11.304989427768216,
+      "experimental_error_pa": 48.54361106263683,
+      "error_minus_zero_film_offset_pa": 59.84860049040505
+    },
+    {
+      "window": [
+        "mess3",
+        783,
+        842
+      ],
+      "roughness_m": 0.0002,
+      "zero_film_offset_pa": -12.84897534407013,
+      "experimental_error_pa": 56.18554848967965,
+      "error_minus_zero_film_offset_pa": 69.03452383374977
+    },
+    {
+      "window": [
+        "mess3",
+        1083,
+        1142
+      ],
+      "roughness_m": 0.0002,
+      "zero_film_offset_pa": -13.141292462070538,
+      "experimental_error_pa": 60.95546504754992,
+      "error_minus_zero_film_offset_pa": 74.09675750962046
+    }
+  ],
+  "source_sha256": {
+    "dry_pipe.xlsx": "ae94e1b43830a9c027b271265dd32e863b631433eeb43916c883105773245591",
+    "countercurrent.xlsx": "15f8247c5976fbdb289389bea0ef8721fc1e51c88436489ef8be91fac6f2a643"
+  },
+  "experimental_qualification": false,
+  "production_changed": false,
+  "fit_performed": false,
+  "interpretation": "Offset removal is an algebraic diagnostic only, not a solved alternative film closure or a new validation score."
+}

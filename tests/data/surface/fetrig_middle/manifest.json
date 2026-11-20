@@ -1,0 +1,150 @@
+{
+  "format": "fetrig_raw_subset_v1",
+  "source": "https://doi.org/10.18419/DARUS-4998",
+  "license": {
+    "name": "CC BY 4.0",
+    "uri": "http://creativecommons.org/licenses/by/4.0",
+    "iconUri": "https://licensebuttons.net/l/by/4.0/88x31.png"
+  },
+  "archive_url": "https://darus.uni-stuttgart.de/api/access/datafile/379564",
+  "archive_size": 5396814507,
+  "published_archive_md5_not_full_file_recomputed": "22e310e40bedfdbdfb2811cc5d17116b",
+  "metadata_sha256": "83ffba9ec761e3c7ebfb005c3e6e9b2fd869ae04442514909a519cba6d7fb72f",
+  "importer_sha256": "ddee9508f79ff6ed2324fa47db206f10a224b09dde69790bc5fdc5ce9acc3306",
+  "transferred_archive_bytes": 3699195,
+  "selection": "Y_350, X_50, filename ReL500; all six gas setpoints, both instruments; selected before model scoring",
+  "geometry": {
+    "channel_width_m": 0.1,
+    "channel_depth_m": 0.03,
+    "source": "https://arxiv.org/html/2503.04915v1, section I.2"
+  },
+  "phase": "water film with countercurrent air; rectangular copper-wall channel",
+  "qualified": false,
+  "limitations": [
+    "Setpoint labels are not measured inputs",
+    "No fit or model comparison performed by this importer",
+    "No annular-to-rectangular geometry substitution",
+    "Timing, actual conditions and sensor acceptance must be resolved before scoring"
+  ],
+  "members": [
+    {
+      "original_member": "Film Data_MC_RC_Water_RH80_T25Deg_CopperPlate_28_08_24/Keyence_Data_Manager.m",
+      "file": "Keyence_Data_Manager.m.gz",
+      "original_size": 1927,
+      "zip_crc32": "9dcf610c",
+      "sha256": "28831661f9023da4f81f07e8710cbfca46e85bed637e13967e323b4600bee4d6"
+    },
+    {
+      "original_member": "Film Data_MC_RC_Water_RH80_T25Deg_CopperPlate_28_08_24/LabView_Data_Manager.m",
+      "file": "LabView_Data_Manager.m.gz",
+      "original_size": 12083,
+      "zip_crc32": "a7c8dbeb",
+      "sha256": "269525be01e1e7e9426ba07834a66784ac856499d7f513355b7208313adc1c26"
+    },
+    {
+      "original_member": "Film Data_MC_RC_Water_RH80_T25Deg_CopperPlate_28_08_24/FETRig_Report.m",
+      "file": "FETRig_Report.m.gz",
+      "original_size": 3098,
+      "zip_crc32": "5f6e436e",
+      "sha256": "d82ed3d38651a560e7a4f19cb48a315141a24de2a749403071df8cc610a7516b"
+    },
+    {
+      "original_member": "Film Data_MC_RC_Water_RH80_T25Deg_CopperPlate_28_08_24/Sonstige_Plots_fuer das Paper/Check_Film_Thickness.m",
+      "file": "Sonstige_Plots_fuer das Paper/Check_Film_Thickness.m.gz",
+      "original_size": 1545,
+      "zip_crc32": "82dca0c0",
+      "sha256": "a651eb6757ac433fda1c4c189163f7f469772bab796bdb53ab8fd916409e5765"
+    },
+    {
+      "original_member": "Film Data_MC_RC_Water_RH80_T25Deg_CopperPlate_28_08_24/MC_RC_Water_RH80_T25Deg_CopperPlate_28_08_24/README.md",
+      "file": "MC_RC_Water_RH80_T25Deg_CopperPlate_28_08_24/README.md.gz",
+      "original_size": 231,
+      "zip_crc32": "a57f0cbe",
+      "sha256": "2a039a614f5e4f9f24c7e18a4052e0934cf0664290645356465732d77313028e"
+    },
+    {
+      "original_member": "Film Data_MC_RC_Water_RH80_T25Deg_CopperPlate_28_08_24/MC_RC_Water_RH80_T25Deg_CopperPlate_28_08_24/Y_350/X_50/Keyence Data 2/ReL500_ReG0.csv",
+      "file": "MC_RC_Water_RH80_T25Deg_CopperPlate_28_08_24/Y_350/X_50/Keyence Data 2/ReL500_ReG0.csv.gz",
+      "original_size": 2003289,
+      "zip_crc32": "232ea6fb",
+      "sha256": "4cc6b4443dc693fb0f671a23ff6a0422f16232186093c59023054842058b8d60"
+    },
+    {
+      "original_member": "Film Data_MC_RC_Water_RH80_T25Deg_CopperPlate_28_08_24/MC_RC_Water_RH80_T25Deg_CopperPlate_28_08_24/Y_350/X_50/LabView Data 2/ReL500_ReG0.xlsx",
+      "file": "MC_RC_Water_RH80_T25Deg_CopperPlate_28_08_24/Y_350/X_50/LabView Data 2/ReL500_ReG0.xlsx.gz",
+      "original_size": 268987,
+      "zip_crc32": "54b08dc5",
+      "sha256": "1bf21f1a98a2e9f82b9ccb7b530191e474f0c4c1bac8b94733fc7ffef0ce8fd3"
+    },
+    {
+      "original_member": "Film Data_MC_RC_Water_RH80_T25Deg_CopperPlate_28_08_24/MC_RC_Water_RH80_T25Deg_CopperPlate_28_08_24/Y_350/X_50/Keyence Data 2/ReL500_ReG4900.csv",
+      "file": "MC_RC_Water_RH80_T25Deg_CopperPlate_28_08_24/Y_350/X_50/Keyence Data 2/ReL500_ReG4900.csv.gz",
+      "original_size": 2005539,
+      "zip_crc32": "17652496",
+      "sha256": "001b91be5ffecf669acfb62e17633dea85aa7e667ce64658ffb8afbda478cca8"
+    },
+    {
+      "original_member": "Film Data_MC_RC_Water_RH80_T25Deg_CopperPlate_28_08_24/MC_RC_Water_RH80_T25Deg_CopperPlate_28_08_24/Y_350/X_50/LabView Data 2/ReL500_ReG4900.xlsx",
+      "file": "MC_RC_Water_RH80_T25Deg_CopperPlate_28_08_24/Y_350/X_50/LabView Data 2/ReL500_ReG4900.xlsx.gz",
+      "original_size": 249942,
+      "zip_crc32": "8910838d",
+      "sha256": "f197a9d6c0b722bf49f5cc02adcebd9a9027ee5bb443d165c88a5fa96318d5f2"
+    },
+    {
+      "original_member": "Film Data_MC_RC_Water_RH80_T25Deg_CopperPlate_28_08_24/MC_RC_Water_RH80_T25Deg_CopperPlate_28_08_24/Y_350/X_50/Keyence Data 2/ReL500_ReG8900.csv",
+      "file": "MC_RC_Water_RH80_T25Deg_CopperPlate_28_08_24/Y_350/X_50/Keyence Data 2/ReL500_ReG8900.csv.gz",
+      "original_size": 2008019,
+      "zip_crc32": "2d781745",
+      "sha256": "e4145bbc3adda7034d70b48684663203765a49be4a8cbf0b420497699d2ce7ca"
+    },
+    {
+      "original_member": "Film Data_MC_RC_Water_RH80_T25Deg_CopperPlate_28_08_24/MC_RC_Water_RH80_T25Deg_CopperPlate_28_08_24/Y_350/X_50/LabView Data 2/ReL500_ReG8900.xlsx",
+      "file": "MC_RC_Water_RH80_T25Deg_CopperPlate_28_08_24/Y_350/X_50/LabView Data 2/ReL500_ReG8900.xlsx.gz",
+      "original_size": 154449,
+      "zip_crc32": "38584e94",
+      "sha256": "a08931c21fb5fe6e28508c864093b50622cb501f160bccacbe505a80b5acea1e"
+    },
+    {
+      "original_member": "Film Data_MC_RC_Water_RH80_T25Deg_CopperPlate_28_08_24/MC_RC_Water_RH80_T25Deg_CopperPlate_28_08_24/Y_350/X_50/Keyence Data 2/ReL500_ReG12900.csv",
+      "file": "MC_RC_Water_RH80_T25Deg_CopperPlate_28_08_24/Y_350/X_50/Keyence Data 2/ReL500_ReG12900.csv.gz",
+      "original_size": 1914638,
+      "zip_crc32": "e46be8d4",
+      "sha256": "b63322f5afaffcf1239ab682167ef12d2cb6823d9d8a4f3c06786a7b19914f5c"
+    },
+    {
+      "original_member": "Film Data_MC_RC_Water_RH80_T25Deg_CopperPlate_28_08_24/MC_RC_Water_RH80_T25Deg_CopperPlate_28_08_24/Y_350/X_50/LabView Data 2/ReL500_ReG12900.xlsx",
+      "file": "MC_RC_Water_RH80_T25Deg_CopperPlate_28_08_24/Y_350/X_50/LabView Data 2/ReL500_ReG12900.xlsx.gz",
+      "original_size": 131209,
+      "zip_crc32": "9a3be5b8",
+      "sha256": "6f8b6b961e0f0adf2a4f0beba68bf6855eaf9c349e9040935efadb0c3f9a8fe7"
+    },
+    {
+      "original_member": "Film Data_MC_RC_Water_RH80_T25Deg_CopperPlate_28_08_24/MC_RC_Water_RH80_T25Deg_CopperPlate_28_08_24/Y_350/X_50/Keyence Data 2/ReL500_ReG16900.csv",
+      "file": "MC_RC_Water_RH80_T25Deg_CopperPlate_28_08_24/Y_350/X_50/Keyence Data 2/ReL500_ReG16900.csv.gz",
+      "original_size": 1915183,
+      "zip_crc32": "d9fd5a65",
+      "sha256": "06a94ebe7f0c5ac15daf71a5955b80481e6a99da224e957c72901becb7275cf1"
+    },
+    {
+      "original_member": "Film Data_MC_RC_Water_RH80_T25Deg_CopperPlate_28_08_24/MC_RC_Water_RH80_T25Deg_CopperPlate_28_08_24/Y_350/X_50/LabView Data 2/ReL500_ReG16900.xlsx",
+      "file": "MC_RC_Water_RH80_T25Deg_CopperPlate_28_08_24/Y_350/X_50/LabView Data 2/ReL500_ReG16900.xlsx.gz",
+      "original_size": 176749,
+      "zip_crc32": "5c585fc0",
+      "sha256": "3ae58210a4858e5d7a7e899cf25bcc82ccf582e88e679110e98ad13a19ec9183"
+    },
+    {
+      "original_member": "Film Data_MC_RC_Water_RH80_T25Deg_CopperPlate_28_08_24/MC_RC_Water_RH80_T25Deg_CopperPlate_28_08_24/Y_350/X_50/Keyence Data 2/ReL500_ReG20900.csv",
+      "file": "MC_RC_Water_RH80_T25Deg_CopperPlate_28_08_24/Y_350/X_50/Keyence Data 2/ReL500_ReG20900.csv.gz",
+      "original_size": 2021739,
+      "zip_crc32": "eaaa1d8b",
+      "sha256": "483757f7aff2264c2e9278c02baee5d59d4ede5227495ff821bbff88d2b8495b"
+    },
+    {
+      "original_member": "Film Data_MC_RC_Water_RH80_T25Deg_CopperPlate_28_08_24/MC_RC_Water_RH80_T25Deg_CopperPlate_28_08_24/Y_350/X_50/LabView Data 2/ReL500_ReG20900.xlsx",
+      "file": "MC_RC_Water_RH80_T25Deg_CopperPlate_28_08_24/Y_350/X_50/LabView Data 2/ReL500_ReG20900.xlsx.gz",
+      "original_size": 119731,
+      "zip_crc32": "6e501739",
+      "sha256": "5bee549a4db79603ed2c8934d2aa510e6b19a4daf99a1f407c99e521d387e690"
+    }
+  ]
+}

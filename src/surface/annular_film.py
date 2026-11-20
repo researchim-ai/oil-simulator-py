@@ -3,8 +3,9 @@
 Upward is positive. Liquid momentum is integrated over the actual annulus,
 with no slip at the wall and gas shear at the inner surface. Gas pressure
 gradient and liquid film thickness are solved together. The interfacial
-Fanning factor is Wallis' .005*(1+300*delta/D); this version uses relative
-phase velocity, explicitly differing from the superficial-velocity variant.
+Fanning factor is Wallis' .005*(1+300*delta/D). The explicitly selected
+superficial variant uses Q_g / total pipe area as in the published equation.
+Legacy mean/interface variants instead use relative velocities.
 
 This constitutive solver is NOT a transient PR pipe, flooding predictor or a
 three-phase flow-regime map. No entrainment, partial wetting or fitted data.
@@ -88,25 +89,81 @@ def annular_response(alpha, diameter, viscosity):
     return eta, beta, c, math.pi * diameter * s
 
 
-def interfacial_conductance(alpha, diameter, mu_l, mu_g, rho_g, ug, ul):
+def interfacial_conductance(
+    alpha,
+    diameter,
+    mu_l,
+    mu_g,
+    rho_g,
+    ug,
+    ul,
+    *,
+    dry_consistent=False,
+    roughness_m=0.0,
+    with_slope=False,
+    _response=None,
+):
     """Positive gas shear: exact laminar core, then Wallis turbulent factor.
+
+    dry_consistent selects an uncalibrated Colebrook/4 baseline with the
+    same Wallis film enhancement, instead of the historical constant .005.
+    It matches the dry Darcy constitutive limit; it is not the published
+    Wallis correlation and does not establish experimental accuracy.
 
     Coefficients freeze at the driving Reynolds rho_g*|ug-eta*ul|*2a/mu_g;
     the smooth 2000..4000 transition is a declared engineering assumption.
     """
-    eta, beta, c, perimeter = annular_response(alpha, diameter, mu_l)
+    eta, beta, c, perimeter = (
+        annular_response(alpha, diameter, mu_l) if _response is None else _response
+    )
     radius = diameter / 2 * torch.sqrt(1 - alpha)
     drive = ug - eta * ul
     re = rho_g * drive.abs() * 2 * radius / mu_g
-    blend = ((re - 2000) / 2000).clamp(0.0, 1.0)
-    blend = blend.square() * (3 - 2 * blend)
+    transition = ((re - 2000) / 2000).clamp(0.0, 1.0)
+    blend = transition.square() * (3 - 2 * transition)
     delta = diameter / 2 * alpha / (1 + torch.sqrt(1 - alpha))
     linear = (1 - blend) * 4 * mu_g / radius
-    quadratic = blend * 0.5 * 0.005 * (1 + 300 * delta / diameter) * rho_g
+    baseline = 0.005
+    if dry_consistent:
+        from .pr_active_pipe_friction import colebrook_factor
+
+        baseline = colebrook_factor(re, roughness_m / (2 * radius)) / 4
+    quadratic = blend * 0.5 * baseline * (1 + 300 * delta / diameter) * rho_g
     a = 1 + beta * linear
     slip = 2 * drive / (a + torch.sqrt(a.square() + 4 * beta * quadratic * drive.abs()))
     friction = linear + quadratic * slip.abs()
     effective = friction / (1 + beta * friction)
+    if with_slope:
+        # Derivative of tau(d)=effective(d)*d at fixed geometry/material.
+        # Include Reynolds-dependent blending and the implicit Colebrook root.
+        re_per_drive = rho_g * 2 * radius / mu_g
+        blend_slope = torch.where(
+            (re > 2000) & (re < 4000),
+            6 * transition * (1 - transition) / 2000 * re_per_drive,
+            torch.zeros_like(re),
+        )
+        baseline_slope = torch.zeros_like(re)
+        if dry_consistent:
+            z = (4 * baseline).rsqrt()
+            bounded_re = re.clamp_min(2000)
+            argument = roughness_m / (2 * radius) / 3.7 + 2.51 * z / bounded_re
+            factor = 2 / math.log(10) * 2.51 / (bounded_re * argument)
+            dz_dre = factor * z / bounded_re / (1 + factor)
+            baseline_slope = torch.where(
+                re > 2000, -dz_dre / (2 * z.pow(3)) * re_per_drive, torch.zeros_like(re)
+            )
+        linear_slope = -blend_slope * 4 * mu_g / radius
+        quadratic_slope = (
+            0.5
+            * (1 + 300 * delta / diameter)
+            * rho_g
+            * (blend_slope * baseline + blend * baseline_slope)
+        )
+        slip_slope = linear + 2 * quadratic * slip.abs()
+        shear_slope = (slip_slope + linear_slope * slip.abs() + quadratic_slope * slip.square()) / (
+            1 + beta * slip_slope
+        )
+        return effective, eta, beta, c, perimeter, re, shear_slope
     return effective, eta, beta, c, perimeter, re
 
 
@@ -121,6 +178,8 @@ def countercurrent_film(
     gravity_m_s2=9.80665,
     shear_velocity="mean",
     gas_viscosity_pa_s=1.81e-5,
+    dry_consistent=False,
+    roughness_m=0.0,
 ):
     """Return the first (thin-film) steady root, rejecting absent/blocked roots.
 
@@ -129,8 +188,14 @@ def countercurrent_film(
     brackets the first crossing; 56 bisections then converge the force balance.
     No observed pressures enter this calculation.
     """
-    if shear_velocity not in ("mean", "interface"):
-        raise ValueError("Declare mean or interface shear velocity")
+    if not math.isfinite(roughness_m) or roughness_m < 0:
+        raise ValueError("Nonnegative finite roughness required")
+    if shear_velocity == "superficial" and roughness_m != 0:
+        raise ValueError("Superficial Wallis law has no declared wall-roughness correction")
+    if dry_consistent and shear_velocity != "interface":
+        raise ValueError("Dry-consistent closure requires interface shear velocity")
+    if shear_velocity not in ("mean", "interface", "superficial"):
+        raise ValueError("Declare mean, interface or superficial shear velocity")
     reference = next(
         (
             v
@@ -167,6 +232,12 @@ def countercurrent_film(
         ).cpu()
     ):
         raise ValueError("Finite countercurrent gas/liquid inputs required")
+    if shear_velocity == "superficial":
+        gas_re = rg * jg * diameter_m / gas_viscosity_pa_s
+        if not bool((gas_re >= 4000).all().cpu()):
+            raise ValueError(
+                "Superficial Wallis law requires turbulent gas; no laminar extrapolation"
+            )
     area = math.pi * diameter_m**2 / 4
     jl = -ml / (liquid_density_kg_m3 * area)
     if not bool((ml / (math.pi * diameter_m * liquid_viscosity_pa_s) <= 400).all().cpu()):
@@ -181,9 +252,19 @@ def countercurrent_film(
         slip = ug - ul
         fanning = 0.005 * (1 + 300 * delta / diameter_m)
         tau = 0.5 * fanning * rg * slip * slip.abs()
+        if shear_velocity == "superficial":
+            tau = 0.5 * fanning * rg * jg.square()
         if shear_velocity == "interface":
             effective, eta, _, _, _, _ = interfacial_conductance(
-                alpha, diameter_m, liquid_viscosity_pa_s, gas_viscosity_pa_s, rg, ug, ul
+                alpha,
+                diameter_m,
+                liquid_viscosity_pa_s,
+                gas_viscosity_pa_s,
+                rg,
+                ug,
+                ul,
+                dry_consistent=dry_consistent,
+                roughness_m=roughness_m,
             )
             tau = effective * (ug - eta * ul)
         gradient = -rg * gravity_m_s2 - 2 * tau / core_radius
@@ -202,9 +283,10 @@ def countercurrent_film(
     # drainage; the small fraction of the shear-free scale starts below its
     # thin branch. The actual force balance still determines the root.
     gravity_thickness = (
-        3 * liquid_viscosity_pa_s * ml
-        / (math.pi * diameter_m * liquid_density_kg_m3
-           * (liquid_density_kg_m3 - rg) * gravity_m_s2)
+        3
+        * liquid_viscosity_pa_s
+        * ml
+        / (math.pi * diameter_m * liquid_density_kg_m3 * (liquid_density_kg_m3 - rg) * gravity_m_s2)
     ).pow(1 / 3)
     lower = (1e-3 * 4 * gravity_thickness / diameter_m).clamp_max(1e-5)
     if not bool((torch.isfinite(lower) & (lower > 0)).all().cpu()):
@@ -230,6 +312,13 @@ def countercurrent_film(
     error, gradient, tau, delta, ul, ug = evaluate(alpha)
     if not bool((torch.isfinite(error).all() & (error.abs() < 1e-8).all()).cpu()):
         raise HydraulicConvergenceError("Annular film momentum balance failed")
+    if shear_velocity == "superficial":
+        eta, beta, _, _ = annular_response(alpha, diameter_m, liquid_viscosity_pa_s)
+        interface_velocity = eta * ul + beta * tau
+        if not bool((tau * (ug - interface_velocity) >= 0).all().cpu()):
+            raise HydraulicConvergenceError(
+                "Superficial shear would produce negative interface dissipation"
+            )
     perimeter_i = math.pi * diameter_m * torch.sqrt(1 - alpha)
     interface_force = perimeter_i * tau
     wall_force = interface_force - area * alpha * (gradient + liquid_density_kg_m3 * gravity_m_s2)

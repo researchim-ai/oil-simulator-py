@@ -478,3 +478,365 @@ CPU/CUDA-сверка на RTX 3090 Ti — `fetrig_conditioned_parity.json`.
 Это численная проверка объявленной модели полностью смоченной стенки,
 не экспериментальное подтверждение её применимости при таком расходе.
 Повтор Hannover сохраняет отрицательную квалификацию и MAE 58.84/48.28 Pa.
+
+## Согласованный сухой предел (20 ноября 2026)
+
+Опциональный `wall_friction.model = "laminar_annular_colebrook_interface_v2"`
+использует Colebrook/4 вместо постоянного .005 в базовом межфазном
+Fanning-факторе; множитель `1+300*delta/D` сохранён. Это инженерное расширение,
+а не исходная корреляция Wallis и не экспериментально подтверждённое замыкание.
+Параметры `gas_slot`, `liquid_slot`, `viscosity_pa_s`, `roughness_m`, `wetting`
+совместимы с v1. Старые конфигурации автоматически не переключаются.
+
+Сухая ячейка v2 использует замороженное сопротивление и линейный шаг назад
+Эйлера, согласованный с пределом парного источника при исчезающей плёнке.
+Проверены нулевая скорость, ламинарный/переходный/турбулентный пределы,
+реверс, шероховатость, конечные шаги, сериализация и независимые балансы
+импульса и энергии. Это проверка источника трения, а не всего процесса
+исчезновения фазы, переноса состава или смачивания.
+
+Повтор Hannover для новой модели даёт MAE **61.35 / 91.07 Па** для гладкой
+стенки / чувствительности к шероховатости 0.2 мм. Экспериментальный критерий
+остаётся провален. Согласованный сухой предел не устраняет неполноту
+полностью смоченного стационарного описания; применять v2 как подтверждённую
+модель этих измерений нельзя. Производственная модель остаётся opt-in.
+
+```sh
+PYTHONPATH=src:scripts python scripts/validate_annular_film_experiment.py \
+  --shear-velocity interface --dry-consistent --output /tmp/annular-v2.json
+```
+
+Ожидаемый код выхода — 1 (провал экспериментального критерия).
+
+## Разделение причин расхождения (20 ноября 2026)
+
+`audit_annular_applicability.py` проверяет те же 16 ламинарных окон без
+перенастройки коэффициентов. Независимый скалярный решатель повторно решает
+плёночный баланс с приведённой скоростью газа в формуле Wallis. MAE снижается
+с 58.84 до 34.96 Па, но 0/16 окон попадают в прежнюю границу ±4 Па.
+Это чувствительность к определению скорости, а не новая валидация или
+автоматическая замена рабочей модели.
+
+На 9 окнах, покрытых обеими отдельными сухими сериями, разброс сухого
+эталона достигает 16.39 Па; MAE составляет 48.59 и 64.08 Па. Это не
+доверительный интервал. Ни одна серия не устраняет расхождение.
+
+Существующий критерий `FilmWettingCriterion` применён к решённым профилям.
+Все 16 профилей допустимы для этого критерия. При **предположенной**, а не
+измеренной sigma=0.0728 Н/м условные предельные наступающие углы составляют
+71.10–180 градусов. Верхняя граница означает достаточный запас силы для
+всех допустимых углов в этом критерии. Реальные контактные углы не измерены.
+Результат не определяет смоченную долю окружности и не подтверждает гипотезу
+сухих пятен. Нельзя объявлять неполное смачивание установленной причиной.
+
+Дополнительно из исходного архива с совпавшим SHA-256 извлечена неизменённая
+авторская книга `tests/data/surface/hannover_countercurrent/air_reference.xlsx`.
+`air_reference.json` хранит источник, имя члена архива и контрольную сумму.
+`audit_hannover_air_reference.py` читает сохранённые автором результаты 13
+режимов на листе `Vergleich_Num_vs_Exp`, проверяет подписи и единицы, сохраняет
+отсутствующие измерения как отсутствующие. Формулы Excel не пересчитываются;
+ошибочно подписанные Kelvin-строки не используются для свойств газа.
+
+Интерполяция отдельного авторского сухого CFD-расчёта на 20 исходных мокрых
+окнах меняет сухую базу на -4.55…+8.13 Па. Это диагностическая альтернатива,
+не замена экспериментальных измерений. Распределённое Darcy-трение на 3 м
+не воспроизводит полный авторский CFD-перепад: нужны согласованные геометрия,
+отборы давления и локальные сопротивления. Однако одно изменение сухой базы
+не объясняет наблюдаемую ошибку плёночного замыкания.
+
+Вывод: численная точность, сухой предел, определение скорости и выбор сухой
+серии проверены раздельно. Они не устраняют экспериментального расхождения.
+Для выбора физического исправления остаётся подтвердить описание измеряемого
+пролёта и распределения жидкости (профиль/волны/капли), а не подбирать
+контактный угол или коэффициент трения по этим же перепадам.
+
+## Инженерное решение: явное замыкание и границы проверки
+
+В стационарном `countercurrent_film` доступен явный
+`shear_velocity="superficial"`: в межфазном напряжении используется `Q_g/A`.
+Корреляция совпадает по определению скорости с формулами (7)–(9)
+[первоисточника](https://doi.org/10.1016/j.applthermaleng.2026.130975).
+Толщина по-прежнему определяется совместным балансом Стокса, а не отдельной
+оценкой Nusselt из статьи. Это различие теперь записывается в отчёте.
+
+Режим ограничен встречным течением, Re_g>=4000, Gamma/mu<=400 и найденной
+тонкоплёночной ветвью. Проверяются баланс сил и неотрицательная межфазная
+диссипация. Необоснованная поправка на шероховатость и сочетание с вариантом
+Colebrook отвергаются. Скалярная радиальная квадратура/Brent независимо
+проверяет Torch-решение. Старые варианты и их результаты сохранены.
+
+Этот закон **не включён в произвольную переходную трубу**: требуются отдельная
+пассивная формулировка для реверса и проверка согласования с сухим пределом.
+Версия `laminar_annular_colebrook_interface_v2` решает согласованность сухого
+предела источника, но не становится от этого экспериментально подтверждённой.
+
+`validate_surface_experiments.py` включает `annular_superficial_reference`
+как отдельное сравнение. Оно не заменяет рабочий интерфейсный критерий.
+Ключ `comparison_contract` фиксирует закон скорости, модель толщины,
+наблюдаемую величину и предположения о локальных потерях/смачивании.
+`held_out=false`: данные уже использованы при диагностике и выборе моделей.
+Ни одно повторное улучшение на этих же данных не называется независимой
+валидацией.
+
+Практический критерий завершения: согласованные геометрия измерительного
+участка и потери, подтверждённый режим распределения жидкости, затем проверка
+выбранного замыкания на независимой серии по перепаду **и** удержанию/толщине.
+Подгонка одного коэффициента по текущему перепаду не идентифицирует физику.
+До выполнения этих условий противоточная плёночная ветвь остаётся явно
+экспериментальной; положительные проверки Norne не расширяют её область.
+
+## Модель измерительного пролёта
+
+`surface.pressure_observation.PressureTapSpan` отделяет распределённое трение,
+местные потери, гидростатику, изменение скоростного напора между статическими
+отборами и поправку импульсных линий датчика. Использует Torch и общий
+Darcy/Colebrook-код; допускает внешнее плёночное сопротивление без повторного
+добавления гидростатики. Это оператор наблюдения при постоянной плотности,
+не новый сжимаемый решатель сети. Поддержано заданное прямое направление;
+обратный поток с неизвестными обратными коэффициентами отвергается.
+
+`check_hannover_tap_span.py` собирает условную схему сужение–труба–расширение.
+Диаметры 85 и 164.3 мм прочитаны из явных ячеек авторской книги; отношение
+площадей дополнительно сверено с сохранёнными скоростями. K сужения 0.32
+и формула расширения взяты из статьи. Равенство верхней и нижней камер,
+газовое заполнение импульсных линий и неизменность местных коэффициентов при
+подаче жидкости обозначены предположениями. Никакой коэффициент не подбирался.
+
+На 13 авторских сухих режимах максимальное расхождение с CFD — **17.66%**.
+Следовательно, эта упрощённая схема ещё не является подтверждённой копией
+установки. На 16 мокрых окнах общие местные потери сокращаются при вычитании
+сухого опыта; MAE остаётся **34.96 Па**. Для устранения остатка пришлось бы
+уменьшить мокрые местные потери относительно сухих на **25.99–44.63 Па**.
+Это обратная диагностика, не измерение и не разрешённая поправка модели.
+Добавление положительного сопротивления распределителя само по себе только
+увеличит расхождение. Результат: `tap_span.json` в существующем каталоге
+`benchmarks/reports/annular_independent_verified/`.
+
+Не идентифицированы верхний отбор и путь через распределитель, заполнение и
+отметки импульсных линий, изменение местных потерь жидкостью, покрытие стенки,
+толщина и капельный перенос. По одному перепаду нельзя однозначно восстановить
+все эти величины. Проверка не закрывается за счёт произвольного выбора этих
+параметров; исторический отрицательный экспериментальный критерий сохранён.
+
+
+### Идентификация дополнительной сухой кампании
+
+В неизменённой книге `air_reference.xlsx` на листе `Uebersicht_Experiment`
+ячейки S4:T5 задают диаметры 0.085 и 0.1643 м. C65:C66 указывают погрешность
+отсчёта 5 Па у двух манометров; C67:C68 описывают статические стеновые
+отборы; C70 отмечает изменение входного подключения (забор из помещения
+вместо двухметрового гибкого шланга). Даты начала листов Messdaten —
+17–19 сентября 2024. Эти значения теперь входят в машинный отчёт с адресами
+источников; геометрия больше не определяется только отношением скоростей.
+
+Это не основание менять погрешность или критерий исходных мокрых/сухих
+книг. Новая сухая книга — отдельная диагностическая кампания. Точное
+тождество её верхнего участка, импульсных линий и входных условий основным
+мокрым опытам не подтверждено. `same_campaign_as_wet_data_confirmed=false`
+и `fully_identified_rig=false` остаются явными.
+
+До появления измерений покрытия/толщины и идентифицированной схемы нельзя
+однозначно выбрать между изменением межфазного замыкания, волновым/капельным
+переносом и особенностями распределителя. Это открытая физическая
+идентификация, а не обещание очередной численной правки, которая гарантированно
+устранит расхождение. Отрицательный результат сохранён; плёночная ветвь
+не объявляется подтверждённой для промышленного прогноза этого режима.
+
+### Additional public FETRig measurements: middle station
+
+The public [FETRig archive](https://doi.org/10.18419/DARUS-4998) now supplies a
+separate, unchanged subset at Y=350 mm, X=50 mm in
+`tests/data/surface/fetrig_middle`. All six available gas setpoints at nominal
+ReL500 were selected before scoring, with paired CCI and LabView files.
+The importer fetched 3,699,195 archive bytes using verified HTTP ranges;
+member CRC/SHA-256, original names, source metadata and CC BY 4.0 attribution
+are retained. It does not execute the authors' MATLAB files.
+
+Reproduce acquisition in a new directory with
+`python scripts/import_fetrig_measurements.py --middle-station --output <new-directory>`.
+The common external-validation runner includes this subset automatically.
+The six new cases contain 19 input-steady windows, in addition to the original
+six cases / 31 windows. No coefficients were fitted.
+
+For the no-gas middle-station case, accepted CCI samples average 0.499623 mm;
+the conditional shear-free prediction across all accepted input windows is
+0.495743–0.497375 mm (−0.78% to −0.45%). This is a sensitivity comparison,
+not an uncertainty-qualified pass: the instruments lack a demonstrated common
+clock, and sensor zero/dropout effects remain unresolved. Gas-driven cases
+are not scored against a shear-free model.
+
+The dataset metadata explicitly declares gas volume flow in m³/h, while
+workbook channel Unit fields are empty. Raw values interpreted as m³/s give
+Reynolds numbers consistent with nominal gas settings; interpreting them as
+m³/h reduces these by 3600. The validator records both interpretations and the
+metadata hash, without automatically certifying a unit from setpoint agreement.
+The [apparatus paper](https://arxiv.org/html/2503.04915v1), sections I.1.2 and I.2,
+provides an independent meter range and channel geometry. Input-window absolute
+thresholds now apply conversion to both mean and standard deviation before
+classifying near-zero flow; equivalent SI/native signals are regression-tested.
+
+A second-fluid candidate is Karimi's 1998 Toronto thesis, *An experimental study
+of falling liquid films in counter-current annular flow in a vertical tube*,
+[official library record/PDF](https://central.bac-lac.gc.ca/.item?app=Library&id=NQ35201&oclc_number=1294398396&op=pdf).
+The indexed text is accessible, but direct PDF retrieval failed (403/timeout).
+No unverified OCR table values or guessed kerosene properties have been imported.
+This candidate does not count as completed validation.
+
+### Conditional identification of interfacial stress
+
+`diagnose_annular_experiment.py` now also inverts the measured wet-minus-dry
+pressure increment, using each predeclared dry Darcy baseline, the measured
+liquid flow and an independently integrated radial Stokes profile. This inverse
+calculation explicitly uses pressure as an input. It is neither a pressure
+prediction nor a new production closure. All 16 windows and all three offsets
+(−4, 0, +4 Pa) are retained for each baseline; impossible states are reported as
+failures rather than clipped or discarded. The offsets are an instrumental-only
+sensitivity, not a total uncertainty/confidence interval.
+
+For the smooth dry baseline the implied superficial Fanning factor is
+0.503–0.769 times Wallis evaluated at the inferred thickness; for the 0.2 mm
+roughness baseline it is 0.617–0.879 times Wallis. These 96 conditional states
+are in `benchmarks/reports/annular_independent_verified/pressure_identification.json`.
+The conclusion depends on full wetting, cancellation of local wet/dry losses,
+constant properties and no entrainment. It does not identify which assumption
+fails; pressure alone cannot separate those effects. No multiplier has been
+inserted into the solver. Independent forward/inverse recovery tests cover both
+interface and superficial shear laws, and reject incompatible inverse states.
+
+The [primary study](https://doi.org/10.1016/j.applthermaleng.2026.130975),
+introduction and conclusions, also reports lack of agreement for the multiphase
+regime with the correlations and STAR-CCM+ film setup it evaluated. It leaves
+quantitative validation of its small-scale setup to future work. Thus this
+benchmark remains an open physical-model challenge, not an established oracle
+that a numerical bug fix alone can be expected to satisfy.
+
+### Final-state nonlinear annular source
+
+The selectable runtime model `laminar_annular_colebrook_implicit_v3` now solves
+both phase momenta and the velocity-dependent resistance at the **end** of the
+source substep. It uses the same Colebrook/Wallis constitutive law as v2;
+no experimental multiplier has been introduced. The implementation eliminates
+the two momenta to a bounded scalar drive equation and solves it in batched
+Torch. Single-phase Darcy friction also uses final-state Reynolds number.
+Interface work is transferred with opposite signs, physical dissipation heats
+the phases and backward-Euler temporal dissipation is accounted separately.
+
+In the existing two-phase test state (initial gas speed 3 m/s, liquid speed
+−0.1 m/s, liquid holdup 0.02) at dt=0.1 s, the v2 frozen-coefficient result
+has a 9.3077% discrepancy between its applied stress and the constitutive law
+evaluated at its final velocities. V3 removes that discrepancy to roundoff.
+This is a source-integration consistency metric, not experimental pressure
+accuracy, timestep-error elimination or proof of whole-network acceleration.
+The method remains first order; its fixed scalar iterations cost more per
+source evaluation and it is selected explicitly rather than enabled globally.
+
+Checks cover an independent radial-integration/Brent reference, nonlinear
+final-state stress, both-phase momentum/energy balances, reversal, zero flow,
+steps from 1e-8 to 1e6 s in the source fixture, finite-step vanishing-film Darcy
+limits and first-order refinement against an independently integrated ODE.
+`configs/surface_pr_active_surface_annular_implicit.json` exercises a coupled
+separator/finite-port/pipe schedule. Its six accepted substeps passed the
+independent network checker with total-energy residual 4.55e-13 J. This is a
+short synthetic coupling check; it is not a long-duration field validation.
+The source is exercised for actual configured intervals in addition to unit
+checks. Original example states have been reinitialized through model APIs
+rather than relabeling incompatible checkpoints.
+
+The new conditional dry-density audit scales measured dry loss per density
+before interpolation to each wet input. Its maximum effect on the Hannover
+wet increment is 0.6852 Pa, much smaller than the current discrepancy. This
+sensitivity neglects Reynolds/viscosity effects and does not replace the gate.
+It therefore rules out density scaling alone as an adequate explanation,
+without asserting that other measurement/geometry assumptions are resolved.
+
+### Safeguarded Newton solve for the final-state source
+
+The v3 paired source now uses 16 safeguarded Newton iterations instead of 56
+bisections. The derivative includes the implicit Colebrook factor, its Reynolds
+number dependence, the laminar/turbulent blend and interface-slip elimination.
+Each proposed iterate stays within the sign-changing interval; an unsafe
+proposal is replaced by the interval midpoint. The existing final-state
+consistency check still rejects an unresolved source solve. No cell-wise
+convergence checks or host transfers occur inside the iteration loop.
+
+`PYTHONPATH=src:scripts python scripts/benchmark_annular_implicit.py --output <new-file>`
+compares both scalar algorithms in alternating randomized order, with identical
+float64 states and a warm-up. A CPU run with 256 synthetic states and 9 repeats
+measured median 24.236 ms for 56 bisections and 9.073 ms for safeguarded Newton:
+2.67x speedup for this source kernel, with maximum final-velocity difference
+1.98e-13 m/s. This excludes PR recovery, transport, ports and network overhead;
+it is not a whole-network or GPU speed measurement. The paired source and the
+single-phase source are distinct: the latter still uses bounded bisection.
+
+Analytic stress derivatives are checked against automatic differentiation in
+laminar, transitional and turbulent gas branches, including reversal and zero
+velocity. A mixed batch covering holdup 1e-4–0.2 and source dt 1e-8–1e6 s is
+also checked against independent radial integration and scalar Brent solves.
+
+### Coupled schedule timing and invariant geometry reuse
+
+The v3 source now computes its fixed annular mobility/response once per source
+call and reuses those tensors inside the root iteration. The cache is local to
+that call; geometry from another cell or time step is never substituted.
+The preliminary frozen-resistance solve previously computed before the v3
+solve has also been removed. V1/v2 retain their original integration paths.
+
+The same 256-state CPU source comparison now gives median 23.775 ms for the
+former 56-bisection implementation and 6.312 ms for the optimized source
+(3.77x), with maximum final-velocity difference 1.98e-13 m/s. These timings
+refer to synthetic fixed-inventory momentum sources only.
+
+`scripts/benchmark_annular_network.py` compares complete configured schedules
+using the two equivalent root algorithms. It alternates their order, warms up
+both paths, preserves final states/step attempts/balances, and restores its
+in-process reference override even after an exception. Full-run timing includes
+initialization, source fingerprinting, PR recovery, ports and state inspection;
+friction timings are inclusive host measurements and must not be added to
+full-run time.
+
+The parallel variant uses finite ports and pipes connected to one **shared**
+vertical column. Vessel cross section and initial inventories scale together;
+column equilibrium and all model identities are rebuilt through model APIs.
+This is a physically connected short numerical benchmark, not several
+independent copies whose times are combined.
+
+Reproduce to a new directory:
+
+```
+PYTHONPATH=src:scripts python scripts/benchmark_annular_network.py --branches 4 --repeats 3 --output-dir /tmp/annular-parallel-comparison
+PYTHONPATH=src:scripts python scripts/check_pr_active_surface.py /tmp/annular-parallel-comparison/request.json /tmp/annular-parallel-comparison/newton_network.json
+PYTHONPATH=src:scripts python scripts/check_pr_active_surface.py /tmp/annular-parallel-comparison/request.json /tmp/annular-parallel-comparison/bisection_network.json
+```
+
+The four-pipe/eight-cell case gave median 3.023 s with bisection and 2.314 s
+with optimized Newton (1.31x whole-run speedup, approximately 23.5% less time).
+Both algorithms accepted the same six substeps with zero rejected attempts,
+identical final states, and total energy residual 1.82e-12 J. Both complete
+traces passed the independent network checker. The source-bound request,
+traces and comparison are in
+`benchmarks/reports/annular_independent_verified/parallel_source_benchmark`.
+
+The physical duration is **3 microseconds**. The prototype has centimetre-scale
+cells and a CFL-limited detailed transport solver. It uses a single-phase
+column inventory and two-phase pipes; it does not exercise separator phase
+appearance/disappearance. This benchmark measures a local coupled transient,
+not annual field throughput, long-term stability, a large-model scaling result,
+or experimental qualification. Large-horizon estimates must use the appropriate
+operational model and a separate representative scenario.
+
+### Public dry-gas velocity profiles
+
+Three additional original files from the public FETRig archive are preserved
+in `tests/data/surface/fetrig_gas_profiles`: a velocity overview, the authors'
+plotting script and campaign documentation. The importer checks the published
+MD5, computes SHA-256, preserves unchanged gzip-compressed bytes and retains
+CC BY 4.0 attribution. MATLAB and Office content are never executed.
+
+The overview contains 160 observations across five gas settings. The campaign
+explicitly documents no liquid, so these are not measurements at a gas/liquid
+interface. The plotting script also constructs an alternative coordinate shifted
+by 2 mm; the audit does not assume a wall-zero position or apply that shift.
+The reported 0.2 m/s instrument velocity uncertainty is not a shear uncertainty.
+Consequently, these profiles cannot independently identify a wet interfacial
+friction coefficient. This limitation is checked by
+`scripts/audit_fetrig_gas_profiles.py`; no coefficient is fitted from them.

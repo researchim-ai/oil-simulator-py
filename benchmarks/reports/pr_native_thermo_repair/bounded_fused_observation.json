@@ -1,0 +1,11 @@
+{
+  "format": "pr_bounded_progress_observation_v1",
+  "complete_operating_cycle_qualified": false,
+  "execution_exit_code": 143,
+  "validator_result_produced": false,
+  "requested_wall_budget_s": 600,
+  "accepted_macrosteps_in_log": 13,
+  "last_accepted_time_s": 0.010143166285414515,
+  "maximum_logged_accepted_error": 0.8021572781187416,
+  "scope": "Progress log only; execution was terminated before validator result/trajectory serialization. No independent whole-cycle qualification is inferred."
+}

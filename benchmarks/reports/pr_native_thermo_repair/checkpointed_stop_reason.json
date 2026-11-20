@@ -1,0 +1,4 @@
+{
+  "pid": 547519,
+  "reason": "Stop own recorder to normalize recovered model JSON; accepted physical records retained. Not a physical-model rejection."
+}

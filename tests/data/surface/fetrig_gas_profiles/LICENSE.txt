@@ -1,0 +1,3 @@
+FETRig dataset, Wirth et al., doi:10.18419/DARUS-4998.
+CC BY 4.0 https://creativecommons.org/licenses/by/4.0/
+Original files preserved unchanged and gzip compressed; hashes in manifest.json.

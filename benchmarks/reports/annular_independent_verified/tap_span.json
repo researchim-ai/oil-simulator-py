@@ -1,0 +1,686 @@
+{
+  "source": {
+    "source": "https://doi.org/10.25835/vcwbeqix",
+    "license": "CC-BY-4.0",
+    "archive_sha256": "f7e64adf5c30fcc9ab986bc16ee3cbc88e3664904443b749ae4ce890e0d6a26b",
+    "member": "Forschungsdatenmanagement/Differential pressure air - measurement and simulation.xlsx",
+    "sha256": "d980522dc016538ce966b7432af92401f6ea8e9efc6c07f8e6373de08d5095f1",
+    "sheet": "Vergleich_Num_vs_Exp",
+    "note": "Original workbook, unchanged. Cached summary values are reported author results, not newly recalculated formulas.",
+    "declared_geometry": {
+      "pipe_diameter_m": 0.085,
+      "lower_diameter_m": 0.1643,
+      "source_cells": "Uebersicht_Experiment!S4:T5"
+    },
+    "measurement_notes": {
+      "C65": "KIMO Schr\u00e4grohrmanometer, 0 \u2026200 Pa, gegen Umgebung, Ableseungenauigkeit 5 Pa",
+      "C66": "U-Rohr Manometer, Ableseungenauigkeit  5 Pa",
+      "C67": "Manometer und Absolutdrucksensor an Wandbohrung angeschlossen (nicht \"Prandtl\"-Sonden)",
+      "C68": "Manometer an Wandbohrung angeschlossen",
+      "C70": "Der Volumenstrom ist h\u00f6her, da bei diesen Versuchen direkt aus der Umgebung am Gebl\u00e4se angesaugt wurde und nicht wie zuvor durch einen zwei Meter langen Flexschlauch"
+    },
+    "measurement_notes_sheet": "Uebersicht_Experiment",
+    "acquisition_start_dates": {
+      "Messdaten": "2024-09-17",
+      "Messdaten2": "2024-09-18",
+      "Messdaten3": "2024-09-18",
+      "Messdaten4": "2024-09-19"
+    },
+    "same_campaign_as_wet_data_confirmed": false
+  },
+  "area_ratio_from_declared_geometry": 0.26764721244965184,
+  "area_ratio_crosschecked_against_author_velocities": true,
+  "contraction_k": 0.32,
+  "expansion_k": 0.5363406054327654,
+  "dry": [
+    {
+      "column": "C",
+      "q_m3_h": 140.57551844679483,
+      "author_pipe_velocity_m_s": 6.881442103348961,
+      "author_lower_velocity_m_s": 1.8417987965950187,
+      "rho_kg_m3": 1.2051031008283237,
+      "mu_pa_s": 1.830079749305753e-05,
+      "measured_dp1_pa": 44.0,
+      "measured_dp2_pa": 37.5,
+      "author_simulation_pa": 42.9946,
+      "fully_developed_friction_pa": 22.316971460354132,
+      "unexplained_difference_pa": 20.677628539645866,
+      "pressure_terms_pa": {
+        "distributed_friction_pa": 22.316971460354136,
+        "minor_losses_pa": 24.434286764113857,
+        "hydrostatic_pa": 35.45407297121424,
+        "kinetic_change_pa": 0.0,
+        "static_tap_difference_pa": 82.20533119568222,
+        "sensor_difference_pa": 46.75125822446798
+      },
+      "prediction_pa": 46.75125822446798,
+      "cfd_difference_pa": 3.7566582244679836,
+      "cfd_relative_difference": 0.08737511744423676
+    },
+    {
+      "column": "D",
+      "q_m3_h": 166.54717866857607,
+      "author_pipe_velocity_m_s": 8.152804842172378,
+      "author_lower_velocity_m_s": 2.1820754896534607,
+      "rho_kg_m3": 1.2035032511234058,
+      "mu_pa_s": 1.8301752260686353e-05,
+      "measured_dp1_pa": 62.666666666666664,
+      "measured_dp2_pa": 53.666666666666664,
+      "author_simulation_pa": 58.21197,
+      "fully_developed_friction_pa": 30.11144317772938,
+      "unexplained_difference_pa": 28.10052682227062,
+      "pressure_terms_pa": {
+        "distributed_friction_pa": 30.11144317772938,
+        "minor_losses_pa": 34.25136649399318,
+        "hydrostatic_pa": 35.407005472888045,
+        "kinetic_change_pa": 0.0,
+        "static_tap_difference_pa": 99.7698151446106,
+        "sensor_difference_pa": 64.36280967172256
+      },
+      "prediction_pa": 64.36280967172256,
+      "cfd_difference_pa": 6.150839671722558,
+      "cfd_relative_difference": 0.10566279876325368
+    },
+    {
+      "column": "E",
+      "q_m3_h": 195.96031124374846,
+      "author_pipe_velocity_m_s": 9.592634274284928,
+      "author_lower_velocity_m_s": 2.5674418235613503,
+      "rho_kg_m3": 1.2049218450792876,
+      "mu_pa_s": 1.8301978618397344e-05,
+      "measured_dp1_pa": 84.0,
+      "measured_dp2_pa": 75.33333333333333,
+      "author_simulation_pa": 78.20541,
+      "fully_developed_friction_pa": 40.23629420839242,
+      "unexplained_difference_pa": 37.96911579160758,
+      "pressure_terms_pa": {
+        "distributed_friction_pa": 40.23629420839242,
+        "minor_losses_pa": 47.47349373939592,
+        "hydrostatic_pa": 35.44874043614038,
+        "kinetic_change_pa": 0.0,
+        "static_tap_difference_pa": 123.15852838392873,
+        "sensor_difference_pa": 87.70978794778834
+      },
+      "prediction_pa": 87.70978794778834,
+      "cfd_difference_pa": 9.504377947788342,
+      "cfd_relative_difference": 0.12153095224215749
+    },
+    {
+      "column": "F",
+      "q_m3_h": 223.84929885265478,
+      "author_pipe_velocity_m_s": 10.957853877756227,
+      "author_lower_velocity_m_s": 2.9328390448120625,
+      "rho_kg_m3": 1.204716072814655,
+      "mu_pa_s": 1.830355367700592e-05,
+      "measured_dp1_pa": 109.33333333333333,
+      "measured_dp2_pa": 103.33333333333333,
+      "author_simulation_pa": 99.66984,
+      "fully_developed_friction_pa": 50.98299732046544,
+      "unexplained_difference_pa": 48.68684267953456,
+      "pressure_terms_pa": {
+        "distributed_friction_pa": 50.982997320465444,
+        "minor_losses_pa": 61.93729810968131,
+        "hydrostatic_pa": 35.442686626403514,
+        "kinetic_change_pa": 0.0,
+        "static_tap_difference_pa": 148.36298205655027,
+        "sensor_difference_pa": 112.92029543014675
+      },
+      "prediction_pa": 112.92029543014675,
+      "cfd_difference_pa": 13.250455430146758,
+      "cfd_relative_difference": 0.13294348049667537
+    },
+    {
+      "column": "G",
+      "q_m3_h": 253.7582968328718,
+      "author_pipe_velocity_m_s": 12.421956875519257,
+      "author_lower_velocity_m_s": 3.3247021309025167,
+      "rho_kg_m3": 1.206873997215415,
+      "mu_pa_s": 1.8303392182006533e-05,
+      "measured_dp1_pa": 137.25,
+      "measured_dp2_pa": 131.5,
+      "author_simulation_pa": 125.6516,
+      "fully_developed_friction_pa": 63.844846984984905,
+      "unexplained_difference_pa": 61.8067530150151,
+      "pressure_terms_pa": {
+        "distributed_friction_pa": 63.8448469849849,
+        "minor_losses_pa": 79.73674566753233,
+        "hydrostatic_pa": 35.50617265437765,
+        "kinetic_change_pa": 0.0,
+        "static_tap_difference_pa": 179.08776530689488,
+        "sensor_difference_pa": 143.58159265251723
+      },
+      "prediction_pa": 143.58159265251723,
+      "cfd_difference_pa": 17.929992652517228,
+      "cfd_relative_difference": 0.1426960950160383
+    },
+    {
+      "column": "H",
+      "q_m3_h": 282.7633006968159,
+      "author_pipe_velocity_m_s": 13.841807621954084,
+      "author_lower_velocity_m_s": 3.7047212252803554,
+      "rho_kg_m3": 1.2061956463195262,
+      "mu_pa_s": 1.8306100248038393e-05,
+      "measured_dp1_pa": 167.33333333333334,
+      "measured_dp2_pa": 159.66666666666666,
+      "author_simulation_pa": 153.3424,
+      "fully_developed_friction_pa": 77.4201433845219,
+      "unexplained_difference_pa": 75.9222566154781,
+      "pressure_terms_pa": {
+        "distributed_friction_pa": 77.4201433845219,
+        "minor_losses_pa": 98.95093824128148,
+        "hydrostatic_pa": 35.486215604938145,
+        "kinetic_change_pa": 0.0,
+        "static_tap_difference_pa": 211.8572972307415,
+        "sensor_difference_pa": 176.37108162580336
+      },
+      "prediction_pa": 176.37108162580336,
+      "cfd_difference_pa": 23.028681625803358,
+      "cfd_relative_difference": 0.15017817398060385
+    },
+    {
+      "column": "I",
+      "q_m3_h": 313.3590035104285,
+      "author_pipe_velocity_m_s": 15.339526142571401,
+      "author_lower_velocity_m_s": 4.105581412357797,
+      "rho_kg_m3": 1.2063142931689823,
+      "mu_pa_s": 1.830542174516391e-05,
+      "measured_dp1_pa": 200.66666666666666,
+      "measured_dp2_pa": 194.66666666666666,
+      "author_simulation_pa": 185.5056,
+      "fully_developed_friction_pa": 93.03168321100435,
+      "unexplained_difference_pa": 92.47391678899564,
+      "pressure_terms_pa": {
+        "distributed_friction_pa": 93.03168321100436,
+        "minor_losses_pa": 121.53487074034457,
+        "hydrostatic_pa": 35.4897061893168,
+        "kinetic_change_pa": 0.0,
+        "static_tap_difference_pa": 250.05626014066573,
+        "sensor_difference_pa": 214.56655395134894
+      },
+      "prediction_pa": 214.56655395134894,
+      "cfd_difference_pa": 29.06095395134895,
+      "cfd_relative_difference": 0.15665809523458574
+    },
+    {
+      "column": "J",
+      "q_m3_h": 341.52292725767484,
+      "author_pipe_velocity_m_s": 16.718204399007377,
+      "author_lower_velocity_m_s": 4.4745808045578315,
+      "rho_kg_m3": 1.205661077811482,
+      "mu_pa_s": 1.8307916062625142e-05,
+      "measured_dp1_pa": null,
+      "measured_dp2_pa": 231.66666666666666,
+      "author_simulation_pa": 217.6062,
+      "fully_developed_friction_pa": 108.475714089971,
+      "unexplained_difference_pa": 109.130485910029,
+      "pressure_terms_pa": {
+        "distributed_friction_pa": 108.47571408997099,
+        "minor_losses_pa": 144.28495361242688,
+        "hydrostatic_pa": 35.470488626159906,
+        "kinetic_change_pa": 0.0,
+        "static_tap_difference_pa": 288.2311563285578,
+        "sensor_difference_pa": 252.76066770239788
+      },
+      "prediction_pa": 252.76066770239788,
+      "cfd_difference_pa": 35.15446770239788,
+      "cfd_relative_difference": 0.16155085517966805
+    },
+    {
+      "column": "K",
+      "q_m3_h": 370.63740290153044,
+      "author_pipe_velocity_m_s": 18.14341399969887,
+      "author_lower_velocity_m_s": 4.856034181339391,
+      "rho_kg_m3": 1.2078919557213548,
+      "mu_pa_s": 1.830854212180993e-05,
+      "measured_dp1_pa": null,
+      "measured_dp2_pa": 267.5,
+      "author_simulation_pa": 253.872,
+      "fully_developed_friction_pa": 125.77596925206646,
+      "unexplained_difference_pa": 128.09603074793355,
+      "pressure_terms_pa": {
+        "distributed_friction_pa": 125.77596925206645,
+        "minor_losses_pa": 170.2482482238538,
+        "hydrostatic_pa": 35.536120942724466,
+        "kinetic_change_pa": 0.0,
+        "static_tap_difference_pa": 331.56033841864473,
+        "sensor_difference_pa": 296.0242174759203
+      },
+      "prediction_pa": 296.0242174759203,
+      "cfd_difference_pa": 42.15221747592028,
+      "cfd_relative_difference": 0.16603728444223975
+    },
+    {
+      "column": "L",
+      "q_m3_h": 395.9872392875971,
+      "author_pipe_velocity_m_s": 19.384337265339255,
+      "author_lower_velocity_m_s": 5.188163834251959,
+      "rho_kg_m3": 1.206613788263869,
+      "mu_pa_s": 1.831303518704308e-05,
+      "measured_dp1_pa": null,
+      "measured_dp2_pa": 301.6666666666667,
+      "author_simulation_pa": 287.0579,
+      "fully_developed_friction_pa": 141.4982640256253,
+      "unexplained_difference_pa": 145.55963597437471,
+      "pressure_terms_pa": {
+        "distributed_friction_pa": 141.49826402562528,
+        "minor_losses_pa": 194.12735647976007,
+        "hydrostatic_pa": 35.49851732003361,
+        "kinetic_change_pa": 0.0,
+        "static_tap_difference_pa": 371.1241378254189,
+        "sensor_difference_pa": 335.6256205053853
+      },
+      "prediction_pa": 335.6256205053853,
+      "cfd_difference_pa": 48.567720505385296,
+      "cfd_relative_difference": 0.1691913739541231
+    },
+    {
+      "column": "M",
+      "q_m3_h": 422.99636361423813,
+      "author_pipe_velocity_m_s": 20.706485868236133,
+      "author_lower_velocity_m_s": 5.54203322226151,
+      "rho_kg_m3": 1.2068692296067531,
+      "mu_pa_s": 1.8314550942453203e-05,
+      "measured_dp1_pa": null,
+      "measured_dp2_pa": 351.3333333333333,
+      "author_simulation_pa": 324.882,
+      "fully_developed_friction_pa": 159.30376241265975,
+      "unexplained_difference_pa": 165.57823758734025,
+      "pressure_terms_pa": {
+        "distributed_friction_pa": 159.30376241265975,
+        "minor_losses_pa": 221.55908209680302,
+        "hydrostatic_pa": 35.50603239156919,
+        "kinetic_change_pa": 0.0,
+        "static_tap_difference_pa": 416.36887690103197,
+        "sensor_difference_pa": 380.8628445094628
+      },
+      "prediction_pa": 380.8628445094628,
+      "cfd_difference_pa": 55.98084450946277,
+      "cfd_relative_difference": 0.17231131459872429
+    },
+    {
+      "column": "N",
+      "q_m3_h": 454.71942886616563,
+      "author_pipe_velocity_m_s": 22.2593909493191,
+      "author_lower_velocity_m_s": 5.957663938412267,
+      "rho_kg_m3": 1.2080179930897905,
+      "mu_pa_s": 1.8316871489708173e-05,
+      "measured_dp1_pa": null,
+      "measured_dp2_pa": 396.6666666666667,
+      "author_simulation_pa": 372.4266,
+      "fully_developed_friction_pa": 181.52507728478963,
+      "unexplained_difference_pa": 190.90152271521038,
+      "pressure_terms_pa": {
+        "distributed_friction_pa": 181.52507728478966,
+        "minor_losses_pa": 256.2810527963641,
+        "hydrostatic_pa": 35.53982895580198,
+        "kinetic_change_pa": 0.0,
+        "static_tap_difference_pa": 473.3459590369558,
+        "sensor_difference_pa": 437.8061300811538
+      },
+      "prediction_pa": 437.8061300811538,
+      "cfd_difference_pa": 65.3795300811538,
+      "cfd_relative_difference": 0.17555010861510367
+    },
+    {
+      "column": "O",
+      "q_m3_h": 464.67885307350974,
+      "author_pipe_velocity_m_s": 22.74692392677328,
+      "author_lower_velocity_m_s": 6.088150780805156,
+      "rho_kg_m3": 1.2094127791013443,
+      "mu_pa_s": 1.8316950604983475e-05,
+      "measured_dp1_pa": null,
+      "measured_dp2_pa": 412.5,
+      "author_simulation_pa": 388.2826,
+      "fully_developed_friction_pa": 188.90038274782742,
+      "unexplained_difference_pa": 199.38221725217258,
+      "pressure_terms_pa": {
+        "distributed_friction_pa": 188.90038274782742,
+        "minor_losses_pa": 267.9393167331617,
+        "hydrostatic_pa": 35.58086349052259,
+        "kinetic_change_pa": 0.0,
+        "static_tap_difference_pa": 492.4205629715117,
+        "sensor_difference_pa": 456.8396994809891
+      },
+      "prediction_pa": 456.8396994809891,
+      "cfd_difference_pa": 68.55709948098911,
+      "cfd_relative_difference": 0.17656495418797835
+    }
+  ],
+  "wet": [
+    {
+      "window": [
+        "mess1",
+        483,
+        542
+      ],
+      "measured_increment_pa": 19.7632180345297,
+      "predicted_increment_pa": 53.58821834005158,
+      "required_change_in_local_losses_pa": -33.82500030552188,
+      "positive_additional_loss_can_match": false,
+      "wet_pressure_terms_pa": {
+        "distributed_friction_pa": 89.09699898955381,
+        "minor_losses_pa": 41.29329526978149,
+        "hydrostatic_pa": 34.98905464542353,
+        "kinetic_change_pa": 0.0,
+        "static_tap_difference_pa": 165.3793489047588,
+        "sensor_difference_pa": 130.3902942593353
+      }
+    },
+    {
+      "window": [
+        "mess1",
+        963,
+        1022
+      ],
+      "measured_increment_pa": 31.929856879933084,
+      "predicted_increment_pa": 58.302532177688306,
+      "required_change_in_local_losses_pa": -26.372675297755222,
+      "positive_additional_loss_can_match": false,
+      "wet_pressure_terms_pa": {
+        "distributed_friction_pa": 93.0258308550484,
+        "minor_losses_pa": 40.271687412628445,
+        "hydrostatic_pa": 35.02419262885042,
+        "kinetic_change_pa": 0.0,
+        "static_tap_difference_pa": 168.32171089652726,
+        "sensor_difference_pa": 133.29751826767685
+      }
+    },
+    {
+      "window": [
+        "mess1",
+        1323,
+        1382
+      ],
+      "measured_increment_pa": 34.84973301298936,
+      "predicted_increment_pa": 69.26441589960552,
+      "required_change_in_local_losses_pa": -34.41468288661616,
+      "positive_additional_loss_can_match": false,
+      "wet_pressure_terms_pa": {
+        "distributed_friction_pa": 107.30948049736674,
+        "minor_losses_pa": 44.63081564295061,
+        "hydrostatic_pa": 35.01592233029775,
+        "kinetic_change_pa": 0.0,
+        "static_tap_difference_pa": 186.95621847061508,
+        "sensor_difference_pa": 151.94029614031734
+      }
+    },
+    {
+      "window": [
+        "mess2",
+        663,
+        722
+      ],
+      "measured_increment_pa": 25.925727996873334,
+      "predicted_increment_pa": 60.91204802391162,
+      "required_change_in_local_losses_pa": -34.98632002703829,
+      "positive_additional_loss_can_match": false,
+      "wet_pressure_terms_pa": {
+        "distributed_friction_pa": 95.13412052578795,
+        "minor_losses_pa": 39.61809889326204,
+        "hydrostatic_pa": 35.02557438220519,
+        "kinetic_change_pa": 0.0,
+        "static_tap_difference_pa": 169.7777938012552,
+        "sensor_difference_pa": 134.75221941905
+      }
+    },
+    {
+      "window": [
+        "mess2",
+        723,
+        782
+      ],
+      "measured_increment_pa": 28.42337634451573,
+      "predicted_increment_pa": 68.85273862401408,
+      "required_change_in_local_losses_pa": -40.42936227949835,
+      "positive_additional_loss_can_match": false,
+      "wet_pressure_terms_pa": {
+        "distributed_friction_pa": 106.54152579052813,
+        "minor_losses_pa": 44.15937073365248,
+        "hydrostatic_pa": 35.006114557061665,
+        "kinetic_change_pa": 0.0,
+        "static_tap_difference_pa": 185.70701108124229,
+        "sensor_difference_pa": 150.70089652418062
+      }
+    },
+    {
+      "window": [
+        "mess2",
+        1263,
+        1322
+      ],
+      "measured_increment_pa": 17.449439589733643,
+      "predicted_increment_pa": 61.92482544698629,
+      "required_change_in_local_losses_pa": -44.47538585725265,
+      "positive_additional_loss_can_match": false,
+      "wet_pressure_terms_pa": {
+        "distributed_friction_pa": 98.47356881313205,
+        "minor_losses_pa": 42.66019963942187,
+        "hydrostatic_pa": 35.01169874064317,
+        "kinetic_change_pa": 0.0,
+        "static_tap_difference_pa": 176.14546719319708,
+        "sensor_difference_pa": 141.1337684525539
+      }
+    },
+    {
+      "window": [
+        "mess2",
+        1443,
+        1502
+      ],
+      "measured_increment_pa": 10.999661107512097,
+      "predicted_increment_pa": 44.68688681048176,
+      "required_change_in_local_losses_pa": -33.68722570296966,
+      "positive_additional_loss_can_match": false,
+      "wet_pressure_terms_pa": {
+        "distributed_friction_pa": 74.2448026495011,
+        "minor_losses_pa": 33.581411480200565,
+        "hydrostatic_pa": 34.94712647357273,
+        "kinetic_change_pa": 0.0,
+        "static_tap_difference_pa": 142.7733406032744,
+        "sensor_difference_pa": 107.82621412970167
+      }
+    },
+    {
+      "window": [
+        "mess2",
+        1503,
+        1562
+      ],
+      "measured_increment_pa": 17.26986447243182,
+      "predicted_increment_pa": 53.40106938708499,
+      "required_change_in_local_losses_pa": -36.13120491465317,
+      "positive_additional_loss_can_match": false,
+      "wet_pressure_terms_pa": {
+        "distributed_friction_pa": 87.43242587392629,
+        "minor_losses_pa": 39.36423621632677,
+        "hydrostatic_pa": 34.987440841093786,
+        "kinetic_change_pa": 0.0,
+        "static_tap_difference_pa": 161.78410293134687,
+        "sensor_difference_pa": 126.79666209025308
+      }
+    },
+    {
+      "window": [
+        "mess2",
+        1563,
+        1622
+      ],
+      "measured_increment_pa": 25.889562679503342,
+      "predicted_increment_pa": 54.538326554012485,
+      "required_change_in_local_losses_pa": -28.648763874509143,
+      "positive_additional_loss_can_match": false,
+      "wet_pressure_terms_pa": {
+        "distributed_friction_pa": 89.15882200024154,
+        "minor_losses_pa": 40.124105237902704,
+        "hydrostatic_pa": 34.93127482888526,
+        "kinetic_change_pa": 0.0,
+        "static_tap_difference_pa": 164.2142020670295,
+        "sensor_difference_pa": 129.28292723814425
+      }
+    },
+    {
+      "window": [
+        "mess2",
+        1623,
+        1682
+      ],
+      "measured_increment_pa": 15.058342610400985,
+      "predicted_increment_pa": 59.69080332615583,
+      "required_change_in_local_losses_pa": -44.632460715754846,
+      "positive_additional_loss_can_match": false,
+      "wet_pressure_terms_pa": {
+        "distributed_friction_pa": 96.81543135441176,
+        "minor_losses_pa": 43.41005828766236,
+        "hydrostatic_pa": 34.965313510096166,
+        "kinetic_change_pa": 0.0,
+        "static_tap_difference_pa": 175.19080315217028,
+        "sensor_difference_pa": 140.2254896420741
+      }
+    },
+    {
+      "window": [
+        "mess2",
+        1923,
+        1982
+      ],
+      "measured_increment_pa": 19.93944560735482,
+      "predicted_increment_pa": 48.32482546492892,
+      "required_change_in_local_losses_pa": -28.3853798575741,
+      "positive_additional_loss_can_match": false,
+      "wet_pressure_terms_pa": {
+        "distributed_friction_pa": 80.99330556834936,
+        "minor_losses_pa": 37.58586723956884,
+        "hydrostatic_pa": 34.92931151332789,
+        "kinetic_change_pa": 0.0,
+        "static_tap_difference_pa": 153.5084843212461,
+        "sensor_difference_pa": 118.57917280791821
+      }
+    },
+    {
+      "window": [
+        "mess3",
+        63,
+        122
+      ],
+      "measured_increment_pa": 14.234074914413021,
+      "predicted_increment_pa": 40.22380669070458,
+      "required_change_in_local_losses_pa": -25.989731776291556,
+      "positive_additional_loss_can_match": false,
+      "wet_pressure_terms_pa": {
+        "distributed_friction_pa": 70.34463871013199,
+        "minor_losses_pa": 34.29861247438315,
+        "hydrostatic_pa": 34.912293914275125,
+        "kinetic_change_pa": 0.0,
+        "static_tap_difference_pa": 139.55554509879028,
+        "sensor_difference_pa": 104.64325118451515
+      }
+    },
+    {
+      "window": [
+        "mess3",
+        483,
+        542
+      ],
+      "measured_increment_pa": 19.648267540018864,
+      "predicted_increment_pa": 49.56616786340142,
+      "required_change_in_local_losses_pa": -29.917900323382554,
+      "positive_additional_loss_can_match": false,
+      "wet_pressure_terms_pa": {
+        "distributed_friction_pa": 81.5541170306413,
+        "minor_losses_pa": 36.70457378055261,
+        "hydrostatic_pa": 34.92428744264929,
+        "kinetic_change_pa": 0.0,
+        "static_tap_difference_pa": 153.1829782538432,
+        "sensor_difference_pa": 118.25869081119392
+      }
+    },
+    {
+      "window": [
+        "mess3",
+        723,
+        782
+      ],
+      "measured_increment_pa": 18.820480668120112,
+      "predicted_increment_pa": 52.85359618838312,
+      "required_change_in_local_losses_pa": -34.03311552026301,
+      "positive_additional_loss_can_match": false,
+      "wet_pressure_terms_pa": {
+        "distributed_friction_pa": 85.09205891288372,
+        "minor_losses_pa": 37.02795547262241,
+        "hydrostatic_pa": 34.920347456825255,
+        "kinetic_change_pa": 0.0,
+        "static_tap_difference_pa": 157.04036184233138,
+        "sensor_difference_pa": 122.12001438550612
+      }
+    },
+    {
+      "window": [
+        "mess3",
+        783,
+        842
+      ],
+      "measured_increment_pa": 21.173746232783756,
+      "predicted_increment_pa": 62.89952669331157,
+      "required_change_in_local_losses_pa": -41.725780460527815,
+      "positive_additional_loss_can_match": false,
+      "wet_pressure_terms_pa": {
+        "distributed_friction_pa": 99.8528386694222,
+        "minor_losses_pa": 43.17776814867438,
+        "hydrostatic_pa": 34.920269860102216,
+        "kinetic_change_pa": 0.0,
+        "static_tap_difference_pa": 177.9508766781988,
+        "sensor_difference_pa": 143.03060681809657
+      }
+    },
+    {
+      "window": [
+        "mess3",
+        1083,
+        1142
+      ],
+      "measured_increment_pa": 27.72325201721182,
+      "predicted_increment_pa": 69.34970223414265,
+      "required_change_in_local_losses_pa": -41.626450216930834,
+      "positive_additional_loss_can_match": false,
+      "wet_pressure_terms_pa": {
+        "distributed_friction_pa": 107.19612756426183,
+        "minor_losses_pa": 44.35120074317144,
+        "hydrostatic_pa": 34.90516407178716,
+        "kinetic_change_pa": 0.0,
+        "static_tap_difference_pa": 186.45249237922044,
+        "sensor_difference_pa": 151.54732830743328
+      }
+    }
+  ],
+  "summary": {
+    "dry_points": 13,
+    "wet_points": 16,
+    "dry_max_cfd_relative_difference": 0.17656495418797835,
+    "wet_increment_mae_pa": 34.9550900010337,
+    "required_local_loss_change_range_pa": [
+      -44.632460715754846,
+      -25.989731776291556
+    ],
+    "positive_additional_loss_can_match_count": 0
+  },
+  "assumptions": [
+    "Outlet chamber area equals lower inlet chamber area declared in the author workbook.",
+    "Constant gas density, unit kinetic-energy correction, gas-filled impulse lines cancel gas hydrostatics.",
+    "Dry contraction/expansion coefficients are unchanged by liquid application; this is not measured."
+  ],
+  "missing_identification": [
+    "Upper tap geometry and detailed distributor flow path",
+    "Impulse-line fill and elevations",
+    "Wet modification of local losses",
+    "Film coverage, thickness and entrainment"
+  ],
+  "fit_performed": false,
+  "fully_identified_rig": false,
+  "experimentally_qualified": false,
+  "interpretation": "Positive extra injection loss cannot fix an overprediction. Negative required changes do not prove actual losses decrease or identify wetting.",
+  "source_sha256": {
+    "scripts/check_hannover_tap_span.py": "35019167a5e6fbdb8684a7d86bcb20685069bb3dbff74689a44888ed10aba8a6",
+    "src/surface/pressure_observation.py": "ba43e13d42b235025541c5a408508ad08b0d8302f2b9c62553806a86d10ec3e2",
+    "src/surface/annular_film.py": "3c98221eb4021d3aec5bfdbadee17c2e00814b1f6f0102a9ce4c89bf4dae3d19"
+  }
+}

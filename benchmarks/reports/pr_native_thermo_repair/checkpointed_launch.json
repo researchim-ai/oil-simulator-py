@@ -1,0 +1,8 @@
+{
+  "pid": 547519,
+  "wall_budget_s": 3600,
+  "device": "cpu",
+  "output": "benchmarks/reports/pr_native_thermo_repair/checkpointed_cycle.json",
+  "log": "benchmarks/reports/pr_native_thermo_repair/checkpointed_cycle.log",
+  "qualification": "pending"
+}

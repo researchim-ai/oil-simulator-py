@@ -86,7 +86,11 @@ def column_stock(column, state):
 
 
 def friction_audit(pipe, before, after, report):
-    if pipe.friction.to_dict()["model"] == "laminar_annular_wallis_interface_v1":
+    if pipe.friction.to_dict()["model"] in (
+        "laminar_annular_wallis_interface_v1",
+        "laminar_annular_colebrook_interface_v2",
+        "laminar_annular_colebrook_implicit_v3",
+    ):
         from reference_pr_annular_source import audit
 
         return audit(pipe, before, after, report, close)

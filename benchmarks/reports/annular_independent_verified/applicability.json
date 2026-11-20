@@ -1,0 +1,340 @@
+{
+  "summary": {
+    "windows": 16,
+    "interface_mae_pa": 58.837963642230775,
+    "superficial_velocity_mae_pa": 34.95509000103406,
+    "superficial_within_4pa": 0,
+    "valid_wetting_profiles": 16,
+    "critical_advancing_angle_range_deg": [
+      71.10209422599293,
+      180.0
+    ],
+    "dry_series_common_windows": 9,
+    "dry_series_max_spread_pa": 16.38839264919639,
+    "dry_series_mae_pa": {
+      "mess1": 48.594839387027235,
+      "mess2": 64.0786515419866
+    }
+  },
+  "cases": [
+    {
+      "window": [
+        "mess1",
+        483,
+        542
+      ],
+      "gas_reynolds": 50294.09408036697,
+      "liquid_film_reynolds_gamma_mu": 230.03841002665305,
+      "dry_measured_pa": 64.60818444880364,
+      "dry_friction_prediction_pa": 35.508780649502214,
+      "wet_increment_measured_pa": 19.7632180345297,
+      "interface_prediction_pa": 72.89774789305832,
+      "superficial_velocity_prediction_pa": 53.58821834005444,
+      "interface_error_pa": 53.13452985852862,
+      "superficial_velocity_error_pa": 33.82500030552474,
+      "wetting_profile_valid": true,
+      "critical_advancing_angle_deg": 86.4359883802111,
+      "curvature_ratio": 0.010794788121575036
+    },
+    {
+      "window": [
+        "mess1",
+        963,
+        1022
+      ],
+      "gas_reynolds": 49692.98610333444,
+      "liquid_film_reynolds_gamma_mu": 322.0302287480933,
+      "dry_measured_pa": 60.353403920066924,
+      "dry_friction_prediction_pa": 34.723298677360084,
+      "wet_increment_measured_pa": 31.929856879933084,
+      "interface_prediction_pa": 83.61536866143268,
+      "superficial_velocity_prediction_pa": 58.30253217768816,
+      "interface_error_pa": 51.6855117814996,
+      "superficial_velocity_error_pa": 26.372675297755073,
+      "wetting_profile_valid": true,
+      "critical_advancing_angle_deg": 130.44810172335175,
+      "curvature_ratio": 0.012050216677477063
+    },
+    {
+      "window": [
+        "mess1",
+        1323,
+        1382
+      ],
+      "gas_reynolds": 52307.18059130147,
+      "liquid_film_reynolds_gamma_mu": 377.9246275286478,
+      "dry_measured_pa": 75.1185366536773,
+      "dry_friction_prediction_pa": 38.04506459776122,
+      "wet_increment_measured_pa": 34.84973301298936,
+      "interface_prediction_pa": 99.9019241133565,
+      "superficial_velocity_prediction_pa": 69.2644158996059,
+      "interface_error_pa": 65.05219110036714,
+      "superficial_velocity_error_pa": 34.41468288661653,
+      "wetting_profile_valid": true,
+      "critical_advancing_angle_deg": 180.0,
+      "curvature_ratio": 0.01284924619896406
+    },
+    {
+      "window": [
+        "mess2",
+        663,
+        722
+      ],
+      "gas_reynolds": 49289.06316021144,
+      "liquid_film_reynolds_gamma_mu": 387.5056292787477,
+      "dry_measured_pa": 63.85667761979333,
+      "dry_friction_prediction_pa": 34.22207250187633,
+      "wet_increment_measured_pa": 25.925727996873334,
+      "interface_prediction_pa": 90.33292047398857,
+      "superficial_velocity_prediction_pa": 60.91204802391123,
+      "interface_error_pa": 64.40719247711523,
+      "superficial_velocity_error_pa": 34.9863200270379,
+      "wetting_profile_valid": true,
+      "critical_advancing_angle_deg": 180.0,
+      "curvature_ratio": 0.012806558741887917
+    },
+    {
+      "window": [
+        "mess2",
+        723,
+        782
+      ],
+      "gas_reynolds": 52022.89394752876,
+      "liquid_film_reynolds_gamma_mu": 385.11472350768616,
+      "dry_measured_pa": 75.94803410548427,
+      "dry_friction_prediction_pa": 37.68878716651407,
+      "wet_increment_measured_pa": 28.42337634451573,
+      "interface_prediction_pa": 99.81281901312387,
+      "superficial_velocity_prediction_pa": 68.85273862401436,
+      "interface_error_pa": 71.38944266860814,
+      "superficial_velocity_error_pa": 40.42936227949863,
+      "wetting_profile_valid": true,
+      "critical_advancing_angle_deg": 180.0,
+      "curvature_ratio": 0.012916777890203894
+    },
+    {
+      "window": [
+        "mess2",
+        1263,
+        1322
+      ],
+      "gas_reynolds": 51136.281956684936,
+      "liquid_film_reynolds_gamma_mu": 316.1453390927009,
+      "dry_measured_pa": 76.02924362693302,
+      "dry_friction_prediction_pa": 36.54874336614575,
+      "wet_increment_measured_pa": 17.449439589733643,
+      "interface_prediction_pa": 87.61323914704619,
+      "superficial_velocity_prediction_pa": 61.924825446986425,
+      "interface_error_pa": 70.16379955731254,
+      "superficial_velocity_error_pa": 44.47538585725278,
+      "wetting_profile_valid": true,
+      "critical_advancing_angle_deg": 125.9828157816672,
+      "curvature_ratio": 0.01204371228999422
+    },
+    {
+      "window": [
+        "mess2",
+        1443,
+        1502
+      ],
+      "gas_reynolds": 45327.975632314985,
+      "liquid_film_reynolds_gamma_mu": 272.290867557724,
+      "dry_measured_pa": 59.32766327582122,
+      "dry_friction_prediction_pa": 29.557915839019337,
+      "wet_increment_measured_pa": 10.999661107512097,
+      "interface_prediction_pa": 64.59572664565545,
+      "superficial_velocity_prediction_pa": 44.686886810482086,
+      "interface_error_pa": 53.59606553814335,
+      "superficial_velocity_error_pa": 33.68722570296999,
+      "wetting_profile_valid": true,
+      "critical_advancing_angle_deg": 105.75297232632708,
+      "curvature_ratio": 0.011212796461850352
+    },
+    {
+      "window": [
+        "mess2",
+        1503,
+        1562
+      ],
+      "gas_reynolds": 49104.14097426001,
+      "liquid_film_reynolds_gamma_mu": 268.4712361282933,
+      "dry_measured_pa": 64.99084356090151,
+      "dry_friction_prediction_pa": 34.031356486841325,
+      "wet_increment_measured_pa": 17.26986447243182,
+      "interface_prediction_pa": 74.82069040216305,
+      "superficial_velocity_prediction_pa": 53.40106938708545,
+      "interface_error_pa": 57.55082592973123,
+      "superficial_velocity_error_pa": 36.13120491465363,
+      "wetting_profile_valid": true,
+      "critical_advancing_angle_deg": 102.75623172765951,
+      "curvature_ratio": 0.011312949138251939
+    },
+    {
+      "window": [
+        "mess2",
+        1563,
+        1622
+      ],
+      "gas_reynolds": 49536.008929311174,
+      "liquid_film_reynolds_gamma_mu": 267.7264450615837,
+      "dry_measured_pa": 60.57101040383,
+      "dry_friction_prediction_pa": 34.620495446229064,
+      "wet_increment_measured_pa": 25.889562679503342,
+      "interface_prediction_pa": 76.11447571279263,
+      "superficial_velocity_prediction_pa": 54.53832655401299,
+      "interface_error_pa": 50.22491303328928,
+      "superficial_velocity_error_pa": 28.648763874509648,
+      "wetting_profile_valid": true,
+      "critical_advancing_angle_deg": 102.26417935949247,
+      "curvature_ratio": 0.011322760149738207
+    },
+    {
+      "window": [
+        "mess2",
+        1623,
+        1682
+      ],
+      "gas_reynolds": 51549.5659098891,
+      "liquid_film_reynolds_gamma_mu": 266.7786537367486,
+      "dry_measured_pa": 77.21911015626567,
+      "dry_friction_prediction_pa": 37.12462802825593,
+      "wet_increment_measured_pa": 15.058342610400985,
+      "interface_prediction_pa": 82.14578348597884,
+      "superficial_velocity_prediction_pa": 59.690803326155645,
+      "interface_error_pa": 67.08744087557785,
+      "superficial_velocity_error_pa": 44.63246071575466,
+      "wetting_profile_valid": true,
+      "critical_advancing_angle_deg": 101.14990436877197,
+      "curvature_ratio": 0.01139891812572508
+    },
+    {
+      "window": [
+        "mess2",
+        1923,
+        1982
+      ],
+      "gas_reynolds": 47942.2503176574,
+      "liquid_film_reynolds_gamma_mu": 234.20169055828637,
+      "dry_measured_pa": 63.807084759311856,
+      "dry_friction_prediction_pa": 32.66848010342046,
+      "wet_increment_measured_pa": 19.93944560735482,
+      "interface_prediction_pa": 66.93558080096821,
+      "superficial_velocity_prediction_pa": 48.32482546492883,
+      "interface_error_pa": 46.99613519361339,
+      "superficial_velocity_error_pa": 28.38537985757401,
+      "wetting_profile_valid": true,
+      "critical_advancing_angle_deg": 88.69644563479466,
+      "curvature_ratio": 0.0107629785174832
+    },
+    {
+      "window": [
+        "mess3",
+        63,
+        122
+      ],
+      "gas_reynolds": 45786.61980385247,
+      "liquid_film_reynolds_gamma_mu": 186.72940435863075,
+      "dry_measured_pa": 54.37339910225365,
+      "dry_friction_prediction_pa": 30.120832019427425,
+      "wet_increment_measured_pa": 14.234074914413021,
+      "interface_prediction_pa": 54.87588181409329,
+      "superficial_velocity_prediction_pa": 40.223806690704606,
+      "interface_error_pa": 40.64180689968027,
+      "superficial_velocity_error_pa": 25.989731776291585,
+      "wetting_profile_valid": true,
+      "critical_advancing_angle_deg": 71.10209422599293,
+      "curvature_ratio": 0.009903588743613032
+    },
+    {
+      "window": [
+        "mess3",
+        483,
+        542
+      ],
+      "gas_reynolds": 47373.44680970809,
+      "liquid_film_reynolds_gamma_mu": 273.51927139033916,
+      "dry_measured_pa": 57.66881025998114,
+      "dry_friction_prediction_pa": 31.987949167239886,
+      "wet_increment_measured_pa": 19.648267540018864,
+      "interface_prediction_pa": 70.51176116417486,
+      "superficial_velocity_prediction_pa": 49.56616786340189,
+      "interface_error_pa": 50.86349362415599,
+      "superficial_velocity_error_pa": 29.917900323383023,
+      "wetting_profile_valid": true,
+      "critical_advancing_angle_deg": 105.62535497067239,
+      "curvature_ratio": 0.011312130354284126
+    },
+    {
+      "window": [
+        "mess3",
+        723,
+        782
+      ],
+      "gas_reynolds": 47578.994448106176,
+      "liquid_film_reynolds_gamma_mu": 320.6640413711473,
+      "dry_measured_pa": 59.97285321521322,
+      "dry_friction_prediction_pa": 32.23846272450059,
+      "wet_increment_measured_pa": 18.820480668120112,
+      "interface_prediction_pa": 76.95279637092958,
+      "superficial_velocity_prediction_pa": 52.853596188383165,
+      "interface_error_pa": 58.132315702809464,
+      "superficial_velocity_error_pa": 34.03311552026305,
+      "wetting_profile_valid": true,
+      "critical_advancing_angle_deg": 130.76157582859088,
+      "curvature_ratio": 0.011941441808660243
+    },
+    {
+      "window": [
+        "mess3",
+        783,
+        842
+      ],
+      "gas_reynolds": 51378.332538391136,
+      "liquid_film_reynolds_gamma_mu": 317.8785339936958,
+      "dry_measured_pa": 77.54238353388291,
+      "dry_friction_prediction_pa": 36.953311976110605,
+      "wet_increment_measured_pa": 21.173746232783756,
+      "interface_prediction_pa": 88.84643230310735,
+      "superficial_velocity_prediction_pa": 62.899526693311905,
+      "interface_error_pa": 67.67268607032359,
+      "superficial_velocity_error_pa": 41.72578046052815,
+      "wetting_profile_valid": true,
+      "critical_advancing_angle_deg": 126.84450887982551,
+      "curvature_ratio": 0.012080407984144415
+    },
+    {
+      "window": [
+        "mess3",
+        1083,
+        1142
+      ],
+      "gas_reynolds": 52060.5375023617,
+      "liquid_film_reynolds_gamma_mu": 387.8479703093269,
+      "dry_measured_pa": 75.36903254945484,
+      "dry_friction_prediction_pa": 37.84642533011919,
+      "wet_increment_measured_pa": 27.72325201721182,
+      "interface_prediction_pa": 100.53231998214855,
+      "superficial_velocity_prediction_pa": 69.34970223414331,
+      "interface_error_pa": 72.80906796493673,
+      "superficial_velocity_error_pa": 41.62645021693149,
+      "wetting_profile_valid": true,
+      "critical_advancing_angle_deg": 180.0,
+      "curvature_ratio": 0.012953142948392414
+    }
+  ],
+  "source_sha256": {
+    "dry_pipe.xlsx": "ae94e1b43830a9c027b271265dd32e863b631433eeb43916c883105773245591",
+    "countercurrent.xlsx": "15f8247c5976fbdb289389bea0ef8721fc1e51c88436489ef8be91fac6f2a643"
+  },
+  "script_sha256": "d399b988dfc7382f38f4c2052dbfcd40096d4ef731bf7ad27ca1c42bee92a25e",
+  "surface_tension_assumption_n_m": 0.0728,
+  "fit_performed": false,
+  "material_contact_angles_measured": false,
+  "experimental_qualification": false,
+  "notes": [
+    "Critical angle is conditional on the solved full-film profile and assumed surface tension; it neither measures wetted fraction nor proves dry patches.",
+    "Superficial-velocity variant is a reference-only sensitivity, not a production model or a newly validated correlation.",
+    "Dry measured-versus-friction difference is not scored as a failure: pressure-line hydrostatic correction and local losses must be identified first.",
+    "Dry-series spread is sensitivity, not an uncertainty interval; original sample selection and experimental gate are unchanged."
+  ]
+}

@@ -1,0 +1,80 @@
+{
+  "scope": "External empirical vapor-pressure correlations compiled by NIST; not raw measurements, caloric validation, pipe holdup validation or equipment calibration.",
+  "reference_sha256": "b5505ff733e46bbdfea08fad3f64f43cb1fb2eae16b44869b80ed27a26a13de2",
+  "fit_performed": false,
+  "maximum_absolute_relative_error": 0.015484010602589526,
+  "cases": [
+    {
+      "component": "Methane",
+      "temperature_k": 160.0,
+      "reference_pressure_pa": 1629555.3555764826,
+      "pr_pressure_pa": 1604323.3031732298,
+      "relative_error": -0.015484010602589526,
+      "source_url": "https://webbook.nist.gov/cgi/cbook.cgi?ID=C74828&Mask=4&Type=ANTOINE&Plot=on"
+    },
+    {
+      "component": "Methane",
+      "temperature_k": 170.0,
+      "reference_pressure_pa": 2376400.747184149,
+      "pr_pressure_pa": 2347533.0287000625,
+      "relative_error": -0.012147664285282023,
+      "source_url": "https://webbook.nist.gov/cgi/cbook.cgi?ID=C74828&Mask=4&Type=ANTOINE&Plot=on"
+    },
+    {
+      "component": "Methane",
+      "temperature_k": 180.0,
+      "reference_pressure_pa": 3322882.079250086,
+      "pr_pressure_pa": 3308724.0084825517,
+      "relative_error": -0.004260780379762852,
+      "source_url": "https://webbook.nist.gov/cgi/cbook.cgi?ID=C74828&Mask=4&Type=ANTOINE&Plot=on"
+    },
+    {
+      "component": "Methane",
+      "temperature_k": 185.0,
+      "reference_pressure_pa": 3876094.608619384,
+      "pr_pressure_pa": 3881747.3556090733,
+      "relative_error": 0.0014583614592686978,
+      "source_url": "https://webbook.nist.gov/cgi/cbook.cgi?ID=C74828&Mask=4&Type=ANTOINE&Plot=on"
+    },
+    {
+      "component": "Ethane",
+      "temperature_k": 160.0,
+      "reference_pressure_pa": 21569.42587303532,
+      "pr_pressure_pa": 21899.206941478304,
+      "relative_error": 0.015289283562028189,
+      "source_url": "https://webbook.nist.gov/cgi/cbook.cgi?ID=C74840&Mask=4&Type=ANTOINE&Plot=on"
+    },
+    {
+      "component": "Ethane",
+      "temperature_k": 170.0,
+      "reference_pressure_pa": 43075.996676071576,
+      "pr_pressure_pa": 43460.51483804546,
+      "relative_error": 0.00892650644546733,
+      "source_url": "https://webbook.nist.gov/cgi/cbook.cgi?ID=C74840&Mask=4&Type=ANTOINE&Plot=on"
+    },
+    {
+      "component": "Ethane",
+      "temperature_k": 180.0,
+      "reference_pressure_pa": 79038.19602399395,
+      "pr_pressure_pa": 79365.50394576993,
+      "relative_error": 0.00414113603600752,
+      "source_url": "https://webbook.nist.gov/cgi/cbook.cgi?ID=C74840&Mask=4&Type=ANTOINE&Plot=on"
+    },
+    {
+      "component": "Ethane",
+      "temperature_k": 190.0,
+      "reference_pressure_pa": 135211.5959402498,
+      "pr_pressure_pa": 135305.18061711296,
+      "relative_error": 0.0006921349919168929,
+      "source_url": "https://webbook.nist.gov/cgi/cbook.cgi?ID=C74840&Mask=4&Type=ANTOINE&Plot=on"
+    },
+    {
+      "component": "Ethane",
+      "temperature_k": 195.0,
+      "reference_pressure_pa": 172899.21206631538,
+      "pr_pressure_pa": 172806.5607691737,
+      "relative_error": -0.0005358688222717456,
+      "source_url": "https://webbook.nist.gov/cgi/cbook.cgi?ID=C74840&Mask=4&Type=ANTOINE&Plot=on"
+    }
+  ]
+}

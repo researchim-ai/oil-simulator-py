@@ -194,9 +194,14 @@ def stability_candidates(
                     potential = (composition * delta).sum()
                     return 2 / total * (tangent.T @ (rr * (delta - potential)))
 
-                jac = torch.vmap(torch.func.jacfwd(tangent_gradient, argnums=0))(
-                    point.new_zeros(point.shape), pressures, temperatures, chemical, root, basis
-                )
+                if getattr(fluid, "_analytic_chemical", False):
+                    jac = fluid.tensor_chemical_curvature(
+                        pressures, temperatures, chemical, active, root, basis
+                    )
+                else:
+                    jac = torch.vmap(torch.func.jacfwd(tangent_gradient, argnums=0))(
+                        point.new_zeros(point.shape), pressures, temperatures, chemical, root, basis
+                    )
             else:
                 jac = torch.vmap(torch.func.jacfwd(gradient, argnums=0))(
                     point, pressures, temperatures, chemical

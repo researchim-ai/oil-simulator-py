@@ -114,3 +114,24 @@ def test_unresolved_starts_are_recovered_but_stationary_saddle_stays_rejected(mo
     # A failed extra predictor does not turn an unresolved start into success.
     torch.testing.assert_close(failed[-1], before[-1])
     torch.testing.assert_close(failed[1], before[1], rtol=0, atol=0)
+
+
+def test_compaction_preserves_every_original_start_and_its_bfgs_history():
+    from surface.equilibrium_minimization_batch import _minimize
+
+    f = RegularSolution(3.0)
+    points = torch.tensor(
+        [[-15.0], [-1.0], [-0.01], [0.0], [0.01], [1.0], [15.0]], dtype=torch.float64
+    )
+    p = torch.full((len(points),), 1e6, dtype=torch.float64)
+    t = torch.full_like(p, 350.0)
+    z = torch.tensor([0.5, 0.5], dtype=torch.float64)
+    mu = (z.log() + f.tensor_homogeneous(p[0], t[0], z)["log_fugacity_coefficients"]).expand(
+        len(points), -1
+    )
+    args = f, p, t, mu, torch.arange(2), points
+    expected = _minimize(*args, _compact=False)
+    actual = _minimize(*args)
+    assert actual.shape == points.shape
+    torch.testing.assert_close(actual, expected, atol=1e-10, rtol=1e-10)
+    assert actual[3].item() == 0.0

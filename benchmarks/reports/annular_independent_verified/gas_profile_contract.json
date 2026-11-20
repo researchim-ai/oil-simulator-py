@@ -1,0 +1,1009 @@
+{
+  "format": "fetrig_gas_profile_observation_contract_v1",
+  "source": "https://doi.org/10.18419/DARUS-4998",
+  "profiles": [
+    {
+      "nominal_gas_reynolds": 4900,
+      "points": [
+        {
+          "source_row": 3,
+          "coordinate_m": 0.0,
+          "velocity_m_s": 1.0515028912395643,
+          "instrument_velocity_uncertainty_m_s": 0.2
+        },
+        {
+          "source_row": 4,
+          "coordinate_m": 0.0001,
+          "velocity_m_s": 1.120233664081343,
+          "instrument_velocity_uncertainty_m_s": 0.2
+        },
+        {
+          "source_row": 5,
+          "coordinate_m": 0.0002,
+          "velocity_m_s": 1.241168036360544,
+          "instrument_velocity_uncertainty_m_s": 0.2
+        },
+        {
+          "source_row": 6,
+          "coordinate_m": 0.0003,
+          "velocity_m_s": 1.2823173191487427,
+          "instrument_velocity_uncertainty_m_s": 0.2
+        },
+        {
+          "source_row": 7,
+          "coordinate_m": 0.0004,
+          "velocity_m_s": 1.4206279497917251,
+          "instrument_velocity_uncertainty_m_s": 0.2
+        },
+        {
+          "source_row": 8,
+          "coordinate_m": 0.0005,
+          "velocity_m_s": 1.448235340297916,
+          "instrument_velocity_uncertainty_m_s": 0.2
+        },
+        {
+          "source_row": 9,
+          "coordinate_m": 0.0006,
+          "velocity_m_s": 1.4818625859820886,
+          "instrument_velocity_uncertainty_m_s": 0.2
+        },
+        {
+          "source_row": 10,
+          "coordinate_m": 0.0008,
+          "velocity_m_s": 1.6453528097048102,
+          "instrument_velocity_uncertainty_m_s": 0.2
+        },
+        {
+          "source_row": 11,
+          "coordinate_m": 0.001,
+          "velocity_m_s": 1.6838445354125646,
+          "instrument_velocity_uncertainty_m_s": 0.2
+        },
+        {
+          "source_row": 12,
+          "coordinate_m": 0.002,
+          "velocity_m_s": 1.9072068368660373,
+          "instrument_velocity_uncertainty_m_s": 0.2
+        },
+        {
+          "source_row": 13,
+          "coordinate_m": 0.004,
+          "velocity_m_s": 2.0662889267620757,
+          "instrument_velocity_uncertainty_m_s": 0.2
+        },
+        {
+          "source_row": 14,
+          "coordinate_m": 0.006,
+          "velocity_m_s": 2.1720702945637553,
+          "instrument_velocity_uncertainty_m_s": 0.2
+        },
+        {
+          "source_row": 15,
+          "coordinate_m": 0.008,
+          "velocity_m_s": 2.1165200748145043,
+          "instrument_velocity_uncertainty_m_s": 0.2
+        },
+        {
+          "source_row": 16,
+          "coordinate_m": 0.01,
+          "velocity_m_s": 2.14341226477096,
+          "instrument_velocity_uncertainty_m_s": 0.2
+        },
+        {
+          "source_row": 17,
+          "coordinate_m": 0.012,
+          "velocity_m_s": 2.1597973429477584,
+          "instrument_velocity_uncertainty_m_s": 0.2
+        },
+        {
+          "source_row": 18,
+          "coordinate_m": 0.014,
+          "velocity_m_s": 2.127488960534644,
+          "instrument_velocity_uncertainty_m_s": 0.2
+        },
+        {
+          "source_row": 19,
+          "coordinate_m": 0.016,
+          "velocity_m_s": 2.143257207442444,
+          "instrument_velocity_uncertainty_m_s": 0.2
+        },
+        {
+          "source_row": 20,
+          "coordinate_m": 0.018,
+          "velocity_m_s": 2.106155265616486,
+          "instrument_velocity_uncertainty_m_s": 0.2
+        },
+        {
+          "source_row": 21,
+          "coordinate_m": 0.02,
+          "velocity_m_s": 2.088589442458318,
+          "instrument_velocity_uncertainty_m_s": 0.2
+        },
+        {
+          "source_row": 22,
+          "coordinate_m": 0.022,
+          "velocity_m_s": 1.9997510835131087,
+          "instrument_velocity_uncertainty_m_s": 0.2
+        },
+        {
+          "source_row": 23,
+          "coordinate_m": 0.024,
+          "velocity_m_s": 1.9304228647604746,
+          "instrument_velocity_uncertainty_m_s": 0.2
+        },
+        {
+          "source_row": 24,
+          "coordinate_m": 0.026,
+          "velocity_m_s": 1.7041730540612319,
+          "instrument_velocity_uncertainty_m_s": 0.2
+        },
+        {
+          "source_row": 25,
+          "coordinate_m": 0.027,
+          "velocity_m_s": 1.457426732347936,
+          "instrument_velocity_uncertainty_m_s": 0.2
+        },
+        {
+          "source_row": 26,
+          "coordinate_m": 0.028,
+          "velocity_m_s": 0.8623658967530646,
+          "instrument_velocity_uncertainty_m_s": 0.2
+        },
+        {
+          "source_row": 27,
+          "coordinate_m": 0.0285,
+          "velocity_m_s": 0.5421245918995075,
+          "instrument_velocity_uncertainty_m_s": 0.2
+        },
+        {
+          "source_row": 28,
+          "coordinate_m": 0.029,
+          "velocity_m_s": 0.21675025574855816,
+          "instrument_velocity_uncertainty_m_s": 0.2
+        },
+        {
+          "source_row": 29,
+          "coordinate_m": 0.0292,
+          "velocity_m_s": 0.1479984338779057,
+          "instrument_velocity_uncertainty_m_s": 0.2
+        },
+        {
+          "source_row": 30,
+          "coordinate_m": 0.0294,
+          "velocity_m_s": 0.10029419977736556,
+          "instrument_velocity_uncertainty_m_s": 0.2
+        },
+        {
+          "source_row": 31,
+          "coordinate_m": 0.0296,
+          "velocity_m_s": 0.07425079627573705,
+          "instrument_velocity_uncertainty_m_s": 0.2
+        },
+        {
+          "source_row": 32,
+          "coordinate_m": 0.0298,
+          "velocity_m_s": 0.058781210435167555,
+          "instrument_velocity_uncertainty_m_s": 0.2
+        },
+        {
+          "source_row": 33,
+          "coordinate_m": 0.0299,
+          "velocity_m_s": 0.05494925286237307,
+          "instrument_velocity_uncertainty_m_s": 0.2
+        },
+        {
+          "source_row": 34,
+          "coordinate_m": 0.03,
+          "velocity_m_s": 0.051428990915206314,
+          "instrument_velocity_uncertainty_m_s": 0.2
+        }
+      ]
+    },
+    {
+      "nominal_gas_reynolds": 8900,
+      "points": [
+        {
+          "source_row": 3,
+          "coordinate_m": 0.0,
+          "velocity_m_s": 2.2411642265950937,
+          "instrument_velocity_uncertainty_m_s": 0.2
+        },
+        {
+          "source_row": 4,
+          "coordinate_m": 0.0001,
+          "velocity_m_s": 2.3546648811358977,
+          "instrument_velocity_uncertainty_m_s": 0.2
+        },
+        {
+          "source_row": 5,
+          "coordinate_m": 0.0002,
+          "velocity_m_s": 2.534519341292538,
+          "instrument_velocity_uncertainty_m_s": 0.2
+        },
+        {
+          "source_row": 6,
+          "coordinate_m": 0.0003,
+          "velocity_m_s": 2.602445557852913,
+          "instrument_velocity_uncertainty_m_s": 0.2
+        },
+        {
+          "source_row": 7,
+          "coordinate_m": 0.0004,
+          "velocity_m_s": 2.7730565003077605,
+          "instrument_velocity_uncertainty_m_s": 0.2
+        },
+        {
+          "source_row": 8,
+          "coordinate_m": 0.0005,
+          "velocity_m_s": 2.8269206823469903,
+          "instrument_velocity_uncertainty_m_s": 0.2
+        },
+        {
+          "source_row": 9,
+          "coordinate_m": 0.0006,
+          "velocity_m_s": 2.95393296374799,
+          "instrument_velocity_uncertainty_m_s": 0.2
+        },
+        {
+          "source_row": 10,
+          "coordinate_m": 0.0008,
+          "velocity_m_s": 3.1343592346264266,
+          "instrument_velocity_uncertainty_m_s": 0.2
+        },
+        {
+          "source_row": 11,
+          "coordinate_m": 0.001,
+          "velocity_m_s": 3.1172008269170823,
+          "instrument_velocity_uncertainty_m_s": 0.2
+        },
+        {
+          "source_row": 12,
+          "coordinate_m": 0.002,
+          "velocity_m_s": 3.47150667203344,
+          "instrument_velocity_uncertainty_m_s": 0.2
+        },
+        {
+          "source_row": 13,
+          "coordinate_m": 0.004,
+          "velocity_m_s": 3.761031318899927,
+          "instrument_velocity_uncertainty_m_s": 0.2
+        },
+        {
+          "source_row": 14,
+          "coordinate_m": 0.006,
+          "velocity_m_s": 3.8048148998663014,
+          "instrument_velocity_uncertainty_m_s": 0.2
+        },
+        {
+          "source_row": 15,
+          "coordinate_m": 0.008,
+          "velocity_m_s": 3.845626762621938,
+          "instrument_velocity_uncertainty_m_s": 0.2
+        },
+        {
+          "source_row": 16,
+          "coordinate_m": 0.01,
+          "velocity_m_s": 3.8294298899515287,
+          "instrument_velocity_uncertainty_m_s": 0.2
+        },
+        {
+          "source_row": 17,
+          "coordinate_m": 0.012,
+          "velocity_m_s": 3.8474608284887406,
+          "instrument_velocity_uncertainty_m_s": 0.2
+        },
+        {
+          "source_row": 18,
+          "coordinate_m": 0.014,
+          "velocity_m_s": 3.8798602864208114,
+          "instrument_velocity_uncertainty_m_s": 0.2
+        },
+        {
+          "source_row": 19,
+          "coordinate_m": 0.016,
+          "velocity_m_s": 3.82317454255988,
+          "instrument_velocity_uncertainty_m_s": 0.2
+        },
+        {
+          "source_row": 20,
+          "coordinate_m": 0.018,
+          "velocity_m_s": 3.774443599503486,
+          "instrument_velocity_uncertainty_m_s": 0.2
+        },
+        {
+          "source_row": 21,
+          "coordinate_m": 0.02,
+          "velocity_m_s": 3.7055377665237104,
+          "instrument_velocity_uncertainty_m_s": 0.2
+        },
+        {
+          "source_row": 22,
+          "coordinate_m": 0.022,
+          "velocity_m_s": 3.5905636626036013,
+          "instrument_velocity_uncertainty_m_s": 0.2
+        },
+        {
+          "source_row": 23,
+          "coordinate_m": 0.024,
+          "velocity_m_s": 3.4963684919878215,
+          "instrument_velocity_uncertainty_m_s": 0.2
+        },
+        {
+          "source_row": 24,
+          "coordinate_m": 0.026,
+          "velocity_m_s": 3.2290118495183666,
+          "instrument_velocity_uncertainty_m_s": 0.2
+        },
+        {
+          "source_row": 25,
+          "coordinate_m": 0.027,
+          "velocity_m_s": 2.920814977474683,
+          "instrument_velocity_uncertainty_m_s": 0.2
+        },
+        {
+          "source_row": 26,
+          "coordinate_m": 0.028,
+          "velocity_m_s": 2.140170807681793,
+          "instrument_velocity_uncertainty_m_s": 0.2
+        },
+        {
+          "source_row": 27,
+          "coordinate_m": 0.0285,
+          "velocity_m_s": 1.2287686418628339,
+          "instrument_velocity_uncertainty_m_s": 0.2
+        },
+        {
+          "source_row": 28,
+          "coordinate_m": 0.029,
+          "velocity_m_s": 0.43776494199782984,
+          "instrument_velocity_uncertainty_m_s": 0.2
+        },
+        {
+          "source_row": 29,
+          "coordinate_m": 0.0292,
+          "velocity_m_s": 0.26505533925669533,
+          "instrument_velocity_uncertainty_m_s": 0.2
+        },
+        {
+          "source_row": 30,
+          "coordinate_m": 0.0294,
+          "velocity_m_s": 0.15962679787134615,
+          "instrument_velocity_uncertainty_m_s": 0.2
+        },
+        {
+          "source_row": 31,
+          "coordinate_m": 0.0296,
+          "velocity_m_s": 0.1063258236400603,
+          "instrument_velocity_uncertainty_m_s": 0.2
+        },
+        {
+          "source_row": 32,
+          "coordinate_m": 0.0298,
+          "velocity_m_s": 0.08699708319322133,
+          "instrument_velocity_uncertainty_m_s": 0.2
+        },
+        {
+          "source_row": 33,
+          "coordinate_m": 0.0299,
+          "velocity_m_s": 0.07933648681954962,
+          "instrument_velocity_uncertainty_m_s": 0.2
+        },
+        {
+          "source_row": 34,
+          "coordinate_m": 0.03,
+          "velocity_m_s": 0.07480804180423548,
+          "instrument_velocity_uncertainty_m_s": 0.2
+        }
+      ]
+    },
+    {
+      "nominal_gas_reynolds": 12900,
+      "points": [
+        {
+          "source_row": 3,
+          "coordinate_m": 0.0,
+          "velocity_m_s": 3.611578373115882,
+          "instrument_velocity_uncertainty_m_s": 0.2
+        },
+        {
+          "source_row": 4,
+          "coordinate_m": 0.0001,
+          "velocity_m_s": 3.7350311768287288,
+          "instrument_velocity_uncertainty_m_s": 0.2
+        },
+        {
+          "source_row": 5,
+          "coordinate_m": 0.0002,
+          "velocity_m_s": 4.005858207259773,
+          "instrument_velocity_uncertainty_m_s": 0.2
+        },
+        {
+          "source_row": 6,
+          "coordinate_m": 0.0003,
+          "velocity_m_s": 4.151112520380822,
+          "instrument_velocity_uncertainty_m_s": 0.2
+        },
+        {
+          "source_row": 7,
+          "coordinate_m": 0.0004,
+          "velocity_m_s": 4.308477018236525,
+          "instrument_velocity_uncertainty_m_s": 0.2
+        },
+        {
+          "source_row": 8,
+          "coordinate_m": 0.0005,
+          "velocity_m_s": 4.413406750344542,
+          "instrument_velocity_uncertainty_m_s": 0.2
+        },
+        {
+          "source_row": 9,
+          "coordinate_m": 0.0006,
+          "velocity_m_s": 4.52634070729319,
+          "instrument_velocity_uncertainty_m_s": 0.2
+        },
+        {
+          "source_row": 10,
+          "coordinate_m": 0.0008,
+          "velocity_m_s": 4.6805505849150775,
+          "instrument_velocity_uncertainty_m_s": 0.2
+        },
+        {
+          "source_row": 11,
+          "coordinate_m": 0.001,
+          "velocity_m_s": 4.871336432255763,
+          "instrument_velocity_uncertainty_m_s": 0.2
+        },
+        {
+          "source_row": 12,
+          "coordinate_m": 0.002,
+          "velocity_m_s": 5.185221523821034,
+          "instrument_velocity_uncertainty_m_s": 0.2
+        },
+        {
+          "source_row": 13,
+          "coordinate_m": 0.004,
+          "velocity_m_s": 5.43722963555971,
+          "instrument_velocity_uncertainty_m_s": 0.2
+        },
+        {
+          "source_row": 14,
+          "coordinate_m": 0.006,
+          "velocity_m_s": 5.530151936194176,
+          "instrument_velocity_uncertainty_m_s": 0.2
+        },
+        {
+          "source_row": 15,
+          "coordinate_m": 0.008,
+          "velocity_m_s": 5.597519386101342,
+          "instrument_velocity_uncertainty_m_s": 0.2
+        },
+        {
+          "source_row": 16,
+          "coordinate_m": 0.01,
+          "velocity_m_s": 5.646333560611426,
+          "instrument_velocity_uncertainty_m_s": 0.2
+        },
+        {
+          "source_row": 17,
+          "coordinate_m": 0.012,
+          "velocity_m_s": 5.619227183734525,
+          "instrument_velocity_uncertainty_m_s": 0.2
+        },
+        {
+          "source_row": 18,
+          "coordinate_m": 0.014,
+          "velocity_m_s": 5.648886775361461,
+          "instrument_velocity_uncertainty_m_s": 0.2
+        },
+        {
+          "source_row": 19,
+          "coordinate_m": 0.016,
+          "velocity_m_s": 5.569982968676395,
+          "instrument_velocity_uncertainty_m_s": 0.2
+        },
+        {
+          "source_row": 20,
+          "coordinate_m": 0.018,
+          "velocity_m_s": 5.532756092147813,
+          "instrument_velocity_uncertainty_m_s": 0.2
+        },
+        {
+          "source_row": 21,
+          "coordinate_m": 0.02,
+          "velocity_m_s": 5.448724342154828,
+          "instrument_velocity_uncertainty_m_s": 0.2
+        },
+        {
+          "source_row": 22,
+          "coordinate_m": 0.022,
+          "velocity_m_s": 5.285846199504565,
+          "instrument_velocity_uncertainty_m_s": 0.2
+        },
+        {
+          "source_row": 23,
+          "coordinate_m": 0.024,
+          "velocity_m_s": 4.996313877145794,
+          "instrument_velocity_uncertainty_m_s": 0.2
+        },
+        {
+          "source_row": 24,
+          "coordinate_m": 0.026,
+          "velocity_m_s": 4.75418913692418,
+          "instrument_velocity_uncertainty_m_s": 0.2
+        },
+        {
+          "source_row": 25,
+          "coordinate_m": 0.027,
+          "velocity_m_s": 4.4421696281773295,
+          "instrument_velocity_uncertainty_m_s": 0.2
+        },
+        {
+          "source_row": 26,
+          "coordinate_m": 0.028,
+          "velocity_m_s": 3.4406986918002644,
+          "instrument_velocity_uncertainty_m_s": 0.2
+        },
+        {
+          "source_row": 27,
+          "coordinate_m": 0.0285,
+          "velocity_m_s": 2.1328233573409,
+          "instrument_velocity_uncertainty_m_s": 0.2
+        },
+        {
+          "source_row": 28,
+          "coordinate_m": 0.029,
+          "velocity_m_s": 0.7263564026537613,
+          "instrument_velocity_uncertainty_m_s": 0.2
+        },
+        {
+          "source_row": 29,
+          "coordinate_m": 0.0292,
+          "velocity_m_s": 0.40026481818832255,
+          "instrument_velocity_uncertainty_m_s": 0.2
+        },
+        {
+          "source_row": 30,
+          "coordinate_m": 0.0294,
+          "velocity_m_s": 0.24185851960776855,
+          "instrument_velocity_uncertainty_m_s": 0.2
+        },
+        {
+          "source_row": 31,
+          "coordinate_m": 0.0296,
+          "velocity_m_s": 0.16543676462439263,
+          "instrument_velocity_uncertainty_m_s": 0.2
+        },
+        {
+          "source_row": 32,
+          "coordinate_m": 0.0298,
+          "velocity_m_s": 0.13105321750237603,
+          "instrument_velocity_uncertainty_m_s": 0.2
+        },
+        {
+          "source_row": 33,
+          "coordinate_m": 0.0299,
+          "velocity_m_s": 0.12113554493247988,
+          "instrument_velocity_uncertainty_m_s": 0.2
+        },
+        {
+          "source_row": 34,
+          "coordinate_m": 0.03,
+          "velocity_m_s": 0.11365500329459888,
+          "instrument_velocity_uncertainty_m_s": 0.2
+        }
+      ]
+    },
+    {
+      "nominal_gas_reynolds": 16900,
+      "points": [
+        {
+          "source_row": 3,
+          "coordinate_m": 0.0,
+          "velocity_m_s": 5.111070704003746,
+          "instrument_velocity_uncertainty_m_s": 0.2
+        },
+        {
+          "source_row": 4,
+          "coordinate_m": 0.0001,
+          "velocity_m_s": 5.339061863884921,
+          "instrument_velocity_uncertainty_m_s": 0.2
+        },
+        {
+          "source_row": 5,
+          "coordinate_m": 0.0002,
+          "velocity_m_s": 5.634918298526102,
+          "instrument_velocity_uncertainty_m_s": 0.2
+        },
+        {
+          "source_row": 6,
+          "coordinate_m": 0.0003,
+          "velocity_m_s": 5.711802279570252,
+          "instrument_velocity_uncertainty_m_s": 0.2
+        },
+        {
+          "source_row": 7,
+          "coordinate_m": 0.0004,
+          "velocity_m_s": 5.81163025190032,
+          "instrument_velocity_uncertainty_m_s": 0.2
+        },
+        {
+          "source_row": 8,
+          "coordinate_m": 0.0005,
+          "velocity_m_s": 6.1480157238183155,
+          "instrument_velocity_uncertainty_m_s": 0.2
+        },
+        {
+          "source_row": 9,
+          "coordinate_m": 0.0006,
+          "velocity_m_s": 6.152155587417569,
+          "instrument_velocity_uncertainty_m_s": 0.2
+        },
+        {
+          "source_row": 10,
+          "coordinate_m": 0.0008,
+          "velocity_m_s": 6.3204158412184945,
+          "instrument_velocity_uncertainty_m_s": 0.2
+        },
+        {
+          "source_row": 11,
+          "coordinate_m": 0.001,
+          "velocity_m_s": 6.42168548998986,
+          "instrument_velocity_uncertainty_m_s": 0.2
+        },
+        {
+          "source_row": 12,
+          "coordinate_m": 0.002,
+          "velocity_m_s": 6.734284242529382,
+          "instrument_velocity_uncertainty_m_s": 0.2
+        },
+        {
+          "source_row": 13,
+          "coordinate_m": 0.004,
+          "velocity_m_s": 7.144129572000869,
+          "instrument_velocity_uncertainty_m_s": 0.2
+        },
+        {
+          "source_row": 14,
+          "coordinate_m": 0.006,
+          "velocity_m_s": 7.258478238389515,
+          "instrument_velocity_uncertainty_m_s": 0.2
+        },
+        {
+          "source_row": 15,
+          "coordinate_m": 0.008,
+          "velocity_m_s": 7.352793723021873,
+          "instrument_velocity_uncertainty_m_s": 0.2
+        },
+        {
+          "source_row": 16,
+          "coordinate_m": 0.01,
+          "velocity_m_s": 7.383806138341373,
+          "instrument_velocity_uncertainty_m_s": 0.2
+        },
+        {
+          "source_row": 17,
+          "coordinate_m": 0.012,
+          "velocity_m_s": 7.356471340835311,
+          "instrument_velocity_uncertainty_m_s": 0.2
+        },
+        {
+          "source_row": 18,
+          "coordinate_m": 0.014,
+          "velocity_m_s": 7.374514199430802,
+          "instrument_velocity_uncertainty_m_s": 0.2
+        },
+        {
+          "source_row": 19,
+          "coordinate_m": 0.016,
+          "velocity_m_s": 7.274197500490394,
+          "instrument_velocity_uncertainty_m_s": 0.2
+        },
+        {
+          "source_row": 20,
+          "coordinate_m": 0.018,
+          "velocity_m_s": 7.235542451669883,
+          "instrument_velocity_uncertainty_m_s": 0.2
+        },
+        {
+          "source_row": 21,
+          "coordinate_m": 0.02,
+          "velocity_m_s": 7.124975472786523,
+          "instrument_velocity_uncertainty_m_s": 0.2
+        },
+        {
+          "source_row": 22,
+          "coordinate_m": 0.022,
+          "velocity_m_s": 6.835549253174166,
+          "instrument_velocity_uncertainty_m_s": 0.2
+        },
+        {
+          "source_row": 23,
+          "coordinate_m": 0.024,
+          "velocity_m_s": 6.5764859786467325,
+          "instrument_velocity_uncertainty_m_s": 0.2
+        },
+        {
+          "source_row": 24,
+          "coordinate_m": 0.026,
+          "velocity_m_s": 6.184696947340534,
+          "instrument_velocity_uncertainty_m_s": 0.2
+        },
+        {
+          "source_row": 25,
+          "coordinate_m": 0.027,
+          "velocity_m_s": 5.85942117309474,
+          "instrument_velocity_uncertainty_m_s": 0.2
+        },
+        {
+          "source_row": 26,
+          "coordinate_m": 0.028,
+          "velocity_m_s": 4.732553822733495,
+          "instrument_velocity_uncertainty_m_s": 0.2
+        },
+        {
+          "source_row": 27,
+          "coordinate_m": 0.0285,
+          "velocity_m_s": 3.121048786422854,
+          "instrument_velocity_uncertainty_m_s": 0.2
+        },
+        {
+          "source_row": 28,
+          "coordinate_m": 0.029,
+          "velocity_m_s": 1.032015758033905,
+          "instrument_velocity_uncertainty_m_s": 0.2
+        },
+        {
+          "source_row": 29,
+          "coordinate_m": 0.0292,
+          "velocity_m_s": 0.5824931698765748,
+          "instrument_velocity_uncertainty_m_s": 0.2
+        },
+        {
+          "source_row": 30,
+          "coordinate_m": 0.0294,
+          "velocity_m_s": 0.3570137297780489,
+          "instrument_velocity_uncertainty_m_s": 0.2
+        },
+        {
+          "source_row": 31,
+          "coordinate_m": 0.0296,
+          "velocity_m_s": 0.2535304181886776,
+          "instrument_velocity_uncertainty_m_s": 0.2
+        },
+        {
+          "source_row": 32,
+          "coordinate_m": 0.0298,
+          "velocity_m_s": 0.2121862230663496,
+          "instrument_velocity_uncertainty_m_s": 0.2
+        },
+        {
+          "source_row": 33,
+          "coordinate_m": 0.0299,
+          "velocity_m_s": 0.19592816671277377,
+          "instrument_velocity_uncertainty_m_s": 0.2
+        },
+        {
+          "source_row": 34,
+          "coordinate_m": 0.03,
+          "velocity_m_s": 0.1814201296649726,
+          "instrument_velocity_uncertainty_m_s": 0.2
+        }
+      ]
+    },
+    {
+      "nominal_gas_reynolds": 20900,
+      "points": [
+        {
+          "source_row": 3,
+          "coordinate_m": 0.0,
+          "velocity_m_s": 6.461000897425085,
+          "instrument_velocity_uncertainty_m_s": 0.2
+        },
+        {
+          "source_row": 4,
+          "coordinate_m": 0.0001,
+          "velocity_m_s": 6.795691848359291,
+          "instrument_velocity_uncertainty_m_s": 0.2
+        },
+        {
+          "source_row": 5,
+          "coordinate_m": 0.0002,
+          "velocity_m_s": 7.072088024690464,
+          "instrument_velocity_uncertainty_m_s": 0.2
+        },
+        {
+          "source_row": 6,
+          "coordinate_m": 0.0003,
+          "velocity_m_s": 7.302014137931533,
+          "instrument_velocity_uncertainty_m_s": 0.2
+        },
+        {
+          "source_row": 7,
+          "coordinate_m": 0.0004,
+          "velocity_m_s": 7.393203667288752,
+          "instrument_velocity_uncertainty_m_s": 0.2
+        },
+        {
+          "source_row": 8,
+          "coordinate_m": 0.0005,
+          "velocity_m_s": 7.604285419123116,
+          "instrument_velocity_uncertainty_m_s": 0.2
+        },
+        {
+          "source_row": 9,
+          "coordinate_m": 0.0006,
+          "velocity_m_s": 7.7589071767019755,
+          "instrument_velocity_uncertainty_m_s": 0.2
+        },
+        {
+          "source_row": 10,
+          "coordinate_m": 0.0008,
+          "velocity_m_s": 7.855478356897702,
+          "instrument_velocity_uncertainty_m_s": 0.2
+        },
+        {
+          "source_row": 11,
+          "coordinate_m": 0.001,
+          "velocity_m_s": 7.9488076907789775,
+          "instrument_velocity_uncertainty_m_s": 0.2
+        },
+        {
+          "source_row": 12,
+          "coordinate_m": 0.002,
+          "velocity_m_s": 8.447802996033545,
+          "instrument_velocity_uncertainty_m_s": 0.2
+        },
+        {
+          "source_row": 13,
+          "coordinate_m": 0.004,
+          "velocity_m_s": 8.822502495450998,
+          "instrument_velocity_uncertainty_m_s": 0.2
+        },
+        {
+          "source_row": 14,
+          "coordinate_m": 0.006,
+          "velocity_m_s": 9.030493739454124,
+          "instrument_velocity_uncertainty_m_s": 0.2
+        },
+        {
+          "source_row": 15,
+          "coordinate_m": 0.008,
+          "velocity_m_s": 9.09394374516171,
+          "instrument_velocity_uncertainty_m_s": 0.2
+        },
+        {
+          "source_row": 16,
+          "coordinate_m": 0.01,
+          "velocity_m_s": 9.104837687107223,
+          "instrument_velocity_uncertainty_m_s": 0.2
+        },
+        {
+          "source_row": 17,
+          "coordinate_m": 0.012,
+          "velocity_m_s": 9.116689651016983,
+          "instrument_velocity_uncertainty_m_s": 0.2
+        },
+        {
+          "source_row": 18,
+          "coordinate_m": 0.014,
+          "velocity_m_s": 9.022846560933141,
+          "instrument_velocity_uncertainty_m_s": 0.2
+        },
+        {
+          "source_row": 19,
+          "coordinate_m": 0.016,
+          "velocity_m_s": 8.975750444263312,
+          "instrument_velocity_uncertainty_m_s": 0.2
+        },
+        {
+          "source_row": 20,
+          "coordinate_m": 0.018,
+          "velocity_m_s": 8.870459134175816,
+          "instrument_velocity_uncertainty_m_s": 0.2
+        },
+        {
+          "source_row": 21,
+          "coordinate_m": 0.02,
+          "velocity_m_s": 8.81485217366168,
+          "instrument_velocity_uncertainty_m_s": 0.2
+        },
+        {
+          "source_row": 22,
+          "coordinate_m": 0.022,
+          "velocity_m_s": 8.433789063359017,
+          "instrument_velocity_uncertainty_m_s": 0.2
+        },
+        {
+          "source_row": 23,
+          "coordinate_m": 0.024,
+          "velocity_m_s": 8.141605813661771,
+          "instrument_velocity_uncertainty_m_s": 0.2
+        },
+        {
+          "source_row": 24,
+          "coordinate_m": 0.026,
+          "velocity_m_s": 7.745581447846971,
+          "instrument_velocity_uncertainty_m_s": 0.2
+        },
+        {
+          "source_row": 25,
+          "coordinate_m": 0.027,
+          "velocity_m_s": 7.199010718487908,
+          "instrument_velocity_uncertainty_m_s": 0.2
+        },
+        {
+          "source_row": 26,
+          "coordinate_m": 0.028,
+          "velocity_m_s": 5.968197103220209,
+          "instrument_velocity_uncertainty_m_s": 0.2
+        },
+        {
+          "source_row": 27,
+          "coordinate_m": 0.0285,
+          "velocity_m_s": 4.260069718979992,
+          "instrument_velocity_uncertainty_m_s": 0.2
+        },
+        {
+          "source_row": 28,
+          "coordinate_m": 0.029,
+          "velocity_m_s": 1.4328140932987323,
+          "instrument_velocity_uncertainty_m_s": 0.2
+        },
+        {
+          "source_row": 29,
+          "coordinate_m": 0.0292,
+          "velocity_m_s": 0.7932955579273024,
+          "instrument_velocity_uncertainty_m_s": 0.2
+        },
+        {
+          "source_row": 30,
+          "coordinate_m": 0.0294,
+          "velocity_m_s": 0.45958864229418167,
+          "instrument_velocity_uncertainty_m_s": 0.2
+        },
+        {
+          "source_row": 31,
+          "coordinate_m": 0.0296,
+          "velocity_m_s": 0.34429323023831454,
+          "instrument_velocity_uncertainty_m_s": 0.2
+        },
+        {
+          "source_row": 32,
+          "coordinate_m": 0.0298,
+          "velocity_m_s": 0.2973588597842232,
+          "instrument_velocity_uncertainty_m_s": 0.2
+        },
+        {
+          "source_row": 33,
+          "coordinate_m": 0.0299,
+          "velocity_m_s": 0.2911421985934061,
+          "instrument_velocity_uncertainty_m_s": 0.2
+        },
+        {
+          "source_row": 34,
+          "coordinate_m": 0.03,
+          "velocity_m_s": 0.2628359463299982,
+          "instrument_velocity_uncertainty_m_s": 0.2
+        }
+      ]
+    }
+  ],
+  "points": 160,
+  "measurement": "dry-channel gas velocity; campaign explicitly has no liquid",
+  "coordinate_zero_is_wall_confirmed": false,
+  "author_plotter_also_constructs_shifted_coordinates": true,
+  "wall_coordinate_shift_applied": false,
+  "direct_wet_interfacial_shear_available": false,
+  "fit_performed": false,
+  "experimental_wet_shear_qualification": false,
+  "qualification_blockers": [
+    "no_liquid_interface_in_this_campaign",
+    "unconfirmed_probe_to_wall_coordinate_zero",
+    "velocity_uncertainty_is_not_shear_uncertainty"
+  ],
+  "source_sha256": {
+    "Plot_Velocity_Profile.m": "74809172a301e29922164815565a2d6dbedf765b695d794110ef8d8a32df95f7",
+    "Overview_06_11_2024_DryChannel_Without_Honeycomb.xlsx": "ff895b384925b6173d97b48d9a51cf07dd33bc4eccf204374b22d28bfe0cadbe",
+    "06-11-2024_Measurement_Campaing_Fetrig.docx": "00cef7a00cbdfd70646ac0b7babe489b635c0b2f6d88057c69f6ea9f8e389d85"
+  }
+}

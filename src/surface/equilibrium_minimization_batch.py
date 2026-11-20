@@ -9,12 +9,14 @@ import torch
 from .equilibrium_stability_batch import stability_candidates, stability_objective
 
 
-def _minimize(fluid, pressures, temperatures, chemical, active, point):
+def _minimize(fluid, pressures, temperatures, chemical, active, point, *, _compact=True):
     evaluate = stability_objective(fluid, active)
     width = point.shape[-1]
     identity = torch.eye(width, dtype=point.dtype, device=point.device)
     scales = point.new_tensor([2.0 ** (-i) for i in range(12)])
     old_point = old_grad = inverse = None
+    all_points = point.clone()
+    rows = torch.arange(len(point), device=point.device)
     with torch.no_grad():
         for _ in range(50):
             value, grad, residual, _, q = evaluate(point, pressures, temperatures, chemical)
@@ -67,7 +69,23 @@ def _minimize(fluid, pressures, temperatures, chemical, active, point):
             next_point = torch.where((allowed.any(-1) & ~done)[:, None], chosen, point)
             if torch.equal(next_point, point):
                 break
-            old_point, old_grad, point = point, grad, next_point
+            if _compact:
+                all_points.index_copy_(0, rows, next_point)
+                keep = ((~done) & (next_point != point).any(-1)).nonzero(as_tuple=True)[0]
+                rows = rows.index_select(0, keep)
+                pressures, temperatures, chemical = (
+                    value.index_select(0, keep) for value in (pressures, temperatures, chemical)
+                )
+                old_point, old_grad, inverse, point = (
+                    value.index_select(0, keep) for value in (point, grad, inverse, next_point)
+                )
+                if not len(point):
+                    break
+            else:
+                old_point, old_grad, point = point, grad, next_point
+    if _compact:
+        all_points.index_copy_(0, rows, point)
+        return all_points
     return point
 
 

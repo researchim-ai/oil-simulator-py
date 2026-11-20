@@ -1,0 +1,1625 @@
+{
+  "cases": [
+    {
+      "window": [
+        "mess1",
+        483,
+        542
+      ],
+      "roughness_m": 0.0,
+      "outcomes": [
+        {
+          "instrument_offset_pa": -4.0,
+          "liquid_holdup": 0.02036194603520425,
+          "film_thickness_m": 0.0004349166769645835,
+          "implied_shear_pa": 0.3594601494637274,
+          "implied_superficial_fanning_factor": 0.007454486739545443,
+          "wallis_superficial_fanning_factor": 0.012675000181727944,
+          "implied_to_wallis_ratio": 0.5881251781196579,
+          "liquid_force_residual_n_m": -1.2212453270876722e-15,
+          "identified_within_assumptions": true
+        },
+        {
+          "instrument_offset_pa": 0.0,
+          "liquid_holdup": 0.020436234808754766,
+          "film_thickness_m": 0.00043651166538031047,
+          "implied_shear_pa": 0.3874888453128152,
+          "implied_superficial_fanning_factor": 0.008035746002485968,
+          "wallis_superficial_fanning_factor": 0.012703147036123127,
+          "implied_to_wallis_ratio": 0.6325791537825415,
+          "liquid_force_residual_n_m": 6.5503158452884236e-15,
+          "identified_within_assumptions": true
+        },
+        {
+          "instrument_offset_pa": 4.0,
+          "liquid_holdup": 0.02051103794212489,
+          "film_thickness_m": 0.0004381177582714814,
+          "implied_shear_pa": 0.415515304813273,
+          "implied_superficial_fanning_factor": 0.008616958888015168,
+          "wallis_superficial_fanning_factor": 0.01273148985184967,
+          "implied_to_wallis_ratio": 0.6768225076787278,
+          "liquid_force_residual_n_m": 2.220446049250313e-16,
+          "identified_within_assumptions": true
+        }
+      ]
+    },
+    {
+      "window": [
+        "mess1",
+        963,
+        1022
+      ],
+      "roughness_m": 0.0,
+      "outcomes": [
+        {
+          "instrument_offset_pa": -4.0,
+          "liquid_holdup": 0.022871430905302446,
+          "film_thickness_m": 0.0004888291292982712,
+          "implied_shear_pa": 0.4386887372843499,
+          "implied_superficial_fanning_factor": 0.009328314829063093,
+          "wallis_superficial_fanning_factor": 0.013626396399381256,
+          "implied_to_wallis_ratio": 0.6845767990051038,
+          "liquid_force_residual_n_m": -3.26405569239796e-14,
+          "identified_within_assumptions": true
+        },
+        {
+          "instrument_offset_pa": 0.0,
+          "liquid_holdup": 0.02294623551418412,
+          "film_thickness_m": 0.0004904372540905286,
+          "implied_shear_pa": 0.46667832009949534,
+          "implied_superficial_fanning_factor": 0.009923487711891343,
+          "wallis_superficial_fanning_factor": 0.013654775072185798,
+          "implied_to_wallis_ratio": 0.7267412066058173,
+          "liquid_force_residual_n_m": -1.6653345369377348e-14,
+          "identified_within_assumptions": true
+        },
+        {
+          "instrument_offset_pa": 4.0,
+          "liquid_holdup": 0.023021502004398942,
+          "film_thickness_m": 0.0004920553703879199,
+          "implied_shear_pa": 0.49466564109302347,
+          "implied_superficial_fanning_factor": 0.010518612499151274,
+          "wallis_superficial_fanning_factor": 0.013683330065669175,
+          "implied_to_wallis_ratio": 0.7687172967888842,
+          "liquid_force_residual_n_m": -2.042810365310288e-14,
+          "identified_within_assumptions": true
+        }
+      ]
+    },
+    {
+      "window": [
+        "mess1",
+        1323,
+        1382
+      ],
+      "roughness_m": 0.0,
+      "outcomes": [
+        {
+          "instrument_offset_pa": -4.0,
+          "liquid_holdup": 0.024174382943314903,
+          "film_thickness_m": 0.0005168483697491161,
+          "implied_shear_pa": 0.4820701224379314,
+          "implied_superficial_fanning_factor": 0.009249578224429096,
+          "wallis_superficial_fanning_factor": 0.014120853583807928,
+          "implied_to_wallis_ratio": 0.6550296814234646,
+          "liquid_force_residual_n_m": -2.6645352591003757e-15,
+          "identified_within_assumptions": true
+        },
+        {
+          "instrument_offset_pa": 0.0,
+          "liquid_holdup": 0.024249448215979262,
+          "film_thickness_m": 0.0005184631753447185,
+          "implied_shear_pa": 0.5100392717035866,
+          "implied_superficial_fanning_factor": 0.009786228022792656,
+          "wallis_superficial_fanning_factor": 0.01414935015314209,
+          "implied_to_wallis_ratio": 0.6916379845628081,
+          "liquid_force_residual_n_m": 5.995204332975845e-15,
+          "identified_within_assumptions": true
+        },
+        {
+          "instrument_offset_pa": 4.0,
+          "liquid_holdup": 0.024324952355539654,
+          "film_thickness_m": 0.0005200874845146147,
+          "implied_shear_pa": 0.5380061460992107,
+          "implied_superficial_fanning_factor": 0.010322834172758762,
+          "wallis_superficial_fanning_factor": 0.014178014432610846,
+          "implied_to_wallis_ratio": 0.7280874357847468,
+          "liquid_force_residual_n_m": 1.3322676295501878e-14,
+          "identified_within_assumptions": true
+        }
+      ]
+    },
+    {
+      "window": [
+        "mess2",
+        663,
+        722
+      ],
+      "roughness_m": 0.0,
+      "outcomes": [
+        {
+          "instrument_offset_pa": -4.0,
+          "liquid_holdup": 0.02412959588841594,
+          "film_thickness_m": 0.0005158849393422525,
+          "implied_shear_pa": 0.39288595275706045,
+          "implied_superficial_fanning_factor": 0.008492184230153204,
+          "wallis_superficial_fanning_factor": 0.014103851870745632,
+          "implied_to_wallis_ratio": 0.6021180814985576,
+          "liquid_force_residual_n_m": 3.552713678800501e-15,
+          "identified_within_assumptions": true
+        },
+        {
+          "instrument_offset_pa": 0.0,
+          "liquid_holdup": 0.02420322012658062,
+          "film_thickness_m": 0.000517468708445369,
+          "implied_shear_pa": 0.4208594860928239,
+          "implied_superficial_fanning_factor": 0.009096828903724742,
+          "wallis_superficial_fanning_factor": 0.014131800737271216,
+          "implied_to_wallis_ratio": 0.6437133577557999,
+          "liquid_force_residual_n_m": -4.884981308350689e-15,
+          "identified_within_assumptions": true
+        },
+        {
+          "instrument_offset_pa": 4.0,
+          "liquid_holdup": 0.02427727220042698,
+          "film_thickness_m": 0.000519061741214278,
+          "implied_shear_pa": 0.448830808695819,
+          "implied_superficial_fanning_factor": 0.009701425792564295,
+          "wallis_superficial_fanning_factor": 0.014159913080251964,
+          "implied_to_wallis_ratio": 0.685133145774343,
+          "liquid_force_residual_n_m": -2.2870594307278225e-14,
+          "identified_within_assumptions": true
+        }
+      ]
+    },
+    {
+      "window": [
+        "mess2",
+        723,
+        782
+      ],
+      "roughness_m": 0.0,
+      "outcomes": [
+        {
+          "instrument_offset_pa": -4.0,
+          "liquid_holdup": 0.024192052990025456,
+          "film_thickness_m": 0.0005172284825457656,
+          "implied_shear_pa": 0.434606794856387,
+          "implied_superficial_fanning_factor": 0.008427915517122436,
+          "wallis_superficial_fanning_factor": 0.014127561456689981,
+          "implied_to_wallis_ratio": 0.5965584041491797,
+          "liquid_force_residual_n_m": -1.9984014443252818e-14,
+          "identified_within_assumptions": true
+        },
+        {
+          "instrument_offset_pa": 0.0,
+          "liquid_holdup": 0.024266331505148998,
+          "film_thickness_m": 0.0005188263775436524,
+          "implied_shear_pa": 0.4625777024854608,
+          "implied_superficial_fanning_factor": 0.008970328680526767,
+          "wallis_superficial_fanning_factor": 0.014155759603711512,
+          "implied_to_wallis_ratio": 0.6336875541581554,
+          "liquid_force_residual_n_m": -1.687538997430238e-14,
+          "identified_within_assumptions": true
+        },
+        {
+          "instrument_offset_pa": 4.0,
+          "liquid_holdup": 0.024341042115131665,
+          "film_thickness_m": 0.0005204336292102294,
+          "implied_shear_pa": 0.49054637025182346,
+          "implied_superficial_fanning_factor": 0.009512698408407485,
+          "wallis_superficial_fanning_factor": 0.014184122868415812,
+          "implied_to_wallis_ratio": 0.6706582068313636,
+          "liquid_force_residual_n_m": 1.176836406102666e-14,
+          "identified_within_assumptions": true
+        }
+      ]
+    },
+    {
+      "window": [
+        "mess2",
+        1263,
+        1322
+      ],
+      "roughness_m": 0.0,
+      "outcomes": [
+        {
+          "instrument_offset_pa": -4.0,
+          "liquid_holdup": 0.022504921879647446,
+          "film_thickness_m": 0.00048095092871702316,
+          "implied_shear_pa": 0.3501460171830134,
+          "implied_superficial_fanning_factor": 0.0070286650057607815,
+          "wallis_superficial_fanning_factor": 0.01348736933030041,
+          "implied_to_wallis_ratio": 0.5211294236579068,
+          "liquid_force_residual_n_m": 1.1324274851176597e-14,
+          "identified_within_assumptions": true
+        },
+        {
+          "instrument_offset_pa": 0.0,
+          "liquid_holdup": 0.022578321523870733,
+          "film_thickness_m": 0.0004825285536182165,
+          "implied_shear_pa": 0.37814451841752694,
+          "implied_superficial_fanning_factor": 0.007590693634342658,
+          "wallis_superficial_fanning_factor": 0.013515209769733232,
+          "implied_to_wallis_ratio": 0.5616408301217574,
+          "liquid_force_residual_n_m": 1.1324274851176597e-14,
+          "identified_within_assumptions": true
+        },
+        {
+          "instrument_offset_pa": 4.0,
+          "liquid_holdup": 0.022652178230999503,
+          "film_thickness_m": 0.00048411606225263353,
+          "implied_shear_pa": 0.40614082061241097,
+          "implied_superficial_fanning_factor": 0.00815267812044645,
+          "wallis_superficial_fanning_factor": 0.01354322462798765,
+          "implied_to_wallis_ratio": 0.6019746658855967,
+          "liquid_force_residual_n_m": -2.3092638912203256e-14,
+          "identified_within_assumptions": true
+        }
+      ]
+    },
+    {
+      "window": [
+        "mess2",
+        1443,
+        1502
+      ],
+      "roughness_m": 0.0,
+      "outcomes": [
+        {
+          "instrument_offset_pa": -4.0,
+          "liquid_holdup": 0.021214498123338473,
+          "film_thickness_m": 0.0004532247043281584,
+          "implied_shear_pa": 0.2561880372041734,
+          "implied_superficial_fanning_factor": 0.006532906426920188,
+          "wallis_superficial_fanning_factor": 0.012998083017555735,
+          "implied_to_wallis_ratio": 0.5026053778927694,
+          "liquid_force_residual_n_m": -2.220446049250313e-14,
+          "identified_within_assumptions": true
+        },
+        {
+          "instrument_offset_pa": 0.0,
+          "liquid_holdup": 0.021286628471150863,
+          "film_thickness_m": 0.00045477402458177126,
+          "implied_shear_pa": 0.2842087479553878,
+          "implied_superficial_fanning_factor": 0.007247446744068527,
+          "wallis_superficial_fanning_factor": 0.013025423963207728,
+          "implied_to_wallis_ratio": 0.5564077426224306,
+          "liquid_force_residual_n_m": 1.4210854715202004e-14,
+          "identified_within_assumptions": true
+        },
+        {
+          "instrument_offset_pa": 4.0,
+          "liquid_holdup": 0.021359232001891625,
+          "film_thickness_m": 0.0004563335662006845,
+          "implied_shear_pa": 0.31222731703971895,
+          "implied_superficial_fanning_factor": 0.007961932447779412,
+          "wallis_superficial_fanning_factor": 0.013052945285894431,
+          "implied_to_wallis_ratio": 0.6099721000426942,
+          "liquid_force_residual_n_m": 1.021405182655144e-14,
+          "identified_within_assumptions": true
+        }
+      ]
+    },
+    {
+      "window": [
+        "mess2",
+        1503,
+        1562
+      ],
+      "roughness_m": 0.0,
+      "outcomes": [
+        {
+          "instrument_offset_pa": -4.0,
+          "liquid_holdup": 0.021312997880382576,
+          "film_thickness_m": 0.0004553404392596019,
+          "implied_shear_pa": 0.33146062200666637,
+          "implied_superficial_fanning_factor": 0.00721068708577108,
+          "wallis_superficial_fanning_factor": 0.013035419516345915,
+          "implied_to_wallis_ratio": 0.5531611066854546,
+          "liquid_force_residual_n_m": -2.220446049250313e-16,
+          "identified_within_assumptions": true
+        },
+        {
+          "instrument_offset_pa": 0.0,
+          "liquid_holdup": 0.021386436209795048,
+          "film_thickness_m": 0.0004569179341469105,
+          "implied_shear_pa": 0.35947690714486397,
+          "implied_superficial_fanning_factor": 0.007820161189253631,
+          "wallis_superficial_fanning_factor": 0.013063257661416068,
+          "implied_to_wallis_ratio": 0.598637904261158,
+          "liquid_force_residual_n_m": 1.9984014443252818e-15,
+          "identified_within_assumptions": true
+        },
+        {
+          "instrument_offset_pa": 4.0,
+          "liquid_holdup": 0.021460357782366164,
+          "film_thickness_m": 0.0004585058691344664,
+          "implied_shear_pa": 0.3874909927314967,
+          "implied_superficial_fanning_factor": 0.00842958744307619,
+          "wallis_superficial_fanning_factor": 0.013091280043549407,
+          "implied_to_wallis_ratio": 0.6439085723500187,
+          "liquid_force_residual_n_m": -1.5987211554602254e-14,
+          "identified_within_assumptions": true
+        }
+      ]
+    },
+    {
+      "window": [
+        "mess2",
+        1563,
+        1622
+      ],
+      "roughness_m": 0.0,
+      "outcomes": [
+        {
+          "instrument_offset_pa": -4.0,
+          "liquid_holdup": 0.02146390506265559,
+          "film_thickness_m": 0.0004585820710031435,
+          "implied_shear_pa": 0.39596049514263687,
+          "implied_superficial_fanning_factor": 0.008450706828911378,
+          "wallis_superficial_fanning_factor": 0.013092624782408415,
+          "implied_to_wallis_ratio": 0.6454555117371089,
+          "liquid_force_residual_n_m": 6.661338147750939e-15,
+          "identified_within_assumptions": true
+        },
+        {
+          "instrument_offset_pa": 0.0,
+          "liquid_holdup": 0.021538467163291553,
+          "film_thickness_m": 0.00046018382906147114,
+          "implied_shear_pa": 0.42397195334976606,
+          "implied_superficial_fanning_factor": 0.009048535713516343,
+          "wallis_superficial_fanning_factor": 0.013120891101084787,
+          "implied_to_wallis_ratio": 0.6896281391107837,
+          "liquid_force_residual_n_m": -2.0650148258027912e-14,
+          "identified_within_assumptions": true
+        },
+        {
+          "instrument_offset_pa": 4.0,
+          "liquid_holdup": 0.021613519502727215,
+          "film_thickness_m": 0.00046179618016251446,
+          "implied_shear_pa": 0.451981161986517,
+          "implied_superficial_fanning_factor": 0.009646316587120235,
+          "wallis_superficial_fanning_factor": 0.013149344355809079,
+          "implied_to_wallis_ratio": 0.733596773048134,
+          "liquid_force_residual_n_m": -3.26405569239796e-14,
+          "identified_within_assumptions": true
+        }
+      ]
+    },
+    {
+      "window": [
+        "mess2",
+        1623,
+        1682
+      ],
+      "roughness_m": 0.0,
+      "outcomes": [
+        {
+          "instrument_offset_pa": -4.0,
+          "liquid_holdup": 0.02128616825911682,
+          "film_thickness_m": 0.00045476413929908466,
+          "implied_shear_pa": 0.33764406082859283,
+          "implied_superficial_fanning_factor": 0.006660629606961645,
+          "wallis_superficial_fanning_factor": 0.01302524951704267,
+          "implied_to_wallis_ratio": 0.5113629184797309,
+          "liquid_force_residual_n_m": 5.995204332975845e-15,
+          "identified_within_assumptions": true
+        },
+        {
+          "instrument_offset_pa": 0.0,
+          "liquid_holdup": 0.02135972677396824,
+          "film_thickness_m": 0.0004563441942245005,
+          "implied_shear_pa": 0.36566047607576335,
+          "implied_superficial_fanning_factor": 0.0072133032255003345,
+          "wallis_superficial_fanning_factor": 0.01305313283925589,
+          "implied_to_wallis_ratio": 0.5526108800338798,
+          "liquid_force_residual_n_m": -3.552713678800501e-15,
+          "identified_within_assumptions": true
+        },
+        {
+          "instrument_offset_pa": 4.0,
+          "liquid_holdup": 0.021433770273049726,
+          "film_thickness_m": 0.00045793472670135427,
+          "implied_shear_pa": 0.3936746864730392,
+          "implied_superficial_fanning_factor": 0.007765933349453479,
+          "wallis_superficial_fanning_factor": 0.013081201059435664,
+          "implied_to_wallis_ratio": 0.5936712779024061,
+          "liquid_force_residual_n_m": 1.8207657603852567e-14,
+          "identified_within_assumptions": true
+        }
+      ]
+    },
+    {
+      "window": [
+        "mess2",
+        1923,
+        1982
+      ],
+      "roughness_m": 0.0,
+      "outcomes": [
+        {
+          "instrument_offset_pa": -4.0,
+          "liquid_holdup": 0.02042895016592432,
+          "film_thickness_m": 0.0004363552605958884,
+          "implied_shear_pa": 0.34077108643623316,
+          "implied_superficial_fanning_factor": 0.0077639852397917595,
+          "wallis_superficial_fanning_factor": 0.012700386951692146,
+          "implied_to_wallis_ratio": 0.611318794405498,
+          "liquid_force_residual_n_m": -2.3314683517128287e-14,
+          "identified_within_assumptions": true
+        },
+        {
+          "instrument_offset_pa": 0.0,
+          "liquid_holdup": 0.020502856192946527,
+          "film_thickness_m": 0.0004379420855149987,
+          "implied_shear_pa": 0.3687996030012591,
+          "implied_superficial_fanning_factor": 0.00840257518349827,
+          "wallis_superficial_fanning_factor": 0.01272838974438233,
+          "implied_to_wallis_ratio": 0.6601443978572972,
+          "liquid_force_residual_n_m": 3.0531133177191805e-14,
+          "identified_within_assumptions": true
+        },
+        {
+          "instrument_offset_pa": 4.0,
+          "liquid_holdup": 0.02057727114361498,
+          "film_thickness_m": 0.00043953989794161274,
+          "implied_shear_pa": 0.39682590013639146,
+          "implied_superficial_fanning_factor": 0.009041114560646699,
+          "wallis_superficial_fanning_factor": 0.012756586434263752,
+          "implied_to_wallis_ratio": 0.7087409008073332,
+          "liquid_force_residual_n_m": 2.7422508708241367e-14,
+          "identified_within_assumptions": true
+        }
+      ]
+    },
+    {
+      "window": [
+        "mess3",
+        63,
+        122
+      ],
+      "roughness_m": 0.0,
+      "outcomes": [
+        {
+          "instrument_offset_pa": -4.0,
+          "liquid_holdup": 0.018859243802777412,
+          "film_thickness_m": 0.00040266646352487445,
+          "implied_shear_pa": 0.2831389961712157,
+          "implied_superficial_fanning_factor": 0.007069190323193822,
+          "wallis_superficial_fanning_factor": 0.01210587876808602,
+          "implied_to_wallis_ratio": 0.5839468954397504,
+          "liquid_force_residual_n_m": 1.0658141036401503e-14,
+          "identified_within_assumptions": true
+        },
+        {
+          "instrument_offset_pa": 0.0,
+          "liquid_holdup": 0.0189325655194154,
+          "film_thickness_m": 0.00040423948269189506,
+          "implied_shear_pa": 0.3111922566757394,
+          "implied_superficial_fanning_factor": 0.007769601924472133,
+          "wallis_superficial_fanning_factor": 0.012133637929856972,
+          "implied_to_wallis_ratio": 0.6403357319039203,
+          "liquid_force_residual_n_m": -3.708144902248023e-14,
+          "identified_within_assumptions": true
+        },
+        {
+          "instrument_offset_pa": 4.0,
+          "liquid_holdup": 0.019006432729088026,
+          "film_thickness_m": 0.00040582426412075765,
+          "implied_shear_pa": 0.33924332502752763,
+          "implied_superficial_fanning_factor": 0.008469958793816254,
+          "wallis_superficial_fanning_factor": 0.012161604660954546,
+          "implied_to_wallis_ratio": 0.6964507587563251,
+          "liquid_force_residual_n_m": -3.730349362740526e-14,
+          "identified_within_assumptions": true
+        }
+      ]
+    },
+    {
+      "window": [
+        "mess3",
+        483,
+        542
+      ],
+      "roughness_m": 0.0,
+      "outcomes": [
+        {
+          "instrument_offset_pa": -4.0,
+          "liquid_holdup": 0.021446214244967374,
+          "film_thickness_m": 0.0004582020422529066,
+          "implied_shear_pa": 0.33378536637967154,
+          "implied_superficial_fanning_factor": 0.00778742083858798,
+          "wallis_superficial_fanning_factor": 0.013085918392698353,
+          "implied_to_wallis_ratio": 0.5950992971905728,
+          "liquid_force_residual_n_m": -6.661338147750939e-16,
+          "identified_within_assumptions": true
+        },
+        {
+          "instrument_offset_pa": 0.0,
+          "liquid_holdup": 0.02151965224768849,
+          "film_thickness_m": 0.00045977963749936927,
+          "implied_shear_pa": 0.36179965484316573,
+          "implied_superficial_fanning_factor": 0.008441011665906275,
+          "wallis_superficial_fanning_factor": 0.013113758308812397,
+          "implied_to_wallis_ratio": 0.64367601317114,
+          "liquid_force_residual_n_m": -1.9984014443252818e-14,
+          "identified_within_assumptions": true
+        },
+        {
+          "instrument_offset_pa": 4.0,
+          "liquid_holdup": 0.02159357045942956,
+          "film_thickness_m": 0.00046136760838127175,
+          "implied_shear_pa": 0.3898117436361478,
+          "implied_superficial_fanning_factor": 0.009094551173539196,
+          "wallis_superficial_fanning_factor": 0.013141781324375384,
+          "implied_to_wallis_ratio": 0.6920333666388602,
+          "liquid_force_residual_n_m": -4.440892098500626e-15,
+          "identified_within_assumptions": true
+        }
+      ]
+    },
+    {
+      "window": [
+        "mess3",
+        723,
+        782
+      ],
+      "roughness_m": 0.0,
+      "outcomes": [
+        {
+          "instrument_offset_pa": -4.0,
+          "liquid_holdup": 0.022553432157981262,
+          "film_thickness_m": 0.00048199358412340926,
+          "implied_shear_pa": 0.3295538308992517,
+          "implied_superficial_fanning_factor": 0.007621547651574011,
+          "wallis_superficial_fanning_factor": 0.013505769131589575,
+          "implied_to_wallis_ratio": 0.5643179279399533,
+          "liquid_force_residual_n_m": -1.2656542480726785e-14,
+          "identified_within_assumptions": true
+        },
+        {
+          "instrument_offset_pa": 0.0,
+          "liquid_holdup": 0.022626468275280878,
+          "film_thickness_m": 0.00048356343432044555,
+          "implied_shear_pa": 0.3575524760277785,
+          "implied_superficial_fanning_factor": 0.008269068596617475,
+          "wallis_superficial_fanning_factor": 0.013533472370360804,
+          "implied_to_wallis_ratio": 0.6110086436299438,
+          "liquid_force_residual_n_m": 4.218847493575595e-15,
+          "identified_within_assumptions": true
+        },
+        {
+          "instrument_offset_pa": 4.0,
+          "liquid_holdup": 0.022699957246617625,
+          "film_thickness_m": 0.00048514307743870334,
+          "implied_shear_pa": 0.3855489381580601,
+          "implied_superficial_fanning_factor": 0.00891653905575063,
+          "wallis_superficial_fanning_factor": 0.013561348425388881,
+          "implied_to_wallis_ratio": 0.6574964948955613,
+          "liquid_force_residual_n_m": 1.9317880628477724e-14,
+          "identified_within_assumptions": true
+        }
+      ]
+    },
+    {
+      "window": [
+        "mess3",
+        783,
+        842
+      ],
+      "roughness_m": 0.0,
+      "outcomes": [
+        {
+          "instrument_offset_pa": -4.0,
+          "liquid_holdup": 0.02261995479021501,
+          "film_thickness_m": 0.00048342343002973624,
+          "implied_shear_pa": 0.37903894762354134,
+          "implied_superficial_fanning_factor": 0.007517443717166907,
+          "wallis_superficial_fanning_factor": 0.013531001706407109,
+          "implied_to_wallis_ratio": 0.5555718549357138,
+          "liquid_force_residual_n_m": 2.731148640577885e-14,
+          "identified_within_assumptions": true
+        },
+        {
+          "instrument_offset_pa": 0.0,
+          "liquid_holdup": 0.022693813213596325,
+          "film_thickness_m": 0.00048501100936783966,
+          "implied_shear_pa": 0.4070346184507553,
+          "implied_superficial_fanning_factor": 0.008072679217601379,
+          "wallis_superficial_fanning_factor": 0.01355901781237364,
+          "implied_to_wallis_ratio": 0.5953734502977378,
+          "liquid_force_residual_n_m": 8.43769498715119e-15,
+          "identified_within_assumptions": true
+        },
+        {
+          "instrument_offset_pa": 4.0,
+          "liquid_holdup": 0.022768130391826107,
+          "film_thickness_m": 0.0004866085101456718,
+          "implied_shear_pa": 0.43502806977387465,
+          "implied_superficial_fanning_factor": 0.008627870698820369,
+          "wallis_superficial_fanning_factor": 0.013587209002570677,
+          "implied_to_wallis_ratio": 0.6349994834986339,
+          "liquid_force_residual_n_m": 2.7533531010703882e-14,
+          "identified_within_assumptions": true
+        }
+      ]
+    },
+    {
+      "window": [
+        "mess3",
+        1083,
+        1142
+      ],
+      "roughness_m": 0.0,
+      "outcomes": [
+        {
+          "instrument_offset_pa": -4.0,
+          "liquid_holdup": 0.02423623987259079,
+          "film_thickness_m": 0.0005181790327035376,
+          "implied_shear_pa": 0.4308011952349765,
+          "implied_superficial_fanning_factor": 0.008317983508157411,
+          "wallis_superficial_fanning_factor": 0.014144335871238898,
+          "implied_to_wallis_ratio": 0.5880787605638809,
+          "liquid_force_residual_n_m": 2.6201263381153694e-14,
+          "identified_within_assumptions": true
+        },
+        {
+          "instrument_offset_pa": 0.0,
+          "liquid_holdup": 0.0243104420349814,
+          "film_thickness_m": 0.0005197753212978285,
+          "implied_shear_pa": 0.45877163119182734,
+          "implied_superficial_fanning_factor": 0.008858041492161281,
+          "wallis_superficial_fanning_factor": 0.01417250566996168,
+          "implied_to_wallis_ratio": 0.6250159074506993,
+          "liquid_force_residual_n_m": -1.4210854715202004e-14,
+          "identified_within_assumptions": true
+        },
+        {
+          "instrument_offset_pa": 4.0,
+          "liquid_holdup": 0.024385074869563803,
+          "film_thickness_m": 0.0005213809360425676,
+          "implied_shear_pa": 0.4867398306276729,
+          "implied_superficial_fanning_factor": 0.009398056293033247,
+          "wallis_superficial_fanning_factor": 0.014200840047810016,
+          "implied_to_wallis_ratio": 0.6617957995014928,
+          "liquid_force_residual_n_m": 2.886579864025407e-15,
+          "identified_within_assumptions": true
+        }
+      ]
+    },
+    {
+      "window": [
+        "mess1",
+        483,
+        542
+      ],
+      "roughness_m": 0.0002,
+      "outcomes": [
+        {
+          "instrument_offset_pa": -4.0,
+          "liquid_holdup": 0.02056567387630794,
+          "film_thickness_m": 0.00043929088138291045,
+          "implied_shear_pa": 0.4358628895470107,
+          "implied_superficial_fanning_factor": 0.009038927222490393,
+          "wallis_superficial_fanning_factor": 0.0127521920244043,
+          "implied_to_wallis_ratio": 0.7088136067267724,
+          "liquid_force_residual_n_m": -3.9968028886505635e-15,
+          "identified_within_assumptions": true
+        },
+        {
+          "instrument_offset_pa": 0.0,
+          "liquid_holdup": 0.02064137215810348,
+          "film_thickness_m": 0.0004409163017140186,
+          "implied_shear_pa": 0.4638854349212836,
+          "implied_superficial_fanning_factor": 0.00962005893684725,
+          "wallis_superficial_fanning_factor": 0.012780875912600327,
+          "implied_to_wallis_ratio": 0.7526916779907932,
+          "liquid_force_residual_n_m": 1.4765966227514582e-14,
+          "identified_within_assumptions": true
+        },
+        {
+          "instrument_offset_pa": 4.0,
+          "liquid_holdup": 0.020717593266754493,
+          "film_thickness_m": 0.0004425530118395715,
+          "implied_shear_pa": 0.4919056810225344,
+          "implied_superficial_fanning_factor": 0.010201142968866359,
+          "wallis_superficial_fanning_factor": 0.012809759032463026,
+          "implied_to_wallis_ratio": 0.7963571323249873,
+          "liquid_force_residual_n_m": 1.3988810110276972e-14,
+          "identified_within_assumptions": true
+        }
+      ]
+    },
+    {
+      "window": [
+        "mess1",
+        963,
+        1022
+      ],
+      "roughness_m": 0.0002,
+      "outcomes": [
+        {
+          "instrument_offset_pa": -4.0,
+          "liquid_holdup": 0.023070479992923634,
+          "film_thickness_m": 0.0004931083569281255,
+          "implied_shear_pa": 0.5127845230938345,
+          "implied_superficial_fanning_factor": 0.010903893955658455,
+          "wallis_superficial_fanning_factor": 0.013701912181084568,
+          "implied_to_wallis_ratio": 0.7957935951969707,
+          "liquid_force_residual_n_m": -6.261657858885883e-14,
+          "identified_within_assumptions": true
+        },
+        {
+          "instrument_offset_pa": 0.0,
+          "liquid_holdup": 0.0231465127815239,
+          "film_thickness_m": 0.0004947430517515765,
+          "implied_shear_pa": 0.5407680727573589,
+          "implied_superficial_fanning_factor": 0.011498938549034641,
+          "wallis_superficial_fanning_factor": 0.013730759736792527,
+          "implied_to_wallis_ratio": 0.8374582885040538,
+          "liquid_force_residual_n_m": -5.5067062021407764e-14,
+          "identified_within_assumptions": true
+        },
+        {
+          "instrument_offset_pa": 4.0,
+          "liquid_holdup": 0.023223013959381124,
+          "film_thickness_m": 0.0004963878810897046,
+          "implied_shear_pa": 0.5687493056015354,
+          "implied_superficial_fanning_factor": 0.012093933877366063,
+          "wallis_superficial_fanning_factor": 0.01375978613687714,
+          "implied_to_wallis_ratio": 0.8789332738939538,
+          "liquid_force_residual_n_m": -3.552713678800501e-15,
+          "identified_within_assumptions": true
+        }
+      ]
+    },
+    {
+      "window": [
+        "mess1",
+        1323,
+        1382
+      ],
+      "roughness_m": 0.0002,
+      "outcomes": [
+        {
+          "instrument_offset_pa": -4.0,
+          "liquid_holdup": 0.0243999061180888,
+          "film_thickness_m": 0.0005217000156723581,
+          "implied_shear_pa": 0.5656067152430303,
+          "implied_superficial_fanning_factor": 0.010852411948795677,
+          "wallis_superficial_fanning_factor": 0.014206470864806317,
+          "implied_to_wallis_ratio": 0.7639062545561791,
+          "liquid_force_residual_n_m": 5.10702591327572e-15,
+          "identified_within_assumptions": true
+        },
+        {
+          "instrument_offset_pa": 0.0,
+          "liquid_holdup": 0.02447628881623034,
+          "film_thickness_m": 0.0005233433522191533,
+          "implied_shear_pa": 0.5935690110399479,
+          "implied_superficial_fanning_factor": 0.011388930248250162,
+          "wallis_superficial_fanning_factor": 0.01423547092151447,
+          "implied_to_wallis_ratio": 0.8000388825239176,
+          "liquid_force_residual_n_m": -1.5765166949677223e-14,
+          "identified_within_assumptions": true
+        },
+        {
+          "instrument_offset_pa": 4.0,
+          "liquid_holdup": 0.02455311694029427,
+          "film_thickness_m": 0.0005249963367888023,
+          "implied_shear_pa": 0.6215289728620245,
+          "implied_superficial_fanning_factor": 0.011925403765251098,
+          "wallis_superficial_fanning_factor": 0.014264641237449452,
+          "implied_to_wallis_ratio": 0.836011475279373,
+          "liquid_force_residual_n_m": -3.9968028886505635e-14,
+          "identified_within_assumptions": true
+        }
+      ]
+    },
+    {
+      "window": [
+        "mess2",
+        663,
+        722
+      ],
+      "roughness_m": 0.0002,
+      "outcomes": [
+        {
+          "instrument_offset_pa": -4.0,
+          "liquid_holdup": 0.024321687441847987,
+          "film_thickness_m": 0.0005200172456185724,
+          "implied_shear_pa": 0.46552911223521964,
+          "implied_superficial_fanning_factor": 0.010062357683848519,
+          "wallis_superficial_fanning_factor": 0.014176774922680688,
+          "implied_to_wallis_ratio": 0.7097776284612005,
+          "liquid_force_residual_n_m": -2.2426505097428162e-14,
+          "identified_within_assumptions": true
+        },
+        {
+          "instrument_offset_pa": 0.0,
+          "liquid_holdup": 0.024396427334563996,
+          "film_thickness_m": 0.0005216251728709276,
+          "implied_shear_pa": 0.4934968646468781,
+          "implied_superficial_fanning_factor": 0.010666877403417053,
+          "wallis_superficial_fanning_factor": 0.014205150109486957,
+          "implied_to_wallis_ratio": 0.7509162044189271,
+          "liquid_force_residual_n_m": 2.220446049250313e-15,
+          "identified_within_assumptions": true
+        },
+        {
+          "instrument_offset_pa": 4.0,
+          "liquid_holdup": 0.02447160075747961,
+          "film_thickness_m": 0.0005232424890654226,
+          "implied_shear_pa": 0.5214623565200383,
+          "implied_superficial_fanning_factor": 0.011271348261708539,
+          "wallis_superficial_fanning_factor": 0.01423369098350746,
+          "implied_to_wallis_ratio": 0.7918781063020562,
+          "liquid_force_residual_n_m": -1.7763568394002505e-14,
+          "identified_within_assumptions": true
+        }
+      ]
+    },
+    {
+      "window": [
+        "mess2",
+        723,
+        782
+      ],
+      "roughness_m": 0.0002,
+      "outcomes": [
+        {
+          "instrument_offset_pa": -4.0,
+          "liquid_holdup": 0.024412407498209752,
+          "film_thickness_m": 0.0005219689723736729,
+          "implied_shear_pa": 0.5171100862841903,
+          "implied_superficial_fanning_factor": 0.010027823245826552,
+          "wallis_superficial_fanning_factor": 0.014211217159535404,
+          "implied_to_wallis_ratio": 0.7056273317938928,
+          "liquid_force_residual_n_m": -3.175237850427948e-14,
+          "identified_within_assumptions": true
+        },
+        {
+          "instrument_offset_pa": 0.0,
+          "liquid_holdup": 0.024487966930724185,
+          "film_thickness_m": 0.0005235946068344314,
+          "implied_shear_pa": 0.5450743310244816,
+          "implied_superficial_fanning_factor": 0.010570107202176542,
+          "wallis_superficial_fanning_factor": 0.014239904826489966,
+          "implied_to_wallis_ratio": 0.7422877702464249,
+          "liquid_force_residual_n_m": -3.4638958368304884e-14,
+          "identified_within_assumptions": true
+        },
+        {
+          "instrument_offset_pa": 4.0,
+          "liquid_holdup": 0.024563964907594896,
+          "film_thickness_m": 0.0005252297399300027,
+          "implied_shear_pa": 0.5730362785775392,
+          "implied_superficial_fanning_factor": 0.011112346611363072,
+          "wallis_superficial_fanning_factor": 0.01426876011641181,
+          "implied_to_wallis_ratio": 0.7787885226679047,
+          "liquid_force_residual_n_m": -3.4861002973229915e-14,
+          "identified_within_assumptions": true
+        }
+      ]
+    },
+    {
+      "window": [
+        "mess2",
+        1263,
+        1322
+      ],
+      "roughness_m": 0.0002,
+      "outcomes": [
+        {
+          "instrument_offset_pa": -4.0,
+          "liquid_holdup": 0.022714028780739855,
+          "film_thickness_m": 0.0004854455513950662,
+          "implied_shear_pa": 0.42945145548631075,
+          "implied_superficial_fanning_factor": 0.008620604744083037,
+          "wallis_superficial_fanning_factor": 0.013566686201089402,
+          "implied_to_wallis_ratio": 0.6354244961743719,
+          "liquid_force_residual_n_m": -6.8833827526759706e-15,
+          "identified_within_assumptions": true
+        },
+        {
+          "instrument_offset_pa": 0.0,
+          "liquid_holdup": 0.022788729709412665,
+          "film_thickness_m": 0.00048705131792850027,
+          "implied_shear_pa": 0.457443674610359,
+          "implied_superficial_fanning_factor": 0.009182507268560276,
+          "wallis_superficial_fanning_factor": 0.01359502325756177,
+          "implied_to_wallis_ratio": 0.6754315233298934,
+          "liquid_force_residual_n_m": -1.6431300764452317e-14,
+          "identified_within_assumptions": true
+        },
+        {
+          "instrument_offset_pa": 4.0,
+          "liquid_holdup": 0.02286389484728419,
+          "film_thickness_m": 0.0004886671250233608,
+          "implied_shear_pa": 0.4854336366954235,
+          "implied_superficial_fanning_factor": 0.009744364486307912,
+          "wallis_superficial_fanning_factor": 0.013623537500412251,
+          "implied_to_wallis_ratio": 0.7152594901297146,
+          "liquid_force_residual_n_m": -1.3766765505351941e-14,
+          "identified_within_assumptions": true
+        }
+      ]
+    },
+    {
+      "window": [
+        "mess2",
+        1443,
+        1502
+      ],
+      "roughness_m": 0.0002,
+      "outcomes": [
+        {
+          "instrument_offset_pa": -4.0,
+          "liquid_holdup": 0.021369206147280145,
+          "film_thickness_m": 0.0004565478178055027,
+          "implied_shear_pa": 0.31606202343022594,
+          "implied_superficial_fanning_factor": 0.008059719129379729,
+          "wallis_superficial_fanning_factor": 0.013056726196567694,
+          "implied_to_wallis_ratio": 0.6172848390968357,
+          "liquid_force_residual_n_m": -1.709743457922741e-14,
+          "identified_within_assumptions": true
+        },
+        {
+          "instrument_offset_pa": 0.0,
+          "liquid_holdup": 0.021442351062021164,
+          "film_thickness_m": 0.0004581190549920297,
+          "implied_shear_pa": 0.3440781322707923,
+          "implied_superficial_fanning_factor": 0.008774142095804058,
+          "wallis_superficial_fanning_factor": 0.013084453911624055,
+          "implied_to_wallis_ratio": 0.6705776301454375,
+          "liquid_force_residual_n_m": -2.531308496145357e-14,
+          "identified_within_assumptions": true
+        },
+        {
+          "instrument_offset_pa": 4.0,
+          "liquid_holdup": 0.021515975195605087,
+          "film_thickness_m": 0.00045970064565502755,
+          "implied_shear_pa": 0.3720920544914571,
+          "implied_superficial_fanning_factor": 0.009488509302469405,
+          "wallis_superficial_fanning_factor": 0.01311236433508872,
+          "implied_to_wallis_ratio": 0.723630693899965,
+          "liquid_force_residual_n_m": 9.325873406851315e-15,
+          "identified_within_assumptions": true
+        }
+      ]
+    },
+    {
+      "window": [
+        "mess2",
+        1503,
+        1562
+      ],
+      "roughness_m": 0.0002,
+      "outcomes": [
+        {
+          "instrument_offset_pa": -4.0,
+          "liquid_holdup": 0.02150322907565567,
+          "film_thickness_m": 0.0004594268297624546,
+          "implied_shear_pa": 0.40365320086566325,
+          "implied_superficial_fanning_factor": 0.008781184639645246,
+          "wallis_superficial_fanning_factor": 0.013107532289925668,
+          "implied_to_wallis_ratio": 0.6699342366979623,
+          "liquid_force_residual_n_m": 2.220446049250313e-15,
+          "identified_within_assumptions": true
+        },
+        {
+          "instrument_offset_pa": 0.0,
+          "liquid_holdup": 0.02157791845152121,
+          "film_thickness_m": 0.00046103135426679134,
+          "implied_shear_pa": 0.4316637740964568,
+          "implied_superficial_fanning_factor": 0.00939053448469642,
+          "wallis_superficial_fanning_factor": 0.013135847428237493,
+          "implied_to_wallis_ratio": 0.7148784679479485,
+          "liquid_force_residual_n_m": -2.90878432451791e-14,
+          "identified_within_assumptions": true
+        },
+        {
+          "instrument_offset_pa": 4.0,
+          "liquid_holdup": 0.02165309833761632,
+          "film_thickness_m": 0.0004626464780704764,
+          "implied_shear_pa": 0.4596720920595118,
+          "implied_superficial_fanning_factor": 0.009999835268022377,
+          "wallis_superficial_fanning_factor": 0.013164349613008408,
+          "implied_to_wallis_ratio": 0.7596148356726258,
+          "liquid_force_residual_n_m": -5.773159728050814e-15,
+          "identified_within_assumptions": true
+        }
+      ]
+    },
+    {
+      "window": [
+        "mess2",
+        1563,
+        1622
+      ],
+      "roughness_m": 0.0002,
+      "outcomes": [
+        {
+          "instrument_offset_pa": -4.0,
+          "liquid_holdup": 0.02166141909246316,
+          "film_thickness_m": 0.0004628252404584352,
+          "implied_shear_pa": 0.46976049244242624,
+          "implied_superficial_fanning_factor": 0.010025768353496828,
+          "wallis_superficial_fanning_factor": 0.01316750424338415,
+          "implied_to_wallis_ratio": 0.7614023256179433,
+          "liquid_force_residual_n_m": -4.884981308350689e-15,
+          "identified_within_assumptions": true
+        },
+        {
+          "instrument_offset_pa": 0.0,
+          "liquid_holdup": 0.021737278916135687,
+          "film_thickness_m": 0.00046445504150410187,
+          "implied_shear_pa": 0.4977659762460896,
+          "implied_superficial_fanning_factor": 0.010623469730603477,
+          "wallis_superficial_fanning_factor": 0.01319626543830768,
+          "implied_to_wallis_ratio": 0.8050360748098028,
+          "liquid_force_residual_n_m": 9.325873406851315e-15,
+          "identified_within_assumptions": true
+        },
+        {
+          "instrument_offset_pa": 4.0,
+          "liquid_holdup": 0.0218136363419423,
+          "film_thickness_m": 0.0004660955970377799,
+          "implied_shear_pa": 0.5257691524622339,
+          "implied_superficial_fanning_factor": 0.011221121858489953,
+          "wallis_superficial_fanning_factor": 0.013225216418313764,
+          "implied_to_wallis_ratio": 0.8484641387759357,
+          "liquid_force_residual_n_m": -2.8754776337791554e-14,
+          "identified_within_assumptions": true
+        }
+      ]
+    },
+    {
+      "window": [
+        "mess2",
+        1623,
+        1682
+      ],
+      "roughness_m": 0.0002,
+      "outcomes": [
+        {
+          "instrument_offset_pa": -4.0,
+          "liquid_holdup": 0.021500122702343,
+          "film_thickness_m": 0.0004593600980088202,
+          "implied_shear_pa": 0.41862177573768755,
+          "implied_superficial_fanning_factor": 0.008258059054125612,
+          "wallis_superficial_fanning_factor": 0.013106354670743885,
+          "implied_to_wallis_ratio": 0.6300805419648319,
+          "liquid_force_residual_n_m": -4.1744385725905886e-14,
+          "identified_within_assumptions": true
+        },
+        {
+          "instrument_offset_pa": 0.0,
+          "liquid_holdup": 0.021575090851057036,
+          "film_thickness_m": 0.00046097060884637615,
+          "implied_shear_pa": 0.4466317585895274,
+          "implied_superficial_fanning_factor": 0.008810605782226252,
+          "wallis_superficial_fanning_factor": 0.013134775450230167,
+          "implied_to_wallis_ratio": 0.6707846522090226,
+          "liquid_force_residual_n_m": -4.418687638008123e-14,
+          "identified_within_assumptions": true
+        },
+        {
+          "instrument_offset_pa": 4.0,
+          "liquid_holdup": 0.021650552155989294,
+          "film_thickness_m": 0.0004625917762733101,
+          "implied_shear_pa": 0.47463947377127585,
+          "implied_superficial_fanning_factor": 0.00936310777650124,
+          "wallis_superficial_fanning_factor": 0.013163384287176061,
+          "implied_to_wallis_ratio": 0.7112994327471622,
+          "liquid_force_residual_n_m": -4.263256414560601e-14,
+          "identified_within_assumptions": true
+        }
+      ]
+    },
+    {
+      "window": [
+        "mess2",
+        1923,
+        1982
+      ],
+      "roughness_m": 0.0002,
+      "outcomes": [
+        {
+          "instrument_offset_pa": -4.0,
+          "liquid_holdup": 0.02061016473377717,
+          "film_thickness_m": 0.00044024619723012474,
+          "implied_shear_pa": 0.4091526413408063,
+          "implied_superficial_fanning_factor": 0.00932196185249497,
+          "wallis_superficial_fanning_factor": 0.012769050539355141,
+          "implied_to_wallis_ratio": 0.7300434612396597,
+          "liquid_force_residual_n_m": 1.1102230246251565e-16,
+          "identified_within_assumptions": true
+        },
+        {
+          "instrument_offset_pa": 0.0,
+          "liquid_holdup": 0.020685317887946114,
+          "film_thickness_m": 0.0004418599488173119,
+          "implied_shear_pa": 0.4371757029776559,
+          "implied_superficial_fanning_factor": 0.009960427513410097,
+          "wallis_superficial_fanning_factor": 0.012797528508540797,
+          "implied_to_wallis_ratio": 0.778308679426869,
+          "liquid_force_residual_n_m": 1.6542323066914832e-14,
+          "identified_within_assumptions": true
+        },
+        {
+          "instrument_offset_pa": 4.0,
+          "liquid_holdup": 0.020760987485308115,
+          "film_thickness_m": 0.00044348485246712435,
+          "implied_shear_pa": 0.4651964895902718,
+          "implied_superficial_fanning_factor": 0.010598841341129057,
+          "wallis_superficial_fanning_factor": 0.012826203278831607,
+          "implied_to_wallis_ratio": 0.8263428475846323,
+          "liquid_force_residual_n_m": -3.68594044175552e-14,
+          "identified_within_assumptions": true
+        }
+      ]
+    },
+    {
+      "window": [
+        "mess3",
+        63,
+        122
+      ],
+      "roughness_m": 0.0002,
+      "outcomes": [
+        {
+          "instrument_offset_pa": -4.0,
+          "liquid_holdup": 0.019020556996923822,
+          "film_thickness_m": 0.0004061272995189198,
+          "implied_shear_pa": 0.3445831790834168,
+          "implied_superficial_fanning_factor": 0.008603280042848063,
+          "wallis_superficial_fanning_factor": 0.012166952344451528,
+          "implied_to_wallis_ratio": 0.7071023046105215,
+          "liquid_force_residual_n_m": -3.752553823233029e-14,
+          "identified_within_assumptions": true
+        },
+        {
+          "instrument_offset_pa": 0.0,
+          "liquid_holdup": 0.019095078269789123,
+          "film_thickness_m": 0.00040772618549583047,
+          "implied_shear_pa": 0.37263160637517817,
+          "implied_superficial_fanning_factor": 0.0093035709722961,
+          "wallis_superficial_fanning_factor": 0.012195167979338185,
+          "implied_to_wallis_ratio": 0.7628899403484061,
+          "liquid_force_residual_n_m": 1.0436096431476471e-14,
+          "identified_within_assumptions": true
+        },
+        {
+          "instrument_offset_pa": 4.0,
+          "liquid_holdup": 0.01917015295366249,
+          "film_thickness_m": 0.0004093370065587215,
+          "implied_shear_pa": 0.4006777882041326,
+          "implied_superficial_fanning_factor": 0.010003805838806286,
+          "wallis_superficial_fanning_factor": 0.012223594233389203,
+          "implied_to_wallis_ratio": 0.8184013349756423,
+          "liquid_force_residual_n_m": 9.43689570931383e-15,
+          "identified_within_assumptions": true
+        }
+      ]
+    },
+    {
+      "window": [
+        "mess3",
+        483,
+        542
+      ],
+      "roughness_m": 0.0002,
+      "outcomes": [
+        {
+          "instrument_offset_pa": -4.0,
+          "liquid_holdup": 0.02162123562518407,
+          "film_thickness_m": 0.0004619619493010679,
+          "implied_shear_pa": 0.4002484350985694,
+          "implied_superficial_fanning_factor": 0.00933804569656729,
+          "wallis_superficial_fanning_factor": 0.013152269693548258,
+          "implied_to_wallis_ratio": 0.7099949981369371,
+          "liquid_force_residual_n_m": -1.8207657603852567e-14,
+          "identified_within_assumptions": true
+        },
+        {
+          "instrument_offset_pa": 0.0,
+          "liquid_holdup": 0.021695817517841172,
+          "film_thickness_m": 0.00046356426136488695,
+          "implied_shear_pa": 0.4282574698148952,
+          "implied_superficial_fanning_factor": 0.009991513950686455,
+          "wallis_superficial_fanning_factor": 0.013180545788792122,
+          "implied_to_wallis_ratio": 0.758050092218684,
+          "liquid_force_residual_n_m": -3.419486915845482e-14,
+          "identified_within_assumptions": true
+        },
+        {
+          "instrument_offset_pa": 4.0,
+          "liquid_holdup": 0.021770886228991898,
+          "film_thickness_m": 0.00046517709387984844,
+          "implied_shear_pa": 0.45626425392158265,
+          "implied_superficial_fanning_factor": 0.010644929696678653,
+          "wallis_superficial_fanning_factor": 0.013209007539056149,
+          "implied_to_wallis_ratio": 0.8058841411971279,
+          "liquid_force_residual_n_m": 7.993605777301127e-15,
+          "identified_within_assumptions": true
+        }
+      ]
+    },
+    {
+      "window": [
+        "mess3",
+        723,
+        782
+      ],
+      "roughness_m": 0.0002,
+      "outcomes": [
+        {
+          "instrument_offset_pa": -4.0,
+          "liquid_holdup": 0.02272927152201739,
+          "film_thickness_m": 0.00048577320343314847,
+          "implied_shear_pa": 0.39666785532364557,
+          "implied_superficial_fanning_factor": 0.009173684775404912,
+          "wallis_superficial_fanning_factor": 0.01357246829587909,
+          "implied_to_wallis_ratio": 0.6759039384302892,
+          "liquid_force_residual_n_m": 5.10702591327572e-15,
+          "identified_within_assumptions": true
+        },
+        {
+          "instrument_offset_pa": 0.0,
+          "liquid_holdup": 0.022803397420119345,
+          "film_thickness_m": 0.0004873666213374643,
+          "implied_shear_pa": 0.424661233679985,
+          "implied_superficial_fanning_factor": 0.00982108391650792,
+          "wallis_superficial_fanning_factor": 0.013600587435367018,
+          "implied_to_wallis_ratio": 0.7221073327295509,
+          "liquid_force_residual_n_m": -1.9984014443252818e-15,
+          "identified_within_assumptions": true
+        },
+        {
+          "instrument_offset_pa": 4.0,
+          "liquid_holdup": 0.022877982185747478,
+          "film_thickness_m": 0.0004889699641035507,
+          "implied_shear_pa": 0.45265238054262374,
+          "implied_superficial_fanning_factor": 0.010468431450152664,
+          "wallis_superficial_fanning_factor": 0.013628881719474423,
+          "implied_to_wallis_ratio": 0.7681064129564081,
+          "liquid_force_residual_n_m": -2.220446049250313e-16,
+          "identified_within_assumptions": true
+        }
+      ]
+    },
+    {
+      "window": [
+        "mess3",
+        783,
+        842
+      ],
+      "roughness_m": 0.0002,
+      "outcomes": [
+        {
+          "instrument_offset_pa": -4.0,
+          "liquid_holdup": 0.02283329520717839,
+          "film_thickness_m": 0.00048800932433653373,
+          "implied_shear_pa": 0.45943049695020693,
+          "implied_superficial_fanning_factor": 0.00911184173665297,
+          "wallis_superficial_fanning_factor": 0.013611929252997652,
+          "implied_to_wallis_ratio": 0.6694011970894088,
+          "liquid_force_residual_n_m": 4.440892098500626e-15,
+          "identified_within_assumptions": true
+        },
+        {
+          "instrument_offset_pa": 0.0,
+          "liquid_holdup": 0.022908477820591355,
+          "film_thickness_m": 0.0004896255439616813,
+          "implied_shear_pa": 0.4874197387624119,
+          "implied_superficial_fanning_factor": 0.009666949731038816,
+          "wallis_superficial_fanning_factor": 0.013640450775794375,
+          "implied_to_wallis_ratio": 0.7086972336862412,
+          "liquid_force_residual_n_m": -4.39648317751562e-14,
+          "identified_within_assumptions": true
+        },
+        {
+          "instrument_offset_pa": 4.0,
+          "liquid_holdup": 0.022984126375639537,
+          "film_thickness_m": 0.0004912518428125368,
+          "implied_shear_pa": 0.5154067019527675,
+          "implied_superficial_fanning_factor": 0.010222012533732321,
+          "wallis_superficial_fanning_factor": 0.013669150167280063,
+          "implied_to_wallis_ratio": 0.7478162437779652,
+          "liquid_force_residual_n_m": -2.4202861936828413e-14,
+          "identified_within_assumptions": true
+        }
+      ]
+    },
+    {
+      "window": [
+        "mess3",
+        1083,
+        1142
+      ],
+      "roughness_m": 0.0002,
+      "outcomes": [
+        {
+          "instrument_offset_pa": -4.0,
+          "liquid_holdup": 0.024457385556960635,
+          "film_thickness_m": 0.0005229366518125776,
+          "implied_shear_pa": 0.5136822811506299,
+          "implied_superficial_fanning_factor": 0.009918265757626459,
+          "wallis_superficial_fanning_factor": 0.014228293855516078,
+          "implied_to_wallis_ratio": 0.6970804692638048,
+          "liquid_force_residual_n_m": -2.4424906541753444e-14,
+          "identified_within_assumptions": true
+        },
+        {
+          "instrument_offset_pa": 0.0,
+          "liquid_holdup": 0.02453287032641487,
+          "film_thickness_m": 0.0005245607173324136,
+          "implied_shear_pa": 0.5416460333027697,
+          "implied_superficial_fanning_factor": 0.010458194689580397,
+          "wallis_superficial_fanning_factor": 0.014256953835277886,
+          "implied_to_wallis_ratio": 0.7335504351358906,
+          "liquid_force_residual_n_m": -2.220446049250313e-14,
+          "identified_within_assumptions": true
+        },
+        {
+          "instrument_offset_pa": 4.0,
+          "liquid_holdup": 0.02460879222075635,
+          "film_thickness_m": 0.0005261942510420097,
+          "implied_shear_pa": 0.5696074915457051,
+          "implied_superficial_fanning_factor": 0.01099807933034122,
+          "wallis_superficial_fanning_factor": 0.014285780900741347,
+          "implied_to_wallis_ratio": 0.7698619632175995,
+          "liquid_force_residual_n_m": -3.752553823233029e-14,
+          "identified_within_assumptions": true
+        }
+      ]
+    }
+  ],
+  "roughness_summary": {
+    "0.0": {
+      "evaluated_states": 48,
+      "identified_states": 48,
+      "implied_to_wallis_range": [
+        0.5026053778927694,
+        0.7687172967888842
+      ],
+      "all_identified_below_wallis": true
+    },
+    "0.0002": {
+      "evaluated_states": 48,
+      "identified_states": 48,
+      "implied_to_wallis_range": [
+        0.6172848390968357,
+        0.8789332738939538
+      ],
+      "all_identified_below_wallis": true
+    }
+  },
+  "pressure_used_as_input": true,
+  "fit_performed": false,
+  "replaces_runtime_closure": false,
+  "experimental_validation": false,
+  "assumptions": [
+    "steady fully wetted laminar annulus",
+    "wet/dry local losses cancel",
+    "dry distributed loss follows each declared Darcy baseline",
+    "constant properties and no entrainment"
+  ],
+  "interpretation": "Conditional shear identification, not an independently measured shear or validation. Pressure alone cannot distinguish shear, wetting and local-loss errors.",
+  "source_sha256": {
+    "scripts/diagnose_annular_experiment.py": "f76744f6a95f173e21ba4a2f372abbb2b65db95d0633878d19721dbc99ae0b76",
+    "scripts/reference_pr_annular_source.py": "4a3560505a0059eca8d258b8a1f3c27d867408b6d1b131ec7845564219418343"
+  },
+  "manifest_sha256": "47963ca66c6067804f1415759eb4e34c24885704bf51d6591b4b36d47f63fcdc",
+  "dry_density_sensitivity": {
+    "cases": [
+      {
+        "window": [
+          "mess1",
+          483,
+          542
+        ],
+        "original_dry_baseline_pa": 64.60818444880364,
+        "density_scaled_dry_baseline_pa": 65.09864089351127,
+        "change_in_wet_increment_pa": -0.4904564447076325
+      },
+      {
+        "window": [
+          "mess1",
+          963,
+          1022
+        ],
+        "original_dry_baseline_pa": 60.353403920066924,
+        "density_scaled_dry_baseline_pa": 61.03852282322035,
+        "change_in_wet_increment_pa": -0.6851189031534233
+      },
+      {
+        "window": [
+          "mess1",
+          1323,
+          1382
+        ],
+        "original_dry_baseline_pa": 75.1185366536773,
+        "density_scaled_dry_baseline_pa": 75.53745751820904,
+        "change_in_wet_increment_pa": -0.41892086453174215
+      },
+      {
+        "window": [
+          "mess1",
+          1623,
+          1682
+        ],
+        "original_dry_baseline_pa": 69.63713365456559,
+        "density_scaled_dry_baseline_pa": 69.27424018269402,
+        "change_in_wet_increment_pa": 0.3628934718715726
+      },
+      {
+        "window": [
+          "mess1",
+          1683,
+          1742
+        ],
+        "original_dry_baseline_pa": 77.54552982893968,
+        "density_scaled_dry_baseline_pa": 77.49051234227686,
+        "change_in_wet_increment_pa": 0.05501748666281969
+      },
+      {
+        "window": [
+          "mess2",
+          123,
+          182
+        ],
+        "original_dry_baseline_pa": 61.0063108306558,
+        "density_scaled_dry_baseline_pa": 60.7026382249276,
+        "change_in_wet_increment_pa": 0.3036726057282024
+      },
+      {
+        "window": [
+          "mess2",
+          663,
+          722
+        ],
+        "original_dry_baseline_pa": 63.85667761979333,
+        "density_scaled_dry_baseline_pa": 64.16338967028703,
+        "change_in_wet_increment_pa": -0.30671205049370087
+      },
+      {
+        "window": [
+          "mess2",
+          723,
+          782
+        ],
+        "original_dry_baseline_pa": 75.94803410548427,
+        "density_scaled_dry_baseline_pa": 76.17957593390916,
+        "change_in_wet_increment_pa": -0.2315418284248949
+      },
+      {
+        "window": [
+          "mess2",
+          1263,
+          1322
+        ],
+        "original_dry_baseline_pa": 76.02924362693302,
+        "density_scaled_dry_baseline_pa": 75.93737782832567,
+        "change_in_wet_increment_pa": 0.09186579860735833
+      },
+      {
+        "window": [
+          "mess2",
+          1443,
+          1502
+        ],
+        "original_dry_baseline_pa": 59.32766327582122,
+        "density_scaled_dry_baseline_pa": 59.16494532678316,
+        "change_in_wet_increment_pa": 0.16271794903806125
+      },
+      {
+        "window": [
+          "mess2",
+          1503,
+          1562
+        ],
+        "original_dry_baseline_pa": 64.99084356090151,
+        "density_scaled_dry_baseline_pa": 65.10331138538518,
+        "change_in_wet_increment_pa": -0.11246782448367298
+      },
+      {
+        "window": [
+          "mess2",
+          1563,
+          1622
+        ],
+        "original_dry_baseline_pa": 60.57101040383,
+        "density_scaled_dry_baseline_pa": 61.07001995063178,
+        "change_in_wet_increment_pa": -0.4990095468017799
+      },
+      {
+        "window": [
+          "mess2",
+          1623,
+          1682
+        ],
+        "original_dry_baseline_pa": 77.21911015626567,
+        "density_scaled_dry_baseline_pa": 77.10596849833134,
+        "change_in_wet_increment_pa": 0.11314165793433517
+      },
+      {
+        "window": [
+          "mess2",
+          1923,
+          1982
+        ],
+        "original_dry_baseline_pa": 63.807084759311856,
+        "density_scaled_dry_baseline_pa": 63.587974327437166,
+        "change_in_wet_increment_pa": 0.21911043187468948
+      },
+      {
+        "window": [
+          "mess3",
+          63,
+          122
+        ],
+        "original_dry_baseline_pa": 54.37339910225365,
+        "density_scaled_dry_baseline_pa": 54.49184021047083,
+        "change_in_wet_increment_pa": -0.11844110821718346
+      },
+      {
+        "window": [
+          "mess3",
+          483,
+          542
+        ],
+        "original_dry_baseline_pa": 57.66881025998114,
+        "density_scaled_dry_baseline_pa": 57.7528965989138,
+        "change_in_wet_increment_pa": -0.08408633893265716
+      },
+      {
+        "window": [
+          "mess3",
+          723,
+          782
+        ],
+        "original_dry_baseline_pa": 59.97285321521322,
+        "density_scaled_dry_baseline_pa": 59.93293740084497,
+        "change_in_wet_increment_pa": 0.03991581436824987
+      },
+      {
+        "window": [
+          "mess3",
+          783,
+          842
+        ],
+        "original_dry_baseline_pa": 77.54238353388291,
+        "density_scaled_dry_baseline_pa": 77.26449700085236,
+        "change_in_wet_increment_pa": 0.27788653303055355
+      },
+      {
+        "window": [
+          "mess3",
+          1083,
+          1142
+        ],
+        "original_dry_baseline_pa": 75.36903254945484,
+        "density_scaled_dry_baseline_pa": 75.4982481751398,
+        "change_in_wet_increment_pa": -0.1292156256849637
+      },
+      {
+        "window": [
+          "mess3",
+          1443,
+          1502
+        ],
+        "original_dry_baseline_pa": 61.340527832650274,
+        "density_scaled_dry_baseline_pa": 61.932207126857364,
+        "change_in_wet_increment_pa": -0.5916792942070899
+      }
+    ],
+    "maximum_absolute_increment_change_pa": 0.6851189031534233,
+    "model": "conditional density-proportional dry loss at matched volume flow",
+    "viscosity_and_reynolds_correction_applied": false,
+    "replaces_experimental_gate": false,
+    "fit_performed": false
+  }
+}

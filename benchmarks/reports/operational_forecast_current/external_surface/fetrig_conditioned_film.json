@@ -1,0 +1,3260 @@
+{
+  "format": "fetrig_conditioned_film_challenge_v1",
+  "source": "https://doi.org/10.18419/DARUS-4998",
+  "publication": "https://doi.org/10.1063/5.0263158",
+  "manifest_sha256": "652d47a367c0688f60bd39f4869035d574cf7bc0c079496fbea785c4e741e63b",
+  "processing_manifest_sha256": "7b4058a3099ce0a11ca0feb81d95269d2e8e3933a51337e8aef5b76a13acd670",
+  "processing_plotter_sha256": "fb96c5a0f28114839a43fe1dce847e786d4afec8c7420a92bffecff569c73161",
+  "source_sha256": {
+    "scripts/validate_fetrig_film.py": "e291402f55ea1c55dd9cd0c0d026955050598b94a28cc6dd6786010d1b26f07a",
+    "scripts/fetrig_labview.py": "519407f803c58a5d86983fe117b343f1afabcf9e880c604996ed6d2b4eb29f73",
+    "scripts/audit_fetrig_measurements.py": "4dc29ba4a5bb40e6f24dab461af4297f7dade9054936ebae77cf1f1bf5a3dced",
+    "src/surface/planar_film.py": "6a13f530ce13fc471527a6edb8531f114c906f9eb73c2d78ef09926888a35537",
+    "src/surface/thin_film_dynamics.py": "e36cf592d82bc5bc2acb3233514c41d870c96353f8ab27c026cf5e86fb3d0f56"
+  },
+  "device": "cpu",
+  "cases": [
+    {
+      "cci_member": "Film Data_MC_RC_Water_RH80_T25Deg_CopperPlate_28_08_24/MC_RC_Water_RH80_T25Deg_CopperPlate_28_08_24/Y_100/X_50/Keyence Data/ReL500_ReG0.csv",
+      "labview_member": "Film Data_MC_RC_Water_RH80_T25Deg_CopperPlate_28_08_24/MC_RC_Water_RH80_T25Deg_CopperPlate_28_08_24/Y_100/X_50/LabView Data/ReL500_ReG0.xlsx",
+      "cci_raw_sha256": "557afcb368eb9f370bb0e597c03bd987a3045058538c76bd8dde887c298d3fdd",
+      "labview_raw_sha256": "e460306d605b73a44a0686f5529e8c5888834b2cd2c875528cdf5986009643ca",
+      "observed_cci": {
+        "records": 100000,
+        "sensor_status_counts": {
+          "GO": 99870,
+          "ALARM": 130
+        },
+        "sensor_acceptance_fraction": 0.9987,
+        "sampling_period_s": 0.00019999999999999998,
+        "first_trigger": 646066,
+        "last_trigger": 746065,
+        "elapsed_first_to_last_s": 19.999799999999997,
+        "missing_triggers": 0,
+        "go_mean_thickness_m": 0.000482399137879243,
+        "go_sample_std_thickness_m": 1.7822720623770695e-05,
+        "go_minimum_thickness_m": 0.0004047,
+        "go_maximum_thickness_m": 0.0005618999999999999,
+        "standard_error_or_confidence_interval_estimated": false,
+        "outliers_replaced": false,
+        "zero_offset_adjusted": false
+      },
+      "input_channels": {
+        "liquid_flow": {
+          "name": "MF 01",
+          "sheet": "Mass Flow",
+          "clock": "Timestamp-CF",
+          "unit_from_workbook": null,
+          "missing_pairs": 0
+        },
+        "gas_volume_flow": {
+          "name": "TT-Volume Flow",
+          "sheet": "Volume Flow",
+          "clock": "Timestamp-TT",
+          "unit_from_workbook": null,
+          "missing_pairs": 0
+        },
+        "liquid_inlet_temperature": {
+          "name": "TC 14",
+          "sheet": "Temperature",
+          "clock": "Timestamp-TC",
+          "unit_from_workbook": null,
+          "missing_pairs": 0
+        },
+        "gas_density": {
+          "name": "TT-Density",
+          "sheet": "Density",
+          "clock": "Timestamp-TT",
+          "unit_from_workbook": null,
+          "missing_pairs": 0
+        },
+        "gas_viscosity": {
+          "name": "TT-Viscosity",
+          "sheet": "Viscosity",
+          "clock": "Untitled",
+          "unit_from_workbook": null,
+          "missing_pairs": 0
+        }
+      },
+      "input_windows": {
+        "fixed_windows": 85,
+        "accepted": [
+          {
+            "index": 75,
+            "first_excel_day": 45532.59962339829,
+            "end_excel_day_exclusive": 45532.59985487977,
+            "duration_s": 20.0,
+            "raw_channel_statistics": {
+              "liquid_flow": {
+                "samples": 35,
+                "first_row": 2406,
+                "last_row": 2440,
+                "mean_native": 162.2579807826451,
+                "sd_native": 2.183117584437469,
+                "minimum_native": 160.16015625,
+                "maximum_native": 167.97097778320312,
+                "maximum_gap_s": 0.6002928363159299,
+                "coefficient_of_variation": 0.01345460835829021
+              },
+              "gas_volume_flow": {
+                "samples": 36,
+                "first_row": 2804,
+                "last_row": 2839,
+                "mean_native": 3.7614232777777776e-06,
+                "sd_native": 5.026732291027117e-07,
+                "minimum_native": 2.901704e-06,
+                "maximum_native": 4.934368e-06,
+                "maximum_gap_s": 0.5600006086751819,
+                "coefficient_of_variation": 0.13363910200494306
+              },
+              "liquid_inlet_temperature": {
+                "samples": 40,
+                "first_row": 3003,
+                "last_row": 3042,
+                "mean_native": 24.927601671218873,
+                "sd_native": 0.04702482866365355,
+                "minimum_native": 24.839717864990234,
+                "maximum_native": 25.034013748168945,
+                "maximum_gap_s": 0.5044059595093131,
+                "coefficient_of_variation": 0.0018864561975871063
+              },
+              "gas_density": {
+                "samples": 25,
+                "first_row": 2761,
+                "last_row": 2785,
+                "mean_native": 1.121476372,
+                "sd_native": 0.0001344796237948214,
+                "minimum_native": 1.1213505,
+                "maximum_native": 1.1216477,
+                "maximum_gap_s": 0.7900002412497997,
+                "coefficient_of_variation": 0.00011991302460968957
+              },
+              "gas_viscosity": {
+                "samples": 25,
+                "first_row": 2761,
+                "last_row": 2785,
+                "mean_native": 1.833585168e-05,
+                "sd_native": 4.1897703994442146e-11,
+                "minimum_native": 1.8335764e-05,
+                "maximum_native": 1.8335952e-05,
+                "maximum_gap_s": 0.7900002412497997,
+                "coefficient_of_variation": 2.2850154290974364e-06
+              }
+            },
+            "candidate_SI_means": {
+              "liquid_flow": 0.04507166132851253,
+              "gas_volume_flow": 3.7614232777777776e-06,
+              "liquid_inlet_temperature": 298.0776016712189,
+              "gas_density": 1.121476372,
+              "gas_viscosity": 1.833585168e-05
+            }
+          },
+          {
+            "index": 76,
+            "first_excel_day": 45532.59985487977,
+            "end_excel_day_exclusive": 45532.60008636125,
+            "duration_s": 20.0,
+            "raw_channel_statistics": {
+              "liquid_flow": {
+                "samples": 34,
+                "first_row": 2441,
+                "last_row": 2474,
+                "mean_native": 160.228432599236,
+                "sd_native": 0.0617532814657628,
+                "minimum_native": 160.102294921875,
+                "maximum_native": 160.3411407470703,
+                "maximum_gap_s": 0.6142216734588146,
+                "coefficient_of_variation": 0.0003854077610571175
+              },
+              "gas_volume_flow": {
+                "samples": 36,
+                "first_row": 2840,
+                "last_row": 2875,
+                "mean_native": 3.752106083333333e-06,
+                "sd_native": 4.431614339099124e-07,
+                "minimum_native": 2.9061622e-06,
+                "maximum_native": 4.649078e-06,
+                "maximum_gap_s": 0.5600006086751819,
+                "coefficient_of_variation": 0.11811004914770754
+              },
+              "liquid_inlet_temperature": {
+                "samples": 40,
+                "first_row": 3043,
+                "last_row": 3082,
+                "mean_native": 24.87806181907654,
+                "sd_native": 0.03689159312630462,
+                "minimum_native": 24.81244468688965,
+                "maximum_native": 24.974721908569336,
+                "maximum_gap_s": 0.5018354393541813,
+                "coefficient_of_variation": 0.0014828965935769194
+              },
+              "gas_density": {
+                "samples": 25,
+                "first_row": 2786,
+                "last_row": 2810,
+                "mean_native": 1.12134636,
+                "sd_native": 1.0315502896146474e-05,
+                "minimum_native": 1.121322,
+                "maximum_native": 1.1213602,
+                "maximum_gap_s": 0.7900002412497997,
+                "coefficient_of_variation": 9.199212004528622e-06
+              },
+              "gas_viscosity": {
+                "samples": 25,
+                "first_row": 2786,
+                "last_row": 2810,
+                "mean_native": 1.833548656e-05,
+                "sd_native": 4.4021431871324837e-10,
+                "minimum_native": 1.8335002e-05,
+                "maximum_native": 1.8335976e-05,
+                "maximum_gap_s": 0.7900002412497997,
+                "coefficient_of_variation": 2.4008870300371694e-05
+              }
+            },
+            "candidate_SI_means": {
+              "liquid_flow": 0.04450789794423222,
+              "gas_volume_flow": 3.752106083333333e-06,
+              "liquid_inlet_temperature": 298.0280618190765,
+              "gas_density": 1.12134636,
+              "gas_viscosity": 1.833548656e-05
+            }
+          },
+          {
+            "index": 77,
+            "first_excel_day": 45532.60008636125,
+            "end_excel_day_exclusive": 45532.600317842735,
+            "duration_s": 20.0,
+            "raw_channel_statistics": {
+              "liquid_flow": {
+                "samples": 35,
+                "first_row": 2475,
+                "last_row": 2509,
+                "mean_native": 160.24217311314175,
+                "sd_native": 0.0456209678812147,
+                "minimum_native": 160.1347198486328,
+                "maximum_native": 160.30601501464844,
+                "maximum_gap_s": 0.6102247629314661,
+                "coefficient_of_variation": 0.00028470013227418746
+              },
+              "gas_volume_flow": {
+                "samples": 35,
+                "first_row": 2876,
+                "last_row": 2910,
+                "mean_native": 3.7720515828571425e-06,
+                "sd_native": 5.315848077034802e-07,
+                "minimum_native": 2.901704e-06,
+                "maximum_native": 4.934368e-06,
+                "maximum_gap_s": 0.5600006086751819,
+                "coefficient_of_variation": 0.14092723708216923
+              },
+              "liquid_inlet_temperature": {
+                "samples": 40,
+                "first_row": 3083,
+                "last_row": 3122,
+                "mean_native": 24.8825804233551,
+                "sd_native": 0.037790951858638636,
+                "minimum_native": 24.816822052001953,
+                "maximum_native": 24.991947174072266,
+                "maximum_gap_s": 0.50682183355093,
+                "coefficient_of_variation": 0.0015187714142045965
+              },
+              "gas_density": {
+                "samples": 26,
+                "first_row": 2811,
+                "last_row": 2836,
+                "mean_native": 1.1213428769230769,
+                "sd_native": 9.359088864778869e-06,
+                "minimum_native": 1.121322,
+                "maximum_native": 1.1213597,
+                "maximum_gap_s": 0.7900002412497997,
+                "coefficient_of_variation": 8.346322126252641e-06
+              },
+              "gas_viscosity": {
+                "samples": 26,
+                "first_row": 2811,
+                "last_row": 2836,
+                "mean_native": 1.8335400307692308e-05,
+                "sd_native": 3.727390063621535e-10,
+                "minimum_native": 1.8335028e-05,
+                "maximum_native": 1.8336238e-05,
+                "maximum_gap_s": 0.7900002412497997,
+                "coefficient_of_variation": 2.032892656321101e-05
+              }
+            },
+            "candidate_SI_means": {
+              "liquid_flow": 0.04451171475365048,
+              "gas_volume_flow": 3.7720515828571425e-06,
+              "liquid_inlet_temperature": 298.03258042335506,
+              "gas_density": 1.1213428769230769,
+              "gas_viscosity": 1.8335400307692308e-05
+            }
+          },
+          {
+            "index": 78,
+            "first_excel_day": 45532.600317842735,
+            "end_excel_day_exclusive": 45532.60054932421,
+            "duration_s": 20.0,
+            "raw_channel_statistics": {
+              "liquid_flow": {
+                "samples": 35,
+                "first_row": 2510,
+                "last_row": 2544,
+                "mean_native": 160.22140197753907,
+                "sd_native": 0.06090198973840975,
+                "minimum_native": 160.10101318359375,
+                "maximum_native": 160.36351013183594,
+                "maximum_gap_s": 0.5979410838335752,
+                "coefficient_of_variation": 0.0003801114519453987
+              },
+              "gas_volume_flow": {
+                "samples": 36,
+                "first_row": 2911,
+                "last_row": 2946,
+                "mean_native": 3.7876960611111114e-06,
+                "sd_native": 4.904860633214517e-07,
+                "minimum_native": 2.901704e-06,
+                "maximum_native": 4.934368e-06,
+                "maximum_gap_s": 0.5600006086751819,
+                "coefficient_of_variation": 0.12949456751753435
+              },
+              "liquid_inlet_temperature": {
+                "samples": 40,
+                "first_row": 3123,
+                "last_row": 3162,
+                "mean_native": 24.916555309295653,
+                "sd_native": 0.03283140640826492,
+                "minimum_native": 24.849851608276367,
+                "maximum_native": 25.016559600830078,
+                "maximum_gap_s": 0.5083488067612052,
+                "coefficient_of_variation": 0.0013176543065732873
+              },
+              "gas_density": {
+                "samples": 25,
+                "first_row": 2837,
+                "last_row": 2861,
+                "mean_native": 1.121360232,
+                "sd_native": 7.531996664895205e-05,
+                "minimum_native": 1.121322,
+                "maximum_native": 1.1216137,
+                "maximum_gap_s": 0.7900002412497997,
+                "coefficient_of_variation": 6.716839468670586e-05
+              },
+              "gas_viscosity": {
+                "samples": 25,
+                "first_row": 2837,
+                "last_row": 2861,
+                "mean_native": 1.8335865440000002e-05,
+                "sd_native": 3.5801765319548245e-11,
+                "minimum_native": 1.8335796e-05,
+                "maximum_native": 1.8335952e-05,
+                "maximum_gap_s": 0.7900002412497997,
+                "coefficient_of_variation": 1.9525538860819783e-06
+              }
+            },
+            "candidate_SI_means": {
+              "liquid_flow": 0.04450594499376086,
+              "gas_volume_flow": 3.7876960611111114e-06,
+              "liquid_inlet_temperature": 298.0665553092956,
+              "gas_density": 1.121360232,
+              "gas_viscosity": 1.8335865440000002e-05
+            }
+          },
+          {
+            "index": 79,
+            "first_excel_day": 45532.60054932421,
+            "end_excel_day_exclusive": 45532.6007808057,
+            "duration_s": 20.0,
+            "raw_channel_statistics": {
+              "liquid_flow": {
+                "samples": 34,
+                "first_row": 2545,
+                "last_row": 2578,
+                "mean_native": 160.21362484202666,
+                "sd_native": 0.044064898677248936,
+                "minimum_native": 160.12423706054688,
+                "maximum_native": 160.329833984375,
+                "maximum_gap_s": 0.6139765027910471,
+                "coefficient_of_variation": 0.00027503839776858973
+              },
+              "gas_volume_flow": {
+                "samples": 36,
+                "first_row": 2947,
+                "last_row": 2982,
+                "mean_native": 3.7486603611111107e-06,
+                "sd_native": 5.29283691493229e-07,
+                "minimum_native": 2.363612e-06,
+                "maximum_native": 4.8100996e-06,
+                "maximum_gap_s": 0.5600006086751819,
+                "coefficient_of_variation": 0.1411927570136944
+              },
+              "liquid_inlet_temperature": {
+                "samples": 40,
+                "first_row": 3163,
+                "last_row": 3202,
+                "mean_native": 24.936004400253296,
+                "sd_native": 0.035338614196889245,
+                "minimum_native": 24.878124237060547,
+                "maximum_native": 25.02975845336914,
+                "maximum_gap_s": 0.5165833979845047,
+                "coefficient_of_variation": 0.0014171722794743445
+              },
+              "gas_density": {
+                "samples": 25,
+                "first_row": 2862,
+                "last_row": 2886,
+                "mean_native": 1.121353124,
+                "sd_native": 6.960820641299136e-06,
+                "minimum_native": 1.1213374,
+                "maximum_native": 1.1213679,
+                "maximum_gap_s": 0.7900002412497997,
+                "coefficient_of_variation": 6.207518838016931e-06
+              },
+              "gas_viscosity": {
+                "samples": 25,
+                "first_row": 2862,
+                "last_row": 2886,
+                "mean_native": 1.83353904e-05,
+                "sd_native": 4.27365511009166e-10,
+                "minimum_native": 1.8335002e-05,
+                "maximum_native": 1.8335976e-05,
+                "maximum_gap_s": 0.7900002412497997,
+                "coefficient_of_variation": 2.3308230786793936e-05
+              }
+            },
+            "candidate_SI_means": {
+              "liquid_flow": 0.04450378467834074,
+              "gas_volume_flow": 3.7486603611111107e-06,
+              "liquid_inlet_temperature": 298.0860044002533,
+              "gas_density": 1.121353124,
+              "gas_viscosity": 1.83353904e-05
+            }
+          },
+          {
+            "index": 80,
+            "first_excel_day": 45532.6007808057,
+            "end_excel_day_exclusive": 45532.60101228718,
+            "duration_s": 20.0,
+            "raw_channel_statistics": {
+              "liquid_flow": {
+                "samples": 35,
+                "first_row": 2579,
+                "last_row": 2613,
+                "mean_native": 160.23939950125558,
+                "sd_native": 0.028324214443685,
+                "minimum_native": 160.20016479492188,
+                "maximum_native": 160.31344604492188,
+                "maximum_gap_s": 0.5983232986181974,
+                "coefficient_of_variation": 0.00017676186088966877
+              },
+              "gas_volume_flow": {
+                "samples": 36,
+                "first_row": 2983,
+                "last_row": 3018,
+                "mean_native": 3.753931677777778e-06,
+                "sd_native": 5.212539781828097e-07,
+                "minimum_native": 2.901704e-06,
+                "maximum_native": 4.934368e-06,
+                "maximum_gap_s": 0.5600006086751819,
+                "coefficient_of_variation": 0.13885547818264435
+              },
+              "liquid_inlet_temperature": {
+                "samples": 40,
+                "first_row": 3203,
+                "last_row": 3242,
+                "mean_native": 24.941333532333374,
+                "sd_native": 0.03388797097725865,
+                "minimum_native": 24.88423728942871,
+                "maximum_native": 25.018352508544922,
+                "maximum_gap_s": 0.5027117673307657,
+                "coefficient_of_variation": 0.0013587072613149198
+              },
+              "gas_density": {
+                "samples": 26,
+                "first_row": 2887,
+                "last_row": 2912,
+                "mean_native": 1.121339546153846,
+                "sd_native": 1.0307250277558015e-05,
+                "minimum_native": 1.121322,
+                "maximum_native": 1.1213597,
+                "maximum_gap_s": 0.7900002412497997,
+                "coefficient_of_variation": 9.19190829656504e-06
+              },
+              "gas_viscosity": {
+                "samples": 26,
+                "first_row": 2887,
+                "last_row": 2912,
+                "mean_native": 1.8335196615384614e-05,
+                "sd_native": 7.966230501456287e-11,
+                "minimum_native": 1.8335028e-05,
+                "maximum_native": 1.8335322e-05,
+                "maximum_gap_s": 0.7900002412497997,
+                "coefficient_of_variation": 4.344775062173055e-06
+              }
+            },
+            "candidate_SI_means": {
+              "liquid_flow": 0.044510944305904326,
+              "gas_volume_flow": 3.753931677777778e-06,
+              "liquid_inlet_temperature": 298.09133353233335,
+              "gas_density": 1.121339546153846,
+              "gas_viscosity": 1.8335196615384614e-05
+            }
+          },
+          {
+            "index": 81,
+            "first_excel_day": 45532.60101228718,
+            "end_excel_day_exclusive": 45532.60124376866,
+            "duration_s": 20.0,
+            "raw_channel_statistics": {
+              "liquid_flow": {
+                "samples": 35,
+                "first_row": 2614,
+                "last_row": 2648,
+                "mean_native": 160.1900386265346,
+                "sd_native": 0.07485317225219862,
+                "minimum_native": 160.05885314941406,
+                "maximum_native": 160.33773803710938,
+                "maximum_gap_s": 0.6137822521850467,
+                "coefficient_of_variation": 0.00046727732194828
+              },
+              "gas_volume_flow": {
+                "samples": 35,
+                "first_row": 3019,
+                "last_row": 3053,
+                "mean_native": 3.5642874742857144e-06,
+                "sd_native": 5.419193964472641e-07,
+                "minimum_native": 2.363612e-06,
+                "maximum_native": 4.506476e-06,
+                "maximum_gap_s": 0.5600006086751819,
+                "coefficient_of_variation": 0.15204143895712707
+              },
+              "liquid_inlet_temperature": {
+                "samples": 40,
+                "first_row": 3243,
+                "last_row": 3282,
+                "mean_native": 24.950685358047487,
+                "sd_native": 0.03126288196972578,
+                "minimum_native": 24.894107818603516,
+                "maximum_native": 25.03172492980957,
+                "maximum_gap_s": 0.5069192731752992,
+                "coefficient_of_variation": 0.0012529869028083584
+              },
+              "gas_density": {
+                "samples": 25,
+                "first_row": 2913,
+                "last_row": 2937,
+                "mean_native": 1.121342756,
+                "sd_native": 8.893416891173763e-06,
+                "minimum_native": 1.121322,
+                "maximum_native": 1.1213572,
+                "maximum_gap_s": 0.7900002412497997,
+                "coefficient_of_variation": 7.931042353988117e-06
+              },
+              "gas_viscosity": {
+                "samples": 25,
+                "first_row": 2913,
+                "last_row": 2937,
+                "mean_native": 1.833544472e-05,
+                "sd_native": 3.7475320092024516e-10,
+                "minimum_native": 1.8335144e-05,
+                "maximum_native": 1.8336238e-05,
+                "maximum_gap_s": 0.7900002412497997,
+                "coefficient_of_variation": 2.0438729828650984e-05
+              }
+            },
+            "candidate_SI_means": {
+              "liquid_flow": 0.044497232951815166,
+              "gas_volume_flow": 3.5642874742857144e-06,
+              "liquid_inlet_temperature": 298.1006853580475,
+              "gas_density": 1.121342756,
+              "gas_viscosity": 1.833544472e-05
+            }
+          },
+          {
+            "index": 82,
+            "first_excel_day": 45532.60124376866,
+            "end_excel_day_exclusive": 45532.60147525014,
+            "duration_s": 20.0,
+            "raw_channel_statistics": {
+              "liquid_flow": {
+                "samples": 35,
+                "first_row": 2649,
+                "last_row": 2683,
+                "mean_native": 160.20146092006138,
+                "sd_native": 0.07882498858650147,
+                "minimum_native": 160.04257202148438,
+                "maximum_native": 160.33132934570312,
+                "maximum_gap_s": 0.5993341561406851,
+                "coefficient_of_variation": 0.0004920366402016409
+              },
+              "gas_volume_flow": {
+                "samples": 36,
+                "first_row": 3054,
+                "last_row": 3089,
+                "mean_native": 3.690566477777778e-06,
+                "sd_native": 5.010672458777481e-07,
+                "minimum_native": 2.363612e-06,
+                "maximum_native": 4.791788e-06,
+                "maximum_gap_s": 0.5600006086751819,
+                "coefficient_of_variation": 0.1357697385739705
+              },
+              "liquid_inlet_temperature": {
+                "samples": 40,
+                "first_row": 3283,
+                "last_row": 3322,
+                "mean_native": 24.975542068481445,
+                "sd_native": 0.03387673264119892,
+                "minimum_native": 24.886526107788086,
+                "maximum_native": 25.057634353637695,
+                "maximum_gap_s": 0.5088944686576724,
+                "coefficient_of_variation": 0.0013563962915523892
+              },
+              "gas_density": {
+                "samples": 25,
+                "first_row": 2938,
+                "last_row": 2962,
+                "mean_native": 1.121370924,
+                "sd_native": 7.25499346932733e-05,
+                "minimum_native": 1.121322,
+                "maximum_native": 1.1216137,
+                "maximum_gap_s": 0.7900002412497997,
+                "coefficient_of_variation": 6.46975350800814e-05
+              },
+              "gas_viscosity": {
+                "samples": 25,
+                "first_row": 2938,
+                "last_row": 2962,
+                "mean_native": 1.83358696e-05,
+                "sd_native": 3.722364839716953e-11,
+                "minimum_native": 1.8335796e-05,
+                "maximum_native": 1.8335952e-05,
+                "maximum_gap_s": 0.7900002412497997,
+                "coefficient_of_variation": 2.0300999739423064e-06
+              }
+            },
+            "candidate_SI_means": {
+              "liquid_flow": 0.04450040581112816,
+              "gas_volume_flow": 3.690566477777778e-06,
+              "liquid_inlet_temperature": 298.1255420684814,
+              "gas_density": 1.121370924,
+              "gas_viscosity": 1.83358696e-05
+            }
+          },
+          {
+            "index": 83,
+            "first_excel_day": 45532.60147525014,
+            "end_excel_day_exclusive": 45532.60170673162,
+            "duration_s": 20.0,
+            "raw_channel_statistics": {
+              "liquid_flow": {
+                "samples": 34,
+                "first_row": 2684,
+                "last_row": 2717,
+                "mean_native": 160.21088678696577,
+                "sd_native": 0.06336240879165864,
+                "minimum_native": 160.08758544921875,
+                "maximum_native": 160.3072052001953,
+                "maximum_gap_s": 0.5941088777035475,
+                "coefficient_of_variation": 0.00039549377737302176
+              },
+              "gas_volume_flow": {
+                "samples": 36,
+                "first_row": 3090,
+                "last_row": 3125,
+                "mean_native": 3.63237065e-06,
+                "sd_native": 6.012688213605133e-07,
+                "minimum_native": 2.363612e-06,
+                "maximum_native": 4.934368e-06,
+                "maximum_gap_s": 0.5600006086751819,
+                "coefficient_of_variation": 0.16553069036622495
+              },
+              "liquid_inlet_temperature": {
+                "samples": 40,
+                "first_row": 3323,
+                "last_row": 3362,
+                "mean_native": 24.99665050506592,
+                "sd_native": 0.02484810132702069,
+                "minimum_native": 24.950965881347656,
+                "maximum_native": 25.054601669311523,
+                "maximum_gap_s": 0.502589181996882,
+                "coefficient_of_variation": 0.0009940572366679639
+              },
+              "gas_density": {
+                "samples": 25,
+                "first_row": 2963,
+                "last_row": 2987,
+                "mean_native": 1.121345232,
+                "sd_native": 8.305165621480461e-06,
+                "minimum_native": 1.121322,
+                "maximum_native": 1.1213572,
+                "maximum_gap_s": 0.7900002412497997,
+                "coefficient_of_variation": 7.406430583975998e-06
+              },
+              "gas_viscosity": {
+                "samples": 25,
+                "first_row": 2963,
+                "last_row": 2987,
+                "mean_native": 1.8335359200000002e-05,
+                "sd_native": 4.1497951756702466e-10,
+                "minimum_native": 1.8335002e-05,
+                "maximum_native": 1.8335976e-05,
+                "maximum_gap_s": 0.7900002412497997,
+                "coefficient_of_variation": 2.263274545322377e-05
+              }
+            },
+            "candidate_SI_means": {
+              "liquid_flow": 0.04450302410749049,
+              "gas_volume_flow": 3.63237065e-06,
+              "liquid_inlet_temperature": 298.1466505050659,
+              "gas_density": 1.121345232,
+              "gas_viscosity": 1.8335359200000002e-05
+            }
+          }
+        ],
+        "rejected_by_input": {
+          "liquid_not_positive_operating_flow": 68,
+          "liquid_input_not_steady": 8
+        },
+        "selection_uses_thickness_or_model_error": false,
+        "duration_s": 20.0,
+        "conversion_confirmed": false
+      },
+      "gas_unit_consistency": {
+        "nominal_filename_reynolds_not_boundary_condition": 0,
+        "windows": [
+          {
+            "window_index": 75,
+            "reynolds_if_native_m3_s": 3.539385700788894,
+            "reynolds_if_native_m3_h": 0.0009831626946635815
+          },
+          {
+            "window_index": 76,
+            "reynolds_if_native_m3_s": 3.530279498100037,
+            "reynolds_if_native_m3_h": 0.0009806331939166768
+          },
+          {
+            "window_index": 77,
+            "reynolds_if_native_m3_s": 3.54905147993855,
+            "reynolds_if_native_m3_h": 0.000985847633316264
+          },
+          {
+            "window_index": 78,
+            "reynolds_if_native_m3_s": 3.5637358233420984,
+            "reynolds_if_native_m3_h": 0.0009899266175950273
+          },
+          {
+            "window_index": 79,
+            "reynolds_if_native_m3_s": 3.527077261760247,
+            "reynolds_if_native_m3_h": 0.0009797436838222908
+          },
+          {
+            "window_index": 80,
+            "reynolds_if_native_m3_s": 3.532031553345748,
+            "reynolds_if_native_m3_h": 0.0009811198759293743
+          },
+          {
+            "window_index": 81,
+            "reynolds_if_native_m3_s": 3.3535617032194662,
+            "reynolds_if_native_m3_h": 0.0009315449175609628
+          },
+          {
+            "window_index": 82,
+            "reynolds_if_native_m3_s": 3.4723816730233525,
+            "reynolds_if_native_m3_h": 0.0009645504647287091
+          },
+          {
+            "window_index": 83,
+            "reynolds_if_native_m3_s": 3.4176431911233367,
+            "reynolds_if_native_m3_h": 0.0009493453308675935
+          }
+        ],
+        "uses_film_thickness": false,
+        "automatically_selected_conversion": false,
+        "meter_to_channel_state_correction_applied": false
+      },
+      "references": [
+        {
+          "window_index": 75,
+          "candidate_mass_flow_kg_s": 0.04507166132851253,
+          "candidate_reynolds_gamma_over_mu": 506.4231609945228,
+          "candidate_reynolds_four_gamma_over_mu": 2025.6926439780912,
+          "candidate_gas_reynolds_at_meter_conditions": 3.539385700788894,
+          "shear_free_reference_thickness_m": 0.0004978729156379845,
+          "within_existing_annular_reynolds_domain": false
+        },
+        {
+          "window_index": 76,
+          "candidate_mass_flow_kg_s": 0.04450789794423222,
+          "candidate_reynolds_gamma_over_mu": 500.0887409464294,
+          "candidate_reynolds_four_gamma_over_mu": 2000.3549637857177,
+          "candidate_gas_reynolds_at_meter_conditions": 3.530279498100037,
+          "shear_free_reference_thickness_m": 0.0004957883759974342,
+          "within_existing_annular_reynolds_domain": false
+        },
+        {
+          "window_index": 77,
+          "candidate_mass_flow_kg_s": 0.04451171475365048,
+          "candidate_reynolds_gamma_over_mu": 500.1316264455111,
+          "candidate_reynolds_four_gamma_over_mu": 2000.5265057820443,
+          "candidate_gas_reynolds_at_meter_conditions": 3.54905147993855,
+          "shear_free_reference_thickness_m": 0.0004958025478316496,
+          "within_existing_annular_reynolds_domain": false
+        },
+        {
+          "window_index": 78,
+          "candidate_mass_flow_kg_s": 0.04450594499376086,
+          "candidate_reynolds_gamma_over_mu": 500.06679768270624,
+          "candidate_reynolds_four_gamma_over_mu": 2000.267190730825,
+          "candidate_gas_reynolds_at_meter_conditions": 3.5637358233420984,
+          "shear_free_reference_thickness_m": 0.0004957811243683262,
+          "within_existing_annular_reynolds_domain": false
+        },
+        {
+          "window_index": 79,
+          "candidate_mass_flow_kg_s": 0.04450378467834074,
+          "candidate_reynolds_gamma_over_mu": 500.0425244757387,
+          "candidate_reynolds_four_gamma_over_mu": 2000.1700979029547,
+          "candidate_gas_reynolds_at_meter_conditions": 3.527077261760247,
+          "shear_free_reference_thickness_m": 0.0004957731025116353,
+          "within_existing_annular_reynolds_domain": false
+        },
+        {
+          "window_index": 80,
+          "candidate_mass_flow_kg_s": 0.044510944305904326,
+          "candidate_reynolds_gamma_over_mu": 500.12296972926214,
+          "candidate_reynolds_four_gamma_over_mu": 2000.4918789170486,
+          "candidate_gas_reynolds_at_meter_conditions": 3.532031553345748,
+          "shear_free_reference_thickness_m": 0.0004957996872202233,
+          "within_existing_annular_reynolds_domain": false
+        },
+        {
+          "window_index": 81,
+          "candidate_mass_flow_kg_s": 0.044497232951815166,
+          "candidate_reynolds_gamma_over_mu": 499.9689095709569,
+          "candidate_reynolds_four_gamma_over_mu": 1999.8756382838276,
+          "candidate_gas_reynolds_at_meter_conditions": 3.3535617032194662,
+          "shear_free_reference_thickness_m": 0.0004957487725269797,
+          "within_existing_annular_reynolds_domain": false
+        },
+        {
+          "window_index": 82,
+          "candidate_mass_flow_kg_s": 0.04450040581112816,
+          "candidate_reynolds_gamma_over_mu": 500.0045596755973,
+          "candidate_reynolds_four_gamma_over_mu": 2000.0182387023892,
+          "candidate_gas_reynolds_at_meter_conditions": 3.4723816730233525,
+          "shear_free_reference_thickness_m": 0.00049576055531002,
+          "within_existing_annular_reynolds_domain": false
+        },
+        {
+          "window_index": 83,
+          "candidate_mass_flow_kg_s": 0.04450302410749049,
+          "candidate_reynolds_gamma_over_mu": 500.0339787358482,
+          "candidate_reynolds_four_gamma_over_mu": 2000.135914943393,
+          "candidate_gas_reynolds_at_meter_conditions": 3.4176431911233367,
+          "shear_free_reference_thickness_m": 0.0004957702782370939,
+          "within_existing_annular_reynolds_domain": false
+        }
+      ],
+      "shear_free_reference_range_m": [
+        0.0004957487725269797,
+        0.0004978729156379845
+      ],
+      "conditional_reference_relative_difference_range": [
+        0.027673421446035906,
+        0.03207671105460186
+      ],
+      "experimental_pass": false,
+      "qualification_blockers": [
+        "raw_channel_units_unconfirmed",
+        "cci_labview_clock_alignment_unavailable",
+        "sensor_zero_and_dropout_effects_unconfirmed",
+        "uniform_shear_free_reference_does_not_predict_inertial_waves_or_entrance_development"
+      ]
+    },
+    {
+      "cci_member": "Film Data_MC_RC_Water_RH80_T25Deg_CopperPlate_28_08_24/MC_RC_Water_RH80_T25Deg_CopperPlate_28_08_24/Y_100/X_50/Keyence Data/ReL500_ReG12900.csv",
+      "labview_member": "Film Data_MC_RC_Water_RH80_T25Deg_CopperPlate_28_08_24/MC_RC_Water_RH80_T25Deg_CopperPlate_28_08_24/Y_100/X_50/LabView Data/ReL500_ReG12900.xlsx",
+      "cci_raw_sha256": "25cb09d1a4dd0ec87cd437e9195d78cd3fd708493a0c0debdf6a90b573c75ef0",
+      "labview_raw_sha256": "ff36527ac2185ce24e436b5c2611decec464b26d731aee61ca72601c3e17c49b",
+      "observed_cci": {
+        "records": 100000,
+        "sensor_status_counts": {
+          "GO": 100000,
+          "ALARM": 0
+        },
+        "sensor_acceptance_fraction": 1.0,
+        "sampling_period_s": 0.00019999999999999998,
+        "first_trigger": 18084084,
+        "last_trigger": 18184083,
+        "elapsed_first_to_last_s": 19.999799999999997,
+        "missing_triggers": 0,
+        "go_mean_thickness_m": 0.000510333424,
+        "go_sample_std_thickness_m": 2.2878356624291052e-05,
+        "go_minimum_thickness_m": 0.0004222,
+        "go_maximum_thickness_m": 0.0006109,
+        "standard_error_or_confidence_interval_estimated": false,
+        "outliers_replaced": false,
+        "zero_offset_adjusted": false
+      },
+      "input_channels": {
+        "liquid_flow": {
+          "name": "MF 01",
+          "sheet": "Mass Flow",
+          "clock": "Timestamp-CF",
+          "unit_from_workbook": null,
+          "missing_pairs": 0
+        },
+        "gas_volume_flow": {
+          "name": "TT-Volume Flow",
+          "sheet": "Volume Flow",
+          "clock": "Timestamp-TT",
+          "unit_from_workbook": null,
+          "missing_pairs": 0
+        },
+        "liquid_inlet_temperature": {
+          "name": "TC 14",
+          "sheet": "Temperature",
+          "clock": "Timestamp-TC",
+          "unit_from_workbook": null,
+          "missing_pairs": 0
+        },
+        "gas_density": {
+          "name": "TT-Density",
+          "sheet": "Density",
+          "clock": "Timestamp-TT",
+          "unit_from_workbook": null,
+          "missing_pairs": 0
+        },
+        "gas_viscosity": {
+          "name": "TT-Viscosity",
+          "sheet": "Viscosity",
+          "clock": "Untitled",
+          "unit_from_workbook": null,
+          "missing_pairs": 0
+        }
+      },
+      "input_windows": {
+        "fixed_windows": 6,
+        "accepted": [
+          {
+            "index": 4,
+            "first_excel_day": 45533.449510062535,
+            "end_excel_day_exclusive": 45533.44974154402,
+            "duration_s": 20.0,
+            "raw_channel_statistics": {
+              "liquid_flow": {
+                "samples": 32,
+                "first_row": 141,
+                "last_row": 172,
+                "mean_native": 160.99286222457886,
+                "sd_native": 0.753310823112416,
+                "minimum_native": 160.36795043945312,
+                "maximum_native": 163.1444091796875,
+                "maximum_gap_s": 0.718641746789217,
+                "coefficient_of_variation": 0.004679156657650924
+              },
+              "gas_volume_flow": {
+                "samples": 36,
+                "first_row": 160,
+                "last_row": 195,
+                "mean_native": 0.013167049055555555,
+                "sd_native": 2.8201403263888594e-05,
+                "minimum_native": 0.013111027,
+                "maximum_native": 0.013224118,
+                "maximum_gap_s": 0.7672886364161968,
+                "coefficient_of_variation": 0.0021418165258516764
+              },
+              "liquid_inlet_temperature": {
+                "samples": 40,
+                "first_row": 163,
+                "last_row": 202,
+                "mean_native": 22.805132818222045,
+                "sd_native": 0.04843644956224708,
+                "minimum_native": 22.700838088989258,
+                "maximum_native": 22.884599685668945,
+                "maximum_gap_s": 0.5016669631004333,
+                "coefficient_of_variation": 0.002123927536328347
+              },
+              "gas_density": {
+                "samples": 36,
+                "first_row": 160,
+                "last_row": 195,
+                "mean_native": 1.1170568916666666,
+                "sd_native": 0.0006189198558667361,
+                "minimum_native": 1.1162517,
+                "maximum_native": 1.117943,
+                "maximum_gap_s": 0.7672886364161968,
+                "coefficient_of_variation": 0.0005540629671451181
+              },
+              "gas_viscosity": {
+                "samples": 36,
+                "first_row": 160,
+                "last_row": 195,
+                "mean_native": 1.8400090333333333e-05,
+                "sd_native": 5.672818650763107e-09,
+                "minimum_native": 1.839144e-05,
+                "maximum_native": 1.8406774e-05,
+                "maximum_gap_s": 0.7672886364161968,
+                "coefficient_of_variation": 0.0003083038478613506
+              }
+            },
+            "candidate_SI_means": {
+              "liquid_flow": 0.04472023950682746,
+              "gas_volume_flow": 0.013167049055555555,
+              "liquid_inlet_temperature": 295.955132818222,
+              "gas_density": 1.1170568916666666,
+              "gas_viscosity": 1.8400090333333333e-05
+            }
+          },
+          {
+            "index": 5,
+            "first_excel_day": 45533.44974154402,
+            "end_excel_day_exclusive": 45533.4499730255,
+            "duration_s": 20.0,
+            "raw_channel_statistics": {
+              "liquid_flow": {
+                "samples": 32,
+                "first_row": 173,
+                "last_row": 204,
+                "mean_native": 160.21830129623413,
+                "sd_native": 0.07374114982532035,
+                "minimum_native": 160.10516357421875,
+                "maximum_native": 160.46156311035156,
+                "maximum_gap_s": 0.7216108264401555,
+                "coefficient_of_variation": 0.00046025422332357236
+              },
+              "gas_volume_flow": {
+                "samples": 37,
+                "first_row": 196,
+                "last_row": 232,
+                "mean_native": 0.013164662621621621,
+                "sd_native": 2.574524540344992e-05,
+                "minimum_native": 0.013113632,
+                "maximum_native": 0.013218267,
+                "maximum_gap_s": 0.8016018429771066,
+                "coefficient_of_variation": 0.0019556327528793614
+              },
+              "liquid_inlet_temperature": {
+                "samples": 40,
+                "first_row": 203,
+                "last_row": 242,
+                "mean_native": 22.813673162460326,
+                "sd_native": 0.05304059741097381,
+                "minimum_native": 22.681020736694336,
+                "maximum_native": 22.924739837646484,
+                "maximum_gap_s": 0.5022251978516579,
+                "coefficient_of_variation": 0.0023249477203106245
+              },
+              "gas_density": {
+                "samples": 37,
+                "first_row": 196,
+                "last_row": 232,
+                "mean_native": 1.115119318918919,
+                "sd_native": 0.0004959939612959821,
+                "minimum_native": 1.1144193,
+                "maximum_native": 1.1162691,
+                "maximum_gap_s": 0.8016018429771066,
+                "coefficient_of_variation": 0.00044479003536306423
+              },
+              "gas_viscosity": {
+                "samples": 37,
+                "first_row": 196,
+                "last_row": 232,
+                "mean_native": 1.8416556270270272e-05,
+                "sd_native": 4.062291356130305e-09,
+                "minimum_native": 1.840604e-05,
+                "maximum_native": 1.84205e-05,
+                "maximum_gap_s": 0.8016018429771066,
+                "coefficient_of_variation": 0.00022057822844372024
+              }
+            },
+            "candidate_SI_means": {
+              "liquid_flow": 0.04450508369339837,
+              "gas_volume_flow": 0.013164662621621621,
+              "liquid_inlet_temperature": 295.9636731624603,
+              "gas_density": 1.115119318918919,
+              "gas_viscosity": 1.8416556270270272e-05
+            }
+          }
+        ],
+        "rejected_by_input": {
+          "liquid_input_not_steady": 4
+        },
+        "selection_uses_thickness_or_model_error": false,
+        "duration_s": 20.0,
+        "conversion_confirmed": false
+      },
+      "gas_unit_consistency": {
+        "nominal_filename_reynolds_not_boundary_condition": 12900,
+        "windows": [
+          {
+            "window_index": 4,
+            "reynolds_if_native_m3_s": 12297.885185065965,
+            "reynolds_if_native_m3_h": 3.4160792180738793
+          },
+          {
+            "window_index": 5,
+            "reynolds_if_native_m3_s": 12263.354777903047,
+            "reynolds_if_native_m3_h": 3.406487438306402
+          }
+        ],
+        "uses_film_thickness": false,
+        "automatically_selected_conversion": false,
+        "meter_to_channel_state_correction_applied": false
+      },
+      "references": [
+        {
+          "window_index": 4,
+          "candidate_mass_flow_kg_s": 0.04472023950682746,
+          "candidate_reynolds_gamma_over_mu": 502.4746012003085,
+          "candidate_reynolds_four_gamma_over_mu": 2009.898404801234,
+          "candidate_gas_reynolds_at_meter_conditions": 12297.885185065965,
+          "shear_free_reference_thickness_m": null,
+          "within_existing_annular_reynolds_domain": false
+        },
+        {
+          "window_index": 5,
+          "candidate_mass_flow_kg_s": 0.04450508369339837,
+          "candidate_reynolds_gamma_over_mu": 500.0571201505435,
+          "candidate_reynolds_four_gamma_over_mu": 2000.228480602174,
+          "candidate_gas_reynolds_at_meter_conditions": 12263.354777903047,
+          "shear_free_reference_thickness_m": null,
+          "within_existing_annular_reynolds_domain": false
+        }
+      ],
+      "shear_free_reference_range_m": null,
+      "conditional_reference_relative_difference_range": null,
+      "experimental_pass": false,
+      "qualification_blockers": [
+        "raw_channel_units_unconfirmed",
+        "cci_labview_clock_alignment_unavailable",
+        "sensor_zero_and_dropout_effects_unconfirmed",
+        "uniform_shear_free_reference_does_not_predict_inertial_waves_or_entrance_development"
+      ]
+    },
+    {
+      "cci_member": "Film Data_MC_RC_Water_RH80_T25Deg_CopperPlate_28_08_24/MC_RC_Water_RH80_T25Deg_CopperPlate_28_08_24/Y_100/X_50/Keyence Data/ReL500_ReG20900.csv",
+      "labview_member": "Film Data_MC_RC_Water_RH80_T25Deg_CopperPlate_28_08_24/MC_RC_Water_RH80_T25Deg_CopperPlate_28_08_24/Y_100/X_50/LabView Data/ReL500_ReG20900.xlsx",
+      "cci_raw_sha256": "0e371f7d1e74ec2c8b45f9165e9dcf8c452ec92290f3005d2d9e658cc9b58879",
+      "labview_raw_sha256": "ba1aef5dc1d07334629c1b0f14ec1781871d5b7e72112c47260a6b89870bb189",
+      "observed_cci": {
+        "records": 100000,
+        "sensor_status_counts": {
+          "GO": 94903,
+          "ALARM": 5097
+        },
+        "sensor_acceptance_fraction": 0.94903,
+        "sampling_period_s": 0.00019999999999999998,
+        "first_trigger": 230511,
+        "last_trigger": 330510,
+        "elapsed_first_to_last_s": 19.999799999999997,
+        "missing_triggers": 0,
+        "go_mean_thickness_m": 0.0005897733201268663,
+        "go_sample_std_thickness_m": 0.00015796716182067387,
+        "go_minimum_thickness_m": 0.00017680000000000001,
+        "go_maximum_thickness_m": 0.0015698,
+        "standard_error_or_confidence_interval_estimated": false,
+        "outliers_replaced": false,
+        "zero_offset_adjusted": false
+      },
+      "input_channels": {
+        "liquid_flow": {
+          "name": "MF 01",
+          "sheet": "Mass Flow",
+          "clock": "Timestamp-CF",
+          "unit_from_workbook": null,
+          "missing_pairs": 0
+        },
+        "gas_volume_flow": {
+          "name": "TT-Volume Flow",
+          "sheet": "Volume Flow",
+          "clock": "Timestamp-TT",
+          "unit_from_workbook": null,
+          "missing_pairs": 0
+        },
+        "liquid_inlet_temperature": {
+          "name": "TC 14",
+          "sheet": "Temperature",
+          "clock": "Timestamp-TC",
+          "unit_from_workbook": null,
+          "missing_pairs": 0
+        },
+        "gas_density": {
+          "name": "TT-Density",
+          "sheet": "Density",
+          "clock": "Timestamp-TT",
+          "unit_from_workbook": null,
+          "missing_pairs": 0
+        },
+        "gas_viscosity": {
+          "name": "TT-Viscosity",
+          "sheet": "Viscosity",
+          "clock": "Untitled",
+          "unit_from_workbook": null,
+          "missing_pairs": 0
+        }
+      },
+      "input_windows": {
+        "fixed_windows": 14,
+        "accepted": [
+          {
+            "index": 2,
+            "first_excel_day": 45533.54650586167,
+            "end_excel_day_exclusive": 45533.54673734315,
+            "duration_s": 20.0,
+            "raw_channel_statistics": {
+              "liquid_flow": {
+                "samples": 32,
+                "first_row": 77,
+                "last_row": 108,
+                "mean_native": 160.79743480682373,
+                "sd_native": 0.5518774733667662,
+                "minimum_native": 160.40228271484375,
+                "maximum_native": 162.348388671875,
+                "maximum_gap_s": 0.7023039506748319,
+                "coefficient_of_variation": 0.0034321285910423383
+              },
+              "gas_volume_flow": {
+                "samples": 38,
+                "first_row": 91,
+                "last_row": 128,
+                "mean_native": 0.021334975368421053,
+                "sd_native": 6.942273982842609e-05,
+                "minimum_native": 0.021163366,
+                "maximum_native": 0.021457852,
+                "maximum_gap_s": 0.7558159064501524,
+                "coefficient_of_variation": 0.003253940472374864
+              },
+              "liquid_inlet_temperature": {
+                "samples": 40,
+                "first_row": 83,
+                "last_row": 122,
+                "mean_native": 24.74222159385681,
+                "sd_native": 0.06661573426746567,
+                "minimum_native": 24.59007453918457,
+                "maximum_native": 24.873098373413086,
+                "maximum_gap_s": 0.5019052186980844,
+                "coefficient_of_variation": 0.0026923909809297617
+              },
+              "gas_density": {
+                "samples": 38,
+                "first_row": 91,
+                "last_row": 128,
+                "mean_native": 1.1085792947368422,
+                "sd_native": 0.0003191362124196543,
+                "minimum_native": 1.1082522,
+                "maximum_native": 1.1094035,
+                "maximum_gap_s": 0.7558159064501524,
+                "coefficient_of_variation": 0.0002878785612673848
+              },
+              "gas_viscosity": {
+                "samples": 38,
+                "first_row": 91,
+                "last_row": 128,
+                "mean_native": 1.8429171526315787e-05,
+                "sd_native": 4.0598720859861685e-09,
+                "minimum_native": 1.8419356e-05,
+                "maximum_native": 1.8432822e-05,
+                "maximum_gap_s": 0.7558159064501524,
+                "coefficient_of_variation": 0.00022029596285372388
+              }
+            },
+            "candidate_SI_means": {
+              "liquid_flow": 0.04466595411300659,
+              "gas_volume_flow": 0.021334975368421053,
+              "liquid_inlet_temperature": 297.8922215938568,
+              "gas_density": 1.1085792947368422,
+              "gas_viscosity": 1.8429171526315787e-05
+            }
+          },
+          {
+            "index": 3,
+            "first_excel_day": 45533.54673734315,
+            "end_excel_day_exclusive": 45533.54696882463,
+            "duration_s": 20.0,
+            "raw_channel_statistics": {
+              "liquid_flow": {
+                "samples": 33,
+                "first_row": 109,
+                "last_row": 141,
+                "mean_native": 160.34499289772728,
+                "sd_native": 0.08968832961375049,
+                "minimum_native": 160.17938232421875,
+                "maximum_native": 160.50828552246094,
+                "maximum_gap_s": 0.7051617605611682,
+                "coefficient_of_variation": 0.0005593459951129022
+              },
+              "gas_volume_flow": {
+                "samples": 38,
+                "first_row": 129,
+                "last_row": 166,
+                "mean_native": 0.021324318263157897,
+                "sd_native": 4.38523764180425e-05,
+                "minimum_native": 0.021238034,
+                "maximum_native": 0.021414536,
+                "maximum_gap_s": 0.7172706769779325,
+                "coefficient_of_variation": 0.0020564491617913253
+              },
+              "liquid_inlet_temperature": {
+                "samples": 40,
+                "first_row": 123,
+                "last_row": 162,
+                "mean_native": 24.60190110206604,
+                "sd_native": 0.04895299899156942,
+                "minimum_native": 24.519384384155273,
+                "maximum_native": 24.697284698486328,
+                "maximum_gap_s": 0.5051527870818973,
+                "coefficient_of_variation": 0.0019898055352908645
+              },
+              "gas_density": {
+                "samples": 38,
+                "first_row": 129,
+                "last_row": 166,
+                "mean_native": 1.1101063894736842,
+                "sd_native": 0.0005120334548021008,
+                "minimum_native": 1.1093391,
+                "maximum_native": 1.1112146,
+                "maximum_gap_s": 0.7172706769779325,
+                "coefficient_of_variation": 0.0004612471918523615
+              },
+              "gas_viscosity": {
+                "samples": 38,
+                "first_row": 129,
+                "last_row": 166,
+                "mean_native": 1.8412559105263158e-05,
+                "sd_native": 3.612847475836247e-09,
+                "minimum_native": 1.8404178e-05,
+                "maximum_native": 1.841887e-05,
+                "maximum_gap_s": 0.7172706769779325,
+                "coefficient_of_variation": 0.0001962164767635982
+              }
+            },
+            "candidate_SI_means": {
+              "liquid_flow": 0.04454027580492424,
+              "gas_volume_flow": 0.021324318263157897,
+              "liquid_inlet_temperature": 297.75190110206603,
+              "gas_density": 1.1101063894736842,
+              "gas_viscosity": 1.8412559105263158e-05
+            }
+          },
+          {
+            "index": 4,
+            "first_excel_day": 45533.54696882463,
+            "end_excel_day_exclusive": 45533.547200306115,
+            "duration_s": 20.0,
+            "raw_channel_statistics": {
+              "liquid_flow": {
+                "samples": 31,
+                "first_row": 142,
+                "last_row": 172,
+                "mean_native": 160.21762183404738,
+                "sd_native": 0.09545360836247882,
+                "minimum_native": 160.11085510253906,
+                "maximum_native": 160.4743194580078,
+                "maximum_gap_s": 0.7121139205992222,
+                "coefficient_of_variation": 0.0005957747173488144
+              },
+              "gas_volume_flow": {
+                "samples": 37,
+                "first_row": 167,
+                "last_row": 203,
+                "mean_native": 0.021332009243243244,
+                "sd_native": 5.2827502962615676e-05,
+                "minimum_native": 0.02121788,
+                "maximum_native": 0.02143,
+                "maximum_gap_s": 0.7738315500319004,
+                "coefficient_of_variation": 0.0024764429060684192
+              },
+              "liquid_inlet_temperature": {
+                "samples": 40,
+                "first_row": 163,
+                "last_row": 202,
+                "mean_native": 24.528195476531984,
+                "sd_native": 0.05041103240489675,
+                "minimum_native": 24.43906021118164,
+                "maximum_native": 24.647541046142578,
+                "maximum_gap_s": 0.5558477947488427,
+                "coefficient_of_variation": 0.0020552279295527006
+              },
+              "gas_density": {
+                "samples": 37,
+                "first_row": 167,
+                "last_row": 203,
+                "mean_native": 1.111215327027027,
+                "sd_native": 0.0003659525826975958,
+                "minimum_native": 1.1107206,
+                "maximum_native": 1.1119785,
+                "maximum_gap_s": 0.7738315500319004,
+                "coefficient_of_variation": 0.0003293264354773385
+              },
+              "gas_viscosity": {
+                "samples": 37,
+                "first_row": 167,
+                "last_row": 203,
+                "mean_native": 1.8405661405405404e-05,
+                "sd_native": 2.0286135787435572e-09,
+                "minimum_native": 1.8401486e-05,
+                "maximum_native": 1.8409016e-05,
+                "maximum_gap_s": 0.7738315500319004,
+                "coefficient_of_variation": 0.00011021682590269703
+              }
+            },
+            "candidate_SI_means": {
+              "liquid_flow": 0.04450489495390205,
+              "gas_volume_flow": 0.021332009243243244,
+              "liquid_inlet_temperature": 297.678195476532,
+              "gas_density": 1.111215327027027,
+              "gas_viscosity": 1.8405661405405404e-05
+            }
+          },
+          {
+            "index": 5,
+            "first_excel_day": 45533.547200306115,
+            "end_excel_day_exclusive": 45533.54743178759,
+            "duration_s": 20.0,
+            "raw_channel_statistics": {
+              "liquid_flow": {
+                "samples": 32,
+                "first_row": 173,
+                "last_row": 204,
+                "mean_native": 160.19598770141602,
+                "sd_native": 0.08451008906161268,
+                "minimum_native": 160.04458618164062,
+                "maximum_native": 160.42401123046875,
+                "maximum_gap_s": 0.7197129540145397,
+                "coefficient_of_variation": 0.0005275418584086403
+              },
+              "gas_volume_flow": {
+                "samples": 38,
+                "first_row": 204,
+                "last_row": 241,
+                "mean_native": 0.02133522384210526,
+                "sd_native": 5.7455957764244193e-05,
+                "minimum_native": 0.021250016,
+                "maximum_native": 0.021502194,
+                "maximum_gap_s": 0.7666159886866808,
+                "coefficient_of_variation": 0.0026930093721751506
+              },
+              "liquid_inlet_temperature": {
+                "samples": 40,
+                "first_row": 203,
+                "last_row": 242,
+                "mean_native": 24.461681032180785,
+                "sd_native": 0.045631588339885475,
+                "minimum_native": 24.366464614868164,
+                "maximum_native": 24.56243133544922,
+                "maximum_gap_s": 0.510540883988142,
+                "coefficient_of_variation": 0.0018654314182191497
+              },
+              "gas_density": {
+                "samples": 38,
+                "first_row": 204,
+                "last_row": 241,
+                "mean_native": 1.1119496263157895,
+                "sd_native": 0.00048242123964990785,
+                "minimum_native": 1.1108032,
+                "maximum_native": 1.1125319,
+                "maximum_gap_s": 0.7666159886866808,
+                "coefficient_of_variation": 0.0004338517035599075
+              },
+              "gas_viscosity": {
+                "samples": 38,
+                "first_row": 204,
+                "last_row": 241,
+                "mean_native": 1.840178294736842e-05,
+                "sd_native": 5.690183952939064e-09,
+                "minimum_native": 1.8395498e-05,
+                "maximum_native": 1.8415126e-05,
+                "maximum_gap_s": 0.7666159886866808,
+                "coefficient_of_variation": 0.00030921916475233716
+              }
+            },
+            "candidate_SI_means": {
+              "liquid_flow": 0.04449888547261556,
+              "gas_volume_flow": 0.02133522384210526,
+              "liquid_inlet_temperature": 297.61168103218074,
+              "gas_density": 1.1119496263157895,
+              "gas_viscosity": 1.840178294736842e-05
+            }
+          },
+          {
+            "index": 6,
+            "first_excel_day": 45533.54743178759,
+            "end_excel_day_exclusive": 45533.54766326908,
+            "duration_s": 20.0,
+            "raw_channel_statistics": {
+              "liquid_flow": {
+                "samples": 31,
+                "first_row": 205,
+                "last_row": 235,
+                "mean_native": 160.19284992833292,
+                "sd_native": 0.047795316758850716,
+                "minimum_native": 160.11932373046875,
+                "maximum_native": 160.28961181640625,
+                "maximum_gap_s": 0.7179194362834096,
+                "coefficient_of_variation": 0.00029836111149925473
+              },
+              "gas_volume_flow": {
+                "samples": 37,
+                "first_row": 242,
+                "last_row": 278,
+                "mean_native": 0.021327853513513514,
+                "sd_native": 4.4658810365064716e-05,
+                "minimum_native": 0.021225718,
+                "maximum_native": 0.02142354,
+                "maximum_gap_s": 0.7653750479221344,
+                "coefficient_of_variation": 0.002093919593772927
+              },
+              "liquid_inlet_temperature": {
+                "samples": 40,
+                "first_row": 243,
+                "last_row": 282,
+                "mean_native": 24.37191586494446,
+                "sd_native": 0.04799729974513839,
+                "minimum_native": 24.26494598388672,
+                "maximum_native": 24.467803955078125,
+                "maximum_gap_s": 0.5083808675408363,
+                "coefficient_of_variation": 0.0019693691711030275
+              },
+              "gas_density": {
+                "samples": 37,
+                "first_row": 242,
+                "last_row": 278,
+                "mean_native": 1.1095729972972972,
+                "sd_native": 0.0007358199326166268,
+                "minimum_native": 1.1081499,
+                "maximum_native": 1.1106656,
+                "maximum_gap_s": 0.7653750479221344,
+                "coefficient_of_variation": 0.0006631559477465117
+              },
+              "gas_viscosity": {
+                "samples": 37,
+                "first_row": 242,
+                "last_row": 278,
+                "mean_native": 1.8426876216216218e-05,
+                "sd_native": 6.2982189637556925e-09,
+                "minimum_native": 1.8416412e-05,
+                "maximum_native": 1.8438738e-05,
+                "maximum_gap_s": 0.7653750479221344,
+                "coefficient_of_variation": 0.0003417952608925145
+              }
+            },
+            "candidate_SI_means": {
+              "liquid_flow": 0.04449801386898137,
+              "gas_volume_flow": 0.021327853513513514,
+              "liquid_inlet_temperature": 297.52191586494445,
+              "gas_density": 1.1095729972972972,
+              "gas_viscosity": 1.8426876216216218e-05
+            }
+          },
+          {
+            "index": 7,
+            "first_excel_day": 45533.54766326908,
+            "end_excel_day_exclusive": 45533.54789475056,
+            "duration_s": 20.0,
+            "raw_channel_statistics": {
+              "liquid_flow": {
+                "samples": 32,
+                "first_row": 236,
+                "last_row": 267,
+                "mean_native": 160.19824123382568,
+                "sd_native": 0.07952848599953814,
+                "minimum_native": 160.04347229003906,
+                "maximum_native": 160.32069396972656,
+                "maximum_gap_s": 0.7290055509656668,
+                "coefficient_of_variation": 0.0004964379470524786
+              },
+              "gas_volume_flow": {
+                "samples": 38,
+                "first_row": 279,
+                "last_row": 316,
+                "mean_native": 0.021328018842105265,
+                "sd_native": 5.265860455230582e-05,
+                "minimum_native": 0.02120785,
+                "maximum_native": 0.021509172,
+                "maximum_gap_s": 0.7360708666965365,
+                "coefficient_of_variation": 0.0024689871545100317
+              },
+              "liquid_inlet_temperature": {
+                "samples": 40,
+                "first_row": 283,
+                "last_row": 322,
+                "mean_native": 24.32467999458313,
+                "sd_native": 0.036746361694947265,
+                "minimum_native": 24.25827407836914,
+                "maximum_native": 24.394643783569336,
+                "maximum_gap_s": 0.5126468371599913,
+                "coefficient_of_variation": 0.0015106616696758323
+              },
+              "gas_density": {
+                "samples": 38,
+                "first_row": 279,
+                "last_row": 316,
+                "mean_native": 1.1083936605263158,
+                "sd_native": 0.00030442774143894563,
+                "minimum_native": 1.1080528,
+                "maximum_native": 1.1093522,
+                "maximum_gap_s": 0.7360708666965365,
+                "coefficient_of_variation": 0.0002746566966960001
+              },
+              "gas_viscosity": {
+                "samples": 38,
+                "first_row": 279,
+                "last_row": 316,
+                "mean_native": 1.8435521210526316e-05,
+                "sd_native": 4.610225032513426e-09,
+                "minimum_native": 1.8423198e-05,
+                "maximum_native": 1.8440144e-05,
+                "maximum_gap_s": 0.7360708666965365,
+                "coefficient_of_variation": 0.0002500729423305417
+              }
+            },
+            "candidate_SI_means": {
+              "liquid_flow": 0.04449951145384047,
+              "gas_volume_flow": 0.021328018842105265,
+              "liquid_inlet_temperature": 297.4746799945831,
+              "gas_density": 1.1083936605263158,
+              "gas_viscosity": 1.8435521210526316e-05
+            }
+          },
+          {
+            "index": 8,
+            "first_excel_day": 45533.54789475056,
+            "end_excel_day_exclusive": 45533.54812623204,
+            "duration_s": 20.0,
+            "raw_channel_statistics": {
+              "liquid_flow": {
+                "samples": 32,
+                "first_row": 268,
+                "last_row": 299,
+                "mean_native": 160.1720905303955,
+                "sd_native": 0.061264655981831444,
+                "minimum_native": 160.07196044921875,
+                "maximum_native": 160.3253173828125,
+                "maximum_gap_s": 0.7192779332399368,
+                "coefficient_of_variation": 0.00038249270380975257
+              },
+              "gas_volume_flow": {
+                "samples": 38,
+                "first_row": 317,
+                "last_row": 354,
+                "mean_native": 0.02132507789473684,
+                "sd_native": 5.606850139258179e-05,
+                "minimum_native": 0.021220064,
+                "maximum_native": 0.021439822,
+                "maximum_gap_s": 0.7544328924268484,
+                "coefficient_of_variation": 0.0026292284449952624
+              },
+              "liquid_inlet_temperature": {
+                "samples": 40,
+                "first_row": 323,
+                "last_row": 362,
+                "mean_native": 24.261996698379516,
+                "sd_native": 0.04528949348691934,
+                "minimum_native": 24.18026351928711,
+                "maximum_native": 24.401443481445312,
+                "maximum_gap_s": 0.504476367495954,
+                "coefficient_of_variation": 0.0018666845128185296
+              },
+              "gas_density": {
+                "samples": 38,
+                "first_row": 317,
+                "last_row": 354,
+                "mean_native": 1.1102257526315789,
+                "sd_native": 0.0005442418868852635,
+                "minimum_native": 1.109499,
+                "maximum_native": 1.1111547,
+                "maximum_gap_s": 0.7544328924268484,
+                "coefficient_of_variation": 0.000490208307270158
+              },
+              "gas_viscosity": {
+                "samples": 38,
+                "first_row": 317,
+                "last_row": 354,
+                "mean_native": 1.8414979789473682e-05,
+                "sd_native": 4.009001182588568e-09,
+                "minimum_native": 1.840841e-05,
+                "maximum_native": 1.8421514e-05,
+                "maximum_gap_s": 0.7544328924268484,
+                "coefficient_of_variation": 0.00021770326269270095
+              }
+            },
+            "candidate_SI_means": {
+              "liquid_flow": 0.04449224736955431,
+              "gas_volume_flow": 0.02132507789473684,
+              "liquid_inlet_temperature": 297.4119966983795,
+              "gas_density": 1.1102257526315789,
+              "gas_viscosity": 1.8414979789473682e-05
+            }
+          },
+          {
+            "index": 13,
+            "first_excel_day": 45533.54905215796,
+            "end_excel_day_exclusive": 45533.54928363945,
+            "duration_s": 20.0,
+            "raw_channel_statistics": {
+              "liquid_flow": {
+                "samples": 32,
+                "first_row": 432,
+                "last_row": 463,
+                "mean_native": 160.18639039993286,
+                "sd_native": 0.08021540677470093,
+                "minimum_native": 160.0758514404297,
+                "maximum_native": 160.3369140625,
+                "maximum_gap_s": 0.7227360969409347,
+                "coefficient_of_variation": 0.0005007629335702576
+              },
+              "gas_volume_flow": {
+                "samples": 38,
+                "first_row": 448,
+                "last_row": 485,
+                "mean_native": 0.02132763094736842,
+                "sd_native": 5.173758537432569e-05,
+                "minimum_native": 0.02121411,
+                "maximum_native": 0.021412292,
+                "maximum_gap_s": 0.723851309157908,
+                "coefficient_of_variation": 0.0024258477419269813
+              },
+              "liquid_inlet_temperature": {
+                "samples": 40,
+                "first_row": 523,
+                "last_row": 562,
+                "mean_native": 24.03957862854004,
+                "sd_native": 0.04429326574300199,
+                "minimum_native": 23.96561622619629,
+                "maximum_native": 24.13616180419922,
+                "maximum_gap_s": 0.512400409206748,
+                "coefficient_of_variation": 0.0018425142315271934
+              },
+              "gas_density": {
+                "samples": 38,
+                "first_row": 448,
+                "last_row": 485,
+                "mean_native": 1.1105641131578947,
+                "sd_native": 0.00046719678327291535,
+                "minimum_native": 1.1096514,
+                "maximum_native": 1.111681,
+                "maximum_gap_s": 0.723851309157908,
+                "coefficient_of_variation": 0.00042068420700578816
+              },
+              "gas_viscosity": {
+                "samples": 38,
+                "first_row": 448,
+                "last_row": 485,
+                "mean_native": 1.841334489473684e-05,
+                "sd_native": 3.870542834154531e-09,
+                "minimum_native": 1.8404634e-05,
+                "maximum_native": 1.8422008e-05,
+                "maximum_gap_s": 0.723851309157908,
+                "coefficient_of_variation": 0.00021020313562153847
+              }
+            },
+            "candidate_SI_means": {
+              "liquid_flow": 0.044496219555536905,
+              "gas_volume_flow": 0.02132763094736842,
+              "liquid_inlet_temperature": 297.18957862854,
+              "gas_density": 1.1105641131578947,
+              "gas_viscosity": 1.841334489473684e-05
+            }
+          }
+        ],
+        "rejected_by_input": {
+          "liquid_input_not_steady": 2,
+          "insufficient_independent_clock_coverage": 4
+        },
+        "selection_uses_thickness_or_model_error": false,
+        "duration_s": 20.0,
+        "conversion_confirmed": false
+      },
+      "gas_unit_consistency": {
+        "nominal_filename_reynolds_not_boundary_condition": 20900,
+        "windows": [
+          {
+            "window_index": 2,
+            "reynolds_if_native_m3_s": 19744.20901406157,
+            "reynolds_if_native_m3_h": 5.484502503905992
+          },
+          {
+            "window_index": 3,
+            "reynolds_if_native_m3_s": 19779.36056476827,
+            "reynolds_if_native_m3_h": 5.494266823546742
+          },
+          {
+            "window_index": 4,
+            "reynolds_if_native_m3_s": 19813.682578216474,
+            "reynolds_if_native_m3_h": 5.503800716171243
+          },
+          {
+            "window_index": 5,
+            "reynolds_if_native_m3_s": 19833.942802378388,
+            "reynolds_if_native_m3_h": 5.509428556216219
+          },
+          {
+            "window_index": 6,
+            "reynolds_if_native_m3_s": 19757.771262792867,
+            "reynolds_if_native_m3_h": 5.488269795220241
+          },
+          {
+            "window_index": 7,
+            "reynolds_if_native_m3_s": 19727.66896472698,
+            "reynolds_if_native_m3_h": 5.479908045757495
+          },
+          {
+            "window_index": 8,
+            "reynolds_if_native_m3_s": 19779.591586915696,
+            "reynolds_if_native_m3_h": 5.494330996365471
+          },
+          {
+            "window_index": 13,
+            "reynolds_if_native_m3_s": 19789.745455079625,
+            "reynolds_if_native_m3_h": 5.497151515299896
+          }
+        ],
+        "uses_film_thickness": false,
+        "automatically_selected_conversion": false,
+        "meter_to_channel_state_correction_applied": false
+      },
+      "references": [
+        {
+          "window_index": 2,
+          "candidate_mass_flow_kg_s": 0.04466595411300659,
+          "candidate_reynolds_gamma_over_mu": 501.8646529551302,
+          "candidate_reynolds_four_gamma_over_mu": 2007.458611820521,
+          "candidate_gas_reynolds_at_meter_conditions": 19744.20901406157,
+          "shear_free_reference_thickness_m": null,
+          "within_existing_annular_reynolds_domain": false
+        },
+        {
+          "window_index": 3,
+          "candidate_mass_flow_kg_s": 0.04454027580492424,
+          "candidate_reynolds_gamma_over_mu": 500.45253713398023,
+          "candidate_reynolds_four_gamma_over_mu": 2001.810148535921,
+          "candidate_gas_reynolds_at_meter_conditions": 19779.36056476827,
+          "shear_free_reference_thickness_m": null,
+          "within_existing_annular_reynolds_domain": false
+        },
+        {
+          "window_index": 4,
+          "candidate_mass_flow_kg_s": 0.04450489495390205,
+          "candidate_reynolds_gamma_over_mu": 500.0549994820455,
+          "candidate_reynolds_four_gamma_over_mu": 2000.219997928182,
+          "candidate_gas_reynolds_at_meter_conditions": 19813.682578216474,
+          "shear_free_reference_thickness_m": null,
+          "within_existing_annular_reynolds_domain": false
+        },
+        {
+          "window_index": 5,
+          "candidate_mass_flow_kg_s": 0.04449888547261556,
+          "candidate_reynolds_gamma_over_mu": 499.98747722039957,
+          "candidate_reynolds_four_gamma_over_mu": 1999.9499088815983,
+          "candidate_gas_reynolds_at_meter_conditions": 19833.942802378388,
+          "shear_free_reference_thickness_m": null,
+          "within_existing_annular_reynolds_domain": false
+        },
+        {
+          "window_index": 6,
+          "candidate_mass_flow_kg_s": 0.04449801386898137,
+          "candidate_reynolds_gamma_over_mu": 499.977683921139,
+          "candidate_reynolds_four_gamma_over_mu": 1999.910735684556,
+          "candidate_gas_reynolds_at_meter_conditions": 19757.771262792867,
+          "shear_free_reference_thickness_m": null,
+          "within_existing_annular_reynolds_domain": false
+        },
+        {
+          "window_index": 7,
+          "candidate_mass_flow_kg_s": 0.04449951145384047,
+          "candidate_reynolds_gamma_over_mu": 499.99451071730863,
+          "candidate_reynolds_four_gamma_over_mu": 1999.9780428692345,
+          "candidate_gas_reynolds_at_meter_conditions": 19727.66896472698,
+          "shear_free_reference_thickness_m": null,
+          "within_existing_annular_reynolds_domain": false
+        },
+        {
+          "window_index": 8,
+          "candidate_mass_flow_kg_s": 0.04449224736955431,
+          "candidate_reynolds_gamma_over_mu": 499.91289179274503,
+          "candidate_reynolds_four_gamma_over_mu": 1999.6515671709801,
+          "candidate_gas_reynolds_at_meter_conditions": 19779.591586915696,
+          "shear_free_reference_thickness_m": null,
+          "within_existing_annular_reynolds_domain": false
+        },
+        {
+          "window_index": 13,
+          "candidate_mass_flow_kg_s": 0.044496219555536905,
+          "candidate_reynolds_gamma_over_mu": 499.9575230959203,
+          "candidate_reynolds_four_gamma_over_mu": 1999.8300923836812,
+          "candidate_gas_reynolds_at_meter_conditions": 19789.745455079625,
+          "shear_free_reference_thickness_m": null,
+          "within_existing_annular_reynolds_domain": false
+        }
+      ],
+      "shear_free_reference_range_m": null,
+      "conditional_reference_relative_difference_range": null,
+      "experimental_pass": false,
+      "qualification_blockers": [
+        "raw_channel_units_unconfirmed",
+        "cci_labview_clock_alignment_unavailable",
+        "sensor_zero_and_dropout_effects_unconfirmed",
+        "uniform_shear_free_reference_does_not_predict_inertial_waves_or_entrance_development"
+      ]
+    },
+    {
+      "cci_member": "Film Data_MC_RC_Water_RH80_T25Deg_CopperPlate_28_08_24/MC_RC_Water_RH80_T25Deg_CopperPlate_28_08_24/Y_600/X_50/Keyence Data 3/ReL500_ReG0.csv",
+      "labview_member": "Film Data_MC_RC_Water_RH80_T25Deg_CopperPlate_28_08_24/MC_RC_Water_RH80_T25Deg_CopperPlate_28_08_24/Y_600/X_50/LabView Data 3/ReL500_ReG0.xlsx",
+      "cci_raw_sha256": "08c1909a33b1fa23055917f805981959f25283b14ca466ac8404c5d99e3363fc",
+      "labview_raw_sha256": "7dd90ec820e04264bf14acab2cded0c8d01adc1062cb9f153637bbf63918fbba",
+      "observed_cci": {
+        "records": 100000,
+        "sensor_status_counts": {
+          "GO": 98249,
+          "ALARM": 1751
+        },
+        "sensor_acceptance_fraction": 0.98249,
+        "sampling_period_s": 0.00019999999999999998,
+        "first_trigger": 2021144,
+        "last_trigger": 2121143,
+        "elapsed_first_to_last_s": 19.999799999999997,
+        "missing_triggers": 0,
+        "go_mean_thickness_m": 0.000500648417795601,
+        "go_sample_std_thickness_m": 0.00011088735189938804,
+        "go_minimum_thickness_m": 1.23e-05,
+        "go_maximum_thickness_m": 0.0012929999999999999,
+        "standard_error_or_confidence_interval_estimated": false,
+        "outliers_replaced": false,
+        "zero_offset_adjusted": false
+      },
+      "input_channels": {
+        "liquid_flow": {
+          "name": "MF 01",
+          "sheet": "Mass Flow",
+          "clock": "Timestamp-CF",
+          "unit_from_workbook": null,
+          "missing_pairs": 0
+        },
+        "gas_volume_flow": {
+          "name": "TT-Volume Flow",
+          "sheet": "Volume Flow",
+          "clock": "Timestamp-TT",
+          "unit_from_workbook": null,
+          "missing_pairs": 0
+        },
+        "liquid_inlet_temperature": {
+          "name": "TC 14",
+          "sheet": "Temperature",
+          "clock": "Timestamp-TC",
+          "unit_from_workbook": null,
+          "missing_pairs": 0
+        },
+        "gas_density": {
+          "name": "TT-Density",
+          "sheet": "Density",
+          "clock": "Timestamp-TT",
+          "unit_from_workbook": null,
+          "missing_pairs": 0
+        },
+        "gas_viscosity": {
+          "name": "TT-Viscosity",
+          "sheet": "Viscosity",
+          "clock": "Untitled",
+          "unit_from_workbook": null,
+          "missing_pairs": 0
+        }
+      },
+      "input_windows": {
+        "fixed_windows": 9,
+        "accepted": [
+          {
+            "index": 4,
+            "first_excel_day": 45534.57568273734,
+            "end_excel_day_exclusive": 45534.575914218825,
+            "duration_s": 20.0,
+            "raw_channel_statistics": {
+              "liquid_flow": {
+                "samples": 31,
+                "first_row": 140,
+                "last_row": 170,
+                "mean_native": 160.32337705550654,
+                "sd_native": 0.22784467416748574,
+                "minimum_native": 160.1361541748047,
+                "maximum_native": 160.96649169921875,
+                "maximum_gap_s": 0.7222514133900404,
+                "coefficient_of_variation": 0.001421156903952954
+              },
+              "gas_volume_flow": {
+                "samples": 37,
+                "first_row": 158,
+                "last_row": 194,
+                "mean_native": 3.263189351351352e-05,
+                "sd_native": 1.0516108110681111e-06,
+                "minimum_native": 2.969326e-05,
+                "maximum_native": 3.4845628e-05,
+                "maximum_gap_s": 0.7464881055057049,
+                "coefficient_of_variation": 0.03222647225888434
+              },
+              "liquid_inlet_temperature": {
+                "samples": 40,
+                "first_row": 163,
+                "last_row": 202,
+                "mean_native": 25.84101734161377,
+                "sd_native": 0.05262610508536908,
+                "minimum_native": 25.725189208984375,
+                "maximum_native": 25.9550838470459,
+                "maximum_gap_s": 0.5030286032706499,
+                "coefficient_of_variation": 0.002036533793916125
+              },
+              "gas_density": {
+                "samples": 37,
+                "first_row": 158,
+                "last_row": 194,
+                "mean_native": 1.115820527027027,
+                "sd_native": 2.3976223004044944e-05,
+                "minimum_native": 1.1157736,
+                "maximum_native": 1.115867,
+                "maximum_gap_s": 0.7464881055057049,
+                "coefficient_of_variation": 2.1487526374807588e-05
+              },
+              "gas_viscosity": {
+                "samples": 37,
+                "first_row": 158,
+                "last_row": 194,
+                "mean_native": 1.8408252432432434e-05,
+                "sd_native": 2.809967337060722e-10,
+                "minimum_native": 1.8407804e-05,
+                "maximum_native": 1.8408728e-05,
+                "maximum_gap_s": 0.7464881055057049,
+                "coefficient_of_variation": 1.5264715362714186e-05
+              }
+            },
+            "candidate_SI_means": {
+              "liquid_flow": 0.04453427140430737,
+              "gas_volume_flow": 3.263189351351352e-05,
+              "liquid_inlet_temperature": 298.99101734161377,
+              "gas_density": 1.115820527027027,
+              "gas_viscosity": 1.8408252432432434e-05
+            }
+          },
+          {
+            "index": 5,
+            "first_excel_day": 45534.575914218825,
+            "end_excel_day_exclusive": 45534.5761457003,
+            "duration_s": 20.0,
+            "raw_channel_statistics": {
+              "liquid_flow": {
+                "samples": 32,
+                "first_row": 171,
+                "last_row": 202,
+                "mean_native": 160.1956877708435,
+                "sd_native": 0.0519749670261576,
+                "minimum_native": 160.10400390625,
+                "maximum_native": 160.3173065185547,
+                "maximum_gap_s": 0.7079629926010966,
+                "coefficient_of_variation": 0.0003244467298052784
+              },
+              "gas_volume_flow": {
+                "samples": 38,
+                "first_row": 195,
+                "last_row": 232,
+                "mean_native": 3.2440984315789474e-05,
+                "sd_native": 1.0528429041116327e-06,
+                "minimum_native": 2.980965e-05,
+                "maximum_native": 3.473356e-05,
+                "maximum_gap_s": 0.7447191048413515,
+                "coefficient_of_variation": 0.03245409861374642
+              },
+              "liquid_inlet_temperature": {
+                "samples": 40,
+                "first_row": 203,
+                "last_row": 242,
+                "mean_native": 25.79498896598816,
+                "sd_native": 0.03968945297306069,
+                "minimum_native": 25.73101806640625,
+                "maximum_native": 25.886371612548828,
+                "maximum_gap_s": 0.5025112302973866,
+                "coefficient_of_variation": 0.001538649736403958
+              },
+              "gas_density": {
+                "samples": 38,
+                "first_row": 195,
+                "last_row": 232,
+                "mean_native": 1.1160468368421053,
+                "sd_native": 0.00020942623927122024,
+                "minimum_native": 1.1158683,
+                "maximum_native": 1.1163349,
+                "maximum_gap_s": 0.7447191048413515,
+                "coefficient_of_variation": 0.0001876500451036619
+              },
+              "gas_viscosity": {
+                "samples": 38,
+                "first_row": 195,
+                "last_row": 232,
+                "mean_native": 1.840793242105263e-05,
+                "sd_native": 5.604759552373009e-10,
+                "minimum_native": 1.840727e-05,
+                "maximum_native": 1.8408792e-05,
+                "maximum_gap_s": 0.7447191048413515,
+                "coefficient_of_variation": 3.0447523514172647e-05
+              }
+            },
+            "candidate_SI_means": {
+              "liquid_flow": 0.04449880215856764,
+              "gas_volume_flow": 3.2440984315789474e-05,
+              "liquid_inlet_temperature": 298.94498896598816,
+              "gas_density": 1.1160468368421053,
+              "gas_viscosity": 1.840793242105263e-05
+            }
+          },
+          {
+            "index": 6,
+            "first_excel_day": 45534.5761457003,
+            "end_excel_day_exclusive": 45534.57637718179,
+            "duration_s": 20.0,
+            "raw_channel_statistics": {
+              "liquid_flow": {
+                "samples": 32,
+                "first_row": 203,
+                "last_row": 234,
+                "mean_native": 160.21811532974243,
+                "sd_native": 0.049514885692047345,
+                "minimum_native": 160.1446533203125,
+                "maximum_native": 160.3580322265625,
+                "maximum_gap_s": 0.72054339107126,
+                "coefficient_of_variation": 0.00030904673663238096
+              },
+              "gas_volume_flow": {
+                "samples": 38,
+                "first_row": 233,
+                "last_row": 270,
+                "mean_native": 3.289702921052632e-05,
+                "sd_native": 1.0498624526431062e-06,
+                "minimum_native": 3.0434412e-05,
+                "maximum_native": 3.4494164e-05,
+                "maximum_gap_s": 0.761540955863893,
+                "coefficient_of_variation": 0.03191359456577233
+              },
+              "liquid_inlet_temperature": {
+                "samples": 40,
+                "first_row": 243,
+                "last_row": 282,
+                "mean_native": 25.804082489013673,
+                "sd_native": 0.047080174244485164,
+                "minimum_native": 25.721879959106445,
+                "maximum_native": 25.897411346435547,
+                "maximum_gap_s": 0.5019247066229582,
+                "coefficient_of_variation": 0.0018245242497783047
+              },
+              "gas_density": {
+                "samples": 38,
+                "first_row": 233,
+                "last_row": 270,
+                "mean_native": 1.1162585342105262,
+                "sd_native": 0.00013142536059905017,
+                "minimum_native": 1.1160833,
+                "maximum_native": 1.1163974,
+                "maximum_gap_s": 0.761540955863893,
+                "coefficient_of_variation": 0.00011773738481829458
+              },
+              "gas_viscosity": {
+                "samples": 38,
+                "first_row": 233,
+                "last_row": 270,
+                "mean_native": 1.8407484368421052e-05,
+                "sd_native": 8.819312367589715e-10,
+                "minimum_native": 1.8406234e-05,
+                "maximum_native": 1.840845e-05,
+                "maximum_gap_s": 0.761540955863893,
+                "coefficient_of_variation": 4.791155701166685e-05
+              }
+            },
+            "candidate_SI_means": {
+              "liquid_flow": 0.04450503203603957,
+              "gas_volume_flow": 3.289702921052632e-05,
+              "liquid_inlet_temperature": 298.9540824890137,
+              "gas_density": 1.1162585342105262,
+              "gas_viscosity": 1.8407484368421052e-05
+            }
+          },
+          {
+            "index": 7,
+            "first_excel_day": 45534.57637718179,
+            "end_excel_day_exclusive": 45534.57660866327,
+            "duration_s": 20.0,
+            "raw_channel_statistics": {
+              "liquid_flow": {
+                "samples": 32,
+                "first_row": 235,
+                "last_row": 266,
+                "mean_native": 160.18314123153687,
+                "sd_native": 0.03975455593427072,
+                "minimum_native": 160.12469482421875,
+                "maximum_native": 160.28932189941406,
+                "maximum_gap_s": 0.6902975030243397,
+                "coefficient_of_variation": 0.000248181897474513
+              },
+              "gas_volume_flow": {
+                "samples": 37,
+                "first_row": 271,
+                "last_row": 307,
+                "mean_native": 3.213700983783784e-05,
+                "sd_native": 1.1236829073214343e-06,
+                "minimum_native": 3.0228522e-05,
+                "maximum_native": 3.4369436e-05,
+                "maximum_gap_s": 0.8044866845011711,
+                "coefficient_of_variation": 0.034965384551689675
+              },
+              "liquid_inlet_temperature": {
+                "samples": 40,
+                "first_row": 283,
+                "last_row": 322,
+                "mean_native": 25.81573352813721,
+                "sd_native": 0.04349180461362751,
+                "minimum_native": 25.68488883972168,
+                "maximum_native": 25.936967849731445,
+                "maximum_gap_s": 0.5039967130869627,
+                "coefficient_of_variation": 0.001684701485093372
+              },
+              "gas_density": {
+                "samples": 37,
+                "first_row": 271,
+                "last_row": 307,
+                "mean_native": 1.1160454405405407,
+                "sd_native": 0.00011947130258035076,
+                "minimum_native": 1.1158792,
+                "maximum_native": 1.1161641,
+                "maximum_gap_s": 0.8044866845011711,
+                "coefficient_of_variation": 0.00010704877977234202
+              },
+              "gas_viscosity": {
+                "samples": 37,
+                "first_row": 271,
+                "last_row": 307,
+                "mean_native": 1.8405325405405405e-05,
+                "sd_native": 7.835053410348195e-10,
+                "minimum_native": 1.8404148e-05,
+                "maximum_native": 1.8406226e-05,
+                "maximum_gap_s": 0.8044866845011711,
+                "coefficient_of_variation": 4.25694913714872e-05
+              }
+            },
+            "candidate_SI_means": {
+              "liquid_flow": 0.04449531700876024,
+              "gas_volume_flow": 3.213700983783784e-05,
+              "liquid_inlet_temperature": 298.9657335281372,
+              "gas_density": 1.1160454405405407,
+              "gas_viscosity": 1.8405325405405405e-05
+            }
+          },
+          {
+            "index": 8,
+            "first_excel_day": 45534.57660866327,
+            "end_excel_day_exclusive": 45534.57684014475,
+            "duration_s": 20.0,
+            "raw_channel_statistics": {
+              "liquid_flow": {
+                "samples": 32,
+                "first_row": 267,
+                "last_row": 298,
+                "mean_native": 160.21431493759155,
+                "sd_native": 0.09092488933567407,
+                "minimum_native": 160.0911102294922,
+                "maximum_native": 160.447265625,
+                "maximum_gap_s": 0.7239330327138305,
+                "coefficient_of_variation": 0.000567520382751642
+              },
+              "gas_volume_flow": {
+                "samples": 38,
+                "first_row": 308,
+                "last_row": 345,
+                "mean_native": 3.2013191157894737e-05,
+                "sd_native": 1.5168558829079824e-06,
+                "minimum_native": 2.920579e-05,
+                "maximum_native": 3.5097464e-05,
+                "maximum_gap_s": 0.7383452961221337,
+                "coefficient_of_variation": 0.04738221426994204
+              },
+              "liquid_inlet_temperature": {
+                "samples": 40,
+                "first_row": 323,
+                "last_row": 362,
+                "mean_native": 25.823155546188353,
+                "sd_native": 0.042800682308454914,
+                "minimum_native": 25.73360824584961,
+                "maximum_native": 25.921491622924805,
+                "maximum_gap_s": 0.5038376664742827,
+                "coefficient_of_variation": 0.0016574536071666324
+              },
+              "gas_density": {
+                "samples": 38,
+                "first_row": 308,
+                "last_row": 345,
+                "mean_native": 1.116011652631579,
+                "sd_native": 0.00012410008638369486,
+                "minimum_native": 1.1159034,
+                "maximum_native": 1.1161824,
+                "maximum_gap_s": 0.7383452961221337,
+                "coefficient_of_variation": 0.00011119963316786543
+              },
+              "gas_viscosity": {
+                "samples": 38,
+                "first_row": 308,
+                "last_row": 345,
+                "mean_native": 1.8404151631578948e-05,
+                "sd_native": 2.6706468968477394e-10,
+                "minimum_native": 1.8403768e-05,
+                "maximum_native": 1.8404666e-05,
+                "maximum_gap_s": 0.7383452961221337,
+                "coefficient_of_variation": 1.4511111135735718e-05
+              }
+            },
+            "candidate_SI_means": {
+              "liquid_flow": 0.04450397637155321,
+              "gas_volume_flow": 3.2013191157894737e-05,
+              "liquid_inlet_temperature": 298.9731555461883,
+              "gas_density": 1.116011652631579,
+              "gas_viscosity": 1.8404151631578948e-05
+            }
+          }
+        ],
+        "rejected_by_input": {
+          "liquid_input_not_steady": 3,
+          "insufficient_independent_clock_coverage": 1
+        },
+        "selection_uses_thickness_or_model_error": false,
+        "duration_s": 20.0,
+        "conversion_confirmed": false
+      },
+      "gas_unit_consistency": {
+        "nominal_filename_reynolds_not_boundary_condition": 0,
+        "windows": [
+          {
+            "window_index": 4,
+            "reynolds_if_native_m3_s": 30.43061320274399,
+            "reynolds_if_native_m3_h": 0.008452948111873332
+          },
+          {
+            "window_index": 5,
+            "reynolds_if_native_m3_s": 30.259244180952045,
+            "reynolds_if_native_m3_h": 0.008405345605820012
+          },
+          {
+            "window_index": 6,
+            "reynolds_if_native_m3_s": 30.69118631852284,
+            "reynolds_if_native_m3_h": 0.008525329532923011
+          },
+          {
+            "window_index": 7,
+            "reynolds_if_native_m3_s": 29.979921163796966,
+            "reynolds_if_native_m3_h": 0.00832775587883249
+          },
+          {
+            "window_index": 8,
+            "reynolds_if_native_m3_s": 29.865413885812146,
+            "reynolds_if_native_m3_h": 0.008295948301614484
+          }
+        ],
+        "uses_film_thickness": false,
+        "automatically_selected_conversion": false,
+        "meter_to_channel_state_correction_applied": false
+      },
+      "references": [
+        {
+          "window_index": 4,
+          "candidate_mass_flow_kg_s": 0.04453427140430737,
+          "candidate_reynolds_gamma_over_mu": 500.3850719585098,
+          "candidate_reynolds_four_gamma_over_mu": 2001.5402878340392,
+          "candidate_gas_reynolds_at_meter_conditions": 30.43061320274399,
+          "shear_free_reference_thickness_m": 0.0004958862842616911,
+          "within_existing_annular_reynolds_domain": false
+        },
+        {
+          "window_index": 5,
+          "candidate_mass_flow_kg_s": 0.04449880215856764,
+          "candidate_reynolds_gamma_over_mu": 499.98654110750164,
+          "candidate_reynolds_four_gamma_over_mu": 1999.9461644300065,
+          "candidate_gas_reynolds_at_meter_conditions": 30.259244180952045,
+          "shear_free_reference_thickness_m": 0.0004957546000292406,
+          "within_existing_annular_reynolds_domain": false
+        },
+        {
+          "window_index": 6,
+          "candidate_mass_flow_kg_s": 0.04450503203603957,
+          "candidate_reynolds_gamma_over_mu": 500.05653973078165,
+          "candidate_reynolds_four_gamma_over_mu": 2000.2261589231266,
+          "candidate_gas_reynolds_at_meter_conditions": 30.69118631852284,
+          "shear_free_reference_thickness_m": 0.0004957777343320768,
+          "within_existing_annular_reynolds_domain": false
+        },
+        {
+          "window_index": 7,
+          "candidate_mass_flow_kg_s": 0.04449531700876024,
+          "candidate_reynolds_gamma_over_mu": 499.9473821209016,
+          "candidate_reynolds_four_gamma_over_mu": 1999.7895284836063,
+          "candidate_gas_reynolds_at_meter_conditions": 29.979921163796966,
+          "shear_free_reference_thickness_m": 0.0004957416571777963,
+          "within_existing_annular_reynolds_domain": false
+        },
+        {
+          "window_index": 8,
+          "candidate_mass_flow_kg_s": 0.04450397637155321,
+          "candidate_reynolds_gamma_over_mu": 500.0446783320586,
+          "candidate_reynolds_four_gamma_over_mu": 2000.1787133282344,
+          "candidate_gas_reynolds_at_meter_conditions": 29.865413885812146,
+          "shear_free_reference_thickness_m": 0.0004957738143327602,
+          "within_existing_annular_reynolds_domain": false
+        }
+      ],
+      "shear_free_reference_range_m": [
+        0.0004957416571777963,
+        0.0004958862842616911
+      ],
+      "conditional_reference_relative_difference_range": [
+        -0.009800811194829229,
+        -0.009511931656306816
+      ],
+      "experimental_pass": false,
+      "qualification_blockers": [
+        "raw_channel_units_unconfirmed",
+        "cci_labview_clock_alignment_unavailable",
+        "sensor_zero_and_dropout_effects_unconfirmed",
+        "uniform_shear_free_reference_does_not_predict_inertial_waves_or_entrance_development"
+      ]
+    },
+    {
+      "cci_member": "Film Data_MC_RC_Water_RH80_T25Deg_CopperPlate_28_08_24/MC_RC_Water_RH80_T25Deg_CopperPlate_28_08_24/Y_600/X_50/Keyence Data 3/ReL500_ReG12900.csv",
+      "labview_member": "Film Data_MC_RC_Water_RH80_T25Deg_CopperPlate_28_08_24/MC_RC_Water_RH80_T25Deg_CopperPlate_28_08_24/Y_600/X_50/LabView Data 3/ReL500_ReG12900.xlsx",
+      "cci_raw_sha256": "07e0b66a0f5fab583d57903a4c660958c03c04a1eebd89e6ad520e6873d0e7a3",
+      "labview_raw_sha256": "67856dd1e892df53e3b2791a50cbcdef0b8b4e90a38c2453e56c58d0cd73f67f",
+      "observed_cci": {
+        "records": 100000,
+        "sensor_status_counts": {
+          "GO": 99449,
+          "ALARM": 551
+        },
+        "sensor_acceptance_fraction": 0.99449,
+        "sampling_period_s": 0.00019999999999999998,
+        "first_trigger": 35208179,
+        "last_trigger": 35308178,
+        "elapsed_first_to_last_s": 19.999799999999997,
+        "missing_triggers": 0,
+        "go_mean_thickness_m": 0.0005379573027380868,
+        "go_sample_std_thickness_m": 0.00011951034186712762,
+        "go_minimum_thickness_m": 0.0001478,
+        "go_maximum_thickness_m": 0.0015149,
+        "standard_error_or_confidence_interval_estimated": false,
+        "outliers_replaced": false,
+        "zero_offset_adjusted": false
+      },
+      "input_channels": {
+        "liquid_flow": {
+          "name": "MF 01",
+          "sheet": "Mass Flow",
+          "clock": "Timestamp-CF",
+          "unit_from_workbook": null,
+          "missing_pairs": 0
+        },
+        "gas_volume_flow": {
+          "name": "TT-Volume Flow",
+          "sheet": "Volume Flow",
+          "clock": "Timestamp-TT",
+          "unit_from_workbook": null,
+          "missing_pairs": 0
+        },
+        "liquid_inlet_temperature": {
+          "name": "TC 14",
+          "sheet": "Temperature",
+          "clock": "Timestamp-TC",
+          "unit_from_workbook": null,
+          "missing_pairs": 0
+        },
+        "gas_density": {
+          "name": "TT-Density",
+          "sheet": "Density",
+          "clock": "Timestamp-TT",
+          "unit_from_workbook": null,
+          "missing_pairs": 0
+        },
+        "gas_viscosity": {
+          "name": "TT-Viscosity",
+          "sheet": "Viscosity",
+          "clock": "Untitled",
+          "unit_from_workbook": null,
+          "missing_pairs": 0
+        }
+      },
+      "input_windows": {
+        "fixed_windows": 9,
+        "accepted": [
+          {
+            "index": 4,
+            "first_excel_day": 45534.65260567127,
+            "end_excel_day_exclusive": 45534.65283715275,
+            "duration_s": 20.0,
+            "raw_channel_statistics": {
+              "liquid_flow": {
+                "samples": 32,
+                "first_row": 141,
+                "last_row": 172,
+                "mean_native": 160.3593554496765,
+                "sd_native": 0.24235468377318803,
+                "minimum_native": 160.14634704589844,
+                "maximum_native": 160.9744415283203,
+                "maximum_gap_s": 0.742941303178668,
+                "coefficient_of_variation": 0.001511322386483669
+              },
+              "gas_volume_flow": {
+                "samples": 37,
+                "first_row": 144,
+                "last_row": 180,
+                "mean_native": 0.013169521783783783,
+                "sd_native": 3.5684306072827117e-05,
+                "minimum_native": 0.013098905,
+                "maximum_native": 0.01325156,
+                "maximum_gap_s": 0.7588673382997513,
+                "coefficient_of_variation": 0.002709612897012463
+              },
+              "liquid_inlet_temperature": {
+                "samples": 40,
+                "first_row": 163,
+                "last_row": 202,
+                "mean_native": 24.556698703765868,
+                "sd_native": 0.06723824304594259,
+                "minimum_native": 24.432270050048828,
+                "maximum_native": 24.7075138092041,
+                "maximum_gap_s": 0.5035730078816414,
+                "coefficient_of_variation": 0.002738081525414136
+              },
+              "gas_density": {
+                "samples": 37,
+                "first_row": 144,
+                "last_row": 180,
+                "mean_native": 1.1239241135135136,
+                "sd_native": 0.0002237173520341458,
+                "minimum_native": 1.1236169,
+                "maximum_native": 1.1243354,
+                "maximum_gap_s": 0.7588673382997513,
+                "coefficient_of_variation": 0.0001990502288760227
+              },
+              "gas_viscosity": {
+                "samples": 37,
+                "first_row": 144,
+                "last_row": 180,
+                "mean_native": 1.8307924702702704e-05,
+                "sd_native": 2.385592032189687e-09,
+                "minimum_native": 1.8303656e-05,
+                "maximum_native": 1.8311558e-05,
+                "maximum_gap_s": 0.7588673382997513,
+                "coefficient_of_variation": 0.00013030379308024543
+              }
+            },
+            "candidate_SI_means": {
+              "liquid_flow": 0.04454426540268792,
+              "gas_volume_flow": 0.013169521783783783,
+              "liquid_inlet_temperature": 297.7066987037658,
+              "gas_density": 1.1239241135135136,
+              "gas_viscosity": 1.8307924702702704e-05
+            }
+          }
+        ],
+        "rejected_by_input": {
+          "insufficient_independent_clock_coverage": 7,
+          "liquid_input_not_steady": 1
+        },
+        "selection_uses_thickness_or_model_error": false,
+        "duration_s": 20.0,
+        "conversion_confirmed": false
+      },
+      "gas_unit_consistency": {
+        "nominal_filename_reynolds_not_boundary_condition": 12900,
+        "windows": [
+          {
+            "window_index": 4,
+            "reynolds_if_native_m3_s": 12438.113621954373,
+            "reynolds_if_native_m3_h": 3.4550315616539926
+          }
+        ],
+        "uses_film_thickness": false,
+        "automatically_selected_conversion": false,
+        "meter_to_channel_state_correction_applied": false
+      },
+      "references": [
+        {
+          "window_index": 4,
+          "candidate_mass_flow_kg_s": 0.04454426540268792,
+          "candidate_reynolds_gamma_over_mu": 500.49736407514513,
+          "candidate_reynolds_four_gamma_over_mu": 2001.9894563005805,
+          "candidate_gas_reynolds_at_meter_conditions": 12438.113621954373,
+          "shear_free_reference_thickness_m": null,
+          "within_existing_annular_reynolds_domain": false
+        }
+      ],
+      "shear_free_reference_range_m": null,
+      "conditional_reference_relative_difference_range": null,
+      "experimental_pass": false,
+      "qualification_blockers": [
+        "raw_channel_units_unconfirmed",
+        "cci_labview_clock_alignment_unavailable",
+        "sensor_zero_and_dropout_effects_unconfirmed",
+        "uniform_shear_free_reference_does_not_predict_inertial_waves_or_entrance_development"
+      ]
+    },
+    {
+      "cci_member": "Film Data_MC_RC_Water_RH80_T25Deg_CopperPlate_28_08_24/MC_RC_Water_RH80_T25Deg_CopperPlate_28_08_24/Y_600/X_50/Keyence Data 3/ReL500_ReG20900.csv",
+      "labview_member": "Film Data_MC_RC_Water_RH80_T25Deg_CopperPlate_28_08_24/MC_RC_Water_RH80_T25Deg_CopperPlate_28_08_24/Y_600/X_50/LabView Data 3/ReL500_ReG20900.xlsx",
+      "cci_raw_sha256": "81c5d430e04a58ee58bc681b48e792a0a5fa8af8842a161145839c86e4e16613",
+      "labview_raw_sha256": "b88a5eea4a1774ec85be1bb607a9c1476891ab64d96df36c5dc78b2298f00bcb",
+      "observed_cci": {
+        "records": 100000,
+        "sensor_status_counts": {
+          "GO": 97800,
+          "ALARM": 2200
+        },
+        "sensor_acceptance_fraction": 0.978,
+        "sampling_period_s": 0.00019999999999999998,
+        "first_trigger": 51793906,
+        "last_trigger": 51893905,
+        "elapsed_first_to_last_s": 19.999799999999997,
+        "missing_triggers": 0,
+        "go_mean_thickness_m": 0.0005471037290388547,
+        "go_sample_std_thickness_m": 0.00013844634053583022,
+        "go_minimum_thickness_m": 3.99e-05,
+        "go_maximum_thickness_m": 0.0028607999999999997,
+        "standard_error_or_confidence_interval_estimated": false,
+        "outliers_replaced": false,
+        "zero_offset_adjusted": false
+      },
+      "input_channels": {
+        "liquid_flow": {
+          "name": "MF 01",
+          "sheet": "Mass Flow",
+          "clock": "Timestamp-CF",
+          "unit_from_workbook": null,
+          "missing_pairs": 0
+        },
+        "gas_volume_flow": {
+          "name": "TT-Volume Flow",
+          "sheet": "Volume Flow",
+          "clock": "Timestamp-TT",
+          "unit_from_workbook": null,
+          "missing_pairs": 0
+        },
+        "liquid_inlet_temperature": {
+          "name": "TC 14",
+          "sheet": "Temperature",
+          "clock": "Timestamp-TC",
+          "unit_from_workbook": null,
+          "missing_pairs": 0
+        },
+        "gas_density": {
+          "name": "TT-Density",
+          "sheet": "Density",
+          "clock": "Timestamp-TT",
+          "unit_from_workbook": null,
+          "missing_pairs": 0
+        },
+        "gas_viscosity": {
+          "name": "TT-Viscosity",
+          "sheet": "Viscosity",
+          "clock": "Untitled",
+          "unit_from_workbook": null,
+          "missing_pairs": 0
+        }
+      },
+      "input_windows": {
+        "fixed_windows": 22,
+        "accepted": [
+          {
+            "index": 4,
+            "first_excel_day": 45534.6879910115,
+            "end_excel_day_exclusive": 45534.68822249299,
+            "duration_s": 20.0,
+            "raw_channel_statistics": {
+              "liquid_flow": {
+                "samples": 32,
+                "first_row": 140,
+                "last_row": 171,
+                "mean_native": 160.28029441833496,
+                "sd_native": 0.15860891058248672,
+                "minimum_native": 160.10507202148438,
+                "maximum_native": 160.61317443847656,
+                "maximum_gap_s": 0.7218478247523308,
+                "coefficient_of_variation": 0.0009895721190061836
+              },
+              "gas_volume_flow": {
+                "samples": 36,
+                "first_row": 144,
+                "last_row": 179,
+                "mean_native": 0.0213269195,
+                "sd_native": 5.230931772399647e-05,
+                "minimum_native": 0.021217496,
+                "maximum_native": 0.021448138,
+                "maximum_gap_s": 0.8004684001207352,
+                "coefficient_of_variation": 0.002452736679762704
+              },
+              "liquid_inlet_temperature": {
+                "samples": 40,
+                "first_row": 163,
+                "last_row": 202,
+                "mean_native": 23.769712257385255,
+                "sd_native": 0.061932858965858366,
+                "minimum_native": 23.65554428100586,
+                "maximum_native": 23.946287155151367,
+                "maximum_gap_s": 0.5019995151087642,
+                "coefficient_of_variation": 0.0026055367559872675
+              },
+              "gas_density": {
+                "samples": 36,
+                "first_row": 144,
+                "last_row": 179,
+                "mean_native": 1.1147637222222222,
+                "sd_native": 0.0005062532881161063,
+                "minimum_native": 1.1141191,
+                "maximum_native": 1.1158477,
+                "maximum_gap_s": 0.8004684001207352,
+                "coefficient_of_variation": 0.00045413505842019803
+              },
+              "gas_viscosity": {
+                "samples": 36,
+                "first_row": 144,
+                "last_row": 179,
+                "mean_native": 1.8365824055555555e-05,
+                "sd_native": 6.144577238619219e-09,
+                "minimum_native": 1.8353582e-05,
+                "maximum_native": 1.8372236e-05,
+                "maximum_gap_s": 0.8004684001207352,
+                "coefficient_of_variation": 0.0003345658338026232
+              }
+            },
+            "candidate_SI_means": {
+              "liquid_flow": 0.04452230400509304,
+              "gas_volume_flow": 0.0213269195,
+              "liquid_inlet_temperature": 296.91971225738524,
+              "gas_density": 1.1147637222222222,
+              "gas_viscosity": 1.8365824055555555e-05
+            }
+          },
+          {
+            "index": 7,
+            "first_excel_day": 45534.68868545595,
+            "end_excel_day_exclusive": 45534.68891693743,
+            "duration_s": 20.0,
+            "raw_channel_statistics": {
+              "liquid_flow": {
+                "samples": 32,
+                "first_row": 236,
+                "last_row": 267,
+                "mean_native": 160.25561618804932,
+                "sd_native": 0.09625033038368974,
+                "minimum_native": 160.1185302734375,
+                "maximum_native": 160.43287658691406,
+                "maximum_gap_s": 0.7221772335469723,
+                "coefficient_of_variation": 0.0006006050375841204
+              },
+              "gas_volume_flow": {
+                "samples": 37,
+                "first_row": 242,
+                "last_row": 278,
+                "mean_native": 0.021338037243243246,
+                "sd_native": 4.043040414489084e-05,
+                "minimum_native": 0.02125989,
+                "maximum_native": 0.021426958,
+                "maximum_gap_s": 0.7704023038968444,
+                "coefficient_of_variation": 0.0018947574082847406
+              },
+              "liquid_inlet_temperature": {
+                "samples": 40,
+                "first_row": 283,
+                "last_row": 322,
+                "mean_native": 23.5296902179718,
+                "sd_native": 0.04622113054411465,
+                "minimum_native": 23.461238861083984,
+                "maximum_native": 23.64512825012207,
+                "maximum_gap_s": 0.5020736949518323,
+                "coefficient_of_variation": 0.00196437480119527
+              },
+              "gas_density": {
+                "samples": 37,
+                "first_row": 242,
+                "last_row": 278,
+                "mean_native": 1.114621954054054,
+                "sd_native": 0.0003877581759603602,
+                "minimum_native": 1.1139656,
+                "maximum_native": 1.1153953,
+                "maximum_gap_s": 0.7704023038968444,
+                "coefficient_of_variation": 0.00034788313163043594
+              },
+              "gas_viscosity": {
+                "samples": 37,
+                "first_row": 242,
+                "last_row": 278,
+                "mean_native": 1.836927318918919e-05,
+                "sd_native": 4.342786686846313e-09,
+                "minimum_native": 1.8360368e-05,
+                "maximum_native": 1.8374156e-05,
+                "maximum_gap_s": 0.7704023038968444,
+                "coefficient_of_variation": 0.00023641581472053886
+              }
+            },
+            "candidate_SI_means": {
+              "liquid_flow": 0.04451544894112481,
+              "gas_volume_flow": 0.021338037243243246,
+              "liquid_inlet_temperature": 296.67969021797177,
+              "gas_density": 1.114621954054054,
+              "gas_viscosity": 1.836927318918919e-05
+            }
+          },
+          {
+            "index": 10,
+            "first_excel_day": 45534.689379900396,
+            "end_excel_day_exclusive": 45534.68961138187,
+            "duration_s": 20.0,
+            "raw_channel_statistics": {
+              "liquid_flow": {
+                "samples": 31,
+                "first_row": 332,
+                "last_row": 362,
+                "mean_native": 160.20392928584928,
+                "sd_native": 0.04964489704767927,
+                "minimum_native": 160.09988403320312,
+                "maximum_native": 160.29344177246094,
+                "maximum_gap_s": 0.7284875493496656,
+                "coefficient_of_variation": 0.00030988563931599135
+              },
+              "gas_volume_flow": {
+                "samples": 37,
+                "first_row": 340,
+                "last_row": 376,
+                "mean_native": 0.02133412118918919,
+                "sd_native": 4.442160902073705e-05,
+                "minimum_native": 0.021251888,
+                "maximum_native": 0.021437796,
+                "maximum_gap_s": 0.8172248722985387,
+                "coefficient_of_variation": 0.002082186026169532
+              },
+              "liquid_inlet_temperature": {
+                "samples": 40,
+                "first_row": 403,
+                "last_row": 442,
+                "mean_native": 23.333169412612914,
+                "sd_native": 0.04274844749052283,
+                "minimum_native": 23.24246597290039,
+                "maximum_native": 23.441556930541992,
+                "maximum_gap_s": 0.5016726208850741,
+                "coefficient_of_variation": 0.0018320891917672723
+              },
+              "gas_density": {
+                "samples": 37,
+                "first_row": 340,
+                "last_row": 376,
+                "mean_native": 1.1153552243243243,
+                "sd_native": 0.00028176245640743953,
+                "minimum_native": 1.1147799,
+                "maximum_native": 1.1158403,
+                "maximum_gap_s": 0.8172248722985387,
+                "coefficient_of_variation": 0.00025262127281299964
+              },
+              "gas_viscosity": {
+                "samples": 37,
+                "first_row": 340,
+                "last_row": 376,
+                "mean_native": 1.8363244378378377e-05,
+                "sd_native": 2.896747620306151e-09,
+                "minimum_native": 1.8358212e-05,
+                "maximum_native": 1.836874e-05,
+                "maximum_gap_s": 0.8172248722985387,
+                "coefficient_of_variation": 0.00015774704952012172
+              }
+            },
+            "candidate_SI_means": {
+              "liquid_flow": 0.04450109146829147,
+              "gas_volume_flow": 0.02133412118918919,
+              "liquid_inlet_temperature": 296.4831694126129,
+              "gas_density": 1.1153552243243243,
+              "gas_viscosity": 1.8363244378378377e-05
+            }
+          },
+          {
+            "index": 14,
+            "first_excel_day": 45534.69030582632,
+            "end_excel_day_exclusive": 45534.6905373078,
+            "duration_s": 20.0,
+            "raw_channel_statistics": {
+              "liquid_flow": {
+                "samples": 32,
+                "first_row": 459,
+                "last_row": 490,
+                "mean_native": 160.16895055770874,
+                "sd_native": 0.08627793517045543,
+                "minimum_native": 160.03475952148438,
+                "maximum_native": 160.32833862304688,
+                "maximum_gap_s": 0.720818736590445,
+                "coefficient_of_variation": 0.0005386682928872008
+              },
+              "gas_volume_flow": {
+                "samples": 37,
+                "first_row": 470,
+                "last_row": 506,
+                "mean_native": 0.02132483454054054,
+                "sd_native": 4.962637675432157e-05,
+                "minimum_native": 0.021208908,
+                "maximum_native": 0.021436524,
+                "maximum_gap_s": 0.7257661549374461,
+                "coefficient_of_variation": 0.0023271635078798434
+              },
+              "liquid_inlet_temperature": {
+                "samples": 40,
+                "first_row": 563,
+                "last_row": 602,
+                "mean_native": 23.0972638130188,
+                "sd_native": 0.04259036591130502,
+                "minimum_native": 22.983850479125977,
+                "maximum_native": 23.18769073486328,
+                "maximum_gap_s": 0.5028381245210767,
+                "coefficient_of_variation": 0.0018439572001294332
+              },
+              "gas_density": {
+                "samples": 37,
+                "first_row": 470,
+                "last_row": 506,
+                "mean_native": 1.1163047054054054,
+                "sd_native": 0.00040777774812104586,
+                "minimum_native": 1.1154746,
+                "maximum_native": 1.1168997,
+                "maximum_gap_s": 0.7257661549374461,
+                "coefficient_of_variation": 0.00036529251032132337
+              },
+              "gas_viscosity": {
+                "samples": 37,
+                "first_row": 470,
+                "last_row": 506,
+                "mean_native": 1.8352438864864866e-05,
+                "sd_native": 5.870785269828927e-09,
+                "minimum_native": 1.8345692e-05,
+                "maximum_native": 1.8363532e-05,
+                "maximum_gap_s": 0.7257661549374461,
+                "coefficient_of_variation": 0.00031989128600604414
+              }
+            },
+            "candidate_SI_means": {
+              "liquid_flow": 0.04449137515491909,
+              "gas_volume_flow": 0.02132483454054054,
+              "liquid_inlet_temperature": 296.2472638130188,
+              "gas_density": 1.1163047054054054,
+              "gas_viscosity": 1.8352438864864866e-05
+            }
+          },
+          {
+            "index": 17,
+            "first_excel_day": 45534.69100027077,
+            "end_excel_day_exclusive": 45534.691231752244,
+            "duration_s": 20.0,
+            "raw_channel_statistics": {
+              "liquid_flow": {
+                "samples": 32,
+                "first_row": 556,
+                "last_row": 587,
+                "mean_native": 160.1985936164856,
+                "sd_native": 0.04994881518173585,
+                "minimum_native": 160.112060546875,
+                "maximum_native": 160.29275512695312,
+                "maximum_gap_s": 0.7207621587440372,
+                "coefficient_of_variation": 0.00031179309414733683
+              },
+              "gas_volume_flow": {
+                "samples": 36,
+                "first_row": 570,
+                "last_row": 605,
+                "mean_native": 0.021319661666666666,
+                "sd_native": 5.070502142238443e-05,
+                "minimum_native": 0.021235466,
+                "maximum_native": 0.021463038,
+                "maximum_gap_s": 0.7858260534703732,
+                "coefficient_of_variation": 0.002378322049156241
+              },
+              "liquid_inlet_temperature": {
+                "samples": 40,
+                "first_row": 683,
+                "last_row": 722,
+                "mean_native": 22.96211519241333,
+                "sd_native": 0.04587835493504098,
+                "minimum_native": 22.857479095458984,
+                "maximum_native": 23.06886863708496,
+                "maximum_gap_s": 0.5038376664742827,
+                "coefficient_of_variation": 0.001998002124394845
+              },
+              "gas_density": {
+                "samples": 36,
+                "first_row": 570,
+                "last_row": 605,
+                "mean_native": 1.1156286277777778,
+                "sd_native": 0.0005390617541469374,
+                "minimum_native": 1.1147181,
+                "maximum_native": 1.1164376,
+                "maximum_gap_s": 0.7858260534703732,
+                "coefficient_of_variation": 0.0004831910375235666
+              },
+              "gas_viscosity": {
+                "samples": 36,
+                "first_row": 570,
+                "last_row": 605,
+                "mean_native": 1.8360069666666665e-05,
+                "sd_native": 7.064723152553148e-09,
+                "minimum_native": 1.8350358e-05,
+                "maximum_native": 1.8372324e-05,
+                "maximum_gap_s": 0.7858260534703732,
+                "coefficient_of_variation": 0.00038478738266333455
+              }
+            },
+            "candidate_SI_means": {
+              "liquid_flow": 0.044499609337912666,
+              "gas_volume_flow": 0.021319661666666666,
+              "liquid_inlet_temperature": 296.1121151924133,
+              "gas_density": 1.1156286277777778,
+              "gas_viscosity": 1.8360069666666665e-05
+            }
+          },
+          {
+            "index": 18,
+            "first_excel_day": 45534.691231752244,
+            "end_excel_day_exclusive": 45534.69146323373,
+            "duration_s": 20.0,
+            "raw_channel_statistics": {
+              "liquid_flow": {
+                "samples": 32,
+                "first_row": 588,
+                "last_row": 619,
+                "mean_native": 160.2139115333557,
+                "sd_native": 0.055659830979205537,
+                "minimum_native": 160.09799194335938,
+                "maximum_native": 160.2958526611328,
+                "maximum_gap_s": 0.730191171169281,
+                "coefficient_of_variation": 0.0003474094755349472
+              },
+              "gas_volume_flow": {
+                "samples": 36,
+                "first_row": 606,
+                "last_row": 641,
+                "mean_native": 0.021330542444444447,
+                "sd_native": 4.151788188803886e-05,
+                "minimum_native": 0.021243656,
+                "maximum_native": 0.021419962,
+                "maximum_gap_s": 0.7913851412013173,
+                "coefficient_of_variation": 0.0019464053479264526
+              },
+              "liquid_inlet_temperature": {
+                "samples": 40,
+                "first_row": 723,
+                "last_row": 762,
+                "mean_native": 22.89207525253296,
+                "sd_native": 0.043959958938724265,
+                "minimum_native": 22.76849365234375,
+                "maximum_native": 22.961868286132812,
+                "maximum_gap_s": 0.5029405932873487,
+                "coefficient_of_variation": 0.0019203134033844394
+              },
+              "gas_density": {
+                "samples": 36,
+                "first_row": 606,
+                "last_row": 641,
+                "mean_native": 1.1172185749999999,
+                "sd_native": 0.00048052044781039555,
+                "minimum_native": 1.1164258,
+                "maximum_native": 1.1181245,
+                "maximum_gap_s": 0.7913851412013173,
+                "coefficient_of_variation": 0.00043010424151817883
+              },
+              "gas_viscosity": {
+                "samples": 36,
+                "first_row": 606,
+                "last_row": 641,
+                "mean_native": 1.8341754444444444e-05,
+                "sd_native": 5.320730006537681e-09,
+                "minimum_native": 1.8331828e-05,
+                "maximum_native": 1.8350436e-05,
+                "maximum_gap_s": 0.7913851412013173,
+                "coefficient_of_variation": 0.00029008838945334824
+              }
+            },
+            "candidate_SI_means": {
+              "liquid_flow": 0.044503864314821034,
+              "gas_volume_flow": 0.021330542444444447,
+              "liquid_inlet_temperature": 296.0420752525329,
+              "gas_density": 1.1172185749999999,
+              "gas_viscosity": 1.8341754444444444e-05
+            }
+          }
+        ],
+        "rejected_by_input": {
+          "insufficient_independent_clock_coverage": 15,
+          "liquid_input_not_steady": 1
+        },
+        "selection_uses_thickness_or_model_error": false,
+        "duration_s": 20.0,
+        "conversion_confirmed": false
+      },
+      "gas_unit_consistency": {
+        "nominal_filename_reynolds_not_boundary_condition": 20900,
+        "windows": [
+          {
+            "window_index": 4,
+            "reynolds_if_native_m3_s": 19915.31502579279,
+            "reynolds_if_native_m3_h": 5.532031951609108
+          },
+          {
+            "window_index": 7,
+            "reynolds_if_native_m3_s": 19919.42197987737,
+            "reynolds_if_native_m3_h": 5.533172772188158
+          },
+          {
+            "window_index": 10,
+            "reynolds_if_native_m3_s": 19935.410971735862,
+            "reynolds_if_native_m3_h": 5.537614158815518
+          },
+          {
+            "window_index": 14,
+            "reynolds_if_native_m3_s": 19955.438842493804,
+            "reynolds_if_native_m3_h": 5.543177456248279
+          },
+          {
+            "window_index": 17,
+            "reynolds_if_native_m3_s": 19930.22845580021,
+            "reynolds_if_native_m3_h": 5.536174571055614
+          },
+          {
+            "window_index": 18,
+            "reynolds_if_native_m3_s": 19988.758273614167,
+            "reynolds_if_native_m3_h": 5.552432853781713
+          }
+        ],
+        "uses_film_thickness": false,
+        "automatically_selected_conversion": false,
+        "meter_to_channel_state_correction_applied": false
+      },
+      "references": [
+        {
+          "window_index": 4,
+          "candidate_mass_flow_kg_s": 0.04452230400509304,
+          "candidate_reynolds_gamma_over_mu": 500.25060679879823,
+          "candidate_reynolds_four_gamma_over_mu": 2001.002427195193,
+          "candidate_gas_reynolds_at_meter_conditions": 19915.31502579279,
+          "shear_free_reference_thickness_m": null,
+          "within_existing_annular_reynolds_domain": false
+        },
+        {
+          "window_index": 7,
+          "candidate_mass_flow_kg_s": 0.04451544894112481,
+          "candidate_reynolds_gamma_over_mu": 500.17358360814393,
+          "candidate_reynolds_four_gamma_over_mu": 2000.6943344325757,
+          "candidate_gas_reynolds_at_meter_conditions": 19919.42197987737,
+          "shear_free_reference_thickness_m": null,
+          "within_existing_annular_reynolds_domain": false
+        },
+        {
+          "window_index": 10,
+          "candidate_mass_flow_kg_s": 0.04450109146829147,
+          "candidate_reynolds_gamma_over_mu": 500.01226368866816,
+          "candidate_reynolds_four_gamma_over_mu": 2000.0490547546726,
+          "candidate_gas_reynolds_at_meter_conditions": 19935.410971735862,
+          "shear_free_reference_thickness_m": null,
+          "within_existing_annular_reynolds_domain": false
+        },
+        {
+          "window_index": 14,
+          "candidate_mass_flow_kg_s": 0.04449137515491909,
+          "candidate_reynolds_gamma_over_mu": 499.90309162830437,
+          "candidate_reynolds_four_gamma_over_mu": 1999.6123665132175,
+          "candidate_gas_reynolds_at_meter_conditions": 19955.438842493804,
+          "shear_free_reference_thickness_m": null,
+          "within_existing_annular_reynolds_domain": false
+        },
+        {
+          "window_index": 17,
+          "candidate_mass_flow_kg_s": 0.044499609337912666,
+          "candidate_reynolds_gamma_over_mu": 499.9956105383446,
+          "candidate_reynolds_four_gamma_over_mu": 1999.9824421533783,
+          "candidate_gas_reynolds_at_meter_conditions": 19930.22845580021,
+          "shear_free_reference_thickness_m": null,
+          "within_existing_annular_reynolds_domain": false
+        },
+        {
+          "window_index": 18,
+          "candidate_mass_flow_kg_s": 0.044503864314821034,
+          "candidate_reynolds_gamma_over_mu": 500.0434192676521,
+          "candidate_reynolds_four_gamma_over_mu": 2000.1736770706084,
+          "candidate_gas_reynolds_at_meter_conditions": 19988.758273614167,
+          "shear_free_reference_thickness_m": null,
+          "within_existing_annular_reynolds_domain": false
+        }
+      ],
+      "shear_free_reference_range_m": null,
+      "conditional_reference_relative_difference_range": null,
+      "experimental_pass": false,
+      "qualification_blockers": [
+        "raw_channel_units_unconfirmed",
+        "cci_labview_clock_alignment_unavailable",
+        "sensor_zero_and_dropout_effects_unconfirmed",
+        "uniform_shear_free_reference_does_not_predict_inertial_waves_or_entrance_development"
+      ]
+    }
+  ],
+  "fit_performed": false,
+  "candidate_units": {
+    "liquid_flow": {
+      "native": "kg/h",
+      "SI": "kg/s",
+      "scale": 0.0002777777777777778,
+      "offset": 0
+    },
+    "gas_volume_flow": {
+      "native": "m3/s",
+      "SI": "m3/s",
+      "scale": 1,
+      "offset": 0
+    },
+    "liquid_inlet_temperature": {
+      "native": "degC",
+      "SI": "K",
+      "scale": 1,
+      "offset": 273.15
+    },
+    "gas_density": {
+      "native": "kg/m3",
+      "SI": "kg/m3",
+      "scale": 1,
+      "offset": 0
+    },
+    "gas_viscosity": {
+      "native": "Pa.s",
+      "SI": "Pa.s",
+      "scale": 1,
+      "offset": 0
+    }
+  },
+  "external_unit_evidence": {
+    "metadata_sha256": "83ffba9ec761e3c7ebfb005c3e6e9b2fd869ae04442514909a519cba6d7fb72f",
+    "dataset_url": "https://doi.org/10.18419/DARUS-4998",
+    "gas_unit_declarations": [
+      {
+        "field": "engMetaMeasuredVar",
+        "name": "time resolved gas volue flow",
+        "unit": "m^3/h"
+      },
+      {
+        "field": "engMetaControlledVar",
+        "name": "time resolved gas volume flow",
+        "unit": "m^3/h"
+      }
+    ],
+    "publication_url": "https://arxiv.org/html/2503.04915v1",
+    "publication_meter_max_m3_s": 0.05,
+    "status": "Dataset metadata declares m3/h; workbook channel units are blank. Both interpretations are reported; Reynolds agreement alone is not unit certification."
+  },
+  "unit_confirmation_status": "Missing Unit fields in source books; conversions are conditional, not inferred measurements",
+  "reference_properties": {
+    "density_kg_m3": 997.0,
+    "viscosity_pa_s": 0.00089,
+    "temperature_k": 298.15,
+    "gravity_m_s2": 9.81,
+    "source_member": "Post_Processing/Keyence_Data_Plotter.m, lines 207-221",
+    "measured_liquid_PVT": false
+  },
+  "comparison_scope": "All input-steady windows, unaligned to CCI, as conditional reference sensitivity. No closest-error selection, empirical coefficient fit or synthetic confidence interval.",
+  "experimentally_qualified": false
+}

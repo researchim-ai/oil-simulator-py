@@ -1,0 +1,10 @@
+{
+  "pid": 559600,
+  "wall_budget_s": 3600,
+  "device": "cpu",
+  "starts_at_simulated_s": 0.00025,
+  "output": "benchmarks/reports/pr_native_thermo_repair/continued_cycle.json",
+  "log": "benchmarks/reports/pr_native_thermo_repair/continued_cycle.log",
+  "qualification": "pending",
+  "original_cycle_end_s": 1.0
+}

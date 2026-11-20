@@ -1,0 +1,11 @@
+{
+  "pid": 636203,
+  "wall_budget_s": 1200,
+  "device": "cpu",
+  "starts_at_simulated_s": 0.10659914006294104,
+  "original_cycle_end_s": 1.0,
+  "qualification": "pending",
+  "log": "benchmarks/reports/pr_analytic_warm_repair/accelerated_cycle.log",
+  "explicit_source_migration": true,
+  "prefix_provenance": "recorded_prefix.accepted.jsonl"
+}

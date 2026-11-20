@@ -16,8 +16,8 @@ from .pr_homogeneous_uv import recover_homogeneous_phases
 from .pr_stock_balances import entropy_allowance
 
 
-def darcy_factor(reynolds, relative_roughness):
-    """64/Re; smooth 2000..4000 transition; implicit Colebrook turbulent root."""
+def colebrook_factor(reynolds, relative_roughness):
+    """Turbulent Colebrook root, with Reynolds bounded below by 2000."""
     turbulent_re = reynolds.clamp_min(2000.0)
     z = torch.full_like(reynolds, 7.0)
     for _ in range(12):
@@ -25,7 +25,12 @@ def darcy_factor(reynolds, relative_roughness):
         residual = z + 2 * torch.log10(argument)
         derivative = 1 + 2 / math.log(10) * (2.51 / turbulent_re) / argument
         z = (z - residual / derivative).clamp(1.0, 100.0)
-    turbulent = z.reciprocal().square()
+    return z.reciprocal().square()
+
+
+def darcy_factor(reynolds, relative_roughness):
+    """64/Re; smooth 2000..4000 transition; implicit Colebrook turbulent root."""
+    turbulent = colebrook_factor(reynolds, relative_roughness)
     laminar = 64 / reynolds.clamp_min(torch.finfo(reynolds.dtype).tiny)
     blend = ((reynolds - 2000) / 2000).clamp(0.0, 1.0)
     blend = blend.square() * (3 - 2 * blend)
@@ -53,7 +58,11 @@ class PRActivePipeFriction:
     @classmethod
     def from_dict(cls, data):
         raw = dict(data)
-        if raw.get("model") == "laminar_annular_wallis_interface_v1":
+        if raw.get("model") in (
+            "laminar_annular_wallis_interface_v1",
+            "laminar_annular_colebrook_interface_v2",
+            "laminar_annular_colebrook_implicit_v3",
+        ):
             from .pr_active_annular_friction import PRActiveAnnularFriction
 
             return PRActiveAnnularFriction.from_dict(raw)

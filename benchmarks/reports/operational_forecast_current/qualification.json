@@ -1,0 +1,91 @@
+{
+  "format": "coupled_calculation_qualification_v1",
+  "all_scopes_passed": false,
+  "operational_forecast": {
+    "numerically_qualified": true,
+    "days": 30,
+    "cells": 1024,
+    "wells": 16,
+    "model": "black-oil reservoir and wells, homogeneous gathering tree, quasi-steady facility",
+    "dynamic_vessel_inventory": false,
+    "time_refinement": "comparison.json",
+    "cpu_cuda_parity": "cpu_cuda_comparison.json",
+    "cpu_cuda_qualified": true,
+    "solve_wall_s": {
+      "operating": 115.89943327999936,
+      "refined": 182.16863838300014,
+      "cuda_operating": 158.24529328899916
+    },
+    "maximum_time_refinement_errors": {
+      "fields": {
+        "final_pressure_pa": 229.22195461997762,
+        "final_s_w": 2.191616733587809e-05,
+        "final_s_g": 8.63119329853057e-05,
+        "final_rs": 0.003438329319294553,
+        "withdrawal_relative": 0.0010401520703690898
+      },
+      "well_histories": {
+        "bhp_abs_pa": 261.3295690859668,
+        "component_rate_scaled": 0.0017253568830753467,
+        "cumulative_mass_relative": 0.001673920139104891
+      }
+    },
+    "maximum_cpu_cuda_field_errors": {
+      "final_pressure_pa": 7.632514461874962e-05,
+      "final_s_w": 1.967831453342228e-11,
+      "final_s_g": 7.670275525839543e-11,
+      "final_rs": 1.144869088420819e-09,
+      "withdrawal_relative": 3.4121275619690514e-10
+    },
+    "actual_execution": {
+      "operating": {
+        "torch_version": "2.7.0+cu126",
+        "torch_threads": 1,
+        "device_name": "cpu",
+        "cuda_peak_allocated_bytes": null,
+        "cuda_peak_reserved_bytes": null,
+        "memory_scope": "PyTorch allocator peak from before model construction through the forecast; excludes CUDA context and other processes",
+        "gathering_backend": "cpu_reference",
+        "hydraulic_backend": "torch_batch"
+      },
+      "refined": {
+        "torch_version": "2.7.0+cu126",
+        "torch_threads": 1,
+        "device_name": "cpu",
+        "cuda_peak_allocated_bytes": null,
+        "cuda_peak_reserved_bytes": null,
+        "memory_scope": "PyTorch allocator peak from before model construction through the forecast; excludes CUDA context and other processes",
+        "gathering_backend": "cpu_reference",
+        "hydraulic_backend": "torch_batch"
+      },
+      "cuda_operating": {
+        "torch_version": "2.7.0+cu126",
+        "torch_threads": 1,
+        "device_name": "NVIDIA GeForce RTX 3090",
+        "cuda_peak_allocated_bytes": 72479744,
+        "cuda_peak_reserved_bytes": 81788928,
+        "memory_scope": "PyTorch allocator peak from before model construction through the forecast; excludes CUDA context and other processes",
+        "gathering_backend": "cpu_reference",
+        "hydraulic_backend": "torch_batch"
+      }
+    },
+    "maximum_absolute_material_balance_residual_kg": 1.753977358021075e-05,
+    "timing_scope": "Shared-host observations; the PR diagnostic overlapped part of the CPU refinement. Gathering uses cpu_reference on both devices."
+  },
+  "detailed_pr_operating_cycle": {
+    "qualified": false,
+    "result": "../pr_integrated_current_validation.json",
+    "requested_duration_s": 1.0,
+    "last_accepted_time_s": 3.3953743000001394e-06,
+    "wall_budget_s": 90,
+    "observed_wall_s": 90.02034219400048,
+    "failure": "TimeoutExpired: Command '['/home/user/miniconda3/bin/python', '/home/user/workspace/oil-simulator-py-impes/scripts/run_pr_controlled_surface.py', '/home/user/workspace/oil-simulator-py-impes/configs/surface_pr_integrated_facility.json', '--device', 'cpu', '--output', '/home/user/workspace/oil-simulator-py-impes/benchmarks/reports/pr_integrated_current_validation.trajectory.json', '--progress']' timed out after 89.99999110300087 seconds",
+    "source_guard_passed": true
+  },
+  "external_surface_physics": {
+    "qualified": false,
+    "result": "external_surface/summary.json",
+    "annular_pressure": "not_experimentally_qualified"
+  },
+  "qualification_scope": "Configured operational numerical qualification; detailed PR dynamics and experimental surface qualification remain unclosed."
+}

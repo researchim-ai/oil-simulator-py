@@ -38,13 +38,44 @@ CANDIDATE_UNITS = {
 }
 
 
-def steady_windows(channels, *, duration_s=20.0):
+def gas_unit_audit(windows, nominal_reynolds):
+    """Compare both documented interpretations, without using film observations.
+
+    Dataset-level m3/h metadata is not a channel-level Unit declaration. Reynolds
+    labels are consistency checks only, not replacement measured boundary data.
+    Geometry: Wirth et al., arXiv:2503.04915, section I.2.
+    """
+    rows = []
+    for window in windows["accepted"]:
+        stats = window["raw_channel_statistics"]
+        q = stats["gas_volume_flow"]["mean_native"]
+        rho = stats["gas_density"]["mean_native"]
+        mu = stats["gas_viscosity"]["mean_native"]
+        re_si = q / (0.1 * 0.03) * (2 * 0.1 * 0.03 / 0.13) * rho / mu
+        rows.append(
+            {
+                "window_index": window["index"],
+                "reynolds_if_native_m3_s": re_si,
+                "reynolds_if_native_m3_h": re_si / 3600,
+            }
+        )
+    return {
+        "nominal_filename_reynolds_not_boundary_condition": nominal_reynolds,
+        "windows": rows,
+        "uses_film_thickness": False,
+        "automatically_selected_conversion": False,
+        "meter_to_channel_state_correction_applied": False,
+    }
+
+
+def steady_windows(channels, *, duration_s=20.0, units=None):
     """Fixed nonoverlapping physical-time windows, input-only criteria.
 
     Every channel must cover a window with >=10 samples and no gaps >2s.
     Liquid mean >.001 kg/s, CV<=2%; gas mean |Q|<=1e-4 m3/s is the
     predeclared near-zero branch, otherwise Q>0 and CV<=2%. Units conditional.
     """
+    units = CANDIDATE_UNITS if units is None else units
     if not math.isfinite(duration_s) or duration_s <= 0:
         raise ValueError("Positive physical window duration required")
     origin = max(c["times_excel_days"][0] for c in channels.values())
@@ -59,8 +90,9 @@ def steady_windows(channels, *, duration_s=20.0):
             reason = "insufficient_independent_clock_coverage"
         else:
             liquid, gas = stats["liquid_flow"], stats["gas_volume_flow"]
-            liquid_mean = liquid["mean_native"] * CANDIDATE_UNITS["liquid_flow"]["scale"]
-            gas_mean = gas["mean_native"]
+            liquid_mean = liquid["mean_native"] * units["liquid_flow"]["scale"]
+            gas_mean = gas["mean_native"] * units["gas_volume_flow"]["scale"]
+            gas_sd = gas["sd_native"] * units["gas_volume_flow"]["scale"]
             if any(stats[name]["mean_native"] <= 0 for name in ("gas_density", "gas_viscosity")):
                 reason = "nonphysical_gas_properties"
             elif liquid_mean <= 0.001:
@@ -69,14 +101,13 @@ def steady_windows(channels, *, duration_s=20.0):
                 reason = "liquid_input_not_steady"
             elif abs(gas_mean) > 1e-4 and (gas_mean <= 0 or gas["coefficient_of_variation"] > 0.02):
                 reason = "gas_input_not_steady"
-            elif abs(gas_mean) <= 1e-4 and gas["sd_native"] > 1e-4:
+            elif abs(gas_mean) <= 1e-4 and gas_sd > 1e-4:
                 reason = "near_zero_gas_input_not_steady"
         if reason:
             rejected[reason] = rejected.get(reason, 0) + 1
             continue
         physical = {
-            name: value["mean_native"] * CANDIDATE_UNITS[name]["scale"]
-            + CANDIDATE_UNITS[name]["offset"]
+            name: value["mean_native"] * units[name]["scale"] + units[name]["offset"]
             for name, value in stats.items()
         }
         accepted.append(
@@ -117,6 +148,30 @@ def checked_members(data):
 def run(data, *, device="cpu"):
     data = Path(data)
     manifest_raw, manifest, members = checked_members(data)
+    metadata_raw = gzip.decompress((data / "source_metadata.json.gz").read_bytes())
+    if hashlib.sha256(metadata_raw).hexdigest() != manifest["metadata_sha256"]:
+        raise ValueError("FETRig metadata identity changed")
+    metadata = json.loads(metadata_raw)
+    fields = [
+        field
+        for block in metadata["data"]["latestVersion"]["metadataBlocks"].values()
+        for field in block["fields"]
+    ]
+    gas_unit_declarations = []
+    for field in fields:
+        prefix = field["typeName"]
+        if prefix not in ("engMetaMeasuredVar", "engMetaControlledVar"):
+            continue
+        for variable in field["value"]:
+            name = variable[prefix + "Name"]["value"]
+            if "gas" in name and ("volume" in name or "volue" in name):
+                gas_unit_declarations.append(
+                    {
+                        "field": prefix,
+                        "name": name,
+                        "unit": variable[prefix + "Unit"]["value"],
+                    }
+                )
     processing_raw, _, processing = checked_members(data.parent / "fetrig_processing")
     plotter_name = next(name for name in processing if name.endswith("/Keyence_Data_Plotter.m"))
     plotter = processing[plotter_name]
@@ -198,6 +253,7 @@ def run(data, *, device="cpu"):
                     for key, c in channels.items()
                 },
                 "input_windows": windows,
+                "gas_unit_consistency": gas_unit_audit(windows, int(stem.split("ReG")[1])),
                 "references": references,
                 "shear_free_reference_range_m": [min(predictions), max(predictions)]
                 if predictions
@@ -238,6 +294,15 @@ def run(data, *, device="cpu"):
         "cases": cases,
         "fit_performed": False,
         "candidate_units": CANDIDATE_UNITS,
+        "external_unit_evidence": {
+            "metadata_sha256": hashlib.sha256(metadata_raw).hexdigest(),
+            "dataset_url": metadata["data"]["persistentUrl"],
+            "gas_unit_declarations": gas_unit_declarations,
+            "publication_url": "https://arxiv.org/html/2503.04915v1",
+            "publication_meter_max_m3_s": 0.05,
+            "status": "Dataset metadata declares m3/h; workbook channel units are blank. "
+            "Both interpretations are reported; Reynolds agreement alone is not unit certification.",
+        },
         "unit_confirmation_status": "Missing Unit fields in source books; conversions are conditional, not inferred measurements",
         "reference_properties": {
             "density_kg_m3": 997.0,

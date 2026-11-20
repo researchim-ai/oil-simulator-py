@@ -1,0 +1,49 @@
+{
+  "scope": "synthetic fixed-inventory momentum source only",
+  "device": "cpu",
+  "dtype": "float64",
+  "cells": 256,
+  "torch_version": "2.7.0+cu126",
+  "torch_threads": 12,
+  "physical_substep_range_s": [
+    1e-08,
+    1000000.0
+  ],
+  "timing_samples_s": {
+    "bisection_56": [
+      0.02676177200009988,
+      0.024372228999709478,
+      0.023573934000523877,
+      0.023812831999748596,
+      0.02360136600145779,
+      0.02302693999990879,
+      0.023560449999422417,
+      0.02389870199840516,
+      0.023774600000251667
+    ],
+    "safeguarded_newton_16": [
+      0.007219876999442931,
+      0.006030219999956898,
+      0.006746009999915259,
+      0.005931814999712515,
+      0.006312497998806066,
+      0.005964306001260411,
+      0.0062108570000418695,
+      0.006318308998743305,
+      0.006363624001096468
+    ]
+  },
+  "median_wall_s": {
+    "bisection_56": 0.023774600000251667,
+    "safeguarded_newton_16": 0.006312497998806066
+  },
+  "source_only_speedup": 3.7662744613540236,
+  "maximum_final_velocity_difference_m_s": 1.971756091734278e-13,
+  "experimental_validation": false,
+  "source_sha256": {
+    "src/surface/annular_film.py": "85849ae39bca31364a993970b390cdbf77f48788d289f7f373aaea9d8562b271",
+    "src/surface/annular_implicit_source.py": "10b96fdbffa66df14decc0eb3a157cc70647b4b10ee69fe0ba094dc2574fdc2b",
+    "src/surface/pr_active_pipe_friction.py": "17111f5a3a016c6e144da44b05cd45cbe07c4487fa21ec30490c513aea8d2013",
+    "scripts/benchmark_annular_implicit.py": "ef9f55ef1d466d7eb20d872bee7b1cee40f8914c069673181dbce795e117e58e"
+  }
+}

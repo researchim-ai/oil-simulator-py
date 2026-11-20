@@ -1,10 +1,12 @@
-"""Opt-in fully wetted laminar annulus with a gas core, frozen-coefficient BE.
+"""Opt-in fully wetted laminar annulus with a gas core.
 
 The interface velocity is reconstructed from the radial Stokes profile; it is
 NOT the mean liquid velocity. Eliminating that profile gives a symmetric
 positive resistance matrix in the two mean velocities. Interface work is
 transferred between phases, wall work is zero, and lost kinetic energy heats
 the fluids. No claim of experimental qualification of the Wallis correlation.
+Versions 1/2 freeze resistance coefficients; version 3 solves final-state
+nonlinear resistance and both phase momenta by a scalar Schur reduction.
 """
 
 import math
@@ -19,10 +21,17 @@ from .pr_homogeneous_uv import recover_homogeneous_phases
 from .pr_stock_balances import entropy_allowance
 
 MODEL = "laminar_annular_wallis_interface_v1"
+CONSISTENT_MODEL = "laminar_annular_colebrook_interface_v2"
+IMPLICIT_MODEL = "laminar_annular_colebrook_implicit_v3"
 
 
 class PRActiveAnnularFriction:
-    def __init__(self, viscosity_pa_s, gas_slot, liquid_slot, roughness_m=0.0, wetting=None):
+    def __init__(
+        self, viscosity_pa_s, gas_slot, liquid_slot, roughness_m=0.0, wetting=None, model=MODEL
+    ):
+        if model not in (MODEL, CONSISTENT_MODEL, IMPLICIT_MODEL):
+            raise ValueError("Unknown annular closure")
+        self.model = model
         if gas_slot == liquid_slot or set(viscosity_pa_s) != {gas_slot, liquid_slot}:
             raise ValueError("Annular closure requires distinct gas/liquid viscosity slots")
         self.viscosity = {
@@ -38,13 +47,13 @@ class PRActiveAnnularFriction:
     @classmethod
     def from_dict(cls, data):
         raw = dict(data)
-        if raw.pop("model", None) != MODEL:
+        if raw.get("model") not in (MODEL, CONSISTENT_MODEL, IMPLICIT_MODEL):
             raise ValueError("Unknown annular closure")
         return cls(**raw)
 
     def to_dict(self):
         return {
-            "model": MODEL,
+            "model": self.model,
             "gas_slot": self.gas_slot,
             "liquid_slot": self.liquid_slot,
             "viscosity_pa_s": self.viscosity,
@@ -53,6 +62,8 @@ class PRActiveAnnularFriction:
         }
 
     def validate_pipe(self, pipe):
+        if self.roughness / pipe.diameter > 0.05:
+            raise ValueError("Annular relative roughness must be <=.05")
         roots = {s["name"]: s["root"] for s in pipe.slots}
         if roots != {self.gas_slot: "vapor", self.liquid_slot: "liquid"}:
             raise ValueError("Annular closure requires declared gas vapor and liquid roots")
@@ -98,28 +109,48 @@ class PRActiveAnnularFriction:
                 raise PropertyModelError(
                     "Annular state outside alpha_l (0,.3], density or laminar film domain"
                 )
-            effective, eta, beta, c, perimeter, gas_re = interfacial_conductance(
-                alpha,
-                pipe.diameter,
-                mu,
-                self.viscosity[self.gas_slot],
-                rg,
-                velocity[gi],
-                velocity[li],
-            )
+            lengths = f.tensor([pipe.lengths[i] for i in paired])
+            mg, ml = mass[gi], mass[li]
+            if self.model == IMPLICIT_MODEL:
+                from .annular_implicit_source import implicit_annular_velocities
+
+                ug, ul, effective, eta, beta, c, perimeter, gas_re = implicit_annular_velocities(
+                    alpha,
+                    pipe.diameter,
+                    mu,
+                    self.viscosity[self.gas_slot],
+                    rg,
+                    velocity[gi],
+                    velocity[li],
+                    mg,
+                    ml,
+                    lengths,
+                    dt,
+                    self.roughness,
+                )
+            else:
+                effective, eta, beta, c, perimeter, gas_re = interfacial_conductance(
+                    alpha,
+                    pipe.diameter,
+                    mu,
+                    self.viscosity[self.gas_slot],
+                    rg,
+                    velocity[gi],
+                    velocity[li],
+                    dry_consistent=self.model == CONSISTENT_MODEL,
+                    roughness_m=self.roughness,
+                )
+                # Legacy frozen-resistance BE, in a positive Schur form.
+                k = lengths * perimeter * effective
+                wall = lengths * c
+                share = dt * k / (mg + dt * k)
+                ul = (ml * velocity[li] + eta * mg * share * velocity[gi]) / (
+                    ml + dt * wall + eta.square() * mg * share
+                )
+                ug = mg / (mg + dt * k) * velocity[gi] + share * eta * ul
             if not bool(((beta > 0) & (c > 0) & torch.isfinite(eta)).all().cpu()):
                 raise ConservationError("Nonpassive annular resistance")
-            lengths = f.tensor([pipe.lengths[i] for i in paired])
-            # tau = effective*(ug-eta*ul), coefficients frozen at old slip.
-            k = lengths * perimeter * effective
             wall = lengths * c
-            mg, ml = mass[gi], mass[li]
-            share = dt * k / (mg + dt * k)
-            # Positive Schur form avoids subtracting two large stiff terms.
-            ul = (ml * velocity[li] + eta * mg * share * velocity[gi]) / (
-                ml + dt * wall + eta.square() * mg * share
-            )
-            ug = mg / (mg + dt * k) * velocity[gi] + share * eta * ul
             film_re_after = ml / lengths * ul.abs() / (math.pi * pipe.diameter * mu)
             if not bool((torch.isfinite(film_re_after) & (film_re_after <= 400)).all().cpu()):
                 raise PropertyModelError(
@@ -186,6 +217,18 @@ class PRActiveAnnularFriction:
             turbulent = 2 * u / (1 + torch.sqrt(1 + 2 * dt * factor / pipe.diameter * u.abs()))
             laminar = u / (1 + dt * 32 * mu / (rho * pipe.diameter**2))
             un = torch.where(reynolds <= 2000, laminar, turbulent)
+            if self.model == CONSISTENT_MODEL:
+                # Match the paired source frozen-resistance BE limit at alpha -> 0.
+                drag = torch.where(
+                    reynolds <= 2000,
+                    32 * mu / (rho * pipe.diameter**2),
+                    factor * u.abs() / (2 * pipe.diameter),
+                )
+                un = u / (1 + dt * drag)
+            if self.model == IMPLICIT_MODEL:
+                from .annular_implicit_source import implicit_darcy_velocity
+
+                un = implicit_darcy_velocity(u, rho, mu, pipe.diameter, self.roughness, dt)
             new_velocity[idx] = un
             # Remove BE temporal dissipation to report actual drag work.
             physical_heat[idx] = mass[idx] * un * (u - un)
@@ -224,7 +267,8 @@ class PRActiveAnnularFriction:
             raise ConservationError("Annular source decreased total entropy")
         impulse = float((new_momentum - momentum).sum().cpu())
         return new, {
-            "model": MODEL,
+            "model": self.model,
+            **({"resistance_evaluation": "final_state"} if self.model == IMPLICIT_MODEL else {}),
             **({"wetting": wetting_records} if self.wetting is not None else {}),
             "state": new.to_dict(),
             "dt_s": dt,

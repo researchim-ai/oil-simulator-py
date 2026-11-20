@@ -10,6 +10,8 @@ import torch
 class PhaseEOSGroups:
     """Shared exact root grouping for transport and column quadrature."""
 
+    _native_cpu = True
+
     def __init__(self, fluid, tags):
         self.fluid = fluid
         groups = {}
@@ -33,7 +35,11 @@ class PhaseEOSGroups:
             def eos(pp, tt, xx, tag=tag):
                 return self.fluid.tensor_homogeneous(pp, tt, xx, tag)
 
-            if t.ndim == 0:
+            if self._native_cpu and self.fluid.device.type == "cpu":
+                q = self.fluid.tensor_homogeneous(
+                    p[indices], t if t.ndim == 0 else t[indices], x[indices], tag
+                )
+            elif t.ndim == 0:
                 # A column has ONE T. Preserve its shared thermodynamic
                 # coefficients and the outer AD tangent, rather than making
                 # redundant copies of attraction matrices for every point.

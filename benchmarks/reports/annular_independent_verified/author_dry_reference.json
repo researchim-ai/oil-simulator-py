@@ -1,0 +1,423 @@
+{
+  "author": {
+    "source": "https://doi.org/10.25835/vcwbeqix",
+    "license": "CC-BY-4.0",
+    "archive_sha256": "f7e64adf5c30fcc9ab986bc16ee3cbc88e3664904443b749ae4ce890e0d6a26b",
+    "member": "Forschungsdatenmanagement/Differential pressure air - measurement and simulation.xlsx",
+    "sha256": "d980522dc016538ce966b7432af92401f6ea8e9efc6c07f8e6373de08d5095f1",
+    "sheet": "Vergleich_Num_vs_Exp",
+    "note": "Original workbook, unchanged. Cached summary values are reported author results, not newly recalculated formulas.",
+    "declared_geometry": {
+      "pipe_diameter_m": 0.085,
+      "lower_diameter_m": 0.1643,
+      "source_cells": "Uebersicht_Experiment!S4:T5"
+    },
+    "measurement_notes": {
+      "C65": "KIMO Schr\u00e4grohrmanometer, 0 \u2026200 Pa, gegen Umgebung, Ableseungenauigkeit 5 Pa",
+      "C66": "U-Rohr Manometer, Ableseungenauigkeit  5 Pa",
+      "C67": "Manometer und Absolutdrucksensor an Wandbohrung angeschlossen (nicht \"Prandtl\"-Sonden)",
+      "C68": "Manometer an Wandbohrung angeschlossen",
+      "C70": "Der Volumenstrom ist h\u00f6her, da bei diesen Versuchen direkt aus der Umgebung am Gebl\u00e4se angesaugt wurde und nicht wie zuvor durch einen zwei Meter langen Flexschlauch"
+    },
+    "measurement_notes_sheet": "Uebersicht_Experiment",
+    "acquisition_start_dates": {
+      "Messdaten": "2024-09-17",
+      "Messdaten2": "2024-09-18",
+      "Messdaten3": "2024-09-18",
+      "Messdaten4": "2024-09-19"
+    },
+    "same_campaign_as_wet_data_confirmed": false
+  },
+  "reference_rows": [
+    {
+      "column": "C",
+      "q_m3_h": 140.57551844679483,
+      "author_pipe_velocity_m_s": 6.881442103348961,
+      "author_lower_velocity_m_s": 1.8417987965950187,
+      "rho_kg_m3": 1.2051031008283237,
+      "mu_pa_s": 1.830079749305753e-05,
+      "measured_dp1_pa": 44.0,
+      "measured_dp2_pa": 37.5,
+      "author_simulation_pa": 42.9946,
+      "fully_developed_friction_pa": 22.316971460354132,
+      "unexplained_difference_pa": 20.677628539645866
+    },
+    {
+      "column": "D",
+      "q_m3_h": 166.54717866857607,
+      "author_pipe_velocity_m_s": 8.152804842172378,
+      "author_lower_velocity_m_s": 2.1820754896534607,
+      "rho_kg_m3": 1.2035032511234058,
+      "mu_pa_s": 1.8301752260686353e-05,
+      "measured_dp1_pa": 62.666666666666664,
+      "measured_dp2_pa": 53.666666666666664,
+      "author_simulation_pa": 58.21197,
+      "fully_developed_friction_pa": 30.11144317772938,
+      "unexplained_difference_pa": 28.10052682227062
+    },
+    {
+      "column": "E",
+      "q_m3_h": 195.96031124374846,
+      "author_pipe_velocity_m_s": 9.592634274284928,
+      "author_lower_velocity_m_s": 2.5674418235613503,
+      "rho_kg_m3": 1.2049218450792876,
+      "mu_pa_s": 1.8301978618397344e-05,
+      "measured_dp1_pa": 84.0,
+      "measured_dp2_pa": 75.33333333333333,
+      "author_simulation_pa": 78.20541,
+      "fully_developed_friction_pa": 40.23629420839242,
+      "unexplained_difference_pa": 37.96911579160758
+    },
+    {
+      "column": "F",
+      "q_m3_h": 223.84929885265478,
+      "author_pipe_velocity_m_s": 10.957853877756227,
+      "author_lower_velocity_m_s": 2.9328390448120625,
+      "rho_kg_m3": 1.204716072814655,
+      "mu_pa_s": 1.830355367700592e-05,
+      "measured_dp1_pa": 109.33333333333333,
+      "measured_dp2_pa": 103.33333333333333,
+      "author_simulation_pa": 99.66984,
+      "fully_developed_friction_pa": 50.98299732046544,
+      "unexplained_difference_pa": 48.68684267953456
+    },
+    {
+      "column": "G",
+      "q_m3_h": 253.7582968328718,
+      "author_pipe_velocity_m_s": 12.421956875519257,
+      "author_lower_velocity_m_s": 3.3247021309025167,
+      "rho_kg_m3": 1.206873997215415,
+      "mu_pa_s": 1.8303392182006533e-05,
+      "measured_dp1_pa": 137.25,
+      "measured_dp2_pa": 131.5,
+      "author_simulation_pa": 125.6516,
+      "fully_developed_friction_pa": 63.844846984984905,
+      "unexplained_difference_pa": 61.8067530150151
+    },
+    {
+      "column": "H",
+      "q_m3_h": 282.7633006968159,
+      "author_pipe_velocity_m_s": 13.841807621954084,
+      "author_lower_velocity_m_s": 3.7047212252803554,
+      "rho_kg_m3": 1.2061956463195262,
+      "mu_pa_s": 1.8306100248038393e-05,
+      "measured_dp1_pa": 167.33333333333334,
+      "measured_dp2_pa": 159.66666666666666,
+      "author_simulation_pa": 153.3424,
+      "fully_developed_friction_pa": 77.4201433845219,
+      "unexplained_difference_pa": 75.9222566154781
+    },
+    {
+      "column": "I",
+      "q_m3_h": 313.3590035104285,
+      "author_pipe_velocity_m_s": 15.339526142571401,
+      "author_lower_velocity_m_s": 4.105581412357797,
+      "rho_kg_m3": 1.2063142931689823,
+      "mu_pa_s": 1.830542174516391e-05,
+      "measured_dp1_pa": 200.66666666666666,
+      "measured_dp2_pa": 194.66666666666666,
+      "author_simulation_pa": 185.5056,
+      "fully_developed_friction_pa": 93.03168321100435,
+      "unexplained_difference_pa": 92.47391678899564
+    },
+    {
+      "column": "J",
+      "q_m3_h": 341.52292725767484,
+      "author_pipe_velocity_m_s": 16.718204399007377,
+      "author_lower_velocity_m_s": 4.4745808045578315,
+      "rho_kg_m3": 1.205661077811482,
+      "mu_pa_s": 1.8307916062625142e-05,
+      "measured_dp1_pa": null,
+      "measured_dp2_pa": 231.66666666666666,
+      "author_simulation_pa": 217.6062,
+      "fully_developed_friction_pa": 108.475714089971,
+      "unexplained_difference_pa": 109.130485910029
+    },
+    {
+      "column": "K",
+      "q_m3_h": 370.63740290153044,
+      "author_pipe_velocity_m_s": 18.14341399969887,
+      "author_lower_velocity_m_s": 4.856034181339391,
+      "rho_kg_m3": 1.2078919557213548,
+      "mu_pa_s": 1.830854212180993e-05,
+      "measured_dp1_pa": null,
+      "measured_dp2_pa": 267.5,
+      "author_simulation_pa": 253.872,
+      "fully_developed_friction_pa": 125.77596925206646,
+      "unexplained_difference_pa": 128.09603074793355
+    },
+    {
+      "column": "L",
+      "q_m3_h": 395.9872392875971,
+      "author_pipe_velocity_m_s": 19.384337265339255,
+      "author_lower_velocity_m_s": 5.188163834251959,
+      "rho_kg_m3": 1.206613788263869,
+      "mu_pa_s": 1.831303518704308e-05,
+      "measured_dp1_pa": null,
+      "measured_dp2_pa": 301.6666666666667,
+      "author_simulation_pa": 287.0579,
+      "fully_developed_friction_pa": 141.4982640256253,
+      "unexplained_difference_pa": 145.55963597437471
+    },
+    {
+      "column": "M",
+      "q_m3_h": 422.99636361423813,
+      "author_pipe_velocity_m_s": 20.706485868236133,
+      "author_lower_velocity_m_s": 5.54203322226151,
+      "rho_kg_m3": 1.2068692296067531,
+      "mu_pa_s": 1.8314550942453203e-05,
+      "measured_dp1_pa": null,
+      "measured_dp2_pa": 351.3333333333333,
+      "author_simulation_pa": 324.882,
+      "fully_developed_friction_pa": 159.30376241265975,
+      "unexplained_difference_pa": 165.57823758734025
+    },
+    {
+      "column": "N",
+      "q_m3_h": 454.71942886616563,
+      "author_pipe_velocity_m_s": 22.2593909493191,
+      "author_lower_velocity_m_s": 5.957663938412267,
+      "rho_kg_m3": 1.2080179930897905,
+      "mu_pa_s": 1.8316871489708173e-05,
+      "measured_dp1_pa": null,
+      "measured_dp2_pa": 396.6666666666667,
+      "author_simulation_pa": 372.4266,
+      "fully_developed_friction_pa": 181.52507728478963,
+      "unexplained_difference_pa": 190.90152271521038
+    },
+    {
+      "column": "O",
+      "q_m3_h": 464.67885307350974,
+      "author_pipe_velocity_m_s": 22.74692392677328,
+      "author_lower_velocity_m_s": 6.088150780805156,
+      "rho_kg_m3": 1.2094127791013443,
+      "mu_pa_s": 1.8316950604983475e-05,
+      "measured_dp1_pa": null,
+      "measured_dp2_pa": 412.5,
+      "author_simulation_pa": 388.2826,
+      "fully_developed_friction_pa": 188.90038274782742,
+      "unexplained_difference_pa": 199.38221725217258
+    }
+  ],
+  "wet_window_dry_comparison": [
+    {
+      "window": [
+        "mess1",
+        483,
+        542
+      ],
+      "legacy_dry_pa": 64.60818444880364,
+      "author_dry_simulation_interpolated_pa": 70.04629445392104,
+      "baseline_shift_pa": 5.4381100051173945
+    },
+    {
+      "window": [
+        "mess1",
+        963,
+        1022
+      ],
+      "legacy_dry_pa": 60.353403920066924,
+      "author_dry_simulation_interpolated_pa": 68.42783523933345,
+      "baseline_shift_pa": 8.074431319266523
+    },
+    {
+      "window": [
+        "mess1",
+        1323,
+        1382
+      ],
+      "legacy_dry_pa": 75.1185366536773,
+      "author_dry_simulation_interpolated_pa": 74.95155639950636,
+      "baseline_shift_pa": -0.16698025417093731
+    },
+    {
+      "window": [
+        "mess1",
+        1623,
+        1682
+      ],
+      "legacy_dry_pa": 69.63713365456559,
+      "author_dry_simulation_interpolated_pa": 65.75641322132512,
+      "baseline_shift_pa": -3.8807204332404694
+    },
+    {
+      "window": [
+        "mess1",
+        1683,
+        1742
+      ],
+      "legacy_dry_pa": 77.54552982893968,
+      "author_dry_simulation_interpolated_pa": 72.99106470003046,
+      "baseline_shift_pa": -4.554465128909214
+    },
+    {
+      "window": [
+        "mess2",
+        123,
+        182
+      ],
+      "legacy_dry_pa": 61.0063108306558,
+      "author_dry_simulation_interpolated_pa": 57.51991783278747,
+      "baseline_shift_pa": -3.486392997868329
+    },
+    {
+      "window": [
+        "mess2",
+        663,
+        722
+      ],
+      "legacy_dry_pa": 63.85667761979333,
+      "author_dry_simulation_interpolated_pa": 67.41975736931734,
+      "baseline_shift_pa": 3.5630797495240074
+    },
+    {
+      "window": [
+        "mess2",
+        723,
+        782
+      ],
+      "legacy_dry_pa": 75.94803410548427,
+      "author_dry_simulation_interpolated_pa": 74.28149976911301,
+      "baseline_shift_pa": -1.6665343363712566
+    },
+    {
+      "window": [
+        "mess2",
+        1263,
+        1322
+      ],
+      "legacy_dry_pa": 76.02924362693302,
+      "author_dry_simulation_interpolated_pa": 72.05796168815075,
+      "baseline_shift_pa": -3.971281938782269
+    },
+    {
+      "window": [
+        "mess2",
+        1443,
+        1502
+      ],
+      "legacy_dry_pa": 59.32766327582122,
+      "author_dry_simulation_interpolated_pa": 57.88656821303558,
+      "baseline_shift_pa": -1.4410950627856423
+    },
+    {
+      "window": [
+        "mess2",
+        1503,
+        1562
+      ],
+      "legacy_dry_pa": 64.99084356090151,
+      "author_dry_simulation_interpolated_pa": 67.09339760295182,
+      "baseline_shift_pa": 2.102554042050315
+    },
+    {
+      "window": [
+        "mess2",
+        1563,
+        1622
+      ],
+      "legacy_dry_pa": 60.57101040383,
+      "author_dry_simulation_interpolated_pa": 68.36521829887837,
+      "baseline_shift_pa": 7.794207895048373
+    },
+    {
+      "window": [
+        "mess2",
+        1623,
+        1682
+      ],
+      "legacy_dry_pa": 77.21911015626567,
+      "author_dry_simulation_interpolated_pa": 73.2547420211477,
+      "baseline_shift_pa": -3.964368135117965
+    },
+    {
+      "window": [
+        "mess2",
+        1923,
+        1982
+      ],
+      "legacy_dry_pa": 63.807084759311856,
+      "author_dry_simulation_interpolated_pa": 64.40288292030345,
+      "baseline_shift_pa": 0.595798160991599
+    },
+    {
+      "window": [
+        "mess3",
+        63,
+        122
+      ],
+      "legacy_dry_pa": 54.37339910225365,
+      "author_dry_simulation_interpolated_pa": 59.08985035133733,
+      "baseline_shift_pa": 4.716451249083683
+    },
+    {
+      "window": [
+        "mess3",
+        483,
+        542
+      ],
+      "legacy_dry_pa": 57.66881025998114,
+      "author_dry_simulation_interpolated_pa": 63.003245651021984,
+      "baseline_shift_pa": 5.3344353910408415
+    },
+    {
+      "window": [
+        "mess3",
+        723,
+        782
+      ],
+      "legacy_dry_pa": 59.97285321521322,
+      "author_dry_simulation_interpolated_pa": 63.52860899059239,
+      "baseline_shift_pa": 3.5557557753791684
+    },
+    {
+      "window": [
+        "mess3",
+        783,
+        842
+      ],
+      "legacy_dry_pa": 77.54238353388291,
+      "author_dry_simulation_interpolated_pa": 72.99360623389457,
+      "baseline_shift_pa": -4.548777299988345
+    },
+    {
+      "window": [
+        "mess3",
+        1083,
+        1142
+      ],
+      "legacy_dry_pa": 75.36903254945484,
+      "author_dry_simulation_interpolated_pa": 74.74920926090283,
+      "baseline_shift_pa": -0.6198232885520127
+    },
+    {
+      "window": [
+        "mess3",
+        1443,
+        1502
+      ],
+      "legacy_dry_pa": 61.340527832650274,
+      "author_dry_simulation_interpolated_pa": 69.4707403266806,
+      "baseline_shift_pa": 8.130212494030324
+    }
+  ],
+  "summary": {
+    "author_points": 13,
+    "wet_windows": 20,
+    "baseline_shift_range_pa": [
+      -4.554465128909214,
+      8.130212494030324
+    ],
+    "simulation_minus_friction_range_pa": [
+      20.677628539645866,
+      199.38221725217258
+    ]
+  },
+  "experimental_qualification": false,
+  "legacy_scoring_changed": false,
+  "notes": [
+    "Independent dry campaign and CFD output are diagnostic references, not interchangeable measurements of wet runs.",
+    "Author cached results are read without executing formulas. Erroneous Kelvin labels in B8/B28 are not used.",
+    "Pure distributed Darcy friction does not reproduce the author full-domain CFD pressure: geometry, pressure taps and losses must be matched before assigning the difference to film physics."
+  ]
+}

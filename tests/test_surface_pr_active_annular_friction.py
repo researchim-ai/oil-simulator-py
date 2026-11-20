@@ -13,7 +13,9 @@ from surface.pr_active_annular_friction import MODEL
 from surface.pr_active_multifluid_pipe import PRActiveMultifluidPipe
 
 
-def model_state(*, gas_u=3.0, liquid_u=-0.1, alpha=0.02, single=False, device="cpu"):
+def model_state(
+    *, gas_u=3.0, liquid_u=-0.1, alpha=0.02, single=False, device="cpu", model=MODEL, roughness=0.0
+):
     base, volume = setup(count=2)
     raw = base.to_dict()
     raw["model"] = "pr_active_multifluid_pipe_v3"
@@ -21,11 +23,11 @@ def model_state(*, gas_u=3.0, liquid_u=-0.1, alpha=0.02, single=False, device="c
     raw["face_elevations_m"] = [0.0, length, 2 * length]
     raw["gravity_m_s2"] = 9.80665
     raw["wall_friction"] = {
-        "model": MODEL,
+        "model": model,
         "gas_slot": "gas",
         "liquid_slot": "liquid",
         "viscosity_pa_s": {"gas": 1e-5, "liquid": 0.001},
-        "roughness_m": 0.0,
+        "roughness_m": roughness,
     }
     pipe = PRActiveMultifluidPipe.from_dict(raw, device=device)
     f = pipe.fluid
@@ -267,3 +269,47 @@ def test_annular_source_cuda_matches_cpu():
             assert pb.momentum_kg_m_s == pytest.approx(pa.momentum_kg_m_s, abs=1e-12, rel=1e-10)
             assert pb.total_energy_j == pytest.approx(pa.total_energy_j, abs=1e-9, rel=1e-10)
     assert rb["dissipation_j"] == pytest.approx(ra["dissipation_j"], abs=1e-9, rel=1e-9)
+
+
+@pytest.mark.parametrize("gas_u", [0.0, 1e-4, 3.0, -3.0])
+@pytest.mark.parametrize("roughness", [0.0, 0.0002])
+@pytest.mark.parametrize("dt", [0.001, 1.0])
+def test_consistent_closure_matches_dry_cell_at_finite_step(gas_u, roughness, dt):
+    from surface.pr_active_annular_friction import CONSISTENT_MODEL
+
+    pipe, old = model_state(
+        alpha=1e-12,
+        gas_u=gas_u,
+        liquid_u=0.0,
+        single=True,
+        model=CONSISTENT_MODEL,
+        roughness=roughness,
+    )
+    raw = pipe.friction.to_dict()
+    assert PRActiveMultifluidPipe.from_dict(pipe.to_dict()).friction.to_dict() == raw
+    new, report = pipe.friction.apply(pipe, old, dt)
+    velocities = []
+    for cell in new.cells:
+        gas = dict(cell)["gas"]
+        mass = sum(
+            n * c.molar_mass_kg_mol for n, c in zip(gas.component_moles, pipe.fluid.components)
+        )
+        velocities.append(gas.momentum_kg_m_s / mass)
+    assert velocities[0] == pytest.approx(velocities[1], rel=1e-8, abs=1e-13)
+    assert report["model"] == CONSISTENT_MODEL
+    assert max(map(abs, report["conservation_residuals"])) < 1e-8
+    assert min(report["physical_dissipation_j"]) >= -1e-14
+    assert abs(sum(report["interface_work_j"])) < 1e-12
+
+
+@pytest.mark.parametrize("gas_u,liquid_u", [(3.0, -0.1), (-3.0, 0.1), (0.0, 0.0)])
+def test_consistent_model_independent_energy_momentum_audit(gas_u, liquid_u):
+    from check_pr_active_surface import friction_audit
+
+    from surface.pr_active_annular_friction import CONSISTENT_MODEL
+
+    pipe, old = model_state(
+        gas_u=gas_u, liquid_u=liquid_u, single=True, model=CONSISTENT_MODEL, roughness=0.0002
+    )
+    new, report = pipe.friction.apply(pipe, old, 0.001)
+    friction_audit(pipe, old, new, report)

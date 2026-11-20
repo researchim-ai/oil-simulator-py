@@ -29,6 +29,7 @@ def run(output_dir):
         ROOT / "scripts/fetrig_labview.py",
         ROOT / "scripts/audit_fetrig_measurements.py",
         *sorted(p for p in (ROOT / "tests/data/surface/fetrig").rglob("*") if p.is_file()),
+        *sorted(p for p in (ROOT / "tests/data/surface/fetrig_middle").rglob("*") if p.is_file()),
         *sorted(
             p for p in (ROOT / "tests/data/surface/fetrig_processing").rglob("*") if p.is_file()
         ),
@@ -50,7 +51,9 @@ def run(output_dir):
         ("volume_wetted_control", lambda: darcy(data)),
         ("annular_mean_control", lambda: annular(data, shear_velocity="mean")),
         ("annular_interface", lambda: annular(data, shear_velocity="interface")),
+        ("annular_superficial_reference", lambda: annular(data, shear_velocity="superficial")),
         ("fetrig_conditioned_film", lambda: fetrig(ROOT / "tests/data/surface/fetrig")),
+        ("fetrig_middle_station", lambda: fetrig(ROOT / "tests/data/surface/fetrig_middle")),
     ]
     reports, entries = {}, {}
     for name, job in jobs:
@@ -114,6 +117,20 @@ def run(output_dir):
             },
             "passed": qualified,
         },
+        "annular_reference_law_comparison": {
+            "closure": reports["annular_superficial_reference"]["closure"],
+            "comparison_contract": reports["annular_superficial_reference"]["comparison_contract"],
+            "mean_absolute_error_pa": {
+                k: r["mean_absolute_error_pa"]
+                for k, r in reports["annular_superficial_reference"][
+                    "roughness_sensitivity"
+                ].items()
+            },
+            "passed": reports["annular_superficial_reference"][
+                "accepted_as_validated_for_annular_countercurrent"
+            ],
+            "replaces_runtime_gate": False,
+        },
         "complete_surface_plant_experimentally_qualified": False,
         "fetrig_conditioning": {
             "cases": len(reports["fetrig_conditioned_film"]["cases"]),
@@ -123,6 +140,17 @@ def run(output_dir):
             ),
             "experimentally_qualified": False,
             "status": "conditional_shear_free_reference_only; channel units and CCI clock alignment unconfirmed",
+        },
+        "fetrig_middle_station": {
+            "cases": len(reports["fetrig_middle_station"]["cases"]),
+            "input_steady_windows": sum(
+                len(row["input_windows"]["accepted"])
+                for row in reports["fetrig_middle_station"]["cases"]
+            ),
+            "experimentally_qualified": reports["fetrig_middle_station"][
+                "experimentally_qualified"
+            ],
+            "status": "Additional public measurements; same unit and clock limitations apply",
         },
         "uncovered_scopes": [
             "transient multiphase pipes and finite ports against time-resolved measurements",
@@ -137,10 +165,14 @@ def run(output_dir):
             "fetrig_experimental_qualification": reports["fetrig_conditioned_film"][
                 "experimentally_qualified"
             ],
+            "fetrig_middle_station_qualification": reports["fetrig_middle_station"][
+                "experimentally_qualified"
+            ],
         },
         "gate_passed": qualified
         and v["predicted_points"] == v["experimental_points"]
-        and reports["fetrig_conditioned_film"]["experimentally_qualified"],
+        and reports["fetrig_conditioned_film"]["experimentally_qualified"]
+        and reports["fetrig_middle_station"]["experimentally_qualified"],
         "qualification": "Scoped external comparison gate, not a whole-project industrial certification. Numerical verification and experimental validation remain distinct. Failure is retained, not converted into a test pass.",
     }
     (output / "summary.json").write_text(json.dumps(result, indent=2, allow_nan=False) + "\n")
