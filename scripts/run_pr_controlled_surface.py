@@ -11,7 +11,16 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 
-def run(config, *, device="cpu", progress=None, cuda_graphs=False):
+def run(config, *, device="cpu", progress=None, cuda_graphs=False, native_kernels=False):
+    if native_kernels:
+        if device != "cpu" or cuda_graphs:
+            raise ValueError("Native CPU kernels cannot be combined with CUDA execution")
+        from surface.native_execution import native_kernel_execution
+
+        with native_kernel_execution(progress=progress) as execution:
+            result = _run(config, device=device, progress=progress)
+            result["numerical_policy"]["native_execution"] = execution.statistics()
+            return result
     if not cuda_graphs:
         return _run(config, device=device, progress=progress)
     if device != "cuda":
@@ -172,6 +181,11 @@ def main():
         help="Reuse bounded CUDA graphs for dense Newton kernels; original physics and tolerances",
     )
     parser.add_argument("--output", type=Path, required=True)
+    parser.add_argument(
+        "--native-kernels",
+        action="store_true",
+        help="Compile exact CPU kernels; final Newton acceptance remains eager",
+    )
     parser.add_argument("--progress", action="store_true", help="JSON progress on stderr")
     parser.add_argument(
         "--no-fugacity-ssi",
@@ -296,6 +310,7 @@ def main():
         json.loads(args.config.read_text()),
         device=args.device,
         cuda_graphs=args.cuda_graphs,
+        native_kernels=args.native_kernels,
         progress=(lambda event: print(json.dumps(event), file=sys.stderr, flush=True))
         if args.progress
         else None,

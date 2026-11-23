@@ -69,6 +69,8 @@ def _values(function, x):
 
 
 def _colored_values(coloring, function, x):
+    if hasattr(function, "runtime_residual"):
+        return coloring.values(function.runtime_residual, x)
     if hasattr(function, "runtime_values"):
         return coloring.values(lambda z: function.runtime_values(z)[0], x)
     return coloring.values(function, x)
@@ -325,16 +327,25 @@ class CUDAExecution:
 
 
 @contextmanager
-def cuda_graph_execution(**budgets):
-    """Opt in for a complete simulation; nested calls share the bounded cache."""
+def kernel_execution(execution):
+    """Activate one caller-owned execution engine; nested calls share it."""
     previous = current_execution()
     if previous is not None:
+        execution.close()
+        if type(previous) is not type(execution):
+            raise ValueError("Different Newton execution engines cannot share a nested scope")
         yield previous
         return
-    execution = CUDAExecution(**budgets)
     token = _ACTIVE.set(execution)
     try:
         yield execution
     finally:
         _ACTIVE.reset(token)
         execution.close()
+
+
+@contextmanager
+def cuda_graph_execution(**budgets):
+    """Opt in for a complete simulation; nested calls share the bounded cache."""
+    with kernel_execution(CUDAExecution(**budgets)) as execution:
+        yield execution

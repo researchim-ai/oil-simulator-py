@@ -101,6 +101,8 @@ class TorchNewton(_LinearNewton):
                 row, bounds = execution.residual_values(function.runtime_values, z)
                 function.accept_runtime_bounds(bounds)
                 return row
+            if accelerated and hasattr(function, "runtime_residual"):
+                return execution.residual_values(function.runtime_residual, z)
             return function(z)
 
         while iterations < self.maximum_iterations:
@@ -420,7 +422,11 @@ class TorchNewton(_LinearNewton):
             previous_norm = current_norm
             iterations += 1
         self.iterations = iterations
-        residual = evaluate(x)
+        # A native compiler may regroup floating-point arithmetic. Its kernel
+        # accelerates iterations, never certifies its own final acceptance.
+        residual = (
+            function(x) if accelerated and getattr(execution, "eager_final", False) else evaluate(x)
+        )
         evaluations += 1
         # Success is a statement about THIS caller's error budget. A generic
         # loose cutoff can otherwise turn a stalled or exhausted solve into a

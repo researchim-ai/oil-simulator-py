@@ -155,7 +155,7 @@ def audit(config, report):
                 if stage["operator"] == "fast":
                     allowed_methods = (
                         {"radau3", "backward_euler_fallback"}
-                        if model.fast_time_scheme == "radau3"
+                        if model.fast_time_scheme in ("radau3", "radau3-embedded")
                         else {None}
                     )
                     if any(s.get("method") not in allowed_methods for s in saved["steps"]):

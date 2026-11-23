@@ -10,6 +10,7 @@ from dataclasses import replace
 
 import torch
 
+from .cuda_execution import current_execution
 from .equilibrium_cache import cached_fluid_transaction
 from .liquid import ConservationError, HydraulicConvergenceError, PropertyModelError, _number
 from .pr_equilibrium_transport import (
@@ -18,6 +19,8 @@ from .pr_equilibrium_transport import (
     PREquilibriumTransportState,
 )
 from .time_interval import interval_step_s, split_step_s
+from .torch_krylov import gmres_device
+from .torch_linear import BlockJacobi, ColoredJacobian, TorchCOO
 from .torch_nonlinear import TorchNewton
 
 
@@ -25,7 +28,9 @@ class PRCollocation:
     _batch_stage_residual = True
     _block_preconditioning = True
 
-    def __init__(self, physics, *, phase_fallback=True, scheme="gauss4"):
+    def __init__(
+        self, physics, *, phase_fallback=True, scheme="gauss4", error_control="step_doubling"
+    ):
         if not isinstance(physics, PREquilibriumTransportNetwork):
             raise TypeError("Expected PREquilibriumTransportNetwork")
         if type(phase_fallback) is not bool:
@@ -55,10 +60,18 @@ class PRCollocation:
             )
         if scheme not in ("gauss4", "radau3"):
             raise ValueError("Unknown PR collocation scheme")
+        if error_control not in ("step_doubling", "embedded") or (
+            error_control == "embedded" and scheme != "radau3"
+        ):
+            raise ValueError("Embedded control requires Radau3")
+        self.error_control = error_control
         self._solve_calls = 0
         self._batch_stage_residual = getattr(
             physics, "_batch_collocation_stages", self._batch_stage_residual
         )
+        if getattr(current_execution(), "eager_final", False):
+            # Native forward AD avoids Dynamo's nested-vmap tracing bug.
+            self._batch_stage_residual = False
         self._block_preconditioning = getattr(
             physics, "_collocation_block_preconditioning", self._block_preconditioning
         )
@@ -139,6 +152,9 @@ class PRCollocation:
             )
         if 2 * len(y) > m.maximum_unknowns:
             raise ValueError("PR collocation exceeds configured unknown budget")
+        old_wall_temperatures = f.tensor(
+            [state.nodes[i][1].wall_temperature_k for i in wall_indices]
+        )
 
         def evaluate(z):
             row, physical = base_evaluate(
@@ -157,11 +173,7 @@ class PRCollocation:
                 heat_rates[i] = wall.fluid_ua_w_k * (tw - physical["data"][i]["t"])
                 ambient[i] = wall.ambient_ua_w_k * (wall.ambient_temperature_k - tw)
                 wall_rows.append(
-                    (
-                        wall.heat_capacity_j_k
-                        * (tw - state.nodes[i][1].wall_temperature_k)
-                        / scale[i]
-                    ).reshape(1)
+                    (wall.heat_capacity_j_k * (tw - old_wall_temperatures[j]) / scale[i]).reshape(1)
                 )
             return torch.cat((row, *wall_rows)), {
                 **physical,
@@ -223,7 +235,7 @@ class PRCollocation:
         solver = TorchNewton(f.device, maximum_iterations=40, dense_limit=m.dense_limit)
         solver.host_convergence = True
         with torch.no_grad():
-            y, _, ok, evaluations = solver.solve(
+            y, row, ok, evaluations = solver.solve(
                 fn,
                 initial,
                 lo,
@@ -234,10 +246,98 @@ class PRCollocation:
                 maximum_update=update,
                 blocks=getattr(fn, "linear_blocks", None) if self._block_preconditioning else None,
             )
-            row = fn(y)
+            # TorchNewton returns the final residual at exactly y, including
+            # eager acceptance under native execution. Do not evaluate both
+            # complete PR stages a second time just to obtain the same row.
         if not bool((ok & torch.isfinite(row).all() & (row.abs().max() < 1e-9)).cpu()):
             raise HydraulicConvergenceError("PR Gauss nonlinear/constraint solve rejected")
         return y, evaluations, float(row.abs().max().cpu())
+
+    def _embedded_error(self, initial, endpoint, evaluate, rates, points, dt):
+        """Second-order companion, stabilized by an implicit Euler tangent.
+
+        Companion weights at c=(0,1/3,1) are (1/6,1/2,1/3).
+        Its defect from Radau3 is h*(f0-1.5*f1+0.5*f2)/6. Solve
+        (dU/dy-h*df/dy)*delta=defect on the SAME algebraic manifold;
+        no extra nonlinear integration or phase-state extrapolation is used.
+        """
+        m, f = self.physics, self.physics.fluid
+        h = f.tensor(dt)
+        _, old = evaluate(initial)
+        defect = h * (rates(old) - 1.5 * rates(points[0]) + 0.5 * rates(points[1])) / 6
+
+        def filtered(y):
+            row, physical = evaluate(y)
+            return row - h * rates(physical)
+
+        filtered.runtime_residual = filtered
+        execution = current_execution()
+        accelerated = execution is not None and execution.eligible(endpoint)
+        if endpoint.numel() <= m.dense_limit:
+            matrix = (
+                execution.jacobian(filtered, endpoint)
+                if accelerated
+                else torch.func.jacfwd(filtered)(endpoint)
+            )
+            delta, info = torch.linalg.solve_ex(matrix, defect, check_errors=False)
+            valid = (info == 0) & torch.isfinite(delta).all()
+            residual = matrix @ delta - defect
+        else:
+            coloring = ColoredJacobian(endpoint.numel(), *evaluate.pattern, f.device)
+            values = (
+                execution.colored_values(coloring, filtered, endpoint)
+                if accelerated
+                else coloring.values(filtered, endpoint)
+            )
+            matrix = TorchCOO(*evaluate.pattern, values, endpoint.numel(), f.device)
+            diagonal = matrix.diagonal()
+            preconditioner = torch.where(diagonal.abs() > 1e-12, diagonal, matrix.row_scale())
+            blocks = None
+            if self._block_preconditioning:
+                blocks = BlockJacobi(
+                    *evaluate.pattern, evaluate.linear_blocks, endpoint.numel(), f.device
+                )
+                blocks.update(values)
+            delta = gmres_device(matrix.mv, defect, preconditioner, preconditioner=blocks)
+            valid = torch.isfinite(delta).all()
+            residual = matrix.mv(delta) - defect
+        valid = (
+            valid
+            & torch.isfinite(residual).all()
+            & (residual.abs().max() <= 1e-12 + 1e-8 * defect.abs().max())
+        )
+        if not bool(valid.cpu()):
+            return math.inf
+        _, low = evaluate(endpoint + delta)
+        if not bool(low["valid"].cpu()) or not all(
+            bool(d["q"]["valid"].all().cpu()) for d in low["data"]
+        ):
+            return math.inf
+        errors = []
+        for i, (node, a, b) in enumerate(zip(m.nodes, points[-1]["data"], low["data"])):
+            errors.extend(
+                [
+                    (
+                        (a["n"] - b["n"]).abs()
+                        / (1e-10 + m.relative_tolerance * torch.maximum(a["n"].abs(), b["n"].abs()))
+                    ).max(),
+                    (a["energy"] - b["energy"]).abs()
+                    / (
+                        1e-6
+                        + m.relative_tolerance
+                        * torch.maximum(a["energy"].abs(), b["energy"].abs()).clamp_min(1)
+                    ),
+                    (a["p"] - b["p"]).abs()
+                    / (1 + m.relative_tolerance * torch.maximum(a["p"], b["p"])),
+                    (a["t"] - b["t"]).abs() / m.temperature_tolerance_k,
+                    (a["u"] - b["u"]).abs() / m.velocity_tolerance_m_s,
+                ]
+            )
+            if node.wall is not None:
+                errors.append(
+                    (points[-1]["walls"][i] - low["walls"][i]).abs() / m.temperature_tolerance_k
+                )
+        return float(torch.stack(errors).max().cpu())
 
     def _step(self, state, dt, commands, heat, utility, losses, *, _coupling=None):
         m, f = self.physics, self.physics.fluid
@@ -245,6 +345,7 @@ class PRCollocation:
             state, commands, heat, losses, _coupling
         )
         size = len(initial)
+        interval_factor = f.tensor(dt)
         base = evaluate.pattern
         pattern = None
         if 2 * size > m.dense_limit:
@@ -259,8 +360,9 @@ class PRCollocation:
             pattern = ([r for r, c in entries], [c for r, c in entries])
 
         def stage_rows(z):
-            return self._stage_rows(z, size, dt, evaluate, rates)
+            return self._stage_rows(z, size, interval_factor, evaluate, rates)
 
+        stage_rows.runtime_residual = stage_rows
         stage_rows.linear_blocks = self._physical_blocks(offsets, evaluate.wall_indices, size, 2)
 
         stages, evaluations, residual = self._solve(
@@ -274,6 +376,13 @@ class PRCollocation:
         with torch.no_grad():
             points = [evaluate(v)[1] for v in stages.reshape(2, size)]
             integrated = dt * self._weighted([rates(point) for point in points])
+            embedded_error = (
+                self._embedded_error(
+                    initial, stages.reshape(2, size)[-1], evaluate, rates, points, dt
+                )
+                if self.error_control == "embedded"
+                else None
+            )
         if self.scheme == "radau3":
             final, count, final_residual = points[-1], 0, residual
         else:
@@ -420,6 +529,7 @@ class PRCollocation:
         return new, {
             "state": new.to_dict(),
             "method": self.scheme,
+            "embedded_error_ratio": embedded_error,
             "nonlinear_solves": 1 if self.scheme == "radau3" else 2,
             **(
                 {
@@ -573,11 +683,18 @@ class PRCollocation:
 
             try:
                 try:
-                    coarse, _ = take_step(self._step, current, step)
-                    half, one = take_step(self._step, current, halves[0])
-                    fine, two = take_step(self._step, half, halves[1])
-                    error = m._error(coarse, fine)
-                    order = self.order
+                    if self.error_control == "embedded":
+                        fine, one = take_step(self._step, current, step)
+                        error = one["embedded_error_ratio"]
+                        accepted_records = (one,)
+                        order = 2
+                    else:
+                        coarse, _ = take_step(self._step, current, step)
+                        half, one = take_step(self._step, current, halves[0])
+                        fine, two = take_step(self._step, half, halves[1])
+                        error = m._error(coarse, fine)
+                        order = self.order
+                        accepted_records = (one, two)
                 except (HydraulicConvergenceError, ConservationError, PropertyModelError) as exc:
                     if not self.phase_fallback:
                         raise
@@ -587,6 +704,7 @@ class PRCollocation:
                     half, one = take_step(m._step, current, halves[0])
                     fine, two = take_step(m._step, half, halves[1])
                     error, order = m._error(coarse, fine), 1
+                    accepted_records = (one, two)
                 if not math.isfinite(error) or error > 1:
                     raise HydraulicConvergenceError("PR collocation temporal error exceeded")
             except (HydraulicConvergenceError, ConservationError, PropertyModelError) as exc:
@@ -597,7 +715,11 @@ class PRCollocation:
                         "PR collocation minimum step exhausted"
                     ) from exc
                 continue
-            factor = min(2.0, max(0.5, 0.9 * max(error, 1e-16) ** (-1 / (order + 1))))
+            # An embedded estimate checks the actual candidate every time;
+            # a tiny initial proposal need not force a long doubling ladder.
+            # Keep the legacy bound for step doubling and phase fallback.
+            growth_limit = 5.0 if self.error_control == "embedded" and method == "radau3" else 2.0
+            factor = min(growth_limit, max(0.5, 0.9 * max(error, 1e-16) ** (-1 / (order + 1))))
             dt = min(m.maximum_step_s, max(m.minimum_step_s, step * factor))
             if step < proposed and (
                 step < m.minimum_step_s or error <= (0.9 * step / proposed) ** (order + 1)
@@ -610,12 +732,12 @@ class PRCollocation:
             current = replace(
                 fine, time_s=end if step == end - current.time_s else fine.time_s, next_step_s=dt
             )
-            for record in (one, two):
+            for record in accepted_records:
                 record.update(method=method, error_ratio=error)
                 if fallback_reason:
                     record["fallback_reason"] = fallback_reason
             fallbacks += method == "backward_euler_fallback"
-            steps.extend((one, two))
+            steps.extend(accepted_records)
         total_heat = math.fsum(s["external_heat_j"] + s["ambient_heat_j"] for s in steps)
         incoming_n, incoming_e = None, 0.0
         if _coupling_factory is not None:
@@ -631,6 +753,7 @@ class PRCollocation:
             "rejected_attempts": rejected,
             "collocation_nonlinear_solves": self._solve_calls - solve_start,
             "fallback_intervals": fallbacks,
+            "error_control": self.error_control,
             "conservation_residuals": m._ledger(
                 state, current, total_heat + incoming_e, incoming_n=incoming_n
             ),

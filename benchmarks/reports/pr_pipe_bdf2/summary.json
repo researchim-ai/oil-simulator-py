@@ -1,0 +1,231 @@
+{
+  "scope": "Opt-in variable-step Torch BDF2 for horizontal single-phase PR pipes; 0.01 s physical intervals. Not a coupled multiphase facility acceleration claim.",
+  "cases": [
+    {
+      "case": "release_bdf16_tighter",
+      "cells": 16,
+      "duration_s": 0.01,
+      "integrator": "bdf2",
+      "relative_tolerance": 1e-06,
+      "median_wall_s": 1.473466251998616,
+      "nonlinear_solves": 33,
+      "nonlinear_evaluations_total": 104,
+      "endpoint_errors_vs_ida": {
+        "pressure_pa": 0.4625313254073262,
+        "temperature_k": 6.212499442881381e-06,
+        "velocity_m_s": 0.00034781184524603284
+      },
+      "max_saved_point_errors_vs_ida": {
+        "pressure_pa": 3.8403284326195717,
+        "temperature_k": 5.900922701584932e-05,
+        "velocity_m_s": 0.0003480702247430391
+      },
+      "independent_audit": {
+        "accepted": true,
+        "checked_steps": 31,
+        "max_cell_equation_residual": [
+          4.071490865807659e-15,
+          0.0,
+          2.9983068979000382e-15,
+          1.4368006784337695e-11
+        ],
+        "entropy_policy": "BDF entropy balance diagnostic; no BE per-step inequality claimed"
+      },
+      "conservation_residuals": [
+        2.1316282072803006e-14,
+        0.0,
+        0.0,
+        1.4551915228366852e-11
+      ]
+    },
+    {
+      "case": "release_bdf8",
+      "cells": 8,
+      "duration_s": 0.01,
+      "integrator": "bdf2",
+      "relative_tolerance": 0.0001,
+      "median_wall_s": 0.5634600429984857,
+      "nonlinear_solves": 15,
+      "nonlinear_evaluations_total": 55,
+      "endpoint_errors_vs_ida": {
+        "pressure_pa": 12.346492332406342,
+        "temperature_k": 0.00013683994586699555,
+        "velocity_m_s": 0.002340648616015111
+      },
+      "max_saved_point_errors_vs_ida": {
+        "pressure_pa": 12.346492332406342,
+        "temperature_k": 0.000191019638407397,
+        "velocity_m_s": 0.002488850108980244
+      },
+      "independent_audit": {
+        "accepted": true,
+        "checked_steps": 14,
+        "max_cell_equation_residual": [
+          7.029966886396011e-15,
+          0.0,
+          3.907464629637758e-15,
+          2.086764094855198e-11
+        ],
+        "entropy_policy": "BDF entropy balance diagnostic; no BE per-step inequality claimed"
+      },
+      "conservation_residuals": [
+        -3.552713678800501e-14,
+        0.0,
+        0.0,
+        1.4551915228366852e-10
+      ]
+    },
+    {
+      "case": "release_bdf8_tight",
+      "cells": 8,
+      "duration_s": 0.01,
+      "integrator": "bdf2",
+      "relative_tolerance": 1e-05,
+      "median_wall_s": 0.8004740559990751,
+      "nonlinear_solves": 21,
+      "nonlinear_evaluations_total": 78,
+      "endpoint_errors_vs_ida": {
+        "pressure_pa": 5.118477584794164,
+        "temperature_k": 6.411931713046215e-05,
+        "velocity_m_s": 0.0006423841018419474
+      },
+      "max_saved_point_errors_vs_ida": {
+        "pressure_pa": 5.118477584794164,
+        "temperature_k": 8.628440332358878e-05,
+        "velocity_m_s": 0.0007055311281115549
+      },
+      "independent_audit": {
+        "accepted": true,
+        "checked_steps": 19,
+        "max_cell_equation_residual": [
+          7.592559393698739e-15,
+          0.0,
+          3.989376103769038e-15,
+          2.7329027929567928e-11
+        ],
+        "entropy_policy": "BDF entropy balance diagnostic; no BE per-step inequality claimed"
+      },
+      "conservation_residuals": [
+        -2.842170943040401e-14,
+        0.0,
+        0.0,
+        2.0372681319713593e-10
+      ]
+    },
+    {
+      "case": "release_bdf8_tighter",
+      "cells": 8,
+      "duration_s": 0.01,
+      "integrator": "bdf2",
+      "relative_tolerance": 1e-06,
+      "median_wall_s": 1.0358767100005934,
+      "nonlinear_solves": 33,
+      "nonlinear_evaluations_total": 104,
+      "endpoint_errors_vs_ida": {
+        "pressure_pa": 1.5687429048120975,
+        "temperature_k": 2.037555998413154e-05,
+        "velocity_m_s": 0.000164547227681177
+      },
+      "max_saved_point_errors_vs_ida": {
+        "pressure_pa": 2.080228915438056,
+        "temperature_k": 3.430605488574656e-05,
+        "velocity_m_s": 0.0001954358787908568
+      },
+      "independent_audit": {
+        "accepted": true,
+        "checked_steps": 31,
+        "max_cell_equation_residual": [
+          4.932686203940051e-15,
+          0.0,
+          2.3180242447740085e-15,
+          1.569927521316572e-11
+        ],
+        "entropy_policy": "BDF entropy balance diagnostic; no BE per-step inequality claimed"
+      },
+      "conservation_residuals": [
+        -4.973799150320701e-14,
+        0.0,
+        0.0,
+        8.731149137020111e-11
+      ]
+    },
+    {
+      "case": "release_be16",
+      "cells": 16,
+      "duration_s": 0.01,
+      "integrator": "be",
+      "relative_tolerance": 0.0001,
+      "median_wall_s": 2.0451674969990563,
+      "nonlinear_solves": 45,
+      "nonlinear_evaluations_total": 178,
+      "endpoint_errors_vs_ida": {
+        "pressure_pa": 77.45370998699218,
+        "temperature_k": 0.0011143376279392214,
+        "velocity_m_s": 8.743379112759186e-05
+      },
+      "max_saved_point_errors_vs_ida": {
+        "pressure_pa": 77.4537099879235,
+        "temperature_k": 0.0011143376279392214,
+        "velocity_m_s": 0.002717207703648583
+      },
+      "independent_audit": {
+        "accepted": true,
+        "checked_substeps": 30,
+        "maximum_component_residual_mol": 7.105413805073846e-15,
+        "maximum_momentum_residual_kg_m_s": 0.0,
+        "maximum_energy_residual_j": 1.4551956861730275e-11
+      },
+      "conservation_residuals": [
+        1.4210854715202004e-14,
+        0.0,
+        -2.168404344971009e-19,
+        -1.4551915228366852e-11
+      ]
+    },
+    {
+      "case": "release_be8",
+      "cells": 8,
+      "duration_s": 0.01,
+      "integrator": "be",
+      "relative_tolerance": 0.0001,
+      "median_wall_s": 1.4577394680018188,
+      "nonlinear_solves": 42,
+      "nonlinear_evaluations_total": 168,
+      "endpoint_errors_vs_ida": {
+        "pressure_pa": 45.42179172486067,
+        "temperature_k": 0.0005501654246131693,
+        "velocity_m_s": 0.0006733559751357504
+      },
+      "max_saved_point_errors_vs_ida": {
+        "pressure_pa": 47.60342707391828,
+        "temperature_k": 0.0005810738339846466,
+        "velocity_m_s": 0.0016084497436278794
+      },
+      "independent_audit": {
+        "accepted": true,
+        "checked_substeps": 28,
+        "maximum_component_residual_mol": 7.10546801518247e-15,
+        "maximum_momentum_residual_kg_m_s": 0.0,
+        "maximum_energy_residual_j": 2.91039969901874e-11
+      },
+      "conservation_residuals": [
+        -7.105427357601002e-15,
+        0.0,
+        0.0,
+        5.820766091346741e-11
+      ]
+    }
+  ],
+  "validation": {
+    "cpu_regression_passed": 53,
+    "targeted_cpu_cuda_passed": 30,
+    "history_restart_cli_preserved": true,
+    "cpu_bdf_unit_after_signed_flow_assertion_passed": 6
+  },
+  "limits": [
+    "Existing 768-unknown pipe budget retained",
+    "Multiphase, gravity, thermal wall and coupled facility adapters not implemented",
+    "BDF entropy is a balance diagnostic; backward-Euler per-step entropy inequality not asserted",
+    "Native IDA interpolation is four-point cubic at accepted saved times, not an exact continuous supremum"
+  ]
+}

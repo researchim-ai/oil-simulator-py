@@ -17,6 +17,7 @@ import torch
 
 from .compositional_separator import CompositionalSeparator, CompositionalSeparatorState
 from .concentrated_liquid_drift import ConcentratedOilWaterClosure
+from .cuda_execution import current_execution
 from .darcy_hydraulics import darcy_pressure_loss
 from .dispersed_liquid_drift import DispersedOilWaterClosure
 from .drift_flux_closure import (
@@ -1102,8 +1103,19 @@ class PREquilibriumTransportNetwork:
             )
             groups.setdefault(key, []).append((index, data, active))
         for group in groups.values():
-            for start in range(0, len(group), self._characteristic_batch_size):
-                chunk = group[start : start + self._characteristic_batch_size]
+            batch_size = self._characteristic_batch_size
+            execution = current_execution()
+            if (
+                self.fluid.device.type == "cpu"
+                and execution is not None
+                and hasattr(execution, "characteristic_matrices")
+            ):
+                # Stage audits contain the same physical cells multiple times.
+                # Reuse their original-size native kernel instead of compiling
+                # a larger duplicate for every number of temporal stages.
+                batch_size = min(batch_size, len({index for index, _, _ in group}))
+            for start in range(0, len(group), batch_size):
+                chunk = group[start : start + batch_size]
                 if len(chunk) == 1:
                     index, data, active = chunk[0]
                     data["characteristic_speeds"] = self._characteristics(index, data, active)
@@ -1112,7 +1124,19 @@ class PREquilibriumTransportNetwork:
                 y = torch.stack([row[0] for row in prepared])
                 quantities, count = prepared[0][1:]
                 try:
-                    a, b = torch.vmap(torch.func.jacfwd(quantities))(y)
+                    execution = current_execution()
+                    if (
+                        y.device.type == "cpu"
+                        and execution is not None
+                        and hasattr(execution, "characteristic_matrices")
+                    ):
+                        # These validation spectra are detached below. Compile
+                        # their exact constrained tangent, never a frozen-phase
+                        # acoustic approximation or a skipped stability check.
+                        with torch.no_grad():
+                            a, b = execution.characteristic_matrices(quantities, y)
+                    else:
+                        a, b = torch.vmap(torch.func.jacfwd(quantities))(y)
                     rhs = y.new_zeros((len(chunk), y.shape[-1], count))
                     rhs[:, :count] = torch.eye(count, dtype=y.dtype, device=y.device)
                     tangent = torch.linalg.solve(a, rhs)
@@ -2077,12 +2101,24 @@ class PREquilibriumTransportNetwork:
         hi = []
         initial = []
         olddata = [self._state_data(i, s) for i, s in enumerate(old)]
+        # Keep serialized total energy as the conservative primary. Obtain
+        # thermal stocks in one device batch: no extra per-cell host syncs.
+        old_internal_energies = (
+            (
+                f.tensor([s.total_energy_j for s in old])
+                - torch.stack([d["kinetic"] for d in olddata])
+                - torch.stack([d["potential"] for d in olddata])
+                - torch.stack([d["surface"] for d in olddata])
+            )
+            .cpu()
+            .tolist()
+        )
         if self.compressors:
             guesses_override = inventory_guesses(self, state, dt, openings, guesses_override)
         for i, (node, cell, s, seed) in enumerate(zip(self.nodes, self.cells, old, seeds)):
             inv = EquilibriumInventory(
                 s.component_moles,
-                float(olddata[i]["internal"].cpu()),
+                old_internal_energies[i],
                 node.volume_m3,
                 s.pressure_pa,
                 s.temperature_k,

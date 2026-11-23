@@ -57,7 +57,7 @@ class PRSubcycledSurface(PRControlledSurface):
         fast_reservoir_ports=None,
         fast_time_scheme="backward_euler",
     ):
-        if fast_time_scheme not in ("backward_euler", "radau3"):
+        if fast_time_scheme not in ("backward_euler", "radau3", "radau3-embedded"):
             raise ValueError("Unknown fast-pipe time scheme")
         self.fast_time_scheme = fast_time_scheme
         if fast_reservoir_ports not in (None, "riemann", "stagnation_single_phase"):
@@ -140,10 +140,16 @@ class PRSubcycledSurface(PRControlledSurface):
             reservoir_ports=self.fast_reservoir_ports,
         )
         self.fast_integrator = self.fast
-        if fast_time_scheme == "radau3":
+        if fast_time_scheme in ("radau3", "radau3-embedded"):
             from .pr_collocation import PRCollocation
 
-            self.fast_integrator = PRCollocation(self.fast, scheme="radau3")
+            self.fast_integrator = PRCollocation(
+                self.fast,
+                scheme="radau3",
+                error_control="embedded"
+                if fast_time_scheme == "radau3-embedded"
+                else "step_doubling",
+            )
         slow_transport = _transport_partition(
             t, set(t.names) - selected, [c for c in t.links if c.name not in self.fast_links]
         )

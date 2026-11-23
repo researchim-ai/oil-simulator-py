@@ -1,0 +1,7 @@
+{
+  "accepted": true,
+  "checked_substeps": 20,
+  "maximum_component_residual_mol": 0.0,
+  "maximum_momentum_residual_kg_m_s": 2.625802136488331e-20,
+  "maximum_energy_residual_j": 0.0
+}

@@ -1,0 +1,30 @@
+{
+  "reference": "Exact exp(-32*mu*t/(rho*D^2)) for uniform laminar periodic relaxation; density fixed by conserved component inventories and volume",
+  "cases": [
+    {
+      "maximum_step_s": 0.01,
+      "expected_velocity_m_s": 0.45648928829963986,
+      "computed_velocity_m_s": 0.45900764794229415,
+      "absolute_error_m_s": 0.0025183596426542887,
+      "accepted_steps": 7
+    },
+    {
+      "maximum_step_s": 0.005,
+      "expected_velocity_m_s": 0.45648928829963986,
+      "computed_velocity_m_s": 0.45694654576116855,
+      "absolute_error_m_s": 0.00045725746152869284,
+      "accepted_steps": 12
+    },
+    {
+      "maximum_step_s": 0.0025,
+      "expected_velocity_m_s": 0.45648928829963986,
+      "computed_velocity_m_s": 0.4565840090970222,
+      "absolute_error_m_s": 9.472079738231942e-05,
+      "accepted_steps": 22
+    }
+  ],
+  "observed_orders": [
+    2.4614057094120314,
+    2.2712535809858667
+  ]
+}

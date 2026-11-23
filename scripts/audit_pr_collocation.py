@@ -213,9 +213,14 @@ def audit_gauss_step(model, before, record, fluid, commands, *, boundary_exchang
         for i, stage in enumerate(stages):
             expected = dt * sum(coefficients[i][j] * rates[j] for j in range(2))
             delta = vector(stage[name]) - vector(old[name])
-            close(delta[:-2], expected[:-2], atol=1e-10, rtol=2e-6)
-            close(delta[-2], expected[-2], atol=1e-9, rtol=2e-6)
-            close(delta[-1], expected[-1], atol=1e-6, rtol=2e-6)
+            # Subtracting large stored inventories can lose several ULPs even
+            # at zero transfer (phase decoding includes exp/log and a sum).
+            # Bound that arithmetic from the two published stocks, rather
+            # than relaxing the relative tolerance on the exchanged amount.
+            rounding = 16 * np.spacing(np.maximum(abs(vector(stage[name])), abs(vector(old[name]))))
+            close(delta[:-2], expected[:-2], atol=1e-10 + rounding[:-2], rtol=2e-6)
+            close(delta[-2], expected[-2], atol=1e-9 + rounding[-2], rtol=2e-6)
+            close(delta[-1], expected[-1], atol=1e-6 + rounding[-1], rtol=2e-6)
             if node.get("wall"):
                 actual = node["wall"]["heat_capacity_j_k"] * (
                     stage[name]["wall_temperature_k"] - old[name]["wall_temperature_k"]
@@ -225,9 +230,10 @@ def audit_gauss_step(model, before, record, fluid, commands, *, boundary_exchang
         expected = dt * weighted(rates)
         delta = vector(new[name]) - vector(old[name])
         maximum = np.maximum(maximum, abs(delta - expected))
-        close(delta[:-2], expected[:-2], atol=1e-10, rtol=2e-6)
-        close(delta[-2], expected[-2], atol=1e-9, rtol=2e-6)
-        close(delta[-1], expected[-1], atol=1e-6, rtol=2e-6)
+        rounding = 16 * np.spacing(np.maximum(abs(vector(new[name])), abs(vector(old[name]))))
+        close(delta[:-2], expected[:-2], atol=1e-10 + rounding[:-2], rtol=2e-6)
+        close(delta[-2], expected[-2], atol=1e-9 + rounding[-2], rtol=2e-6)
+        close(delta[-1], expected[-1], atol=1e-6 + rounding[-1], rtol=2e-6)
         if node.get("wall"):
             w = node["wall"]
             actual = w["heat_capacity_j_k"] * (

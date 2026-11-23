@@ -489,15 +489,19 @@ class PRMomentumPipe:
             gl + gr
         ) / 2 - self.wave_speed_bound_m_s * (sr - sl) / 2
 
-    def _problem(self, state, dt, prepared, *, face_operator=None):
-        f = self.fluid
-        old = self._conserved(state)
-        active = self._support(state.component_moles)
-        scale = self._scales(old)
-        initial = f.tensor(state.solution_variables)
-        lo, hi = self._bounds(len(active))
+    def continuous_problem(self, state, prepared, *, face_operator=None):
+        """Return U(y), its spatial rates and F(y, Udot), independently of dt.
 
-        def evaluate(y, context=None):
+        Udot is a cell-inventory rate, not a density rate. Constitutive and
+        spatial operators are shared with backward Euler; this is not an
+        integration wrapper calling advance() inside another solver.
+        """
+        f = self.fluid
+        active = self._support(state.component_moles)
+        scale = self._scales(self._conserved(state))
+        selected = torch.cat((active, active.new_tensor([len(f.names), len(f.names) + 1])))
+
+        def evaluate(y, stock_rate=None, context=None):
             data = self._decode(y, active)
             details = None
             if face_operator is None:
@@ -514,27 +518,54 @@ class PRMomentumPipe:
                     self.dynamic_viscosity_pa_s,
                     self.roughness_m,
                 )[0]
-            target = old + dt * self.area * (flux[:-1] - flux[1:])
+            transport = self.area * (flux[:-1] - flux[1:])
             source = torch.cat(
                 (
-                    torch.zeros_like(target[:, :-2]),
+                    torch.zeros_like(data["u"][:, :-2]),
                     (-self.volume * drag)[:, None],
                     torch.zeros_like(drag)[:, None],
                 ),
                 -1,
             )
-            target = target + dt * source
-            residual = (data["u"] * self.volume - target) / scale
-            # Inactive registry entries are identically zero, not extra equations.
-            selected = torch.cat((active, active.new_tensor([len(f.names), len(f.names) + 1])))
-            return residual[:, selected].flatten(), {
+            result = {
                 "data": data,
-                "target": target,
+                "inventory": data["u"] * self.volume,
+                "transport_rate": transport,
+                "source_rate": source,
+                "rate": transport + source,
                 "flux": flux,
                 "entropy_flux": sflux,
                 "drag": drag,
                 "face_details": details,
             }
+            row = (
+                None
+                if stock_rate is None
+                else ((stock_rate - transport - source) / scale)[:, selected].flatten()
+            )
+            return row, result
+
+        lo, hi = self._bounds(len(active))
+        return f.tensor(state.solution_variables), lo, hi, evaluate
+
+    def _problem(self, state, dt, prepared, *, face_operator=None):
+        old = self._conserved(state)
+        scale = self._scales(old)
+        active = self._support(state.component_moles)
+        nc = len(self.fluid.names)
+        selected = torch.cat((active, active.new_tensor([nc, nc + 1])))
+        initial, lo, hi, continuous = self.continuous_problem(
+            state, prepared, face_operator=face_operator
+        )
+        interval_factor = self.fluid.tensor(dt)
+
+        def evaluate(y, context=None):
+            _, result = continuous(y, context=context)
+            # Preserve the original BE arithmetic and its ledger convention.
+            target = old + interval_factor * result["transport_rate"]
+            target = target + interval_factor * result["source_rate"]
+            residual = (result["inventory"] - target) / scale
+            return residual[:, selected].flatten(), {**result, "target": target}
 
         return initial, lo, hi, evaluate
 
@@ -557,10 +588,13 @@ class PRMomentumPipe:
             raise ValueError("Momentum pipe exceeds 768-unknown dense budget")
         solver = TorchNewton(f.device, maximum_iterations=35, dense_limit=768)
         solver.host_convergence = True
+
+        def residual(y):
+            return evaluate(y)[0]
+
+        residual.runtime_residual = residual
         with torch.no_grad():
-            y, r, ok, evaluations = solver.solve(
-                lambda z: evaluate(z)[0], y, lo, hi, tolerance=3e-12
-            )
+            y, r, ok, evaluations = solver.solve(residual, y, lo, hi, tolerance=3e-12)
             r, result = evaluate(y)
         if not bool((ok & torch.isfinite(r).all() & (r.abs().max() < 1e-9)).cpu()):
             raise HydraulicConvergenceError("Conservative PR momentum Newton rejected")

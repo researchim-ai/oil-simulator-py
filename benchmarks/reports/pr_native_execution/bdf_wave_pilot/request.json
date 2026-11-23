@@ -1,0 +1,174 @@
+{
+  "model": {
+    "model": "single_phase_pr_momentum_bdf2_v1",
+    "pipe": {
+      "model": "single_phase_pr_momentum_v1",
+      "fluid": {
+        "components": [
+          {
+            "name": "methane",
+            "critical_temperature_k": 190.564,
+            "critical_pressure_pa": 4599200,
+            "acentric_factor": 0.01142,
+            "molar_mass_kg_mol": 0.0160428,
+            "ideal_cp_j_mol_k": 35.7,
+            "min_temperature_k": 250,
+            "max_temperature_k": 500,
+            "reference_temperature_k": 298.15,
+            "reference_pressure_pa": 100000.0
+          },
+          {
+            "name": "n-pentane",
+            "critical_temperature_k": 469.7,
+            "critical_pressure_pa": 3370000,
+            "acentric_factor": 0.251,
+            "molar_mass_kg_mol": 0.0721488,
+            "ideal_cp_j_mol_k": 167.2,
+            "min_temperature_k": 250,
+            "max_temperature_k": 500,
+            "reference_temperature_k": 298.15,
+            "reference_pressure_pa": 100000.0
+          }
+        ],
+        "binary_interactions": [
+          [
+            0.0,
+            0.0
+          ],
+          [
+            0.0,
+            0.0
+          ]
+        ],
+        "min_pressure_pa": 100.0,
+        "max_pressure_pa": 1000000000.0,
+        "max_phases": 3
+      },
+      "length_m": 10.0,
+      "diameter_m": 0.1,
+      "cells": 8,
+      "wave_speed_bound_m_s": 1000.0,
+      "maximum_velocity_m_s": 100.0,
+      "dynamic_viscosity_pa_s": 0.0,
+      "roughness_m": 0.0,
+      "boundary_mode": "periodic",
+      "initial_step_s": 0.0001,
+      "minimum_step_s": 1e-10,
+      "maximum_step_s": 0.1,
+      "relative_tolerance": 1e-05,
+      "temperature_tolerance_k": 0.0002,
+      "velocity_tolerance_m_s": 0.0001,
+      "maximum_attempts": 10000
+    },
+    "maximum_step_ratio": 1.5,
+    "error_safety": 0.85
+  },
+  "initial": {
+    "history": [
+      {
+        "state": {
+          "component_moles": [
+            [
+              21.82622660248485,
+              0.0
+            ],
+            [
+              21.823641137923783,
+              0.0
+            ],
+            [
+              21.819984814518023,
+              0.0
+            ],
+            [
+              21.81739945693326,
+              0.0
+            ],
+            [
+              21.81739945693326,
+              0.0
+            ],
+            [
+              21.819984814518023,
+              0.0
+            ],
+            [
+              21.823641137923783,
+              0.0
+            ],
+            [
+              21.82622660248485,
+              0.0
+            ]
+          ],
+          "momentum_kg_m_s": [
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0
+          ],
+          "total_energy_j": [
+            -67353.62052081949,
+            -67344.03078998064,
+            -67330.46976210568,
+            -67320.8813033982,
+            -67320.8813033982,
+            -67330.46976210568,
+            -67344.03078998064,
+            -67353.62052081949
+          ],
+          "solution_variables": [
+            15.425133229235911,
+            1.0062049304041591,
+            0.0,
+            15.425025004156065,
+            1.0062049304041591,
+            0.0,
+            15.42487193078282,
+            1.0062049304041591,
+            0.0,
+            15.424763677418701,
+            1.0062049304041591,
+            0.0,
+            15.424763677418701,
+            1.0062049304041591,
+            0.0,
+            15.42487193078282,
+            1.0062049304041591,
+            0.0,
+            15.425025004156065,
+            1.0062049304041591,
+            0.0,
+            15.425133229235911,
+            1.0062049304041591,
+            0.0
+          ],
+          "time_s": 0.0,
+          "next_step_s": 0.0001,
+          "model_id": "4cd8e570dae1e45f69679972641bdd9b2847d222aab5cb98dfd13ae178cbaf91"
+        },
+        "left_exchange": [
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        "right_exchange": [
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        "friction_impulse": 0.0,
+        "entropy_exchange": 0.0,
+        "order": 0
+      }
+    ],
+    "boundary_id": null,
+    "integrator_id": "dd4b495acfb45bb08569becfbf076393bef271f40b28317ed2a97464721491fd"
+  }
+}

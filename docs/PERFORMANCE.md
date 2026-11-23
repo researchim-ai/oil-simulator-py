@@ -1807,3 +1807,84 @@ Two refined 1 mm bore cases fail; periodic flash skipping also materially
 changes the pressure response. These are explicit qualification limits, not
 settings to copy unconditionally. See the report for failures, ledgers,
 source hashes, temporal refinement and the continuous-residual/BDF work plan.
+
+### Opt-in conservative Torch BDF2 pipe integration
+
+`PRMomentumPipe.continuous_problem()` now exposes inventory rates independently
+of the time step. `PRMomentumBDF` applies variable-step BDF2, using one nonlinear
+solve per BDF trial and quadratic-history error estimation. BE step doubling
+is retained for startup/boundary-event restart. Signed boundary exchanges and
+friction impulses use the same BDF quadrature as inventories; checkpoints retain
+and validate that history. The existing BE default and equations remain.
+
+On the same 0.01 s single-phase PR/Rusanov experiment, 8-cell BE takes 1.4577 s;
+BDF2 with tenfold stricter tolerances takes 0.8005 s (1.82×), with smaller
+pressure, temperature and velocity errors at saved trajectory points against
+tight native IDA. The 16-cell pair is 2.0452 → 1.4735 s (1.39×), using hundredfold
+stricter BDF tolerances. Reusing the loose BE tolerances for BDF can increase
+velocity error: that faster configuration is recorded, not called equivalent.
+
+53 CPU regressions and 30 targeted CPU/CUDA tests pass, including analytical
+second-order viscous relaxation, boundary reversal, rollback and checkpoint
+continuation. Every measured trajectory passes a separate NumPy PR/FV/history
+audit. Source-bound results and CLI examples are in
+[the BDF2 report](../benchmarks/reports/pr_pipe_bdf2/README.md).
+
+This adapter currently covers the existing horizontal single-phase pipe only,
+with its 768-unknown budget. Its entropy balance is diagnostic, without asserting
+BE's per-step entropy inequality. Gravity, changing phase count, thermal-wall
+states and the full coupled facility still need explicit adapters and validation;
+no new whole-facility or real-time performance is claimed here.
+
+### Native execution and embedded Radau error control
+
+`surface.native_execution` supplies bounded opt-in CPU kernels for pure
+residuals, forward dense/colored derivatives and constrained characteristic
+tangents. Initial kernel results are checked against eager; final Newton
+acceptance uses the original residual. Reverse-AD compilation is deliberately
+excluded after an installed-compiler scatter-pullback failure. Numeric input
+storage is normalized before tracing, including endpoints that are views into
+Radau stage vectors. Phase/stability/entropy/domain checks remain active.
+
+`PRCollocation(..., scheme="radau3", error_control="embedded")` uses a filtered
+second-order companion defect instead of full-step/two-halfstep nonlinear
+integration. Transfers remain the third-order Radau quadrature. The additional
+error estimate needs one linear solve, retaining colored sparse Jacobians and
+BlockJacobi/GMRES above the existing dense budget. Existing original control
+and BE phase fallback remain available; the new mode is explicitly opt-in.
+
+Complete CPU integration of one model second, warm medians of three fresh
+starts: two-phase finite-plenum pipe **26.6449 → 1.43679 s (18.54×)**; single-phase
+BDF2 wave **1.50817 → 0.607262 s (2.48×)**. The two-phase candidate takes 16
+nonlinear stage solves without temporal/phase/execution fallback. Against
+eager temporal refinement, maximum accepted-checkpoint pressure error improves
+12.4775 → 1.28492 Pa, and the largest normalized field error 0.1443 → 0.08385.
+The initial wave is included. The NeqSim 1.553 s reference still has different
+reservoirs/phase transport, so this does not establish an equal-model ranking.
+
+An input-driven maximum-step study on the same two-phase physical state gives
+**1.44040 → 0.812572 s** for the complete warm driver when allowing a maximum
+step of 1 s instead of 0.1 s, with unchanged tolerances. The controller takes
+nine steps, largest 0.579708 s; every audit passes without rejection/fallback.
+The largest normalized error remains 0.08385, while maximum pressure discrepancy
+increases from 1.28492 to 3.11619 Pa (still below BE's 12.4775 Pa). This is an
+explicit within-budget accuracy tradeoff, not identical trajectories. Evidence:
+`benchmarks/reports/pr_native_execution/adaptive_step_budget/summary.json`.
+
+Process-cold native two-phase initialization plus integration/compilation is
+**62.3888 s**, even with the local disk cache; the 1.43679 s figure is warm
+integration throughput. Scope one execution engine over the whole schedule.
+
+Refinement exposed a shared conservative-energy bug: the old thermal stock
+was reconstructed from EOS instead of subtracting kinetic/potential/surface
+energy from the serialized conservative total. This is corrected in the
+common transport residual, with one batched device-to-host thermal-stock read.
+The new checkpoint-perturbation test checks the actual energy equation;
+53 physics/integrator regressions and a CPU/CUDA comparison pass.
+
+Complete one-second CPU experiments, cold costs, independent scalar audits,
+refinement and the limits of comparison with NeqSim are documented in
+[the native execution report](../benchmarks/reports/pr_native_execution/README.md).
+The independent collocation auditor includes sixteen ULPs of published-stock
+subtraction roundoff in addition to its existing transfer budgets; it still
+reports raw residuals and rejects a deliberately corrupted stage ledger.

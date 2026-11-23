@@ -11,8 +11,21 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 
-def run(config, *, device="cpu", integrator="backward_euler"):
-    if integrator not in ("backward_euler", "gauss4", "radau3"):
+def run(config, *, device="cpu", integrator="backward_euler", native_kernels=False):
+    if native_kernels:
+        if device != "cpu":
+            raise ValueError("Native CPU kernels require device=cpu")
+        from surface.native_execution import native_kernel_execution
+
+        with native_kernel_execution() as engine:
+            result = _run(config, device=device, integrator=integrator, compiled_properties=True)
+            result["native_execution"] = engine.statistics()
+            return result
+    return _run(config, device=device, integrator=integrator)
+
+
+def _run(config, *, device, integrator, compiled_properties=False):
+    if integrator not in ("backward_euler", "gauss4", "radau3", "radau3-embedded"):
         raise ValueError("Unknown PR integrator")
     from surface.pr_equilibrium_transport import (
         PREquilibriumTransportNetwork,
@@ -28,6 +41,9 @@ def run(config, *, device="cpu", integrator="backward_euler"):
     ):
         raise ValueError("Expected model, initial and nonempty schedule")
     model = PREquilibriumTransportNetwork.from_dict(config["model"], device=device)
+    if compiled_properties:
+        model.fluid._compiled_chemical_cpu = True
+        model.fluid._compiled_full_eos_cpu = True
     if set(config["initial"]) == {"state"}:
         state = PREquilibriumTransportState.from_dict(config["initial"]["state"])
         model.inspect(state)
@@ -38,10 +54,14 @@ def run(config, *, device="cpu", integrator="backward_euler"):
     else:
         raise ValueError("Initial input requires exactly nodes, groups or state")
     solver = model
-    if integrator in ("gauss4", "radau3"):
+    if integrator in ("gauss4", "radau3", "radau3-embedded"):
         from surface import PRCollocation
 
-        solver = PRCollocation(model, scheme=integrator)
+        solver = PRCollocation(
+            model,
+            scheme=integrator.split("-")[0],
+            error_control="embedded" if integrator == "radau3-embedded" else "step_doubling",
+        )
     first = state
     intervals = []
     for command in config["schedule"]:
@@ -59,7 +79,7 @@ def run(config, *, device="cpu", integrator="backward_euler"):
             or "duration_s" not in command
         ):
             raise ValueError("Unknown/missing equilibrium transport command")
-        if integrator in ("gauss4", "radau3") and set(command) & {
+        if integrator in ("gauss4", "radau3", "radau3-embedded") and set(command) & {
             "drive_torque_nm",
             "restriction_openings",
         }:
@@ -87,15 +107,21 @@ def main():
     parser.add_argument("config", type=Path)
     parser.add_argument("--device", choices=["cpu", "cuda"], default="cpu")
     parser.add_argument("--output", type=Path, required=True)
+    parser.add_argument("--native-kernels", action="store_true")
     parser.add_argument(
-        "--integrator", choices=["backward_euler", "gauss4", "radau3"], default="backward_euler"
+        "--integrator",
+        choices=["backward_euler", "gauss4", "radau3", "radau3-embedded"],
+        default="backward_euler",
     )
     args = parser.parse_args()
     root = Path(__file__).resolve().parents[1]
     paths = [Path(__file__), *sorted((root / "src/surface").glob("*.py"))]
     hashes = {str(p.relative_to(root)): hashlib.sha256(p.read_bytes()).hexdigest() for p in paths}
     result = run(
-        json.loads(args.config.read_text()), device=args.device, integrator=args.integrator
+        json.loads(args.config.read_text()),
+        device=args.device,
+        integrator=args.integrator,
+        native_kernels=args.native_kernels,
     )
     if any(
         hashlib.sha256(p.read_bytes()).hexdigest() != hashes[str(p.relative_to(root))]

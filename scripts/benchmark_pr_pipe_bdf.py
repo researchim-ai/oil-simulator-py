@@ -101,7 +101,10 @@ def main():
     parser.add_argument("--repeats", type=int, default=3)
     parser.add_argument("--relative-tolerance", type=float, default=1e-4)
     parser.add_argument("--newton", choices=("legacy", "enhanced"), default="enhanced")
+    parser.add_argument("--integrator", choices=("be", "bdf2"), default="be")
     args = parser.parse_args()
+    if args.integrator == "bdf2" and args.newton != "enhanced":
+        parser.error("The BDF2 adapter uses the enhanced Newton")
     if args.newton == "enhanced":
         from surface.torch_nonlinear import TorchNewton
     else:
@@ -135,6 +138,13 @@ def main():
         5e6 + 1000 * math.cos(2 * math.pi * (i + 0.5) / args.cells) for i in range(args.cells)
     ]
     initial = pipe.initialize(pressures, 300, [1.0, 0.0], 0.0)
+    if args.integrator == "bdf2":
+        from surface.pr_momentum_bdf import PRMomentumBDF, PRMomentumBDFState
+
+        integrator = PRMomentumBDF(pipe)
+        initial_bdf = PRMomentumBDFState(
+            (integrator._first(initial),), None, integrator.integrator_id
+        )
     concentrations = [row[0] / pipe.volume for row in initial.component_moles]
     (out / "PRPeriodicPipe.mo").write_text(modelica_source(fluid, concentrations, 10, 0.1))
     # No library installation; use an already available read-only standard library.
@@ -248,6 +258,7 @@ getErrorString();
             "newton_solves": 0,
             "jacobian_builds": 0 if args.newton == "enhanced" else None,
             "newton_wall_s": 0.0,
+            "nonlinear_evaluations_total": 0,
             "physical_validation_calls": 0,
             "physical_validation_wall_s": 0.0,
         }
@@ -258,6 +269,7 @@ getErrorString();
             entered = time.perf_counter()
             value = original_solve(solver, *arguments, **kwargs)
             work["newton_solves"] += 1
+            work["nonlinear_evaluations_total"] += value[-1]
             if work["jacobian_builds"] is not None:
                 work["jacobian_builds"] += solver.jacobian_builds
             work["newton_wall_s"] += time.perf_counter() - entered
@@ -274,20 +286,58 @@ getErrorString();
         pipe._validate_data = counted_validate
         start = time.perf_counter()
         try:
-            result = pipe.advance(initial, args.duration_s)
+            result = (
+                integrator.advance(initial_bdf, args.duration_s)
+                if args.integrator == "bdf2"
+                else pipe.advance(initial, args.duration_s)
+            )
         finally:
             TorchNewton.solve = original_solve
             pipe._validate_data = original_validate
         wall = time.perf_counter() - start
+        if args.integrator == "bdf2":
+            from check_pr_momentum_bdf import audit
+
+            independent = audit(result)
+        else:
+            from check_pr_momentum_pipe import audit
+
+            request = {
+                "model": pipe.to_dict(),
+                "initial": {
+                    "pressure_pa": pressures,
+                    "temperature_k": 300,
+                    "mole_fractions": [1.0, 0.0],
+                    "velocity_m_s": 0.0,
+                },
+                "schedule": [{"duration_s": args.duration_s}],
+            }
+            independent = audit(
+                request,
+                {
+                    "config": request,
+                    "model": pipe.to_dict(),
+                    "initial": initial.to_dict(),
+                    "intervals": [result],
+                },
+            )
+        with gzip.open(out / f"torch_{args.integrator}_{repeat}.json.gz", "wt") as handle:
+            json.dump(result, handle, allow_nan=False)
         torch_runs.append(
             {
                 "wall_s": wall,
-                "accepted_half_steps": len(result["steps"]),
+                "accepted_steps": len(result["steps"]),
                 "attempts": result["attempts"],
-                "nonlinear_evaluations": sum(s["nonlinear_evaluations"] for s in result["steps"]),
+                "nonlinear_evaluations": sum(
+                    s.get(
+                        "nonlinear_evaluations", s.get("work", {}).get("nonlinear_evaluations", 0)
+                    )
+                    for s in result["steps"]
+                ),
                 "conservation_residuals": result["conservation_residuals"],
                 "final": result["final_summary"],
                 "work": work,
+                "independent_audit": independent,
             }
         )
         print(
@@ -392,13 +442,48 @@ getErrorString();
             ("velocity_m_s", "velocity"),
         ]
     }
+    # Compare accepted trajectory points as well as the possibly fortuitous
+    # final acoustic phase. Native output is interpolated with four-point
+    # cubic Lagrange polynomials, outside all measured integration times.
+    unique = {row["time"]: row for row in rows}
+    times = np.array(sorted(unique))
+    trajectory_errors = {"pressure_pa": 0.0, "temperature_k": 0.0, "velocity_m_s": 0.0}
+    for step in result["steps"]:
+        state = step["point"]["state"] if args.integrator == "bdf2" else step["state"]
+        time_s = state["time_s"]
+        k = max(0, min(len(times) - 4, int(np.searchsorted(times, time_s)) - 2))
+        nodes = times[k : k + 4]
+        weights = np.array(
+            [
+                math.prod((time_s - nodes[j]) / (nodes[i] - nodes[j]) for j in range(4) if j != i)
+                for i in range(4)
+            ]
+        )
+        y = np.array(state["solution_variables"]).reshape(args.cells, 3)
+        physical = [np.exp(y[:, 0]), y[:, 1] * fluid.tref, y[:, 2] * pipe.maximum_velocity_m_s]
+        for (key, name), actual in zip(
+            [("pressure_pa", "pressure"), ("temperature_k", "T"), ("velocity_m_s", "velocity")],
+            physical,
+        ):
+            expected = weights @ np.array(
+                [[unique[t][f"{name}[{i + 1}]"] for i in range(args.cells)] for t in nodes]
+            )
+            trajectory_errors[key] = max(
+                trajectory_errors[key], float(np.max(np.abs(actual - expected)))
+            )
+    checks["max_at_saved_steps_vs_cubic_tight_ida"] = trajectory_errors
     root = Path(__file__).resolve().parents[1]
     sources = list((root / "src/surface").glob("*.py")) + [
         Path(__file__),
         out / "PRPeriodicPipe.mo",
+        root / "scripts/check_pr_momentum_bdf.py",
+        root / "scripts/check_pr_momentum_pipe.py",
+        root / "scripts/check_stratified_pr.py",
+        root / "scripts/check_stratified_pr_flow.py",
+        root / "scripts/check_stratified_pr_network.py",
     ]
     report = {
-        "scope": "Identical periodic single-phase PR caloric EOS, initial conserved stocks, first-order Rusanov spatial flux (500 m/s), zero friction/heat; native BDF vs Torch backward Euler with step doubling. Not a multiphase or whole-facility product comparison.",
+        "scope": "Identical periodic single-phase PR caloric EOS, initial conserved stocks, first-order Rusanov spatial flux (500 m/s), zero friction/heat; native BDF vs the selected Torch integrator. Not a multiphase or whole-facility product comparison.",
         "request": {
             "cells": args.cells,
             "duration_s": args.duration_s,
@@ -406,6 +491,7 @@ getErrorString();
             "diameter_m": 0.1,
             "torch_relative_tolerance": args.relative_tolerance,
             "torch_newton": args.newton,
+            "torch_integrator": args.integrator,
         },
         "environment": {
             "openmodelica_version": subprocess.run(

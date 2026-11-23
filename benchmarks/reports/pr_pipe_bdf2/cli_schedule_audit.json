@@ -1,0 +1,29 @@
+{
+  "accepted": true,
+  "checked_intervals": 2,
+  "checked_steps": 9,
+  "intervals": [
+    {
+      "accepted": true,
+      "checked_steps": 6,
+      "max_cell_equation_residual": [
+        0.0,
+        0.0,
+        4.7645603283054394e-21,
+        0.0
+      ],
+      "entropy_policy": "BDF entropy balance diagnostic; no BE per-step inequality claimed"
+    },
+    {
+      "accepted": true,
+      "checked_steps": 3,
+      "max_cell_equation_residual": [
+        0.0,
+        0.0,
+        7.199780051661553e-21,
+        0.0
+      ],
+      "entropy_policy": "BDF entropy balance diagnostic; no BE per-step inequality claimed"
+    }
+  ]
+}

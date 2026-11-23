@@ -13,12 +13,12 @@ from surface.pr_subcycled_surface import PRSubcycledSurface
 from surface.pr_surface_control import PRControlledSurface, PRControlledSurfaceState
 
 
-@pytest.fixture(scope="module")
-def radau_case(subcycle_config):  # noqa: F811
+@pytest.fixture(scope="module", params=["radau3", "radau3-embedded"])
+def radau_case(subcycle_config, request):  # noqa: F811
     config = copy.deepcopy(subcycle_config)
     original = PRControlledSurface.from_dict(config["model"])
     model = PRSubcycledSurface(
-        original.reference_surface, original.pipe_nodes, fast_time_scheme="radau3"
+        original.reference_surface, original.pipe_nodes, fast_time_scheme=request.param
     )
     old = PRControlledSurfaceState.from_dict(config["initial"]["state"])
     state = replace(old, model_id=model.model_id)
@@ -37,6 +37,9 @@ def test_radau_connected_network_and_restart(radau_case, radau_result):
     assert checked["accepted"]
     model = PRControlledSurface.from_dict(radau_case["model"])
     assert model.fast_integrator.scheme == "radau3"
+    assert model.fast_integrator.error_control == (
+        "embedded" if model.fast_time_scheme == "radau3-embedded" else "step_doubling"
+    )
     assert json.loads(json.dumps(model.to_dict())) == radau_case["model"]
     final = radau_result["intervals"][-1]["state"]
     model.inspect(PRControlledSurfaceState.from_dict(final))

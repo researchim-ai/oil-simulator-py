@@ -1,0 +1,9 @@
+loadFile("/home/user/workspace/atomic-sim/artifacts/openmodelica-runtime-v1/libraries/OpenModelica-ModelicaStandardLibrary-7a4bf7de77a3986e8eb1e88cbb515d646f78f834/Complex.mo", uses=false);
+loadFile("/home/user/workspace/atomic-sim/artifacts/openmodelica-runtime-v1/libraries/OpenModelica-ModelicaStandardLibrary-7a4bf7de77a3986e8eb1e88cbb515d646f78f834/ModelicaServices/package.mo", uses=false);
+loadFile("/home/user/workspace/atomic-sim/artifacts/openmodelica-runtime-v1/libraries/OpenModelica-ModelicaStandardLibrary-7a4bf7de77a3986e8eb1e88cbb515d646f78f834/Modelica/package.mo", uses=false);
+loadFile("/home/user/workspace/oil-simulator-py-impes/benchmarks/reports/pr_pipe_bdf2/release_bdf16_tighter/PRPeriodicPipe.mo");
+setCommandLineOptions("--generateSymbolicJacobian");
+setCompiler("gcc");
+setCXXCompiler("g++");
+buildModel(PRPeriodicPipe, stopTime=0.01, numberOfIntervals=100, tolerance=1e-8, outputFormat="csv");
+getErrorString();
