@@ -115,6 +115,22 @@ def test_sound_speed_matches_independent_entropy_derivative():
     )
 
 
+@pytest.mark.parametrize("device", DEVICES)
+@pytest.mark.parametrize("p,t", [(1e5, 310.0), (1e6, 350.0), (5e6, 400.0)])
+@pytest.mark.parametrize("composition", [[1.0, 0.0], [0.5, 0.5], [0.0, 1.0]])
+def test_analytic_acoustics_matches_original_entropy_ad(device, p, t, composition):
+    m = model(device)
+    f = m.fluid
+
+    def properties(pt):
+        q = f.tensor_homogeneous(pt[0], pt[1], f.tensor(composition), "stable")
+        return torch.stack((q["density_kg_m3"], q["molar_entropy_j_mol_k"]))
+
+    jac = torch.func.jacfwd(properties)(f.tensor([p, t]))
+    expected = torch.rsqrt(jac[0, 0] - jac[0, 1] * jac[1, 0] / jac[1, 1])
+    assert m.sound_speed(p, t, composition) == pytest.approx(float(expected.cpu()), rel=1e-10)
+
+
 def test_reflecting_walls_keep_mass_energy_and_account_for_momentum_reaction():
     m = model(boundary_mode="ends")
     s = m.initialize(1e6, 320.0, [0.5, 0.5], 2.0)

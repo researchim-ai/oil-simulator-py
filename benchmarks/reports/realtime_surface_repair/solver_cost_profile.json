@@ -1,0 +1,31 @@
+{
+  "timings": {
+    "eos_None_s": 1.4611233029118011,
+    "eos_None_calls": 1956.0,
+    "eos_residual_s": 0.3730125700312783,
+    "eos_residual_calls": 912.0,
+    "residual_s": 1.621382198012725,
+    "residual_calls": 252.0,
+    "eos_jacobian_s": 0.1559688580036891,
+    "eos_jacobian_calls": 180.0,
+    "jacobian_s": 1.8159967200008396,
+    "jacobian_calls": 48.0,
+    "linear_s": 0.018175162993429694,
+    "linear_calls": 137.0,
+    "newton_s": 3.4754128539934754,
+    "newton_solves": 37.0,
+    "wall_s": 11.352878093999607
+  },
+  "audit": {
+    "accepted": true,
+    "checked_split_steps": 2,
+    "checked_local_steps": 8,
+    "checked_slow_steps": 2,
+    "conservation_residuals": [
+      -1.1368683772161603e-13,
+      0.0,
+      0.0,
+      -1.4068725096016976e-07
+    ]
+  }
+}

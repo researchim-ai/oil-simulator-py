@@ -1,0 +1,62 @@
+{
+  "scope": "Bounded eager diagnostic of first fast stage after the restart; not accepted global trajectory or a timing benchmark",
+  "first_trial": {
+    "event": "local_error",
+    "clock": 0.4022215473010917,
+    "calls": [
+      [
+        0.4,
+        0.0022215473010916975
+      ],
+      [
+        0.4,
+        0.0011107736505458488
+      ],
+      [
+        0.40111077365054587,
+        0.0011107736505458488
+      ]
+    ],
+    "error": 53.082998314809004,
+    "peak": [
+      53.082998314809004,
+      "gas_recycle_0",
+      "velocity",
+      0.2619944606951505,
+      0.2673027605266314
+    ]
+  },
+  "first_accepted_local_error": {
+    "event": "local_error",
+    "clock": 0.40000108473989315,
+    "calls": [
+      [
+        0.4,
+        1.0847398931312924e-06
+      ],
+      [
+        0.4,
+        5.423699465656462e-07
+      ],
+      [
+        0.4000005423699466,
+        5.423699465656462e-07
+      ]
+    ],
+    "error": 0.3130438663026189,
+    "peak": [
+      0.3130438663026189,
+      "gas_recycle_0",
+      "velocity",
+      0.005790942308022611,
+      0.005822246694652873
+    ]
+  },
+  "first_rejected_trials": 11,
+  "recorded_local_checks": 35,
+  "peak_fields": [
+    "velocity"
+  ],
+  "compiled_cpu_chemical": false,
+  "original_tolerances_preserved": true
+}

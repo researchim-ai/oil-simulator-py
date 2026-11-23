@@ -1,0 +1,238 @@
+{
+  "scope": "Local CPU measurements; identical-equation single-phase native integrator experiment plus separate external two-fluid workloads. No whole-facility or OLGA/LedaFlow speedup qualified.",
+  "same_equations": [
+    {
+      "cells": 8,
+      "simulated_s": 0.01,
+      "torch_before_s": 4.051448242000333,
+      "torch_current_s": 1.4705874460014456,
+      "observed_acceleration": 2.754986283213756,
+      "native_ida_1e8_process_wall_s": 0.013545923997298814,
+      "native_ida_1e10_process_wall_s": 0.014070184999582125,
+      "before_after_endpoint_difference": {
+        "pressure_pa": 0.0,
+        "temperature_k": 0.0,
+        "velocity_m_s": 0.0,
+        "density_kg_m3": 0.0
+      }
+    },
+    {
+      "cells": 16,
+      "simulated_s": 0.01,
+      "torch_before_s": 6.983873090499401,
+      "torch_current_s": 1.940005440999812,
+      "observed_acceleration": 3.599924486242757,
+      "native_ida_1e8_process_wall_s": 0.019431065000389935,
+      "native_ida_1e10_process_wall_s": 0.020449137002287898,
+      "before_after_endpoint_difference": {
+        "pressure_pa": 9.313225746154785e-09,
+        "temperature_k": 1.1368683772161603e-13,
+        "velocity_m_s": 1.6835838279050108e-13,
+        "density_kg_m3": 6.394884621840902e-14
+      }
+    }
+  ],
+  "neqsim": [
+    {
+      "case": "gas8_flash1",
+      "status": "completed_workload_not_experimental_validation",
+      "simulated_s": 0.049999999999999975,
+      "warm_median_wall_s": 0.028531375999591546,
+      "steps": 96,
+      "mass_relative_residual": 8.579468590702941e-17,
+      "component_ledger": null,
+      "conservative_energy_ledger": null
+    },
+    {
+      "case": "gas8_flash10",
+      "status": "completed_workload_not_experimental_validation",
+      "simulated_s": 0.049999999999999975,
+      "warm_median_wall_s": 0.016533715999685228,
+      "steps": 96,
+      "mass_relative_residual": 2.9447378059269495e-16,
+      "component_ledger": null,
+      "conservative_energy_ledger": null
+    },
+    {
+      "case": "gas16_flash1",
+      "status": "completed_workload_not_experimental_validation",
+      "simulated_s": 0.0499999999999999,
+      "warm_median_wall_s": 0.08615547299996251,
+      "steps": 192,
+      "mass_relative_residual": 4.681502307976692e-16,
+      "component_ledger": null,
+      "conservative_energy_ledger": null
+    },
+    {
+      "case": "micro_gas8_flash1",
+      "status": "completed_workload_not_experimental_validation",
+      "simulated_s": 0.049999999999996575,
+      "warm_median_wall_s": 0.5106641220008896,
+      "steps": 4800,
+      "mass_relative_residual": 3.1263638750672984e-15,
+      "component_ledger": null,
+      "conservative_energy_ledger": null
+    },
+    {
+      "case": "micro_gas8_cfl025",
+      "status": "failed_not_qualified",
+      "error": "java.lang.IllegalStateException: pipe: transient advanced 0.011088541666666668 of requested 0.05 s after 2130 substep attempts; latest maximum relative cell-volume residual=1.0080495785494626E-7, tolerance=1.0E-7, iterations=24/24, pressureCorrectionLimited=true; last rejection=coupled pressure correction did not converge, lastRejectedCell=-1, lastRejectedVariable=-1, lastRejectedValue=NaN, lastRejectedPreviousValue=NaN",
+      "advanced_s": 0.011088541666666485
+    },
+    {
+      "case": "micro_gas16_cfl025",
+      "status": "failed_not_qualified",
+      "error": "java.lang.IllegalStateException: pipe: transient advanced 0.014518229166666669 of requested 0.05 s after 5576 substep attempts; latest maximum relative cell-volume residual=1.261004540179135E-7, tolerance=1.0E-7, iterations=24/24, pressureCorrectionLimited=true; last rejection=coupled pressure correction did not converge, lastRejectedCell=-1, lastRejectedVariable=-1, lastRejectedValue=NaN, lastRejectedPreviousValue=NaN",
+      "advanced_s": 0.014518229166665588
+    },
+    {
+      "case": "twophase8_flash1",
+      "status": "completed_workload_not_experimental_validation",
+      "simulated_s": 0.05000000000000006,
+      "warm_median_wall_s": 0.06177725499946973,
+      "steps": 58,
+      "mass_relative_residual": 2.1367529160929002e-16,
+      "component_ledger": null,
+      "conservative_energy_ledger": null
+    },
+    {
+      "case": "twophase8_flash10",
+      "status": "completed_workload_not_experimental_validation",
+      "simulated_s": 0.05000000000000006,
+      "warm_median_wall_s": 0.02386163000119268,
+      "steps": 58,
+      "mass_relative_residual": 3.6834615205719015e-16,
+      "component_ledger": null,
+      "conservative_energy_ledger": null
+    },
+    {
+      "case": "twophase16_flash1",
+      "status": "completed_workload_not_experimental_validation",
+      "simulated_s": 0.05000000000000007,
+      "warm_median_wall_s": 0.21741265700256918,
+      "steps": 116,
+      "mass_relative_residual": 3.281165376777865e-17,
+      "component_ledger": null,
+      "conservative_energy_ledger": null
+    },
+    {
+      "case": "twophase8_compositional",
+      "status": "completed_workload_not_experimental_validation",
+      "simulated_s": 0.05000000000000006,
+      "warm_median_wall_s": 0.1990199540014146,
+      "steps": 58,
+      "mass_relative_residual": 6.104472026250538e-17,
+      "component_ledger": {
+        "converged": true,
+        "names": [
+          "methane",
+          "n-pentane"
+        ],
+        "residuals_kg": [
+          -1.8057387182746076e-15,
+          3.307683987818777e-15
+        ],
+        "max_relative_residual": 6.419421371462412e-16,
+        "max_phase_mass_synchronization_error_kg": 8.881784197001252e-16
+      },
+      "conservative_energy_ledger": null
+    },
+    {
+      "case": "twophase8_conservative",
+      "status": "completed_workload_not_experimental_validation",
+      "simulated_s": 0.05000000000000006,
+      "warm_median_wall_s": 0.15593837999767857,
+      "steps": 58,
+      "mass_relative_residual": 1.3805162446862563e-16,
+      "component_ledger": {
+        "converged": true,
+        "names": [
+          "methane",
+          "n-pentane"
+        ],
+        "residuals_kg": [
+          -2.1185310450366757e-15,
+          1.501674219001048e-15
+        ],
+        "max_relative_residual": 7.531711883197696e-16,
+        "max_phase_mass_synchronization_error_kg": 8.881784197001252e-16
+      },
+      "conservative_energy_ledger": {
+        "residual_j": -1.1203553640370956e-09,
+        "relative_residual": 1.3087232465674018e-11,
+        "max_relative_volume_residual": 8.24243451269524e-10,
+        "max_relative_thermodynamic_energy_residual": 2.1945127797999516e-10
+      }
+    },
+    {
+      "case": "twophase16_conservative",
+      "status": "completed_workload_not_experimental_validation",
+      "simulated_s": 0.05000000000000007,
+      "warm_median_wall_s": 0.4159924269988551,
+      "steps": 116,
+      "mass_relative_residual": 3.5950214168211615e-16,
+      "component_ledger": {
+        "converged": true,
+        "names": [
+          "methane",
+          "n-pentane"
+        ],
+        "residuals_kg": [
+          -3.93272654025667e-15,
+          2.615149850143661e-15
+        ],
+        "max_relative_residual": 1.3981478816379802e-15,
+        "max_phase_mass_synchronization_error_kg": 4.440892098500626e-16
+      },
+      "conservative_energy_ledger": {
+        "residual_j": 2.5126922764684423e-09,
+        "relative_residual": 2.959362445333236e-11,
+        "max_relative_volume_residual": 9.310409110341311e-10,
+        "max_relative_thermodynamic_energy_residual": 5.435484812425386e-10
+      }
+    },
+    {
+      "case": "twophase8_conservative_1s",
+      "status": "completed_workload_not_experimental_validation",
+      "simulated_s": 1.0000000000000044,
+      "warm_median_wall_s": 1.5526635429996531,
+      "steps": 1157,
+      "mass_relative_residual": 6.692926889787374e-16,
+      "component_ledger": {
+        "converged": true,
+        "names": [
+          "methane",
+          "n-pentane"
+        ],
+        "residuals_kg": [
+          -2.806088694740083e-14,
+          3.980149543281186e-14
+        ],
+        "max_relative_residual": 9.976474996403933e-15,
+        "max_phase_mass_synchronization_error_kg": 8.881784197001252e-16
+      },
+      "conservative_energy_ledger": {
+        "residual_j": -2.459273673593998e-09,
+        "relative_residual": 7.393917147143442e-14,
+        "max_relative_volume_residual": 8.491432001989097e-10,
+        "max_relative_thermodynamic_energy_residual": 4.825041792533912e-10
+      }
+    }
+  ],
+  "flash_interval_sensitivity": [
+    {
+      "case": "gas8",
+      "flash_interval_speedup": 1.7256481241201151,
+      "maximum_pressure_difference_pa": 888.6109012896195,
+      "maximum_temperature_difference_k": 3.371576895006001e-06
+    },
+    {
+      "case": "twophase8",
+      "flash_interval_speedup": 2.5889788332306685,
+      "maximum_pressure_difference_pa": 528.1089056283236,
+      "maximum_temperature_difference_k": 3.652791633612651e-07
+    }
+  ],
+  "cpu_tests_passed": 47,
+  "cpu_cuda_targeted_tests_passed": 23
+}

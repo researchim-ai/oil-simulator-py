@@ -1472,3 +1472,338 @@ builds 34 → 12. Local fast-pipe solves were unchanged. The remaining interval
 cost is still unsuitable for fast operational forecasts; these observations
 must not be described as completed full-cycle qualification.
 [Evidence, shutdown check and CUDA coverage](../benchmarks/reports/step_policy_repair/README.md).
+
+### Local endpoint-step carry
+
+The PR equilibrium transport integrator now preserves its pre-clipping step
+proposal after an accepted endpoint-clipped trial with error < 0.25. Rejections
+replace the proposal; larger errors retain the original conservative update.
+The next interval still checks the complete coarse/fine and physical criteria.
+This avoids restarting local Strang stages from arbitrarily small reporting
+tails. Reference CLI policy: `--shrink-at-interval-end`.
+
+On the accepted 0.02 s integrated-facility interval, nonlinear solves decrease
+114 -> 84, residual evaluations 703 -> 531 and Jacobian builds 193 -> 136.
+Shared-host timings vary strongly with execution order (39.88 -> 21.21 s;
+27.40 -> 25.49 s), so they do not establish a repeatable 1.88x gain. The new
+adaptive endpoint differs by 0.01973 of the original error norm; the strict
+0.01 same-path benchmark fails and is retained as such. Separate 4x/16x local
+time refinement and independent physical audits qualify this interval within
+the existing 0.1 local-error allocation. This is not a complete-cycle accuracy
+qualification. Full evidence: `benchmarks/reports/endpoint_carry_repair/README.md`.
+
+### Pump check-valve active-set restart repair
+
+A captured integrated-facility restart stalled because closed/open pump
+thermal equations switched discontinuously inside Newton line search. The
+thermal residual jumped by 0.2205 even for a 2**-24 fraction of the Newton
+step. Fixed check-valve branches, checked for complementarity and retried
+between solves, remove this barrier for single-liquid and liquid-mixture
+pumps. Signed operation is unchanged. Original nonlinear, stability and
+physical acceptance budgets remain mandatory.
+
+The saved branch changes from 355 residual evaluations and failure to 8–10
+evaluations and convergence. This excludes active-set retries and spatial
+refinement, so it is not a complete-interval speedup. The full captured coupled
+slow step passes independent NumPy audits on CPU and RTX 3090; device endpoint
+difference is 8.84e-9 of the original error norm. The full scenario still needs
+to resolve a stiff temporal transient. Evidence and scope are recorded in
+`benchmarks/reports/restart_failure_repair/README.md`.
+
+The repaired original one-second startup/isolation/restart schedule has now
+completed from its recorded checkpoints. Independent whole-cycle audit accepts
+270 split halfsteps, 2,418 local pipe steps and 270 slow steps. Maximum total
+component residual is 2.765e-10 mol; energy residual is -1.510e-6 J. All machines
+and separator ports transfer material before and after isolation and exactly
+zero during isolation. `restart_failure_repair/final_cycle.json` records complete
+qualification with unchanged source. The earlier prefix has explicit solver
+provenance. The post-repair 0.4 -> 1.0 s continuation costs about 1,505 s on this
+shared CPU host, excluding earlier prefix work/audits. This is not a cold timed
+benchmark or a claim that detailed dynamics is now fast; full-cycle temporal
+refinement and whole-facility CUDA timing remain separate checks.
+
+### Detailed PR dynamics: acceleration versus real time
+
+The detailed one-second facility cycle is **not qualified for real-time use**.
+Kernel speedups and a short accepted interval do not establish that claim.
+The following changes retain the physical model and existing tolerances:
+
+- Homogeneous single-phase characteristics use the exact `u-c, u, u+c`
+  spectrum from the same EOS. Multiphase/slip retains constrained AD/eigensolves
+  and all spectral-bound checks.
+- Complete accepted fast-integration pairs can be reused inside one public
+  transaction, with exact state/control/EOS-version keys and bounded memory.
+- `--compiled-full-eos` enables fused float64 caloric properties. AD and parameter
+  sensitivities retain the original path. Fast math and unsafe Inductor buffer
+  reuse are disabled. This is not a property table or stability-test shortcut.
+- `--reverse-dense-jacobian` selects reverse AD for existing small dense Newton
+  blocks. Sparse colored assembly and the dense-size limit are unchanged.
+
+On one accepted connected interval (0.7062381 -> 0.7224530 s), reverse AD
+changed CPU wall time **18.743 -> 10.993 s**, with the same 41 nonlinear solves,
+292 residual evaluations and 56 Jacobian builds. Endpoint difference is
+1.40e-10 of the original error norm; both independent audits pass. These are
+shared-host observations. Evidence: `realtime_surface_repair/reverse_ad_pair/`
+under `benchmarks/reports/`.
+
+An explicit `fast_time_scheme: "radau3"` option connects the existing L-stable
+Radau IIA solver to the controlled subcycled facility. Stage fluxes use the
+independent collocation auditor. Unsupported physics is rejected; phase
+fallback is recorded. Default remains `backward_euler`; Radau bypasses prefix
+reuse. Restart/serialization includes the selected scheme.
+
+For the actual local restart branch over 0.00222155 s, BE took 182 accepted
+halfsteps / 32.492 s; Radau took 28 / 7.827 s. Both audits pass; endpoint
+difference is 0.003405 of the original error norm. This is a local comparison.
+On the smooth connected interval both needed eight fast steps; Radau was
+slightly slower (11.477 vs 10.886 s). The difference, 0.02510 of the original
+error norm, fails the stricter 0.01 same-path benchmark criterion. Negative
+results remain in `realtime_surface_repair/radau_connected_pair/`. Radau is
+therefore not selected universally.
+
+Adaptive implicit/multirate methods are established numerical approaches:
+[IDA](https://sundials.readthedocs.io/en/latest/ida/Mathematics_link.html),
+[ARKODE](https://sundials.readthedocs.io/en/latest/arkode/Mathematics_link.html).
+Neither guarantees real-time resolution of arbitrary acoustic events. A
+complete accelerated facility cycle still needs qualification.
+
+Opposite-order repeat (accelerated first) gave **15.022 -> 13.725 s** end-to-end
+(1.094x), with identical accepted work counts and the same endpoint difference.
+Measured Newton time was 9.725 -> 5.452 s (1.784x); this excludes initialization,
+thermodynamic inspection and report construction. The original 1.705x complete
+interval observation must therefore not be presented as a stable speedup.
+Combining full caloric fusion and reverse AD, including first-use work, gave
+16.038 -> 15.068 s (1.064x). These options are not silently enabled together.
+CUDA validation initially exposed an eligibility bug (`cuda` vs `cuda:0`);
+comparison now uses concrete parameter-tensor placement. All 18 CPU/CUDA
+property/acoustic tests pass with actual compiled CUDA execution.
+
+### Pump active-set predictor reuse
+
+Repeated spatial/temporal solves were rediscovering an already admissible
+check-valve branch. A bounded transaction-scoped predictor now retains the
+last physically accepted branch per model/EOS signature. It changes only the
+initial active set: every new solve still checks complementarity, phase
+stability and all original residual/ledger budgets. A failed warm solve is
+retried with the original predictor; real failures propagate. Parameter AD
+bypasses reuse. A separate predictor correction compares backpressure against
+zero-flow available head, rather than the running discharge-pressure guess.
+
+The connected reference interval changes from 41 to 37 Newton solves,
+292 to 252 residual evaluations and 56 to 48 Jacobian assemblies. Independent
+physical audits accept both trajectories. The pre-fallback paired experiment
+is retained in `realtime_surface_repair/valve_seed_pair/`; current-source
+opposite-order measurements are recorded separately. A trial of reusing the
+fine endpoint as the coarse probe's initial physical guess saved no Newton
+work and was removed; its apparent elapsed-time benefit is not qualified.
+
+Current-source opposite-order validation on three consecutive report intervals
+(0.04864483384 s of physical time, starting at 0.70623809959 s) passes both
+independent trajectory audits. Branch prediction alone changes 45.056 ->
+36.314 s CPU wall time, 121 -> 109 Newton solves, 864 -> 744 residual evaluations
+and 172 -> 148 Jacobian builds; endpoints are identical. Large coupled solves
+change 30 -> 18. Combining branch prediction with the existing opt-in reverse
+AD changes 45.666 -> 28.535 s (1.600x), including initialization, with endpoint
+difference 1.134e-8 of the unchanged error budget. The accelerated side ran
+first; these remain shared-host observations, not statistical guarantees.
+Evidence is in `realtime_surface_repair/valve_seed_three_intervals/` and
+`realtime_surface_repair/valve_seeds_reverse_three_intervals/`. This is still
+far from real time and does not qualify the complete startup/isolation/restart
+cycle. Regression validation: 99 passed / 1 skipped in the CPU suite; 18 passed
+in a separate CPU/CUDA run with RTX 3090 available.
+
+### Kernel-sized stability searches and live runtime coefficients
+
+The minimizer can evaluate the original ordered line-search scales in groups,
+retaining the first admissible scale independently for each start. Original
+starts, BFGS histories, stationarity/curvature checks and full-EOS acceptance
+remain unchanged. `--staged-stability-lines` selects width 4; the default is
+still the original width 12. Compiled CPU chemical value kernels now use an
+8-row tile for tails of at most 8, instead of padding every tail to 64.
+Derivative kernels and CUDA tile sizes are unchanged. This affects only the
+existing opt-in CPU chemical compilation; `--full-cpu-chemical-tiles` restores
+the 64-row reference policy.
+
+The paired warm CPU experiment in
+`realtime_surface_repair/tiled_stability_warm_pair/summary.json` excludes two
+warmup runs and includes initialization and accepted integration. It changes
+8.5659 -> 8.2523 s for **0.0162149446 s of physical time**, with identical
+endpoints and independent trajectory audits. Candidate evaluations change
+360576 -> 182830 and padded chemical points 1050560 -> 471312. Newton work
+remains 37 solves / 252 residual evaluations / 48 Jacobians. This is a modest
+shared-host observation, not evidence of real-time simulation. Staged search
+alone with full-size tiles was slightly slower and is not enabled by default.
+
+Warm profiling locates about 1.84 s in Jacobian assembly and 1.98 s in phase
+stability on an approximately 8.2 s accepted interval. Linear algebra costs
+only about 0.02 s. Timers overlap and must not be summed indiscriminately.
+Evidence: `realtime_surface_repair/solver_cost_warm_profile.json`.
+
+Time step, previous inventories, wall temperatures, momenta and energy scales
+are supplied as live tensors to residual evaluation. This avoids compiler
+specialization on their Python values. `scripts/check_pr_runtime_graph.py`
+checks one reusable FX graph against independent eager AD after a physical
+step and a changed dt. It is a guard/numerical test, not fused execution.
+
+`scripts/check_pr_cuda_runtime_graph.py` is an isolated CUDA-graph experiment.
+It checks a changed Newton point, physical state and dt against eager AD, and
+checks output ownership. Only uniform literal factories are lowered to
+device-native allocations; arithmetic and tolerances remain unchanged. The
+reproducible RTX 3090 check measured 343 -> 66.5 ms (5.15x) for the coupled
+dense Jacobian after a 15.0 s capture, with zero maximum discrepancy before
+and after the physical state / dt change. Evidence:
+`realtime_surface_repair/cuda_runtime_graph_verified.json`.
+This **kernel-only** result does not establish a whole-network speedup. The
+script does not enable a production CUDA-graph solver or alter sparse assembly.
+Do not extrapolate it to the complete startup/isolation/restart cycle.
+
+### CUDA execution in the main surface solver
+
+The isolated Jacobian experiment now has a separate runtime integration in
+`surface.cuda_execution`, enabled with `run_pr_controlled_surface.py --cuda-graphs
+--device cuda`. It accelerates pure residual/roundoff outputs and derivatives
+inside `TorchNewton`. Direct ATen lowering removes AD interpreter operations
+before capture; stateful residual wrappers remain outside the graph. This distinction matters: directly compiling the
+production wrapper hit an unsupported functorch inspection and correctly
+disabled acceleration in the first connected trial. Differentiating its pure
+`runtime_residual` kernel fixes that boundary. The primal path separately
+returns `runtime_values` including current roundoff bounds. A broad training
+AOT pass proved too expensive during preparation, so runtime lowering uses
+`make_fx` on the already guarded graph with data-dependent operations forbidden.
+No tensor-value control flow is silently frozen.
+
+Dense blocks use reverse AD; sparse blocks retain colored JVPs and sparse value
+vectors. Kernel-size admission is bounded at 64–4096 unknowns by default, with
+at most four resident graphs / 256 MiB of retained tensor buffers. Very large
+unrolled graphs, tiny blocks, AD requests and unsupported compilation keep the
+original path. This cache budget is not a process VRAM limit. Every replay
+copies current inputs, preserves output ownership and orders shared-buffer
+use across CUDA streams. First use of each capture generation is checked
+against eager AD; numerical mismatch disables the runtime before its result
+can enter Newton. CPU operation and sparse linear algebra remain available.
+
+Keep the caller-owned `cuda_graph_execution()` context alive across a scenario
+to amortize graph preparation. The CLI does this automatically. Graphs contain
+computational structure and private scratch buffers; they do not replace
+the authoritative physical state. Compiler guards protect model/control/phase structure. No tolerance
+or iteration budget is relaxed. Runtime statistics report captures, replays,
+verification, retained bytes and fallback reasons.
+
+This follows the static-buffer / partial-capture recommendations in
+[PyTorch CUDA semantics](https://docs.pytorch.org/docs/stable/notes/cuda.html)
+and [NVIDIA CUDA Graph best practices](https://docs.nvidia.com/dl-cuda-graph/latest/torch-cuda-graph/best-practices.html).
+The lowering contract is described in
+[PyTorch non-strict tracing](https://docs.pytorch.org/docs/main/user_guide/torch_compiler/compile/programming_model.non_strict_tracing_model.html);
+Dynamo guards and explicit runtime tensor inputs remain mandatory.
+The existing contracting-Newton tangent reuse is complementary to graph
+execution; modified Newton and refresh policies are described in
+[SUNDIALS IDA mathematics](https://sundials.readthedocs.io/en/latest/ida/Mathematics_link.html).
+Execution graphs do not remove the physical/time-error need for small steps.
+
+`scripts/benchmark_pr_cuda_execution.py` compares complete accepted schedules,
+including initialization, with independent physical audits outside the timer.
+It records preparation separately through cold and warm runs, compares final
+states in the original error norm, and stores source hashes before starting.
+Only an accepted whole-schedule report qualifies a runtime speedup; the isolated
+5.15x Jacobian result alone does not.
+
+Qualified runtime comparison on RTX 3090 / Torch 2.7.0+cu126 is recorded in
+`realtime_surface_repair/production_cuda_execution_three_intervals_v5/summary.json`.
+The complete three-interval schedule advances 0.04864483384 s of physical time.
+Ordinary warm CUDA takes **71.3325 s**, bounded graph execution **48.2180 s**
+including initialization: **1.479x throughput / 32.4% less elapsed time** on
+this shared host. First execution including graph preparation takes 203.5907 s;
+this cost is not hidden in the warm result. Both paths pass independent
+component/energy/controller audits, and endpoint difference is **0.0** in the
+original error norm. All four trajectory audits pass, with maximum absolute
+component ledger residual 5.83e-11 mol and energy residual 2.03e-7 J.
+
+Only four graphs are traced/captured; warm replay adds no graph builds.
+There are 216 replays per schedule, no compiler/verification fallbacks and
+about 3.66 MiB accounted resident buffers. The guard diagnostic found two
+accidental specializations: Python check-valve booleans and continuously
+changing local loss coefficients. Check-valve flags now enter the smooth
+fixed-active-set equations as boolean tensors with `where`; complementarity
+still changes the active set only between Newton solves. Loss coefficients
+and heat commands are also runtime tensors. Only the two actual unknown-vector
+sizes (268 / 376), reflecting different problem layouts, require separate
+residual/Jacobian graphs. Dead-code pruning and mutation-aware exact CSE are
+applied after ATen lowering; no reassociation or fast-math approximation is used.
+Generated constant buffers are pinned for each graph's lifetime.
+
+This is an accepted connected-runtime acceleration, **not real-time operation**,
+a complete startup/restart cycle qualification, or a prediction for field-sized
+networks. Preparation can make short scenarios slower; keep the cache alive
+across a long simulation. Partial development comparisons v1–v4 are explicitly
+marked unqualified in their `status.json` files and are not speedup evidence.
+### Detailed PR dynamics: numerical work reduction
+
+The paired `pipe-algorithms` experiment measures numerical changes independently
+of CUDA Graph execution. Both paths use the same reverse-AD assembly, model,
+requested intervals, physical checks and time-error tolerances. Two algorithms
+are now enabled by default:
+
+* A bounded, damped fugacity successive-substitution predictor rescues unresolved
+  stability starts before expensive minimizer fallbacks. Previously accepted
+  candidates remain intact. Predicted candidates must pass the original
+  stationarity, curvature and full-EOS tests; unsuccessful predictions retain
+  the original fallback.
+* Newton carries the selected scalar line-search residual into the next
+  iteration, together with that point's own arithmetic-error budget. It never
+  carries values across solves, always reevaluates the final residual, and
+  retains reevaluation for AD, unknown roundoff callbacks and CUDA vectorized
+  line searches whose property kernel may differ from the scalar kernel.
+
+On `steady_three_intervals.json` (0.04864483384 s of physical time), excluding
+two warmups but including model initialization, the paired CPU measurement is
+**24.8230 → 17.5972 s (1.411×)**. RTX 3090 without CUDA Graph execution measures
+**67.1403 → 48.0287 s (1.398×)**. Both use 109 nonlinear solves and 148 Jacobian
+builds; residual evaluations fall from 744 to 481, with 263 accepted residual
+reuses. The final difference in the original error norm is zero and both
+independent physical audits pass. These are shared-host observations, not
+statistical guarantees or measurements of other simulators.
+
+Evidence: `benchmarks/reports/realtime_surface_repair/pipe_algorithms_cpu_three_intervals/summary.json`
+and `benchmarks/reports/realtime_surface_repair/pipe_algorithms_cuda_three_intervals/summary.json`.
+Reproduce with `scripts/benchmark_pr_step_policy.py <request.json> --warmup
+--policy pipe-algorithms --device cpu --compiled-cpu-chemical --output-dir <new-dir>`;
+replace `cpu` with `cuda` for the GPU run.
+
+The CPU nested profile of one interval attributes 1.39 s to fast stages and
+7.13 s to slow facility stages out of 8.91 s total. Nested inclusive timings
+must not be added to their children. Repeated coupled solves and thermodynamic
+validation, rather than just integration of the smallest pipe, are material
+costs. `scripts/profile_pr_pipe_runtime.py` records this breakdown.
+
+Exact per-node physical-validation reuse remains disabled by default: the
+paired experiment showed only about 3% CPU benefit and no GPU benefit. It is
+not included in the reported acceleration. Real-time detailed dynamics and a
+matched transient comparison with competing simulators remain unqualified.
+
+Algorithm references: [NeqSim TP-flash](https://github.com/equinor/neqsim/blob/master/docs/thermodynamicoperations/TPflash_algorithm.md)
+and [PETSc line-search application](https://petsc.org/main/manualpages/SNES/SNESLineSearchApply/).
+
+### External transient pipe runs and single-phase kernel correction
+
+Actual NeqSim 3.29.0 and OpenModelica 1.27.2 CPU runs are recorded in
+[the external-pipe report](../benchmarks/reports/external_transient_pipes/README.md).
+The same single-phase periodic PR/Rusanov equations integrate with native IDA
+in about 0.014/0.020 s for 8/16 cells and 0.01 s physical time, including process
+startup and CSV output. The original Torch pipe path took 4.05/6.98 s.
+This compares implementations as well as integrators; native IDA takes more
+internal steps, so the gap cannot be attributed to BDF order alone.
+
+`PRMomentumPipe` now reuses the caloric EOS analytic acoustic identity and the
+shared enhanced Newton. Phase stability checks and requested tolerances remain.
+Measured times fall to 1.47/1.94 s (2.75×/3.60×), with unchanged endpoints to
+roundoff. This change concerns that single-phase pipe path, not a newly timed
+whole-facility acceleration. 47 CPU regressions and 23 targeted CPU/CUDA tests
+pass. A substantial native-kernel gap remains.
+
+NeqSim's separate 8-cell two-phase pipe with named-component transport and
+experimental conservative-energy recovery completes 1 s in a warm median
+1.553 CPU s. It is a different physical workload, not a direct facility speedup.
+Two refined 1 mm bore cases fail; periodic flash skipping also materially
+changes the pressure response. These are explicit qualification limits, not
+settings to copy unconditionally. See the report for failures, ledgers,
+source hashes, temporal refinement and the continuous-residual/BDF work plan.

@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import itertools
 import math
+from collections import OrderedDict
 from dataclasses import asdict, dataclass, replace
 
 import torch
@@ -369,6 +370,9 @@ class PREquilibriumTransportState:
 
 
 class PREquilibriumTransportNetwork:
+    _preserve_endpoint_step = True
+    _analytic_single_phase_characteristics = True
+
     def __init__(
         self,
         fluid,
@@ -681,6 +685,9 @@ class PREquilibriumTransportNetwork:
         )
         self.model_id = _digest(self.to_dict())
         self._verified = {}
+        self._verified_nodes = OrderedDict()
+        self._verified_nodes_signature = None
+        self._verified_node_hits = self._verified_node_misses = 0
 
     def to_dict(self):
         def node_dict(node):
@@ -1012,6 +1019,8 @@ class PREquilibriumTransportNetwork:
         }
 
     _batch_stability = True
+    _reuse_node_validation = False
+    _node_validation_entries = 256
 
     _batch_characteristics = True
     _characteristic_batch_size = 64
@@ -1027,7 +1036,15 @@ class PREquilibriumTransportNetwork:
 
     def _stable_sets(self, data_sets):
         data_sets = list(data_sets)
-        entries = [(k, i, d) for k, data in enumerate(data_sets) for i, d in enumerate(data)]
+        # ``inspect`` may omit nodes certified at this exact physical state.
+        # Preserve original indices: geometry, pickup and wave checks are local
+        # to the original node, not its position in a compacted work list.
+        entries = [
+            (k, i, d)
+            for k, data in enumerate(data_sets)
+            for i, d in enumerate(data)
+            if d is not None
+        ]
         selected, requests = [], []
         if self._batch_stability:
             for position, (_k, _i, d) in enumerate(entries):
@@ -1067,6 +1084,9 @@ class PREquilibriumTransportNetwork:
         groups = {}
         for index, data, active in entries:
             node = self.nodes[index]
+            if self._single_phase_acoustics(index, data):
+                data["characteristic_speeds"] = self._characteristics(index, data, active)
+                continue
             if (
                 node.drift_flux is not None
                 or node.droplet_population is not None
@@ -1373,8 +1393,28 @@ class PREquilibriumTransportNetwork:
 
         return y0, quantities, c + 2 + int(particle_active)
 
+    def _single_phase_acoustics(self, index, data):
+        node = self.nodes[index]
+        return (
+            self._analytic_single_phase_characteristics
+            and len(data["phase_n"]) == 1
+            and node.drift_flux is None
+            and node.droplet_population is None
+            and not node.distribution_strength
+            and not node.buoyancy_relaxation_s
+        )
+
     def _characteristics(self, index, data, active):
         node = self.nodes[index]
+        if self._single_phase_acoustics(index, data):
+            # For ONE homogeneous phase, the equilibrium Euler spectrum is
+            # exactly u-c, u (once per active component), u+c. The EOS already
+            # provides the same isentropic derivative c. No phase fractions
+            # are frozen here: multiphase/slip/population states retain the
+            # constrained AD tangent and its full hyperbolicity check.
+            u, c = data["u"], data["q"]["frozen_sound_speed_m_s"][0]
+            spectrum = torch.cat(((u - c).reshape(1), u.expand(len(active)), (u + c).reshape(1)))
+            return self._check_characteristic_speeds(index, spectrum).detach()
         if isinstance(node.droplet_population, PRSectionalDropletPopulation):
             from .pr_sectional_population import characteristics
 
@@ -1394,8 +1434,9 @@ class PREquilibriumTransportNetwork:
 
     def _check_characteristic_speeds(self, index, speeds):
         node = self.nodes[index]
+        imaginary = speeds.imag if speeds.is_complex() else torch.zeros_like(speeds)
         if not bool(torch.isfinite(speeds).all().cpu()) or float(
-            speeds.imag.abs().max().cpu()
+            imaginary.abs().max().cpu()
         ) > 1e-7 * max(1.0, float(speeds.real.abs().max().cpu())):
             raise PropertyModelError("Transport closure loses local hyperbolicity")
         if float(speeds.real.abs().max().cpu()) > self.wave_speed_bound_m_s:
@@ -1435,8 +1476,23 @@ class PREquilibriumTransportNetwork:
         key = validated_state_key(self, state, scheduling_fields=("time_s", "next_step_s"))
         if key is not None and key in self._verified:
             return
+        signature = getattr(self, "_verified_signature", None)
+        if signature != self._verified_nodes_signature or key is None:
+            self._verified_nodes.clear()
+            self._verified_nodes_signature = signature
         decoded = []
+        pending = []
         for i, (node, (_, s)) in enumerate(zip(self.nodes, state.nodes)):
+            node_key = (
+                (i, _digest(asdict(s))) if key is not None and self._reuse_node_validation else None
+            )
+            if node_key is not None and node_key in self._verified_nodes:
+                self._verified_nodes.move_to_end(node_key)
+                self._verified_node_hits += 1
+                decoded.append(None)
+                continue
+            self._verified_node_misses += 1
+            pending.append(node_key)
             if s.hydrostatic_face_guesses is not None and not node.hydrostatic_reconstruction:
                 raise ValueError("Hydrostatic guesses supplied for a cell without reconstruction")
             if isinstance(node.droplet_population, PRSectionalDropletPopulation):
@@ -1501,6 +1557,11 @@ class PREquilibriumTransportNetwork:
             decoded.append(d)
         if any(post is not None for post in self._stable_all(decoded)):
             raise PropertyModelError("Serialized transport phase branch is unstable")
+        for node_key in pending:
+            if node_key is not None:
+                self._verified_nodes[node_key] = True
+        while len(self._verified_nodes) > self._node_validation_entries:
+            self._verified_nodes.popitem(last=False)
         if key is not None:
             self._verified[key] = True
         while len(self._verified) > 16:
@@ -2001,12 +2062,15 @@ class PREquilibriumTransportNetwork:
         restriction_openings=None,
         restriction_seeds=None,
         pump_connection_seeds=None,
+        pump_valve_states=None,
         _batch_phase_eos=True,
     ):
         f = self.fluid
         old = [s for _, s in state.nodes]
         active = self._active(state, openings) if active_override is None else active_override
-        losses = loss_coefficients or {}
+        # Continuous controls are live runtime values, not compiler constants.
+        losses = {name: f.tensor(value) for name, value in (loss_coefficients or {}).items()}
+        heat_w = [f.tensor(value) for value in heat_w]
         problems = []
         offsets = [0]
         lo = []
@@ -2065,7 +2129,13 @@ class PREquilibriumTransportNetwork:
         lo.extend(compressor_bundle.lower)
         hi.extend(compressor_bundle.upper)
         pump_connection_bundle = PumpConnectionBundle(
-            self, state, openings, sum(map(len, initial)), pump_connection_seeds, active
+            self,
+            state,
+            openings,
+            sum(map(len, initial)),
+            pump_connection_seeds,
+            active,
+            valve_states=pump_valve_states,
         )
         initial.extend(pump_connection_bundle.initial)
         lo.extend(pump_connection_bundle.lower)
@@ -2118,6 +2188,12 @@ class PREquilibriumTransportNetwork:
         mass_scales = [
             max(1e-12, float(d["mass"].cpu())) * self.maximum_velocity_m_s for d in olddata
         ]
+        mass_scales = f.tensor(mass_scales)
+        old_momenta = f.tensor([s.momentum_kg_m_s for s in old])
+        old_wall_temperatures = f.tensor(
+            [s.temperature_k if s.wall_temperature_k is None else s.wall_temperature_k for s in old]
+        )
+        dt = f.tensor(dt)
 
         def evaluate(y, external_fluxes=None):
             numbers = population_bundle.numbers(y)
@@ -2127,7 +2203,7 @@ class PREquilibriumTransportNetwork:
             walls = []
             heat = []
             ambient = []
-            for i, (node, p, seed, s) in enumerate(zip(self.nodes, problems, seeds, old)):
+            for i, (node, p) in enumerate(zip(self.nodes, problems)):
                 local = y[offsets[i] : offsets[i + 1]]
                 r, raw = p["evaluate"](
                     local[:-1], None if batched_values is None else batched_values[i]
@@ -2176,7 +2252,7 @@ class PREquilibriumTransportNetwork:
                 else:
                     w = node.wall
                     tw = (
-                        w.heat_capacity_j_k * s.wall_temperature_k
+                        w.heat_capacity_j_k * old_wall_temperatures[i]
                         + dt * (w.fluid_ua_w_k * t + w.ambient_ua_w_k * w.ambient_temperature_k)
                     ) / (w.heat_capacity_j_k + dt * (w.fluid_ua_w_k + w.ambient_ua_w_k))
                     qh = w.fluid_ua_w_k * (tw - t)
@@ -2358,7 +2434,7 @@ class PREquilibriumTransportNetwork:
                     )
                     if i in pump_forces:
                         force = force + pump_forces[i]
-                    mr = (d["momentum"] - old[i].momentum_kg_m_s - dt * (net[i][-2] + force)) / (
+                    mr = (d["momentum"] - old_momenta[i] - dt * (net[i][-2] + force)) / (
                         mass_scales[i]
                     )
                 else:
@@ -2561,9 +2637,55 @@ class PREquilibriumTransportNetwork:
         _restriction_seeds=None,
         _pump_connection_seeds=None,
         _pump_connection_attempt=0,
+        _pump_valve_states=None,
+        _pump_valve_attempt=0,
         _restriction_attempt=0,
     ):
         state = equilibrium_face_guesses(self, state)
+        if _pump_valve_states is None and self.pump_connections:
+            guessed = PumpConnectionBundle.previous_valves(self)
+            if guessed is not None:
+                # An accepted active set is only a starting guess for this
+                # residual. Changed controls/head may require switching, and
+                # any failed warm attempt falls back to the original predictor.
+                options = {
+                    "_coupling": _coupling,
+                    "drive_torque_nm": drive_torque_nm,
+                    "restriction_openings": restriction_openings,
+                    "_restriction_seeds": _restriction_seeds,
+                    "_restriction_attempt": _restriction_attempt,
+                    "_pump_connection_seeds": _pump_connection_seeds,
+                    "_pump_connection_attempt": _pump_connection_attempt,
+                    "_pump_valve_attempt": _pump_valve_attempt,
+                }
+                fallback = False
+                try:
+                    new, record = self._step(
+                        state,
+                        dt,
+                        openings,
+                        heat_w,
+                        utility,
+                        loss_coefficients,
+                        _pump_valve_states=guessed,
+                        **options,
+                    )
+                except (HydraulicConvergenceError, ConservationError, PropertyModelError):
+                    fallback = True
+                    PumpConnectionBundle.forget_valves(self)
+                    new, record = self._step(
+                        state,
+                        dt,
+                        openings,
+                        heat_w,
+                        utility,
+                        loss_coefficients,
+                        _pump_valve_states={},
+                        **options,
+                    )
+                record["pump_check_valve_warm_start"] = True
+                record["pump_check_valve_warm_fallback"] = fallback
+                return new, record
         f = self.fluid
         seeds = [self._seed(i, s) for i, (_, s) in enumerate(state.nodes)]
         queue = [seeds]
@@ -2599,6 +2721,7 @@ class PREquilibriumTransportNetwork:
                 restriction_openings=restriction_openings,
                 restriction_seeds=_restriction_seeds,
                 pump_connection_seeds=_pump_connection_seeds,
+                pump_valve_states=_pump_valve_states,
                 active_override=None if _coupling is None else _coupling.active,
                 guesses_override=None if _coupling is None else _coupling.ordinary_guesses,
             )
@@ -2632,12 +2755,27 @@ class PREquilibriumTransportNetwork:
             solver.host_convergence = True
             latest_roundoff = [None]
 
+            def runtime_values(z, evaluate=evaluate):
+                row, physical = evaluate(z)
+                bounds = physical["roundoff_bounds"]
+                return row, torch.cat((bounds, row.new_zeros(len(row) - len(bounds))))
+
+            def runtime_residual(z, evaluate=evaluate):
+                return evaluate(z)[0]
+
+            def accept_runtime_bounds(bounds, latest_roundoff=latest_roundoff):
+                latest_roundoff[0] = bounds
+
             def residual(z, evaluate=evaluate, latest_roundoff=latest_roundoff):
                 row, physical = evaluate(z)
                 if not torch._C._functorch.is_functorch_wrapped_tensor(z):
                     bounds = physical["roundoff_bounds"]
                     latest_roundoff[0] = torch.cat((bounds, row.new_zeros(len(row) - len(bounds))))
                 return row
+
+            residual.runtime_values = runtime_values
+            residual.runtime_residual = runtime_residual
+            residual.accept_runtime_bounds = accept_runtime_bounds
 
             with torch.no_grad():
                 y, _, ok, evaluations = solver.solve(
@@ -2656,6 +2794,30 @@ class PREquilibriumTransportNetwork:
             accepted = bool(
                 (ok & result["valid"] & torch.isfinite(r).all() & (r.abs().max() < 1e-9)).cpu()
             )
+            valve_changes = pump_connection_bundle.check_valve_updates(y, result["data"])
+            if valve_changes:
+                if _pump_valve_attempt >= self.maximum_branch_attempts:
+                    raise HydraulicConvergenceError(
+                        "Pump check-valve active-set budget exhausted: "
+                        + ", ".join(sorted(valve_changes))
+                    )
+                return self._step(
+                    state,
+                    dt,
+                    openings,
+                    heat_w,
+                    utility,
+                    loss_coefficients,
+                    _coupling=_coupling,
+                    drive_torque_nm=drive_torque_nm,
+                    restriction_openings=restriction_openings,
+                    _restriction_seeds=_restriction_seeds,
+                    _restriction_attempt=_restriction_attempt,
+                    _pump_connection_seeds=_pump_connection_seeds,
+                    _pump_connection_attempt=_pump_connection_attempt,
+                    _pump_valve_states={**pump_connection_bundle.valve_states, **valve_changes},
+                    _pump_valve_attempt=_pump_valve_attempt + 1,
+                )
             if not accepted and _pump_connection_attempt < self.maximum_branch_attempts:
                 pump_changes = pump_connection_bundle.failed_branch_seeds(
                     result["pump_connection_traces"]
@@ -2675,6 +2837,8 @@ class PREquilibriumTransportNetwork:
                         _restriction_attempt=_restriction_attempt,
                         _pump_connection_seeds={**(_pump_connection_seeds or {}), **pump_changes},
                         _pump_connection_attempt=_pump_connection_attempt + 1,
+                        _pump_valve_states=_pump_valve_states,
+                        _pump_valve_attempt=_pump_valve_attempt,
                     )
             replacements = []
             if accepted:
@@ -2711,6 +2875,8 @@ class PREquilibriumTransportNetwork:
                                 **pump_changes,
                             },
                             _pump_connection_attempt=_pump_connection_attempt + 1,
+                            _pump_valve_states=_pump_valve_states,
+                            _pump_valve_attempt=_pump_valve_attempt,
                         )
                     restriction_changes = restriction_bundle.replacements(
                         result["restriction_traces"]
@@ -2737,6 +2903,8 @@ class PREquilibriumTransportNetwork:
                             _restriction_attempt=_restriction_attempt + 1,
                             _pump_connection_seeds=_pump_connection_seeds,
                             _pump_connection_attempt=_pump_connection_attempt,
+                            _pump_valve_states=_pump_valve_states,
+                            _pump_valve_attempt=_pump_valve_attempt,
                         )
                     face_bundle.validate(result["hydrostatic_faces"])
                     coupled_state = None if _coupling is None else _coupling.accept(y, result)
@@ -2886,6 +3054,7 @@ class PREquilibriumTransportNetwork:
                     ledger = self._ledger(
                         state, new, ambient + external + work + exchange_e, incoming_n=exchange_n
                     )
+                    PumpConnectionBundle.remember_valves(self, pump_connection_bundle.valve_states)
                     return new, {
                         "dt_s": dt,
                         **({"drives": drive_report} if self.drives else {}),
@@ -2997,6 +3166,8 @@ class PREquilibriumTransportNetwork:
                         "nonlinear_jacobian_builds": solver.jacobian_builds,
                         "nonlinear_jacobian_reuses": solver.jacobian_reuses,
                         "nonlinear_jacobian_retry_refreshes": solver.jacobian_retry_refreshes,
+                        "pump_check_valve_retries": _pump_valve_attempt,
+                        "pump_check_valve_states": dict(pump_connection_bundle.valve_states),
                         "max_scaled_residual": float(r.abs().max().cpu()),
                     }
             for i, post in replacements:
@@ -3068,8 +3239,33 @@ class PREquilibriumTransportNetwork:
                         _restriction_attempt=_restriction_attempt + 1,
                         _pump_connection_seeds=_pump_connection_seeds,
                         _pump_connection_attempt=_pump_connection_attempt,
+                        _pump_valve_states=_pump_valve_states,
+                        _pump_valve_attempt=_pump_valve_attempt,
                     )
-            failures.append("joint Newton, stable phase branch, or HLLC domain rejected")
+            peak = int(torch.nan_to_num(r.abs(), nan=math.inf).argmax().cpu())
+            location = f"equipment/coupling row {peak}"
+            for index, (left, right) in enumerate(zip(_offsets, _offsets[1:])):
+                if left <= peak < right:
+                    local = peak - left
+                    problem = problems[index]
+                    equation = (
+                        "component balance"
+                        if local < len(problem["active"])
+                        else "energy"
+                        if local == problem["energy_row"]
+                        else "momentum"
+                        if local == problem["energy_row"] + 1
+                        else "volume"
+                        if local == problem["energy_row"] - 1
+                        else "chemical equilibrium"
+                    )
+                    location = f"node {self.nodes[index].name!r}, {equation}, row {peak}"
+                    break
+            failures.append(
+                f"joint solve rejected at t={state.time_s:.12g}, dt={dt:.12g}: "
+                f"Newton={solver.stop_reason}, residual={float(r.abs().max().cpu()):.6g}, "
+                f"physical_valid={bool(result['valid'].cpu())}, {location}"
+            )
         raise HydraulicConvergenceError(
             "HEM phase branch budget exhausted: "
             + (failures[-1] if failures else "no admissible branch")
@@ -3208,14 +3404,15 @@ class PREquilibriumTransportNetwork:
         if any(q and n not in utility_temperature_k for n, q in zip(self.names, heat)):
             raise ValueError("Nonzero heat requires explicit utility temperature")
         current = state
-        dt = min(state.next_step_s, duration_s)
+        dt = state.next_step_s
         steps = []
         attempts = 0
         while current.time_s < end:
             attempts += 1
             if attempts > self.maximum_attempts:
                 raise HydraulicConvergenceError("HEM interval budget exhausted")
-            dt = interval_step_s(current.time_s, end, dt)
+            proposed_dt = dt
+            dt = interval_step_s(current.time_s, end, proposed_dt)
             if current.time_s + dt / 2 <= current.time_s:
                 raise ValueError("HEM substep below time resolution")
             first_dt, second_dt = split_step_s(current.time_s, dt)
@@ -3270,6 +3467,13 @@ class PREquilibriumTransportNetwork:
             nextdt = min(
                 self.maximum_step_s, max(self.minimum_step_s, dt * (1.5 if error < 0.25 else 1.0))
             )
+            if self._preserve_endpoint_step and dt < proposed_dt and error < 0.25:
+                # An interval boundary is not evidence of a shorter physical
+                # timescale. Retain the pre-clipping proposal only after a
+                # low-error accepted trial; a rejection replaces the proposal
+                # on the next loop. The next interval still independently
+                # checks coarse/fine error and every nonlinear/physical gate.
+                nextdt = min(self.maximum_step_s, max(nextdt, proposed_dt))
             current = replace(
                 fine,
                 time_s=end if dt >= end - current.time_s else min(end, fine.time_s),

@@ -1,0 +1,3 @@
+{
+  "failure": "BackendCompilerFailed: backend='compiler_fn' raised:\nAssertionError: Please convert all Tensors to FakeTensors first or instantiate FakeTensorMode with 'allow_non_fake_inputs'. Found in aten.equal.default(tensor([...], size=(3,), dtype=torch.float64), tensor([...], size=(3,), dtype=torch.float64))\n\nSet TORCHDYNAMO_VERBOSE=1 for the internal stack trace (please do this especially if you're reporting a bug to PyTorch). For even more developer context, set TORCH_LOGS=\"+dynamo\"\n"
+}

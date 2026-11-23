@@ -76,6 +76,11 @@ class EquilibriumFluid:
     _analytic_chemical = True
     _compiled_chemical_cpu = False
     _compiled_chemical = True
+    _compiled_full_eos_cpu = False
+    _compiled_full_eos_cuda = False
+    _minimization_line_width = 12
+    _compact_chemical_cpu = True
+    _fugacity_ssi_predictor = True
 
     def __init__(
         self,
@@ -122,8 +127,11 @@ class EquilibriumFluid:
         self.tref = self.components[0].reference_temperature_k
         self.pref = self.components[0].reference_pressure_pa
         self._chemical_compile_failure = None
+        self._full_eos_compile_failure = None
+        self._full_eos_compiled_batches = self._full_eos_compiled_points = 0
         self._chemical_compiled_batches = 0
         self._chemical_compiled_points = 0
+        self._chemical_padded_points = 0
         self._chemical_jacobian_compile_failure = None
         self._chemical_jacobian_compiled_batches = 0
         self._chemical_jacobian_compiled_points = 0
@@ -238,6 +246,32 @@ class EquilibriumFluid:
         return roots, fz
 
     def tensor_homogeneous(
+        self,
+        p,
+        t,
+        x,
+        phase="stable",
+        *,
+        derivative_order=1,
+        _chemical_only=False,
+        _chemical_tangent=False,
+    ):
+        if not torch.compiler.is_compiling() and not (_chemical_only or _chemical_tangent):
+            from .full_eos_kernel import eligible, evaluate
+
+            if eligible(self, p, t, x):
+                return evaluate(self, p, t, x, phase, derivative_order)
+        return self._tensor_homogeneous_eager(
+            p,
+            t,
+            x,
+            phase,
+            derivative_order=derivative_order,
+            _chemical_only=_chemical_only,
+            _chemical_tangent=_chemical_tangent,
+        )
+
+    def _tensor_homogeneous_eager(
         self,
         p,
         t,
@@ -420,6 +454,12 @@ class EquilibriumFluid:
 
     def chemical_kernel_statistics(self):
         return {
+            "fugacity_ssi_predictor": self._fugacity_ssi_predictor,
+            "ssi_attempted_seeds": getattr(self, "_ssi_attempted_seeds", 0),
+            "ssi_resolved_seeds": getattr(self, "_ssi_resolved_seeds", 0),
+            "full_eos_compiled_batches": self._full_eos_compiled_batches,
+            "full_eos_compiled_points": self._full_eos_compiled_points,
+            "full_eos_compilation_failure": self._full_eos_compile_failure,
             "analytic_composition_derivatives": self._analytic_chemical,
             "curvature_compiled_batches": self._chemical_curvature_compiled_batches,
             "curvature_compilation_failure": self._chemical_curvature_compile_failure,
@@ -428,6 +468,7 @@ class EquilibriumFluid:
             and (self.device.type == "cuda" or self._compiled_chemical_cpu),
             "compiled_batches": self._chemical_compiled_batches,
             "compiled_points": self._chemical_compiled_points,
+            "padded_points": self._chemical_padded_points,
             "compilation_failure": self._chemical_compile_failure,
             "jacobian_compiled_batches": self._chemical_jacobian_compiled_batches,
             "jacobian_compiled_points": self._chemical_jacobian_compiled_points,

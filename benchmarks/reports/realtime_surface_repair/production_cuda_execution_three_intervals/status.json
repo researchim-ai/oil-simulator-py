@@ -1,0 +1,6 @@
+{
+  "qualified": false,
+  "state": "interrupted",
+  "reason": "Benchmark audit-call signature error; no qualified comparison.",
+  "whole_network_speedup_qualified": false
+}

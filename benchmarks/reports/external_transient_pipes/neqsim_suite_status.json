@@ -1,0 +1,54 @@
+[
+  {
+    "case": "gas8_flash1",
+    "returncode": 0
+  },
+  {
+    "case": "gas8_flash10",
+    "returncode": 0
+  },
+  {
+    "case": "gas16_flash1",
+    "returncode": 0
+  },
+  {
+    "case": "micro_gas8_flash1",
+    "returncode": 0
+  },
+  {
+    "case": "micro_gas8_cfl025",
+    "returncode": 1
+  },
+  {
+    "case": "micro_gas16_cfl025",
+    "returncode": 1
+  },
+  {
+    "case": "twophase8_flash1",
+    "returncode": 0
+  },
+  {
+    "case": "twophase8_flash10",
+    "returncode": 0
+  },
+  {
+    "case": "twophase16_flash1",
+    "returncode": 0
+  },
+  {
+    "case": "twophase8_compositional",
+    "returncode": 0
+  },
+  {
+    "case": "twophase8_conservative",
+    "returncode": 0
+  },
+  {
+    "case": "twophase16_conservative",
+    "returncode": 0
+  },
+  {
+    "case": "twophase8_conservative_1s",
+    "returncode": 0
+  }
+]

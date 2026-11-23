@@ -24,6 +24,7 @@ def entries(model, state):
 )
 def test_vmap_tangent_matches_scalar_without_scalar_fallback(monkeypatch, temperature, velocity):
     model, state = pipe(temperature, velocity, True)
+    model._analytic_single_phase_characteristics = False
     batch = entries(model, state)
     expected = [model._characteristics(*entry) for entry in batch]
 
@@ -66,6 +67,7 @@ def test_different_geometry_keeps_separate_scalar_kernels(monkeypatch):
 
 def test_stage_groups_separate_support_roots_and_chunk_budget(monkeypatch):
     model, _ = pipe(196.2)
+    model._analytic_single_phase_characteristics = False
     state = model.initialize(
         {
             "0": {"pressure_pa": 1e6, "temperature_k": 320.0, "mole_fractions": [1.0, 0.0]},
@@ -136,6 +138,7 @@ def test_distinct_states_and_wall_capacities_use_their_own_tangents(monkeypatch)
     from check_pr_collocation_walls import wall_fixture
 
     model, state = wall_fixture()
+    model._analytic_single_phase_characteristics = False
     batch = entries(model, state)
     expected = [model._characteristics(*row) for row in batch]
     assert not torch.equal(expected[0], expected[1])
@@ -154,6 +157,7 @@ def test_distinct_states_and_wall_capacities_use_their_own_tangents(monkeypatch)
 @pytest.mark.parametrize("invalid", ["nan", "complex", "bound"])
 def test_bad_member_of_batch_is_rejected_with_original_spectral_check(monkeypatch, invalid):
     model, state = pipe(320.0)
+    model._analytic_single_phase_characteristics = False
     batch = entries(model, state)
     original = torch.linalg.eigvals
 

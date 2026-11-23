@@ -1,0 +1,6 @@
+{
+  "status": "Bounded diagnostic profile ended",
+  "elapsed_s": 20.195175399000163,
+  "scope": "20-second eager cProfile diagnostic; compiled CPU chemical kernels disabled; NOT a performance measurement",
+  "sources_unchanged": true
+}

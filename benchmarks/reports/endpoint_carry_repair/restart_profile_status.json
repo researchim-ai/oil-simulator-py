@@ -1,0 +1,6 @@
+{
+  "completed": false,
+  "exit_code": 139,
+  "scope": "Diagnostic child only; no accepted states, not a solver validation result",
+  "failure": "cProfile/faulthandler diagnostic terminated with SIGSEGV; main calculation separate"
+}

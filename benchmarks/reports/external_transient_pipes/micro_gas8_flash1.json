@@ -1,0 +1,433 @@
+{
+  "scope": "External isolated pipe workload; different discretization/thermodynamic scheduling, not a speedup ratio against the coupled facility",
+  "engine": "neqsim-3.29.0",
+  "status": "completed_workload_not_experimental_validation",
+  "jar_sha256": "d75c8314a0ac14bebdd2be5c0a733be836cbc9752a19bb6c9185b8cbb32d40bb",
+  "script_sha256": "09dbfa24e4747a0d15ad6be90a4a68ed8ed975f83ea22aa66d817eecfefd1f22",
+  "java_version": "21.0.13.1",
+  "platform": "Linux-6.17.0-22-generic-x86_64-with-glibc2.39",
+  "jvm_active_processors": 1,
+  "jvm_boot_wall_s": 0.06562020199999097,
+  "request": {
+    "cells": 8,
+    "length_m": 0.2,
+    "diameter_m": 0.001,
+    "duration_s": 0.05,
+    "thermo_interval": 1,
+    "cfl": 0.5,
+    "transport": "fixed-phase",
+    "mixture": "methane",
+    "pressure_method": "coupled",
+    "repeats": 3
+  },
+  "cold": {
+    "repeat": 0,
+    "initialization_wall_s": 0.3979287779984588,
+    "transient_wall_s": 1.0767623419997108,
+    "simulated_s": 0.049999999999996575,
+    "accepted_substeps": 4800,
+    "steady_converged": true,
+    "initial_pressure_pa": [
+      5000000.000002484,
+      5000000.000002129,
+      5000000.000001774,
+      5000000.000001419,
+      5000000.0000010645,
+      5000000.00000071,
+      5000000.000000355,
+      5000000.0
+    ],
+    "initial_temperature_k": [
+      300.0,
+      299.99999999999847,
+      299.99999999999693,
+      299.9999999999954,
+      299.99999999999386,
+      299.9999999999923,
+      299.9999999999908,
+      299.99999999998926
+    ],
+    "initial_liquid_holdup": [
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ],
+    "final_pressure_pa": [
+      5001000.0,
+      4693351.87065707,
+      4679766.020751258,
+      4628489.28756382,
+      4681999.341115794,
+      4640649.469832436,
+      4765420.876878626,
+      5000000.0
+    ],
+    "final_temperature_k": [
+      298.9880159294562,
+      298.37788060761665,
+      298.4316431509856,
+      298.43050462314096,
+      298.53378821608567,
+      298.5336939260987,
+      298.5535284135949,
+      298.48560108433077
+    ],
+    "final_liquid_holdup": [
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ],
+    "mass_ledgers": {
+      "GAS": {
+        "residual_kg": -1.5924219408380846e-19,
+        "relative_residual": 3.1263638750672984e-15
+      },
+      "OIL": {
+        "residual_kg": 0.0,
+        "relative_residual": 0.0
+      },
+      "WATER": {
+        "residual_kg": 0.0,
+        "relative_residual": 0.0
+      },
+      "LIQUID": {
+        "residual_kg": 0.0,
+        "relative_residual": 0.0
+      },
+      "TOTAL": {
+        "residual_kg": -1.5924219408380846e-19,
+        "relative_residual": 3.1263638750672984e-15
+      }
+    },
+    "thermal_ledger": {
+      "residual_j": -2.8293339893181724e-15,
+      "relative_residual": 1.0395827393755e-13
+    },
+    "conservative_energy_ledger": null,
+    "component_ledger": null,
+    "pressure_correction_converged": true,
+    "pressure_correction_relative_volume_residual": 6.53959172275261e-08,
+    "integration_method": "RK4",
+    "inlet_phase_count": 1
+  },
+  "warm": [
+    {
+      "repeat": 1,
+      "initialization_wall_s": 0.012141699000494555,
+      "transient_wall_s": 0.9903563859988935,
+      "simulated_s": 0.049999999999996575,
+      "accepted_substeps": 4800,
+      "steady_converged": true,
+      "initial_pressure_pa": [
+        5000000.000002484,
+        5000000.000002129,
+        5000000.000001774,
+        5000000.000001419,
+        5000000.0000010645,
+        5000000.00000071,
+        5000000.000000355,
+        5000000.0
+      ],
+      "initial_temperature_k": [
+        300.0,
+        299.99999999999847,
+        299.99999999999693,
+        299.9999999999954,
+        299.99999999999386,
+        299.9999999999923,
+        299.9999999999908,
+        299.99999999998926
+      ],
+      "initial_liquid_holdup": [
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "final_pressure_pa": [
+        5001000.0,
+        4693351.87065707,
+        4679766.020751258,
+        4628489.28756382,
+        4681999.341115794,
+        4640649.469832436,
+        4765420.876878626,
+        5000000.0
+      ],
+      "final_temperature_k": [
+        298.9880159294562,
+        298.37788060761665,
+        298.4316431509856,
+        298.43050462314096,
+        298.53378821608567,
+        298.5336939260987,
+        298.5535284135949,
+        298.48560108433077
+      ],
+      "final_liquid_holdup": [
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "mass_ledgers": {
+        "GAS": {
+          "residual_kg": -1.5924219408380846e-19,
+          "relative_residual": 3.1263638750672984e-15
+        },
+        "OIL": {
+          "residual_kg": 0.0,
+          "relative_residual": 0.0
+        },
+        "WATER": {
+          "residual_kg": 0.0,
+          "relative_residual": 0.0
+        },
+        "LIQUID": {
+          "residual_kg": 0.0,
+          "relative_residual": 0.0
+        },
+        "TOTAL": {
+          "residual_kg": -1.5924219408380846e-19,
+          "relative_residual": 3.1263638750672984e-15
+        }
+      },
+      "thermal_ledger": {
+        "residual_j": -2.8293339893181724e-15,
+        "relative_residual": 1.0395827393755e-13
+      },
+      "conservative_energy_ledger": null,
+      "component_ledger": null,
+      "pressure_correction_converged": true,
+      "pressure_correction_relative_volume_residual": 6.53959172275261e-08,
+      "integration_method": "RK4",
+      "inlet_phase_count": 1
+    },
+    {
+      "repeat": 2,
+      "initialization_wall_s": 0.009450452002056409,
+      "transient_wall_s": 0.5106641220008896,
+      "simulated_s": 0.049999999999996575,
+      "accepted_substeps": 4800,
+      "steady_converged": true,
+      "initial_pressure_pa": [
+        5000000.000002484,
+        5000000.000002129,
+        5000000.000001774,
+        5000000.000001419,
+        5000000.0000010645,
+        5000000.00000071,
+        5000000.000000355,
+        5000000.0
+      ],
+      "initial_temperature_k": [
+        300.0,
+        299.99999999999847,
+        299.99999999999693,
+        299.9999999999954,
+        299.99999999999386,
+        299.9999999999923,
+        299.9999999999908,
+        299.99999999998926
+      ],
+      "initial_liquid_holdup": [
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "final_pressure_pa": [
+        5001000.0,
+        4693351.87065707,
+        4679766.020751258,
+        4628489.28756382,
+        4681999.341115794,
+        4640649.469832436,
+        4765420.876878626,
+        5000000.0
+      ],
+      "final_temperature_k": [
+        298.9880159294562,
+        298.37788060761665,
+        298.4316431509856,
+        298.43050462314096,
+        298.53378821608567,
+        298.5336939260987,
+        298.5535284135949,
+        298.48560108433077
+      ],
+      "final_liquid_holdup": [
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "mass_ledgers": {
+        "GAS": {
+          "residual_kg": -1.5924219408380846e-19,
+          "relative_residual": 3.1263638750672984e-15
+        },
+        "OIL": {
+          "residual_kg": 0.0,
+          "relative_residual": 0.0
+        },
+        "WATER": {
+          "residual_kg": 0.0,
+          "relative_residual": 0.0
+        },
+        "LIQUID": {
+          "residual_kg": 0.0,
+          "relative_residual": 0.0
+        },
+        "TOTAL": {
+          "residual_kg": -1.5924219408380846e-19,
+          "relative_residual": 3.1263638750672984e-15
+        }
+      },
+      "thermal_ledger": {
+        "residual_j": -2.8293339893181724e-15,
+        "relative_residual": 1.0395827393755e-13
+      },
+      "conservative_energy_ledger": null,
+      "component_ledger": null,
+      "pressure_correction_converged": true,
+      "pressure_correction_relative_volume_residual": 6.53959172275261e-08,
+      "integration_method": "RK4",
+      "inlet_phase_count": 1
+    },
+    {
+      "repeat": 3,
+      "initialization_wall_s": 0.008454374001303222,
+      "transient_wall_s": 0.49670299499848625,
+      "simulated_s": 0.049999999999996575,
+      "accepted_substeps": 4800,
+      "steady_converged": true,
+      "initial_pressure_pa": [
+        5000000.000002484,
+        5000000.000002129,
+        5000000.000001774,
+        5000000.000001419,
+        5000000.0000010645,
+        5000000.00000071,
+        5000000.000000355,
+        5000000.0
+      ],
+      "initial_temperature_k": [
+        300.0,
+        299.99999999999847,
+        299.99999999999693,
+        299.9999999999954,
+        299.99999999999386,
+        299.9999999999923,
+        299.9999999999908,
+        299.99999999998926
+      ],
+      "initial_liquid_holdup": [
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "final_pressure_pa": [
+        5001000.0,
+        4693351.87065707,
+        4679766.020751258,
+        4628489.28756382,
+        4681999.341115794,
+        4640649.469832436,
+        4765420.876878626,
+        5000000.0
+      ],
+      "final_temperature_k": [
+        298.9880159294562,
+        298.37788060761665,
+        298.4316431509856,
+        298.43050462314096,
+        298.53378821608567,
+        298.5336939260987,
+        298.5535284135949,
+        298.48560108433077
+      ],
+      "final_liquid_holdup": [
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "mass_ledgers": {
+        "GAS": {
+          "residual_kg": -1.5924219408380846e-19,
+          "relative_residual": 3.1263638750672984e-15
+        },
+        "OIL": {
+          "residual_kg": 0.0,
+          "relative_residual": 0.0
+        },
+        "WATER": {
+          "residual_kg": 0.0,
+          "relative_residual": 0.0
+        },
+        "LIQUID": {
+          "residual_kg": 0.0,
+          "relative_residual": 0.0
+        },
+        "TOTAL": {
+          "residual_kg": -1.5924219408380846e-19,
+          "relative_residual": 3.1263638750672984e-15
+        }
+      },
+      "thermal_ledger": {
+        "residual_j": -2.8293339893181724e-15,
+        "relative_residual": 1.0395827393755e-13
+      },
+      "conservative_energy_ledger": null,
+      "component_ledger": null,
+      "pressure_correction_converged": true,
+      "pressure_correction_relative_volume_residual": 6.53959172275261e-08,
+      "integration_method": "RK4",
+      "inlet_phase_count": 1
+    }
+  ],
+  "warm_median_transient_wall_s": 0.5106641220008896,
+  "limitations": [
+    "No separator, finite nozzle, capillary film, controller or reservoir is included",
+    "NeqSim has its own caloric data, phase closures, boundary placement and CFL control",
+    "Thermal ledger is NeqSim's discrete thermal balance, not an independent full-EOS total-energy audit",
+    "Initial stream basis is positive and tiny rather than exactly zero",
+    "fixed-phase disables named-component transport and phase mass transfer; compositional enables both; conservative-energy additionally selects the experimental coupled-Euler full-energy recovery"
+  ]
+}

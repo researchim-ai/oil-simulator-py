@@ -1,0 +1,6 @@
+{
+  "scope": "Captured accepted coupled slow step, not full-cycle speed/accuracy",
+  "difference_in_original_error_norm": 8.844287797744155e-09,
+  "same_end_clock": true,
+  "cpu_and_cuda_independent_audits_passed": true
+}

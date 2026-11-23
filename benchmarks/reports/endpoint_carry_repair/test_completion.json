@@ -1,0 +1,18 @@
+{
+  "connected_regressions": {
+    "passed": 68,
+    "elapsed_s": 139.45
+  },
+  "initial_cpu_clock_endpoint_suite": {
+    "passed": 16,
+    "elapsed_s": 3.39
+  },
+  "final_cpu_cuda_endpoint_suite": {
+    "passed": 16,
+    "elapsed_s": 2.14,
+    "gpu": "RTX 3090"
+  },
+  "overlapping_counts": true,
+  "ruff_passed": true,
+  "scope": "Tests cover endpoint policy and existing transport/subcycling/journaling, not full-cycle qualification"
+}

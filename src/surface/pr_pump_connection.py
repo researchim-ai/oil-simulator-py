@@ -87,11 +87,73 @@ def enabled_predictor(unit, enabled, ratio):
 
 class PumpConnectionBundle:
     count = 5
+    _fixed_check_valves = True
     _thermodynamic_predictor = True
     _enthalpy_roundoff = True
+    _shutoff_valve_predictor = True
+    _reuse_valve_branch = True
 
-    def __init__(self, model, state, openings, offset, seeds=None, active=None):
+    @staticmethod
+    def forget_valves(model):
+        from .equilibrium_cache import FlashCache
+
+        cache = getattr(model.fluid, "_active_flash_cache", None)
+        if isinstance(cache, FlashCache):
+            cache.pump_valve_seeds.pop(model.model_id, None)
+
+    @classmethod
+    def previous_valves(cls, model):
+        """A branch guess only: every new solve still checks complementarity."""
+        from .equilibrium_cache import FlashCache, _signature
+
+        cache = getattr(model.fluid, "_active_flash_cache", None)
+        if (
+            not cls._fixed_check_valves
+            or not cls._reuse_valve_branch
+            or not isinstance(cache, FlashCache)
+        ):
+            return None
+        saved = cache.pump_valve_seeds.get(model.model_id)
+        if saved is None:
+            return None
+        try:
+            if saved["signature"] == _signature(model.fluid):
+                cache.pump_valve_seeds.move_to_end(model.model_id)
+                return dict(saved["states"])
+        except (TypeError, RuntimeError):
+            pass
+        cache.pump_valve_seeds.pop(model.model_id, None)
+        return None
+
+    @classmethod
+    def remember_valves(cls, model, states):
+        from .equilibrium_cache import _MODEL_TENSORS, FlashCache, _signature
+
+        cache = getattr(model.fluid, "_active_flash_cache", None)
+        if (
+            not states
+            or not cls._fixed_check_valves
+            or not cls._reuse_valve_branch
+            or not isinstance(cache, FlashCache)
+        ):
+            return
+        try:
+            signature = _signature(model.fluid)
+        except (TypeError, RuntimeError):
+            return
+        cache.pump_valve_seeds[model.model_id] = {
+            "signature": signature,
+            "states": dict(states),
+            "parameters": tuple(getattr(model.fluid, n) for n in _MODEL_TENSORS),
+        }
+        cache.pump_valve_seeds.move_to_end(model.model_id)
+        while len(cache.pump_valve_seeds) > 16:
+            cache.pump_valve_seeds.popitem(last=False)
+
+    def __init__(self, model, state, openings, offset, seeds=None, active=None, valve_states=None):
         self.model = model
+        self.valve_states = {}
+        self.valve_tensors = {}
         self.entries = []
         self.mixtures, self.sizes, self.mixture_snapshots = {}, {}, {}
         self.initial, self.lower, self.upper = [], [], []
@@ -134,6 +196,7 @@ class PumpConnectionBundle:
                     old.pressure_pa + rho * G * unit.card.shutoff_head_m * ratio**2,
                 ),
             )
+            shutoff_pressure = pressure
             guess = (
                 0.0
                 if state.nodes[b][1].pressure_pa >= pressure
@@ -177,6 +240,18 @@ class PumpConnectionBundle:
             ):
                 guess, pressure, temperatures = self._initial_liquid_guess(
                     unit, state, a, b, ratio, qscale, rho, guess, pressure, temperatures
+                )
+            if self._fixed_check_valves and openings[unit.name] and unit.card.check_valve:
+                closed = (valve_states or {}).get(
+                    unit.name,
+                    state.nodes[b][1].pressure_pa
+                    >= (shutoff_pressure if self._shutoff_valve_predictor else pressure),
+                )
+                if type(closed) is not bool:
+                    raise TypeError("Check-valve active states must be boolean")
+                self.valve_states[unit.name] = closed
+                self.valve_tensors[unit.name] = torch.tensor(
+                    closed, dtype=torch.bool, device=f.tc.device
                 )
             self.initial.append(
                 f.tensor(
@@ -339,7 +414,19 @@ class PumpConnectionBundle:
             if unit.name in self.mixtures:
                 local_net, local_rows, row, snapshots, admissible, limits = self.mixtures[
                     unit.name
-                ].evaluate(unit, a, b, offset, qscale, curves, efficiency, y, data, speeds)
+                ].evaluate(
+                    unit,
+                    a,
+                    b,
+                    offset,
+                    qscale,
+                    curves,
+                    efficiency,
+                    y,
+                    data,
+                    speeds,
+                    closed_state=self.valve_tensors.get(unit.name),
+                )
                 for index, flux in local_net.items():
                     net[index] = net.get(index, 0) + flux
                 rows.append(local_rows)
@@ -406,6 +493,13 @@ class PumpConnectionBundle:
                 if unit.card.check_valve
                 else pressure_residual
             )
+            if unit.name in self.valve_tensors:
+                # The temperature constraints differ across a shut check
+                # valve. Switching them during a line search gives a finite
+                # jump even at q=0. Solve one smooth active branch, then check
+                # complementarity before accepting the physical step.
+                closed = self.valve_tensors[unit.name]
+                valve_row = torch.where(closed, y[offset], pressure_residual)
             qi = f.tensor_homogeneous(pressure, tis, x, "liquid")
             qp = f.tensor_homogeneous(pressure, tpump, x, "liquid")
             qd = f.tensor_homogeneous(target["p"], tdel, x, "liquid")
@@ -676,6 +770,32 @@ class PumpConnectionBundle:
             "mapped_speed_rad_s": omega,
         }
         return net, rows, row, (unit, pressure, tis, tpump, pout, tdel, x, closed, pin, tin), valid
+
+    def check_valve_updates(self, y, data, *, tolerance=1e-11):
+        """Primal/dual active-set corrections, never an acceptance relaxation.
+
+        The open branch enforces zero pressure gap; the closed branch enforces
+        zero flow. A negative gap on a closed branch requires opening. An open
+        solve blocked at its nonnegative-flow bound with a positive gap requires
+        closure. Bounds and the final nonlinear residual still apply.
+        """
+        changes = {}
+        for unit, a, b, offset, enabled, qscale, *_ in self.entries:
+            if not enabled or unit.name not in self.valve_states:
+                continue
+            flow = y[offset]
+            gap = (
+                data[b]["p"]
+                + unit.outlet_loss_pa_s2_m6 * (flow * qscale).square()
+                - y[offset + 1].exp()
+            ) / data[a]["p"]
+            flow, gap = torch.stack((flow, gap)).detach().cpu().tolist()
+            closed = self.valve_states[unit.name]
+            if closed and gap < -tolerance:
+                changes[unit.name] = False
+            elif not closed and flow <= tolerance and gap > tolerance:
+                changes[unit.name] = True
+        return changes
 
     def validate(self, traces):
         changes = {}

@@ -1,0 +1,6 @@
+{
+  "qualified": false,
+  "state": "interrupted",
+  "reason": "Interrupted: repeated specialization on valve booleans and changing loss coefficients; fixed as runtime tensors.",
+  "whole_network_speedup_qualified": false
+}

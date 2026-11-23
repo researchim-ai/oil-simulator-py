@@ -1,0 +1,172 @@
+{
+  "backward_euler": {
+    "wall_s": 32.492340990998855,
+    "steps": 182,
+    "attempts": 102,
+    "fallback_intervals": null,
+    "state": {
+      "nodes": {
+        "gas_export": {
+          "component_moles": [
+            281.14606717564044,
+            52.048185755548026,
+            13.799404549186516
+          ],
+          "total_energy_j": -856429.7838096261,
+          "momentum_kg_m_s": 0.0,
+          "phase_component_moles": [
+            [
+              281.14606717564044,
+              52.048185755548026,
+              13.799404549186516
+            ]
+          ],
+          "phase_roots": [
+            "stable"
+          ],
+          "pressure_pa": 1019980.2744822889,
+          "temperature_k": 365.00070744876797,
+          "wall_temperature_k": null
+        },
+        "gas_recycle_0": {
+          "component_moles": [
+            4.424845475680201e-05,
+            8.19165573153546e-06,
+            2.1718330759506017e-06
+          ],
+          "total_energy_j": -0.14445847250701957,
+          "momentum_kg_m_s": 3.896058732051791e-07,
+          "phase_component_moles": [
+            [
+              4.424845475680201e-05,
+              8.19165573153546e-06,
+              2.1718330759506017e-06
+            ]
+          ],
+          "phase_roots": [
+            "stable"
+          ],
+          "pressure_pa": 1009991.428718424,
+          "temperature_k": 361.04450855213884,
+          "wall_temperature_k": null
+        },
+        "gas_suction": {
+          "component_moles": [
+            28.403828170179118,
+            5.258361746339356,
+            1.3941362210875707
+          ],
+          "total_energy_j": -102267.78299578994,
+          "momentum_kg_m_s": 0.0,
+          "phase_component_moles": [
+            [
+              28.403828170179118,
+              5.258361746339356,
+              1.3941362210875707
+            ]
+          ],
+          "phase_roots": [
+            "stable"
+          ],
+          "pressure_pa": 999730.826072513,
+          "temperature_k": 354.9920424151291,
+          "wall_temperature_k": null
+        }
+      },
+      "time_s": 0.4022215473010917,
+      "next_step_s": 0.0008051301276066347,
+      "model_id": "90f44f16ef9058bf485fe877d87d27d6c8ec657ea24622f5b0a226b493e53e98"
+    },
+    "audit": {
+      "accepted": true,
+      "checked_substeps": 182,
+      "maximum_local_component_residual_mol": 1.5467470817373804e-13,
+      "maximum_local_energy_residual_j": 5.806351040217834e-11
+    }
+  },
+  "radau3": {
+    "wall_s": 7.826993262000542,
+    "steps": 28,
+    "attempts": 21,
+    "fallback_intervals": 0,
+    "state": {
+      "nodes": {
+        "gas_export": {
+          "component_moles": [
+            281.1460671756407,
+            52.04818575554814,
+            13.799404549186509
+          ],
+          "total_energy_j": -856429.7838096255,
+          "momentum_kg_m_s": 0.0,
+          "phase_component_moles": [
+            [
+              281.1460671756407,
+              52.04818575554814,
+              13.799404549186509
+            ]
+          ],
+          "phase_roots": [
+            "stable"
+          ],
+          "pressure_pa": 1019980.2744822907,
+          "temperature_k": 365.0007074487685,
+          "wall_temperature_k": null
+        },
+        "gas_recycle_0": {
+          "component_moles": [
+            4.424845444870423e-05,
+            8.19165567449774e-06,
+            2.1718330608283463e-06
+          ],
+          "total_energy_j": -0.14445846965003561,
+          "momentum_kg_m_s": 3.89605870964246e-07,
+          "phase_component_moles": [
+            [
+              4.424845444870423e-05,
+              8.19165567449774e-06,
+              2.1718330608283463e-06
+            ]
+          ],
+          "phase_roots": [
+            "stable"
+          ],
+          "pressure_pa": 1009991.4239619067,
+          "temperature_k": 361.04450923313624,
+          "wall_temperature_k": null
+        },
+        "gas_suction": {
+          "component_moles": [
+            28.40382817017934,
+            5.258361746339416,
+            1.3941362210875847
+          ],
+          "total_energy_j": -102267.78299579294,
+          "momentum_kg_m_s": 0.0,
+          "phase_component_moles": [
+            [
+              28.40382817017934,
+              5.258361746339416,
+              1.3941362210875847
+            ]
+          ],
+          "phase_roots": [
+            "stable"
+          ],
+          "pressure_pa": 999730.8260725182,
+          "temperature_k": 354.99204241512825,
+          "wall_temperature_k": null
+        }
+      },
+      "time_s": 0.4022215473010917,
+      "next_step_s": 0.0014242444410581534,
+      "model_id": "90f44f16ef9058bf485fe877d87d27d6c8ec657ea24622f5b0a226b493e53e98"
+    },
+    "audit": {
+      "accepted": true,
+      "checked_substeps": 28,
+      "maximum_local_component_residual_mol": 1.4260914241626703e-13,
+      "maximum_local_energy_residual_j": 5.3458012846923195e-11
+    }
+  }
+}

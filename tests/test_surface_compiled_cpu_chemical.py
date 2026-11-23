@@ -14,7 +14,9 @@ def f(monkeypatch):
     return result
 
 
-def test_cpu_fusion_preserves_chunked_roots_and_parameter_updates(f):
+@pytest.mark.parametrize("compact", [False, True])
+def test_cpu_fusion_preserves_chunked_roots_and_parameter_updates(f, compact):
+    f._compact_chemical_cpu = compact
     p = torch.linspace(9e5, 2e6, 71, dtype=torch.float64)
     t = torch.linspace(310.0, 350.0, 71, dtype=torch.float64)
     z = torch.linspace(0.1, 0.9, 71, dtype=torch.float64)
@@ -142,3 +144,22 @@ def test_cpu_fused_empty_and_one_component_tangents(f):
         )
     assert result.shape == (1, 0, 0)
     assert empty.shape == (0, 1, 1)
+
+
+@pytest.mark.parametrize("count", [1, 8, 9, 64, 65, 72])
+def test_small_cpu_tiles_preserve_real_properties_and_logical_row_count(f, count):
+    f._compact_chemical_cpu = True
+    p = torch.linspace(2e5, 3e6, count, dtype=torch.float64)
+    t = torch.linspace(190.0, 370.0, count, dtype=torch.float64)
+    z = torch.linspace(0.0, 1.0, count, dtype=torch.float64)
+    x = torch.stack((z, 1 - z), -1)
+    with torch.no_grad():
+        reference = f.tensor_homogeneous(p, t, x, _chemical_only=True)
+        actual = f.tensor_chemical_batch(p, t, x)
+    for key in actual:
+        torch.testing.assert_close(actual[key], reference[key], rtol=2e-11, atol=2e-12)
+    assert f._chemical_compile_failure is None
+    assert f._chemical_compiled_points == count
+    full, tail = divmod(count, 64)
+    expected = full * 64 + (0 if not tail else 8 if tail <= 8 else 64)
+    assert f._chemical_padded_points == expected

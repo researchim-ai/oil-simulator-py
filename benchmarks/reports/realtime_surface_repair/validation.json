@@ -1,0 +1,26 @@
+{
+  "cpu_regressions": {
+    "passed": 74,
+    "log": "/tmp/pr-realtime-final-tests.log"
+  },
+  "cpu_cuda_property_acoustic_regressions": {
+    "passed": 18,
+    "log": "/tmp/pr-realtime-cuda-tests-fixed.log"
+  },
+  "cuda_device": "RTX 3090; CUDA_VISIBLE_DEVICES=1",
+  "real_time_qualified": false,
+  "full_cycle_current_sources_qualified": false,
+  "source_sha256": {
+    "src/surface/full_eos_kernel.py": "a06a888763d39f3362b15401977ddec5f2d731bd8105611a0ee766ee8deeaf8e",
+    "src/surface/pr_subcycled_surface.py": "2154923b31af923163aaa8e519301e0b45004a4202a73bb08c96b90be0bfdf74",
+    "src/surface/torch_nonlinear.py": "bdc1755eb0888208c568e0082c95b6eca9e2267f8d5bea857a9560d0bd792cdd",
+    "src/surface/pr_equilibrium_transport.py": "f6e9f9af15b8bcaf9d6c900bef78e2f3856319f17f00c772b618a9fb218dd0f1",
+    "src/surface/pr_fast_prefix.py": "92edfee5d6e47e156cb4cd027f3ee38e02c3ff4869dcf0c8491fc57cf185d9cc"
+  },
+  "negative_findings": [
+    "Radau does not accelerate the smooth connected interval and fails the strict 0.01 same-path agreement criterion there.",
+    "Connected restart Radau pair was stopped before baseline completion.",
+    "Inductor default buffer reuse produced incorrect full-residual values; that compiled residual is not integrated.",
+    "Combined options show no established additional whole-network speedup."
+  ]
+}

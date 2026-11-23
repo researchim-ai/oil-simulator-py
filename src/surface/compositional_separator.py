@@ -499,13 +499,20 @@ class CompositionalSeparator:
             if _network_incoming is None
             else _network_incoming
         )
+        # Changing step/state data are tensor inputs to a reusable residual
+        # graph, rather than Python constants specialized at every time step.
+        dt = f.tensor(dt)
+        energy_scale = f.tensor(energy_scale)
+        old_energy = f.tensor(inv.internal_energy_j)
+        old_potential = f.tensor(old_potential)
+        old_wall_temperature = f.tensor(old.wall_temperature_k) if self.wall else None
 
         def evaluate(y, phase_values=None):
             np_ = torch.exp(y[: m * c]).reshape(m, c)
             p = torch.exp(y[m * c])
             t = y[m * c + 1] * ref
             tw = y[-1] * ref if self.wall else t
-            totals = f.tensor([0.0] * len(f.names)).index_copy(0, active, np_.sum(0))
+            totals = y.new_zeros(len(f.names)).index_copy(0, active, np_.sum(0))
             phase_n, x, q = (
                 self._phase_values(p, t, np_, active, tags)
                 if phase_values is None
@@ -525,13 +532,13 @@ class CompositionalSeparator:
             energy = (
                 internal
                 + potential
-                - inv.internal_energy_j
+                - old_energy
                 - old_potential
                 - dt * (feed[1] + incoming[1] - out_e + heat + exchange)
             )
             wall_error = (
                 (
-                    self.wall.heat_capacity_j_k * (tw - old.wall_temperature_k)
+                    self.wall.heat_capacity_j_k * (tw - old_wall_temperature)
                     - dt * (ambient - exchange)
                 )
                 if self.wall

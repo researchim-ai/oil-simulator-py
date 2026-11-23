@@ -304,6 +304,7 @@ class StratifiedPRColumn:
         escale = max(1.0, abs(e_relative), float(n.sum().cpu()) * R * tguess)
         scale_n = n if _network_guess is None else _network_guess
         nscale = scale_n[active].clamp_min(scale_n.sum() * 1e-12)
+        e_relative, escale = f.tensor(e_relative), f.tensor(escale)
 
         def evaluate(y):
             local = y[: count * c].reshape(count, c)

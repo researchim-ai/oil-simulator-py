@@ -69,7 +69,21 @@ class LiquidMixtureTrace:
         self.count = 5 + sum(trace.nalloc for trace in self.traces)
         self.extra_initial = [trace.initial[1:] for trace in self.traces]
 
-    def evaluate(self, unit, a, b, offset, qscale, curves, efficiency, y, data, speeds):
+    def evaluate(
+        self,
+        unit,
+        a,
+        b,
+        offset,
+        qscale,
+        curves,
+        efficiency,
+        y,
+        data,
+        speeds,
+        *,
+        closed_state=None,
+    ):
         f, model = self.model.fluid, self.model
         source, target = data[a], data[b]
         z = source["n"] / source["n"].sum()
@@ -88,6 +102,9 @@ class LiquidMixtureTrace:
         gap = (target["p"] + unit.outlet_loss_pa_s2_m6 * q.square() - pressure) / source["p"]
         closed = gap > y[offset] if unit.card.check_valve else q.new_zeros((), dtype=torch.bool)
         valve = torch.minimum(y[offset], gap) if unit.card.check_valve else gap
+        if closed_state is not None:
+            closed = torch.as_tensor(closed_state, dtype=torch.bool, device=q.device)
+            valve = torch.where(closed, y[offset], gap)
         trace_values, chemical, snapshots = [], [], []
         cursor = offset + 5
         valid = (source["q"]["density_kg_m3"] >= unit.minimum_density_kg_m3).all()

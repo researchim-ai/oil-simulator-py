@@ -1,0 +1,6 @@
+{
+  "qualified": false,
+  "state": "interrupted",
+  "reason": "Interrupted: excessive AOT preparation; replaced by guarded direct ATen lowering.",
+  "whole_network_speedup_qualified": false
+}

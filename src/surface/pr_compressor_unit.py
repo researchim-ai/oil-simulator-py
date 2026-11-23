@@ -130,7 +130,7 @@ class CompressorBundle:
                     f.tensor(unit.card.beta),
                     tables,
                     f.tensor(unit.reference_mole_fractions),
-                    max(1.0, cp * old.temperature_k),
+                    f.tensor(max(1.0, cp * old.temperature_k)),
                 )
             )
             offset += 3

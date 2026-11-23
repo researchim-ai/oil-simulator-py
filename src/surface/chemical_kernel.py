@@ -10,6 +10,7 @@ _compiled_cpu = None
 _compiled_cpu_jacobian = None
 _compiled_curvature = {}
 _WIDTH = 64
+_SMALL_WIDTH = 8
 
 
 def _batch(fluid, pressures, temperatures, compositions):
@@ -155,7 +156,7 @@ def eligible(fluid, *values):
 
 
 def evaluate(fluid, pressures, temperatures, compositions):
-    """Plain tensors only. Pad independent rows to one reusable kernel shape."""
+    """Plain tensors only; reusable 8/64-row CPU or 64-row CUDA kernels."""
     global _compiled, _compiled_cpu
     count = pressures.numel()
     if not count:
@@ -183,8 +184,13 @@ def evaluate(fluid, pressures, temperatures, compositions):
             t = temperatures[start : start + _WIDTH]
             x = compositions[start : start + _WIDTH]
             size = p.numel()
-            if size < _WIDTH:
-                padding = _WIDTH - size
+            width = (
+                _SMALL_WIDTH
+                if cpu and fluid._compact_chemical_cpu and size <= _SMALL_WIDTH
+                else _WIDTH
+            )
+            if size < width:
+                padding = width - size
                 p = torch.cat((p, p[-1:].expand(padding)))
                 t = torch.cat((t, t[-1:].expand(padding)))
                 x = torch.cat((x, x[-1:].expand(padding, -1)))
@@ -192,6 +198,7 @@ def evaluate(fluid, pressures, temperatures, compositions):
             pieces.append({key: value[:size] for key, value in answer.items()})
             fluid._chemical_compiled_batches += 1
             fluid._chemical_compiled_points += size
+            fluid._chemical_padded_points += width
     except (torch._dynamo.exc.BackendCompilerFailed, torch._dynamo.exc.Unsupported) as exc:
         # Compiler availability is not a physical domain failure. Remain on
         # the SAME device, and expose the loss of acceleration explicitly.

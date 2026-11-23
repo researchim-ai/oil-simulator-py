@@ -9,15 +9,126 @@ import torch
 from .equilibrium_stability_batch import stability_candidates, stability_objective
 
 
+def _group_width(rows, remaining, preferred, kernel_width, small_width=None):
+    width = min(preferred, remaining)
+    # Small tails occupy the same fused kernel tile anyway. Resolve all
+    # remaining scales in that tile instead of launching it repeatedly.
+    small_width = kernel_width if small_width is None else small_width
+
+    def work(count):
+        full, tail = divmod(count, kernel_width)
+        return full * kernel_width + (
+            0 if not tail else small_width if tail <= small_width else kernel_width
+        )
+
+    budget = work(rows * width)
+    while width < remaining and work(rows * (width + 1)) <= budget:
+        width += 1
+    return width
+
+
+def _first_acceptable(
+    evaluate,
+    point,
+    direction,
+    pressures,
+    temperatures,
+    chemical,
+    value,
+    grad,
+    residual,
+    done,
+    scales,
+    line_width,
+    *,
+    kernel_width=1,
+    small_width=None,
+):
+    """Same first admissible scale per row; later scales cannot change it."""
+    if _group_width(len(point), len(scales), line_width, kernel_width, small_width) == len(scales):
+        # Keep the original full-batch reference, including its evaluation
+        # order, for independent equivalence and performance comparisons.
+        trials = (point[:, None] + scales[None, :, None] * direction[:, None]).clamp(-160, 160)
+        cv, cg, cr, _, cq = evaluate(
+            trials, pressures[:, None], temperatures[:, None], chemical[:, None]
+        )
+        decrease = (grad * direction).sum(-1)[:, None] * scales[None]
+        allowed = (
+            cq["valid"]
+            & torch.isfinite(cv)
+            & torch.isfinite(cg).all(-1)
+            & (
+                (cv < value[:, None] + 1e-4 * decrease)
+                | (
+                    (cv <= value[:, None] + 1e-14)
+                    & (cr.abs().amax(-1) < residual.abs().amax(-1)[:, None])
+                )
+            )
+        )
+        selected = allowed.to(torch.int64).argmax(-1)
+        picked = trials.gather(1, selected[:, None, None].expand(-1, 1, point.shape[-1])).squeeze(1)
+        return torch.where((allowed.any(-1) & ~done)[:, None], picked, point)
+    chosen = point.clone()
+    pending = torch.arange(len(point), device=point.device)
+    begin = 0
+    while begin < len(scales):
+        if not len(pending):
+            break
+        count = _group_width(
+            len(pending), len(scales) - begin, line_width, kernel_width, small_width
+        )
+        local = scales[begin : begin + count]
+        source = point.index_select(0, pending)
+        step = direction.index_select(0, pending)
+        trials = (source[:, None] + local[None, :, None] * step[:, None]).clamp(-160, 160)
+        cv, cg, cr, _, cq = evaluate(
+            trials, pressures[pending, None], temperatures[pending, None], chemical[pending, None]
+        )
+        decrease = (grad[pending] * step).sum(-1)[:, None] * local[None]
+        previous = value[pending, None]
+        allowed = (
+            cq["valid"]
+            & torch.isfinite(cv)
+            & torch.isfinite(cg).all(-1)
+            & (
+                (cv < previous + 1e-4 * decrease)
+                | (
+                    (cv <= previous + 1e-14)
+                    & (cr.abs().amax(-1) < residual[pending].abs().amax(-1)[:, None])
+                )
+            )
+        )
+        take = allowed.any(-1) & ~done[pending]
+        selected = allowed.to(torch.int64).argmax(-1)
+        picked = trials.gather(1, selected[:, None, None].expand(-1, 1, point.shape[-1])).squeeze(1)
+        chosen.index_copy_(0, pending, torch.where(take[:, None], picked, chosen[pending]))
+        begin += count
+        if begin < len(scales):
+            pending = pending[(~allowed.any(-1) & ~done[pending]).nonzero(as_tuple=True)[0]]
+    return chosen
+
+
 def _minimize(fluid, pressures, temperatures, chemical, active, point, *, _compact=True):
     evaluate = stability_objective(fluid, active)
     width = point.shape[-1]
     identity = torch.eye(width, dtype=point.dtype, device=point.device)
     scales = point.new_tensor([2.0 ** (-i) for i in range(12)])
+    line_width = getattr(fluid, "_minimization_line_width", 12)
+    if type(line_width) is not int or not 1 <= line_width <= len(scales):
+        raise ValueError("Minimizer line-search width must be an integer in 1..12")
     old_point = old_grad = inverse = None
     all_points = point.clone()
     rows = torch.arange(len(point), device=point.device)
     with torch.no_grad():
+        kernel_width = 1
+        small_width = None
+        if line_width < len(scales) and hasattr(fluid, "tc"):
+            from .chemical_kernel import _SMALL_WIDTH, _WIDTH, eligible
+
+            if eligible(fluid, point, pressures, temperatures, chemical):
+                kernel_width = _WIDTH
+                if fluid.device.type == "cpu" and fluid._compact_chemical_cpu:
+                    small_width = _SMALL_WIDTH
         for _ in range(50):
             value, grad, residual, _, q = evaluate(point, pressures, temperatures, chemical)
             done = q["valid"] & (residual.abs().amax(-1) < 1e-9) & (grad.abs().amax(-1) < 2e-9)
@@ -46,27 +157,22 @@ def _minimize(fluid, pressures, temperatures, chemical, active, point, *, _compa
             usable = torch.isfinite(direction).all(-1) & ((direction * grad).sum(-1) < 0)
             direction = torch.where(usable[:, None], direction, -grad)
             direction *= (20.0 / direction.abs().amax(-1).clamp_min(20.0))[:, None]
-            trials = (point[:, None] + scales[None, :, None] * direction[:, None]).clamp(-160, 160)
-            cv, cg, cr, _, cq = evaluate(
-                trials, pressures[:, None], temperatures[:, None], chemical[:, None]
+            next_point = _first_acceptable(
+                evaluate,
+                point,
+                direction,
+                pressures,
+                temperatures,
+                chemical,
+                value,
+                grad,
+                residual,
+                done,
+                scales,
+                line_width,
+                kernel_width=kernel_width,
+                small_width=small_width,
             )
-            decrease = (grad * direction).sum(-1)[:, None] * scales[None]
-            allowed = (
-                cq["valid"]
-                & torch.isfinite(cv)
-                & torch.isfinite(cg).all(-1)
-                & (
-                    (cv < value[:, None] + 1e-4 * decrease)
-                    | (
-                        (cv <= value[:, None] + 1e-14)
-                        & (cr.abs().amax(-1) < residual.abs().amax(-1)[:, None])
-                    )
-                )
-            )
-            # Independent first acceptable step, never one global line search.
-            selected = allowed.to(torch.int64).argmax(-1)
-            chosen = trials.gather(1, selected[:, None, None].expand(-1, 1, width)).squeeze(1)
-            next_point = torch.where((allowed.any(-1) & ~done)[:, None], chosen, point)
             if torch.equal(next_point, point):
                 break
             if _compact:

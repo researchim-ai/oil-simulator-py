@@ -1,0 +1,4 @@
+{
+  "completed": false,
+  "reason": "Stopped before baseline completion; no whole-restart speedup claim."
+}

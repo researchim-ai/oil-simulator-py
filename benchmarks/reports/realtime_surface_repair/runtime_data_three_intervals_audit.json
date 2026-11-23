@@ -1,0 +1,19 @@
+{
+  "audit": {
+    "accepted": true,
+    "checked_split_steps": 6,
+    "checked_local_steps": 24,
+    "checked_slow_steps": 6,
+    "conservation_residuals": [
+      -6.821210263296962e-13,
+      -5.4569682106375694e-12,
+      5.820766091346741e-11,
+      -2.1464592547815187e-07
+    ]
+  },
+  "difference_from_pre_tensorization_in_original_error_norm": 0.0,
+  "initial_time_s": 0.706238099587186,
+  "end_time_s": 0.7548829334268597,
+  "physical_interval_s": 0.04864483383967369,
+  "real_time_qualified": false
+}

@@ -26,9 +26,18 @@ def test_subcycled_trial_saves_one_global_solve_without_borrowing_accepted_certi
     calls = []
     original = m.slow.plant.transport._step
 
+    depth = 0
+
     def counted(*args, **kwargs):
-        calls.append(True)
-        return original(*args, **kwargs)
+        nonlocal depth
+        # Count requested physical steps, excluding internal active-set retries.
+        if depth == 0:
+            calls.append(True)
+        depth += 1
+        try:
+            return original(*args, **kwargs)
+        finally:
+            depth -= 1
 
     monkeypatch.setattr(m.slow.plant.transport, "_step", counted)
     m._share_probe_quadrature = False

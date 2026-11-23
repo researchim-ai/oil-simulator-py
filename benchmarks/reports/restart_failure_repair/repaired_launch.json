@@ -1,0 +1,18 @@
+{
+  "pid": 143445,
+  "command": [
+    "/home/user/miniconda3/bin/python",
+    "scripts/run_pr_checkpointed_facility.py",
+    "--resume-journal",
+    "/home/user/workspace/oil-simulator-py-impes/benchmarks/reports/restart_failure_repair/cycle_prefix.accepted.jsonl",
+    "--allow-solver-change",
+    "--compiled-cpu-chemical",
+    "--budget-s",
+    "900",
+    "--output",
+    "/home/user/workspace/oil-simulator-py-impes/benchmarks/reports/restart_failure_repair/repaired_cycle.json"
+  ],
+  "start_clock_s": 0.4,
+  "budget_s": 900,
+  "scope": "Continuation from unchanged physical checkpoint; excludes recorded prefix runtime"
+}

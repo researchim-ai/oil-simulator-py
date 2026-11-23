@@ -140,7 +140,8 @@ class StratifiedPRFlow(StratifiedPRThermal):
         mirror = low >= port.height_m
         band_low = torch.where(mirror, port.height_m + radius - high, low - port.height_m + radius)
         band_high = torch.where(mirror, port.height_m + radius - low, high - port.height_m + radius)
-        fraction = disk_band_area(band_low, band_high, port.diameter_m) / (math.pi * radius**2)
+        band = disk_band_area(band_low, band_high, port.diameter_m)
+        fraction = band / (math.pi * radius**2)
         raw = weights * torch.cos(theta) ** 2
         ww = fraction * raw / raw.sum().clamp_min(1e-30)
         hh = torch.where(
@@ -208,7 +209,8 @@ class StratifiedPRFlow(StratifiedPRThermal):
                 ua = w.fluid_ua_w_k + w.ambient_ua_w_k
                 tw = (
                     (w.fluid_ua_w_k * t + w.ambient_ua_w_k * w.ambient_temperature_k) / ua
-                    if ua > 0 else t.new_tensor(state.wall_temperature_k)
+                    if ua > 0
+                    else t.new_tensor(state.wall_temperature_k)
                 )
             heat = w.fluid_ua_w_k * (tw - t)
             ambient = w.ambient_ua_w_k * (w.ambient_temperature_k - tw)
@@ -333,12 +335,14 @@ class StratifiedPRFlow(StratifiedPRThermal):
             if stationary:
                 # Replace storage balances, retaining the same profile,
                 # finite-aperture fluxes and caloric equations.
-                residual = torch.cat((
-                    r[:-count - 1],
-                    (out_n[active] - feed_n[active]) / nscale,
-                    ((out_e - feed_relative - heat) / escale).reshape(1),
-                    *chemical,
-                ))
+                residual = torch.cat(
+                    (
+                        r[: -count - 1],
+                        (out_n[active] - feed_n[active]) / nscale,
+                        ((out_e - feed_relative - heat) / escale).reshape(1),
+                        *chemical,
+                    )
+                )
             return residual, {
                 "data": data,
                 "column_variables": y[:size],
@@ -488,9 +492,8 @@ class StratifiedPRFlow(StratifiedPRThermal):
             for feed in self.feeds:
                 if feed.stream.molar_rate_mol_s:
                     local = c.sample(candidate, feed.height_m, side="below")
-                    if (
-                        local["pressure_pa"]
-                        > feed.stream.pressure_pa * (1.0 + ReceiverFeedPressureError.pressure_relative_tolerance)
+                    if local["pressure_pa"] > feed.stream.pressure_pa * (
+                        1.0 + ReceiverFeedPressureError.pressure_relative_tolerance
                     ):
                         failure = ReceiverFeedPressureError(
                             feed.stream.pressure_pa, local["pressure_pa"]

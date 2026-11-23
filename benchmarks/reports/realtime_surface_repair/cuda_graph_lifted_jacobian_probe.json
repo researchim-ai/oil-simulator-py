@@ -1,0 +1,7 @@
+{
+  "failure": "RuntimeError: !dynamicLayerStack.empty() INTERNAL ASSERT FAILED at \"/pytorch/aten/src/ATen/functorch/DynamicLayer.cpp\":221, please report a bug to PyTorch. ",
+  "graphs": [
+    25788
+  ],
+  "captures": []
+}

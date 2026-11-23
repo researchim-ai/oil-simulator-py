@@ -1,0 +1,15 @@
+{
+  "regressions": {
+    "passed": 109,
+    "skipped": 1,
+    "elapsed_s": 170.57
+  },
+  "cpu_cuda_restart_suite": {
+    "passed": 7,
+    "elapsed_s": 11.19,
+    "gpu": "RTX 3090"
+  },
+  "counts_overlap": true,
+  "ruff_passed": true,
+  "scope": "Pump active-set restart repair; not complete operating-cycle qualification"
+}

@@ -1,0 +1,6 @@
+{
+  "qualified": false,
+  "state": "interrupted",
+  "reason": "Interrupted after unsupported stateful residual wrapper disabled acceleration.",
+  "whole_network_speedup_qualified": false
+}

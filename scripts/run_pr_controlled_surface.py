@@ -11,8 +11,23 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 
-def run(config, *, device="cpu", progress=None):
+def run(config, *, device="cpu", progress=None, cuda_graphs=False):
+    if not cuda_graphs:
+        return _run(config, device=device, progress=progress)
+    if device != "cuda":
+        raise ValueError("CUDA graphs require the CUDA device")
+    from surface.cuda_execution import cuda_graph_execution
+
+    with cuda_graph_execution(progress=progress) as execution:
+        result = _run(config, device=device, progress=progress)
+        result["numerical_policy"]["cuda_execution"] = execution.statistics()
+        return result
+
+
+def _run(config, *, device="cpu", progress=None):
     from surface.equilibrium_properties import EquilibriumFluid
+    from surface.pr_equilibrium_transport import PREquilibriumTransportNetwork
+    from surface.pr_pump_connection import PumpConnectionBundle
     from surface.pr_surface_control import PRControlledSurface, PRControlledSurfaceState
     from surface.stratified_pr import StratifiedPRState
     from surface.torch_backend import runtime_fingerprint
@@ -96,13 +111,41 @@ def run(config, *, device="cpu", progress=None):
         "runtime": runtime_fingerprint(),
         "numerical_policy": {
             "shared_probe_quadrature": model._share_probe_quadrature,
+            "fast_prefix_reuse": getattr(model, "_reuse_fast_prefixes", False),
             "identical_trial_reuse": TorchNewton._reuse_identical_trials,
             "stagnation_patience": TorchNewton._stagnation_patience,
             "jacobian_reuse": TorchNewton._reuse_jacobian,
+            "accepted_residual_reuse": TorchNewton._reuse_accepted_residual,
+            "fugacity_ssi_predictor": EquilibriumFluid._fugacity_ssi_predictor,
+            "node_validation_reuse": PREquilibriumTransportNetwork._reuse_node_validation,
+            "node_validation": [
+                {
+                    "nodes": len(transport.nodes),
+                    "hits": transport._verified_node_hits,
+                    "misses": transport._verified_node_misses,
+                    "entries": len(transport._verified_nodes),
+                    "maximum_entries": transport._node_validation_entries,
+                }
+                for transport in dict.fromkeys(
+                    [model.plant.transport]
+                    + ([model.fast, model.slow.plant.transport] if hasattr(model, "fast") else [])
+                )
+            ],
+            "dense_jacobian_mode": TorchNewton._dense_jacobian_mode,
+            "fast_time_scheme": getattr(model, "fast_time_scheme", "backward_euler"),
             "early_certified_roundoff": TorchNewton._early_certified_roundoff,
+            "preserve_transport_endpoint_step": PREquilibriumTransportNetwork._preserve_endpoint_step,
+            "analytic_single_phase_characteristics": PREquilibriumTransportNetwork._analytic_single_phase_characteristics,
+            "pump_check_valve_active_set": PumpConnectionBundle._fixed_check_valves,
+            "pump_check_valve_branch_reuse": PumpConnectionBundle._reuse_valve_branch,
+            "pump_shutoff_valve_predictor": PumpConnectionBundle._shutoff_valve_predictor,
             "compiled_chemical": EquilibriumFluid._compiled_chemical,
             "compiled_cpu_chemical": EquilibriumFluid._compiled_chemical_cpu,
+            "compiled_cpu_full_eos": EquilibriumFluid._compiled_full_eos_cpu,
+            "compiled_cuda_full_eos": EquilibriumFluid._compiled_full_eos_cuda,
             "analytic_chemical": EquilibriumFluid._analytic_chemical,
+            "minimization_line_width": EquilibriumFluid._minimization_line_width,
+            "compact_chemical_cpu": EquilibriumFluid._compact_chemical_cpu,
             "warm_equilibrium": EquilibriumFluid._warm_equilibrium,
             "grouped_column_eos": {
                 name: column._batch_column_eos
@@ -123,8 +166,43 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("config", type=Path)
     parser.add_argument("--device", choices=["cpu", "cuda"], default="cpu")
+    parser.add_argument(
+        "--cuda-graphs",
+        action="store_true",
+        help="Reuse bounded CUDA graphs for dense Newton kernels; original physics and tolerances",
+    )
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--progress", action="store_true", help="JSON progress on stderr")
+    parser.add_argument(
+        "--no-fugacity-ssi",
+        action="store_true",
+        help="Reference: disable fugacity successive-substitution predictors",
+    )
+    parser.add_argument(
+        "--reevaluate-accepted-residual",
+        action="store_true",
+        help="Reference: recompute the accepted scalar residual at every Newton iteration",
+    )
+    parser.add_argument(
+        "--compiled-full-eos",
+        action="store_true",
+        help="Fuse exact full caloric EOS on the selected device; AD retains the eager kernel",
+    )
+    parser.add_argument(
+        "--staged-stability-lines",
+        action="store_true",
+        help="Evaluate TPD line searches in kernel-sized groups, preserving first admissible scales",
+    )
+    parser.add_argument(
+        "--full-cpu-chemical-tiles",
+        action="store_true",
+        help="Reference policy: pad small CPU chemical EOS batches to 64 rows",
+    )
+    parser.add_argument(
+        "--shrink-at-interval-end",
+        action="store_true",
+        help="Use endpoint-clipped transport steps as next proposals (reference policy)",
+    )
     parser.add_argument(
         "--refine-discarded-probe",
         action="store_true",
@@ -152,6 +230,11 @@ def main():
         action="store_true",
         help="Rebuild every Newton tangent for reference/performance comparisons",
     )
+    parser.add_argument(
+        "--reverse-dense-jacobian",
+        action="store_true",
+        help="Use reverse AD for small dense Newton blocks; sparse graph assembly is unchanged",
+    )
     chemical_policy = parser.add_mutually_exclusive_group()
     chemical_policy.add_argument(
         "--compiled-cpu-chemical",
@@ -178,9 +261,20 @@ def main():
     root = Path(__file__).resolve().parents[1]
     paths = [Path(__file__), *sorted((root / "src/surface").glob("*.py"))]
     hashes = {str(p.relative_to(root)): hashlib.sha256(p.read_bytes()).hexdigest() for p in paths}
+    from surface.equilibrium_properties import EquilibriumFluid
+    from surface.pr_equilibrium_transport import PREquilibriumTransportNetwork
     from surface.torch_nonlinear import TorchNewton
 
+    EquilibriumFluid._compiled_full_eos_cpu = args.compiled_full_eos and args.device == "cpu"
+    EquilibriumFluid._fugacity_ssi_predictor = not args.no_fugacity_ssi
+    TorchNewton._reuse_accepted_residual = not args.reevaluate_accepted_residual
+    EquilibriumFluid._compiled_full_eos_cuda = args.compiled_full_eos and args.device == "cuda"
+    EquilibriumFluid._compact_chemical_cpu = not args.full_cpu_chemical_tiles
+    EquilibriumFluid._minimization_line_width = 4 if args.staged_stability_lines else 12
+
+    PREquilibriumTransportNetwork._preserve_endpoint_step = not args.shrink_at_interval_end
     TorchNewton._reuse_jacobian = not args.fresh_jacobians
+    TorchNewton._dense_jacobian_mode = "reverse" if args.reverse_dense_jacobian else "forward"
     TorchNewton._early_certified_roundoff = not args.confirm_roundoff_plateau
     from surface.pr_surface_control import PRControlledSurface
 
@@ -190,7 +284,6 @@ def main():
     PRSubcycledSurface._share_probe_quadrature = not args.refine_discarded_probe
     TorchNewton._reuse_identical_trials = not args.evaluate_identical_trials
     TorchNewton._stagnation_patience = args.stagnation_patience
-    from surface.equilibrium_properties import EquilibriumFluid
 
     EquilibriumFluid._compiled_chemical_cpu = args.compiled_cpu_chemical
     EquilibriumFluid._compiled_chemical = not args.eager_chemical
@@ -202,6 +295,7 @@ def main():
     result = run(
         json.loads(args.config.read_text()),
         device=args.device,
+        cuda_graphs=args.cuda_graphs,
         progress=(lambda event: print(json.dumps(event), file=sys.stderr, flush=True))
         if args.progress
         else None,

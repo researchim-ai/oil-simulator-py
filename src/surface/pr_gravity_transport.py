@@ -757,6 +757,15 @@ class _ColumnCoupling:
         self.openings = openings
         self.heat = heat
         self.utility = utility
+        self.aperture_helpers = {
+            name: SimpleNamespace(column=column) for name, column in model.columns.items()
+        }
+        self.aperture_links = {
+            port.name: PREquilibriumLink(
+                port.name, port.column, port.node, port.diameter_m, target_port=port.pipe_port
+            )
+            for port in model.ports
+        }
         self.external_ports = tuple(
             (model.transport.names.index(p.node), p.pipe_port) for p in model.ports
         )
@@ -1120,7 +1129,7 @@ class _ColumnCoupling:
             )
             self.scales[name] = (
                 self.column_guesses[name][q[4]].clamp_min(self.column_guesses[name].sum() * 1e-12),
-                max(1.0, abs(rel), float(n.sum().cpu()) * R * s.temperature_k),
+                f.tensor(max(1.0, abs(rel), float(n.sum().cpu()) * R * s.temperature_k)),
             )
         for port in m.ports:
             name = port.column
@@ -1238,13 +1247,17 @@ class _ColumnCoupling:
                 old_problem[3](f.tensor(s.solution_variables))[1]["entropy_j_k"].cpu()
             )
 
+        dt = f.tensor(dt)
+        old_walls = {name: f.tensor(value) for name, value in self.state.walls}
+        column_work = {name: f.tensor(self.column_work_j.get(name, 0.0)) for name in m.columns}
+
         def evaluate(z):
             bodies = {}
             raw = {}
             walls = {}
             heats = {}
             ambient = {}
-            for name, s in self.state.columns:
+            for name in self.blocks:
                 a, b = self.blocks[name]
                 raw[name], bodies[name] = self.problems[name][3](z[a:b])
                 temp = bodies[name]["temperature"]
@@ -1254,7 +1267,7 @@ class _ColumnCoupling:
                     heats[name] = temp * 0
                     ambient[name] = temp * 0
                 else:
-                    oldtw = dict(self.state.walls)[name]
+                    oldtw = old_walls[name]
                     walls[name] = (
                         w.heat_capacity_j_k * oldtw
                         + dt * (w.fluid_ua_w_k * temp + w.ambient_ua_w_k * w.ambient_temperature_k)
@@ -1265,9 +1278,7 @@ class _ColumnCoupling:
             def exchange(data):
                 net = [z.new_zeros(len(f.names) + 2) for _ in t.nodes]
                 cn = {name: z.new_zeros(len(f.names)) for name in m.columns}
-                ce = {
-                    name: z.new_tensor(self.column_work_j.get(name, 0.0) / dt) for name in m.columns
-                }
+                ce = {name: column_work[name] / dt for name in m.columns}
                 cs = {name: z.new_zeros(()) for name in m.columns}
                 chemical = []
                 details = {}
@@ -1298,9 +1309,13 @@ class _ColumnCoupling:
                     bounds = torch.cat(
                         (z.new_zeros(1), d["interfaces"], z.new_tensor([c.geometry.height_m]))
                     )
-                    helper = SimpleNamespace(column=c)
+                    helper = self.aperture_helpers[name]
                     heights, weights = StratifiedPRFlow._aperture(
-                        helper, bounds, phase, port, order
+                        helper,
+                        bounds,
+                        phase,
+                        port,
+                        order,
                     )
                     if port_index in decoded_ports:
                         pp, xx, q = decoded_ports[port_index]
@@ -1324,13 +1339,7 @@ class _ColumnCoupling:
                         ).flatten()
                     )
                     i = t.names.index(port.node)
-                    link = PREquilibriumLink(
-                        port.name,
-                        port.column,
-                        port.node,
-                        port.diameter_m,
-                        target_port=port.pipe_port,
-                    )
+                    link = self.aperture_links[port.name]
                     endpoint, _, normal, extra = t._endpoint(i, data[i], "target", link)
                     fluxsum = z.new_zeros(len(f.names) + 2)
                     entropy = z.new_zeros(())
@@ -1525,7 +1534,7 @@ class _ColumnCoupling:
             br, result = base(z[: self.size], exchange)
             ex = result["exchange"]
             res = []
-            for name, s in self.state.columns:
+            for name in self.blocks:
                 c = m.columns[name]
                 active = self.problems[name][4]
                 count = len(active)

@@ -44,8 +44,10 @@ def stability_candidates(
     _stop_stalled=True,
     _compact_seeds=True,
     _screen_curvature=True,
+    _allow_ssi=True,
 ):
     n = len(active)
+    original_point = point
     chemical_eos = getattr(fluid, "tensor_chemical", fluid.tensor_homogeneous)
     identity = torch.eye(n - 1, dtype=point.dtype, device=point.device)
     scales = getattr(fluid, "_stability_line_scales", None)
@@ -236,4 +238,19 @@ def stability_candidates(
                 & (exact_residual.abs().amax(-1) < 1e-9)
                 & (exact_gradient.abs().amax(-1) < 2e-9)
             )
-    return value, w, q, accepted
+    result = value, w, q, accepted
+    if _allow_ssi and getattr(fluid, "_fugacity_ssi_predictor", False):
+        from .equilibrium_ssi_predictor import refine_candidates
+
+        return refine_candidates(
+            fluid,
+            *original_inputs,
+            active,
+            original_point,
+            result,
+            _scaled_curvature=_scaled_curvature,
+            _stop_stalled=_stop_stalled,
+            _compact_seeds=_compact_seeds,
+            _screen_curvature=_screen_curvature,
+        )
+    return result

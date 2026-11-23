@@ -1,0 +1,7 @@
+{
+  "qualified": true,
+  "state": "completed",
+  "whole_network_speedup_qualified": true,
+  "scope": "complete requested schedule including initialization; independent audits outside timing",
+  "simulated_duration_s": 0.04864483383967369
+}

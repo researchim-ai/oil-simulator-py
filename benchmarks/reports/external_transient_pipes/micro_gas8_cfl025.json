@@ -1,0 +1,23 @@
+{
+  "status": "failed_not_qualified",
+  "engine": "neqsim-3.29.0",
+  "jar_sha256": "d75c8314a0ac14bebdd2be5c0a733be836cbc9752a19bb6c9185b8cbb32d40bb",
+  "script_sha256": "09dbfa24e4747a0d15ad6be90a4a68ed8ed975f83ea22aa66d817eecfefd1f22",
+  "request": {
+    "cells": 8,
+    "length_m": 0.2,
+    "diameter_m": 0.001,
+    "duration_s": 0.05,
+    "thermo_interval": 1,
+    "cfl": 0.25,
+    "transport": "fixed-phase",
+    "mixture": "methane",
+    "pressure_method": "coupled",
+    "repeats": 3
+  },
+  "repeat": 0,
+  "transient_wall_s_before_failure": 0.6176641040001414,
+  "simulated_s_before_failure": 0.011088541666666485,
+  "exception": "java.lang.IllegalStateException: pipe: transient advanced 0.011088541666666668 of requested 0.05 s after 2130 substep attempts; latest maximum relative cell-volume residual=1.0080495785494626E-7, tolerance=1.0E-7, iterations=24/24, pressureCorrectionLimited=true; last rejection=coupled pressure correction did not converge, lastRejectedCell=-1, lastRejectedVariable=-1, lastRejectedValue=NaN, lastRejectedPreviousValue=NaN",
+  "completed_repeats": []
+}

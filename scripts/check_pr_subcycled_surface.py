@@ -153,6 +153,13 @@ def audit(config, report):
             for stage, clock, dt in zip(stages, clocks, durations, strict=True):
                 saved = stage["report"]
                 if stage["operator"] == "fast":
+                    allowed_methods = (
+                        {"radau3", "backward_euler_fallback"}
+                        if model.fast_time_scheme == "radau3"
+                        else {None}
+                    )
+                    if any(s.get("method") not in allowed_methods for s in saved["steps"]):
+                        raise ValueError("Fast integration method differs from requested scheme")
                     expected = copy.deepcopy(_transport(current))
                     expected["nodes"] = {
                         n: s for n, s in expected["nodes"].items() if n in model.fast.names

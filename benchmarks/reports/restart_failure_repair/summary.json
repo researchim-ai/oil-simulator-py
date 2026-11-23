@@ -1,0 +1,84 @@
+{
+  "root_cause": "Discontinuous pump check-valve thermal equations within Newton line search",
+  "repaired_full_operating_cycle_qualified": true,
+  "final_clock_s": 1.0,
+  "physical_audit": {
+    "accepted": true,
+    "checked_split_steps": 270,
+    "checked_local_steps": 2418,
+    "checked_slow_steps": 270,
+    "conservation_residuals": [
+      1.1857537174364552e-10,
+      3.456079866737127e-11,
+      2.764863893389702e-10,
+      -1.5097169843159008e-06
+    ]
+  },
+  "operation": {
+    "simulated_s": 1.0,
+    "machine_throughput_kg": [
+      {
+        "gas_compressor": 0.0001085850530028849,
+        "oil_pump": 0.004545054395223617,
+        "water_pump": 0.00045598000743084563
+      },
+      {
+        "gas_compressor": 0.0,
+        "oil_pump": 0.0,
+        "water_pump": 0.0
+      },
+      {
+        "gas_compressor": 0.00032401506233870135,
+        "oil_pump": 0.0012612136700637406,
+        "water_pump": 0.00017524658551272071
+      }
+    ],
+    "separator_aperture_throughput_mol": [
+      {
+        "flowline_1_port": 4.353336697870517e-05,
+        "flowline_2_port": 4.353336697847754e-05,
+        "gas_takeoff_port": 1.2471609155323653e-05,
+        "oil_takeoff_port": 0.00028239950241455003,
+        "water_takeoff_port": 0.0037414944680836592
+      },
+      {
+        "flowline_1_port": 0.0,
+        "flowline_2_port": 0.0,
+        "gas_takeoff_port": 0.0,
+        "oil_takeoff_port": 0.0,
+        "water_takeoff_port": 0.0
+      },
+      {
+        "flowline_1_port": 0.00016285407988391227,
+        "flowline_2_port": 0.00016285407986757507,
+        "gas_takeoff_port": 9.698037826124996e-05,
+        "oil_takeoff_port": 0.0017944304859363657,
+        "water_takeoff_port": 0.011072648934559367
+      }
+    ]
+  },
+  "post_repair_continuation_wall_s": 1505.0650901829995,
+  "timing_scope": "Shared CPU host; excludes original prefix and prefix audits; not a cold-cycle speed benchmark",
+  "source_matches_checked_version": true,
+  "cpu_cuda_captured_step": {
+    "scope": "Captured accepted coupled slow step, not full-cycle speed/accuracy",
+    "difference_in_original_error_norm": 8.844287797744155e-09,
+    "same_end_clock": true,
+    "cpu_and_cuda_independent_audits_passed": true
+  },
+  "tests": {
+    "regressions": {
+      "passed": 109,
+      "skipped": 1,
+      "elapsed_s": 170.57
+    },
+    "cpu_cuda_restart_suite": {
+      "passed": 7,
+      "elapsed_s": 11.19,
+      "gpu": "RTX 3090"
+    },
+    "counts_overlap": true,
+    "ruff_passed": true,
+    "scope": "Pump active-set restart repair; not complete operating-cycle qualification"
+  }
+}

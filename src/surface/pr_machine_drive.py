@@ -121,7 +121,7 @@ def signed_motor_work(old, end, torque, dt, drive, *, isolated=False):
 
 class RotorBundle:
     def __init__(self, model, state, dt, openings, commands, offset, previous_data=None):
-        self.model, self.dt = model, dt
+        self.model, self.dt = model, model.fluid.tensor(dt)
         self.entries = []
         self.initial, self.lower, self.upper = [], [], []
         self.isolated = {}

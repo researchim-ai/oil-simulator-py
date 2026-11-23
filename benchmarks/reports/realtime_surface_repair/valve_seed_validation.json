@@ -1,0 +1,24 @@
+{
+  "cpu": {
+    "passed": 99,
+    "skipped": 1,
+    "log": "valve_cpu_tests.txt"
+  },
+  "cpu_cuda_run": {
+    "passed": 18,
+    "device": "RTX 3090, CUDA_VISIBLE_DEVICES=1",
+    "log": "valve_cuda_tests.txt"
+  },
+  "unchanged_tolerances": true,
+  "complete_operating_cycle_qualified": false,
+  "real_time_qualified": false,
+  "paired_schedule": "valve_seeds_reverse_three_intervals/summary.json",
+  "source_sha256": {
+    "src/surface/equilibrium_cache.py": "689f073de27b26c544e9716a7d851ec682f44632515f43b1ca82ccc65bfe816f",
+    "src/surface/pr_pump_connection.py": "90819db8152843844755b0ebac559e82076ed1be682aa849e8f9cd11851430be",
+    "src/surface/pr_equilibrium_transport.py": "cfd891f23d726120249dbe25140584ecd3be1745af948d5947c575d6c241d54a",
+    "src/surface/torch_nonlinear.py": "bdc1755eb0888208c568e0082c95b6eca9e2267f8d5bea857a9560d0bd792cdd",
+    "scripts/run_pr_controlled_surface.py": "9b7ec9d2e0277bca8be13fb8a6b2d0ec7c6da030da65d455c4626c6f788eeb38",
+    "scripts/benchmark_pr_step_policy.py": "12840d02d428e7de3e28f4c6511b8bb3f79c9ef1213892e5ab94a79e5c733035"
+  }
+}

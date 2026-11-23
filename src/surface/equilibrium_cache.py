@@ -100,6 +100,9 @@ class FlashCache:
         self.maximum_entries = maximum_entries
         self.entries = OrderedDict()
         self.warm_equilibria = OrderedDict()
+        self.transport_prefixes = OrderedDict()
+        self.pump_valve_seeds = OrderedDict()
+        self.transport_prefix_hits = self.transport_prefix_steps = 0
         self.warm_flash_attempts = self.warm_flash_accepts = self.warm_flash_fallbacks = 0
         self.hits = self.misses = self.evictions = 0
         self.caloric_fast_accepts = self.caloric_bracket_fallbacks = 0
@@ -110,6 +113,8 @@ class FlashCache:
     def statistics(self):
         return {
             "enabled": True,
+            "transport_prefix_hits": self.transport_prefix_hits,
+            "transport_prefix_macrosteps": self.transport_prefix_steps,
             "warm_flash_attempts": self.warm_flash_attempts,
             "warm_flash_accepts": self.warm_flash_accepts,
             "warm_flash_fallbacks": self.warm_flash_fallbacks,
@@ -154,6 +159,8 @@ def cached_flashes(fluid, *, enabled=True, maximum_entries=256):
         if isinstance(cache, FlashCache):
             cache.entries.clear()
             cache.warm_equilibria.clear()
+            cache.transport_prefixes.clear()
+            cache.pump_valve_seeds.clear()
 
 
 def _request_key(fluid, name, arguments, *, model_signature=None):

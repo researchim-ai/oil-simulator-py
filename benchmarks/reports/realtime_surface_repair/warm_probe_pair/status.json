@@ -1,0 +1,4 @@
+{
+  "adopted": false,
+  "reason": "No reduction in nonlinear work. Experimental fine-endpoint warm guess was removed; apparent elapsed speedup is not qualified."
+}

@@ -16,7 +16,8 @@ from .darcy_hydraulics import darcy_pressure_loss
 from .equilibrium_properties import EquilibriumFluid
 from .liquid import ConservationError, HydraulicConvergenceError, PropertyModelError, _number
 from .operation import _digest
-from .torch_linear import TorchNewton, checked_device
+from .torch_linear import checked_device
+from .torch_nonlinear import TorchNewton
 
 
 @dataclass(frozen=True)
@@ -234,18 +235,15 @@ class PRMomentumPipe:
 
     def sound_speed(self, p, t, x):
         f = self.fluid
-        pt = f.tensor([p, t])
-        x = f.tensor(x)
-
-        def properties(pt):
-            q = f.tensor_homogeneous(pt[0], pt[1], x, "stable")
-            return torch.stack((q["density_kg_m3"], q["molar_entropy_j_mol_k"]))
-
-        jac = torch.func.jacfwd(properties)(pt)
-        denominator = jac[0, 0] - jac[0, 1] * jac[1, 0] / jac[1, 1]
-        if not bool((torch.isfinite(jac).all() & (jac[1, 1] > 0) & (denominator > 0)).cpu()):
+        # The caloric EOS already evaluates -(v^2/M)*(dp/dv-T*(dp/dT)^2/Cv).
+        # For one homogeneous phase at fixed composition this is the same
+        # isentropic derivative previously reconstructed through forward AD.
+        # Phase stability remains a separate mandatory check in _stable().
+        q = f.tensor_homogeneous(f.tensor(p), f.tensor(t), f.tensor(x), "stable")
+        speed = q["frozen_sound_speed_m_s"]
+        if not bool((q["valid"] & torch.isfinite(speed) & (speed > 0)).cpu()):
             raise PropertyModelError("Invalid stable acoustic derivative")
-        return float(torch.rsqrt(denominator).cpu())
+        return float(speed.cpu())
 
     def _stable(self, p, t, x):
         q = self.fluid.flash_pt(p, t, x)
