@@ -9,10 +9,30 @@ import threading
 import warnings
 from contextlib import contextmanager
 from contextvars import ContextVar
+from types import FunctionType
 
 import torch
 
 _ACTIVE = ContextVar("surface_cuda_execution", default=None)
+
+
+def declare_runtime_residual(function):
+    """Attach the pure-runtime protocol without a self-reference cycle.
+
+    Share code/defaults/closure with the original nonrecursive function, so
+    execution guards and live tensor coefficients are unchanged. Do not copy
+    its attributes: they belong to the solver-facing function only.
+    """
+    runtime = FunctionType(
+        function.__code__,
+        function.__globals__,
+        function.__name__,
+        function.__defaults__,
+        function.__closure__,
+    )
+    runtime.__kwdefaults__ = function.__kwdefaults__
+    function.runtime_residual = runtime
+    return function
 
 
 def native_literal_factories(module):

@@ -1,0 +1,63 @@
+{
+  "scope": "Qualified, rejected and scope-limited changes; percentages must not be multiplied to claim a cumulative speedup. Current run is strict 3312-day isothermal reservoir/wells without detailed surface network.",
+  "items": [
+    {
+      "name": "CPR CUDA graphs",
+      "current": "enabled",
+      "scope": "reservoir linear solver",
+      "note": "Ordinary per-system CUDA graphs; distinct from experimental cross-system replay."
+    },
+    {
+      "name": "Persistent CPR replay",
+      "current": "disabled",
+      "source": "../norne_cpr_replay/README.md",
+      "previous_full_wall_s": [
+        648.5940937995911,
+        673.0500545501709
+      ],
+      "note": "Not promoted: full Norne slower and trajectory changes."
+    },
+    {
+      "name": "Shared PVT row lookup",
+      "current": "rolled back",
+      "source": "../norne_pvt_row_lookup/README.md",
+      "note": "Early and late paired windows showed no speedup; not present as an accepted acceleration."
+    },
+    {
+      "name": "Fused FGMRES vector update",
+      "current": "retained",
+      "source": "../norne_krylov_update/README.md",
+      "note": "Early step-call window about 4.5% faster; no late-window or isolated full-run speedup established."
+    },
+    {
+      "name": "CSR diagonal preparation",
+      "current": "retained",
+      "source": "../norne_amg_diagonal/README.md",
+      "note": "Fewer CUDA synchronizations; about 2% observed late-window speedup, full-run isolated benefit not established."
+    },
+    {
+      "name": "Adaptive AMG reuse",
+      "current": "disabled; amg_rebuild=step",
+      "source": "../norne_adaptive_amg/README.md",
+      "note": "Experimental; accuracy-preserving equivalence did not pass and late window did not accelerate."
+    },
+    {
+      "name": "Newton repair",
+      "current": "retained",
+      "source": "../norne_full_newton/README.md",
+      "note": "Historical complete runs reduced rejected attempts from 33 to 3. Sources and adaptive grids differ; not an isolated optimization A/B."
+    },
+    {
+      "name": "Fallback Newton line search",
+      "current": "enabled to reproduce preceding 499.453 s qualification",
+      "source": "../norne_full_safeguard/README.md",
+      "note": "Previous full trajectory identical; three fallback retries did not rescue original failed steps, no acceleration attributed."
+    },
+    {
+      "name": "Native PR/Radau/private CPU input buffers",
+      "current": "not invoked by this deck",
+      "source": "../pr_kernel_preparation/README.md",
+      "note": "Separate detailed surface-network implementation; its speedups must not be claimed for plain Norne."
+    }
+  ]
+}

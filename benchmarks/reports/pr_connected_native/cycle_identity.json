@@ -1,0 +1,11 @@
+{
+  "physical_inputs_and_schedule_identical": true,
+  "original_sha256": "7eec0be32f87c21b636cd89d57ad34ca468a0b9a258168fe1a431a90a42a8a78",
+  "candidate_sha256": "401b0c8a533a39175de0c6ecce46a456b6fabce0b0c74749b21dd67cbd8af641",
+  "initial_time_s": 0.0,
+  "duration_s": 1.0,
+  "changed_fields": [
+    "model.fast_time_scheme",
+    "initial.state.model_id"
+  ]
+}

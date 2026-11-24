@@ -7,12 +7,47 @@ The owner retains every unresolved start for its reference minimizer.
 import torch
 
 
+def choose_trial_values(current, trials, indices, take):
+    """Carry only scores/gradients/validity of exactly selected trial rows."""
+    result = []
+    for old, candidates in zip(current, trials):
+        index = indices.reshape(len(indices), 1, *([1] * (candidates.ndim - 2)))
+        chosen = candidates.gather(1, index.expand(-1, 1, *candidates.shape[2:])).squeeze(1)
+        mask = take.reshape(len(take), *([1] * (old.ndim - 1)))
+        result.append(torch.where(mask, chosen, old))
+    return tuple(result)
+
+
+def remember_reuse(fluid, rows):
+    fluid._stability_value_reused_batches = getattr(fluid, "_stability_value_reused_batches", 0) + 1
+    fluid._stability_value_reused_points = (
+        getattr(fluid, "_stability_value_reused_points", 0) + rows
+    )
+
+
+def can_reuse_values(fluid, *values):
+    return (
+        getattr(fluid, "_reuse_stability_values", True)
+        and values[0].device.type == "cpu"
+        and all(
+            not v.requires_grad and not torch._C._functorch.is_functorch_wrapped_tensor(v)
+            for v in values
+        )
+    )
+
+
 def stability_objective(fluid, active):
     """Shared Gibbs objective, logit gradient and chemical differences."""
     chemical_eos = getattr(fluid, "tensor_chemical", fluid.tensor_homogeneous)
     chemical_batch = getattr(fluid, "tensor_chemical_batch", torch.vmap(chemical_eos))
 
     def evaluate(v, row_p, row_t, row_chemical):
+        if getattr(fluid, "_fused_stability_objective_cpu", False) and fluid.device.type == "cpu":
+            from .chemical_kernel import stability_values
+
+            fused = stability_values(fluid, v, row_p, row_t, row_chemical, active)
+            if fused is not None:
+                return fused
         logits = torch.cat((v, torch.zeros_like(v[..., :1])), -1)
         logw = torch.log_softmax(logits, -1)
         wa = logw.exp()
@@ -69,8 +104,15 @@ def stability_candidates(
         original_inputs = pressures, temperatures, chemical
         all_points = point.clone()
         rows = torch.arange(len(point), device=point.device)
+        reuse_values = can_reuse_values(fluid, point, pressures, temperatures, chemical)
+        pending_values = None
         for _ in range(10):
-            value, grad, residual, _, q = evaluate(point, pressures, temperatures, chemical)
+            if pending_values is None:
+                value, grad, residual, _, q = evaluate(point, pressures, temperatures, chemical)
+                property_valid = q["valid"]
+            else:
+                value, grad, residual, property_valid = pending_values
+                remember_reuse(fluid, len(point))
             if hasattr(fluid, "tensor_chemical_jacobian"):
                 jac = fluid.tensor_chemical_jacobian(
                     pressures, temperatures, chemical, active, point
@@ -80,7 +122,9 @@ def stability_candidates(
                     point, pressures, temperatures, chemical
                 )
             valid = (
-                torch.isfinite(jac).all(dim=(-1, -2)) & torch.isfinite(grad).all(-1) & q["valid"]
+                torch.isfinite(jac).all(dim=(-1, -2))
+                & torch.isfinite(grad).all(-1)
+                & property_valid
             )
             jac = torch.where(valid[:, None, None], jac, identity)
             done = valid & (residual.abs().amax(-1) < 1e-9) & (grad.abs().amax(-1) < 2e-9)
@@ -121,6 +165,13 @@ def stability_candidates(
             chosen = candidates.gather(1, indices[:, None, None].expand(-1, 1, n - 1)).squeeze(1)
             take = allowed.gather(1, indices[:, None]).squeeze(1) & ~done
             next_point = torch.where(take[:, None], chosen, point)
+            if reuse_values:
+                pending_values = choose_trial_values(
+                    (value, grad, residual, property_valid),
+                    (cv, cg, cr, cq["valid"]),
+                    indices,
+                    take,
+                )
             # With identical coordinates the deterministic predictor repeats
             # the same tangent and line search. Stop wasted retries, but keep
             # the final curvature test and scalar fallback for unresolved seeds.
@@ -140,6 +191,8 @@ def stability_candidates(
                 temperatures = temperatures.index_select(0, keep)
                 chemical = chemical.index_select(0, keep)
                 next_point = next_point.index_select(0, keep)
+                if pending_values is not None:
+                    pending_values = tuple(v.index_select(0, keep) for v in pending_values)
             point = next_point
             if unchanged or len(point) == 0:
                 break

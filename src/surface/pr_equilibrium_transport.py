@@ -689,6 +689,9 @@ class PREquilibriumTransportNetwork:
         self._verified_nodes = OrderedDict()
         self._verified_nodes_signature = None
         self._verified_node_hits = self._verified_node_misses = 0
+        self.nonlinear_work = {
+            key: 0 for key in ("solves", "iterations", "jacobian_builds", "residual_evaluations")
+        }
 
     def to_dict(self):
         def node_dict(node):
@@ -2784,6 +2787,32 @@ class PREquilibriumTransportNetwork:
                 support = sorted(set(zip(*pattern)) | evaluate.additional_sparsity)
                 pattern = ([p[0] for p in support], [p[1] for p in support])
             if _coupling is not None:
+                # Canonical fixed-layout traces only. Mixture/throat/face
+                # branches need their own explicit variable registry first.
+                if (
+                    (
+                        getattr(_coupling, "capture_predictor", False)
+                        or getattr(_coupling, "algebraic_guess", None) is not None
+                    )
+                    and not pump_connection_bundle.mixtures
+                    and not restriction_bundle.entries
+                    and not face_bundle.entries
+                    and not population_bundle.entries
+                ):
+                    evaluate.predictor_layout = _digest(
+                        {
+                            "version": 1,
+                            "model": self.model_id,
+                            "offsets": _offsets,
+                            "size": len(y),
+                            "openings": sorted(openings.items()),
+                            "nodes": [
+                                (p["active"].cpu().tolist(), self.cells[i]._tags(seeds[i]))
+                                for i, p in enumerate(problems)
+                            ],
+                            "pump_valves": sorted(pump_connection_bundle.valve_states.items()),
+                        }
+                    )
                 y, lo, hi, evaluate, pattern = _coupling.prepare(
                     y, lo, hi, evaluate, _offsets, dt, pattern
                 )
@@ -2827,6 +2856,10 @@ class PREquilibriumTransportNetwork:
                     maximum_update=evaluate.maximum_update,
                 )
                 r, result = evaluate(y)
+            self.nonlinear_work["solves"] += 1
+            self.nonlinear_work["iterations"] += solver.iterations
+            self.nonlinear_work["jacobian_builds"] += solver.jacobian_builds
+            self.nonlinear_work["residual_evaluations"] += evaluations
             accepted = bool(
                 (ok & result["valid"] & torch.isfinite(r).all() & (r.abs().max() < 1e-9)).cpu()
             )
@@ -3093,6 +3126,19 @@ class PREquilibriumTransportNetwork:
                     PumpConnectionBundle.remember_valves(self, pump_connection_bundle.valve_states)
                     return new, {
                         "dt_s": dt,
+                        **(
+                            {
+                                "nonlinear_predictor": {
+                                    "layout": evaluate.predictor_layout,
+                                    "base_layout": evaluate.predictor_base_layout,
+                                    "base_size": evaluate.predictor_base_size,
+                                    "variables": y.detach().cpu().tolist(),
+                                }
+                            }
+                            if getattr(_coupling, "capture_predictor", False)
+                            and hasattr(evaluate, "predictor_layout")
+                            else {}
+                        ),
                         **({"drives": drive_report} if self.drives else {}),
                         "state": new.to_dict(),
                         **(

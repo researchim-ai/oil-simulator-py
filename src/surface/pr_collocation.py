@@ -10,7 +10,7 @@ from dataclasses import replace
 
 import torch
 
-from .cuda_execution import current_execution
+from .cuda_execution import current_execution, declare_runtime_residual
 from .equilibrium_cache import cached_fluid_transaction
 from .liquid import ConservationError, HydraulicConvergenceError, PropertyModelError, _number
 from .pr_equilibrium_transport import (
@@ -21,20 +21,31 @@ from .pr_equilibrium_transport import (
 from .time_interval import interval_step_s, split_step_s
 from .torch_krylov import gmres_device
 from .torch_linear import BlockJacobi, ColoredJacobian, TorchCOO
-from .torch_nonlinear import TorchNewton
+from .torch_nonlinear import DenseNewtonHistory, TorchNewton
 
 
 class PRCollocation:
     _batch_stage_residual = True
     _block_preconditioning = True
+    _reuse_step_jacobian = False
 
     def __init__(
-        self, physics, *, phase_fallback=True, scheme="gauss4", error_control="step_doubling"
+        self,
+        physics,
+        *,
+        phase_fallback=True,
+        scheme="gauss4",
+        error_control="step_doubling",
+        reuse_step_jacobian=None,
     ):
         if not isinstance(physics, PREquilibriumTransportNetwork):
             raise TypeError("Expected PREquilibriumTransportNetwork")
         if type(phase_fallback) is not bool:
             raise ValueError("phase_fallback must be boolean")
+        if reuse_step_jacobian is not None:
+            if type(reuse_step_jacobian) is not bool:
+                raise ValueError("reuse_step_jacobian must be boolean")
+            self._reuse_step_jacobian = reuse_step_jacobian
         if (
             physics.pumps
             or physics.compressors
@@ -66,6 +77,8 @@ class PRCollocation:
             raise ValueError("Embedded control requires Radau3")
         self.error_control = error_control
         self._solve_calls = 0
+        self._stage_linearization = DenseNewtonHistory()
+        self._linear_work = {key: 0 for key in ("jacobian_builds", "jacobian_reuses")}
         self._batch_stage_residual = getattr(
             physics, "_batch_collocation_stages", self._batch_stage_residual
         )
@@ -245,7 +258,12 @@ class PRCollocation:
                 stagnation_tolerance=1e-11,
                 maximum_update=update,
                 blocks=getattr(fn, "linear_blocks", None) if self._block_preconditioning else None,
+                linearization_history=getattr(fn, "linearization_history", None),
+                linearization_key=getattr(fn, "linearization_key", None),
+                time_coefficient=getattr(fn, "time_coefficient", None),
             )
+            for key in self._linear_work:
+                self._linear_work[key] += getattr(solver, key)
             # TorchNewton returns the final residual at exactly y, including
             # eager acceptance under native execution. Do not evaluate both
             # complete PR stages a second time just to obtain the same row.
@@ -270,7 +288,7 @@ class PRCollocation:
             row, physical = evaluate(y)
             return row - h * rates(physical)
 
-        filtered.runtime_residual = filtered
+        declare_runtime_residual(filtered)
         execution = current_execution()
         accelerated = execution is not None and execution.eligible(endpoint)
         if endpoint.numel() <= m.dense_limit:
@@ -362,8 +380,26 @@ class PRCollocation:
         def stage_rows(z):
             return self._stage_rows(z, size, interval_factor, evaluate, rates)
 
-        stage_rows.runtime_residual = stage_rows
+        declare_runtime_residual(stage_rows)
         stage_rows.linear_blocks = self._physical_blocks(offsets, evaluate.wall_indices, size, 2)
+        # Only the already-adapted homogeneous graph has a complete branch
+        # signature here. External material couplings retain fresh tangents.
+        if self._reuse_step_jacobian and _coupling is None:
+            stage_rows.linearization_history = self._stage_linearization
+            stage_rows.linearization_key = (
+                m.model_id,
+                self.scheme,
+                tuple(
+                    (tuple(p["active"].tolist()), tuple(d["tags"])) for p, d in zip(problems, old)
+                ),
+                tuple(sorted(commands.items())),
+                tuple(heat),
+                tuple(t if q else None for q, t in zip(heat, utility)),
+                tuple(sorted(losses.items())),
+            )
+            stage_rows.time_coefficient = dt
+        else:
+            self._stage_linearization.clear()
 
         stages, evaluations, residual = self._solve(
             stage_rows,
@@ -653,6 +689,10 @@ class PRCollocation:
                 }
             )
         solve_start = self._solve_calls
+        linear_start = dict(self._linear_work)
+        history_start = tuple(
+            getattr(self._stage_linearization, key) for key in ("hits", "refreshes", "builds")
+        )
         current, steps, attempts, rejected, fallbacks = state, [], 0, 0, 0
         dt = state.next_step_s
         while current.time_s < end:
@@ -696,6 +736,7 @@ class PRCollocation:
                         order = self.order
                         accepted_records = (one, two)
                 except (HydraulicConvergenceError, ConservationError, PropertyModelError) as exc:
+                    self._stage_linearization.clear()
                     if not self.phase_fallback:
                         raise
                     fallback_reason = str(exc)
@@ -708,6 +749,7 @@ class PRCollocation:
                 if not math.isfinite(error) or error > 1:
                     raise HydraulicConvergenceError("PR collocation temporal error exceeded")
             except (HydraulicConvergenceError, ConservationError, PropertyModelError) as exc:
+                self._stage_linearization.clear()
                 rejected += 1
                 dt = step / 2
                 if dt < m.minimum_step_s:
@@ -752,6 +794,13 @@ class PRCollocation:
             "attempts": attempts,
             "rejected_attempts": rejected,
             "collocation_nonlinear_solves": self._solve_calls - solve_start,
+            "cross_step_linearization": {
+                key: getattr(self._stage_linearization, key) - old
+                for key, old in zip(("hits", "refreshes", "builds"), history_start)
+            },
+            "linear_work": {
+                key: value - linear_start[key] for key, value in self._linear_work.items()
+            },
             "fallback_intervals": fallbacks,
             "error_control": self.error_control,
             "conservation_residuals": m._ledger(

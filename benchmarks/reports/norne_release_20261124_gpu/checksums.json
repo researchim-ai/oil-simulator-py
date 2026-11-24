@@ -1,0 +1,23 @@
+{
+  "scope": "Full original outputs retained locally; source archive members match both manifests.",
+  "sha256": {
+    ".scratch/norne_release_20261124_gpu/run/meta.json": "b21cecba24d0155b65ac046069fb6531a7048ed78fe95ccfa44d3b9cde76230d",
+    ".scratch/norne_release_20261124_gpu/run/audit_status.json": "892424d990c783958cdb047fed1808ae5fa26a992faa521019f9b5357e714d87",
+    ".scratch/norne_release_20261124_gpu/run/manifest.json": "6345a8b2e640467fc68e860bf5dd7b8e1d41f6ab09b82c40f53f75317a5bee35",
+    ".scratch/norne_release_20261124_gpu/run/validation.json": "5e8444a3f5691e327d2e88d3e628fbe637f6d7557902621f64c4a36722013a90",
+    ".scratch/norne_release_20261124_gpu/run/fields.npz": "f7140ed095cc54474c1a812eac5d611333c0777585dfdabaadaef7ab633fd034",
+    ".scratch/norne_release_20261124_gpu/run/summary.npz": "6ec59050090d13a6dd3e0c0dc6b21b7d7467145c3796c59919ec7eabcf91dff4",
+    ".scratch/norne_release_20261124_gpu/run/substeps.npz": "a9df270a50f5a8f948828f469cc0f554adde8b6fb2ec52a160ebc45541a81527",
+    ".scratch/norne_release_20261124_gpu/run/accepted_substeps.csv": "2010391a341aec49e5b7edafb3bde913282b0d30cee2ba8e408f3d0bd924a319",
+    ".scratch/norne_release_20261124_gpu/run/latest_checkpoint.pt": "436bda9c087f8b28873ac92ce2e043189a979348665352d3172430073b87be5c",
+    ".scratch/norne_release_20261124_gpu_ti/run/meta.json": "daac79f9fcb02b49bd604c927009359f8a4aa68feb068bca8f19a6e40ff208da",
+    ".scratch/norne_release_20261124_gpu_ti/run/audit_status.json": "c6e734e89691cce679deec3dd6bfacd7a8e1115bd1f2715ca9d24bdb5bde94fa",
+    ".scratch/norne_release_20261124_gpu_ti/run/manifest.json": "06816fff9007652a7139fd6af3180278a3a9d7946a038d5f55a2b35e07857f30",
+    ".scratch/norne_release_20261124_gpu_ti/run/validation.json": "01ef868a5556b6842cbec4f2d77c66a7d018da6f9681d943b936b7386d88118b",
+    ".scratch/norne_release_20261124_gpu_ti/run/fields.npz": "533f2bb679029284ccfcb5b44ec62dcf0fbb281b938efe84a240ea8a3a6d44ba",
+    ".scratch/norne_release_20261124_gpu_ti/run/summary.npz": "741e1d97debd122288170334a5d1e35c340ae665fd7cbe5d250959e2789a4af5",
+    ".scratch/norne_release_20261124_gpu_ti/run/substeps.npz": "b515e4d67791ebd335951404113b47bf719e1c2319b47d8a79275f2051e4dc6c",
+    ".scratch/norne_release_20261124_gpu_ti/run/accepted_substeps.csv": "c998bdf5fc0ad4c29d187b4e58f8194bfdd7bb440d2f83f0012a96c859a2e1d3",
+    ".scratch/norne_release_20261124_gpu_ti/run/latest_checkpoint.pt": "9d35137f369182eec41e266f6205759c5be95687c6a0371b0783d6fef4e984a4"
+  }
+}

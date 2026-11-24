@@ -1,0 +1,17 @@
+{
+  "scope": "Isolated diagnostics, not production changes or accepted speed benchmarks",
+  "colored_assembly": {
+    "unknowns": 268,
+    "colors": 168,
+    "chunks": 3,
+    "nonzeros": 15340,
+    "dense_forward_wall_s": 0.318608072000643,
+    "colored_wall_s": 0.876134729000114,
+    "maximum_absolute_difference": 0.0,
+    "decision": "Do not replace the existing dense assembly on this case; existing sparse path remains available for larger systems."
+  },
+  "fake_lowering": {
+    "subprocess_exit_code": 1,
+    "decision": "Do not promote: installed PyTorch functorch dynamic-layer cleanup assertion and nested-forward-AD failure. Production real lowering unchanged."
+  }
+}

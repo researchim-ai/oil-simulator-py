@@ -1,0 +1,3 @@
+# Portable, lossless copies are tracked as .gz with hashes in archives.json.
+*.accepted.jsonl
+*.trajectory.json

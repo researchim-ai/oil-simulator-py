@@ -15,6 +15,57 @@ from .torch_linear import BlockJacobi, ColoredJacobian, TorchCOO
 from .torch_linear import TorchNewton as _LinearNewton
 
 
+class DenseNewtonHistory:
+    """One bounded, caller-owned tangent; never a cache of physical solutions.
+
+    Callers supply a phase/control topology key and the time coefficient.
+    A candidate tangent still has to contract THIS residual before use. CUDA
+    and differentiable solves deliberately retain their original policy.
+    """
+
+    def __init__(self):
+        self.entry = None
+        self.hits = 0
+        self.refreshes = 0
+        self.builds = 0
+
+    def clear(self):
+        self.entry = None
+
+    def take(self, key, coefficient, x, lower, upper):
+        saved = self.entry
+        self.entry = None  # A failed/interrupted solve cannot publish this again.
+        if saved is None:
+            return None
+        if (
+            saved["key"] != key
+            or saved["uses"] >= 3
+            or not 0.8 <= coefficient / saved["coefficient"] <= 1.25
+            or saved["anchor"].shape != x.shape
+            or saved["anchor"].dtype != x.dtype
+            or saved["anchor"].device != x.device
+            or not torch.equal(saved["lower"], lower)
+            or not bool(((x - saved["anchor"]).abs() <= 0.05 * (1 + x.abs())).all())
+        ):
+            return None
+        if not torch.equal(saved["upper"], upper):
+            # PR log-stock ceilings follow the current inventory. An inactive
+            # ceiling is not a residual coefficient: exact equality would
+            # forbid all reuse in a flowing finite vessel. Permit only small
+            # drift, with BOTH linearization and current points strictly below
+            # BOTH ceilings. Lower/physical bounds still match exactly.
+            ceiling = torch.minimum(saved["upper"], upper)
+            margin = 1e-8 * (1 + ceiling.abs())
+            compatible = (
+                ((saved["upper"] - upper).abs() <= 0.01 * (1 + upper.abs())).all()
+                & (saved["anchor"] < ceiling - margin).all()
+                & (x < ceiling - margin).all()
+            )
+            if not bool(compatible):
+                return None
+        return saved
+
+
 class TorchNewton(_LinearNewton):
     _early_certified_roundoff = True
     _early_full_step = True
@@ -39,6 +90,9 @@ class TorchNewton(_LinearNewton):
         maximum_update=None,
         stagnation_tolerance=None,
         roundoff_tolerance=None,
+        linearization_history=None,
+        linearization_key=None,
+        time_coefficient=None,
     ):
         if not math.isfinite(tolerance) or tolerance <= 0:
             raise ValueError("Newton tolerance must be finite and positive")
@@ -52,6 +106,16 @@ class TorchNewton(_LinearNewton):
             stagnation_tolerance is None or not callable(roundoff_tolerance)
         ):
             raise ValueError("Row roundoff requires a callable and explicit stagnation budget")
+        if linearization_history is not None and (
+            not isinstance(linearization_history, DenseNewtonHistory)
+            or linearization_key is None
+            or time_coefficient is None
+            or not math.isfinite(time_coefficient)
+            or time_coefficient <= 0
+        ):
+            raise ValueError(
+                "Tangent history requires an explicit key and positive time coefficient"
+            )
         x = torch.maximum(lower, torch.minimum(upper, x)).clone()
         evaluations = 0
         best_acceptable = math.inf
@@ -78,6 +142,29 @@ class TorchNewton(_LinearNewton):
         reuse_allowed = self._reuse_jacobian and (
             self.device.type == "cpu" or self.host_convergence
         )
+        history = (
+            linearization_history
+            if reuse_allowed
+            and self._early_full_step
+            and self.device.type == "cpu"
+            and x.numel() <= self.dense_limit
+            and not torch.is_grad_enabled()
+            and not x.requires_grad
+            else None
+        )
+        saved = (
+            history.take(linearization_key, time_coefficient, x, lower, upper)
+            if history is not None
+            else None
+        )
+        imported = saved is not None
+        self.cross_solve_reuses = 0
+        self.cross_solve_refreshes = 0
+        if imported:
+            J, factors, pivots, info = (saved[k] for k in ("matrix", "factors", "pivots", "info"))
+            anchor = saved["anchor"]
+            lm_factors = None
+            have_jacobian = True
         self.stop_reason = "iteration_budget"
         execution = current_execution()
         accelerated = execution is not None and execution.eligible(x)
@@ -206,13 +293,19 @@ class TorchNewton(_LinearNewton):
                 # exact Newton there; reuse only on a contracting trajectory.
                 and not qualified
                 and current_norm > 100 * tolerance
-                and current_norm <= 0.2 * previous_norm
+                and (imported or current_norm <= 0.2 * previous_norm)
             )
             force_refresh = False
             if reused:
                 self.jacobian_reuses += 1
+                if imported:
+                    self.cross_solve_reuses += 1
+                    history.hits += 1
             else:
+                imported = False
                 self.jacobian_builds += 1
+                if history is not None:
+                    history.builds += 1
                 age = 0
             if x.numel() <= self.dense_limit:
                 if not reused:
@@ -222,6 +315,7 @@ class TorchNewton(_LinearNewton):
                         else torch.func.jacfwd
                     )
                     J = execution.jacobian(function, x) if accelerated else transform(function)(x)
+                    anchor = x.detach().clone()
                     factors, pivots, info = torch.linalg.lu_factor_ex(J, check_errors=False)
                     lm_factors = None
                 step = torch.linalg.lu_solve(factors, pivots, -r[:, None]).squeeze(-1)
@@ -343,6 +437,20 @@ class TorchNewton(_LinearNewton):
                 # step. Otherwise retain the original best-of-six search.
                 # This affects globalization, never the stopping tolerance.
                 strong = take & (norm <= 0.25 * previous_norm)
+                if imported and not bool(strong):
+                    # An old tangent is only a cheap predictor. If it fails
+                    # the ordinary full-step contraction test, retry this
+                    # exact iterate with fresh Newton, before any backtracking.
+                    self.cross_solve_refreshes += 1
+                    history.refreshes += 1
+                    imported = False
+                    saved = None
+                    force_refresh = True
+                    retrying = True
+                    if carry_residual:
+                        pending_residual = r, current_bounds
+                    continue
+                imported = False
                 remaining = () if bool(strong.detach().cpu()) else scales[1:]
             if self.device.type == "cuda" and remaining:
                 # Vmap may use another numerical property kernel; keep the
@@ -447,4 +555,17 @@ class TorchNewton(_LinearNewton):
             & valid_budget
             & (residual.abs() <= budget).all()
         )
+        if history is not None and have_jacobian and bool(success) and bool(info == 0):
+            history.entry = {
+                "key": linearization_key,
+                "coefficient": time_coefficient if self.jacobian_builds else saved["coefficient"],
+                "uses": 0 if self.jacobian_builds else saved["uses"] + 1,
+                "anchor": anchor,
+                "lower": lower.detach().clone(),
+                "upper": upper.detach().clone(),
+                "matrix": J,
+                "factors": factors,
+                "pivots": pivots,
+                "info": info,
+            }
         return x, residual, success, evaluations

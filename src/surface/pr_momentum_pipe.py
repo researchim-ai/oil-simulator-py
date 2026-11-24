@@ -12,6 +12,7 @@ from dataclasses import asdict, dataclass
 
 import torch
 
+from .cuda_execution import declare_runtime_residual
 from .darcy_hydraulics import darcy_pressure_loss
 from .equilibrium_properties import EquilibriumFluid
 from .liquid import ConservationError, HydraulicConvergenceError, PropertyModelError, _number
@@ -592,7 +593,7 @@ class PRMomentumPipe:
         def residual(y):
             return evaluate(y)[0]
 
-        residual.runtime_residual = residual
+        declare_runtime_residual(residual)
         with torch.no_grad():
             y, r, ok, evaluations = solver.solve(residual, y, lo, hi, tolerance=3e-12)
             r, result = evaluate(y)

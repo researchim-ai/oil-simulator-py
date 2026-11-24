@@ -1,0 +1,871 @@
+{
+  "scope": "Paired whole-schedule qualification of guarded Radau/probe optimizations.\n\nFresh physical initial conditions, one shared native context, alternating\npolicies. Compilation and independent audits are outside warm measurements.\nNo different time tolerances, geometry or thermodynamic shortcuts.\n",
+  "optimization": "temporal-predictor",
+  "runtime": {
+    "torch": "2.7.0+cu126",
+    "torch_cuda_build": "12.6",
+    "torch_deterministic_algorithms": false
+  },
+  "preparation": {
+    "wall_s": 163.93070302399792,
+    "simulated_duration_s": 0.04864483383967377,
+    "attempts": 3,
+    "accepted_macro_steps": 6,
+    "accepted_fast_steps": 12,
+    "fast_nonlinear_solves": 12,
+    "fast_fallback_intervals": 0,
+    "execution": {
+      "compilations": 12,
+      "compiled_calls": 370,
+      "verified_calls": 12,
+      "verified_roundoff_calls": 1,
+      "fallback_calls": 0,
+      "trace_nodes": 126794,
+      "resident_constant_bytes": 424,
+      "resident_input_bytes": 39624,
+      "input_buffer_allocations": 1426,
+      "input_buffer_updates": 46090,
+      "input_clone_allocations": 0,
+      "compile_wall_s": 70.63513801399313,
+      "lowering_wall_s": 65.29860977000135,
+      "codegen_wall_s": 5.336528243991779,
+      "trace_dispatch_wall_s": 81.9490124690019,
+      "verification_wall_s": 1.1096104759999434,
+      "fallback_reasons": {},
+      "maximum_kernels": 16,
+      "maximum_nodes": 50000,
+      "maximum_constant_bytes": 268435456,
+      "disabled": false,
+      "linearization_ad": "forward_dense_or_colored_jvp",
+      "eager_final": true,
+      "reuse_input_buffers": true,
+      "operator_contexts": 10,
+      "maximum_operator_contexts": 64,
+      "verification_failure": null,
+      "blocked_operators": []
+    },
+    "audit": {
+      "accepted": true,
+      "checked_split_steps": 6,
+      "checked_local_steps": 12,
+      "checked_slow_steps": 6,
+      "conservation_residuals": [
+        5.684341886080801e-13,
+        -1.8189894035458565e-12,
+        1.0186340659856796e-10,
+        1.1124505439052967e-07
+      ]
+    },
+    "policy": "fresh_probe",
+    "repeat": "preparation",
+    "history": {
+      "hits": 0,
+      "refreshes": 0,
+      "builds": 0
+    },
+    "linear_work": {
+      "jacobian_builds": 12,
+      "jacobian_reuses": 12
+    },
+    "transport_work": [
+      {
+        "nodes": 16,
+        "model_id": "867d664f111b2fd5f6fc7c60989577347329e32fe785e2dbb52fe7f5be9f9b6d",
+        "solves": 0,
+        "iterations": 0,
+        "jacobian_builds": 0,
+        "residual_evaluations": 0
+      },
+      {
+        "nodes": 3,
+        "model_id": "90f44f16ef9058bf485fe877d87d27d6c8ec657ea24622f5b0a226b493e53e98",
+        "solves": 0,
+        "iterations": 0,
+        "jacobian_builds": 0,
+        "residual_evaluations": 0
+      },
+      {
+        "nodes": 15,
+        "model_id": "888f0e48de7b1d0733ca9266ff58ad38071466383bab9e0afcc35e66f89a2c4a",
+        "solves": 18,
+        "iterations": 73,
+        "jacobian_builds": 37,
+        "residual_evaluations": 109
+      }
+    ],
+    "temporal_predictor": [
+      {
+        "attempts": 0,
+        "uses": 0,
+        "vector_uses": 0
+      },
+      {
+        "attempts": 0,
+        "uses": 0,
+        "vector_uses": 0
+      }
+    ]
+  },
+  "settling": {
+    "wall_s": 6.710985379999329,
+    "simulated_duration_s": 0.04864483383967377,
+    "attempts": 3,
+    "accepted_macro_steps": 6,
+    "accepted_fast_steps": 12,
+    "fast_nonlinear_solves": 12,
+    "fast_fallback_intervals": 0,
+    "execution": {
+      "compilations": 12,
+      "compiled_calls": 771,
+      "verified_calls": 12,
+      "verified_roundoff_calls": 1,
+      "fallback_calls": 0,
+      "trace_nodes": 126794,
+      "resident_constant_bytes": 424,
+      "resident_input_bytes": 39624,
+      "input_buffer_allocations": 1426,
+      "input_buffer_updates": 101356,
+      "input_clone_allocations": 0,
+      "compile_wall_s": 70.63513801399313,
+      "lowering_wall_s": 65.29860977000135,
+      "codegen_wall_s": 5.336528243991779,
+      "trace_dispatch_wall_s": 81.9490124690019,
+      "verification_wall_s": 1.1096104759999434,
+      "fallback_reasons": {},
+      "maximum_kernels": 16,
+      "maximum_nodes": 50000,
+      "maximum_constant_bytes": 268435456,
+      "disabled": false,
+      "linearization_ad": "forward_dense_or_colored_jvp",
+      "eager_final": true,
+      "reuse_input_buffers": true,
+      "operator_contexts": 10,
+      "maximum_operator_contexts": 64,
+      "verification_failure": null,
+      "blocked_operators": []
+    },
+    "audit": {
+      "accepted": true,
+      "checked_split_steps": 6,
+      "checked_local_steps": 12,
+      "checked_slow_steps": 6,
+      "conservation_residuals": [
+        5.684341886080801e-13,
+        -1.8189894035458565e-12,
+        1.0186340659856796e-10,
+        1.1124505439052967e-07
+      ]
+    },
+    "policy": "warm_probe",
+    "repeat": "settling",
+    "history": {
+      "hits": 0,
+      "refreshes": 0,
+      "builds": 0
+    },
+    "linear_work": {
+      "jacobian_builds": 12,
+      "jacobian_reuses": 12
+    },
+    "transport_work": [
+      {
+        "nodes": 16,
+        "model_id": "867d664f111b2fd5f6fc7c60989577347329e32fe785e2dbb52fe7f5be9f9b6d",
+        "solves": 0,
+        "iterations": 0,
+        "jacobian_builds": 0,
+        "residual_evaluations": 0
+      },
+      {
+        "nodes": 3,
+        "model_id": "90f44f16ef9058bf485fe877d87d27d6c8ec657ea24622f5b0a226b493e53e98",
+        "solves": 0,
+        "iterations": 0,
+        "jacobian_builds": 0,
+        "residual_evaluations": 0
+      },
+      {
+        "nodes": 15,
+        "model_id": "888f0e48de7b1d0733ca9266ff58ad38071466383bab9e0afcc35e66f89a2c4a",
+        "solves": 18,
+        "iterations": 76,
+        "jacobian_builds": 40,
+        "residual_evaluations": 137
+      }
+    ],
+    "temporal_predictor": [
+      {
+        "attempts": 0,
+        "uses": 0,
+        "vector_uses": 0
+      },
+      {
+        "attempts": 3,
+        "uses": 3,
+        "vector_uses": 3
+      }
+    ]
+  },
+  "results": {
+    "fresh_probe": [
+      {
+        "wall_s": 6.383608359999926,
+        "simulated_duration_s": 0.04864483383967377,
+        "attempts": 3,
+        "accepted_macro_steps": 6,
+        "accepted_fast_steps": 12,
+        "fast_nonlinear_solves": 12,
+        "fast_fallback_intervals": 0,
+        "execution": {
+          "compilations": 12,
+          "compiled_calls": 1141,
+          "verified_calls": 12,
+          "verified_roundoff_calls": 1,
+          "fallback_calls": 0,
+          "trace_nodes": 126794,
+          "resident_constant_bytes": 424,
+          "resident_input_bytes": 39624,
+          "input_buffer_allocations": 1426,
+          "input_buffer_updates": 147446,
+          "input_clone_allocations": 0,
+          "compile_wall_s": 70.63513801399313,
+          "lowering_wall_s": 65.29860977000135,
+          "codegen_wall_s": 5.336528243991779,
+          "trace_dispatch_wall_s": 81.9490124690019,
+          "verification_wall_s": 1.1096104759999434,
+          "fallback_reasons": {},
+          "maximum_kernels": 16,
+          "maximum_nodes": 50000,
+          "maximum_constant_bytes": 268435456,
+          "disabled": false,
+          "linearization_ad": "forward_dense_or_colored_jvp",
+          "eager_final": true,
+          "reuse_input_buffers": true,
+          "operator_contexts": 10,
+          "maximum_operator_contexts": 64,
+          "verification_failure": null,
+          "blocked_operators": []
+        },
+        "audit": {
+          "accepted": true,
+          "checked_split_steps": 6,
+          "checked_local_steps": 12,
+          "checked_slow_steps": 6,
+          "conservation_residuals": [
+            5.684341886080801e-13,
+            -1.8189894035458565e-12,
+            1.0186340659856796e-10,
+            1.1124505439052967e-07
+          ]
+        },
+        "policy": "fresh_probe",
+        "repeat": 0,
+        "history": {
+          "hits": 0,
+          "refreshes": 0,
+          "builds": 0
+        },
+        "linear_work": {
+          "jacobian_builds": 12,
+          "jacobian_reuses": 12
+        },
+        "transport_work": [
+          {
+            "nodes": 16,
+            "model_id": "867d664f111b2fd5f6fc7c60989577347329e32fe785e2dbb52fe7f5be9f9b6d",
+            "solves": 0,
+            "iterations": 0,
+            "jacobian_builds": 0,
+            "residual_evaluations": 0
+          },
+          {
+            "nodes": 3,
+            "model_id": "90f44f16ef9058bf485fe877d87d27d6c8ec657ea24622f5b0a226b493e53e98",
+            "solves": 0,
+            "iterations": 0,
+            "jacobian_builds": 0,
+            "residual_evaluations": 0
+          },
+          {
+            "nodes": 15,
+            "model_id": "888f0e48de7b1d0733ca9266ff58ad38071466383bab9e0afcc35e66f89a2c4a",
+            "solves": 18,
+            "iterations": 73,
+            "jacobian_builds": 37,
+            "residual_evaluations": 109
+          }
+        ],
+        "temporal_predictor": [
+          {
+            "attempts": 0,
+            "uses": 0,
+            "vector_uses": 0
+          },
+          {
+            "attempts": 0,
+            "uses": 0,
+            "vector_uses": 0
+          }
+        ]
+      },
+      {
+        "wall_s": 8.581670129999111,
+        "simulated_duration_s": 0.04864483383967377,
+        "attempts": 3,
+        "accepted_macro_steps": 6,
+        "accepted_fast_steps": 12,
+        "fast_nonlinear_solves": 12,
+        "fast_fallback_intervals": 0,
+        "execution": {
+          "compilations": 12,
+          "compiled_calls": 2313,
+          "verified_calls": 12,
+          "verified_roundoff_calls": 1,
+          "fallback_calls": 0,
+          "trace_nodes": 126794,
+          "resident_constant_bytes": 424,
+          "resident_input_bytes": 39624,
+          "input_buffer_allocations": 1426,
+          "input_buffer_updates": 304068,
+          "input_clone_allocations": 0,
+          "compile_wall_s": 70.63513801399313,
+          "lowering_wall_s": 65.29860977000135,
+          "codegen_wall_s": 5.336528243991779,
+          "trace_dispatch_wall_s": 81.9490124690019,
+          "verification_wall_s": 1.1096104759999434,
+          "fallback_reasons": {},
+          "maximum_kernels": 16,
+          "maximum_nodes": 50000,
+          "maximum_constant_bytes": 268435456,
+          "disabled": false,
+          "linearization_ad": "forward_dense_or_colored_jvp",
+          "eager_final": true,
+          "reuse_input_buffers": true,
+          "operator_contexts": 10,
+          "maximum_operator_contexts": 64,
+          "verification_failure": null,
+          "blocked_operators": []
+        },
+        "audit": {
+          "accepted": true,
+          "checked_split_steps": 6,
+          "checked_local_steps": 12,
+          "checked_slow_steps": 6,
+          "conservation_residuals": [
+            5.684341886080801e-13,
+            -1.8189894035458565e-12,
+            1.0186340659856796e-10,
+            1.1124505439052967e-07
+          ]
+        },
+        "policy": "fresh_probe",
+        "repeat": 1,
+        "history": {
+          "hits": 0,
+          "refreshes": 0,
+          "builds": 0
+        },
+        "linear_work": {
+          "jacobian_builds": 12,
+          "jacobian_reuses": 12
+        },
+        "transport_work": [
+          {
+            "nodes": 16,
+            "model_id": "867d664f111b2fd5f6fc7c60989577347329e32fe785e2dbb52fe7f5be9f9b6d",
+            "solves": 0,
+            "iterations": 0,
+            "jacobian_builds": 0,
+            "residual_evaluations": 0
+          },
+          {
+            "nodes": 3,
+            "model_id": "90f44f16ef9058bf485fe877d87d27d6c8ec657ea24622f5b0a226b493e53e98",
+            "solves": 0,
+            "iterations": 0,
+            "jacobian_builds": 0,
+            "residual_evaluations": 0
+          },
+          {
+            "nodes": 15,
+            "model_id": "888f0e48de7b1d0733ca9266ff58ad38071466383bab9e0afcc35e66f89a2c4a",
+            "solves": 18,
+            "iterations": 73,
+            "jacobian_builds": 37,
+            "residual_evaluations": 109
+          }
+        ],
+        "temporal_predictor": [
+          {
+            "attempts": 0,
+            "uses": 0,
+            "vector_uses": 0
+          },
+          {
+            "attempts": 0,
+            "uses": 0,
+            "vector_uses": 0
+          }
+        ]
+      },
+      {
+        "wall_s": 6.793753957997978,
+        "simulated_duration_s": 0.04864483383967377,
+        "attempts": 3,
+        "accepted_macro_steps": 6,
+        "accepted_fast_steps": 12,
+        "fast_nonlinear_solves": 12,
+        "fast_fallback_intervals": 0,
+        "execution": {
+          "compilations": 12,
+          "compiled_calls": 2683,
+          "verified_calls": 12,
+          "verified_roundoff_calls": 1,
+          "fallback_calls": 0,
+          "trace_nodes": 126794,
+          "resident_constant_bytes": 424,
+          "resident_input_bytes": 39624,
+          "input_buffer_allocations": 1426,
+          "input_buffer_updates": 350158,
+          "input_clone_allocations": 0,
+          "compile_wall_s": 70.63513801399313,
+          "lowering_wall_s": 65.29860977000135,
+          "codegen_wall_s": 5.336528243991779,
+          "trace_dispatch_wall_s": 81.9490124690019,
+          "verification_wall_s": 1.1096104759999434,
+          "fallback_reasons": {},
+          "maximum_kernels": 16,
+          "maximum_nodes": 50000,
+          "maximum_constant_bytes": 268435456,
+          "disabled": false,
+          "linearization_ad": "forward_dense_or_colored_jvp",
+          "eager_final": true,
+          "reuse_input_buffers": true,
+          "operator_contexts": 10,
+          "maximum_operator_contexts": 64,
+          "verification_failure": null,
+          "blocked_operators": []
+        },
+        "audit": {
+          "accepted": true,
+          "checked_split_steps": 6,
+          "checked_local_steps": 12,
+          "checked_slow_steps": 6,
+          "conservation_residuals": [
+            5.684341886080801e-13,
+            -1.8189894035458565e-12,
+            1.0186340659856796e-10,
+            1.1124505439052967e-07
+          ]
+        },
+        "policy": "fresh_probe",
+        "repeat": 2,
+        "history": {
+          "hits": 0,
+          "refreshes": 0,
+          "builds": 0
+        },
+        "linear_work": {
+          "jacobian_builds": 12,
+          "jacobian_reuses": 12
+        },
+        "transport_work": [
+          {
+            "nodes": 16,
+            "model_id": "867d664f111b2fd5f6fc7c60989577347329e32fe785e2dbb52fe7f5be9f9b6d",
+            "solves": 0,
+            "iterations": 0,
+            "jacobian_builds": 0,
+            "residual_evaluations": 0
+          },
+          {
+            "nodes": 3,
+            "model_id": "90f44f16ef9058bf485fe877d87d27d6c8ec657ea24622f5b0a226b493e53e98",
+            "solves": 0,
+            "iterations": 0,
+            "jacobian_builds": 0,
+            "residual_evaluations": 0
+          },
+          {
+            "nodes": 15,
+            "model_id": "888f0e48de7b1d0733ca9266ff58ad38071466383bab9e0afcc35e66f89a2c4a",
+            "solves": 18,
+            "iterations": 73,
+            "jacobian_builds": 37,
+            "residual_evaluations": 109
+          }
+        ],
+        "temporal_predictor": [
+          {
+            "attempts": 0,
+            "uses": 0,
+            "vector_uses": 0
+          },
+          {
+            "attempts": 0,
+            "uses": 0,
+            "vector_uses": 0
+          }
+        ]
+      }
+    ],
+    "warm_probe": [
+      {
+        "wall_s": 6.385038134998467,
+        "simulated_duration_s": 0.04864483383967377,
+        "attempts": 3,
+        "accepted_macro_steps": 6,
+        "accepted_fast_steps": 12,
+        "fast_nonlinear_solves": 12,
+        "fast_fallback_intervals": 0,
+        "execution": {
+          "compilations": 12,
+          "compiled_calls": 1542,
+          "verified_calls": 12,
+          "verified_roundoff_calls": 1,
+          "fallback_calls": 0,
+          "trace_nodes": 126794,
+          "resident_constant_bytes": 424,
+          "resident_input_bytes": 39624,
+          "input_buffer_allocations": 1426,
+          "input_buffer_updates": 202712,
+          "input_clone_allocations": 0,
+          "compile_wall_s": 70.63513801399313,
+          "lowering_wall_s": 65.29860977000135,
+          "codegen_wall_s": 5.336528243991779,
+          "trace_dispatch_wall_s": 81.9490124690019,
+          "verification_wall_s": 1.1096104759999434,
+          "fallback_reasons": {},
+          "maximum_kernels": 16,
+          "maximum_nodes": 50000,
+          "maximum_constant_bytes": 268435456,
+          "disabled": false,
+          "linearization_ad": "forward_dense_or_colored_jvp",
+          "eager_final": true,
+          "reuse_input_buffers": true,
+          "operator_contexts": 10,
+          "maximum_operator_contexts": 64,
+          "verification_failure": null,
+          "blocked_operators": []
+        },
+        "audit": {
+          "accepted": true,
+          "checked_split_steps": 6,
+          "checked_local_steps": 12,
+          "checked_slow_steps": 6,
+          "conservation_residuals": [
+            5.684341886080801e-13,
+            -1.8189894035458565e-12,
+            1.0186340659856796e-10,
+            1.1124505439052967e-07
+          ]
+        },
+        "policy": "warm_probe",
+        "repeat": 0,
+        "history": {
+          "hits": 0,
+          "refreshes": 0,
+          "builds": 0
+        },
+        "linear_work": {
+          "jacobian_builds": 12,
+          "jacobian_reuses": 12
+        },
+        "transport_work": [
+          {
+            "nodes": 16,
+            "model_id": "867d664f111b2fd5f6fc7c60989577347329e32fe785e2dbb52fe7f5be9f9b6d",
+            "solves": 0,
+            "iterations": 0,
+            "jacobian_builds": 0,
+            "residual_evaluations": 0
+          },
+          {
+            "nodes": 3,
+            "model_id": "90f44f16ef9058bf485fe877d87d27d6c8ec657ea24622f5b0a226b493e53e98",
+            "solves": 0,
+            "iterations": 0,
+            "jacobian_builds": 0,
+            "residual_evaluations": 0
+          },
+          {
+            "nodes": 15,
+            "model_id": "888f0e48de7b1d0733ca9266ff58ad38071466383bab9e0afcc35e66f89a2c4a",
+            "solves": 18,
+            "iterations": 76,
+            "jacobian_builds": 40,
+            "residual_evaluations": 137
+          }
+        ],
+        "temporal_predictor": [
+          {
+            "attempts": 0,
+            "uses": 0,
+            "vector_uses": 0
+          },
+          {
+            "attempts": 3,
+            "uses": 3,
+            "vector_uses": 3
+          }
+        ]
+      },
+      {
+        "wall_s": 6.414904110999487,
+        "simulated_duration_s": 0.04864483383967377,
+        "attempts": 3,
+        "accepted_macro_steps": 6,
+        "accepted_fast_steps": 12,
+        "fast_nonlinear_solves": 12,
+        "fast_fallback_intervals": 0,
+        "execution": {
+          "compilations": 12,
+          "compiled_calls": 1943,
+          "verified_calls": 12,
+          "verified_roundoff_calls": 1,
+          "fallback_calls": 0,
+          "trace_nodes": 126794,
+          "resident_constant_bytes": 424,
+          "resident_input_bytes": 39624,
+          "input_buffer_allocations": 1426,
+          "input_buffer_updates": 257978,
+          "input_clone_allocations": 0,
+          "compile_wall_s": 70.63513801399313,
+          "lowering_wall_s": 65.29860977000135,
+          "codegen_wall_s": 5.336528243991779,
+          "trace_dispatch_wall_s": 81.9490124690019,
+          "verification_wall_s": 1.1096104759999434,
+          "fallback_reasons": {},
+          "maximum_kernels": 16,
+          "maximum_nodes": 50000,
+          "maximum_constant_bytes": 268435456,
+          "disabled": false,
+          "linearization_ad": "forward_dense_or_colored_jvp",
+          "eager_final": true,
+          "reuse_input_buffers": true,
+          "operator_contexts": 10,
+          "maximum_operator_contexts": 64,
+          "verification_failure": null,
+          "blocked_operators": []
+        },
+        "audit": {
+          "accepted": true,
+          "checked_split_steps": 6,
+          "checked_local_steps": 12,
+          "checked_slow_steps": 6,
+          "conservation_residuals": [
+            5.684341886080801e-13,
+            -1.8189894035458565e-12,
+            1.0186340659856796e-10,
+            1.1124505439052967e-07
+          ]
+        },
+        "policy": "warm_probe",
+        "repeat": 1,
+        "history": {
+          "hits": 0,
+          "refreshes": 0,
+          "builds": 0
+        },
+        "linear_work": {
+          "jacobian_builds": 12,
+          "jacobian_reuses": 12
+        },
+        "transport_work": [
+          {
+            "nodes": 16,
+            "model_id": "867d664f111b2fd5f6fc7c60989577347329e32fe785e2dbb52fe7f5be9f9b6d",
+            "solves": 0,
+            "iterations": 0,
+            "jacobian_builds": 0,
+            "residual_evaluations": 0
+          },
+          {
+            "nodes": 3,
+            "model_id": "90f44f16ef9058bf485fe877d87d27d6c8ec657ea24622f5b0a226b493e53e98",
+            "solves": 0,
+            "iterations": 0,
+            "jacobian_builds": 0,
+            "residual_evaluations": 0
+          },
+          {
+            "nodes": 15,
+            "model_id": "888f0e48de7b1d0733ca9266ff58ad38071466383bab9e0afcc35e66f89a2c4a",
+            "solves": 18,
+            "iterations": 76,
+            "jacobian_builds": 40,
+            "residual_evaluations": 137
+          }
+        ],
+        "temporal_predictor": [
+          {
+            "attempts": 0,
+            "uses": 0,
+            "vector_uses": 0
+          },
+          {
+            "attempts": 3,
+            "uses": 3,
+            "vector_uses": 3
+          }
+        ]
+      },
+      {
+        "wall_s": 6.849330455999734,
+        "simulated_duration_s": 0.04864483383967377,
+        "attempts": 3,
+        "accepted_macro_steps": 6,
+        "accepted_fast_steps": 12,
+        "fast_nonlinear_solves": 12,
+        "fast_fallback_intervals": 0,
+        "execution": {
+          "compilations": 12,
+          "compiled_calls": 3084,
+          "verified_calls": 12,
+          "verified_roundoff_calls": 1,
+          "fallback_calls": 0,
+          "trace_nodes": 126794,
+          "resident_constant_bytes": 424,
+          "resident_input_bytes": 39624,
+          "input_buffer_allocations": 1426,
+          "input_buffer_updates": 405424,
+          "input_clone_allocations": 0,
+          "compile_wall_s": 70.63513801399313,
+          "lowering_wall_s": 65.29860977000135,
+          "codegen_wall_s": 5.336528243991779,
+          "trace_dispatch_wall_s": 81.9490124690019,
+          "verification_wall_s": 1.1096104759999434,
+          "fallback_reasons": {},
+          "maximum_kernels": 16,
+          "maximum_nodes": 50000,
+          "maximum_constant_bytes": 268435456,
+          "disabled": false,
+          "linearization_ad": "forward_dense_or_colored_jvp",
+          "eager_final": true,
+          "reuse_input_buffers": true,
+          "operator_contexts": 10,
+          "maximum_operator_contexts": 64,
+          "verification_failure": null,
+          "blocked_operators": []
+        },
+        "audit": {
+          "accepted": true,
+          "checked_split_steps": 6,
+          "checked_local_steps": 12,
+          "checked_slow_steps": 6,
+          "conservation_residuals": [
+            5.684341886080801e-13,
+            -1.8189894035458565e-12,
+            1.0186340659856796e-10,
+            1.1124505439052967e-07
+          ]
+        },
+        "policy": "warm_probe",
+        "repeat": 2,
+        "history": {
+          "hits": 0,
+          "refreshes": 0,
+          "builds": 0
+        },
+        "linear_work": {
+          "jacobian_builds": 12,
+          "jacobian_reuses": 12
+        },
+        "transport_work": [
+          {
+            "nodes": 16,
+            "model_id": "867d664f111b2fd5f6fc7c60989577347329e32fe785e2dbb52fe7f5be9f9b6d",
+            "solves": 0,
+            "iterations": 0,
+            "jacobian_builds": 0,
+            "residual_evaluations": 0
+          },
+          {
+            "nodes": 3,
+            "model_id": "90f44f16ef9058bf485fe877d87d27d6c8ec657ea24622f5b0a226b493e53e98",
+            "solves": 0,
+            "iterations": 0,
+            "jacobian_builds": 0,
+            "residual_evaluations": 0
+          },
+          {
+            "nodes": 15,
+            "model_id": "888f0e48de7b1d0733ca9266ff58ad38071466383bab9e0afcc35e66f89a2c4a",
+            "solves": 18,
+            "iterations": 76,
+            "jacobian_builds": 40,
+            "residual_evaluations": 137
+          }
+        ],
+        "temporal_predictor": [
+          {
+            "attempts": 0,
+            "uses": 0,
+            "vector_uses": 0
+          },
+          {
+            "attempts": 3,
+            "uses": 3,
+            "vector_uses": 3
+          }
+        ]
+      }
+    ]
+  },
+  "warm_median_wall_s": {
+    "fresh_probe": 6.793753957997978,
+    "warm_probe": 6.414904110999487
+  },
+  "observed_speedup": 1.0590577568180461,
+  "difference_at_each_report_in_original_error_norm": [
+    [
+      0.0,
+      0.0,
+      0.0
+    ],
+    [
+      0.0,
+      0.0,
+      0.0
+    ],
+    [
+      0.0,
+      0.0,
+      0.0
+    ]
+  ],
+  "independent_audits_passed": true,
+  "sources_unchanged": true,
+  "native_execution": {
+    "compilations": 12,
+    "compiled_calls": 3084,
+    "verified_calls": 12,
+    "verified_roundoff_calls": 1,
+    "fallback_calls": 0,
+    "trace_nodes": 126794,
+    "resident_constant_bytes": 424,
+    "resident_input_bytes": 39624,
+    "input_buffer_allocations": 1426,
+    "input_buffer_updates": 405424,
+    "input_clone_allocations": 0,
+    "compile_wall_s": 70.63513801399313,
+    "lowering_wall_s": 65.29860977000135,
+    "codegen_wall_s": 5.336528243991779,
+    "trace_dispatch_wall_s": 81.9490124690019,
+    "verification_wall_s": 1.1096104759999434,
+    "fallback_reasons": {},
+    "maximum_kernels": 16,
+    "maximum_nodes": 50000,
+    "maximum_constant_bytes": 268435456,
+    "disabled": false,
+    "linearization_ad": "forward_dense_or_colored_jvp",
+    "eager_final": true,
+    "reuse_input_buffers": true,
+    "operator_contexts": 10,
+    "maximum_operator_contexts": 64,
+    "verification_failure": null,
+    "blocked_operators": []
+  },
+  "full_operating_cycle_qualified": false,
+  "accepted": true
+}

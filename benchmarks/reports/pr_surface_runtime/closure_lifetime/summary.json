@@ -1,0 +1,1480 @@
+{
+  "scope": "Paired whole-schedule qualification of guarded Radau/probe optimizations.\n\nFresh physical initial conditions, one shared native context, alternating\npolicies. Compilation and independent audits are outside warm measurements.\nNo different time tolerances, geometry or thermodynamic shortcuts.\n",
+  "optimization": "closure-lifetime",
+  "runtime": {
+    "torch": "2.7.0+cu126",
+    "torch_cuda_build": "12.6",
+    "torch_deterministic_algorithms": false
+  },
+  "preparation": {
+    "wall_s": 166.28673102999892,
+    "gc_wall_s_by_generation": [
+      1.7979386574370437,
+      0.9169048450385162,
+      17.977964266996423
+    ],
+    "gc_collections_by_generation": [
+      33551,
+      3060,
+      33
+    ],
+    "simulated_duration_s": 0.04864483383967377,
+    "attempts": 3,
+    "accepted_macro_steps": 6,
+    "accepted_fast_steps": 12,
+    "fast_nonlinear_solves": 12,
+    "fast_fallback_intervals": 0,
+    "execution": {
+      "compilations": 12,
+      "compiled_calls": 370,
+      "verified_calls": 12,
+      "verified_roundoff_calls": 1,
+      "fallback_calls": 0,
+      "trace_nodes": 126794,
+      "resident_constant_bytes": 424,
+      "resident_input_bytes": 39624,
+      "input_buffer_allocations": 1426,
+      "input_buffer_updates": 46090,
+      "input_clone_allocations": 0,
+      "compile_wall_s": 71.56373428499501,
+      "lowering_wall_s": 65.89296172699687,
+      "codegen_wall_s": 5.670772557998134,
+      "trace_dispatch_wall_s": 83.37941724100529,
+      "verification_wall_s": 1.1841553599915642,
+      "fallback_reasons": {},
+      "maximum_kernels": 32,
+      "maximum_nodes": 50000,
+      "maximum_constant_bytes": 268435456,
+      "disabled": false,
+      "linearization_ad": "forward_dense_or_colored_jvp",
+      "eager_final": true,
+      "reuse_input_buffers": true,
+      "operator_contexts": 10,
+      "maximum_operator_contexts": 128,
+      "verification_failure": null,
+      "blocked_operators": []
+    },
+    "audit": {
+      "accepted": true,
+      "checked_split_steps": 6,
+      "checked_local_steps": 12,
+      "checked_slow_steps": 6,
+      "conservation_residuals": [
+        5.684341886080801e-13,
+        -1.8189894035458565e-12,
+        1.0186340659856796e-10,
+        1.1124505439052967e-07
+      ]
+    },
+    "policy": "cyclic_closures",
+    "repeat": "preparation",
+    "history": {
+      "hits": 0,
+      "refreshes": 0,
+      "builds": 0
+    },
+    "linear_work": {
+      "jacobian_builds": 12,
+      "jacobian_reuses": 12
+    },
+    "transport_work": [
+      {
+        "nodes": 16,
+        "model_id": "867d664f111b2fd5f6fc7c60989577347329e32fe785e2dbb52fe7f5be9f9b6d",
+        "solves": 0,
+        "iterations": 0,
+        "jacobian_builds": 0,
+        "residual_evaluations": 0
+      },
+      {
+        "nodes": 3,
+        "model_id": "90f44f16ef9058bf485fe877d87d27d6c8ec657ea24622f5b0a226b493e53e98",
+        "solves": 0,
+        "iterations": 0,
+        "jacobian_builds": 0,
+        "residual_evaluations": 0
+      },
+      {
+        "nodes": 15,
+        "model_id": "888f0e48de7b1d0733ca9266ff58ad38071466383bab9e0afcc35e66f89a2c4a",
+        "solves": 18,
+        "iterations": 73,
+        "jacobian_builds": 37,
+        "residual_evaluations": 109
+      }
+    ],
+    "temporal_predictor": [
+      {
+        "attempts": 0,
+        "uses": 0,
+        "vector_uses": 0,
+        "spatial_vector_uses": 0
+      },
+      {
+        "attempts": 0,
+        "uses": 0,
+        "vector_uses": 0,
+        "spatial_vector_uses": 0
+      }
+    ],
+    "chemical_work": [
+      {
+        "fused_stability_objective_cpu": false,
+        "reuse_stability_values": true,
+        "stability_value_reused_batches": 1525,
+        "stability_value_reused_points": 20577,
+        "stability_objective_compiled_batches": 0,
+        "stability_objective_compiled_points": 0,
+        "stability_objective_compilation_failure": null,
+        "fugacity_ssi_predictor": true,
+        "ssi_attempted_seeds": 1054,
+        "ssi_resolved_seeds": 1054,
+        "full_eos_compiled_batches": 4672,
+        "full_eos_compiled_points": 5878,
+        "full_eos_compilation_failure": null,
+        "analytic_composition_derivatives": true,
+        "curvature_compiled_batches": 333,
+        "curvature_compilation_failure": null,
+        "components": [
+          "methane",
+          "hexane",
+          "water"
+        ],
+        "enabled": true,
+        "compiled_batches": 6316,
+        "compiled_points": 210041,
+        "padded_points": 282424,
+        "compilation_failure": null,
+        "jacobian_compiled_batches": 1945,
+        "jacobian_compiled_points": 26284,
+        "jacobian_compilation_failure": null
+      },
+      {
+        "fused_stability_objective_cpu": false,
+        "reuse_stability_values": true,
+        "stability_value_reused_batches": 581,
+        "stability_value_reused_points": 17674,
+        "stability_objective_compiled_batches": 0,
+        "stability_objective_compiled_points": 0,
+        "stability_objective_compilation_failure": null,
+        "fugacity_ssi_predictor": true,
+        "ssi_attempted_seeds": 710,
+        "ssi_resolved_seeds": 710,
+        "full_eos_compiled_batches": 128,
+        "full_eos_compiled_points": 3000,
+        "full_eos_compilation_failure": null,
+        "analytic_composition_derivatives": true,
+        "curvature_compiled_batches": 158,
+        "curvature_compilation_failure": null,
+        "components": [
+          "methane",
+          "hexane",
+          "water"
+        ],
+        "enabled": true,
+        "compiled_batches": 3645,
+        "compiled_points": 174427,
+        "padded_points": 210656,
+        "compilation_failure": null,
+        "jacobian_compiled_batches": 889,
+        "jacobian_compiled_points": 22776,
+        "jacobian_compilation_failure": null
+      }
+    ]
+  },
+  "settling": {
+    "wall_s": 6.136633494999842,
+    "gc_wall_s_by_generation": [
+      0.05721828703826759,
+      0.02129596700615366,
+      0.0
+    ],
+    "gc_collections_by_generation": [
+      479,
+      44,
+      0
+    ],
+    "simulated_duration_s": 0.04864483383967377,
+    "attempts": 3,
+    "accepted_macro_steps": 6,
+    "accepted_fast_steps": 12,
+    "fast_nonlinear_solves": 12,
+    "fast_fallback_intervals": 0,
+    "execution": {
+      "compilations": 12,
+      "compiled_calls": 740,
+      "verified_calls": 12,
+      "verified_roundoff_calls": 1,
+      "fallback_calls": 0,
+      "trace_nodes": 126794,
+      "resident_constant_bytes": 424,
+      "resident_input_bytes": 39624,
+      "input_buffer_allocations": 1426,
+      "input_buffer_updates": 92180,
+      "input_clone_allocations": 0,
+      "compile_wall_s": 71.56373428499501,
+      "lowering_wall_s": 65.89296172699687,
+      "codegen_wall_s": 5.670772557998134,
+      "trace_dispatch_wall_s": 83.37941724100529,
+      "verification_wall_s": 1.1841553599915642,
+      "fallback_reasons": {},
+      "maximum_kernels": 32,
+      "maximum_nodes": 50000,
+      "maximum_constant_bytes": 268435456,
+      "disabled": false,
+      "linearization_ad": "forward_dense_or_colored_jvp",
+      "eager_final": true,
+      "reuse_input_buffers": true,
+      "operator_contexts": 10,
+      "maximum_operator_contexts": 128,
+      "verification_failure": null,
+      "blocked_operators": []
+    },
+    "audit": {
+      "accepted": true,
+      "checked_split_steps": 6,
+      "checked_local_steps": 12,
+      "checked_slow_steps": 6,
+      "conservation_residuals": [
+        5.684341886080801e-13,
+        -1.8189894035458565e-12,
+        1.0186340659856796e-10,
+        1.1124505439052967e-07
+      ]
+    },
+    "policy": "acyclic_closures",
+    "repeat": "settling",
+    "history": {
+      "hits": 0,
+      "refreshes": 0,
+      "builds": 0
+    },
+    "linear_work": {
+      "jacobian_builds": 12,
+      "jacobian_reuses": 12
+    },
+    "transport_work": [
+      {
+        "nodes": 16,
+        "model_id": "867d664f111b2fd5f6fc7c60989577347329e32fe785e2dbb52fe7f5be9f9b6d",
+        "solves": 0,
+        "iterations": 0,
+        "jacobian_builds": 0,
+        "residual_evaluations": 0
+      },
+      {
+        "nodes": 3,
+        "model_id": "90f44f16ef9058bf485fe877d87d27d6c8ec657ea24622f5b0a226b493e53e98",
+        "solves": 0,
+        "iterations": 0,
+        "jacobian_builds": 0,
+        "residual_evaluations": 0
+      },
+      {
+        "nodes": 15,
+        "model_id": "888f0e48de7b1d0733ca9266ff58ad38071466383bab9e0afcc35e66f89a2c4a",
+        "solves": 18,
+        "iterations": 73,
+        "jacobian_builds": 37,
+        "residual_evaluations": 109
+      }
+    ],
+    "temporal_predictor": [
+      {
+        "attempts": 0,
+        "uses": 0,
+        "vector_uses": 0,
+        "spatial_vector_uses": 0
+      },
+      {
+        "attempts": 0,
+        "uses": 0,
+        "vector_uses": 0,
+        "spatial_vector_uses": 0
+      }
+    ],
+    "chemical_work": [
+      {
+        "fused_stability_objective_cpu": false,
+        "reuse_stability_values": true,
+        "stability_value_reused_batches": 1525,
+        "stability_value_reused_points": 20577,
+        "stability_objective_compiled_batches": 0,
+        "stability_objective_compiled_points": 0,
+        "stability_objective_compilation_failure": null,
+        "fugacity_ssi_predictor": true,
+        "ssi_attempted_seeds": 1054,
+        "ssi_resolved_seeds": 1054,
+        "full_eos_compiled_batches": 4650,
+        "full_eos_compiled_points": 5802,
+        "full_eos_compilation_failure": null,
+        "analytic_composition_derivatives": true,
+        "curvature_compiled_batches": 333,
+        "curvature_compilation_failure": null,
+        "components": [
+          "methane",
+          "hexane",
+          "water"
+        ],
+        "enabled": true,
+        "compiled_batches": 6316,
+        "compiled_points": 210041,
+        "padded_points": 282424,
+        "compilation_failure": null,
+        "jacobian_compiled_batches": 1945,
+        "jacobian_compiled_points": 26284,
+        "jacobian_compilation_failure": null
+      },
+      {
+        "fused_stability_objective_cpu": false,
+        "reuse_stability_values": true,
+        "stability_value_reused_batches": 581,
+        "stability_value_reused_points": 17674,
+        "stability_objective_compiled_batches": 0,
+        "stability_objective_compiled_points": 0,
+        "stability_objective_compilation_failure": null,
+        "fugacity_ssi_predictor": true,
+        "ssi_attempted_seeds": 710,
+        "ssi_resolved_seeds": 710,
+        "full_eos_compiled_batches": 124,
+        "full_eos_compiled_points": 2884,
+        "full_eos_compilation_failure": null,
+        "analytic_composition_derivatives": true,
+        "curvature_compiled_batches": 158,
+        "curvature_compilation_failure": null,
+        "components": [
+          "methane",
+          "hexane",
+          "water"
+        ],
+        "enabled": true,
+        "compiled_batches": 3645,
+        "compiled_points": 174427,
+        "padded_points": 210656,
+        "compilation_failure": null,
+        "jacobian_compiled_batches": 889,
+        "jacobian_compiled_points": 22776,
+        "jacobian_compilation_failure": null
+      }
+    ]
+  },
+  "profile": null,
+  "results": {
+    "cyclic_closures": [
+      {
+        "wall_s": 5.866011346999585,
+        "gc_wall_s_by_generation": [
+          0.05165583100824733,
+          0.017278015999181662,
+          0.0
+        ],
+        "gc_collections_by_generation": [
+          482,
+          44,
+          0
+        ],
+        "simulated_duration_s": 0.04864483383967377,
+        "attempts": 3,
+        "accepted_macro_steps": 6,
+        "accepted_fast_steps": 12,
+        "fast_nonlinear_solves": 12,
+        "fast_fallback_intervals": 0,
+        "execution": {
+          "compilations": 12,
+          "compiled_calls": 1110,
+          "verified_calls": 12,
+          "verified_roundoff_calls": 1,
+          "fallback_calls": 0,
+          "trace_nodes": 126794,
+          "resident_constant_bytes": 424,
+          "resident_input_bytes": 39624,
+          "input_buffer_allocations": 1426,
+          "input_buffer_updates": 138270,
+          "input_clone_allocations": 0,
+          "compile_wall_s": 71.56373428499501,
+          "lowering_wall_s": 65.89296172699687,
+          "codegen_wall_s": 5.670772557998134,
+          "trace_dispatch_wall_s": 83.37941724100529,
+          "verification_wall_s": 1.1841553599915642,
+          "fallback_reasons": {},
+          "maximum_kernels": 32,
+          "maximum_nodes": 50000,
+          "maximum_constant_bytes": 268435456,
+          "disabled": false,
+          "linearization_ad": "forward_dense_or_colored_jvp",
+          "eager_final": true,
+          "reuse_input_buffers": true,
+          "operator_contexts": 10,
+          "maximum_operator_contexts": 128,
+          "verification_failure": null,
+          "blocked_operators": []
+        },
+        "audit": {
+          "accepted": true,
+          "checked_split_steps": 6,
+          "checked_local_steps": 12,
+          "checked_slow_steps": 6,
+          "conservation_residuals": [
+            5.684341886080801e-13,
+            -1.8189894035458565e-12,
+            1.0186340659856796e-10,
+            1.1124505439052967e-07
+          ]
+        },
+        "policy": "cyclic_closures",
+        "repeat": 0,
+        "history": {
+          "hits": 0,
+          "refreshes": 0,
+          "builds": 0
+        },
+        "linear_work": {
+          "jacobian_builds": 12,
+          "jacobian_reuses": 12
+        },
+        "transport_work": [
+          {
+            "nodes": 16,
+            "model_id": "867d664f111b2fd5f6fc7c60989577347329e32fe785e2dbb52fe7f5be9f9b6d",
+            "solves": 0,
+            "iterations": 0,
+            "jacobian_builds": 0,
+            "residual_evaluations": 0
+          },
+          {
+            "nodes": 3,
+            "model_id": "90f44f16ef9058bf485fe877d87d27d6c8ec657ea24622f5b0a226b493e53e98",
+            "solves": 0,
+            "iterations": 0,
+            "jacobian_builds": 0,
+            "residual_evaluations": 0
+          },
+          {
+            "nodes": 15,
+            "model_id": "888f0e48de7b1d0733ca9266ff58ad38071466383bab9e0afcc35e66f89a2c4a",
+            "solves": 18,
+            "iterations": 73,
+            "jacobian_builds": 37,
+            "residual_evaluations": 109
+          }
+        ],
+        "temporal_predictor": [
+          {
+            "attempts": 0,
+            "uses": 0,
+            "vector_uses": 0,
+            "spatial_vector_uses": 0
+          },
+          {
+            "attempts": 0,
+            "uses": 0,
+            "vector_uses": 0,
+            "spatial_vector_uses": 0
+          }
+        ],
+        "chemical_work": [
+          {
+            "fused_stability_objective_cpu": false,
+            "reuse_stability_values": true,
+            "stability_value_reused_batches": 1525,
+            "stability_value_reused_points": 20577,
+            "stability_objective_compiled_batches": 0,
+            "stability_objective_compiled_points": 0,
+            "stability_objective_compilation_failure": null,
+            "fugacity_ssi_predictor": true,
+            "ssi_attempted_seeds": 1054,
+            "ssi_resolved_seeds": 1054,
+            "full_eos_compiled_batches": 4650,
+            "full_eos_compiled_points": 5802,
+            "full_eos_compilation_failure": null,
+            "analytic_composition_derivatives": true,
+            "curvature_compiled_batches": 333,
+            "curvature_compilation_failure": null,
+            "components": [
+              "methane",
+              "hexane",
+              "water"
+            ],
+            "enabled": true,
+            "compiled_batches": 6316,
+            "compiled_points": 210041,
+            "padded_points": 282424,
+            "compilation_failure": null,
+            "jacobian_compiled_batches": 1945,
+            "jacobian_compiled_points": 26284,
+            "jacobian_compilation_failure": null
+          },
+          {
+            "fused_stability_objective_cpu": false,
+            "reuse_stability_values": true,
+            "stability_value_reused_batches": 581,
+            "stability_value_reused_points": 17674,
+            "stability_objective_compiled_batches": 0,
+            "stability_objective_compiled_points": 0,
+            "stability_objective_compilation_failure": null,
+            "fugacity_ssi_predictor": true,
+            "ssi_attempted_seeds": 710,
+            "ssi_resolved_seeds": 710,
+            "full_eos_compiled_batches": 124,
+            "full_eos_compiled_points": 2884,
+            "full_eos_compilation_failure": null,
+            "analytic_composition_derivatives": true,
+            "curvature_compiled_batches": 158,
+            "curvature_compilation_failure": null,
+            "components": [
+              "methane",
+              "hexane",
+              "water"
+            ],
+            "enabled": true,
+            "compiled_batches": 3645,
+            "compiled_points": 174427,
+            "padded_points": 210656,
+            "compilation_failure": null,
+            "jacobian_compiled_batches": 889,
+            "jacobian_compiled_points": 22776,
+            "jacobian_compilation_failure": null
+          }
+        ]
+      },
+      {
+        "wall_s": 8.620911493002495,
+        "gc_wall_s_by_generation": [
+          0.052070506011659745,
+          0.018975454004248604,
+          2.013180216999899
+        ],
+        "gc_collections_by_generation": [
+          503,
+          45,
+          1
+        ],
+        "simulated_duration_s": 0.04864483383967377,
+        "attempts": 3,
+        "accepted_macro_steps": 6,
+        "accepted_fast_steps": 12,
+        "fast_nonlinear_solves": 12,
+        "fast_fallback_intervals": 0,
+        "execution": {
+          "compilations": 12,
+          "compiled_calls": 2220,
+          "verified_calls": 12,
+          "verified_roundoff_calls": 1,
+          "fallback_calls": 0,
+          "trace_nodes": 126794,
+          "resident_constant_bytes": 424,
+          "resident_input_bytes": 39624,
+          "input_buffer_allocations": 1426,
+          "input_buffer_updates": 276540,
+          "input_clone_allocations": 0,
+          "compile_wall_s": 71.56373428499501,
+          "lowering_wall_s": 65.89296172699687,
+          "codegen_wall_s": 5.670772557998134,
+          "trace_dispatch_wall_s": 83.37941724100529,
+          "verification_wall_s": 1.1841553599915642,
+          "fallback_reasons": {},
+          "maximum_kernels": 32,
+          "maximum_nodes": 50000,
+          "maximum_constant_bytes": 268435456,
+          "disabled": false,
+          "linearization_ad": "forward_dense_or_colored_jvp",
+          "eager_final": true,
+          "reuse_input_buffers": true,
+          "operator_contexts": 10,
+          "maximum_operator_contexts": 128,
+          "verification_failure": null,
+          "blocked_operators": []
+        },
+        "audit": {
+          "accepted": true,
+          "checked_split_steps": 6,
+          "checked_local_steps": 12,
+          "checked_slow_steps": 6,
+          "conservation_residuals": [
+            5.684341886080801e-13,
+            -1.8189894035458565e-12,
+            1.0186340659856796e-10,
+            1.1124505439052967e-07
+          ]
+        },
+        "policy": "cyclic_closures",
+        "repeat": 1,
+        "history": {
+          "hits": 0,
+          "refreshes": 0,
+          "builds": 0
+        },
+        "linear_work": {
+          "jacobian_builds": 12,
+          "jacobian_reuses": 12
+        },
+        "transport_work": [
+          {
+            "nodes": 16,
+            "model_id": "867d664f111b2fd5f6fc7c60989577347329e32fe785e2dbb52fe7f5be9f9b6d",
+            "solves": 0,
+            "iterations": 0,
+            "jacobian_builds": 0,
+            "residual_evaluations": 0
+          },
+          {
+            "nodes": 3,
+            "model_id": "90f44f16ef9058bf485fe877d87d27d6c8ec657ea24622f5b0a226b493e53e98",
+            "solves": 0,
+            "iterations": 0,
+            "jacobian_builds": 0,
+            "residual_evaluations": 0
+          },
+          {
+            "nodes": 15,
+            "model_id": "888f0e48de7b1d0733ca9266ff58ad38071466383bab9e0afcc35e66f89a2c4a",
+            "solves": 18,
+            "iterations": 73,
+            "jacobian_builds": 37,
+            "residual_evaluations": 109
+          }
+        ],
+        "temporal_predictor": [
+          {
+            "attempts": 0,
+            "uses": 0,
+            "vector_uses": 0,
+            "spatial_vector_uses": 0
+          },
+          {
+            "attempts": 0,
+            "uses": 0,
+            "vector_uses": 0,
+            "spatial_vector_uses": 0
+          }
+        ],
+        "chemical_work": [
+          {
+            "fused_stability_objective_cpu": false,
+            "reuse_stability_values": true,
+            "stability_value_reused_batches": 1525,
+            "stability_value_reused_points": 20577,
+            "stability_objective_compiled_batches": 0,
+            "stability_objective_compiled_points": 0,
+            "stability_objective_compilation_failure": null,
+            "fugacity_ssi_predictor": true,
+            "ssi_attempted_seeds": 1054,
+            "ssi_resolved_seeds": 1054,
+            "full_eos_compiled_batches": 4650,
+            "full_eos_compiled_points": 5802,
+            "full_eos_compilation_failure": null,
+            "analytic_composition_derivatives": true,
+            "curvature_compiled_batches": 333,
+            "curvature_compilation_failure": null,
+            "components": [
+              "methane",
+              "hexane",
+              "water"
+            ],
+            "enabled": true,
+            "compiled_batches": 6316,
+            "compiled_points": 210041,
+            "padded_points": 282424,
+            "compilation_failure": null,
+            "jacobian_compiled_batches": 1945,
+            "jacobian_compiled_points": 26284,
+            "jacobian_compilation_failure": null
+          },
+          {
+            "fused_stability_objective_cpu": false,
+            "reuse_stability_values": true,
+            "stability_value_reused_batches": 581,
+            "stability_value_reused_points": 17674,
+            "stability_objective_compiled_batches": 0,
+            "stability_objective_compiled_points": 0,
+            "stability_objective_compilation_failure": null,
+            "fugacity_ssi_predictor": true,
+            "ssi_attempted_seeds": 710,
+            "ssi_resolved_seeds": 710,
+            "full_eos_compiled_batches": 124,
+            "full_eos_compiled_points": 2884,
+            "full_eos_compilation_failure": null,
+            "analytic_composition_derivatives": true,
+            "curvature_compiled_batches": 158,
+            "curvature_compilation_failure": null,
+            "components": [
+              "methane",
+              "hexane",
+              "water"
+            ],
+            "enabled": true,
+            "compiled_batches": 3645,
+            "compiled_points": 174427,
+            "padded_points": 210656,
+            "compilation_failure": null,
+            "jacobian_compiled_batches": 889,
+            "jacobian_compiled_points": 22776,
+            "jacobian_compilation_failure": null
+          }
+        ]
+      },
+      {
+        "wall_s": 6.305584079997061,
+        "gc_wall_s_by_generation": [
+          0.05317006602854235,
+          0.02295178501663031,
+          0.0
+        ],
+        "gc_collections_by_generation": [
+          484,
+          44,
+          0
+        ],
+        "simulated_duration_s": 0.04864483383967377,
+        "attempts": 3,
+        "accepted_macro_steps": 6,
+        "accepted_fast_steps": 12,
+        "fast_nonlinear_solves": 12,
+        "fast_fallback_intervals": 0,
+        "execution": {
+          "compilations": 12,
+          "compiled_calls": 2590,
+          "verified_calls": 12,
+          "verified_roundoff_calls": 1,
+          "fallback_calls": 0,
+          "trace_nodes": 126794,
+          "resident_constant_bytes": 424,
+          "resident_input_bytes": 39624,
+          "input_buffer_allocations": 1426,
+          "input_buffer_updates": 322630,
+          "input_clone_allocations": 0,
+          "compile_wall_s": 71.56373428499501,
+          "lowering_wall_s": 65.89296172699687,
+          "codegen_wall_s": 5.670772557998134,
+          "trace_dispatch_wall_s": 83.37941724100529,
+          "verification_wall_s": 1.1841553599915642,
+          "fallback_reasons": {},
+          "maximum_kernels": 32,
+          "maximum_nodes": 50000,
+          "maximum_constant_bytes": 268435456,
+          "disabled": false,
+          "linearization_ad": "forward_dense_or_colored_jvp",
+          "eager_final": true,
+          "reuse_input_buffers": true,
+          "operator_contexts": 10,
+          "maximum_operator_contexts": 128,
+          "verification_failure": null,
+          "blocked_operators": []
+        },
+        "audit": {
+          "accepted": true,
+          "checked_split_steps": 6,
+          "checked_local_steps": 12,
+          "checked_slow_steps": 6,
+          "conservation_residuals": [
+            5.684341886080801e-13,
+            -1.8189894035458565e-12,
+            1.0186340659856796e-10,
+            1.1124505439052967e-07
+          ]
+        },
+        "policy": "cyclic_closures",
+        "repeat": 2,
+        "history": {
+          "hits": 0,
+          "refreshes": 0,
+          "builds": 0
+        },
+        "linear_work": {
+          "jacobian_builds": 12,
+          "jacobian_reuses": 12
+        },
+        "transport_work": [
+          {
+            "nodes": 16,
+            "model_id": "867d664f111b2fd5f6fc7c60989577347329e32fe785e2dbb52fe7f5be9f9b6d",
+            "solves": 0,
+            "iterations": 0,
+            "jacobian_builds": 0,
+            "residual_evaluations": 0
+          },
+          {
+            "nodes": 3,
+            "model_id": "90f44f16ef9058bf485fe877d87d27d6c8ec657ea24622f5b0a226b493e53e98",
+            "solves": 0,
+            "iterations": 0,
+            "jacobian_builds": 0,
+            "residual_evaluations": 0
+          },
+          {
+            "nodes": 15,
+            "model_id": "888f0e48de7b1d0733ca9266ff58ad38071466383bab9e0afcc35e66f89a2c4a",
+            "solves": 18,
+            "iterations": 73,
+            "jacobian_builds": 37,
+            "residual_evaluations": 109
+          }
+        ],
+        "temporal_predictor": [
+          {
+            "attempts": 0,
+            "uses": 0,
+            "vector_uses": 0,
+            "spatial_vector_uses": 0
+          },
+          {
+            "attempts": 0,
+            "uses": 0,
+            "vector_uses": 0,
+            "spatial_vector_uses": 0
+          }
+        ],
+        "chemical_work": [
+          {
+            "fused_stability_objective_cpu": false,
+            "reuse_stability_values": true,
+            "stability_value_reused_batches": 1525,
+            "stability_value_reused_points": 20577,
+            "stability_objective_compiled_batches": 0,
+            "stability_objective_compiled_points": 0,
+            "stability_objective_compilation_failure": null,
+            "fugacity_ssi_predictor": true,
+            "ssi_attempted_seeds": 1054,
+            "ssi_resolved_seeds": 1054,
+            "full_eos_compiled_batches": 4650,
+            "full_eos_compiled_points": 5802,
+            "full_eos_compilation_failure": null,
+            "analytic_composition_derivatives": true,
+            "curvature_compiled_batches": 333,
+            "curvature_compilation_failure": null,
+            "components": [
+              "methane",
+              "hexane",
+              "water"
+            ],
+            "enabled": true,
+            "compiled_batches": 6316,
+            "compiled_points": 210041,
+            "padded_points": 282424,
+            "compilation_failure": null,
+            "jacobian_compiled_batches": 1945,
+            "jacobian_compiled_points": 26284,
+            "jacobian_compilation_failure": null
+          },
+          {
+            "fused_stability_objective_cpu": false,
+            "reuse_stability_values": true,
+            "stability_value_reused_batches": 581,
+            "stability_value_reused_points": 17674,
+            "stability_objective_compiled_batches": 0,
+            "stability_objective_compiled_points": 0,
+            "stability_objective_compilation_failure": null,
+            "fugacity_ssi_predictor": true,
+            "ssi_attempted_seeds": 710,
+            "ssi_resolved_seeds": 710,
+            "full_eos_compiled_batches": 124,
+            "full_eos_compiled_points": 2884,
+            "full_eos_compilation_failure": null,
+            "analytic_composition_derivatives": true,
+            "curvature_compiled_batches": 158,
+            "curvature_compilation_failure": null,
+            "components": [
+              "methane",
+              "hexane",
+              "water"
+            ],
+            "enabled": true,
+            "compiled_batches": 3645,
+            "compiled_points": 174427,
+            "padded_points": 210656,
+            "compilation_failure": null,
+            "jacobian_compiled_batches": 889,
+            "jacobian_compiled_points": 22776,
+            "jacobian_compilation_failure": null
+          }
+        ]
+      }
+    ],
+    "acyclic_closures": [
+      {
+        "wall_s": 5.949560368000675,
+        "gc_wall_s_by_generation": [
+          0.0481744760327274,
+          0.022827724998933263,
+          0.0
+        ],
+        "gc_collections_by_generation": [
+          470,
+          43,
+          0
+        ],
+        "simulated_duration_s": 0.04864483383967377,
+        "attempts": 3,
+        "accepted_macro_steps": 6,
+        "accepted_fast_steps": 12,
+        "fast_nonlinear_solves": 12,
+        "fast_fallback_intervals": 0,
+        "execution": {
+          "compilations": 12,
+          "compiled_calls": 1480,
+          "verified_calls": 12,
+          "verified_roundoff_calls": 1,
+          "fallback_calls": 0,
+          "trace_nodes": 126794,
+          "resident_constant_bytes": 424,
+          "resident_input_bytes": 39624,
+          "input_buffer_allocations": 1426,
+          "input_buffer_updates": 184360,
+          "input_clone_allocations": 0,
+          "compile_wall_s": 71.56373428499501,
+          "lowering_wall_s": 65.89296172699687,
+          "codegen_wall_s": 5.670772557998134,
+          "trace_dispatch_wall_s": 83.37941724100529,
+          "verification_wall_s": 1.1841553599915642,
+          "fallback_reasons": {},
+          "maximum_kernels": 32,
+          "maximum_nodes": 50000,
+          "maximum_constant_bytes": 268435456,
+          "disabled": false,
+          "linearization_ad": "forward_dense_or_colored_jvp",
+          "eager_final": true,
+          "reuse_input_buffers": true,
+          "operator_contexts": 10,
+          "maximum_operator_contexts": 128,
+          "verification_failure": null,
+          "blocked_operators": []
+        },
+        "audit": {
+          "accepted": true,
+          "checked_split_steps": 6,
+          "checked_local_steps": 12,
+          "checked_slow_steps": 6,
+          "conservation_residuals": [
+            5.684341886080801e-13,
+            -1.8189894035458565e-12,
+            1.0186340659856796e-10,
+            1.1124505439052967e-07
+          ]
+        },
+        "policy": "acyclic_closures",
+        "repeat": 0,
+        "history": {
+          "hits": 0,
+          "refreshes": 0,
+          "builds": 0
+        },
+        "linear_work": {
+          "jacobian_builds": 12,
+          "jacobian_reuses": 12
+        },
+        "transport_work": [
+          {
+            "nodes": 16,
+            "model_id": "867d664f111b2fd5f6fc7c60989577347329e32fe785e2dbb52fe7f5be9f9b6d",
+            "solves": 0,
+            "iterations": 0,
+            "jacobian_builds": 0,
+            "residual_evaluations": 0
+          },
+          {
+            "nodes": 3,
+            "model_id": "90f44f16ef9058bf485fe877d87d27d6c8ec657ea24622f5b0a226b493e53e98",
+            "solves": 0,
+            "iterations": 0,
+            "jacobian_builds": 0,
+            "residual_evaluations": 0
+          },
+          {
+            "nodes": 15,
+            "model_id": "888f0e48de7b1d0733ca9266ff58ad38071466383bab9e0afcc35e66f89a2c4a",
+            "solves": 18,
+            "iterations": 73,
+            "jacobian_builds": 37,
+            "residual_evaluations": 109
+          }
+        ],
+        "temporal_predictor": [
+          {
+            "attempts": 0,
+            "uses": 0,
+            "vector_uses": 0,
+            "spatial_vector_uses": 0
+          },
+          {
+            "attempts": 0,
+            "uses": 0,
+            "vector_uses": 0,
+            "spatial_vector_uses": 0
+          }
+        ],
+        "chemical_work": [
+          {
+            "fused_stability_objective_cpu": false,
+            "reuse_stability_values": true,
+            "stability_value_reused_batches": 1525,
+            "stability_value_reused_points": 20577,
+            "stability_objective_compiled_batches": 0,
+            "stability_objective_compiled_points": 0,
+            "stability_objective_compilation_failure": null,
+            "fugacity_ssi_predictor": true,
+            "ssi_attempted_seeds": 1054,
+            "ssi_resolved_seeds": 1054,
+            "full_eos_compiled_batches": 4650,
+            "full_eos_compiled_points": 5802,
+            "full_eos_compilation_failure": null,
+            "analytic_composition_derivatives": true,
+            "curvature_compiled_batches": 333,
+            "curvature_compilation_failure": null,
+            "components": [
+              "methane",
+              "hexane",
+              "water"
+            ],
+            "enabled": true,
+            "compiled_batches": 6316,
+            "compiled_points": 210041,
+            "padded_points": 282424,
+            "compilation_failure": null,
+            "jacobian_compiled_batches": 1945,
+            "jacobian_compiled_points": 26284,
+            "jacobian_compilation_failure": null
+          },
+          {
+            "fused_stability_objective_cpu": false,
+            "reuse_stability_values": true,
+            "stability_value_reused_batches": 581,
+            "stability_value_reused_points": 17674,
+            "stability_objective_compiled_batches": 0,
+            "stability_objective_compiled_points": 0,
+            "stability_objective_compilation_failure": null,
+            "fugacity_ssi_predictor": true,
+            "ssi_attempted_seeds": 710,
+            "ssi_resolved_seeds": 710,
+            "full_eos_compiled_batches": 124,
+            "full_eos_compiled_points": 2884,
+            "full_eos_compilation_failure": null,
+            "analytic_composition_derivatives": true,
+            "curvature_compiled_batches": 158,
+            "curvature_compilation_failure": null,
+            "components": [
+              "methane",
+              "hexane",
+              "water"
+            ],
+            "enabled": true,
+            "compiled_batches": 3645,
+            "compiled_points": 174427,
+            "padded_points": 210656,
+            "compilation_failure": null,
+            "jacobian_compiled_batches": 889,
+            "jacobian_compiled_points": 22776,
+            "jacobian_compilation_failure": null
+          }
+        ]
+      },
+      {
+        "wall_s": 5.909605967000971,
+        "gc_wall_s_by_generation": [
+          0.046775475988397375,
+          0.019385306986805517,
+          0.0
+        ],
+        "gc_collections_by_generation": [
+          470,
+          43,
+          0
+        ],
+        "simulated_duration_s": 0.04864483383967377,
+        "attempts": 3,
+        "accepted_macro_steps": 6,
+        "accepted_fast_steps": 12,
+        "fast_nonlinear_solves": 12,
+        "fast_fallback_intervals": 0,
+        "execution": {
+          "compilations": 12,
+          "compiled_calls": 1850,
+          "verified_calls": 12,
+          "verified_roundoff_calls": 1,
+          "fallback_calls": 0,
+          "trace_nodes": 126794,
+          "resident_constant_bytes": 424,
+          "resident_input_bytes": 39624,
+          "input_buffer_allocations": 1426,
+          "input_buffer_updates": 230450,
+          "input_clone_allocations": 0,
+          "compile_wall_s": 71.56373428499501,
+          "lowering_wall_s": 65.89296172699687,
+          "codegen_wall_s": 5.670772557998134,
+          "trace_dispatch_wall_s": 83.37941724100529,
+          "verification_wall_s": 1.1841553599915642,
+          "fallback_reasons": {},
+          "maximum_kernels": 32,
+          "maximum_nodes": 50000,
+          "maximum_constant_bytes": 268435456,
+          "disabled": false,
+          "linearization_ad": "forward_dense_or_colored_jvp",
+          "eager_final": true,
+          "reuse_input_buffers": true,
+          "operator_contexts": 10,
+          "maximum_operator_contexts": 128,
+          "verification_failure": null,
+          "blocked_operators": []
+        },
+        "audit": {
+          "accepted": true,
+          "checked_split_steps": 6,
+          "checked_local_steps": 12,
+          "checked_slow_steps": 6,
+          "conservation_residuals": [
+            5.684341886080801e-13,
+            -1.8189894035458565e-12,
+            1.0186340659856796e-10,
+            1.1124505439052967e-07
+          ]
+        },
+        "policy": "acyclic_closures",
+        "repeat": 1,
+        "history": {
+          "hits": 0,
+          "refreshes": 0,
+          "builds": 0
+        },
+        "linear_work": {
+          "jacobian_builds": 12,
+          "jacobian_reuses": 12
+        },
+        "transport_work": [
+          {
+            "nodes": 16,
+            "model_id": "867d664f111b2fd5f6fc7c60989577347329e32fe785e2dbb52fe7f5be9f9b6d",
+            "solves": 0,
+            "iterations": 0,
+            "jacobian_builds": 0,
+            "residual_evaluations": 0
+          },
+          {
+            "nodes": 3,
+            "model_id": "90f44f16ef9058bf485fe877d87d27d6c8ec657ea24622f5b0a226b493e53e98",
+            "solves": 0,
+            "iterations": 0,
+            "jacobian_builds": 0,
+            "residual_evaluations": 0
+          },
+          {
+            "nodes": 15,
+            "model_id": "888f0e48de7b1d0733ca9266ff58ad38071466383bab9e0afcc35e66f89a2c4a",
+            "solves": 18,
+            "iterations": 73,
+            "jacobian_builds": 37,
+            "residual_evaluations": 109
+          }
+        ],
+        "temporal_predictor": [
+          {
+            "attempts": 0,
+            "uses": 0,
+            "vector_uses": 0,
+            "spatial_vector_uses": 0
+          },
+          {
+            "attempts": 0,
+            "uses": 0,
+            "vector_uses": 0,
+            "spatial_vector_uses": 0
+          }
+        ],
+        "chemical_work": [
+          {
+            "fused_stability_objective_cpu": false,
+            "reuse_stability_values": true,
+            "stability_value_reused_batches": 1525,
+            "stability_value_reused_points": 20577,
+            "stability_objective_compiled_batches": 0,
+            "stability_objective_compiled_points": 0,
+            "stability_objective_compilation_failure": null,
+            "fugacity_ssi_predictor": true,
+            "ssi_attempted_seeds": 1054,
+            "ssi_resolved_seeds": 1054,
+            "full_eos_compiled_batches": 4650,
+            "full_eos_compiled_points": 5802,
+            "full_eos_compilation_failure": null,
+            "analytic_composition_derivatives": true,
+            "curvature_compiled_batches": 333,
+            "curvature_compilation_failure": null,
+            "components": [
+              "methane",
+              "hexane",
+              "water"
+            ],
+            "enabled": true,
+            "compiled_batches": 6316,
+            "compiled_points": 210041,
+            "padded_points": 282424,
+            "compilation_failure": null,
+            "jacobian_compiled_batches": 1945,
+            "jacobian_compiled_points": 26284,
+            "jacobian_compilation_failure": null
+          },
+          {
+            "fused_stability_objective_cpu": false,
+            "reuse_stability_values": true,
+            "stability_value_reused_batches": 581,
+            "stability_value_reused_points": 17674,
+            "stability_objective_compiled_batches": 0,
+            "stability_objective_compiled_points": 0,
+            "stability_objective_compilation_failure": null,
+            "fugacity_ssi_predictor": true,
+            "ssi_attempted_seeds": 710,
+            "ssi_resolved_seeds": 710,
+            "full_eos_compiled_batches": 124,
+            "full_eos_compiled_points": 2884,
+            "full_eos_compilation_failure": null,
+            "analytic_composition_derivatives": true,
+            "curvature_compiled_batches": 158,
+            "curvature_compilation_failure": null,
+            "components": [
+              "methane",
+              "hexane",
+              "water"
+            ],
+            "enabled": true,
+            "compiled_batches": 3645,
+            "compiled_points": 174427,
+            "padded_points": 210656,
+            "compilation_failure": null,
+            "jacobian_compiled_batches": 889,
+            "jacobian_compiled_points": 22776,
+            "jacobian_compilation_failure": null
+          }
+        ]
+      },
+      {
+        "wall_s": 6.240245737000805,
+        "gc_wall_s_by_generation": [
+          0.05465451099371421,
+          0.017003121007292066,
+          0.0
+        ],
+        "gc_collections_by_generation": [
+          476,
+          43,
+          0
+        ],
+        "simulated_duration_s": 0.04864483383967377,
+        "attempts": 3,
+        "accepted_macro_steps": 6,
+        "accepted_fast_steps": 12,
+        "fast_nonlinear_solves": 12,
+        "fast_fallback_intervals": 0,
+        "execution": {
+          "compilations": 12,
+          "compiled_calls": 2960,
+          "verified_calls": 12,
+          "verified_roundoff_calls": 1,
+          "fallback_calls": 0,
+          "trace_nodes": 126794,
+          "resident_constant_bytes": 424,
+          "resident_input_bytes": 39624,
+          "input_buffer_allocations": 1426,
+          "input_buffer_updates": 368720,
+          "input_clone_allocations": 0,
+          "compile_wall_s": 71.56373428499501,
+          "lowering_wall_s": 65.89296172699687,
+          "codegen_wall_s": 5.670772557998134,
+          "trace_dispatch_wall_s": 83.37941724100529,
+          "verification_wall_s": 1.1841553599915642,
+          "fallback_reasons": {},
+          "maximum_kernels": 32,
+          "maximum_nodes": 50000,
+          "maximum_constant_bytes": 268435456,
+          "disabled": false,
+          "linearization_ad": "forward_dense_or_colored_jvp",
+          "eager_final": true,
+          "reuse_input_buffers": true,
+          "operator_contexts": 10,
+          "maximum_operator_contexts": 128,
+          "verification_failure": null,
+          "blocked_operators": []
+        },
+        "audit": {
+          "accepted": true,
+          "checked_split_steps": 6,
+          "checked_local_steps": 12,
+          "checked_slow_steps": 6,
+          "conservation_residuals": [
+            5.684341886080801e-13,
+            -1.8189894035458565e-12,
+            1.0186340659856796e-10,
+            1.1124505439052967e-07
+          ]
+        },
+        "policy": "acyclic_closures",
+        "repeat": 2,
+        "history": {
+          "hits": 0,
+          "refreshes": 0,
+          "builds": 0
+        },
+        "linear_work": {
+          "jacobian_builds": 12,
+          "jacobian_reuses": 12
+        },
+        "transport_work": [
+          {
+            "nodes": 16,
+            "model_id": "867d664f111b2fd5f6fc7c60989577347329e32fe785e2dbb52fe7f5be9f9b6d",
+            "solves": 0,
+            "iterations": 0,
+            "jacobian_builds": 0,
+            "residual_evaluations": 0
+          },
+          {
+            "nodes": 3,
+            "model_id": "90f44f16ef9058bf485fe877d87d27d6c8ec657ea24622f5b0a226b493e53e98",
+            "solves": 0,
+            "iterations": 0,
+            "jacobian_builds": 0,
+            "residual_evaluations": 0
+          },
+          {
+            "nodes": 15,
+            "model_id": "888f0e48de7b1d0733ca9266ff58ad38071466383bab9e0afcc35e66f89a2c4a",
+            "solves": 18,
+            "iterations": 73,
+            "jacobian_builds": 37,
+            "residual_evaluations": 109
+          }
+        ],
+        "temporal_predictor": [
+          {
+            "attempts": 0,
+            "uses": 0,
+            "vector_uses": 0,
+            "spatial_vector_uses": 0
+          },
+          {
+            "attempts": 0,
+            "uses": 0,
+            "vector_uses": 0,
+            "spatial_vector_uses": 0
+          }
+        ],
+        "chemical_work": [
+          {
+            "fused_stability_objective_cpu": false,
+            "reuse_stability_values": true,
+            "stability_value_reused_batches": 1525,
+            "stability_value_reused_points": 20577,
+            "stability_objective_compiled_batches": 0,
+            "stability_objective_compiled_points": 0,
+            "stability_objective_compilation_failure": null,
+            "fugacity_ssi_predictor": true,
+            "ssi_attempted_seeds": 1054,
+            "ssi_resolved_seeds": 1054,
+            "full_eos_compiled_batches": 4650,
+            "full_eos_compiled_points": 5802,
+            "full_eos_compilation_failure": null,
+            "analytic_composition_derivatives": true,
+            "curvature_compiled_batches": 333,
+            "curvature_compilation_failure": null,
+            "components": [
+              "methane",
+              "hexane",
+              "water"
+            ],
+            "enabled": true,
+            "compiled_batches": 6316,
+            "compiled_points": 210041,
+            "padded_points": 282424,
+            "compilation_failure": null,
+            "jacobian_compiled_batches": 1945,
+            "jacobian_compiled_points": 26284,
+            "jacobian_compilation_failure": null
+          },
+          {
+            "fused_stability_objective_cpu": false,
+            "reuse_stability_values": true,
+            "stability_value_reused_batches": 581,
+            "stability_value_reused_points": 17674,
+            "stability_objective_compiled_batches": 0,
+            "stability_objective_compiled_points": 0,
+            "stability_objective_compilation_failure": null,
+            "fugacity_ssi_predictor": true,
+            "ssi_attempted_seeds": 710,
+            "ssi_resolved_seeds": 710,
+            "full_eos_compiled_batches": 124,
+            "full_eos_compiled_points": 2884,
+            "full_eos_compilation_failure": null,
+            "analytic_composition_derivatives": true,
+            "curvature_compiled_batches": 158,
+            "curvature_compilation_failure": null,
+            "components": [
+              "methane",
+              "hexane",
+              "water"
+            ],
+            "enabled": true,
+            "compiled_batches": 3645,
+            "compiled_points": 174427,
+            "padded_points": 210656,
+            "compilation_failure": null,
+            "jacobian_compiled_batches": 889,
+            "jacobian_compiled_points": 22776,
+            "jacobian_compilation_failure": null
+          }
+        ]
+      }
+    ]
+  },
+  "warm_median_wall_s": {
+    "cyclic_closures": 6.305584079997061,
+    "acyclic_closures": 5.949560368000675
+  },
+  "observed_speedup": 1.0598403394494889,
+  "difference_at_each_report_in_original_error_norm": [
+    [
+      0.0,
+      0.0,
+      0.0
+    ],
+    [
+      0.0,
+      0.0,
+      0.0
+    ],
+    [
+      0.0,
+      0.0,
+      0.0
+    ]
+  ],
+  "independent_audits_passed": true,
+  "sources_unchanged": true,
+  "native_execution": {
+    "compilations": 12,
+    "compiled_calls": 2960,
+    "verified_calls": 12,
+    "verified_roundoff_calls": 1,
+    "fallback_calls": 0,
+    "trace_nodes": 126794,
+    "resident_constant_bytes": 424,
+    "resident_input_bytes": 39624,
+    "input_buffer_allocations": 1426,
+    "input_buffer_updates": 368720,
+    "input_clone_allocations": 0,
+    "compile_wall_s": 71.56373428499501,
+    "lowering_wall_s": 65.89296172699687,
+    "codegen_wall_s": 5.670772557998134,
+    "trace_dispatch_wall_s": 83.37941724100529,
+    "verification_wall_s": 1.1841553599915642,
+    "fallback_reasons": {},
+    "maximum_kernels": 32,
+    "maximum_nodes": 50000,
+    "maximum_constant_bytes": 268435456,
+    "disabled": false,
+    "linearization_ad": "forward_dense_or_colored_jvp",
+    "eager_final": true,
+    "reuse_input_buffers": true,
+    "operator_contexts": 10,
+    "maximum_operator_contexts": 128,
+    "verification_failure": null,
+    "blocked_operators": []
+  },
+  "full_operating_cycle_qualified": false,
+  "accepted": true
+}

@@ -1,5 +1,6 @@
 """Fused float64 CPU/CUDA EOS trials; eager AD and full acceptance stay separate."""
 
+import types
 import warnings
 
 import torch
@@ -11,6 +12,107 @@ _compiled_cpu_jacobian = None
 _compiled_curvature = {}
 _WIDTH = 64
 _SMALL_WIDTH = 8
+_compiled_stability_values = {}
+_STABILITY_CONTEXTS = 16
+
+
+def _stability_values(fluid, pressures, temperatures, chemical, active, point):
+    logits = torch.cat((point, torch.zeros_like(point[:, :1])), -1)
+    logw = torch.log_softmax(logits, -1)
+    weights = logw.exp()
+    composition = point.new_zeros((len(point), len(fluid.components))).index_copy(
+        -1, active, weights
+    )
+    properties = _native_batch(fluid, pressures, temperatures, composition)
+    delta = logw + properties["log_fugacity_coefficients"][:, active] - chemical
+    potential = (weights * delta).sum(-1)
+    gradient = (weights * (delta - potential[:, None]))[:, :-1]
+    residual = delta[:, :-1] - delta[:, -1:]
+    return potential, gradient, residual, composition, properties
+
+
+def stability_values(fluid, point, pressures, temperatures, chemical, active):
+    """Fuse the existing objective and analytic gradient; never classify phases.
+
+    None requests the reference objective. AD, CUDA and unsupported inputs
+    retain it. Each 8/64-row specialization has its own bounded guard cache.
+    Final stationarity/curvature/full-EOS acceptance remains with the caller.
+    """
+    if (
+        fluid.device.type != "cpu"
+        or not getattr(fluid, "_fused_stability_objective_cpu", False)
+        or fluid._stability_objective_compile_failure is not None
+        or not eligible(fluid, point, pressures, temperatures, chemical)
+        or active.dtype != torch.long
+        or active.device != point.device
+        or torch._C._functorch.is_functorch_wrapped_tensor(active)
+        or len(active) < 2
+        or point.numel() == 0
+    ):
+        return None
+    shape = point.shape[:-1]
+    pp = torch.broadcast_to(pressures, shape).reshape(-1)
+    tt = torch.broadcast_to(temperatures, shape).reshape(-1)
+    mu = torch.broadcast_to(chemical, (*shape, len(active))).reshape(-1, len(active))
+    vv = point.reshape(-1, point.shape[-1])
+    count = len(vv)
+    pieces = []
+    try:
+        for start in range(0, count, _WIDTH):
+            values = [v[start : start + _WIDTH] for v in (pp, tt, mu, vv)]
+            size = len(values[0])
+            width = _SMALL_WIDTH if fluid._compact_chemical_cpu and size <= _SMALL_WIDTH else _WIDTH
+            key = (len(fluid.components), len(active), width)
+            if key not in _compiled_stability_values:
+                if len(_compiled_stability_values) >= _STABILITY_CONTEXTS:
+                    fluid._stability_objective_compile_failure = "operator_admission"
+                    return None
+                frame = types.FunctionType(
+                    _stability_values.__code__.replace(),
+                    _stability_values.__globals__,
+                    _stability_values.__name__,
+                )
+                _compiled_stability_values[key] = torch.compile(
+                    frame, fullgraph=True, dynamic=False, options={"use_fast_math": False}
+                )
+            if size < width:
+                values = [torch.cat((v, v[-1:].expand(width - size, *v.shape[1:]))) for v in values]
+            p, t, m, v = [value.contiguous() for value in values]
+            answer = _compiled_stability_values[key](fluid, p, t, m, active, v)
+            pieces.append(
+                tuple(value[:size] for value in answer[:4])
+                + ({name: value[:size] for name, value in answer[4].items()},)
+            )
+            fluid._stability_objective_compiled_batches += 1
+            fluid._stability_objective_compiled_points += size
+    except (
+        torch._dynamo.exc.BackendCompilerFailed,
+        torch._dynamo.exc.Unsupported,
+        torch._dynamo.exc.TorchRuntimeError,
+        torch._dynamo.exc.FailOnRecompileLimitHit,
+    ) as exc:
+        from .native_execution import _propagate_cancellation
+
+        _propagate_cancellation(exc)
+        fluid._stability_objective_compile_failure = (
+            f"{type(exc).__name__}: {str(exc).splitlines()[0]}"
+        )
+        warnings.warn(
+            "Fused TPD objective unavailable; original objective retained: "
+            + fluid._stability_objective_compile_failure,
+            RuntimeWarning,
+            stacklevel=2,
+        )
+        return None
+    values = tuple(torch.cat([piece[i] for piece in pieces]) for i in range(4))
+    properties = {name: torch.cat([piece[4][name] for piece in pieces]) for name in pieces[0][4]}
+    return (
+        values[0].reshape(shape),
+        values[1].reshape(*shape, point.shape[-1]),
+        values[2].reshape(*shape, point.shape[-1]),
+        values[3].reshape(*shape, len(fluid.components)),
+        {name: value.reshape((*shape, *value.shape[1:])) for name, value in properties.items()},
+    )
 
 
 def _batch(fluid, pressures, temperatures, compositions):

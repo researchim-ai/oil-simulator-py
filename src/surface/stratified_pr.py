@@ -910,15 +910,17 @@ class StratifiedPRColumn:
         )
         t = f.tensor(state.temperature_k)
         lam = f.tensor(state.chemical_constants)[active]
+        root = state.phase_roots[index]
+        height_tensor = f.tensor(height)
 
         def evaluate(y):
-            p, x, q = self._decode_nodes(y.reshape(1, c), active, t, state.phase_roots[index])
+            p, x, q = self._decode_nodes(y.reshape(1, c), active, t, root)
             mu = (
                 torch.log(x[0, active].clamp_min(1e-300))
                 + q["log_fugacity_coefficients"][0, active]
                 + torch.log(p[0] / f.pref)
             )
-            return mu + f.molar_masses[active] * self.gravity_m_s2 * height / (R * t) - lam
+            return mu + f.molar_masses[active] * self.gravity_m_s2 * height_tensor / (R * t) - lam
 
         solver = TorchNewton(f.device, maximum_iterations=40)
         solver.host_convergence = True

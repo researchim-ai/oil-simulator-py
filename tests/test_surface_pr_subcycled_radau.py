@@ -67,3 +67,27 @@ def test_invalid_fast_scheme_rejected(subcycle_config):  # noqa: F811
     model = PRControlledSurface.from_dict(subcycle_config["model"])
     with pytest.raises(ValueError, match="time scheme"):
         PRSubcycledSurface(model.reference_surface, model.pipe_nodes, fast_time_scheme="explicit")
+
+
+def test_explicit_jacobian_history_policy_roundtrips_without_changing_stocks(radau_case):
+    original = PRControlledSurface.from_dict(radau_case["model"])
+    model = PRSubcycledSurface(
+        original.reference_surface,
+        original.pipe_nodes,
+        fast_time_scheme=original.fast_time_scheme,
+        fast_jacobian_history=True,
+    )
+    restored = PRControlledSurface.from_dict(json.loads(json.dumps(model.to_dict())))
+    assert restored.fast_integrator._reuse_step_jacobian is True
+    assert restored.to_dict() == model.to_dict()
+    old = PRControlledSurfaceState.from_dict(radau_case["initial"]["state"])
+    new = replace(old, model_id=restored.model_id)
+    restored.inspect(new)
+    assert new.plant == old.plant
+    assert restored.fast_integrator._stage_linearization.entry is None
+
+
+def test_jacobian_history_rejected_for_unadapted_be_path(subcycle_config):  # noqa: F811
+    model = PRControlledSurface.from_dict(subcycle_config["model"])
+    with pytest.raises(ValueError, match="Jacobian history"):
+        PRSubcycledSurface(model.reference_surface, model.pipe_nodes, fast_jacobian_history=True)

@@ -1,0 +1,210 @@
+{
+  "physical_guess": {
+    "warm_median_wall_s": {
+      "fresh_probe": 6.769569197000237,
+      "warm_probe": 6.440584312000283
+    },
+    "observed_speedup": 1.0510799749002555,
+    "differences": [
+      [
+        0.0,
+        0.0,
+        0.0
+      ],
+      [
+        0.0,
+        0.0,
+        0.0
+      ],
+      [
+        0.0,
+        0.0,
+        0.0
+      ]
+    ],
+    "quality_audit_passed": true,
+    "full_operating_cycle_qualified": false
+  },
+  "full_temporal_guess": {
+    "warm_median_wall_s": {
+      "fresh_probe": 6.793753957997978,
+      "warm_probe": 6.414904110999487
+    },
+    "observed_speedup": 1.0590577568180461,
+    "differences": [
+      [
+        0.0,
+        0.0,
+        0.0
+      ],
+      [
+        0.0,
+        0.0,
+        0.0
+      ],
+      [
+        0.0,
+        0.0,
+        0.0
+      ]
+    ],
+    "quality_audit_passed": true,
+    "full_operating_cycle_qualified": false
+  },
+  "spatial_guess_pilot": {
+    "warm_median_wall_s": {
+      "fresh_spatial": 6.090880446001393,
+      "warm_spatial": 7.427021114999661
+    },
+    "observed_speedup": 0.8200973649718337,
+    "differences": [
+      [
+        1.872616668535698e-08,
+        3.521612274814617e-08,
+        1.9053570547922037e-07
+      ],
+      [
+        1.872616668535698e-08,
+        3.521612274814617e-08,
+        1.9053570547922037e-07
+      ],
+      [
+        1.872616668535698e-08,
+        3.521612274814617e-08,
+        1.9053570547922037e-07
+      ]
+    ],
+    "quality_audit_passed": true,
+    "full_operating_cycle_qualified": false
+  },
+  "spatial_guess_profile": {
+    "warm_median_wall_s": {
+      "fresh_spatial": 5.890358718999778,
+      "warm_spatial": 7.356646076998004
+    },
+    "observed_speedup": 0.8006853472830695,
+    "differences": [
+      [
+        1.872616668535698e-08,
+        3.521612274814617e-08,
+        1.9053570547922037e-07
+      ],
+      [
+        1.872616668535698e-08,
+        3.521612274814617e-08,
+        1.9053570547922037e-07
+      ],
+      [
+        1.872616668535698e-08,
+        3.521612274814617e-08,
+        1.9053570547922037e-07
+      ]
+    ],
+    "quality_audit_passed": true,
+    "full_operating_cycle_qualified": false
+  },
+  "fused_objective": {
+    "warm_median_wall_s": {
+      "original_objective": 6.177758628000447,
+      "fused_objective": 6.0977442570001585
+    },
+    "observed_speedup": 1.0131219624221584,
+    "differences": [
+      [
+        0.0,
+        0.0,
+        0.0
+      ],
+      [
+        0.0,
+        0.0,
+        0.0
+      ],
+      [
+        0.0,
+        0.0,
+        0.0
+      ]
+    ],
+    "quality_audit_passed": true,
+    "full_operating_cycle_qualified": false
+  },
+  "stability_carry": {
+    "warm_median_wall_s": {
+      "recomputed_values": 6.318893781997758,
+      "carried_values": 5.928676797000662
+    },
+    "observed_speedup": 1.065818562616621,
+    "differences": [
+      [
+        0.0,
+        0.0,
+        0.0
+      ],
+      [
+        0.0,
+        0.0,
+        0.0
+      ],
+      [
+        0.0,
+        0.0,
+        0.0
+      ]
+    ],
+    "quality_audit_passed": true,
+    "full_operating_cycle_qualified": false
+  },
+  "closure_lifetime": {
+    "warm_median_wall_s": {
+      "cyclic_closures": 6.305584079997061,
+      "acyclic_closures": 5.949560368000675
+    },
+    "observed_speedup": 1.0598403394494889,
+    "differences": [
+      [
+        0.0,
+        0.0,
+        0.0
+      ],
+      [
+        0.0,
+        0.0,
+        0.0
+      ],
+      [
+        0.0,
+        0.0,
+        0.0
+      ]
+    ],
+    "quality_audit_passed": true,
+    "full_operating_cycle_qualified": false
+  },
+  "release": {
+    "warm_median_wall_s": {
+      "original_runtime": 6.545018167998933,
+      "updated_runtime": 6.246994734003238
+    },
+    "observed_speedup": 1.04770668884568,
+    "difference_at_each_report_in_original_error_norm": [
+      [
+        0.0,
+        0.0,
+        0.0
+      ],
+      [
+        0.0,
+        0.0,
+        0.0
+      ],
+      [
+        0.0,
+        0.0,
+        0.0
+      ]
+    ],
+    "accepted": true,
+    "sources_unchanged": true
+  }
+}

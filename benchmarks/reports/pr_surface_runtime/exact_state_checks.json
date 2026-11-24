@@ -1,0 +1,6 @@
+{
+  "release_pairs_all_state_fields_identical": true,
+  "carry_pairs_all_state_fields_identical": true,
+  "lifetime_pairs_all_state_fields_identical": true,
+  "direct_default_matches_release_all_state_fields": true
+}

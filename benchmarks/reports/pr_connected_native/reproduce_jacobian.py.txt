@@ -1,0 +1,37 @@
+import json,time,torch
+from pathlib import Path
+from run_pr_controlled_surface import run
+from surface.equilibrium_properties import EquilibriumFluid
+from surface.torch_nonlinear import TorchNewton
+from surface.native_execution import NativeExecution
+class Captured(Exception):pass
+box={}; original=TorchNewton.solve
+def intercept(self,fn,x,*a,**kw):
+ if x.numel()==268:
+  box.update(fn=fn,x=x.clone());raise Captured()
+ return original(self,fn,x,*a,**kw)
+TorchNewton.solve=intercept
+config=json.load(open('benchmarks/reports/pr_connected_native/steady_embedded.json'))
+config['schedule']=config['schedule'][:1]
+EquilibriumFluid._compiled_chemical_cpu=False
+EquilibriumFluid._compiled_full_eos_cpu=False
+try:run(config)
+except Captured:pass
+finally:TorchNewton.solve=original
+fn=box['fn']; x=box['x']; raw=getattr(fn,'runtime_residual',fn)
+print('CAPTURED',x.shape,flush=True)
+with torch.no_grad():expected=torch.func.jacfwd(raw)(x)
+print('EAGER_READY',float(expected.abs().max()),flush=True)
+def tensor(o):return next(v for v in torch.utils._pytree.tree_leaves(o) if isinstance(v,torch.Tensor) and v.shape==expected.shape)
+def diff(a,b):return {'max_abs':float((a-b).abs().max()),'relative_max':float(((a-b).abs()/(1e-30+b.abs())).max()),'unequal':int((~torch.isclose(a,b,rtol=2e-10,atol=3e-10)).sum())}
+class Probe(NativeExecution):
+ def _backend(self,module,inputs):
+  gm=tensor(module(*[v.clone() for v in inputs])); print('DYNAMO_V_EAGER',diff(gm,expected),flush=True)
+  compiled=super()._backend(module,inputs)
+  aten,_=self.entries[-1]
+  lower=tensor(aten(*[v.clone() for v in inputs]));print('ATEN_V_DYNAMO',diff(lower,gm),flush=True)
+  result=tensor(compiled(*[v.clone() for v in inputs]));print('NATIVE_V_ATEN',diff(result,lower),flush=True)
+  torch.save({'x':x,'eager':expected,'dynamo':gm,'aten':lower,'native':result},'/tmp/pr_coupled_jacobian_probe.pt')
+  return compiled
+with torch.no_grad():
+ engine=Probe(progress=print);s=time.perf_counter();result=engine.jacobian(fn,x);print('DONE',time.perf_counter()-s,engine.statistics(),flush=True)

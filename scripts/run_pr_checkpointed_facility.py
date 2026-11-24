@@ -12,6 +12,7 @@ import math
 import os
 import signal
 import time
+from contextlib import ExitStack
 from dataclasses import replace
 from pathlib import Path
 from unittest.mock import patch
@@ -34,10 +35,16 @@ def source_hashes():
     return {str(p.relative_to(ROOT)): hashlib.sha256(p.read_bytes()).hexdigest() for p in paths}
 
 
-def journal_run(config, output, *, device="cpu", budget_s=3600):
+def journal_run(
+    config, output, *, device="cpu", budget_s=3600, native_kernels=False, maximum_native_kernels=16
+):
     """Return completion metadata; a prefix is never called a complete cycle."""
     if not math.isfinite(budget_s) or budget_s <= 0:
         raise ValueError("Finite positive wall-time budget required")
+    if native_kernels and (
+        device != "cpu" or type(maximum_native_kernels) is not int or maximum_native_kernels < 1
+    ):
+        raise ValueError("Native CPU execution requires a positive integer kernel budget")
     if set(config.get("initial", {})) != {"state"}:
         raise ValueError("Journaling requires an explicit initial checkpoint")
     output = Path(output)
@@ -50,6 +57,7 @@ def journal_run(config, output, *, device="cpu", budget_s=3600):
     original = PRControlledSurface._temporal_trial
     hashes = source_hashes()
     start = time.perf_counter()
+    cancellation = [None]
     status = {
         "completed": False,
         "source_sha256": hashes,
@@ -57,10 +65,20 @@ def journal_run(config, output, *, device="cpu", budget_s=3600):
         "simulated_time_s": config["initial"]["state"]["plant"]["transport"]["time_s"],
         "accepted_macrosteps": 0,
         "compiled_cpu_chemical": EquilibriumFluid._compiled_chemical_cpu,
+        "compiled_full_eos_cpu": EquilibriumFluid._compiled_full_eos_cpu,
+        "native_kernels": native_kernels,
     }
 
+    def check_deadline():
+        if cancellation[0] is not None or time.perf_counter() - start >= budget_s:
+            raise TimeoutError(
+                cancellation[0] or "Wall-time budget exhausted; accepted journal retained"
+            )
+
     def observed(self, *args, **kwargs):
+        check_deadline()
         answer = original(self, *args, **kwargs)
+        check_deadline()
         pending.update(trial=answer)
         return answer
 
@@ -71,6 +89,7 @@ def journal_run(config, output, *, device="cpu", budget_s=3600):
         handle.flush()
 
         def progress(event):
+            check_deadline()
             print(json.dumps(event), flush=True)
             if event["event"] == "attempt":
                 pending["interval_end_s"] = event["end_time_s"]
@@ -100,14 +119,37 @@ def journal_run(config, output, *, device="cpu", budget_s=3600):
             reason = (
                 "Wall-time budget exhausted" if signum == signal.SIGALRM else "Process interrupted"
             )
-            raise TimeoutError(reason + "; accepted journal retained")
+            # A signal delivered during a Python finalizer can be reported as
+            # unraisable. Keep a sticky flag so the next normal solver/event
+            # boundary still stops instead of silently losing the deadline.
+            cancellation[0] = reason + "; accepted journal retained"
+            raise TimeoutError(cancellation[0])
 
         old = signal.signal(signal.SIGALRM, expired)
         old_term = signal.signal(signal.SIGTERM, expired)
         signal.setitimer(signal.ITIMER_REAL, budget_s)
         try:
-            with patch.object(PRControlledSurface, "_temporal_trial", observed):
-                result = run(config, device=device, progress=progress)
+            with ExitStack() as scope:
+                execution = None
+                if native_kernels:
+                    from surface.native_execution import native_kernel_execution
+
+                    execution = scope.enter_context(
+                        native_kernel_execution(
+                            maximum_kernels=maximum_native_kernels, progress=progress
+                        )
+                    )
+                scope.enter_context(patch.object(PRControlledSurface, "_temporal_trial", observed))
+                try:
+                    result = run(
+                        config,
+                        device=device,
+                        progress=progress,
+                        **({"native_kernels": True} if native_kernels else {}),
+                    )
+                finally:
+                    if execution is not None:
+                        status["native_execution"] = execution.statistics()
             trajectory.write_text(json.dumps(result, allow_nan=False) + "\n")
             status.update(completed=True, trajectory=trajectory.name)
         except (TimeoutError, RuntimeError, ValueError, KeyboardInterrupt) as exc:
@@ -296,6 +338,10 @@ def main():
     p.add_argument("--device", choices=("cpu", "cuda"), default="cpu")
     p.add_argument("--budget-s", type=float, default=3600)
     p.add_argument("--compiled-cpu-chemical", action="store_true")
+    p.add_argument("--compiled-full-eos", action="store_true")
+    p.add_argument("--native-kernels", action="store_true")
+    p.add_argument("--maximum-native-kernels", type=int, default=16)
+    p.add_argument("--reverse-dense-jacobian", action="store_true")
     args = p.parse_args()
     if args.recover_journal and args.resume_journal:
         p.error("Choose recovery or resumed integration")
@@ -364,7 +410,19 @@ def main():
     if args.device == "cuda" and not os.environ.get("CUDA_VISIBLE_DEVICES"):
         p.error("Explicit CUDA_VISIBLE_DEVICES required")
     EquilibriumFluid._compiled_chemical_cpu = args.compiled_cpu_chemical
-    result = journal_run(config, args.output, device=args.device, budget_s=args.budget_s)
+    EquilibriumFluid._compiled_full_eos_cpu = args.compiled_full_eos and args.device == "cpu"
+    EquilibriumFluid._compiled_full_eos_cuda = args.compiled_full_eos and args.device == "cuda"
+    from surface.torch_nonlinear import TorchNewton
+
+    TorchNewton._dense_jacobian_mode = "reverse" if args.reverse_dense_jacobian else "forward"
+    result = journal_run(
+        config,
+        args.output,
+        device=args.device,
+        budget_s=args.budget_s,
+        native_kernels=args.native_kernels,
+        maximum_native_kernels=args.maximum_native_kernels,
+    )
     result["restart_source_changes"] = restart_changes
     result["explicit_source_migration"] = bool(restart_changes) and args.allow_solver_change
     args.output.write_text(json.dumps(result, indent=2, allow_nan=False) + "\n")

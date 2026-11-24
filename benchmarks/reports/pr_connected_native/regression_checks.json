@@ -1,0 +1,21 @@
+{
+  "scope": "Regression tests; not throughput measurements or experimental validation",
+  "source_sha256": {
+    "src/surface/native_execution.py": "5279410550baf325e65f5620443c7d768c4717b9729136abdd656fd506bf530c",
+    "src/surface/stratified_pr.py": "c6cfc71a568d8bdb29a709a9057654b98411843b49be55b3d5a1fb864454b760",
+    "scripts/benchmark_pr_fast_integrator.py": "d7f95dbfa3e3e753d0a5954d0212ab71c70c707fd5a6fc841d3e0ffd4dd0a328",
+    "scripts/run_pr_checkpointed_facility.py": "e4b86b4f83c5ee76dd2f0e356fb767671c03e31d42b0e7fb3d6ccdcfcd045e2a",
+    "tests/test_surface_native_execution.py": "4148ecaaf93a8fc01d76168bccf8847df2325fd957760b6d74745033aab353f8",
+    "tests/test_pr_facility_journal.py": "db1c3842d57daf0dfca9fce19a0c4e241367796b9c641c082c9f332ed5f85573"
+  },
+  "cpu_tests_passed": 31,
+  "cuda_tests_passed": 1,
+  "cuda_visible_devices": "1",
+  "logs": {
+    "native_and_journal": "native_and_journal.tests.log",
+    "subcycled_and_stratified": "subcycled_and_stratified.tests.log",
+    "cuda_stratified": "cuda_stratified.tests.log"
+  },
+  "ruff": "passed",
+  "git_diff_check": "passed"
+}

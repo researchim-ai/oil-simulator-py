@@ -81,7 +81,38 @@ class PRGravityTransportState:
         )
 
 
+@dataclass(frozen=True)
+class PRGravityProbeGuess:
+    """Certified physical endpoint plus optional algebraic starting vector."""
+
+    state: PRGravityTransportState
+    layout: str
+    variables: tuple
+    base_layout: str | None = None
+    base_size: int = 0
+
+    @classmethod
+    def from_report(cls, report):
+        state = PRGravityTransportState.from_dict(report["state"])
+        return cls.from_endpoint(state, report["steps"][-1])
+
+    @classmethod
+    def from_endpoint(cls, state, record):
+        guess = record["transport"].get("nonlinear_predictor")
+        if guess is None:
+            return state
+        return cls(
+            state,
+            guess["layout"],
+            tuple(guess["variables"]),
+            guess.get("base_layout"),
+            guess.get("base_size", 0),
+        )
+
+
 class PRGravityTransportNetwork:
+    _reuse_spatial_predictor = False
+
     def __init__(
         self,
         transport,
@@ -180,6 +211,10 @@ class PRGravityTransportNetwork:
         if self.start_order >= self.maximum_order:
             raise ValueError("Common quadrature refinement range required")
         self.model_id = _digest(self.to_dict())
+        self.temporal_predictor_attempts = 0
+        self.temporal_predictor_uses = 0
+        self.temporal_vector_uses = 0
+        self.spatial_vector_uses = 0
 
     def to_dict(self):
         return {
@@ -290,6 +325,32 @@ class PRGravityTransportNetwork:
             raise ConservationError("Coupled gravitational graph N/E balance rejected")
         return r
 
+    def _compatible_temporal_predictor(self, state, predictor, dt, order):
+        """A guess only, with identical unknown meanings and phase supports."""
+        if (
+            not isinstance(predictor, PRGravityTransportState)
+            or predictor.model_id != self.model_id
+            or predictor.transport.model_id != self.transport.model_id
+            or abs(predictor.time_s - (state.time_s + dt)) > 8 * math.ulp(state.time_s + dt)
+            or tuple(n for n, _ in predictor.transport.nodes) != self.transport.names
+            or tuple(n for n, _ in predictor.columns) != tuple(n for n, _ in state.columns)
+        ):
+            return False
+        for (_, a), (_, b) in zip(state.transport.nodes, predictor.transport.nodes):
+            if a.phase_roots != b.phase_roots or tuple(v > 0 for v in a.component_moles) != tuple(
+                v > 0 for v in b.component_moles
+            ):
+                return False
+        for (_, a), (_, b) in zip(state.columns, predictor.columns):
+            if (
+                a.phase_roots != b.phase_roots
+                or b.quadrature_order != order
+                or tuple(v > 0 for v in a.component_moles)
+                != tuple(v > 0 for v in b.component_moles)
+            ):
+                return False
+        return True
+
     def _step(
         self,
         state,
@@ -305,6 +366,8 @@ class PRGravityTransportNetwork:
         _column_work_j=None,
         _batch_aperture_rays=True,
         _probe_quadrature_order=None,
+        _probe_predictor=None,
+        _capture_predictor=False,
     ):
         if _probe_quadrature_order is not None and (
             not self.columns
@@ -371,11 +434,36 @@ class PRGravityTransportNetwork:
             }
         previous = None
         order = self.start_order if _probe_quadrature_order is None else _probe_quadrature_order
+        temporal_guess = None
+        algebraic_guess = None
+        if _probe_predictor is not None:
+            if _probe_quadrature_order is None:
+                raise ValueError("Temporal predictor is only allowed for a discarded probe")
+            self.temporal_predictor_attempts += 1
+            physical = (
+                _probe_predictor.state
+                if isinstance(_probe_predictor, PRGravityProbeGuess)
+                else _probe_predictor
+            )
+            if self._compatible_temporal_predictor(state, physical, dt, order):
+                self.inspect(physical)
+                temporal_guess = physical
+                algebraic_guess = (
+                    _probe_predictor if isinstance(_probe_predictor, PRGravityProbeGuess) else None
+                )
+                self.temporal_predictor_uses += 1
         while order <= self.maximum_order:
             overrides = {}
             base_open = {c.name: openings[c.name] for c in self.transport.switches}
             initial = state.transport
             for _ in range(8):
+                spatial_guess = None
+                if (
+                    previous is not None
+                    and self._reuse_spatial_predictor
+                    and self.transport.fluid.device.type == "cpu"
+                ):
+                    spatial_guess = PRGravityProbeGuess.from_endpoint(previous[0], previous[1])
                 coupling = _ColumnCoupling(
                     self,
                     state,
@@ -385,7 +473,19 @@ class PRGravityTransportNetwork:
                     heat_w,
                     utility,
                     seed_overrides=overrides,
-                    warm_state=None if previous is None else previous[0],
+                    warm_state=temporal_guess if previous is None else previous[0],
+                    algebraic_guess=(
+                        algebraic_guess
+                        if previous is None
+                        else spatial_guess
+                        if isinstance(spatial_guess, PRGravityProbeGuess)
+                        else None
+                    ),
+                    capture_predictor=(
+                        (_capture_predictor or self._reuse_spatial_predictor)
+                        and self.transport.fluid.device.type == "cpu"
+                        and _probe_quadrature_order is None
+                    ),
                     material=_material,
                     column_work_j=column_work,
                     _batch_aperture_rays=_batch_aperture_rays,
@@ -411,6 +511,10 @@ class PRGravityTransportNetwork:
             else:
                 raise HydraulicConvergenceError("Gravitational phase topology budget exhausted")
             cr = report["coupling"]
+            if previous is None:
+                self.temporal_vector_uses += int(coupling.algebraic_predictor_used)
+            else:
+                self.spatial_vector_uses += int(coupling.algebraic_predictor_used)
             new = PRGravityTransportState(
                 result,
                 tuple(
@@ -451,6 +555,8 @@ class PRGravityTransportNetwork:
                 # refinement. All physical/domain/ledger checks above remain.
                 record["quadrature_probe"] = True
                 record["quadrature_error"] = None
+                record["temporal_predictor_used"] = temporal_guess is not None
+                record["temporal_vector_used"] = coupling.algebraic_predictor_used
                 return new, record
             if previous is not None:
                 err = self._error(previous[0], new, openings=openings)
@@ -463,6 +569,8 @@ class PRGravityTransportNetwork:
                             / (1e-9 + self.transport.relative_tolerance * max(abs(x), abs(y))),
                         )
                 if err <= 1:
+                    if not _capture_predictor:
+                        report.pop("nonlinear_predictor", None)
                     record["quadrature_error"] = err
                     return new, record
             previous = (new, record)
@@ -540,7 +648,15 @@ class PRGravityTransportNetwork:
         _material_factory=None,
         _controlled_step=False,
         _probe_quadrature_order=None,
+        _probe_predictor=None,
+        _capture_predictor=False,
     ):
+        if _capture_predictor and not _controlled_step:
+            raise ValueError("Algebraic predictor capture requires a controlled step")
+        if _probe_predictor is not None and (
+            not _controlled_step or _probe_quadrature_order is None
+        ):
+            raise ValueError("Temporal predictor requires a controlled discarded probe")
         if _probe_quadrature_order is not None and not _controlled_step:
             raise ValueError(
                 "Unverified quadrature is only allowed for a controlled temporal probe"
@@ -601,6 +717,8 @@ class PRGravityTransportNetwork:
                 drive_torque_nm=drive_torque_nm,
                 restriction_openings=restriction_openings,
                 _probe_quadrature_order=_probe_quadrature_order,
+                _probe_predictor=_probe_predictor,
+                _capture_predictor=_capture_predictor,
             )
             new = replace(new, transport=replace(new.transport, time_s=end))
             record = {**record, "state": new.to_dict()}
@@ -740,6 +858,8 @@ class _ColumnCoupling:
         *,
         seed_overrides=None,
         warm_state=None,
+        algebraic_guess=None,
+        capture_predictor=False,
         material=None,
         column_work_j=None,
         _batch_aperture_rays=True,
@@ -753,6 +873,9 @@ class _ColumnCoupling:
         self.order = order
         self.seed_overrides = dict(seed_overrides or {})
         self.warm_state = warm_state
+        self.algebraic_guess = algebraic_guess
+        self.capture_predictor = capture_predictor
+        self.algebraic_predictor_used = False
         self.retry_seeds = {}
         self.openings = openings
         self.heat = heat
@@ -1008,6 +1131,7 @@ class _ColumnCoupling:
                         self.column_guesses[name] = guess
 
     def prepare(self, y, lo, hi, base, offsets, dt, pattern):
+        self.algebraic_predictor_used = False
         m = self.model
         t = m.transport
         f = t.fluid
@@ -1567,8 +1691,46 @@ class _ColumnCoupling:
                 f.tensor([math.inf] * (offset - len(base.maximum_update))),
             )
         )
-        self.evaluate = evaluate
-        return torch.cat(initial), torch.cat(lower), torch.cat(upper), evaluate, pattern
+        initial = torch.cat(initial)
+        if hasattr(base, "predictor_layout") and self.material is None:
+            evaluate.predictor_layout = _digest(
+                {
+                    "base": base.predictor_layout,
+                    "model": m.model_id,
+                    "order": order,
+                    "columns": [
+                        (n, self.problems[n][4].cpu().tolist(), self.seeds[n][1])
+                        for n in self.blocks
+                    ],
+                    "ports": [
+                        (p.name, phase, root, a, b) for p, phase, root, a, b in self.portblocks
+                    ],
+                    "size": len(initial),
+                }
+            )
+            evaluate.predictor_base_layout = base.predictor_layout
+            evaluate.predictor_base_size = self.size
+            hint = self.algebraic_guess
+            if (
+                hint is not None
+                and hint.base_layout == base.predictor_layout
+                and hint.base_size == self.size
+                and len(hint.variables) >= self.size
+            ):
+                prefix = f.tensor(hint.variables[: self.size])
+                if bool(torch.isfinite(prefix).all().cpu()):
+                    initial = torch.cat((prefix, initial[self.size :]))
+                    self.algebraic_predictor_used = True
+            if (
+                hint is not None
+                and hint.layout == evaluate.predictor_layout
+                and len(hint.variables) == len(initial)
+            ):
+                candidate = f.tensor(hint.variables)
+                if bool(torch.isfinite(candidate).all().cpu()):
+                    initial = candidate
+                    self.algebraic_predictor_used = True
+        return initial, torch.cat(lower), torch.cat(upper), evaluate, pattern
 
     def accept(self, y, result):
         m = self.model

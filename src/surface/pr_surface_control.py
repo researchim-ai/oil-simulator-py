@@ -16,7 +16,11 @@ from .equilibrium_cache import cached_fluid_transaction
 from .liquid import ConservationError, HydraulicConvergenceError, PropertyModelError, _name, _number
 from .operation import _digest
 from .pr_control_channels import PRMotorControl, PRSurfaceTrip, compressor_margin
-from .pr_gravity_transport import PRGravityTransportNetwork, PRGravityTransportState
+from .pr_gravity_transport import (
+    PRGravityProbeGuess,
+    PRGravityTransportNetwork,
+    PRGravityTransportState,
+)
 from .pr_plant_registry import (
     align_physical_clock,
     physical_plant_from_dict,
@@ -276,6 +280,7 @@ class PRControlledSurfaceState:
 
 class PRControlledSurface:
     _share_probe_quadrature = True
+    _reuse_temporal_predictor = False
 
     def __init__(
         self,
@@ -736,7 +741,20 @@ class PRControlledSurface:
             else column.geometry.height_m
         )
 
-    def _step(self, state, dt, manual, modes, commands, *, _probe_quadrature_order=None):
+    def _step(
+        self,
+        state,
+        dt,
+        manual,
+        modes,
+        commands,
+        *,
+        _probe_quadrature_order=None,
+        _probe_predictor=None,
+        _capture_predictor=None,
+    ):
+        if _capture_predictor is None:
+            _capture_predictor = self._reuse_temporal_predictor
         positions = dict(state.positions)
         integrals = dict(state.integrals)
         targets = dict(manual)
@@ -905,7 +923,11 @@ class PRControlledSurface:
                 **({"restriction_openings": areas} if areas else {}),
                 **({"drive_torque_nm": torques} if torques else {}),
                 **(
-                    {"_controlled_step": True}
+                    {
+                        "_controlled_step": True,
+                        "_capture_predictor": _capture_predictor
+                        and self.plant.transport.fluid.device.type == "cpu",
+                    }
                     if isinstance(self.plant, PRGravityTransportNetwork)
                     else {}
                 ),
@@ -914,6 +936,7 @@ class PRControlledSurface:
                     if _probe_quadrature_order is not None
                     else {}
                 ),
+                **({"_probe_predictor": _probe_predictor} if _probe_predictor is not None else {}),
             },
         )
         plant_state = physical_state_from_dict(plant_report["state"])
@@ -1058,6 +1081,16 @@ class PRControlledSurface:
         """Physical records whose independent spatial certificates may be shared."""
         return step.get("plant", {}).get("steps", ())
 
+    def _probe_predictor(self, step):
+        return PRGravityProbeGuess.from_report(step["plant"])
+
+    def _forget_probe_predictors(self, *steps):
+        # Full algebraic vectors live only inside a temporal trial. They are
+        # starting guesses, not physical history or part of an output archive.
+        for step in steps:
+            for record in self._probe_records(step):
+                record.get("transport", {}).pop("nonlinear_predictor", None)
+
     def _temporal_trial(self, current, dt, first_dt, second_dt, manual, modes, commands):
         if not (
             self._share_probe_quadrature
@@ -1067,6 +1100,7 @@ class PRControlledSurface:
             coarse, _ = self._step(current, dt, manual, modes, commands)
             half, one = self._step(current, first_dt, manual, modes, commands)
             fine, two = self._step(half, second_dt, manual, modes, commands)
+            self._forget_probe_predictors(one, two)
             return coarse, fine, one, two
 
         # Qualify the two states that can actually be accepted FIRST. Their
@@ -1096,14 +1130,27 @@ class PRControlledSurface:
             ):
                 try:
                     coarse, _ = self._step(
-                        current, dt, manual, modes, commands, _probe_quadrature_order=order
+                        current,
+                        dt,
+                        manual,
+                        modes,
+                        commands,
+                        _probe_quadrature_order=order,
+                        **(
+                            {"_probe_predictor": self._probe_predictor(two)}
+                            if self._reuse_temporal_predictor
+                            and self.plant.transport.fluid.device.type == "cpu"
+                            else {}
+                        ),
                     )
+                    self._forget_probe_predictors(one, two)
                     return coarse, fine, one, two
                 except (HydraulicConvergenceError, ConservationError, PropertyModelError):
                     # A low-order seed can discover a branch missed by a
                     # direct refined solve. Preserve that original recovery.
                     pass
         coarse, _ = self._step(current, dt, manual, modes, commands)
+        self._forget_probe_predictors(one, two)
         return coarse, fine, one, two
 
     @cached_fluid_transaction(

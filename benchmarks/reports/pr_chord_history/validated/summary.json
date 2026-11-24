@@ -1,0 +1,566 @@
+{
+  "scope": "Paired whole-schedule qualification of guarded Radau chord history.\n\nFresh physical initial conditions, one shared native context, alternating\npolicies. Compilation and independent audits are outside warm measurements.\nNo different time tolerances, geometry or thermodynamic shortcuts.\n",
+  "runtime": {
+    "torch": "2.7.0+cu126",
+    "torch_cuda_build": "12.6",
+    "torch_deterministic_algorithms": false
+  },
+  "preparation": {
+    "wall_s": 163.30168738200155,
+    "simulated_duration_s": 0.04864483383967377,
+    "attempts": 3,
+    "accepted_macro_steps": 6,
+    "accepted_fast_steps": 12,
+    "fast_nonlinear_solves": 12,
+    "fast_fallback_intervals": 0,
+    "execution": {
+      "compilations": 12,
+      "compiled_calls": 370,
+      "verified_calls": 12,
+      "verified_roundoff_calls": 1,
+      "fallback_calls": 0,
+      "trace_nodes": 126794,
+      "resident_constant_bytes": 424,
+      "resident_input_bytes": 39624,
+      "input_buffer_allocations": 1426,
+      "input_buffer_updates": 46090,
+      "input_clone_allocations": 0,
+      "compile_wall_s": 72.76851818599243,
+      "lowering_wall_s": 65.91944206198968,
+      "codegen_wall_s": 6.84907612400275,
+      "trace_dispatch_wall_s": 79.39770276901254,
+      "verification_wall_s": 1.15758464499595,
+      "fallback_reasons": {},
+      "maximum_kernels": 16,
+      "maximum_nodes": 50000,
+      "maximum_constant_bytes": 268435456,
+      "disabled": false,
+      "linearization_ad": "forward_dense_or_colored_jvp",
+      "eager_final": true,
+      "reuse_input_buffers": true,
+      "operator_contexts": 10,
+      "maximum_operator_contexts": 64,
+      "verification_failure": null,
+      "blocked_operators": []
+    },
+    "audit": {
+      "accepted": true,
+      "checked_split_steps": 6,
+      "checked_local_steps": 12,
+      "checked_slow_steps": 6,
+      "conservation_residuals": [
+        5.684341886080801e-13,
+        -1.8189894035458565e-12,
+        1.0186340659856796e-10,
+        1.1124505439052967e-07
+      ]
+    },
+    "policy": "fresh_solve",
+    "repeat": "preparation",
+    "history": {
+      "hits": 0,
+      "refreshes": 0,
+      "builds": 0
+    },
+    "linear_work": {
+      "jacobian_builds": 12,
+      "jacobian_reuses": 12
+    }
+  },
+  "settling": {
+    "wall_s": 8.386324779999995,
+    "simulated_duration_s": 0.04864483383967377,
+    "attempts": 3,
+    "accepted_macro_steps": 6,
+    "accepted_fast_steps": 12,
+    "fast_nonlinear_solves": 12,
+    "fast_fallback_intervals": 0,
+    "execution": {
+      "compilations": 12,
+      "compiled_calls": 731,
+      "verified_calls": 12,
+      "verified_roundoff_calls": 1,
+      "fallback_calls": 0,
+      "trace_nodes": 126794,
+      "resident_constant_bytes": 424,
+      "resident_input_bytes": 39624,
+      "input_buffer_allocations": 1426,
+      "input_buffer_updates": 91613,
+      "input_clone_allocations": 0,
+      "compile_wall_s": 72.76851818599243,
+      "lowering_wall_s": 65.91944206198968,
+      "codegen_wall_s": 6.84907612400275,
+      "trace_dispatch_wall_s": 79.39770276901254,
+      "verification_wall_s": 1.15758464499595,
+      "fallback_reasons": {},
+      "maximum_kernels": 16,
+      "maximum_nodes": 50000,
+      "maximum_constant_bytes": 268435456,
+      "disabled": false,
+      "linearization_ad": "forward_dense_or_colored_jvp",
+      "eager_final": true,
+      "reuse_input_buffers": true,
+      "operator_contexts": 10,
+      "maximum_operator_contexts": 64,
+      "verification_failure": null,
+      "blocked_operators": []
+    },
+    "audit": {
+      "accepted": true,
+      "checked_split_steps": 6,
+      "checked_local_steps": 12,
+      "checked_slow_steps": 6,
+      "conservation_residuals": [
+        3.410605131648481e-13,
+        -1.8189894035458565e-12,
+        1.0186340659856796e-10,
+        1.1124505949755559e-07
+      ]
+    },
+    "policy": "guarded_history",
+    "repeat": "settling",
+    "history": {
+      "hits": 9,
+      "refreshes": 0,
+      "builds": 3
+    },
+    "linear_work": {
+      "jacobian_builds": 3,
+      "jacobian_reuses": 21
+    }
+  },
+  "results": {
+    "fresh_solve": [
+      {
+        "wall_s": 6.352126454999961,
+        "simulated_duration_s": 0.04864483383967377,
+        "attempts": 3,
+        "accepted_macro_steps": 6,
+        "accepted_fast_steps": 12,
+        "fast_nonlinear_solves": 12,
+        "fast_fallback_intervals": 0,
+        "execution": {
+          "compilations": 12,
+          "compiled_calls": 1101,
+          "verified_calls": 12,
+          "verified_roundoff_calls": 1,
+          "fallback_calls": 0,
+          "trace_nodes": 126794,
+          "resident_constant_bytes": 424,
+          "resident_input_bytes": 39624,
+          "input_buffer_allocations": 1426,
+          "input_buffer_updates": 137703,
+          "input_clone_allocations": 0,
+          "compile_wall_s": 72.76851818599243,
+          "lowering_wall_s": 65.91944206198968,
+          "codegen_wall_s": 6.84907612400275,
+          "trace_dispatch_wall_s": 79.39770276901254,
+          "verification_wall_s": 1.15758464499595,
+          "fallback_reasons": {},
+          "maximum_kernels": 16,
+          "maximum_nodes": 50000,
+          "maximum_constant_bytes": 268435456,
+          "disabled": false,
+          "linearization_ad": "forward_dense_or_colored_jvp",
+          "eager_final": true,
+          "reuse_input_buffers": true,
+          "operator_contexts": 10,
+          "maximum_operator_contexts": 64,
+          "verification_failure": null,
+          "blocked_operators": []
+        },
+        "audit": {
+          "accepted": true,
+          "checked_split_steps": 6,
+          "checked_local_steps": 12,
+          "checked_slow_steps": 6,
+          "conservation_residuals": [
+            5.684341886080801e-13,
+            -1.8189894035458565e-12,
+            1.0186340659856796e-10,
+            1.1124505439052967e-07
+          ]
+        },
+        "policy": "fresh_solve",
+        "repeat": 0,
+        "history": {
+          "hits": 0,
+          "refreshes": 0,
+          "builds": 0
+        },
+        "linear_work": {
+          "jacobian_builds": 12,
+          "jacobian_reuses": 12
+        }
+      },
+      {
+        "wall_s": 7.468364945998474,
+        "simulated_duration_s": 0.04864483383967377,
+        "attempts": 3,
+        "accepted_macro_steps": 6,
+        "accepted_fast_steps": 12,
+        "fast_nonlinear_solves": 12,
+        "fast_fallback_intervals": 0,
+        "execution": {
+          "compilations": 12,
+          "compiled_calls": 2193,
+          "verified_calls": 12,
+          "verified_roundoff_calls": 1,
+          "fallback_calls": 0,
+          "trace_nodes": 126794,
+          "resident_constant_bytes": 424,
+          "resident_input_bytes": 39624,
+          "input_buffer_allocations": 1426,
+          "input_buffer_updates": 274839,
+          "input_clone_allocations": 0,
+          "compile_wall_s": 72.76851818599243,
+          "lowering_wall_s": 65.91944206198968,
+          "codegen_wall_s": 6.84907612400275,
+          "trace_dispatch_wall_s": 79.39770276901254,
+          "verification_wall_s": 1.15758464499595,
+          "fallback_reasons": {},
+          "maximum_kernels": 16,
+          "maximum_nodes": 50000,
+          "maximum_constant_bytes": 268435456,
+          "disabled": false,
+          "linearization_ad": "forward_dense_or_colored_jvp",
+          "eager_final": true,
+          "reuse_input_buffers": true,
+          "operator_contexts": 10,
+          "maximum_operator_contexts": 64,
+          "verification_failure": null,
+          "blocked_operators": []
+        },
+        "audit": {
+          "accepted": true,
+          "checked_split_steps": 6,
+          "checked_local_steps": 12,
+          "checked_slow_steps": 6,
+          "conservation_residuals": [
+            5.684341886080801e-13,
+            -1.8189894035458565e-12,
+            1.0186340659856796e-10,
+            1.1124505439052967e-07
+          ]
+        },
+        "policy": "fresh_solve",
+        "repeat": 1,
+        "history": {
+          "hits": 0,
+          "refreshes": 0,
+          "builds": 0
+        },
+        "linear_work": {
+          "jacobian_builds": 12,
+          "jacobian_reuses": 12
+        }
+      },
+      {
+        "wall_s": 6.515032025999972,
+        "simulated_duration_s": 0.04864483383967377,
+        "attempts": 3,
+        "accepted_macro_steps": 6,
+        "accepted_fast_steps": 12,
+        "fast_nonlinear_solves": 12,
+        "fast_fallback_intervals": 0,
+        "execution": {
+          "compilations": 12,
+          "compiled_calls": 2563,
+          "verified_calls": 12,
+          "verified_roundoff_calls": 1,
+          "fallback_calls": 0,
+          "trace_nodes": 126794,
+          "resident_constant_bytes": 424,
+          "resident_input_bytes": 39624,
+          "input_buffer_allocations": 1426,
+          "input_buffer_updates": 320929,
+          "input_clone_allocations": 0,
+          "compile_wall_s": 72.76851818599243,
+          "lowering_wall_s": 65.91944206198968,
+          "codegen_wall_s": 6.84907612400275,
+          "trace_dispatch_wall_s": 79.39770276901254,
+          "verification_wall_s": 1.15758464499595,
+          "fallback_reasons": {},
+          "maximum_kernels": 16,
+          "maximum_nodes": 50000,
+          "maximum_constant_bytes": 268435456,
+          "disabled": false,
+          "linearization_ad": "forward_dense_or_colored_jvp",
+          "eager_final": true,
+          "reuse_input_buffers": true,
+          "operator_contexts": 10,
+          "maximum_operator_contexts": 64,
+          "verification_failure": null,
+          "blocked_operators": []
+        },
+        "audit": {
+          "accepted": true,
+          "checked_split_steps": 6,
+          "checked_local_steps": 12,
+          "checked_slow_steps": 6,
+          "conservation_residuals": [
+            5.684341886080801e-13,
+            -1.8189894035458565e-12,
+            1.0186340659856796e-10,
+            1.1124505439052967e-07
+          ]
+        },
+        "policy": "fresh_solve",
+        "repeat": 2,
+        "history": {
+          "hits": 0,
+          "refreshes": 0,
+          "builds": 0
+        },
+        "linear_work": {
+          "jacobian_builds": 12,
+          "jacobian_reuses": 12
+        }
+      }
+    ],
+    "guarded_history": [
+      {
+        "wall_s": 6.259076379999897,
+        "simulated_duration_s": 0.04864483383967377,
+        "attempts": 3,
+        "accepted_macro_steps": 6,
+        "accepted_fast_steps": 12,
+        "fast_nonlinear_solves": 12,
+        "fast_fallback_intervals": 0,
+        "execution": {
+          "compilations": 12,
+          "compiled_calls": 1462,
+          "verified_calls": 12,
+          "verified_roundoff_calls": 1,
+          "fallback_calls": 0,
+          "trace_nodes": 126794,
+          "resident_constant_bytes": 424,
+          "resident_input_bytes": 39624,
+          "input_buffer_allocations": 1426,
+          "input_buffer_updates": 183226,
+          "input_clone_allocations": 0,
+          "compile_wall_s": 72.76851818599243,
+          "lowering_wall_s": 65.91944206198968,
+          "codegen_wall_s": 6.84907612400275,
+          "trace_dispatch_wall_s": 79.39770276901254,
+          "verification_wall_s": 1.15758464499595,
+          "fallback_reasons": {},
+          "maximum_kernels": 16,
+          "maximum_nodes": 50000,
+          "maximum_constant_bytes": 268435456,
+          "disabled": false,
+          "linearization_ad": "forward_dense_or_colored_jvp",
+          "eager_final": true,
+          "reuse_input_buffers": true,
+          "operator_contexts": 10,
+          "maximum_operator_contexts": 64,
+          "verification_failure": null,
+          "blocked_operators": []
+        },
+        "audit": {
+          "accepted": true,
+          "checked_split_steps": 6,
+          "checked_local_steps": 12,
+          "checked_slow_steps": 6,
+          "conservation_residuals": [
+            3.410605131648481e-13,
+            -1.8189894035458565e-12,
+            1.0186340659856796e-10,
+            1.1124505949755559e-07
+          ]
+        },
+        "policy": "guarded_history",
+        "repeat": 0,
+        "history": {
+          "hits": 9,
+          "refreshes": 0,
+          "builds": 3
+        },
+        "linear_work": {
+          "jacobian_builds": 3,
+          "jacobian_reuses": 21
+        }
+      },
+      {
+        "wall_s": 6.4011986539990176,
+        "simulated_duration_s": 0.04864483383967377,
+        "attempts": 3,
+        "accepted_macro_steps": 6,
+        "accepted_fast_steps": 12,
+        "fast_nonlinear_solves": 12,
+        "fast_fallback_intervals": 0,
+        "execution": {
+          "compilations": 12,
+          "compiled_calls": 1823,
+          "verified_calls": 12,
+          "verified_roundoff_calls": 1,
+          "fallback_calls": 0,
+          "trace_nodes": 126794,
+          "resident_constant_bytes": 424,
+          "resident_input_bytes": 39624,
+          "input_buffer_allocations": 1426,
+          "input_buffer_updates": 228749,
+          "input_clone_allocations": 0,
+          "compile_wall_s": 72.76851818599243,
+          "lowering_wall_s": 65.91944206198968,
+          "codegen_wall_s": 6.84907612400275,
+          "trace_dispatch_wall_s": 79.39770276901254,
+          "verification_wall_s": 1.15758464499595,
+          "fallback_reasons": {},
+          "maximum_kernels": 16,
+          "maximum_nodes": 50000,
+          "maximum_constant_bytes": 268435456,
+          "disabled": false,
+          "linearization_ad": "forward_dense_or_colored_jvp",
+          "eager_final": true,
+          "reuse_input_buffers": true,
+          "operator_contexts": 10,
+          "maximum_operator_contexts": 64,
+          "verification_failure": null,
+          "blocked_operators": []
+        },
+        "audit": {
+          "accepted": true,
+          "checked_split_steps": 6,
+          "checked_local_steps": 12,
+          "checked_slow_steps": 6,
+          "conservation_residuals": [
+            3.410605131648481e-13,
+            -1.8189894035458565e-12,
+            1.0186340659856796e-10,
+            1.1124505949755559e-07
+          ]
+        },
+        "policy": "guarded_history",
+        "repeat": 1,
+        "history": {
+          "hits": 9,
+          "refreshes": 0,
+          "builds": 3
+        },
+        "linear_work": {
+          "jacobian_builds": 3,
+          "jacobian_reuses": 21
+        }
+      },
+      {
+        "wall_s": 6.265229184999043,
+        "simulated_duration_s": 0.04864483383967377,
+        "attempts": 3,
+        "accepted_macro_steps": 6,
+        "accepted_fast_steps": 12,
+        "fast_nonlinear_solves": 12,
+        "fast_fallback_intervals": 0,
+        "execution": {
+          "compilations": 12,
+          "compiled_calls": 2924,
+          "verified_calls": 12,
+          "verified_roundoff_calls": 1,
+          "fallback_calls": 0,
+          "trace_nodes": 126794,
+          "resident_constant_bytes": 424,
+          "resident_input_bytes": 39624,
+          "input_buffer_allocations": 1426,
+          "input_buffer_updates": 366452,
+          "input_clone_allocations": 0,
+          "compile_wall_s": 72.76851818599243,
+          "lowering_wall_s": 65.91944206198968,
+          "codegen_wall_s": 6.84907612400275,
+          "trace_dispatch_wall_s": 79.39770276901254,
+          "verification_wall_s": 1.15758464499595,
+          "fallback_reasons": {},
+          "maximum_kernels": 16,
+          "maximum_nodes": 50000,
+          "maximum_constant_bytes": 268435456,
+          "disabled": false,
+          "linearization_ad": "forward_dense_or_colored_jvp",
+          "eager_final": true,
+          "reuse_input_buffers": true,
+          "operator_contexts": 10,
+          "maximum_operator_contexts": 64,
+          "verification_failure": null,
+          "blocked_operators": []
+        },
+        "audit": {
+          "accepted": true,
+          "checked_split_steps": 6,
+          "checked_local_steps": 12,
+          "checked_slow_steps": 6,
+          "conservation_residuals": [
+            3.410605131648481e-13,
+            -1.8189894035458565e-12,
+            1.0186340659856796e-10,
+            1.1124505949755559e-07
+          ]
+        },
+        "policy": "guarded_history",
+        "repeat": 2,
+        "history": {
+          "hits": 9,
+          "refreshes": 0,
+          "builds": 3
+        },
+        "linear_work": {
+          "jacobian_builds": 3,
+          "jacobian_reuses": 21
+        }
+      }
+    ]
+  },
+  "warm_median_wall_s": {
+    "fresh_solve": 6.515032025999972,
+    "guarded_history": 6.265229184999043
+  },
+  "observed_speedup": 1.0398713013721885,
+  "difference_at_each_report_in_original_error_norm": [
+    [
+      2.8913405003549997e-07,
+      2.6997781787940767e-07,
+      2.530384790588869e-07
+    ],
+    [
+      2.8913405003549997e-07,
+      2.6997781787940767e-07,
+      2.530384790588869e-07
+    ],
+    [
+      2.8913405003549997e-07,
+      2.6997781787940767e-07,
+      2.530384790588869e-07
+    ]
+  ],
+  "independent_audits_passed": true,
+  "sources_unchanged": true,
+  "native_execution": {
+    "compilations": 12,
+    "compiled_calls": 2924,
+    "verified_calls": 12,
+    "verified_roundoff_calls": 1,
+    "fallback_calls": 0,
+    "trace_nodes": 126794,
+    "resident_constant_bytes": 424,
+    "resident_input_bytes": 39624,
+    "input_buffer_allocations": 1426,
+    "input_buffer_updates": 366452,
+    "input_clone_allocations": 0,
+    "compile_wall_s": 72.76851818599243,
+    "lowering_wall_s": 65.91944206198968,
+    "codegen_wall_s": 6.84907612400275,
+    "trace_dispatch_wall_s": 79.39770276901254,
+    "verification_wall_s": 1.15758464499595,
+    "fallback_reasons": {},
+    "maximum_kernels": 16,
+    "maximum_nodes": 50000,
+    "maximum_constant_bytes": 268435456,
+    "disabled": false,
+    "linearization_ad": "forward_dense_or_colored_jvp",
+    "eager_final": true,
+    "reuse_input_buffers": true,
+    "operator_contexts": 10,
+    "maximum_operator_contexts": 64,
+    "verification_failure": null,
+    "blocked_operators": []
+  },
+  "full_operating_cycle_qualified": false,
+  "accepted": true
+}

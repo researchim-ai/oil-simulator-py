@@ -1,0 +1,11 @@
+{
+  "run": ".scratch/norne_release_20261124_gpu/run",
+  "log": "/tmp/norne_release_20261124_gpu.log",
+  "preceding_same_policy": ".scratch/norne_full_safeguard/run",
+  "historical_baseline": ".scratch/norne_cpr_validation/baseline",
+  "full_newton": ".scratch/norne_full_newton/run",
+  "note": "Original RTX 3090 run saw external training appear after about day 1486. A separate fresh run on RTX 3090 Ti uses identical frozen sources and inputs. Cross-device or historical timing is not an isolated optimization A/B.",
+  "fresh_3090_ti_run": ".scratch/norne_release_20261124_gpu_ti/run",
+  "fresh_3090_ti_log": "/tmp/norne_release_20261124_gpu_ti.log",
+  "gpu_contention_observed": true
+}

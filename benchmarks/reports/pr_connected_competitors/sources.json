@@ -1,0 +1,44 @@
+{
+  "scope": "Published capabilities and a separate diagnostic; no exact wall-time comparison for our complete 16-node gravitational PR facility. No commercial solver was executed.",
+  "sources": [
+    {
+      "url": "https://www.mic-journal.no/PDF/2016/MIC-2016-1-4.pdf",
+      "kind": "primary research paper, 2016, section 3.2 and figures 12-13/17",
+      "reported_speed_times_real_time": 50,
+      "reported_sampling_interval_s": 1,
+      "limitations": "Different well/pipeline/riser/control example; sampling is not the internal integration step. Not an equal-model/equal-tolerance/equal-hardware benchmark of our facility."
+    },
+    {
+      "url": "https://ledaflow.com/products-applications/ledaflow-integrated/",
+      "kind": "vendor capability statement",
+      "claim": "Near-real-time integrated simulations and engineering studies at multiples of real-time speed",
+      "limitations": "No reproducible version of our case or case-specific wall-time guarantee."
+    },
+    {
+      "url": "https://www.slb.com/products-and-services/delivering-digital-at-scale/software/olga/olga-new-solver-ccs",
+      "kind": "vendor description of specific CCS solver",
+      "claim": "Velocity, pressure and energy stage followed by mass update; coupled energy/pressure, PH flash/tables",
+      "limitations": "CO2-focused solver; not a claim that all OLGA configurations or NeqSim use this algorithm, or a measured performance number."
+    },
+    {
+      "url": "https://sundials.readthedocs.io/en/latest/ida/Mathematics_link.html",
+      "kind": "official open-solver mathematical documentation",
+      "claim": "DAE residual, consistent initialization, variable-order BDF, modified Newton and Jacobian reuse",
+      "limitations": "Numerical-method reference, not a full-facility industrial benchmark."
+    }
+  ],
+  "pinned_neqsim_source_files": {
+    "ProcessSystem.java": {
+      "url": "https://github.com/equinor/neqsim/blob/v3.29.0/src/main/java/neqsim/process/processmodel/ProcessSystem.java",
+      "sha256": "975632a4ab31de43232ae0bc9d7f8c39fbfd8966dc2061ede270c75bbc4631da"
+    },
+    "TwoFluidPipe.java": {
+      "url": "https://github.com/equinor/neqsim/blob/v3.29.0/src/main/java/neqsim/process/equipment/pipeline/TwoFluidPipe.java",
+      "sha256": "e06457bdf3398a446c10f32dc134dea58210eb0bf76d8b25e5530d663ccb0492"
+    },
+    "Separator.java": {
+      "url": "https://github.com/equinor/neqsim/blob/v3.29.0/src/main/java/neqsim/process/equipment/separator/Separator.java",
+      "sha256": "091b1df56edd6449d975bbdd32604184c55aea637168aaa5bc3677cf13c16687"
+    }
+  }
+}

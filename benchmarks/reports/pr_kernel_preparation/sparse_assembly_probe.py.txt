@@ -1,0 +1,31 @@
+import json,time,torch
+from run_pr_controlled_surface import run
+from surface.equilibrium_properties import EquilibriumFluid
+from surface.torch_nonlinear import TorchNewton
+from surface.torch_linear import ColoredJacobian
+class Captured(Exception):pass
+original=TorchNewton.solve; box={}
+def intercept(self,fn,x,*args,**kw):
+ if x.numel()>200:
+  box.update(fn=getattr(fn,'runtime_residual',fn),x=x.clone(),pattern=kw.get('pattern'));raise Captured()
+ return original(self,fn,x,*args,**kw)
+config=json.load(open('benchmarks/reports/pr_connected_native/steady_embedded.json'))
+config['model']['plant']['transport']['dense_limit']=0
+# Only the model identifier changes with the linear-algebra selector.
+from dataclasses import replace
+from surface.pr_surface_control import PRControlledSurface,PRControlledSurfaceState
+m=PRControlledSurface.from_dict(config['model']);s=PRControlledSurfaceState.from_dict(config['initial']['state'])
+transport=replace(s.plant.transport,model_id=m.plant.transport.model_id)
+plant=replace(s.plant,model_id=m.plant.model_id,transport=transport)
+config['initial']['state']=replace(s,model_id=m.model_id,plant=plant).to_dict()
+EquilibriumFluid._compiled_chemical_cpu=True;EquilibriumFluid._compiled_full_eos_cpu=True
+TorchNewton.solve=intercept
+try:run(config)
+except Captured:pass
+finally:TorchNewton.solve=original
+x=box['x'];fn=box['fn'];rows,cols=box['pattern'];c=ColoredJacobian(x.numel(),rows,cols,'cpu')
+with torch.no_grad():
+ t=time.perf_counter();j=torch.func.jacfwd(fn)(x);dense=time.perf_counter()-t
+ t=time.perf_counter();v=c.values(fn,x);sparse=time.perf_counter()-t
+ a=torch.zeros_like(j);a[rows,cols]=v
+ print(json.dumps({'size':x.numel(),'nonzeros':len(rows),'color_shape':list(c.seeds.shape) if hasattr(c,'seeds') else c.color_count,'dense_s':dense,'colored_s':sparse,'max_abs_error':float((a-j).abs().max()),'mismatches':int((~torch.isclose(a,j,rtol=2e-10,atol=3e-10)).sum())}),flush=True)

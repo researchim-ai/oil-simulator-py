@@ -1,0 +1,16 @@
+{
+  "reproduced": true,
+  "exception": "AssertionError",
+  "message": "expected size 3==3, stride 2==4 at dim=0; expected size 2==2, stride 1==2 at dim=1\nThis error most often comes from a incorrect fake (aka meta) kernel for a custom op.\nUse torch.library.opcheck to test your custom op.\nSee https://pytorch.org/docs/stable/library.html#torch.library.opcheck",
+  "original_stride": [
+    4,
+    2
+  ],
+  "owned_clone_stride": [
+    2,
+    1
+  ],
+  "old_source_file": "old_native_execution.py.txt",
+  "old_source_sha256": "5279410550baf325e65f5620443c7d768c4717b9729136abdd656fd506bf530c",
+  "matches_preceding_full_cycle_source": true
+}

@@ -11,13 +11,23 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 
-def run(config, *, device="cpu", progress=None, cuda_graphs=False, native_kernels=False):
+def run(
+    config,
+    *,
+    device="cpu",
+    progress=None,
+    cuda_graphs=False,
+    native_kernels=False,
+    maximum_native_kernels=16,
+):
     if native_kernels:
         if device != "cpu" or cuda_graphs:
             raise ValueError("Native CPU kernels cannot be combined with CUDA execution")
         from surface.native_execution import native_kernel_execution
 
-        with native_kernel_execution(progress=progress) as execution:
+        with native_kernel_execution(
+            maximum_kernels=maximum_native_kernels, progress=progress
+        ) as execution:
             result = _run(config, device=device, progress=progress)
             result["numerical_policy"]["native_execution"] = execution.statistics()
             return result
@@ -120,6 +130,27 @@ def _run(config, *, device="cpu", progress=None):
         "runtime": runtime_fingerprint(),
         "numerical_policy": {
             "shared_probe_quadrature": model._share_probe_quadrature,
+            "temporal_probe_predictor": model._reuse_temporal_predictor,
+            "spatial_probe_predictor": getattr(model.plant, "_reuse_spatial_predictor", False),
+            "transport_nonlinear_work_including_probes": [
+                {"nodes": len(t.nodes), "model_id": t.model_id, **t.nonlinear_work}
+                for t in dict.fromkeys(
+                    [model.plant.transport]
+                    + ([model.fast, model.slow.plant.transport] if hasattr(model, "fast") else [])
+                )
+            ],
+            "temporal_probe_predictor_work": [
+                {
+                    "attempts": p.temporal_predictor_attempts,
+                    "uses": p.temporal_predictor_uses,
+                    "vector_uses": p.temporal_vector_uses,
+                    "spatial_vector_uses": p.spatial_vector_uses,
+                }
+                for p in dict.fromkeys(
+                    [model.plant] + ([model.slow.plant] if hasattr(model, "slow") else [])
+                )
+                if hasattr(p, "temporal_predictor_attempts")
+            ],
             "fast_prefix_reuse": getattr(model, "_reuse_fast_prefixes", False),
             "identical_trial_reuse": TorchNewton._reuse_identical_trials,
             "stagnation_patience": TorchNewton._stagnation_patience,
@@ -142,6 +173,9 @@ def _run(config, *, device="cpu", progress=None):
             ],
             "dense_jacobian_mode": TorchNewton._dense_jacobian_mode,
             "fast_time_scheme": getattr(model, "fast_time_scheme", "backward_euler"),
+            "fast_jacobian_history": getattr(
+                getattr(model, "fast_integrator", None), "_reuse_step_jacobian", False
+            ),
             "early_certified_roundoff": TorchNewton._early_certified_roundoff,
             "preserve_transport_endpoint_step": PREquilibriumTransportNetwork._preserve_endpoint_step,
             "analytic_single_phase_characteristics": PREquilibriumTransportNetwork._analytic_single_phase_characteristics,
@@ -187,6 +221,12 @@ def main():
         help="Compile exact CPU kernels; final Newton acceptance remains eager",
     )
     parser.add_argument("--progress", action="store_true", help="JSON progress on stderr")
+    parser.add_argument(
+        "--maximum-native-kernels",
+        type=int,
+        default=16,
+        help="Bound native CPU kernel admission; an existing caller-owned context takes precedence",
+    )
     parser.add_argument(
         "--no-fugacity-ssi",
         action="store_true",
@@ -311,6 +351,7 @@ def main():
         device=args.device,
         cuda_graphs=args.cuda_graphs,
         native_kernels=args.native_kernels,
+        maximum_native_kernels=args.maximum_native_kernels,
         progress=(lambda event: print(json.dumps(event), file=sys.stderr, flush=True))
         if args.progress
         else None,

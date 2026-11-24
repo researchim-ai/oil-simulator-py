@@ -1,0 +1,30 @@
+{
+  "exact_commercial_case_benchmark_available": false,
+  "commercial_solver_executed": false,
+  "external_diagnostic_runs_completed": 8,
+  "external_diagnostic_runs_conservation_qualified": 0,
+  "no_runtime_ratio_to_our_facility": true,
+  "results": [
+    {
+      "file": "neqsim_h001.json",
+      "communication_step_s": 0.01,
+      "warm_median_diagnostic_wall_s": 2.191478577000453,
+      "global_mass_gap_kg": 0.1136655368025784,
+      "global_energy_gap_j": 16202.253432382915,
+      "reverse_transfer_calls": 49,
+      "last_time_s": 1.0000000000000002,
+      "receiver_tracked_elapsed_s": 0.9999999999999846
+    },
+    {
+      "file": "neqsim_h0005.json",
+      "communication_step_s": 0.005,
+      "warm_median_diagnostic_wall_s": 2.491637379000167,
+      "global_mass_gap_kg": 0.11132331943490562,
+      "global_energy_gap_j": 15845.602453304675,
+      "reverse_transfer_calls": 99,
+      "last_time_s": 0.9999999999999998,
+      "receiver_tracked_elapsed_s": 0.9999999999999846
+    }
+  ],
+  "conclusion": "Published linked systems can run at or above real time, but our exact speed gap is unmeasured. The tested ordinary stream/pressure-feedback bridge is not conservative during reverse flow and must not be copied as a speed optimization or presented as NeqSim full-facility performance."
+}

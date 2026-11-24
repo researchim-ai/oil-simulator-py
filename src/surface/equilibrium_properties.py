@@ -81,6 +81,8 @@ class EquilibriumFluid:
     _minimization_line_width = 12
     _compact_chemical_cpu = True
     _fugacity_ssi_predictor = True
+    _fused_stability_objective_cpu = False
+    _reuse_stability_values = True
 
     def __init__(
         self,
@@ -137,6 +139,11 @@ class EquilibriumFluid:
         self._chemical_jacobian_compiled_points = 0
         self._chemical_curvature_compile_failure = None
         self._chemical_curvature_compiled_batches = 0
+        self._stability_objective_compile_failure = None
+        self._stability_objective_compiled_batches = 0
+        self._stability_objective_compiled_points = 0
+        self._stability_value_reused_batches = 0
+        self._stability_value_reused_points = 0
         self.model_id = _digest({"model": "caloric_pr_multiphase_v1", **self.to_dict()})
 
     def tensor(self, value):
@@ -454,6 +461,13 @@ class EquilibriumFluid:
 
     def chemical_kernel_statistics(self):
         return {
+            "fused_stability_objective_cpu": self._fused_stability_objective_cpu,
+            "reuse_stability_values": self._reuse_stability_values,
+            "stability_value_reused_batches": self._stability_value_reused_batches,
+            "stability_value_reused_points": self._stability_value_reused_points,
+            "stability_objective_compiled_batches": self._stability_objective_compiled_batches,
+            "stability_objective_compiled_points": self._stability_objective_compiled_points,
+            "stability_objective_compilation_failure": self._stability_objective_compile_failure,
             "fugacity_ssi_predictor": self._fugacity_ssi_predictor,
             "ssi_attempted_seeds": getattr(self, "_ssi_attempted_seeds", 0),
             "ssi_resolved_seeds": getattr(self, "_ssi_resolved_seeds", 0),

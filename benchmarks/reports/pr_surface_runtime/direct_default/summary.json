@@ -1,0 +1,59 @@
+{
+  "accepted": true,
+  "audit": {
+    "accepted": true,
+    "checked_split_steps": 6,
+    "checked_local_steps": 12,
+    "checked_slow_steps": 6,
+    "conservation_residuals": [
+      5.684341886080801e-13,
+      -1.8189894035458565e-12,
+      1.0186340659856796e-10,
+      1.1124505439052967e-07
+    ]
+  },
+  "execution": {
+    "compilations": 12,
+    "compiled_calls": 370,
+    "verified_calls": 12,
+    "verified_roundoff_calls": 1,
+    "fallback_calls": 0,
+    "trace_nodes": 126794,
+    "resident_constant_bytes": 424,
+    "resident_input_bytes": 39624,
+    "input_buffer_allocations": 1426,
+    "input_buffer_updates": 46090,
+    "input_clone_allocations": 0,
+    "compile_wall_s": 66.65429556199888,
+    "lowering_wall_s": 61.20980864798912,
+    "codegen_wall_s": 5.444486914009758,
+    "trace_dispatch_wall_s": 78.69995661200664,
+    "verification_wall_s": 1.0913864389913215,
+    "fallback_reasons": {},
+    "maximum_kernels": 16,
+    "maximum_nodes": 50000,
+    "maximum_constant_bytes": 268435456,
+    "disabled": false,
+    "linearization_ad": "forward_dense_or_colored_jvp",
+    "eager_final": true,
+    "reuse_input_buffers": true,
+    "operator_contexts": 10,
+    "maximum_operator_contexts": 64,
+    "verification_failure": null,
+    "blocked_operators": []
+  },
+  "difference_from_release_candidate_in_original_error_norm": [
+    0.0,
+    0.0,
+    0.0
+  ],
+  "sources_unchanged": true,
+  "changes_since_release_manifest": {
+    "scripts/run_pr_controlled_surface.py": {
+      "release": "fa48a4ea0753c2ba5c5969f81951e4e0983db554b04798a8bef7fdc389d6701b",
+      "current": "700055ca075d394758732803b7b1ffcf470cdfeba10749800ad18b86427c4741"
+    }
+  },
+  "all_surface_math_sources_identical_to_release": true,
+  "timing_claim": "No wall-time speedup is inferred from this direct cold correctness check."
+}

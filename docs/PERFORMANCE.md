@@ -1227,6 +1227,27 @@ Sg на 0,000378. При строгих допусках уменьшение ш
 функция наблюдаемого порядка. Производственный контроллер времени не менялся.
 [Архив трёх расчётов и ограничения вывода](../benchmarks/reports/norne_time_refinement/README.md).
 
+### Повтор полного Norne на RTX 3090 и RTX 3090 Ti
+
+Два свежих расчёта 0–3312 суток на одинаковых исходниках/входах прошли
+строгий аудит: RTX 3090 **514,163 с**, Ti **500,256 с**. На RTX 3090
+появлялся сторонний CUDA-процесс; это не изолированный замер. Все сохранённые
+поля, 396 SUMMARY-векторов и физические попытки шага на RTX 3090 точно
+совпали с предыдущим полным контролем 499,453 с. Нового ускорения обычного
+Norne не подтверждено. Последние native/Radau/CPU-buffer изменения относятся
+к подробной наземной PR-сети и этим deck не вызываются.
+
+Между GPU траектории различаются: 569/3 принятых/отклонённых шагов и 3073
+принятых итерации на RTX 3090 против 576/5 и 3101 на Ti. Максимальная разница
+сохранённых полей — 0,04584 МПа давления и 0,008228 насыщенности. Итоговые
+накопленные нефть/вода/газ отличаются на +0,000224%/−0,018987%/+0,006699%.
+Строгая нелинейная сходимость не доказывает временную точность; эти прогоны
+не устанавливают, какая GPU-траектория точнее, и не являются speedup при
+идентичной сетке шагов. Требуется отдельная квалификация этой чувствительности.
+
+Результаты, история ускорений и отказов, два аудита и все разницы:
+[повтор полного Norne](../benchmarks/reports/norne_release_20261124_gpu/README.md).
+
 
 ## Контроль локальной временной ошибки пласта в штатном цикле
 
@@ -1888,3 +1909,131 @@ refinement and the limits of comparison with NeqSim are documented in
 The independent collocation auditor includes sixteen ULPs of published-stock
 subtraction roundoff in addition to its existing transfer budgets; it still
 reports raw residuals and rejects a deliberately corrupted stage ledger.
+
+### Connected facility: mixed-operator execution
+
+The existing 16-node controlled PR facility (gravitational separator, two pump
+connections, compressor, six control channels and the original 1 mm recycle)
+now has a paired whole-schedule measurement. Three complete reporting
+intervals cover 0.04864483384 s from the existing 0.7062381 s checkpoint.
+Warm CPU medians including initialization are **18.1643 → 7.42759 s (2.4455×)**
+for BE versus embedded Radau fast dynamics plus native execution. Every
+trajectory passes the independent transport/column/controller audit. State
+differences at matching report times are 0.02493 / 0.05650 / 0.08726 in the
+original error norm. This is neither a cold-start result nor real-time
+operation of the whole facility. First native preparation takes 399.19 s,
+including 279.70 s in recorded native compilation.
+
+Mixed equipment equations previously consumed one shared Dynamo AD cache and
+could disable all acceleration on its recompile limit. Native contexts now
+separate operator code, role and shape; unsupported/admission-limited operators
+fall back locally and are negatively cached. Existing kernel/node/constant
+budgets remain, with a bounded number of tracing contexts. Numerically invalid
+compiled results still disable native execution. Gravitational sampling now
+takes height as a tensor and captures the phase tag instead of the complete
+separator state; twelve height/temperature queries reuse one verified kernel.
+
+A focused 268-unknown derivative check found identical eager/Dynamo/ATen
+matrices and a native difference of 2.741e-9 at matrix scale 28496.996.
+Dense Jacobian verification adds 64 FP64 epsilons times the row maximum to
+its existing entrywise criterion; all nonlinear, temporal and physical
+criteria remain unchanged, with original eager final Newton acceptance.
+Tests reject wrong derivatives, NaNs and errors in small rows.
+
+`run_pr_checkpointed_facility.py` supports `--native-kernels`, bounded kernel
+budgets and fused-property options. Compiler-wrapped deadlines propagate;
+accepted-step recovery retains the actual physical state and future commands.
+The original one-second startup/isolation/restart cycle also passes both
+physical and operational audits, including zero isolated transfers and
+nonzero restarted flow through every machine and separator aperture. Final
+component residuals are at most 3.79e-10 mol and energy 5.03e-7 J. Two journaled
+processes total 1456.83 s, including 608.63 s of recorded native compilation;
+this cold interrupted qualification is not a warm performance measurement.
+At restart the accepted step grows from 9.55 microseconds back to about 16 ms.
+Cold preparation and coupled slow solves remain performance limitations.
+Results: [connected facility report](../benchmarks/reports/pr_connected_native/README.md).
+
+### Native preparation telemetry and replay storage
+
+Preparation is now separated into real ATen lowering, code generation/cache
+loading, trace/dispatch remainder and eager numerical verification. A cached
+repeat of the same three operating intervals takes 152.42 s on first use:
+60.30 s lowering, 5.45 s code generation/loading, 79.78 s trace/dispatch and
+1.06 s eager verification. This is a populated disk-cache observation, not
+proof of an equivalent cold-start speedup over the earlier 399 s run.
+Warm BE/native-Radau medians in that series are 16.57/5.78 s; different shared
+host conditions prevent attributing their change to the verification fix.
+
+Checks now belong to concrete guarded kernels, avoiding revalidation of an
+unchanged kernel after another operator compiles (12 checks rather than 25 in
+this segment). New specializations remain checked before use. Private native
+input buffers replace repeated ownership allocations; changing coefficients
+are copied every replay and outputs keep independent storage. Retained input
+bytes share the explicit constant-memory admission budget and clear on close.
+A sliced-input test also found and fixed a compiler-example stride mismatch
+in the previous cloning path. Real AD tracing remains separate from compiler
+example identities to avoid the installed functorch metadata bug.
+
+Source-bound alternating replay timings, identical reporting states, rejected
+alternatives and reproductions:
+[preparation/replay report](../benchmarks/reports/pr_kernel_preparation/README.md).
+These operating segments do not rerun or replace the complete original-cycle
+qualification, which remains pinned to its own source hashes.
+
+### External connected-pipe comparison: no equivalent speed ratio yet
+
+Published K-Spice/LedaFlow work reports a linked well/pipeline/riser example
+at 50 times real time, and LedaFlow Integrated describes real-time operation.
+Neither establishes wall time for our particular 16-node gravitational PR
+facility. The paper's one-second sampling interval is not an internal step.
+
+A separate pinned NeqSim 3.29.0 diagnostic connects the transient two-fluid
+pipe to a finite dynamic separator with staggered pressure feedback. Eight
+one-second trajectories complete, but none closes the whole-connection mass
+and energy gates. Warm diagnostic medians are 2.191/2.492 s for communication
+steps 0.01/0.005 s; these are **not qualified competitor facility timings**.
+The tested ordinary stream bridge does not represent signed reverse transfers
+and the complete shared energy integral. It is not evidence that all NeqSim
+network routes have this limitation. Our production coupling is unchanged.
+
+Documented numerical candidates, already implemented methods, raw failed
+coupling evidence and primary sources:
+[connected competitor research](../benchmarks/reports/pr_connected_competitors/README.md).
+
+## Опциональная история якобиана локального PR Radau
+
+Существующий Radau теперь может переносить CPU-якобиан и LU между близкими
+нелинейными задачами с явным контролем совместимости и возвратом к свежему
+Ньютону. На прежнем рабочем интервале связанной установки сборки быстрой
+части уменьшились **12 → 3**, число её нелинейных задач осталось 12.
+Наблюдаемая медиана полного расчёта **6,515 → 6,265 с** — небольшой выигрыш,
+а не кратное ускорение всей сети. Допуски не изменялись; восемь полных
+траекторий расписания прошли независимый аудит. Есть шум общего хоста.
+
+Опция `fast_jacobian_history` выключена по умолчанию. GPU, Norne и общий
+интегратор оборудования этот эксперимент не ускоряет. Подготовка нативных
+ядер учитывается отдельно и остаётся дорогой. Данные, источник и ограничения:
+`benchmarks/reports/pr_chord_history/README.md`.
+
+## Повторы TPD и время жизни временных систем
+
+Профиль полной PR-установки показал значительную стоимость фазовых поисков,
+а не только Ньютона. Перенос уже вычисленных значений выбранной точки
+внутри TPD-минимизатора уменьшил число химических EOS-вызовов
+**12 284 → 9 961**. Все конечные физические проверки сохранены. Устранены
+также циклические ссылки временных residual-функций и сопряжений; их
+освобождение проверено при отключённом циклическом GC, без отключения GC
+в самом решателе.
+
+Совместная серия: **6,545 → 6,247 с**, около 5%, за прежние 0,0486448 с
+модели. Восемь траекторий прошли независимый аудит, отчётные состояния
+совпали точно. Шум хоста и паузы GC существенны: задержка около 2 с
+встречалась и после исправления. Это не кратное ускорение всей сети.
+
+Обычный CPU-runner теперь использует 16 мест нативного кэша вместо неявных
+8; бюджет доступен в API/CLI. Прямой запуск этой установки с новым
+значением по умолчанию построил 12 ядер без fallback и прошёл аудит.
+Сравнение wall-time бюджетов 8/16 отдельно не заявляется.
+
+Протокол, исходники, текущие ограничения и не принятые оптимизации:
+`benchmarks/reports/pr_surface_runtime/README.md`.

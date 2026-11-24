@@ -56,10 +56,16 @@ class PRSubcycledSurface(PRControlledSurface):
         local_error_fraction=0.1,
         fast_reservoir_ports=None,
         fast_time_scheme="backward_euler",
+        fast_jacobian_history=False,
     ):
         if fast_time_scheme not in ("backward_euler", "radau3", "radau3-embedded"):
             raise ValueError("Unknown fast-pipe time scheme")
         self.fast_time_scheme = fast_time_scheme
+        if type(fast_jacobian_history) is not bool or (
+            fast_jacobian_history and fast_time_scheme == "backward_euler"
+        ):
+            raise ValueError("Fast Jacobian history requires an explicit collocation scheme")
+        self.fast_jacobian_history = fast_jacobian_history
         if fast_reservoir_ports not in (None, "riemann", "stagnation_single_phase"):
             raise ValueError("Unknown explicit fast reservoir-port model")
         self.fast_reservoir_ports = fast_reservoir_ports
@@ -149,6 +155,7 @@ class PRSubcycledSurface(PRControlledSurface):
                 error_control="embedded"
                 if fast_time_scheme == "radau3-embedded"
                 else "step_doubling",
+                reuse_step_jacobian=True if self.fast_jacobian_history else None,
             )
         slow_transport = _transport_partition(
             t, set(t.names) - selected, [c for c in t.links if c.name not in self.fast_links]
@@ -171,6 +178,7 @@ class PRSubcycledSurface(PRControlledSurface):
             "model": "pr_subcycled_surface_v1",
             "subcycled_pipe_nodes": list(self.pipe_nodes),
             "local_error_fraction": self.local_error_fraction,
+            **({"fast_jacobian_history": True} if self.fast_jacobian_history else {}),
             **(
                 {"fast_time_scheme": self.fast_time_scheme}
                 if self.fast_time_scheme != "backward_euler"
@@ -192,6 +200,7 @@ class PRSubcycledSurface(PRControlledSurface):
         fraction = data.pop("local_error_fraction", 0.1)
         ports = data.pop("fast_reservoir_ports", None)
         scheme = data.pop("fast_time_scheme", "backward_euler")
+        history = data.pop("fast_jacobian_history", False)
         data["model"] = "pr_controlled_surface_v1"
         return cls(
             PRControlledSurface.from_dict(data, device=device),
@@ -199,6 +208,7 @@ class PRSubcycledSurface(PRControlledSurface):
             local_error_fraction=fraction,
             fast_reservoir_ports=ports,
             fast_time_scheme=scheme,
+            fast_jacobian_history=history,
         )
 
     def adopt(self, state):
@@ -299,6 +309,7 @@ class PRSubcycledSurface(PRControlledSurface):
         commands,
         *,
         _probe_quadrature_order=None,
+        _probe_predictor=None,
     ):
         full = state.plant.transport
         local_transport = replace(
@@ -320,11 +331,13 @@ class PRSubcycledSurface(PRControlledSurface):
             manual,
             modes,
             commands,
+            _capture_predictor=self._reuse_temporal_predictor,
             **(
                 {"_probe_quadrature_order": _probe_quadrature_order}
                 if _probe_quadrature_order is not None
                 else {}
             ),
+            **({"_probe_predictor": _probe_predictor} if _probe_predictor is not None else {}),
         )
         values = dict(local.plant.transport.nodes)
         merged = replace(
@@ -349,6 +362,10 @@ class PRSubcycledSurface(PRControlledSurface):
     def _probe_records(self, step):
         return step["local_subcycling"]["stages"][1]["report"]["plant"]["steps"]
 
+    def _probe_predictor(self, step):
+        slow = step["local_subcycling"]["stages"][1]["report"]
+        return self.slow._probe_predictor(slow)
+
     def _step(
         self,
         state,
@@ -358,6 +375,7 @@ class PRSubcycledSurface(PRControlledSurface):
         commands,
         *,
         _probe_quadrature_order=None,
+        _probe_predictor=None,
     ):
         fast_commands, slow_commands = self._commands(commands)
         first, second = split_step_s(state.time_s, dt)
@@ -370,6 +388,7 @@ class PRSubcycledSurface(PRControlledSurface):
             modes,
             slow_commands,
             _probe_quadrature_order=_probe_quadrature_order,
+            _probe_predictor=_probe_predictor,
         )
         result, c = self._fast_stage(middle, state.time_s + first, second, fast_commands)
         self.inspect(result)

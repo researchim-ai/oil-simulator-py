@@ -6,7 +6,13 @@ existing Newton/stationarity/curvature/full-EOS audit can accept its result.
 
 import torch
 
-from .equilibrium_stability_batch import stability_candidates, stability_objective
+from .equilibrium_stability_batch import (
+    can_reuse_values,
+    choose_trial_values,
+    remember_reuse,
+    stability_candidates,
+    stability_objective,
+)
 
 
 def _group_width(rows, remaining, preferred, kernel_width, small_width=None):
@@ -43,6 +49,7 @@ def _first_acceptable(
     *,
     kernel_width=1,
     small_width=None,
+    current_values=None,
 ):
     """Same first admissible scale per row; later scales cannot change it."""
     if _group_width(len(point), len(scales), line_width, kernel_width, small_width) == len(scales):
@@ -67,8 +74,15 @@ def _first_acceptable(
         )
         selected = allowed.to(torch.int64).argmax(-1)
         picked = trials.gather(1, selected[:, None, None].expand(-1, 1, point.shape[-1])).squeeze(1)
-        return torch.where((allowed.any(-1) & ~done)[:, None], picked, point)
+        take = allowed.any(-1) & ~done
+        chosen = torch.where(take[:, None], picked, point)
+        if current_values is None:
+            return chosen
+        return chosen, choose_trial_values(
+            current_values, (cv, cg, cr, cq["valid"]), selected, take
+        )
     chosen = point.clone()
+    carried = None if current_values is None else tuple(v.clone() for v in current_values)
     pending = torch.arange(len(point), device=point.device)
     begin = 0
     while begin < len(scales):
@@ -102,10 +116,15 @@ def _first_acceptable(
         selected = allowed.to(torch.int64).argmax(-1)
         picked = trials.gather(1, selected[:, None, None].expand(-1, 1, point.shape[-1])).squeeze(1)
         chosen.index_copy_(0, pending, torch.where(take[:, None], picked, chosen[pending]))
+        if carried is not None:
+            source_values = tuple(v.index_select(0, pending) for v in carried)
+            update = choose_trial_values(source_values, (cv, cg, cr, cq["valid"]), selected, take)
+            for old, new in zip(carried, update):
+                old.index_copy_(0, pending, new)
         begin += count
         if begin < len(scales):
             pending = pending[(~allowed.any(-1) & ~done[pending]).nonzero(as_tuple=True)[0]]
-    return chosen
+    return chosen if carried is None else (chosen, carried)
 
 
 def _minimize(fluid, pressures, temperatures, chemical, active, point, *, _compact=True):
@@ -119,6 +138,8 @@ def _minimize(fluid, pressures, temperatures, chemical, active, point, *, _compa
     old_point = old_grad = inverse = None
     all_points = point.clone()
     rows = torch.arange(len(point), device=point.device)
+    reuse_values = can_reuse_values(fluid, point, pressures, temperatures, chemical)
+    pending_values = None
     with torch.no_grad():
         kernel_width = 1
         small_width = None
@@ -130,8 +151,13 @@ def _minimize(fluid, pressures, temperatures, chemical, active, point, *, _compa
                 if fluid.device.type == "cpu" and fluid._compact_chemical_cpu:
                     small_width = _SMALL_WIDTH
         for _ in range(50):
-            value, grad, residual, _, q = evaluate(point, pressures, temperatures, chemical)
-            done = q["valid"] & (residual.abs().amax(-1) < 1e-9) & (grad.abs().amax(-1) < 2e-9)
+            if pending_values is None:
+                value, grad, residual, _, q = evaluate(point, pressures, temperatures, chemical)
+                property_valid = q["valid"]
+            else:
+                value, grad, residual, property_valid = pending_values
+                remember_reuse(fluid, len(point))
+            done = property_valid & (residual.abs().amax(-1) < 1e-9) & (grad.abs().amax(-1) < 2e-9)
             if bool(done.all().cpu()):
                 break
             if inverse is None:
@@ -172,7 +198,10 @@ def _minimize(fluid, pressures, temperatures, chemical, active, point, *, _compa
                 line_width,
                 kernel_width=kernel_width,
                 small_width=small_width,
+                current_values=(value, grad, residual, property_valid) if reuse_values else None,
             )
+            if reuse_values:
+                next_point, pending_values = next_point
             if torch.equal(next_point, point):
                 break
             if _compact:
@@ -185,6 +214,8 @@ def _minimize(fluid, pressures, temperatures, chemical, active, point, *, _compa
                 old_point, old_grad, inverse, point = (
                     value.index_select(0, keep) for value in (point, grad, inverse, next_point)
                 )
+                if pending_values is not None:
+                    pending_values = tuple(v.index_select(0, keep) for v in pending_values)
                 if not len(point):
                     break
             else:

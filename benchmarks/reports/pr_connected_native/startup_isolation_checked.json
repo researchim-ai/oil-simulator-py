@@ -1,0 +1,17 @@
+{
+  "complete_operating_cycle_qualified": false,
+  "accepted_prefix_audit": {
+    "accepted": true,
+    "checked_split_steps": 140,
+    "checked_local_steps": 290,
+    "checked_slow_steps": 140,
+    "conservation_residuals": [
+      -1.1368683772161603e-13,
+      -2.7284841053187847e-11,
+      3.92901711165905e-10,
+      4.6216724336467507e-07
+    ]
+  },
+  "remaining_request": "startup_isolation_checked.remaining.json",
+  "trajectory": "startup_isolation_checked.trajectory.json"
+}

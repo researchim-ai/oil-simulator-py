@@ -1,0 +1,17 @@
+{
+  "gpu_samples": [
+    "timestamp, index, name, uuid, utilization.gpu [%], memory.used [MiB], clocks.current.sm [MHz], power.draw [W]\n2026/11/24 13:03:34.046, 0, NVIDIA GeForce RTX 3090 Ti, GPU-2f9ce359-f3f4-accc-bf9c-31bc88bb1cb7, 19 %, 905 MiB, 255 MHz, 22.93 W\n2026/11/24 13:03:34.047, 1, NVIDIA GeForce RTX 3090, GPU-9ade3f1f-7ead-7504-f762-07be60234d31, 96 %, 1759 MiB, 1920 MHz, 190.74 W\n"
+  ],
+  "process_samples": [
+    "gpu_uuid, pid, process_name, used_gpu_memory [MiB]\nGPU-2f9ce359-f3f4-accc-bf9c-31bc88bb1cb7, 256397, Telegram, 59 MiB\nGPU-9ade3f1f-7ead-7504-f762-07be60234d31, 308246, python, 1428 MiB\nGPU-9ade3f1f-7ead-7504-f762-07be60234d31, 331357, python, 1290 MiB\n",
+    "gpu_uuid, pid, process_name, used_gpu_memory [MiB]\nGPU-2f9ce359-f3f4-accc-bf9c-31bc88bb1cb7, 256397, Telegram, 59 MiB\nGPU-2f9ce359-f3f4-accc-bf9c-31bc88bb1cb7, 339657, python, 1446 MiB\n"
+  ],
+  "contention": {
+    "observed": true,
+    "gpu": "GPU-9ade3f1f-7ead-7504-f762-07be60234d31",
+    "first_observed_after_simulated_day": 1486,
+    "foreign_pid": 331357,
+    "note": "External process not modified; continued original validation and launched fresh same-source run on RTX 3090 Ti. Cross-device times are not an isolated optimization A/B."
+  },
+  "note": "Snapshots only. A foreign CUDA process was observed; samples do not prove continuous compute contention or establish the cause of a timing difference."
+}

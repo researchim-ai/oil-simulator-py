@@ -14,6 +14,7 @@ from dataclasses import dataclass, replace
 
 import torch
 
+from .cuda_execution import declare_runtime_residual
 from .liquid import ConservationError, HydraulicConvergenceError, PropertyModelError, _number
 from .operation import _digest
 from .pr_momentum_pipe import PRMomentumPipe, PRMomentumState
@@ -259,7 +260,7 @@ class PRMomentumBDF:
         def residual(y):
             return evaluate(y)[0]
 
-        residual.runtime_residual = residual
+        declare_runtime_residual(residual)
         with torch.no_grad():
             y, row, ok, evaluations = solver.solve(residual, initial, lo, hi, tolerance=3e-12)
             row, result, target = evaluate(y)

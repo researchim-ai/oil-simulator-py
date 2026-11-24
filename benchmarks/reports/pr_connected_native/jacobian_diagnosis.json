@@ -1,0 +1,18 @@
+{
+  "scope": "focused coupled linearization, original AD versus Dynamo, ATen and native CPU; no trajectory timing",
+  "torch": "2.7.0+cu126",
+  "unknowns": 268,
+  "dynamo_max_difference": 0.0,
+  "aten_max_difference": 0.0,
+  "native_max_difference": 2.7410393954596657e-09,
+  "entry": [
+    129,
+    81
+  ],
+  "expected": -11.911926067933383,
+  "actual": -11.911926070674422,
+  "row_scale": 16620.953331483204,
+  "matrix_scale": 28496.995586374967,
+  "matrix_max_relative_difference": 9.618696073245757e-14,
+  "artifact_sha256": "7ba729d519bf71e79f42a025e1c0ceb3e5fff19071fe366f2f6b233e7afc6dc5"
+}

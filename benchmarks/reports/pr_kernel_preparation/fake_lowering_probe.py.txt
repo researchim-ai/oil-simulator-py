@@ -1,0 +1,29 @@
+import importlib.util,json,time,torch
+from pathlib import Path
+from run_pr_controlled_surface import run
+from surface.equilibrium_properties import EquilibriumFluid
+from surface.torch_nonlinear import TorchNewton
+# Isolated experimental implementation: production sources stay untouched.
+source=Path('src/surface/native_execution.py').read_text().replace('tracing_mode="real", _error_on_data_dependent_ops=True','tracing_mode="fake", _allow_non_fake_inputs=True, _error_on_data_dependent_ops=True')
+p=Path('/tmp/pr_fake_native_execution.py');p.write_text(source)
+spec=importlib.util.spec_from_file_location('surface._fake_native_execution_probe',p)
+module=importlib.util.module_from_spec(spec);spec.loader.exec_module(module)
+class Captured(Exception):pass
+box={};original=TorchNewton.solve
+def intercept(self,fn,x,*args,**kw):
+ if x.numel()>200:box.update(fn=fn,x=x.clone());raise Captured()
+ return original(self,fn,x,*args,**kw)
+TorchNewton.solve=intercept
+config=json.loads(Path('benchmarks/reports/pr_connected_native/steady_embedded.json').read_text())
+EquilibriumFluid._compiled_chemical_cpu=True;EquilibriumFluid._compiled_full_eos_cpu=True
+try:run(config)
+except Captured:pass
+finally:TorchNewton.solve=original
+fn=box['fn'];x=box['x'];raw=getattr(fn,'runtime_residual',fn)
+with torch.no_grad():
+ expected=torch.func.jacfwd(raw)(x)
+ engine=module.NativeExecution(progress=lambda e:print(json.dumps(e),flush=True))
+ started=time.perf_counter();actual=engine.jacobian(fn,x);elapsed=time.perf_counter()-started
+ delta=(actual-expected).abs(); result={'experiment':'fake metadata lowering of actual coupled Jacobian, isolated source copy','shape':list(actual.shape),'elapsed_s':elapsed,'max_abs_error':float(delta.max()),'scaled_verification':engine._linearization_roundoff(actual,expected),'execution':engine.statistics()}
+ Path('/tmp/pr-fake-lowering-probe.json').write_text(json.dumps(result,indent=2)+'\n')
+ print(json.dumps(result,indent=2),flush=True)
