@@ -1,0 +1,146 @@
+{
+  "accepted": true,
+  "reference": false,
+  "instrumented_total_s": 6.01742784399994,
+  "phases": {
+    "ordinary_newton_residual": {
+      "calls": 68,
+      "wall_s": 0.9254014879988972
+    },
+    "jacrev": {
+      "calls": 14,
+      "wall_s": 2.0086583370011795
+    },
+    "lu_factor_ex": {
+      "calls": 22,
+      "wall_s": 0.0124621289969582
+    },
+    "lu_solve": {
+      "calls": 39,
+      "wall_s": 0.0017168540007332922
+    },
+    "newton_total": {
+      "calls": 12,
+      "wall_s": 3.0211603689995172
+    },
+    "jacfwd": {
+      "calls": 8,
+      "wall_s": 0.05081984399930661
+    }
+  },
+  "solves": [
+    {
+      "unknowns": 295,
+      "dense": true,
+      "wall_s": 0.47664788400015823,
+      "jacobian_mode": "reverse",
+      "jacobian_builds": 2,
+      "jacobian_reuses": 2
+    },
+    {
+      "unknowns": 295,
+      "dense": true,
+      "wall_s": 0.46951018599975214,
+      "jacobian_mode": "reverse",
+      "jacobian_builds": 2,
+      "jacobian_reuses": 1
+    },
+    {
+      "unknowns": 295,
+      "dense": true,
+      "wall_s": 0.37940009700014343,
+      "jacobian_mode": "reverse",
+      "jacobian_builds": 2,
+      "jacobian_reuses": 2
+    },
+    {
+      "unknowns": 295,
+      "dense": true,
+      "wall_s": 0.5701983199996903,
+      "jacobian_mode": "reverse",
+      "jacobian_builds": 3,
+      "jacobian_reuses": 2
+    },
+    {
+      "unknowns": 403,
+      "dense": true,
+      "wall_s": 0.43311800500032405,
+      "jacobian_mode": "reverse",
+      "jacobian_builds": 2,
+      "jacobian_reuses": 2
+    },
+    {
+      "unknowns": 403,
+      "dense": true,
+      "wall_s": 0.6210228299996743,
+      "jacobian_mode": "reverse",
+      "jacobian_builds": 3,
+      "jacobian_reuses": 2
+    },
+    {
+      "unknowns": 3,
+      "dense": true,
+      "wall_s": 0.009582098000464612,
+      "jacobian_mode": "forward",
+      "jacobian_builds": 1,
+      "jacobian_reuses": 1
+    },
+    {
+      "unknowns": 3,
+      "dense": true,
+      "wall_s": 0.009476596000240534,
+      "jacobian_mode": "forward",
+      "jacobian_builds": 1,
+      "jacobian_reuses": 1
+    },
+    {
+      "unknowns": 3,
+      "dense": true,
+      "wall_s": 0.016706829999748152,
+      "jacobian_mode": "forward",
+      "jacobian_builds": 2,
+      "jacobian_reuses": 1
+    },
+    {
+      "unknowns": 3,
+      "dense": true,
+      "wall_s": 0.009485984000093595,
+      "jacobian_mode": "forward",
+      "jacobian_builds": 1,
+      "jacobian_reuses": 1
+    },
+    {
+      "unknowns": 3,
+      "dense": true,
+      "wall_s": 0.00939870799993514,
+      "jacobian_mode": "forward",
+      "jacobian_builds": 1,
+      "jacobian_reuses": 1
+    },
+    {
+      "unknowns": 3,
+      "dense": true,
+      "wall_s": 0.016612830999292783,
+      "jacobian_mode": "forward",
+      "jacobian_builds": 2,
+      "jacobian_reuses": 1
+    }
+  ],
+  "outside_newton_s": 2.9962674750004226,
+  "other_newton_s": 0.022101717002442456,
+  "audit": {
+    "accepted": true,
+    "checked_records": {
+      "sdirk2-common": 1,
+      "controlled_backward_euler_fallback": 0
+    },
+    "conservation_residuals": [
+      1.1368683772161603e-13,
+      1.8189894035458565e-12,
+      -2.9103830456733704e-11,
+      -1.223420712515022e-07
+    ],
+    "scope": "independent stage/BE physics, controller records, clocks, endpoints and global N/E; explicit checkpoint, no walls in common-stage auditor or experimental calibration"
+  },
+  "scope": "instrumented CPU eager; construction and acceptance included; audit excluded; phases partition Newton only, not independent benchmark timings"
+}

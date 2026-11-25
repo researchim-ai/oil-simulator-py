@@ -1,0 +1,10 @@
+{
+  "accepted": true,
+  "eos_calls": 3579,
+  "instrumented_total_s": 9.36906626200016,
+  "instrumented_eos_s": 2.7986086179907943,
+  "eos_wall_fraction": 0.2987073140192875,
+  "ideal_speedup_if_eos_were_free": 1.4259381567648388,
+  "scope": "diagnostic instrumentation includes overhead and initialization; one short operating interval, not a timing benchmark or phase stability-only profile",
+  "coverage": "tensor_homogeneous calls only; excludes direct chemical/eager kernels, phase-search orchestration and other thermodynamic work outside this interface"
+}

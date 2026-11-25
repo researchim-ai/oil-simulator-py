@@ -1,0 +1,428 @@
+{
+  "schema": "field_production_kpis_v1",
+  "scope": "Production-only black-oil and quasi-steady facility; no injection network, dynamic vessel inventories, thermal reservoir or experimental calibration",
+  "trajectory_sha256": "ca9b6f671c9c59fb3d33997906f87667e762fb347b5f3852828e47732dd0cd16",
+  "solve_wall_s": 665.000822733,
+  "elapsed_days": 3650.0,
+  "accepted_substeps": 730,
+  "operating_events": [
+    {
+      "time_days": 0,
+      "controls": {},
+      "applied_time_days": 0.0
+    },
+    {
+      "time_days": 60,
+      "controls": {
+        "gas_valve_max_opening": 0.8
+      },
+      "applied_time_days": 60.0
+    },
+    {
+      "time_days": 120,
+      "controls": {},
+      "applied_time_days": 120.0
+    },
+    {
+      "time_days": 180,
+      "controls": {
+        "gas_valve_max_opening": 0.65
+      },
+      "applied_time_days": 180.0
+    },
+    {
+      "time_days": 240,
+      "controls": {},
+      "applied_time_days": 240.0
+    },
+    {
+      "time_days": 300,
+      "controls": {
+        "gas_valve_max_opening": 0.9
+      },
+      "applied_time_days": 300.0
+    },
+    {
+      "time_days": 365,
+      "controls": {},
+      "applied_time_days": 365.0
+    },
+    {
+      "time_days": 425,
+      "controls": {
+        "gas_valve_max_opening": 0.8
+      },
+      "applied_time_days": 425.0
+    },
+    {
+      "time_days": 485,
+      "controls": {},
+      "applied_time_days": 485.0
+    },
+    {
+      "time_days": 545,
+      "controls": {
+        "gas_valve_max_opening": 0.65
+      },
+      "applied_time_days": 545.0
+    },
+    {
+      "time_days": 605,
+      "controls": {},
+      "applied_time_days": 605.0
+    },
+    {
+      "time_days": 665,
+      "controls": {
+        "gas_valve_max_opening": 0.9
+      },
+      "applied_time_days": 665.0
+    },
+    {
+      "time_days": 730,
+      "controls": {},
+      "applied_time_days": 730.0
+    },
+    {
+      "time_days": 790,
+      "controls": {
+        "gas_valve_max_opening": 0.8
+      },
+      "applied_time_days": 790.0
+    },
+    {
+      "time_days": 850,
+      "controls": {},
+      "applied_time_days": 850.0
+    },
+    {
+      "time_days": 910,
+      "controls": {
+        "gas_valve_max_opening": 0.65
+      },
+      "applied_time_days": 910.0
+    },
+    {
+      "time_days": 970,
+      "controls": {},
+      "applied_time_days": 970.0
+    },
+    {
+      "time_days": 1030,
+      "controls": {
+        "gas_valve_max_opening": 0.9
+      },
+      "applied_time_days": 1030.0
+    },
+    {
+      "time_days": 1095,
+      "controls": {},
+      "applied_time_days": 1095.0
+    },
+    {
+      "time_days": 1155,
+      "controls": {
+        "gas_valve_max_opening": 0.8
+      },
+      "applied_time_days": 1155.0
+    },
+    {
+      "time_days": 1215,
+      "controls": {},
+      "applied_time_days": 1215.0
+    },
+    {
+      "time_days": 1275,
+      "controls": {
+        "gas_valve_max_opening": 0.65
+      },
+      "applied_time_days": 1275.0
+    },
+    {
+      "time_days": 1335,
+      "controls": {},
+      "applied_time_days": 1335.0
+    },
+    {
+      "time_days": 1395,
+      "controls": {
+        "gas_valve_max_opening": 0.9
+      },
+      "applied_time_days": 1395.0
+    },
+    {
+      "time_days": 1460,
+      "controls": {},
+      "applied_time_days": 1460.0
+    },
+    {
+      "time_days": 1520,
+      "controls": {
+        "gas_valve_max_opening": 0.8
+      },
+      "applied_time_days": 1520.0
+    },
+    {
+      "time_days": 1580,
+      "controls": {},
+      "applied_time_days": 1580.0
+    },
+    {
+      "time_days": 1640,
+      "controls": {
+        "gas_valve_max_opening": 0.65
+      },
+      "applied_time_days": 1640.0
+    },
+    {
+      "time_days": 1700,
+      "controls": {},
+      "applied_time_days": 1700.0
+    },
+    {
+      "time_days": 1760,
+      "controls": {
+        "gas_valve_max_opening": 0.9
+      },
+      "applied_time_days": 1760.0
+    },
+    {
+      "time_days": 1825,
+      "controls": {},
+      "applied_time_days": 1825.0
+    },
+    {
+      "time_days": 1885,
+      "controls": {
+        "gas_valve_max_opening": 0.8
+      },
+      "applied_time_days": 1885.0
+    },
+    {
+      "time_days": 1945,
+      "controls": {},
+      "applied_time_days": 1945.0
+    },
+    {
+      "time_days": 2005,
+      "controls": {
+        "gas_valve_max_opening": 0.65
+      },
+      "applied_time_days": 2005.0
+    },
+    {
+      "time_days": 2065,
+      "controls": {},
+      "applied_time_days": 2065.0
+    },
+    {
+      "time_days": 2125,
+      "controls": {
+        "gas_valve_max_opening": 0.9
+      },
+      "applied_time_days": 2125.0
+    },
+    {
+      "time_days": 2190,
+      "controls": {},
+      "applied_time_days": 2190.0
+    },
+    {
+      "time_days": 2250,
+      "controls": {
+        "gas_valve_max_opening": 0.8
+      },
+      "applied_time_days": 2250.0
+    },
+    {
+      "time_days": 2310,
+      "controls": {},
+      "applied_time_days": 2310.0
+    },
+    {
+      "time_days": 2370,
+      "controls": {
+        "gas_valve_max_opening": 0.65
+      },
+      "applied_time_days": 2370.0
+    },
+    {
+      "time_days": 2430,
+      "controls": {},
+      "applied_time_days": 2430.0
+    },
+    {
+      "time_days": 2490,
+      "controls": {
+        "gas_valve_max_opening": 0.9
+      },
+      "applied_time_days": 2490.0
+    },
+    {
+      "time_days": 2555,
+      "controls": {},
+      "applied_time_days": 2555.0
+    },
+    {
+      "time_days": 2615,
+      "controls": {
+        "gas_valve_max_opening": 0.8
+      },
+      "applied_time_days": 2615.0
+    },
+    {
+      "time_days": 2675,
+      "controls": {},
+      "applied_time_days": 2675.0
+    },
+    {
+      "time_days": 2735,
+      "controls": {
+        "gas_valve_max_opening": 0.65
+      },
+      "applied_time_days": 2735.0
+    },
+    {
+      "time_days": 2795,
+      "controls": {},
+      "applied_time_days": 2795.0
+    },
+    {
+      "time_days": 2855,
+      "controls": {
+        "gas_valve_max_opening": 0.9
+      },
+      "applied_time_days": 2855.0
+    },
+    {
+      "time_days": 2920,
+      "controls": {},
+      "applied_time_days": 2920.0
+    },
+    {
+      "time_days": 2980,
+      "controls": {
+        "gas_valve_max_opening": 0.8
+      },
+      "applied_time_days": 2980.0
+    },
+    {
+      "time_days": 3040,
+      "controls": {},
+      "applied_time_days": 3040.0
+    },
+    {
+      "time_days": 3100,
+      "controls": {
+        "gas_valve_max_opening": 0.65
+      },
+      "applied_time_days": 3100.0
+    },
+    {
+      "time_days": 3160,
+      "controls": {},
+      "applied_time_days": 3160.0
+    },
+    {
+      "time_days": 3220,
+      "controls": {
+        "gas_valve_max_opening": 0.9
+      },
+      "applied_time_days": 3220.0
+    },
+    {
+      "time_days": 3285,
+      "controls": {},
+      "applied_time_days": 3285.0
+    },
+    {
+      "time_days": 3345,
+      "controls": {
+        "gas_valve_max_opening": 0.8
+      },
+      "applied_time_days": 3345.0
+    },
+    {
+      "time_days": 3405,
+      "controls": {},
+      "applied_time_days": 3405.0
+    },
+    {
+      "time_days": 3465,
+      "controls": {
+        "gas_valve_max_opening": 0.65
+      },
+      "applied_time_days": 3465.0
+    },
+    {
+      "time_days": 3525,
+      "controls": {},
+      "applied_time_days": 3525.0
+    },
+    {
+      "time_days": 3585,
+      "controls": {
+        "gas_valve_max_opening": 0.9
+      },
+      "applied_time_days": 3585.0
+    }
+  ],
+  "volume_basis": {
+    "stock_densities": {
+      "oil_kg_m3": 850,
+      "water_kg_m3": 1000,
+      "gas_kg_m3": 1.2
+    },
+    "definition": "Stock-component mass divided by configured stock density, not in-situ phase volume"
+  },
+  "rate_basis": "Accepted-interval average from actual component withdrawal integrals",
+  "energy_basis": "Quasi-steady pump/compressor shaft power integrated over accepted implicit stages; not a whole-field thermal energy balance",
+  "undefined_ratios": "null in JSON, empty in CSV when denominator is zero",
+  "reservoir_fields": "Final snapshot only; no intermediate pressure/saturation fields inferred",
+  "final_reservoir_pressure_range_pa": [
+    2993736.421507825,
+    2995860.942588118
+  ],
+  "final": {
+    "time_days": 3650.0,
+    "dt_days": 5.0,
+    "water_cut_stock": 0.2912776376502551,
+    "gas_oil_ratio_stock_m3_m3": 53.71031831670672,
+    "bhp_min_pa": 1110987.8076550623,
+    "bhp_max_pa": 2979736.9866991974,
+    "production_cap_fraction": 0.002690335205780896,
+    "equipment_drive_power_w": 728.6387397127356,
+    "cumulative_equipment_drive_energy_kwh": 63497.39061822495,
+    "oil_rate_stock_m3_day": 2.6767576806480315,
+    "water_rate_stock_m3_day": 1.1001200120119439,
+    "gas_rate_stock_m3_day": 143.76950708429536,
+    "oil_cumulative_stock_m3": 9791.2312385291,
+    "water_cumulative_stock_m3": 4025.5191165541905,
+    "gas_cumulative_stock_m3": 519992.7770839148
+  },
+  "audit": {
+    "accepted": true,
+    "checked_substeps": 730,
+    "elapsed_days": 3650.0,
+    "minimum_step_s": 432000.0,
+    "maximum_step_s": 432000.0,
+    "capacity_evaluations": 4989,
+    "reservoir_evaluations": 4989,
+    "accepted_initial_cell_evaluations": 4989,
+    "accepted_initial_cell_reuses": 0,
+    "accepted_sensitivity_linear_solves": 0,
+    "accepted_sensitivity_plant_evaluations": 0,
+    "accepted_macro_estimator_reservoir_evaluations": 0,
+    "accepted_macro_estimator_capacity_evaluations": 0,
+    "operating_events": 60,
+    "mass_balance_error_kg": [
+      0.005431550554931164,
+      0.0025420882739126682,
+      0.0006696864729747176
+    ],
+    "maximum_surface_component_residual_kg_s": 3.469446951953614e-18,
+    "mass_atol_kg": 0.01,
+    "mass_rtol": 1e-08,
+    "scope": "Audit accepted forecast material and controls without running either solver.\n\nThis is an accounting/constraint audit, not independent validation of the PVT\nor homogeneous gathering closure. The production FIM CNV/MB remain required.\n"
+  }
+}

@@ -1,0 +1,42 @@
+Diagnostic cProfile before connector grouping. Profiling overhead is included; do not compare these times with paired wall timings.
+
+Wed Nov 25 11:18:33 2026    /tmp/linepack-before.prof
+
+         159890947 function calls (159198133 primitive calls) in 73.921 seconds
+
+   Ordered by: cumulative time
+   List reduced from 10068 to 30 due to restriction <30>
+
+   ncalls  tottime  percall  cumtime  percall filename:lineno(function)
+     1787    1.329    0.001   63.671    0.036 stratified_pr_network.py:410(evaluate)
+     1704    0.125    0.000   62.943    0.037 stratified_pr_network.py:682(<lambda>)
+    27100    0.181    0.000   36.560    0.001 equilibrium_properties.py:255(tensor_homogeneous)
+    27100   10.695    0.000   36.324    0.001 equilibrium_properties.py:281(_tensor_homogeneous_eager)
+   464665    0.438    0.000   34.287    0.000 wrappers.py:287(_fn)
+   464665    0.205    0.000   33.650    0.000 _compile.py:41(inner)
+   464665    0.751    0.000   33.391    0.000 eval_frame.py:829(_fn)
+   464665    1.599    0.000   32.016    0.000 wrappers.py:126(_fn)
+     7148    0.476    0.000   29.504    0.004 stratified_pr_flow.py:201(evaluate)
+     7946    0.945    0.000   22.106    0.003 stratified_pr.py:309(evaluate)
+    10722    0.024    0.000   21.921    0.002 stratified_pr.py:228(_decode_nodes)
+    10722    0.006    0.000   20.372    0.002 stratified_pr.py:230(<lambda>)
+    43658    3.439    0.000   16.646    0.000 three_phase_properties.py:110(disk_area_moment)
+   554016    0.131    0.000   13.363    0.000 _ops.py:755(__call__)
+     7946    0.029    0.000   12.845    0.002 stratified_pr.py:233(_decode_grouped_nodes)
+    32896    0.134    0.000   12.765    0.000 stratified_pr.py:172(_volume)
+     7946    0.136    0.000   12.558    0.002 pr_phase_batch.py:31(properties)
+   554016    0.568    0.000   12.435    0.000 fake_impl.py:77(meta_kernel)
+   254322    0.358    0.000   12.379    0.000 __init__.py:1104(add)
+   554016    0.149    0.000   10.810    0.000 utils.py:31(__call__)
+   554016    0.148    0.000   10.661    0.000 library.py:1380(inner)
+   554016    0.272    0.000   10.513    0.000 custom_ops.py:612(fake_impl)
+   554016    1.483    0.000   10.241    0.000 __init__.py:384(_prim_elementwise_meta)
+   210343    0.314    0.000    9.008    0.000 __init__.py:1061(_ref)
+    27100    3.881    0.000    8.931    0.000 equilibrium_properties.py:192(_roots)
+       17    0.001    0.000    7.535    0.443 _jit_internal.py:1022(_overload)
+   299694    0.510    0.000    7.029    0.000 {built-in method torch._ops.prims.}
+     9068    0.185    0.000    6.918    0.001 stratified_pr.py:186(_grid)
+     5361    0.404    0.000    6.862    0.001 stratified_pr_network.py:307(_patch)
+      329    0.005    0.000    6.550    0.020 __init__.py:1(<module>)
+
+

@@ -112,6 +112,7 @@ class PRGravityProbeGuess:
 
 class PRGravityTransportNetwork:
     _reuse_spatial_predictor = False
+    _prepare_residual = True
 
     def __init__(
         self,
@@ -1131,6 +1132,9 @@ class _ColumnCoupling:
                         self.column_guesses[name] = guess
 
     def prepare(self, y, lo, hi, base, offsets, dt, pattern):
+        continuous = dt == 0
+        if continuous and any(self.column_work_j.values()):
+            raise ValueError("Continuous column operators require power, not discrete work")
         self.algebraic_predictor_used = False
         m = self.model
         t = m.transport
@@ -1273,6 +1277,7 @@ class _ColumnCoupling:
                     f.tensor([math.log(f.max_pressure_pa)] + [100.0] * (count - 1)).repeat(order)
                 )
         self.port_eos_plans = {}
+        self.owner_eos_plans = {}
         for name, column in m.columns.items():
             blocks = [
                 (index, a, b, root)
@@ -1284,6 +1289,16 @@ class _ColumnCoupling:
                     column.fluid, [root for _index, _a, _b, root in blocks for _ in range(order)]
                 )
                 self.port_eos_plans[name] = (plan, blocks)
+                column_base = self.problems[name][3]
+                if m._prepare_residual and hasattr(column_base, "eos_coordinates"):
+                    self.owner_eos_plans[name] = (
+                        PhaseEOSGroups(
+                            column.fluid,
+                            list(column_base.eos_tags)
+                            + [root for _index, _a, _b, root in blocks for _ in range(order)],
+                        ),
+                        blocks,
+                    )
         if offset > t.maximum_unknowns:
             raise ValueError("Coupled graph unknown budget exceeded")
         # Row blocks have the same offsets as unknown blocks. A column/pipe
@@ -1375,15 +1390,44 @@ class _ColumnCoupling:
         old_walls = {name: f.tensor(value) for name, value in self.state.walls}
         column_work = {name: f.tensor(self.column_work_j.get(name, 0.0)) for name in m.columns}
 
-        def evaluate(z):
+        def evaluate(z, runtime_controls=None):
             bodies = {}
             raw = {}
             walls = {}
             heats = {}
             ambient = {}
+            owner_ports = {}
             for name in self.blocks:
                 a, b = self.blocks[name]
-                raw[name], bodies[name] = self.problems[name][3](z[a:b])
+                column_base = self.problems[name][3]
+                decoded = None
+                if name in self.owner_eos_plans:
+                    plan, blocks = self.owner_eos_plans[name]
+                    column, active = m.columns[name], self.problems[name][4]
+                    bp, bt, bx = column_base.eos_coordinates(z[a:b])
+                    local = torch.cat(
+                        [
+                            z[left:right].reshape(order, len(active))
+                            for _idx, left, right, _root in blocks
+                        ]
+                    )
+                    pp, xx = column._node_coordinates(local, active)
+                    properties = plan.properties(torch.cat((bp, pp)), bt[0], torch.cat((bx, xx)))
+                    count = len(bp)
+                    decoded = bp, bx, {key: value[:count] for key, value in properties.items()}
+                    for j, (index, _left, _right, _root) in enumerate(blocks):
+                        region = slice(j * order, (j + 1) * order)
+                        body_region = slice(count + j * order, count + (j + 1) * order)
+                        owner_ports[index] = (
+                            pp[region],
+                            xx[region],
+                            {key: value[body_region] for key, value in properties.items()},
+                        )
+                raw[name], bodies[name] = (
+                    column_base(z[a:b])
+                    if decoded is None
+                    else column_base(z[a:b], _decoded=decoded)
+                )
                 temp = bodies[name]["temperature"]
                 w = m.walls.get(name)
                 if w is None:
@@ -1402,14 +1446,19 @@ class _ColumnCoupling:
             def exchange(data):
                 net = [z.new_zeros(len(f.names) + 2) for _ in t.nodes]
                 cn = {name: z.new_zeros(len(f.names)) for name in m.columns}
-                ce = {name: column_work[name] / dt for name in m.columns}
+                ce = {
+                    name: z.new_zeros(()) if continuous else column_work[name] / dt
+                    for name in m.columns
+                }
                 cs = {name: z.new_zeros(()) for name in m.columns}
                 chemical = []
                 details = {}
                 valid = z.new_ones((), dtype=torch.bool)
                 pieces = []
-                decoded_ports = {}
+                decoded_ports = dict(owner_ports)
                 for name, (plan, blocks) in self.port_eos_plans.items():
+                    if name in self.owner_eos_plans:
+                        continue
                     column = m.columns[name]
                     active = self.problems[name][4]
                     local = torch.cat(
@@ -1425,6 +1474,7 @@ class _ColumnCoupling:
                             xx[region],
                             {key: value[region] for key, value in qq.items()},
                         )
+                pipe_endpoints = {}
                 for port_index, (port, phase, root, a, b) in enumerate(self.portblocks):
                     name = port.column
                     c = m.columns[name]
@@ -1464,7 +1514,12 @@ class _ColumnCoupling:
                     )
                     i = t.names.index(port.node)
                     link = self.aperture_links[port.name]
-                    endpoint, _, normal, extra = t._endpoint(i, data[i], "target", link)
+                    if m._prepare_residual:
+                        if port.name not in pipe_endpoints:
+                            pipe_endpoints[port.name] = t._endpoint(i, data[i], "target", link)
+                        endpoint, _, normal, extra = pipe_endpoints[port.name]
+                    else:
+                        endpoint, _, normal, extra = t._endpoint(i, data[i], "target", link)
                     fluxsum = z.new_zeros(len(f.names) + 2)
                     entropy = z.new_zeros(())
 
@@ -1617,7 +1672,7 @@ class _ColumnCoupling:
                     )
                     details[port.name]["area_fractions"].append(weights.sum())
                     pieces.append((port, root, heights, weights, pp, xx, q))
-                incoming_entropy = -sum(cs.values())
+                incoming_entropy = -sum(cs.values(), z.new_zeros(()))
                 temperatures = {
                     **{name: d["t"] for name, d in zip(t.names, data)},
                     **{name: body["temperature"] for name, body in bodies.items()},
@@ -1655,7 +1710,11 @@ class _ColumnCoupling:
                     "pieces": pieces,
                 }
 
-            br, result = base(z[: self.size], exchange)
+            br, result = base(
+                z[: self.size],
+                exchange,
+                **({"runtime_controls": runtime_controls} if runtime_controls is not None else {}),
+            )
             ex = result["exchange"]
             res = []
             for name in self.blocks:
@@ -1685,6 +1744,7 @@ class _ColumnCoupling:
                     block.extend(range(left, right))
             blocks.extend(block[j : j + 256] for j in range(0, len(block), 256))
         evaluate.linear_blocks = blocks
+        evaluate.continuous_pattern = ([r for r, c in support], [c for r, c in support])
         evaluate.maximum_update = torch.cat(
             (
                 base.maximum_update,

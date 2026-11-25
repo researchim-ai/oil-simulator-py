@@ -93,6 +93,7 @@ class StratifiedPRState:
 class StratifiedPRColumn:
     _batch_local_stability = True
     _batch_column_eos = None  # Auto: validated CPU grouping; explicit CUDA opt-in.
+    _prepare_geometry = True
 
     def __init__(
         self,
@@ -111,6 +112,7 @@ class StratifiedPRColumn:
         if not isinstance(geometry, SeparatorGeometry):
             raise TypeError("Expected SeparatorGeometry")
         self.fluid, self.geometry = fluid, geometry
+        self._prepare_geometry = self._prepare_geometry
         self._batch_column_eos = (
             fluid.device.type == "cpu" if self._batch_column_eos is None else self._batch_column_eos
         )
@@ -140,6 +142,19 @@ class StratifiedPRColumn:
         self._height = fluid.tensor(geometry.height_m)
         self._angle_low = fluid.tensor(-math.pi / 2)
         self._angle_high = fluid.tensor(math.pi / 2)
+        self._endpoint_volumes = (
+            (self._volume(self._zero), self._volume(self._height))
+            if self._prepare_geometry
+            else None
+        )
+        self._endpoint_moments = (
+            (self._moment(self._zero), self._moment(self._height))
+            if self._prepare_geometry and isinstance(geometry, InclinedCylinderGeometry)
+            else None
+        )
+        # Geometry/parameters are fixed model data, not Newton unknowns.
+        # Prepare outside AD transforms; never retain a dual/batched tensor.
+        self._uniform_grids = {}
 
     def to_dict(self):
         return {
@@ -184,21 +199,60 @@ class StratifiedPRColumn:
         return disk_area_moment(height, self.geometry.diameter_m)[1] * self.geometry.length_m
 
     def _grid(self, interfaces, order):
+        if self._prepare_geometry and interfaces.numel() == 0:
+            if order in self._uniform_grids:
+                return self._uniform_grids[order]
+            if (
+                not torch.compiler.is_compiling()
+                and type(interfaces) is torch.Tensor
+                and not interfaces.requires_grad
+                and not torch._C._functorch.is_functorch_wrapped_tensor(interfaces)
+            ):
+                self._uniform_grids[order] = self._dynamic_grid(interfaces, order)
+                return self._uniform_grids[order]
+        return self._dynamic_grid(interfaces, order)
+
+    def _dynamic_grid(self, interfaces, order, *, _prepare=None):
         g = self.geometry
+        prepare = self._prepare_geometry if _prepare is None else _prepare
         bounds = torch.cat((self._zero.reshape(1), interfaces, self._height.reshape(1)))
+        cuts = (
+            [
+                self._endpoint_volumes[0],
+                *(self._volume(h) for h in interfaces),
+                self._endpoint_volumes[1],
+            ]
+            if prepare and self._endpoint_volumes is not None
+            else None
+        )
+        moments = (
+            [
+                self._endpoint_moments[0],
+                *(self._moment(h) for h in interfaces),
+                self._endpoint_moments[1],
+            ]
+            if prepare and self._endpoint_moments is not None
+            else None
+        )
         points, weights = self._rules[order]
         heights = []
         volumes = []
         for i in range(len(bounds) - 1):
             a, b = bounds[i], bounds[i + 1]
-            volume = self._volume(b) - self._volume(a)
+            va, vb = (
+                (cuts[i], cuts[i + 1]) if cuts is not None else (self._volume(a), self._volume(b))
+            )
+            volume = vb - va
             if isinstance(g, InclinedCylinderGeometry):
-                va, vb = self._volume(a), self._volume(b)
                 h = g.level_tensor(va + (points + 1) / 2 * (vb - va))
                 w = weights / 2 * volume
                 mean = (w * h).sum() / volume.clamp_min(1e-300)
                 variance = (w * (h - mean).square()).sum()
-                exact_moment = self._moment(b) - self._moment(a)
+                exact_moment = (
+                    moments[i + 1] - moments[i]
+                    if moments is not None
+                    else self._moment(b) - self._moment(a)
+                )
                 w = w * (
                     1 + (exact_moment - volume * mean) * (h - mean) / variance.clamp_min(1e-300)
                 )
@@ -306,7 +360,7 @@ class StratifiedPRColumn:
         nscale = scale_n[active].clamp_min(scale_n.sum() * 1e-12)
         e_relative, escale = f.tensor(e_relative), f.tensor(escale)
 
-        def evaluate(y):
+        def evaluate(y, *, _decoded=None):
             local = y[: count * c].reshape(count, c)
             lam = y[count * c : count * c + c]
             temperature = y[count * c + c] * f.tref
@@ -321,9 +375,13 @@ class StratifiedPRColumn:
             pressures = []
             xs = []
             decoded = (
-                self._decode_grouped_nodes(local, active, temperature, eos_plan)
-                if eos_plan is not None
-                else None
+                _decoded
+                if _decoded is not None
+                else (
+                    self._decode_grouped_nodes(local, active, temperature, eos_plan)
+                    if eos_plan is not None
+                    else None
+                )
             )
             for (a, b, phase, _), height in zip(segments, node_heights):
                 if decoded is None:
@@ -415,6 +473,12 @@ class StratifiedPRColumn:
                 ),
             }
 
+        def eos_coordinates(y):
+            p, x = self._node_coordinates(y[: count * c].reshape(count, c), active)
+            return p, (y[count * c + c] * f.tref).expand(count), x
+
+        evaluate.eos_coordinates = eos_coordinates
+        evaluate.eos_tags = tuple(roots[phase] for a, b, phase, _ in segments for _ in range(a, b))
         return initial, lower, upper, evaluate, active, roots
 
     def _check_locals(self, pressures, temperature, compositions, properties):

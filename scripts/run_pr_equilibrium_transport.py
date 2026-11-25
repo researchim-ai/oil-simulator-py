@@ -79,11 +79,6 @@ def _run(config, *, device, integrator, compiled_properties=False):
             or "duration_s" not in command
         ):
             raise ValueError("Unknown/missing equilibrium transport command")
-        if integrator in ("gauss4", "radau3", "radau3-embedded") and set(command) & {
-            "drive_torque_nm",
-            "restriction_openings",
-        }:
-            raise ValueError("Machine commands require the original PR integrator")
         report = solver.advance(state, **command)
         state = PREquilibriumTransportState.from_dict(report["state"])
         intervals.append(report)

@@ -8,6 +8,7 @@ independent global TPD stability or experimental closure calibration.
 import math
 
 import numpy as np
+from audit_pr_collocation_machines import stage_rates, stored_energy
 from check_pr_equilibrium_transport import decode, endpoint, face_area, ledger
 from check_pr_momentum_vessels import port_flux
 from check_stratified_pr_flow import close
@@ -16,11 +17,11 @@ from reference_hllc_local import wave_flux
 from reference_pr_hydrostatic import gravity_force
 
 
-def reference_rates(model, states, fluid, commands):
+def reference_rates(model, states, fluid, commands, *, external_ports=()):
     nodes = {n["name"]: n for n in model["nodes"]}
     data = {name: decode(states[name], node, model, fluid) for name, node in nodes.items()}
     net = {name: np.zeros(len(fluid.components) + 2) for name in nodes}
-    occupied, faces = set(), {}
+    occupied, faces = set(external_ports), {}
     for link in model["links"]:
         a, b = link["source"], link["target"]
         left, _, na, da = endpoint(nodes[a], data[a], link, "source", model)
@@ -135,22 +136,15 @@ def reference_rates(model, states, fluid, commands):
 def audit_gauss_step(model, before, record, fluid, commands, *, boundary_exchange=None):
     if record["method"] not in ("gauss4", "radau3") or len(record["stage_states"]) != 2:
         raise ValueError("Exactly two Gauss stages required")
-    if (
-        any(
-            model.get(k)
-            for k in ("pumps", "compressors", "pump_connections", "restrictions", "drives")
-        )
-        or model.get("reservoir_ports", "riemann") != "riemann"
-        or any(
-            node.get(k)
-            for node in model["nodes"]
-            for k in (
-                "hydrostatic_reconstruction",
-                "droplet_population",
-                "drift_flux",
-                "distribution_strength",
-                "buoyancy_relaxation_s",
-            )
+    if model.get("reservoir_ports", "riemann") != "riemann" or any(
+        node.get(k)
+        for node in model["nodes"]
+        for k in (
+            "hydrostatic_reconstruction",
+            "droplet_population",
+            "drift_flux",
+            "distribution_strength",
+            "buoyancy_relaxation_s",
         )
     ):
         raise ValueError("Model outside independently audited Gauss scope")
@@ -168,8 +162,10 @@ def audit_gauss_step(model, before, record, fluid, commands, *, boundary_exchang
     newdata = {name: decode(new[name], node, model, fluid) for name, node in nodes.items()}
     maximum = np.zeros(len(fluid.components) + 2)
 
-    def vector(s):
-        return np.r_[s["component_moles"], s["momentum_kg_m_s"], s["total_energy_j"]]
+    def vector(s, name, energy):
+        return np.r_[
+            s["component_moles"], s["momentum_kg_m_s"], s["total_energy_j"] + energy.get(name, 0.0)
+        ]
 
     q = math.sqrt(3) / 6
     coefficients = (
@@ -181,6 +177,65 @@ def audit_gauss_step(model, before, record, fluid, commands, *, boundary_exchang
 
     def weighted(values):
         return sum(w * v for w, v in zip(weights, values))
+
+    has_machines = any(
+        model.get(k) for k in ("pumps", "compressors", "pump_connections", "restrictions", "drives")
+    )
+    stage_rotors = record.get("stage_rotors", [{}, {}])
+    if len(stage_rotors) != 2:
+        raise ValueError("Two stage rotor inventories required")
+    old_rotors, new_rotors = dict(before.get("rotors", [])), dict(record["state"].get("rotors", []))
+    old_shaft = stored_energy(model, old_rotors)
+    new_shaft = stored_energy(model, new_rotors)
+    stage_shaft = [stored_energy(model, rotors) for rotors in stage_rotors]
+    machine_work = machine_ambient = machine_entropy = 0.0
+    if has_machines:
+        equipment = record.get("stage_equipment", [])
+        if len(equipment) != 2:
+            raise ValueError("Two independent machine stage records required")
+        extra = [
+            stage_rates(
+                model,
+                {name: decode(stage[name], node, model, fluid) for name, node in nodes.items()},
+                stage_rotors[k],
+                equipment[k],
+                fluid,
+                commands,
+            )
+            for k, stage in enumerate(stages)
+        ]
+        for k, row in enumerate(extra):
+            for name, value in row[0].items():
+                decoded[k][0][name] += value
+        machine_work = dt * weighted([row[2] for row in extra])
+        machine_ambient = dt * weighted([row[3] for row in extra])
+        machine_entropy = dt * weighted([row[4] for row in extra])
+        if set(record.get("drives", {})) != set(old_rotors):
+            raise ValueError("Radau drive report registry differs")
+        for d in model.get("drives", []):
+            name = d["machine"]
+            for k in range(2):
+                expected = dt * sum(coefficients[k][j] * extra[j][1][name] for j in range(2))
+                close(stage_rotors[k][name] - old_rotors[name], expected, atol=1e-9, rtol=2e-6)
+            close(new_rotors[name], stage_rotors[-1][name], atol=1e-10, rtol=1e-10)
+            saved = record["drives"][name]
+            close(saved["speed_rad_s"], new_rotors[name], atol=1e-10, rtol=1e-10)
+            kinetic = (
+                0.5 * d["drive"]["inertia_kg_m2"] * (new_rotors[name] ** 2 - old_rotors[name] ** 2)
+            )
+            close(saved["kinetic_energy_change_j"], kinetic, atol=1e-8, rtol=2e-6)
+            for field in extra[0][5][name]:
+                expected = dt * weighted([row[5][name][field] for row in extra])
+                if field == "kinetic_rate":
+                    close(
+                        saved["kinetic_quadrature_difference_j"],
+                        kinetic - expected,
+                        atol=1e-8,
+                        rtol=2e-6,
+                    )
+                else:
+                    close(saved[field], expected, atol=1e-8, rtol=2e-6)
+        close(record["external_work_j"], machine_work, atol=1e-7, rtol=2e-6)
 
     incoming_n, incoming_e, incoming_s = None, 0.0, 0.0
     if boundary_exchange is not None:
@@ -212,12 +267,17 @@ def audit_gauss_step(model, before, record, fluid, commands, *, boundary_exchang
                 rate[-2] = 0.0
         for i, stage in enumerate(stages):
             expected = dt * sum(coefficients[i][j] * rates[j] for j in range(2))
-            delta = vector(stage[name]) - vector(old[name])
+            delta = vector(stage[name], name, stage_shaft[i]) - vector(old[name], name, old_shaft)
             # Subtracting large stored inventories can lose several ULPs even
             # at zero transfer (phase decoding includes exp/log and a sum).
             # Bound that arithmetic from the two published stocks, rather
             # than relaxing the relative tolerance on the exchanged amount.
-            rounding = 16 * np.spacing(np.maximum(abs(vector(stage[name])), abs(vector(old[name]))))
+            rounding = 16 * np.spacing(
+                np.maximum(
+                    abs(vector(stage[name], name, stage_shaft[i])),
+                    abs(vector(old[name], name, old_shaft)),
+                )
+            )
             close(delta[:-2], expected[:-2], atol=1e-10 + rounding[:-2], rtol=2e-6)
             close(delta[-2], expected[-2], atol=1e-9 + rounding[-2], rtol=2e-6)
             close(delta[-1], expected[-1], atol=1e-6 + rounding[-1], rtol=2e-6)
@@ -228,9 +288,13 @@ def audit_gauss_step(model, before, record, fluid, commands, *, boundary_exchang
                 target = dt * sum(coefficients[i][j] * decoded[j][2][name] for j in range(2))
                 close(actual, target, atol=1e-6, rtol=2e-6)
         expected = dt * weighted(rates)
-        delta = vector(new[name]) - vector(old[name])
+        delta = vector(new[name], name, new_shaft) - vector(old[name], name, old_shaft)
         maximum = np.maximum(maximum, abs(delta - expected))
-        rounding = 16 * np.spacing(np.maximum(abs(vector(new[name])), abs(vector(old[name]))))
+        rounding = 16 * np.spacing(
+            np.maximum(
+                abs(vector(new[name], name, new_shaft)), abs(vector(old[name], name, old_shaft))
+            )
+        )
         close(delta[:-2], expected[:-2], atol=1e-10 + rounding[:-2], rtol=2e-6)
         close(delta[-2], expected[-2], atol=1e-9 + rounding[-2], rtol=2e-6)
         close(delta[-1], expected[-1], atol=1e-6 + rounding[-1], rtol=2e-6)
@@ -244,7 +308,7 @@ def audit_gauss_step(model, before, record, fluid, commands, *, boundary_exchang
     expected_walls = {name for name, node in nodes.items() if node.get("wall")}
     if set(record.get("wall_exchanges", {})) != expected_walls:
         raise ValueError("Wall exchange registry differs")
-    ambient = 0.0
+    ambient = machine_ambient
     for name in expected_walls:
         w = nodes[name]["wall"]
         qh = dt * sum(
@@ -292,7 +356,7 @@ def audit_gauss_step(model, before, record, fluid, commands, *, boundary_exchang
     external = dt * sum(commands.get("heat_w", {}).values())
     production = (
         sum(newdata[name]["entropy"] - olddata[name]["entropy"] for name in nodes) - incoming_s
-    )
+    ) + machine_entropy
     for name, node in nodes.items():
         heat = commands.get("heat_w", {}).get(name, 0.0)
         if heat:
@@ -332,7 +396,7 @@ def audit_gauss_step(model, before, record, fluid, commands, *, boundary_exchang
             before,
             record["state"],
             nodes,
-            ambient + external + incoming_e,
+            ambient + external + incoming_e + machine_work,
             model,
             incoming_n=incoming_n,
         ),
@@ -348,6 +412,7 @@ def audit_gauss_step(model, before, record, fluid, commands, *, boundary_exchang
         "material_energy_j": incoming_e,
         "ambient_heat_j": ambient,
         "external_heat_j": external,
+        "external_work_j": machine_work,
         "entropy_production_j_k": production,
         "maximum_local_residuals": maximum.tolist(),
     }

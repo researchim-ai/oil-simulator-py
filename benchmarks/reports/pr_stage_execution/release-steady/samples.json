@@ -1,0 +1,212 @@
+[
+  {
+    "method": "reference",
+    "wall_s": 5.367700316999617,
+    "audit": {
+      "accepted": true,
+      "checked_records": {
+        "sdirk2-common": 1,
+        "controlled_backward_euler_fallback": 0
+      },
+      "conservation_residuals": [
+        1.1368683772161603e-13,
+        1.8189894035458565e-12,
+        -2.9103830456733704e-11,
+        -1.223420712515022e-07
+      ],
+      "scope": "independent stage/BE physics, controller records, clocks, endpoints and global N/E; explicit checkpoint, no walls in common-stage auditor or experimental calibration"
+    },
+    "trajectory": "repeat-0-reference.json.gz",
+    "nonlinear_solves": 6,
+    "fallback_intervals": 0,
+    "rejected_attempts": 0,
+    "predictor_work": {
+      "accepted": 0,
+      "rejected": 0,
+      "inadmissible": 0,
+      "unused": 0
+    },
+    "linear_work": {
+      "jacobian_builds": 14,
+      "jacobian_reuses": 11,
+      "cross_solve_reuses": 0,
+      "cross_solve_refreshes": 0
+    },
+    "repeat": 0
+  },
+  {
+    "method": "optimized",
+    "wall_s": 4.886944466999921,
+    "audit": {
+      "accepted": true,
+      "checked_records": {
+        "sdirk2-common": 1,
+        "controlled_backward_euler_fallback": 0
+      },
+      "conservation_residuals": [
+        1.1368683772161603e-13,
+        1.8189894035458565e-12,
+        -2.9103830456733704e-11,
+        -1.8033670667882973e-08
+      ],
+      "scope": "independent stage/BE physics, controller records, clocks, endpoints and global N/E; explicit checkpoint, no walls in common-stage auditor or experimental calibration"
+    },
+    "trajectory": "repeat-0-optimized.json.gz",
+    "nonlinear_solves": 6,
+    "fallback_intervals": 0,
+    "rejected_attempts": 0,
+    "predictor_work": {
+      "accepted": 0,
+      "rejected": 0,
+      "inadmissible": 0,
+      "unused": 0
+    },
+    "linear_work": {
+      "jacobian_builds": 11,
+      "jacobian_reuses": 14,
+      "cross_solve_reuses": 3,
+      "cross_solve_refreshes": 0
+    },
+    "repeat": 0
+  },
+  {
+    "method": "optimized",
+    "wall_s": 4.7378216159995645,
+    "audit": {
+      "accepted": true,
+      "checked_records": {
+        "sdirk2-common": 1,
+        "controlled_backward_euler_fallback": 0
+      },
+      "conservation_residuals": [
+        1.1368683772161603e-13,
+        1.8189894035458565e-12,
+        -2.9103830456733704e-11,
+        -1.8033670667882973e-08
+      ],
+      "scope": "independent stage/BE physics, controller records, clocks, endpoints and global N/E; explicit checkpoint, no walls in common-stage auditor or experimental calibration"
+    },
+    "trajectory": "repeat-1-optimized.json.gz",
+    "nonlinear_solves": 6,
+    "fallback_intervals": 0,
+    "rejected_attempts": 0,
+    "predictor_work": {
+      "accepted": 0,
+      "rejected": 0,
+      "inadmissible": 0,
+      "unused": 0
+    },
+    "linear_work": {
+      "jacobian_builds": 11,
+      "jacobian_reuses": 14,
+      "cross_solve_reuses": 3,
+      "cross_solve_refreshes": 0
+    },
+    "repeat": 1
+  },
+  {
+    "method": "reference",
+    "wall_s": 5.336765527001262,
+    "audit": {
+      "accepted": true,
+      "checked_records": {
+        "sdirk2-common": 1,
+        "controlled_backward_euler_fallback": 0
+      },
+      "conservation_residuals": [
+        1.1368683772161603e-13,
+        1.8189894035458565e-12,
+        -2.9103830456733704e-11,
+        -1.223420712515022e-07
+      ],
+      "scope": "independent stage/BE physics, controller records, clocks, endpoints and global N/E; explicit checkpoint, no walls in common-stage auditor or experimental calibration"
+    },
+    "trajectory": "repeat-1-reference.json.gz",
+    "nonlinear_solves": 6,
+    "fallback_intervals": 0,
+    "rejected_attempts": 0,
+    "predictor_work": {
+      "accepted": 0,
+      "rejected": 0,
+      "inadmissible": 0,
+      "unused": 0
+    },
+    "linear_work": {
+      "jacobian_builds": 14,
+      "jacobian_reuses": 11,
+      "cross_solve_reuses": 0,
+      "cross_solve_refreshes": 0
+    },
+    "repeat": 1
+  },
+  {
+    "method": "reference",
+    "wall_s": 5.33936385800007,
+    "audit": {
+      "accepted": true,
+      "checked_records": {
+        "sdirk2-common": 1,
+        "controlled_backward_euler_fallback": 0
+      },
+      "conservation_residuals": [
+        1.1368683772161603e-13,
+        1.8189894035458565e-12,
+        -2.9103830456733704e-11,
+        -1.223420712515022e-07
+      ],
+      "scope": "independent stage/BE physics, controller records, clocks, endpoints and global N/E; explicit checkpoint, no walls in common-stage auditor or experimental calibration"
+    },
+    "trajectory": "repeat-2-reference.json.gz",
+    "nonlinear_solves": 6,
+    "fallback_intervals": 0,
+    "rejected_attempts": 0,
+    "predictor_work": {
+      "accepted": 0,
+      "rejected": 0,
+      "inadmissible": 0,
+      "unused": 0
+    },
+    "linear_work": {
+      "jacobian_builds": 14,
+      "jacobian_reuses": 11,
+      "cross_solve_reuses": 0,
+      "cross_solve_refreshes": 0
+    },
+    "repeat": 2
+  },
+  {
+    "method": "optimized",
+    "wall_s": 4.937870171001123,
+    "audit": {
+      "accepted": true,
+      "checked_records": {
+        "sdirk2-common": 1,
+        "controlled_backward_euler_fallback": 0
+      },
+      "conservation_residuals": [
+        1.1368683772161603e-13,
+        1.8189894035458565e-12,
+        -2.9103830456733704e-11,
+        -1.8033670667882973e-08
+      ],
+      "scope": "independent stage/BE physics, controller records, clocks, endpoints and global N/E; explicit checkpoint, no walls in common-stage auditor or experimental calibration"
+    },
+    "trajectory": "repeat-2-optimized.json.gz",
+    "nonlinear_solves": 6,
+    "fallback_intervals": 0,
+    "rejected_attempts": 0,
+    "predictor_work": {
+      "accepted": 0,
+      "rejected": 0,
+      "inadmissible": 0,
+      "unused": 0
+    },
+    "linear_work": {
+      "jacobian_builds": 11,
+      "jacobian_reuses": 14,
+      "cross_solve_reuses": 3,
+      "cross_solve_refreshes": 0
+    },
+    "repeat": 2
+  }
+]

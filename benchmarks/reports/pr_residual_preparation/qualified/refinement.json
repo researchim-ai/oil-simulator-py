@@ -1,0 +1,25 @@
+{
+  "accepted": true,
+  "audit": {
+    "accepted": true,
+    "checked_substeps": 24,
+    "reference_connector_quadrature": 32,
+    "maximum_energy_residual_j": 1.548869487917908e-09,
+    "checked_pipes": 1,
+    "maximum_pipe_energy_residual_j": 1.8962609260597674e-13,
+    "compiled_geometry_verified": true
+  },
+  "errors_in_original_norm": {
+    "reference": [
+      0.533893547317251,
+      0.5338657164777927,
+      0.7075247421444497
+    ],
+    "prepared": [
+      0.533893547317251,
+      0.5338657164777927,
+      0.7075247421444497
+    ]
+  },
+  "scope": "time refinement at max macro dt 0.00025 s, no timing claim"
+}

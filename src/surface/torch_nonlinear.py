@@ -11,7 +11,7 @@ import torch
 
 from .cuda_execution import current_execution
 from .torch_krylov import gmres_device
-from .torch_linear import BlockJacobi, ColoredJacobian, TorchCOO
+from .torch_linear import BlockJacobi, ReverseColoredJacobian, TorchCOO, sparse_jacobian_plan
 from .torch_linear import TorchNewton as _LinearNewton
 
 
@@ -76,6 +76,7 @@ class TorchNewton(_LinearNewton):
     _stagnation_patience = 2
     _roundoff_line_search = True
     _dense_jacobian_mode = "forward"
+    _sparse_jacobian_mode = "forward"
 
     def solve(
         self,
@@ -93,11 +94,23 @@ class TorchNewton(_LinearNewton):
         linearization_history=None,
         linearization_key=None,
         time_coefficient=None,
+        reverse_coloring=None,
     ):
         if not math.isfinite(tolerance) or tolerance <= 0:
             raise ValueError("Newton tolerance must be finite and positive")
-        if self._dense_jacobian_mode not in ("forward", "reverse"):
+        if self._dense_jacobian_mode not in ("forward", "reverse", "colored_reverse"):
             raise ValueError("Unknown dense Jacobian AD mode")
+        if self._sparse_jacobian_mode not in ("forward", "auto"):
+            raise ValueError("Unknown sparse Jacobian AD mode")
+        if reverse_coloring is not None and (
+            not isinstance(reverse_coloring, ReverseColoredJacobian)
+            or pattern is None
+            or reverse_coloring.plan.size != x.numel()
+            or reverse_coloring.plan.device != x.device
+            or reverse_coloring.plan.rows != list(pattern[1])
+            or reverse_coloring.plan.cols != list(pattern[0])
+        ):
+            raise ValueError("Reverse coloring must match the exact residual support and device")
         if stagnation_tolerance is not None and (
             not math.isfinite(stagnation_tolerance) or stagnation_tolerance < tolerance
         ):
@@ -309,12 +322,31 @@ class TorchNewton(_LinearNewton):
                 age = 0
             if x.numel() <= self.dense_limit:
                 if not reused:
+                    if (
+                        self._dense_jacobian_mode == "colored_reverse"
+                        and pattern is not None
+                        and not accelerated
+                        and reverse_coloring is None
+                    ):
+                        reverse_coloring = ReverseColoredJacobian(
+                            x.numel(), *pattern, self.device, chunk_size=x.numel()
+                        )
                     transform = (
                         torch.func.jacrev
-                        if self._dense_jacobian_mode == "reverse"
+                        if self._dense_jacobian_mode in ("reverse", "colored_reverse")
                         else torch.func.jacfwd
                     )
-                    J = execution.jacobian(function, x) if accelerated else transform(function)(x)
+                    if (
+                        reverse_coloring is not None
+                        and reverse_coloring.color_count < 0.75 * x.numel()
+                    ):
+                        J = reverse_coloring.dense(function, x)
+                    else:
+                        J = (
+                            execution.jacobian(function, x)
+                            if accelerated
+                            else transform(function)(x)
+                        )
                     anchor = x.detach().clone()
                     factors, pivots, info = torch.linalg.lu_factor_ex(J, check_errors=False)
                     lm_factors = None
@@ -340,7 +372,14 @@ class TorchNewton(_LinearNewton):
                 if pattern is None:
                     raise ValueError("Sparse pattern required above dense limit")
                 if self.coloring is None:
-                    self.coloring = ColoredJacobian(x.numel(), *pattern, self.device)
+                    self.coloring = sparse_jacobian_plan(
+                        x.numel(),
+                        *pattern,
+                        self.device,
+                        reverse=self._sparse_jacobian_mode == "auto"
+                        and self.device.type == "cpu"
+                        and not accelerated,
+                    )
                 if not reused:
                     values = (
                         execution.colored_values(self.coloring, function, x)

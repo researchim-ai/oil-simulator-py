@@ -1,0 +1,31 @@
+{
+  "accepted": true,
+  "cases": {
+    "facility": {
+      "accepted": true,
+      "source_files_verified": 527,
+      "source_mismatches": [],
+      "independent_audits": 6,
+      "paired_repeats": 2,
+      "maximum_trajectory_error_in_original_norm": 2.0043130189004955e-08
+    },
+    "linepack": {
+      "accepted": true,
+      "source_files_verified": 527,
+      "source_mismatches": [],
+      "independent_audits": 6,
+      "paired_repeats": 2,
+      "maximum_trajectory_error_in_original_norm": 3.57129222675035e-10
+    }
+  },
+  "regression": {
+    "passed": 240,
+    "warnings": 2,
+    "elapsed_s": 158.52,
+    "log": "regression.log"
+  },
+  "ruff": "passed",
+  "git_diff_check": "passed",
+  "eos_batches_properties_match": true,
+  "scope": "exact factorization only, no thermodynamic interpolation; CPU eager paired timings, no GPU/Norne/field-calibration claim; no 50x whole-plant speedup"
+}

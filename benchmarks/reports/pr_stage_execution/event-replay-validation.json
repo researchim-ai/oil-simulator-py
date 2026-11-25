@@ -1,0 +1,58 @@
+{
+  "accepted": true,
+  "exact_time_replays": [
+    {
+      "interval": 1,
+      "time_s": 0.20000283078292747,
+      "dt_s": 2.8307829274543117e-06,
+      "error_in_original_norm": 3.922552236733271e-08,
+      "audit": {
+        "accepted": true,
+        "checked_records": {
+          "sdirk2-common": 1,
+          "controlled_backward_euler_fallback": 0
+        },
+        "conservation_residuals": [
+          0.0,
+          0.0,
+          0.0,
+          1.4680144696914161e-08
+        ],
+        "scope": "independent stage/BE physics, controller records, clocks, endpoints and global N/E; explicit checkpoint, no walls in common-stage auditor or experimental calibration"
+      },
+      "accepted": true
+    },
+    {
+      "interval": 2,
+      "time_s": 0.40000587920730835,
+      "dt_s": 5.879207308323586e-06,
+      "error_in_original_norm": 0.15432339112289767,
+      "audit": {
+        "accepted": true,
+        "checked_records": {
+          "sdirk2-common": 1,
+          "controlled_backward_euler_fallback": 0
+        },
+        "conservation_residuals": [
+          0.0,
+          -1.8189894035458565e-12,
+          -1.4551915228366852e-11,
+          -3.2515375229975885e-08
+        ],
+        "scope": "independent stage/BE physics, controller records, clocks, endpoints and global N/E; explicit checkpoint, no walls in common-stage auditor or experimental calibration"
+      },
+      "accepted": true
+    }
+  ],
+  "independent_ideal_actuator_checks": {
+    "reference": {
+      "maximum_error_in_position_budget": 0.0,
+      "checked": 132
+    },
+    "optimized": {
+      "maximum_error_in_position_budget": 0.0,
+      "checked": 129
+    }
+  },
+  "scope": "direct solves at the reference first post-command time; independent exact actuator law at every accepted isolation checkpoint; no linear interpolation across initial layers or rate-limit corners"
+}

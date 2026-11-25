@@ -1,0 +1,17 @@
+{
+  "journal.json": "82a7e7f13eebfa1710092af9523244eb051d2e4b2a34808f65060add8eb233fc",
+  "prepare-prepared.json.gz": "08a88492940448ea3ad08e268855459cc8d65ebade8af007ebcc366dc5959b11",
+  "prepare-reference.json.gz": "704764bf6d712801d957173f60a5094b0f1462f372359ed3122adc9290405054",
+  "refined.json.gz": "552c9041cd77dada7590c82d74d00d1cf8cae5cceda522984b7743afa96d7a45",
+  "refinement.json": "13df676b2b8eff196a8c52ad3d91131053ad98395fc13d17d617545882c48ced",
+  "regression.log": "79a2fd1963094059df81b39a1e6fe86792cff69cee97b4410d310eeb44944cd3",
+  "repeat-0-prepared.json.gz": "21bfa993de2d9b92125e0d6688b7e0d94ac141aa19d26c0f47cc649e74f964cc",
+  "repeat-0-reference.json.gz": "8c8b91c5815b2096186abc8e6421e326204d224f5d20898badaf08d5b58ba66f",
+  "repeat-1-prepared.json.gz": "b999e269163c00fa7a5617b9ddeaec9f82112d653666bf417ea0c41914336f5e",
+  "repeat-1-reference.json.gz": "ba9ce41001038defe8b91dee52a72bedf3c49971b4a26a8abf61293377f97a17",
+  "request.json": "fd130f1cc6c300fb9ff7015fc2f8de8476bb01f8b2fd12ad88119cd6ee9177c8",
+  "sources.tar.gz": "b7f2a283cbbe8e97b20583963cd99298fb369bf738355f98612fc01a970a0050",
+  "status.json": "bc9ce16faaf869168d9010d4d072a3af989d8b1fb23354214108e774889e98f1",
+  "summary.json": "374f0d97d1c5f5482bd6c428a5d16feeae373bb53027618f2310eeee366dda28",
+  "validation.json": "d3e5bd86595d66a76e0e64022aaac02eda4ab306b0f9d57a0a4b9650e606c4d1"
+}

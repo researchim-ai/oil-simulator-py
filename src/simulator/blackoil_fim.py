@@ -1536,8 +1536,12 @@ class BlackOilFIMSolver(ManualFIMSolver):
         if surface_spec is None:
             self.wells = BlackOilWells(well_manager, reservoir, fluid, reservoir.dimensions, dev)
         else:
-            from .blackoil_surface_coupling import SurfaceCoupledBlackOilWells
-            self.wells = SurfaceCoupledBlackOilWells(well_manager, reservoir, fluid, reservoir.dimensions, dev, surface_spec)
+            if 'injection_network' in surface_spec:
+                from .mixed_surface_wells import MixedSurfaceBlackOilWells
+                self.wells = MixedSurfaceBlackOilWells(well_manager, reservoir, fluid, reservoir.dimensions, dev, surface_spec)
+            else:
+                from .blackoil_surface_coupling import SurfaceCoupledBlackOilWells
+                self.wells = SurfaceCoupledBlackOilWells(well_manager, reservoir, fluid, reservoir.dimensions, dev, surface_spec)
         print("Building sparse matrix structure (black-oil, блоки 3x3)...")
         wc = self.wells.conn_cell
         self.builder = SparseMatrixBuilder(self.nx, self.ny, self.nz, block_size=3, device=self.device,

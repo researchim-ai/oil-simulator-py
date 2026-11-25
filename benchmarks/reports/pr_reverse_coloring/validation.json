@@ -1,0 +1,25 @@
+{
+  "accepted": true,
+  "regression": {
+    "passed": 262,
+    "skipped": 7,
+    "warnings": 1,
+    "elapsed_s": 122.8,
+    "log": "regression.log"
+  },
+  "source_verification": {
+    "files": 531,
+    "mismatches": []
+  },
+  "graph_validation": "graph-validation.json",
+  "steady_cpu_wall_s": {
+    "reference": 4.847563188999629,
+    "optimized": 4.435210874000404
+  },
+  "steady_time_reduction_percent": 8.506383494597014,
+  "maximum_endpoint_error_in_original_norm": 0.0,
+  "synthetic_derivative_microbenchmark": "global-balance.json",
+  "ruff": "passed",
+  "git_diff_check": "passed",
+  "scope": "CPU float64. Three steady-interval pairs; synthetic derivative scaling and bounded-memory tests. No new full-second/Norne/GPU benchmark, OBL or experimental calibration claim."
+}

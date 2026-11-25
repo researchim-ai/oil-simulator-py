@@ -61,6 +61,8 @@ class StratifiedFeed:
 
 
 class StratifiedPRFlow(StratifiedPRThermal):
+    _prune_unused = True
+
     def __init__(self, column, wall, *, outlets=(), feeds=(), **integration):
         self.outlets, self.feeds = tuple(outlets), tuple(feeds)
         names = []
@@ -198,8 +200,18 @@ class StratifiedPRFlow(StratifiedPRThermal):
         if len(initial) > 768:
             raise ValueError("Flow collocation exceeds 768-unknown limit")
 
-        def evaluate(y):
-            r, data = base(y[:size])
+        prune_unused = self._prune_unused
+        need_mean = not prune_unused or any(
+            p.level_control is not None or p.selection == "component_rich" for p in self.outlets
+        )
+        need_density = not prune_unused or any(
+            p.selection in ("densest", "lightest") for p in self.outlets
+        )
+
+        def evaluate(y, *, _column_eos=None):
+            r, data = (
+                base(y[:size]) if _column_eos is None else base(y[:size], _decoded=_column_eos)
+            )
             t = data["temperature"]
             tw = (
                 w.heat_capacity_j_k * state.wall_temperature_k
@@ -214,14 +226,21 @@ class StratifiedPRFlow(StratifiedPRThermal):
                 )
             heat = w.fluid_ua_w_k * (tw - t)
             ambient = w.ambient_ua_w_k * (w.ambient_temperature_k - tw)
-            bounds = torch.cat(
-                (t.new_zeros(1), data["interfaces"], t.new_tensor([c.geometry.height_m]))
+            bounds = (
+                torch.cat((t.new_zeros(1), data["interfaces"], t.new_tensor([c.geometry.height_m])))
+                if self.outlets or not prune_unused
+                else None
             )
             phase_n = data["phase_component_moles"]
-            mean_x = phase_n / phase_n.sum(-1, keepdim=True).clamp_min(1e-30)
-            density = (phase_n * f.molar_masses).sum(-1) / torch.stack(
-                [c._volume(bounds[i + 1]) - c._volume(bounds[i]) for i in range(len(roots))]
-            ).clamp_min(1e-30)
+            mean_x = phase_n / phase_n.sum(-1, keepdim=True).clamp_min(1e-30) if need_mean else None
+            density = (
+                (phase_n * f.molar_masses).sum(-1)
+                / torch.stack(
+                    [c._volume(bounds[i + 1]) - c._volume(bounds[i]) for i in range(len(roots))]
+                ).clamp_min(1e-30)
+                if need_density
+                else None
+            )
             out_n, out_e, out_s = torch.zeros_like(n0), t.new_zeros(()), t.new_zeros(())
             chemical, ports = [], []
             offset = size
@@ -355,6 +374,8 @@ class StratifiedPRFlow(StratifiedPRThermal):
                 "ports": ports,
             }
 
+        evaluate.column_eos_coordinates = lambda y: base.eos_coordinates(y[:size])
+        evaluate.column_eos_tags = base.eos_tags
         return initial, lower, upper, evaluate, active, roots, feed_n, feed_e
 
     def _step(self, state, dt, *, _feed_pressure_observer=None):

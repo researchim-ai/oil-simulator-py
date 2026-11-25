@@ -9,7 +9,7 @@ import torch
 
 _MISSING = object()
 _WELL_FIELDS = (
-    'p_bh', 'mode', 'rho_wb', 'conn_head', 'step_targets', 'step_mode',
+    'p_bh', 'mode', 'rho_wb', 'conn_head', 'conn_sched', 'closed', 'closed_bhp', 'step_targets', 'step_mode',
     'switches', 'well_switches', 'conn_a', 'conn_eff', 'conn_open',
     'p_avg', 'rs_avg', 'rv_avg', 'group_controlled', 'reinit_bhp',
     'alq_opt', '_lift_t', 'pbh_override', 'node_p', '_net_iter',
@@ -18,7 +18,7 @@ _WELL_FIELDS = (
 )
 # These caches are replaced, rather than modified, by assembly. Preserve their
 # bindings without copying dense cross-perforation Jacobian blocks.
-_WELL_BINDINGS = ('_surface_flow_linearization', 'surface_report', '_Q', '_lin', 'p_cell_max', '_mix', '_mix_sel', '_producer_mix', '_initial_surface_result')
+_WELL_BINDINGS = ('_surface_flow_linearization', 'surface_report', 'injection_report', '_Q', '_lin', 'p_cell_max', '_mix', '_mix_sel', '_producer_mix', '_initial_surface_result')
 _SOLVER_BINDINGS = (
     'x', 'sat', 'ug', 'so_max', '_rs_cap', '_th_cache', '_p_bh_cur',
     '_last_well_sys', '_prev_norm', '_newton_iter',
@@ -72,6 +72,10 @@ class _StepState:
         wells = solver.wells
         self.well_state = _capture(wells, _WELL_FIELDS, copy=True)
         self.well_bindings = _capture(wells, _WELL_BINDINGS)
+        self.child_wells = [
+            (child, _capture(child, _WELL_FIELDS, copy=True), _capture(child, _WELL_BINDINGS))
+            for child in getattr(wells, 'subwell_models', ())
+        ]
         self.segments = [(m, _capture_dict(m, ('head', 'p_seg', 'rho')))
                          for m in getattr(wells, 'msw', {}).values()]
         self.wells = []
@@ -102,6 +106,9 @@ class _StepState:
         _restore(solver, self.bindings)
         _restore(solver.wells, _copy_value(self.well_state) if reusable else self.well_state)
         _restore(solver.wells, self.well_bindings)
+        for child, state, bindings in self.child_wells:
+            _restore(child, _copy_value(state) if reusable else state)
+            _restore(child, bindings)
         for segment, values in self.segments:
             for name, value in values.items():
                 if value is _MISSING:

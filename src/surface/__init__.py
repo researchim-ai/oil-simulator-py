@@ -319,6 +319,8 @@ _LAZY_MODELS.update(
         "PREquilibriumTransportState": "pr_equilibrium_transport",
         "PREquilibriumTransportNetwork": "pr_equilibrium_transport",
         "PRCollocation": "pr_collocation",
+        "PRGravityCollocation": "pr_gravity_collocation",
+        "PRSurfaceCollocation": "pr_surface_collocation",
         "PREquilibriumPipe": "pr_transport_builder",
         "PREquilibriumNozzle": "pr_transport_builder",
         "PRTerrainPipe": "pr_terrain_pipe",

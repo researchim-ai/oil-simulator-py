@@ -1,0 +1,104 @@
+{
+  "schema": "field_production_kpis_v1",
+  "scope": "Production-only black-oil and quasi-steady facility; no injection network, dynamic vessel inventories, thermal reservoir or experimental calibration",
+  "trajectory_sha256": "51716e2c1de24b35b9c4fb326941635b7466dd1b347d4d8781208156144fd6d4",
+  "solve_wall_s": 83.54494109100051,
+  "elapsed_days": 365.0,
+  "accepted_substeps": 65,
+  "operating_events": [
+    {
+      "time_days": 0,
+      "controls": {},
+      "applied_time_days": 0.0
+    },
+    {
+      "time_days": 60,
+      "controls": {
+        "gas_valve_max_opening": 0.8
+      },
+      "applied_time_days": 60.0
+    },
+    {
+      "time_days": 120,
+      "controls": {},
+      "applied_time_days": 120.0
+    },
+    {
+      "time_days": 180,
+      "controls": {
+        "gas_valve_max_opening": 0.65
+      },
+      "applied_time_days": 180.0
+    },
+    {
+      "time_days": 240,
+      "controls": {},
+      "applied_time_days": 240.0
+    },
+    {
+      "time_days": 300,
+      "controls": {
+        "gas_valve_max_opening": 0.9
+      },
+      "applied_time_days": 300.0
+    }
+  ],
+  "volume_basis": {
+    "stock_densities": {
+      "oil_kg_m3": 850,
+      "water_kg_m3": 1000,
+      "gas_kg_m3": 1.2
+    },
+    "definition": "Stock-component mass divided by configured stock density, not in-situ phase volume"
+  },
+  "rate_basis": "Accepted-interval average from actual component withdrawal integrals",
+  "energy_basis": "Quasi-steady pump/compressor shaft power integrated over accepted implicit stages; not a whole-field thermal energy balance",
+  "undefined_ratios": "null in JSON, empty in CSV when denominator is zero",
+  "reservoir_fields": "Final snapshot only; no intermediate pressure/saturation fields inferred",
+  "final_reservoir_pressure_range_pa": [
+    2987358.181684694,
+    2999213.866534323
+  ],
+  "final": {
+    "time_days": 365.0,
+    "dt_days": 5.0,
+    "water_cut_stock": 0.29137966357885076,
+    "gas_oil_ratio_stock_m3_m3": 54.25341765738493,
+    "bhp_min_pa": 1111938.101050417,
+    "bhp_max_pa": 2849721.4532900704,
+    "production_cap_fraction": 0.02541794676749474,
+    "equipment_drive_power_w": 6910.740290456671,
+    "cumulative_equipment_drive_energy_kwh": 57775.13757196106,
+    "oil_rate_stock_m3_day": 25.22375908732885,
+    "water_rate_stock_m3_day": 10.371831091073528,
+    "gas_rate_stock_m3_day": 1368.4751366541107,
+    "oil_cumulative_stock_m3": 8829.243631570242,
+    "water_cumulative_stock_m3": 3630.4693953786186,
+    "gas_cumulative_stock_m3": 475478.4586536772
+  },
+  "audit": {
+    "accepted": true,
+    "checked_substeps": 65,
+    "elapsed_days": 365.0,
+    "minimum_step_s": 432000.0,
+    "maximum_step_s": 864000.0,
+    "capacity_evaluations": 541,
+    "reservoir_evaluations": 541,
+    "accepted_initial_cell_evaluations": 541,
+    "accepted_initial_cell_reuses": 0,
+    "accepted_sensitivity_linear_solves": 0,
+    "accepted_sensitivity_plant_evaluations": 0,
+    "accepted_macro_estimator_reservoir_evaluations": 0,
+    "accepted_macro_estimator_capacity_evaluations": 0,
+    "operating_events": 6,
+    "mass_balance_error_kg": [
+      0.0002147788181900978,
+      0.00019356608390808105,
+      1.8315622583031654e-06
+    ],
+    "maximum_surface_component_residual_kg_s": 5.551115123125783e-17,
+    "mass_atol_kg": 0.01,
+    "mass_rtol": 1e-08,
+    "scope": "Audit accepted forecast material and controls without running either solver.\n\nThis is an accounting/constraint audit, not independent validation of the PVT\nor homogeneous gathering closure. The production FIM CNV/MB remain required.\n"
+  }
+}

@@ -1,0 +1,14 @@
+{
+  "refined.json.gz": "fb217463a7bda0326351542cce2a2d59e00fc9d59900ea9fc6ca4b80b5ce5cec",
+  "refinement.json": "218dc6e1b194e3d61181cf98cde69f2d7f63654e625ee3a1fa8f56c5cbb9afda",
+  "regression.log": "79a2fd1963094059df81b39a1e6fe86792cff69cee97b4410d310eeb44944cd3",
+  "repeat-0-prepared.json.gz": "1b930b81326363395b541b2d0877b4a2bbbdc32395249722cdaa53d06d7bc0d8",
+  "repeat-0-reference.json.gz": "f1814b7c597c5fcf16a3b183c656bbb4c8be0313850b31a66ea214fcf11cc584",
+  "repeat-1-prepared.json.gz": "549d3d90cafd7a0ee6aaa6ced84416878627c16c9a2233f5790547846727f5c7",
+  "repeat-1-reference.json.gz": "27efa4f38778f7db7f5a252edea3e70432be0164d358060cd3aea2e48642b9b6",
+  "request.json": "f16f6a24fbf8093ba27c31ffb0731182f1005f600f1260e8601ab0c36a48a481",
+  "samples.json": "99ed30166dde56ba3c9ce437b3a89ca4e3993396f9dd87d617dedd8508f31ee8",
+  "sources.tar.gz": "f8ed41f69a26f748b89c92a6d40c25532bdf7e29dfa553a75010c15b432fa6b7",
+  "summary.json": "cff40760996d89917bacc3397aa02babb3a020fcee5ccbe23024ea919aa01031",
+  "validation.json": "02f25568b27f29375f1037117a0e3b0f898cb11697ef7e9f93feb49f9ab3fdb4"
+}

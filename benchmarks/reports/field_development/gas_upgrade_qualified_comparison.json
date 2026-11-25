@@ -1,0 +1,110 @@
+{
+  "accepted": true,
+  "scope": "Numerically qualified synthetic production-only quasi-steady capacity what-if; no experimental equipment calibration or injection-network claim",
+  "same_python": true,
+  "same_schedule": true,
+  "annual_accepted_observations_equal_qualified_decade_prefix": true,
+  "only_changed_physical_parameter": "gas_export.export_valve.throat_area_m2",
+  "valve_area_m2": [
+    2e-07,
+    2e-06
+  ],
+  "time_refinement_evidence": [
+    "decade_refinement.json",
+    "upgrade_qualified_refinement.json"
+  ],
+  "baseline": {
+    "final_kpis": {
+      "time_days": 365.0,
+      "dt_days": 5.0,
+      "water_cut_stock": 0.29140226451763696,
+      "gas_oil_ratio_stock_m3_m3": 52.67029576633139,
+      "bhp_min_pa": 1113344.5372682393,
+      "bhp_max_pa": 2983930.264932814,
+      "production_cap_fraction": 0.0027443858807449217,
+      "equipment_drive_power_w": 733.7134071613593,
+      "cumulative_equipment_drive_energy_kwh": 6370.585879478237,
+      "oil_rate_stock_m3_day": 2.7299604682809173,
+      "water_rate_stock_m3_day": 1.122663286468389,
+      "gas_rate_stock_m3_day": 143.78782529474847,
+      "oil_cumulative_stock_m3": 988.2909400174577,
+      "water_cumulative_stock_m3": 406.43324700167705,
+      "gas_cumulative_stock_m3": 52000.675733145465
+    },
+    "final_gas_valve_utilization": 0.9999742725772189,
+    "final_maximum_limit_utilizations": [
+      {
+        "name": "water_pumps",
+        "utilization": 0.003909829056582616
+      },
+      {
+        "name": "first_stage_gas",
+        "utilization": 0.1032275647327895
+      },
+      {
+        "name": "water_capacity",
+        "utilization": 0.005197515215131431
+      },
+      {
+        "name": "header_rating",
+        "utilization": 0.40000400620456983
+      },
+      {
+        "name": "total_utilities",
+        "utilization": 0.014674268143227186
+      },
+      {
+        "name": "gas_cooling",
+        "utilization": 0.013866267983990757
+      }
+    ]
+  },
+  "upgrade": {
+    "final_kpis": {
+      "time_days": 365.0,
+      "dt_days": 5.0,
+      "water_cut_stock": 0.29137977126457754,
+      "gas_oil_ratio_stock_m3_m3": 54.253212559188064,
+      "bhp_min_pa": 1111938.8538932868,
+      "bhp_max_pa": 2849720.524612517,
+      "production_cap_fraction": 0.02541810284948263,
+      "equipment_drive_power_w": 6910.764536478056,
+      "cumulative_equipment_drive_energy_kwh": 57775.20676910608,
+      "oil_rate_stock_m3_day": 25.22391011878361,
+      "water_rate_stock_m3_day": 10.37189860346705,
+      "gas_rate_stock_m3_day": 1368.4781572482218,
+      "oil_cumulative_stock_m3": 8829.278343998452,
+      "water_cumulative_stock_m3": 3630.482564914994,
+      "gas_cumulative_stock_m3": 475478.34363475617
+    },
+    "final_gas_valve_utilization": 0.9517318928840975,
+    "final_maximum_limit_utilizations": [
+      {
+        "name": "water_pumps",
+        "utilization": 0.03529900855107489
+      },
+      {
+        "name": "first_stage_gas",
+        "utilization": 0.9999999477691549
+      },
+      {
+        "name": "water_capacity",
+        "utilization": 0.048018049090125234
+      },
+      {
+        "name": "header_rating",
+        "utilization": 0.40030164464390844
+      },
+      {
+        "name": "total_utilities",
+        "utilization": 0.13821529072956112
+      },
+      {
+        "name": "gas_cooling",
+        "utilization": 0.13063384503061262
+      }
+    ]
+  },
+  "oil_cumulative_ratio": 8.933885748100137,
+  "energy_ratio": 9.069057047832777
+}

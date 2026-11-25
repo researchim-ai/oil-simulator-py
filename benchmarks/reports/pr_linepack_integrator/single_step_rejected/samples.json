@@ -1,0 +1,128 @@
+[
+  {
+    "repeat": 0,
+    "method": "reference",
+    "wall_s": 35.596880609000436,
+    "audit": {
+      "accepted": true,
+      "checked_substeps": 14,
+      "reference_connector_quadrature": 32,
+      "maximum_energy_residual_j": 1.5976411353265697e-09,
+      "checked_pipes": 1,
+      "maximum_pipe_energy_residual_j": 1.2634338020234281e-13,
+      "compiled_geometry_verified": true
+    },
+    "trajectory": "repeat-0-reference.json.gz",
+    "accepted_substeps": 14,
+    "nonlinear_solves": 56,
+    "embedded_steps": 0,
+    "probe_failures": 0,
+    "jacobian_builds": 0,
+    "jacobian_reuses": 0
+  },
+  {
+    "repeat": 0,
+    "method": "newton",
+    "wall_s": 27.29240855399985,
+    "audit": {
+      "accepted": true,
+      "checked_substeps": 14,
+      "reference_connector_quadrature": 32,
+      "maximum_energy_residual_j": 1.5970726771770936e-09,
+      "checked_pipes": 1,
+      "maximum_pipe_energy_residual_j": 1.4943601911454607e-13,
+      "compiled_geometry_verified": true
+    },
+    "trajectory": "repeat-0-newton.json.gz",
+    "accepted_substeps": 14,
+    "nonlinear_solves": 56,
+    "embedded_steps": 0,
+    "probe_failures": 0,
+    "jacobian_builds": 85,
+    "jacobian_reuses": 40
+  },
+  {
+    "repeat": 0,
+    "method": "embedded",
+    "wall_s": 18.860101395999664,
+    "audit": {
+      "accepted": true,
+      "checked_substeps": 11,
+      "reference_connector_quadrature": 32,
+      "maximum_energy_residual_j": 1.5970726771770936e-09,
+      "checked_pipes": 1,
+      "maximum_pipe_energy_residual_j": 8.770761894538737e-14,
+      "compiled_geometry_verified": true
+    },
+    "trajectory": "repeat-0-embedded.json.gz",
+    "accepted_substeps": 11,
+    "nonlinear_solves": 37,
+    "embedded_steps": 5,
+    "probe_failures": 0,
+    "jacobian_builds": 59,
+    "jacobian_reuses": 28
+  },
+  {
+    "repeat": 1,
+    "method": "embedded",
+    "wall_s": 18.54301320400009,
+    "audit": {
+      "accepted": true,
+      "checked_substeps": 11,
+      "reference_connector_quadrature": 32,
+      "maximum_energy_residual_j": 1.5970726771770936e-09,
+      "checked_pipes": 1,
+      "maximum_pipe_energy_residual_j": 8.770761894538737e-14,
+      "compiled_geometry_verified": true
+    },
+    "trajectory": "repeat-1-embedded.json.gz",
+    "accepted_substeps": 11,
+    "nonlinear_solves": 37,
+    "embedded_steps": 5,
+    "probe_failures": 0,
+    "jacobian_builds": 59,
+    "jacobian_reuses": 28
+  },
+  {
+    "repeat": 1,
+    "method": "newton",
+    "wall_s": 27.13847634800004,
+    "audit": {
+      "accepted": true,
+      "checked_substeps": 14,
+      "reference_connector_quadrature": 32,
+      "maximum_energy_residual_j": 1.5970726771770936e-09,
+      "checked_pipes": 1,
+      "maximum_pipe_energy_residual_j": 1.4943601911454607e-13,
+      "compiled_geometry_verified": true
+    },
+    "trajectory": "repeat-1-newton.json.gz",
+    "accepted_substeps": 14,
+    "nonlinear_solves": 56,
+    "embedded_steps": 0,
+    "probe_failures": 0,
+    "jacobian_builds": 85,
+    "jacobian_reuses": 40
+  },
+  {
+    "repeat": 1,
+    "method": "reference",
+    "wall_s": 35.85757396200097,
+    "audit": {
+      "accepted": true,
+      "checked_substeps": 14,
+      "reference_connector_quadrature": 32,
+      "maximum_energy_residual_j": 1.5976411353265697e-09,
+      "checked_pipes": 1,
+      "maximum_pipe_energy_residual_j": 1.2634338020234281e-13,
+      "compiled_geometry_verified": true
+    },
+    "trajectory": "repeat-1-reference.json.gz",
+    "accepted_substeps": 14,
+    "nonlinear_solves": 56,
+    "embedded_steps": 0,
+    "probe_failures": 0,
+    "jacobian_builds": 0,
+    "jacobian_reuses": 0
+  }
+]

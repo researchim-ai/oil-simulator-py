@@ -1,0 +1,15 @@
+{
+  "refined.json.gz": "631ef6c25f4c2817380ec8cbc951b8d2556380c8295e00aad030b4bf0b72e6e1",
+  "refinement.json": "4123aa85391cc155a0bc2ef44ee501552f71e0e7c8964dc56d6cd717145b177a",
+  "repeat-0-embedded.json.gz": "eb826b6a91556995e3dc6b376ee4243afef25fc47484b47a14d266ad0fad1d2b",
+  "repeat-0-newton.json.gz": "ad4e0afb9dae06e5625344a93b31d231e3faf1821900767853c3c544cfc9e1c4",
+  "repeat-0-reference.json.gz": "5d78394abec48fda154a3eecaf9b6a9c18745b0b240a49a685610e57b93b460f",
+  "repeat-1-embedded.json.gz": "f3d4eb8e8dee971b8365d251e933fd3241499db868d6c87171256a36aa8bf262",
+  "repeat-1-newton.json.gz": "f04567fd3eb944b995b04c4d36f38b2cdcfeb3baf1e2a86d739cbf485c013aca",
+  "repeat-1-reference.json.gz": "8961f6bc87057e60f667c77e6802a87615dab08d27e74145f012c84e2c629c4e",
+  "request.json": "d8f49b3bcbf2d42a1a968a9f20edd878001d1a9aab795b9f110f239938c2a117",
+  "samples.json": "169bd6aa51ba80c4c569af4df878fa9f30b4da364afd047bbe2f312a7c39f8ca",
+  "sources.tar.gz": "3f445f8156e55ad410859cac808518131a403b8df4edca4864678b74ecb5c5ac",
+  "summary.json": "8753dd475215dc4da607583447ec3b8733063ae1bc1345445b1063f6c25a3ca6",
+  "validation.json": "4fdcbb0fcd6ff202ddaf0461b355733ef2680f80da0c53af717310e6f068604a"
+}

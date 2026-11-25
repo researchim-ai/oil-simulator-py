@@ -1,0 +1,32 @@
+{
+  "refinement": "maximum macro step 0.00025 s, step doubling; same physics and tolerances",
+  "timing_scope": "correctness run, overlaps regression tests; not used for speed comparisons",
+  "wall_s": 20.926292422000188,
+  "audit": {
+    "accepted": true,
+    "checked_substeps": 24,
+    "reference_connector_quadrature": 32,
+    "maximum_energy_residual_j": 1.548869487917908e-09,
+    "checked_pipes": 1,
+    "maximum_pipe_energy_residual_j": 1.8962609260597674e-13,
+    "compiled_geometry_verified": true
+  },
+  "errors_in_original_norm": {
+    "reference": [
+      0.5338935334892402,
+      0.5338657038496988,
+      0.7075247331581666
+    ],
+    "newton": [
+      0.5338935472601104,
+      0.5338657169920544,
+      0.7075247430016468
+    ],
+    "embedded": [
+      0.533893547317251,
+      0.5338657164777927,
+      0.7075247421444497
+    ]
+  },
+  "accepted": true
+}

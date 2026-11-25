@@ -1,0 +1,120 @@
+{
+  "scope": "Release gate for completed, source-guarded time refinement on a declared horizon.\n\nAudits material and controls, end fields and well histories at common reports.\nIt does not establish experimental calibration or global error against truth.\n",
+  "accepted": true,
+  "required_days": 365.0,
+  "same_python_and_pvt": true,
+  "refinement_family": "maximum_time_step",
+  "accepted_stages": {
+    "candidate": 73,
+    "reference": 146
+  },
+  "final_fields": {
+    "accepted": true,
+    "errors": {
+      "final_pressure_pa": 7.120614348910749,
+      "final_s_w": 8.75227474383955e-07,
+      "final_s_g": 3.336790212173091e-06,
+      "final_rs": 0.00010680921523942288,
+      "withdrawal_relative": 6.605461774163462e-05
+    },
+    "budgets": {
+      "final_pressure_pa": 1000.0,
+      "final_s_w": 0.0002,
+      "final_s_g": 0.0002,
+      "final_rs": 0.05,
+      "withdrawal_relative": 0.002
+    },
+    "coarse": "benchmarks/reports/field_development/upgrade_5day/trajectory.json.gz",
+    "fine": "benchmarks/reports/field_development/upgrade_2p5day/trajectory.json.gz",
+    "scope": "Compare completed operational forecasts at the final common report endpoint.\n\nBudgets must be supplied before inspecting the reference result. This is a\nstep-refinement check, not a proof that the finer trajectory is exact.\n",
+    "allowed_numerical_policy_differences": [
+      "simulation.newton_tol_cnv",
+      "simulation.newton_tol_mb",
+      "simulation.newton_tol_well_bhp",
+      "simulation.newton_tol_well_rate",
+      "coupled_facility.control.fraction_tolerance",
+      "coupled_facility.control.continuation_scan_interval",
+      "simulation.max_time_step_days",
+      "simulation.initial_time_step_days",
+      "coupled_facility.time_control",
+      "coupled_facility.temporal_control",
+      "coupled_facility.control.search_method",
+      "coupled_facility.control.sensitivity_sparse_budget_bytes",
+      "coupled_facility.control.commit_method",
+      "coupled_facility.control.reuse_inactive_caps",
+      "coupled_facility.control.inactive_cap_certificate_version",
+      "coupled_facility.control.reuse_initial_cell_state",
+      "coupled_facility.control.initial_cell_state_cache_bytes",
+      "coupled_facility.control.reuse_capacity_amg",
+      "coupled_facility.control.reuse_capacity_history",
+      "physical_surface_network.sensitivity_backend",
+      "physical_surface_network.network_backend",
+      "physical_surface_network.bhp_initialization",
+      "physical_surface_network.well_block_backend",
+      "physical_surface_network.structured_memory_budget_bytes",
+      "physical_surface_network.network.hydraulic_backend",
+      "physical_surface_network.network.pipe_batch_size"
+    ]
+  },
+  "well_trajectories": {
+    "scope": "Compare actual well rates/BHP and cumulative mass at coarse report endpoints.\n\nBoth bundles must independently pass full facility accounting first. This is\nstep refinement, not a proof that either trajectory is exact or calibrated.\n",
+    "accepted": true,
+    "matched_endpoints_days": [
+      10.0,
+      20.0,
+      30.0,
+      40.0,
+      50.0,
+      60.0,
+      70.0,
+      80.0,
+      90.0,
+      100.0,
+      110.0,
+      120.0,
+      130.0,
+      140.0,
+      150.0,
+      160.0,
+      170.0,
+      180.0,
+      190.0,
+      200.0,
+      210.0,
+      220.0,
+      230.0,
+      240.0,
+      250.0,
+      260.0,
+      270.0,
+      280.0,
+      290.0,
+      300.0,
+      310.0,
+      320.0,
+      330.0,
+      340.0,
+      350.0,
+      360.0,
+      365.0
+    ],
+    "mode_mismatches": 0,
+    "errors": {
+      "bhp_abs_pa": 36.77702737040818,
+      "component_rate_scaled": 0.0019392230619364806,
+      "cumulative_mass_relative": 0.0012167686995251796
+    },
+    "budgets": {
+      "bhp_abs_pa": 100.0,
+      "component_rate_scaled": 0.002,
+      "cumulative_mass_relative": 0.002
+    },
+    "component_rate_floor_kg_s": 1e-08,
+    "allow_numerical_policy": true
+  },
+  "observed_solve_wall_s": {
+    "candidate": 85.86454126900207,
+    "reference": 138.38983966300293
+  },
+  "timing_scope": "Shared host observations, not an isolated speed benchmark"
+}

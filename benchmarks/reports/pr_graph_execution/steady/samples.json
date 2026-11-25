@@ -1,0 +1,94 @@
+[
+  {
+    "method": "reference",
+    "wall_s": 8.878816098000243,
+    "audit": {
+      "accepted": true,
+      "checked_records": {
+        "sdirk2-common": 1,
+        "controlled_backward_euler_fallback": 0
+      },
+      "conservation_residuals": [
+        1.1368683772161603e-13,
+        1.8189894035458565e-12,
+        -2.9103830456733704e-11,
+        -1.223420712515022e-07
+      ],
+      "scope": "independent stage/BE physics, controller records, clocks, endpoints and global N/E; explicit checkpoint, no walls in common-stage auditor or experimental calibration"
+    },
+    "trajectory": "repeat-0-reference.json.gz",
+    "nonlinear_solves": 6,
+    "fallback_intervals": 0,
+    "rejected_attempts": 0,
+    "repeat": 0
+  },
+  {
+    "method": "optimized",
+    "wall_s": 5.694885588000034,
+    "audit": {
+      "accepted": true,
+      "checked_records": {
+        "sdirk2-common": 1,
+        "controlled_backward_euler_fallback": 0
+      },
+      "conservation_residuals": [
+        1.1368683772161603e-13,
+        1.8189894035458565e-12,
+        -2.9103830456733704e-11,
+        -1.223420712515022e-07
+      ],
+      "scope": "independent stage/BE physics, controller records, clocks, endpoints and global N/E; explicit checkpoint, no walls in common-stage auditor or experimental calibration"
+    },
+    "trajectory": "repeat-0-optimized.json.gz",
+    "nonlinear_solves": 6,
+    "fallback_intervals": 0,
+    "rejected_attempts": 0,
+    "repeat": 0
+  },
+  {
+    "method": "optimized",
+    "wall_s": 5.646389178999925,
+    "audit": {
+      "accepted": true,
+      "checked_records": {
+        "sdirk2-common": 1,
+        "controlled_backward_euler_fallback": 0
+      },
+      "conservation_residuals": [
+        1.1368683772161603e-13,
+        1.8189894035458565e-12,
+        -2.9103830456733704e-11,
+        -1.223420712515022e-07
+      ],
+      "scope": "independent stage/BE physics, controller records, clocks, endpoints and global N/E; explicit checkpoint, no walls in common-stage auditor or experimental calibration"
+    },
+    "trajectory": "repeat-1-optimized.json.gz",
+    "nonlinear_solves": 6,
+    "fallback_intervals": 0,
+    "rejected_attempts": 0,
+    "repeat": 1
+  },
+  {
+    "method": "reference",
+    "wall_s": 8.509793489000003,
+    "audit": {
+      "accepted": true,
+      "checked_records": {
+        "sdirk2-common": 1,
+        "controlled_backward_euler_fallback": 0
+      },
+      "conservation_residuals": [
+        1.1368683772161603e-13,
+        1.8189894035458565e-12,
+        -2.9103830456733704e-11,
+        -1.223420712515022e-07
+      ],
+      "scope": "independent stage/BE physics, controller records, clocks, endpoints and global N/E; explicit checkpoint, no walls in common-stage auditor or experimental calibration"
+    },
+    "trajectory": "repeat-1-reference.json.gz",
+    "nonlinear_solves": 6,
+    "fallback_intervals": 0,
+    "rejected_attempts": 0,
+    "repeat": 1
+  }
+]

@@ -1,0 +1,125 @@
+[
+  {
+    "method": "reference",
+    "wall_s": 10.303727375000108,
+    "audit": {
+      "accepted": true,
+      "steps": 1,
+      "scope": "independent staged EOS/profile, HLLC, cards, PI, ideal limiter and N/E equations; no walls/fallback or experimental calibration"
+    },
+    "fallback_intervals": 0,
+    "attempts": 1,
+    "rejected_attempts": 0,
+    "collocation_nonlinear_solves": 6,
+    "conservation_residuals": [
+      1.1368683772161603e-13,
+      0.0,
+      -4.3655745685100555e-11,
+      -2.863988318724253e-07
+    ],
+    "trajectory": "prepare-reference.json.gz"
+  },
+  {
+    "method": "prepared",
+    "wall_s": 9.880203192999943,
+    "audit": {
+      "accepted": true,
+      "steps": 1,
+      "scope": "independent staged EOS/profile, HLLC, cards, PI, ideal limiter and N/E equations; no walls/fallback or experimental calibration"
+    },
+    "fallback_intervals": 0,
+    "attempts": 1,
+    "rejected_attempts": 0,
+    "collocation_nonlinear_solves": 6,
+    "conservation_residuals": [
+      1.1368683772161603e-13,
+      0.0,
+      -4.3655745685100555e-11,
+      -2.863988318724253e-07
+    ],
+    "trajectory": "prepare-prepared.json.gz"
+  },
+  {
+    "method": "reference",
+    "wall_s": 9.912610856000356,
+    "audit": {
+      "accepted": true,
+      "steps": 1,
+      "scope": "independent staged EOS/profile, HLLC, cards, PI, ideal limiter and N/E equations; no walls/fallback or experimental calibration"
+    },
+    "fallback_intervals": 0,
+    "attempts": 1,
+    "rejected_attempts": 0,
+    "collocation_nonlinear_solves": 6,
+    "conservation_residuals": [
+      1.1368683772161603e-13,
+      0.0,
+      -4.3655745685100555e-11,
+      -2.863988318724253e-07
+    ],
+    "trajectory": "repeat-0-reference.json.gz",
+    "repeat": 0
+  },
+  {
+    "method": "prepared",
+    "wall_s": 9.885342118999688,
+    "audit": {
+      "accepted": true,
+      "steps": 1,
+      "scope": "independent staged EOS/profile, HLLC, cards, PI, ideal limiter and N/E equations; no walls/fallback or experimental calibration"
+    },
+    "fallback_intervals": 0,
+    "attempts": 1,
+    "rejected_attempts": 0,
+    "collocation_nonlinear_solves": 6,
+    "conservation_residuals": [
+      1.1368683772161603e-13,
+      0.0,
+      -4.3655745685100555e-11,
+      -2.863988318724253e-07
+    ],
+    "trajectory": "repeat-0-prepared.json.gz",
+    "repeat": 0
+  },
+  {
+    "method": "prepared",
+    "wall_s": 9.838994430000184,
+    "audit": {
+      "accepted": true,
+      "steps": 1,
+      "scope": "independent staged EOS/profile, HLLC, cards, PI, ideal limiter and N/E equations; no walls/fallback or experimental calibration"
+    },
+    "fallback_intervals": 0,
+    "attempts": 1,
+    "rejected_attempts": 0,
+    "collocation_nonlinear_solves": 6,
+    "conservation_residuals": [
+      1.1368683772161603e-13,
+      0.0,
+      -4.3655745685100555e-11,
+      -2.863988318724253e-07
+    ],
+    "trajectory": "repeat-1-prepared.json.gz",
+    "repeat": 1
+  },
+  {
+    "method": "reference",
+    "wall_s": 9.829094753999925,
+    "audit": {
+      "accepted": true,
+      "steps": 1,
+      "scope": "independent staged EOS/profile, HLLC, cards, PI, ideal limiter and N/E equations; no walls/fallback or experimental calibration"
+    },
+    "fallback_intervals": 0,
+    "attempts": 1,
+    "rejected_attempts": 0,
+    "collocation_nonlinear_solves": 6,
+    "conservation_residuals": [
+      1.1368683772161603e-13,
+      0.0,
+      -4.3655745685100555e-11,
+      -2.863988318724253e-07
+    ],
+    "trajectory": "repeat-1-reference.json.gz"
+  }
+]

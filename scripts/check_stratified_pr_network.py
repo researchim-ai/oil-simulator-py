@@ -69,6 +69,20 @@ def audit(config, report):
         )
         interval_n = {n: np.array(old["vessels"][n]["column"]["component_moles"]) for n in names}
         for step in interval["steps"]:
+            if (
+                config.get("temporal_error_control") == "embedded_be"
+                or "temporal_error_ratio" in step
+            ):
+                ratio = step.get("temporal_error_ratio")
+                if (
+                    isinstance(ratio, bool)
+                    or not isinstance(ratio, (int, float))
+                    or not math.isfinite(ratio)
+                    or not 0 <= ratio <= 1
+                    or step.get("temporal_error_method")
+                    not in ("step_doubling", "filtered_be_trapezoid")
+                ):
+                    raise ValueError("Unresolved network temporal error")
             if step["openings"] != expected_openings:
                 raise ValueError("Network opening command differs")
             state = step["state"]

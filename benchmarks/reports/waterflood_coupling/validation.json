@@ -1,0 +1,135 @@
+{
+  "accepted": true,
+  "scope": "Numerical qualification of the first mixed production / treated-water / injection / reservoir loop; not experimental calibration or complete industrial qualification.",
+  "model": {
+    "cells": 64,
+    "producers": 2,
+    "water_injectors": 1,
+    "days": 5,
+    "events": 7
+  },
+  "refinement": {
+    "accepted": true,
+    "errors": {
+      "pressure_pa": 57.13176377117634,
+      "s_w": 1.1423398559418096e-05,
+      "s_g": 4.284812808036387e-05,
+      "bhp_pa": 88.95106230210513,
+      "component_rate_scaled": 0.0003963113064719162,
+      "cumulative_transfer_mass_relative": 0.0005823407805242851,
+      "cumulative_drive_energy_relative": 8.734595710263357e-05
+    },
+    "budgets": {
+      "pressure_pa": 1000,
+      "s_w": 0.0002,
+      "s_g": 0.0002,
+      "bhp_pa": 100,
+      "component_rate_scaled": 0.002,
+      "cumulative_transfer_mass_relative": 0.002,
+      "cumulative_drive_energy_relative": 0.002
+    },
+    "mode_mismatches": 0,
+    "report_dates": 10,
+    "days": 5.0,
+    "accepted_stages": [
+      22,
+      42
+    ],
+    "scope": "Matched report fields, actual well rates/BHP and external product integrals; refinement, not experimental truth or a global dispatch optimum."
+  },
+  "runs": {
+    "pressure_resolved_coarse": {
+      "audit": {
+        "accepted": true,
+        "days": 5.0,
+        "accepted_stages": 22,
+        "operating_events": 7,
+        "external_in_kg": [
+          0.0,
+          12959.722275980843,
+          0.0
+        ],
+        "external_out_kg": [
+          75357.52357406654,
+          7316.388198941611,
+          5883.07174133833
+        ],
+        "residual_kg": [
+          1.4769655535928905e-05,
+          -6.585978553630412e-06,
+          2.585840775282122e-06
+        ],
+        "maximum_stage_component_residual_kg": 5.900859832763672e-06,
+        "scope": "Independent accepted-clock, stock-mass, water-resource and control audit.\n\nHydraulic closure is checked by derivative tests and existing equipment-law\nregressions. This accounting audit is not experimental physical validation.\n"
+      },
+      "solve_wall_s": 43.85477536999679,
+      "execution": {
+        "reservoir_device": "cpu",
+        "injection_tangents": "Torch float64",
+        "injection_equipment_properties": "host scalar laws",
+        "production_facility": "existing host model",
+        "torch_threads": 1
+      },
+      "trajectory_sha256": "7ef811a0cd6a21c1085df953c40e391dd85b210fcfe621781644f7aa7633b7b5"
+    },
+    "pressure_resolved_reference": {
+      "audit": {
+        "accepted": true,
+        "days": 5.0,
+        "accepted_stages": 42,
+        "operating_events": 7,
+        "external_in_kg": [
+          0.0,
+          12959.731980858996,
+          0.0
+        ],
+        "external_out_kg": [
+          75389.01324587589,
+          7320.167279090145,
+          5880.516697271448
+        ],
+        "residual_kg": [
+          -8.965784218162298e-06,
+          -7.237651516334154e-06,
+          1.7816182662500069e-07
+        ],
+        "maximum_stage_component_residual_kg": 9.027744908962632e-06,
+        "scope": "Independent accepted-clock, stock-mass, water-resource and control audit.\n\nHydraulic closure is checked by derivative tests and existing equipment-law\nregressions. This accounting audit is not experimental physical validation.\n"
+      },
+      "solve_wall_s": 98.05265382900325,
+      "execution": {
+        "reservoir_device": "cpu",
+        "injection_tangents": "Torch float64",
+        "injection_equipment_properties": "host scalar laws",
+        "production_facility": "existing host model",
+        "torch_threads": 1
+      },
+      "trajectory_sha256": "862331194f77c1a4828bb79c41f79303059657739481014153b594b555feea20"
+    }
+  },
+  "regression": {
+    "passed": 73,
+    "skipped": 2,
+    "warnings": 2,
+    "log": "final_regression.log",
+    "skip_scope": "CUDA-required checks; current qualification ran on CPU"
+  },
+  "engineering_csv": "waterflood_engineering.csv",
+  "source_archive": "pressure_resolved_sources.tar.gz",
+  "source_manifest": "pressure_resolved_source_manifest.json",
+  "diagnostics_retained": [
+    "refinement.json",
+    "refinement_3h_1p5h.json",
+    "fraction_dispatch_diagnostic.json",
+    "fraction_only_sources.tar.gz",
+    "fraction_only_source_manifest.json"
+  ],
+  "limitations": [
+    "Common PVT with incompressible injected water (Bw=1).",
+    "Explicit nonreturn valves at perforations, all at BHP reference elevation; not bare reverse-flow completions or MSW.",
+    "Directed injection tree, prescribed treated-water supply boundary; no injection thermal or storage dynamics.",
+    "Reservoir and well algebra use Torch; facility and equipment property laws remain host based.",
+    "No external experimental calibration, global dispatch optimality, or long-term 3D mixed-loop qualification.",
+    "Wall times came from partly concurrent shared-host runs and are not a speed benchmark."
+  ]
+}

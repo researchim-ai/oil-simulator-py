@@ -24,10 +24,11 @@ from .liquid import (
 from .operation import _digest
 from .peng_robinson import R
 from .phase_geometry import validate_pickup
+from .pr_phase_batch import PhaseEOSGroups
 from .stratified_pr_flow import ReceiverFeedPressureError, StratifiedPRFlow
 from .stratified_pr_thermal import StratifiedThermalState
 from .three_phase_properties import disk_area_moment
-from .torch_linear import TorchNewton
+from .torch_nonlinear import DenseNewtonHistory, TorchNewton
 
 
 @dataclass(frozen=True)
@@ -130,6 +131,15 @@ class StratifiedNetworkState:
 
 
 class StratifiedPRNetwork:
+    # Reuse the exact root-grouped EOS already used by column quadrature.
+    # CUDA remains opt-in until its memory/performance is measured separately.
+    _batch_connector_eos = None
+    _newton_type = TorchNewton
+    _reuse_step_jacobian = True
+    _warm_darcy = True
+    _prepare_residual = True
+    _batch_network_eos = None
+
     def __init__(
         self,
         vessels,
@@ -141,6 +151,7 @@ class StratifiedPRNetwork:
         relative_tolerance=1e-5,
         temperature_tolerance_k=0.002,
         maximum_attempts=1000,
+        temporal_error_control="step_doubling",
     ):
         if not isinstance(vessels, dict) or not vessels:
             raise TypeError("Nonempty named vessels required")
@@ -194,6 +205,14 @@ class StratifiedPRNetwork:
         ):
             raise ValueError("Positive integer attempt budget required")
         self.maximum_attempts = maximum_attempts
+        if temporal_error_control not in ("step_doubling", "embedded_be"):
+            raise ValueError("Unknown network temporal error control")
+        self.temporal_error_control = temporal_error_control
+        self._embedded_admission = None
+        self._last_step_probe = None
+        self._nonlinear_solves = 0
+        self._tangent_history = {}
+        self._darcy_guesses = {}
         self.start_order = max(v.column.quadrature_order for v in self.vessels.values())
         self.max_order = min(v.column.maximum_quadrature_order for v in self.vessels.values())
         if self.start_order >= self.max_order:
@@ -205,6 +224,11 @@ class StratifiedPRNetwork:
             "model": "stratified_pr_network_v1",
             "vessels": {n: v.to_dict() for n, v in self.vessels.items()},
             "connections": [p.to_dict() for p in self.connections],
+            **(
+                {"temporal_error_control": self.temporal_error_control}
+                if self.temporal_error_control != "step_doubling"
+                else {}
+            ),
             **{
                 k: getattr(self, k)
                 for k in (
@@ -342,7 +366,7 @@ class StratifiedPRNetwork:
         hb = torch.where(fraction > 0, z - b.elevation_m, (bb[ib] + bb[ib + 1]) / 2)
         return ha, hb, area, z
 
-    def _problem(self, states, seeds, dt, order, openings):
+    def _problem(self, states, seeds, dt, order, openings, *, _warm_velocity=True):
         f = self.fluid
         problems = {}
         offsets = {}
@@ -391,7 +415,18 @@ class StratifiedPRNetwork:
             if connection.hydraulic_model == "darcy_weisbach":
                 velocity_offsets[connection.name] = offset
                 offset += 1
-                initials.append(f.tensor([0.0]))
+                guess = (
+                    self._darcy_guesses.get(connection.name, 0.0)
+                    if self._warm_darcy and _warm_velocity and openings[connection.name]
+                    else 0.0
+                )
+                guess = min(
+                    connection.maximum_velocity_m_s,
+                    max(
+                        -connection.maximum_velocity_m_s if connection.allow_reverse else 0.0, guess
+                    ),
+                )
+                initials.append(f.tensor([guess]))
                 lowers.append(
                     f.tensor(
                         [-connection.maximum_velocity_m_s if connection.allow_reverse else 0.0]
@@ -406,6 +441,70 @@ class StratifiedPRNetwork:
         if offset > 768:
             raise ValueError("Network exceeds declared 768-unknown dense budget")
         initial, lower, upper = map(torch.cat, (initials, lowers, uppers))
+        connector_ends = [end for _connection, _ia, _ib, ends in segments for end in ends]
+        batch_connectors = (
+            f.device.type == "cpu"
+            if self._batch_connector_eos is None
+            else self._batch_connector_eos
+        )
+        connector_eos = (
+            PhaseEOSGroups(
+                f, [tag for _left, _right, _name, tag in connector_ends for _ in range(order)]
+            )
+            if batch_connectors and connector_ends
+            else None
+        )
+        batch_network = (
+            (f.device.type == "cpu" if self._batch_network_eos is None else self._batch_network_eos)
+            and batch_connectors
+            and bool(connector_ends)
+        )
+        owner_ends = {name: [end for end in connector_ends if end[2] == name] for name in problems}
+        network_eos = (
+            {
+                name: PhaseEOSGroups(
+                    f,
+                    list(p[3].column_eos_tags)
+                    + [tag for *_rest, tag in owner_ends[name] for _ in range(order)],
+                )
+                for name, p in problems.items()
+            }
+            if batch_network
+            else None
+        )
+        fixed_bounds = {
+            name: f.tensor([0.0, self.vessels[name].column.geometry.height_m])
+            for name in problems
+            if self._prepare_residual and len(seeds[name][1]) == 1
+        }
+        fixed_patches = {
+            (p.name, ia, ib): self._patch(
+                fixed_bounds[p.source], fixed_bounds[p.target], ia, ib, p, order
+            )
+            for p, ia, ib, _ends in segments
+            if p.source in fixed_bounds and p.target in fixed_bounds
+        }
+
+        def balance_scale(name, problem):
+            active = problem[4]
+            c, m = len(active), len(seeds[name][1])
+            start = (m * order + 2 * (m - 1)) * c + m - 1
+            n = f.tensor(states[name].column.component_moles)
+            nref = n + dt * problem[6]
+            nscale = nref[active].clamp_min(nref.sum() * 1e-12)
+            col = self.vessels[name].column
+            erel = (
+                states[name].column.total_energy_j
+                - float((n * f.molar_masses).sum().cpu()) * col.gravity_m_s2 * col.elevation_m
+            )
+            escale = max(1.0, abs(erel), float(nref.sum().cpu()) * R * seeds[name][4])
+            return start, c, nscale, escale
+
+        scales = (
+            {name: balance_scale(name, p) for name, p in problems.items()}
+            if self._prepare_residual
+            else {}
+        )
 
         def evaluate(y):
             residuals = {}
@@ -415,21 +514,73 @@ class StratifiedPRNetwork:
             de = {}
             ds = {}
             chemical = []
+            decoded_bodies, decoded_ends = {}, {}
+            if network_eos is not None:
+                for name, problem in problems.items():
+                    p, t, x = problem[3].column_eos_coordinates(y[slice(*offsets[name])])
+                    coordinates = [(p, x)]
+                    for left, right, _name, _tag in owner_ends[name]:
+                        coordinates.append(
+                            self.vessels[name].column._node_coordinates(
+                                y[left:right].reshape(order, len(problem[4])), problem[4]
+                            )
+                        )
+                    # Share ONE independent temperature for each vessel.
+                    # Equal numerical T in other vessels is not an AD alias.
+                    props = network_eos[name].properties(
+                        torch.cat([p for p, _x in coordinates]),
+                        t[0],
+                        torch.cat([x for _p, x in coordinates]),
+                    )
+                    cursor = 0
+                    for i, (p, x) in enumerate(coordinates):
+                        region = slice(cursor, cursor + len(p))
+                        values = p, x, {key: value[region] for key, value in props.items()}
+                        if i == 0:
+                            decoded_bodies[name] = values
+                        else:
+                            decoded_ends[owner_ends[name][i - 1][0]] = values
+                        cursor += len(p)
             for name, problem in problems.items():
                 left, right = offsets[name]
-                residuals[name], data[name] = problem[3](y[left:right])
+                residuals[name], data[name] = problem[3](
+                    y[left:right], _column_eos=decoded_bodies.get(name)
+                )
                 d = data[name]["data"]
                 c = self.vessels[name].column
-                bounds[name] = torch.cat(
-                    (
-                        d["temperature"].new_zeros(1),
-                        d["interfaces"],
-                        d["temperature"].new_tensor([c.geometry.height_m]),
+                bounds[name] = (
+                    fixed_bounds[name]
+                    if name in fixed_bounds
+                    else torch.cat(
+                        (
+                            d["temperature"].new_zeros(1),
+                            d["interfaces"],
+                            d["temperature"].new_tensor([c.geometry.height_m]),
+                        )
                     )
                 )
                 dn[name] = torch.zeros_like(d["component_moles"])
                 de[name] = d["temperature"].new_zeros(())
                 ds[name] = d["temperature"].new_zeros(())
+            if connector_eos is not None and network_eos is None:
+                pressures, compositions, temperatures = [], [], []
+                for left, right, name, _tag in connector_ends:
+                    p, x = self.vessels[name].column._node_coordinates(
+                        y[left:right].reshape(order, len(problems[name][4])), problems[name][4]
+                    )
+                    pressures.append(p)
+                    compositions.append(x)
+                    temperatures.append(data[name]["data"]["temperature"].expand(order))
+                props = connector_eos.properties(
+                    torch.cat(pressures), torch.cat(temperatures), torch.cat(compositions)
+                )
+                for i, (left, _right, _name, _tag) in enumerate(connector_ends):
+                    region = slice(i * order, (i + 1) * order)
+                    decoded_ends[left] = (
+                        pressures[i],
+                        compositions[i],
+                        {key: value[region] for key, value in props.items()},
+                    )
             transfers = []
             hydraulic = {
                 p.name: {
@@ -442,16 +593,24 @@ class StratifiedPRNetwork:
             }
             for connection, ia, ib, ends in segments:
                 a, b = connection.source, connection.target
-                ha, hb, area, z = self._patch(bounds[a], bounds[b], ia, ib, connection, order)
+                patch_key = connection.name, ia, ib
+                ha, hb, area, z = (
+                    fixed_patches[patch_key]
+                    if patch_key in fixed_patches
+                    else self._patch(bounds[a], bounds[b], ia, ib, connection, order)
+                )
                 points = []
                 for (left, right, name, tag), height in zip(ends, (ha, hb)):
                     active = problems[name][4]
                     d = data[name]["data"]
                     c = self.vessels[name].column
                     t = d["temperature"]
-                    p, x, q = c._decode_nodes(
-                        y[left:right].reshape(order, len(active)), active, t, tag
-                    )
+                    if connector_eos is None and network_eos is None:
+                        p, x, q = c._decode_nodes(
+                            y[left:right].reshape(order, len(active)), active, t, tag
+                        )
+                    else:
+                        p, x, q = decoded_ends[left]
                     mu = (
                         torch.log(x[:, active].clamp_min(1e-300))
                         + q["log_fugacity_coefficients"][:, active]
@@ -563,19 +722,10 @@ class StratifiedPRNetwork:
             rows = []
             for name, problem in problems.items():
                 active = problem[4]
-                c = len(active)
-                m = len(seeds[name][1])
-                body = (m * order + 2 * (m - 1)) * c + c + m
-                start = body - c - 1
-                n = f.tensor(states[name].column.component_moles)
-                nref = n + dt * problem[6]
-                nscale = nref[active].clamp_min(nref.sum() * 1e-12)
-                col = self.vessels[name].column
-                erel = (
-                    states[name].column.total_energy_j
-                    - float((n * f.molar_masses).sum().cpu()) * col.gravity_m_s2 * col.elevation_m
+                start, c, nscale, escale = (
+                    scales[name] if name in scales else balance_scale(name, problem)
                 )
-                escale = max(1.0, abs(erel), float(nref.sum().cpu()) * R * seeds[name][4])
+                col = self.vessels[name].column
                 relative_in = (
                     de[name]
                     - (dn[name] * f.molar_masses).sum() * col.gravity_m_s2 * col.elevation_m
@@ -637,7 +787,7 @@ class StratifiedPRNetwork:
         # Explicit transport is only a branch predictor; accepted stocks come
         # exclusively from the final simultaneous balance.
         guess, _, _, predictor, predictor_problems = self._problem(
-            states, seeds, dt, self.start_order, openings
+            states, seeds, dt, self.start_order, openings, _warm_velocity=False
         )
         with torch.no_grad():
             predicted = predictor(guess)[1]
@@ -675,15 +825,43 @@ class StratifiedPRNetwork:
             initial, lower, upper, evaluate, problems = self._problem(
                 states, seeds, dt, order, openings
             )
-            solver = TorchNewton(f.device, maximum_iterations=40, dense_limit=768)
+            solver = self._newton_type(f.device, maximum_iterations=40, dense_limit=768)
             solver.host_convergence = True
+            tangent_options = {}
+            if (
+                self._reuse_step_jacobian
+                and f.device.type == "cpu"
+                and isinstance(solver, TorchNewton)
+            ):
+                if order not in self._tangent_history:
+                    # Two quadrature levels, not an unbounded cache of solves.
+                    if len(self._tangent_history) == 2:
+                        self._tangent_history.pop(next(iter(self._tangent_history)))
+                    self._tangent_history[order] = DenseNewtonHistory()
+                key = (
+                    self.model_id,
+                    order,
+                    tuple(sorted(openings.items())),
+                    tuple(
+                        (name, tuple(seed[1]), tuple(problems[name][4].cpu().tolist()))
+                        for name, seed in seeds.items()
+                    ),
+                    tuple(seeds[p.source][3] >= seeds[p.target][3] for p in self.connections),
+                )
+                tangent_options = {
+                    "linearization_history": self._tangent_history[order],
+                    "linearization_key": key,
+                    "time_coefficient": dt,
+                }
             with torch.no_grad():
+                self._nonlinear_solves += 1
                 y, r, ok, evaluations = solver.solve(
                     lambda z, evaluate=evaluate: evaluate(z)[0],
                     initial,
                     lower,
                     upper,
                     tolerance=3e-12,
+                    **tangent_options,
                 )
                 r, data = evaluate(y)
             solver_attempts.append(
@@ -691,6 +869,11 @@ class StratifiedPRNetwork:
                     "quadrature_order": order,
                     "phase_counts": {n: len(seed[1]) for n, seed in seeds.items()},
                     "nonlinear_evaluations": evaluations,
+                    "jacobian_builds": getattr(solver, "jacobian_builds", None),
+                    "jacobian_reuses": getattr(solver, "jacobian_reuses", 0),
+                    "jacobian_retry_refreshes": getattr(solver, "jacobian_retry_refreshes", 0),
+                    "cross_solve_reuses": getattr(solver, "cross_solve_reuses", 0),
+                    "cross_solve_refreshes": getattr(solver, "cross_solve_refreshes", 0),
                     "max_scaled_residual": float(r.abs().max().cpu()),
                 }
             )
@@ -912,6 +1095,14 @@ class StratifiedPRNetwork:
                         state.next_step_s,
                         self.model_id,
                     )
+                    self._last_step_probe = (
+                        result,
+                        y.detach().clone(),
+                        order,
+                        next_seeds,
+                        data,
+                        problems,
+                    )
                     transfers = []
                     for connection in self.connections:
                         parts = [p for p in data["transfers"] if p["name"] == connection.name]
@@ -946,6 +1137,12 @@ class StratifiedPRNetwork:
                                 ],
                             }
                         )
+                    if self._warm_darcy:
+                        self._darcy_guesses = {
+                            p["name"]: p["hydraulics"]["velocity"]
+                            for p in transfers
+                            if p["hydraulic_model"] == "darcy_weisbach"
+                        }
                     return result, {
                         "dt_s": dt,
                         "phase_topology_retries": topology_attempts,
@@ -1050,16 +1247,56 @@ class StratifiedPRNetwork:
         dt = min(state.next_step_s, duration)
         history = []
         attempts = 0
+        solve_start = self._nonlinear_solves
+        embedded_steps = bootstrap_steps = 0
+        probe_failures = 0
         while current.time_s < target:
             attempts += 1
             if attempts > self.maximum_attempts:
                 raise HydraulicConvergenceError("Network integration budget exhausted")
             dt = min(dt, target - current.time_s)
             try:
-                coarse, _ = self._step(current, dt, commands)
-                half, one = self._step(current, dt / 2, commands)
-                fine, two = self._step(half, dt / 2, commands)
-                error = self._error(dict(coarse.vessels), dict(fine.vessels))
+                error = None
+                fine_trial = None
+                embedded_used = False
+                if self.temporal_error_control == "embedded_be":
+                    from .stratified_pr_error import endpoint_rates, temporal_probe
+
+                    key = _digest({"state": current.to_dict(), "commands": commands})
+                    if self._embedded_admission == key:
+                        half, one = self._step(current, dt / 2, commands)
+                        midpoint_rates = endpoint_rates(self, self._last_step_probe)
+                        fine, two = self._step(half, dt / 2, commands)
+                        fine_trial = half, one, fine, two, self._last_step_probe
+                        error = temporal_probe(
+                            self,
+                            half,
+                            fine,
+                            dt / 2,
+                            commands,
+                            midpoint_rates,
+                            self._last_step_probe,
+                            macro_start=current,
+                        )
+                        if error is None:
+                            probe_failures += 1
+                        else:
+                            # Two h/2 Euler local defects approximate the
+                            # coarse-versus-two-half-step defect (h^2/4 y'').
+                            # Keep BOTH conservative half states; do not
+                            # replace them by the less accurate full BE step.
+                            error *= 2
+                            embedded_used = True
+                            records = (one, two)
+                if error is None:
+                    coarse, _ = self._step(current, dt, commands)
+                    if fine_trial is None:
+                        half, one = self._step(current, dt / 2, commands)
+                        fine, two = self._step(half, dt / 2, commands)
+                    else:
+                        half, one, fine, two, self._last_step_probe = fine_trial
+                    error = self._error(dict(coarse.vessels), dict(fine.vessels))
+                    records = (one, two)
                 if error > 1:
                     raise HydraulicConvergenceError("Network time error exceeds tolerance")
             except (HydraulicConvergenceError, PropertyModelError, ConservationError) as exc:
@@ -1067,7 +1304,16 @@ class StratifiedPRNetwork:
                 if dt < self.minimum_step_s:
                     raise HydraulicConvergenceError("Network minimum step exhausted") from exc
                 continue
-            history.extend((one, two))
+            for record in records:
+                record["temporal_error_ratio"] = error
+                record["temporal_error_method"] = (
+                    "filtered_be_trapezoid" if embedded_used else "step_doubling"
+                )
+            history.extend(records)
+            if embedded_used:
+                embedded_steps += 1
+            else:
+                bootstrap_steps += 1
             nextdt = min(
                 self.maximum_step_s, max(self.minimum_step_s, dt * (1.5 if error < 0.25 else 1.0))
             )
@@ -1082,6 +1328,10 @@ class StratifiedPRNetwork:
                 for name, s in fine.vessels
             )
             current = StratifiedNetworkState(children, time, nextdt, self.model_id)
+            if self.temporal_error_control == "embedded_be":
+                self._embedded_admission = _digest(
+                    {"state": current.to_dict(), "commands": commands}
+                )
             dt = nextdt
         old_n, old_e, _old_s = self._totals(dict(state.vessels))
         new_n, new_e, _new_s = self._totals(dict(current.vessels))
@@ -1102,6 +1352,11 @@ class StratifiedPRNetwork:
             "state": current.to_dict(),
             "steps": history,
             "attempts": attempts,
+            "temporal_error_control": self.temporal_error_control,
+            "embedded_steps": embedded_steps,
+            "step_doubling_steps": bootstrap_steps,
+            "embedded_probe_failures": probe_failures,
+            "nonlinear_solves": self._nonlinear_solves - solve_start,
             "component_residuals_mol": nr.cpu().tolist(),
             "energy_residual_j": er,
             "entropy_production_j_k": math.fsum(s["entropy_production_j_k"] for s in history),

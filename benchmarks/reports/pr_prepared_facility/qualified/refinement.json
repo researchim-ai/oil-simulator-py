@@ -1,0 +1,21 @@
+{
+  "accepted": true,
+  "audit": {
+    "accepted": true,
+    "checked_split_steps": 4,
+    "checked_local_steps": 8,
+    "checked_slow_steps": 4,
+    "conservation_residuals": [
+      3.410605131648481e-13,
+      -1.8189894035458565e-12,
+      1.0186340659856796e-10,
+      3.8366943233558715e-08
+    ]
+  },
+  "errors_in_original_norm": {
+    "reference": 0.4122907056778365,
+    "prepared": 0.4122907056778365
+  },
+  "scope": "cross-scheme sensitivity: legacy sampled integration, same interval split into two reports; not pure common-stage temporal refinement or a timing claim",
+  "common_stage_refinement_attempt": "common integrator used backward-Euler fallback; pure-stage auditor rejected its unsupported mixed records, no accuracy conclusion from that attempt"
+}

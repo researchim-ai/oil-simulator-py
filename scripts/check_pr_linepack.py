@@ -43,9 +43,16 @@ def expanded_model(request):
         "temperature_tolerance_k": 0.002,
         "maximum_attempts": 1000,
     }
-    if set(request["integration"]) - set(integration):
+    if set(request["integration"]) - set(integration) - {"temporal_error_control"}:
         raise ValueError("Unknown linepack integration controls")
     integration.update(request["integration"])
+    if integration.get("temporal_error_control", "step_doubling") not in (
+        "step_doubling",
+        "embedded_be",
+    ):
+        raise ValueError("Unknown linepack temporal error control")
+    if integration.get("temporal_error_control") == "step_doubling":
+        integration.pop("temporal_error_control")
     for pipe in pipes:
         source = terminals[pipe.source]["column"]
         target = terminals[pipe.target]["column"]

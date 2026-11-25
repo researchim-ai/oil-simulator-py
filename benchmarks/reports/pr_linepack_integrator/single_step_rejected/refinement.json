@@ -1,0 +1,31 @@
+{
+  "refinement": "maximum macro step 0.00025 s, step doubling; same physics and tolerances",
+  "wall_s": 35.265448309999556,
+  "audit": {
+    "accepted": true,
+    "checked_substeps": 24,
+    "reference_connector_quadrature": 32,
+    "maximum_energy_residual_j": 1.5490968662441975e-09,
+    "checked_pipes": 1,
+    "maximum_pipe_energy_residual_j": 7.127631818093505e-14,
+    "compiled_geometry_verified": true
+  },
+  "errors_in_original_norm": {
+    "reference": [
+      0.5338935194612329,
+      0.5338656827076488,
+      0.7075247003417907
+    ],
+    "newton": [
+      0.5338935174613139,
+      0.5338656806791555,
+      0.7075246989702756
+    ],
+    "embedded": [
+      0.5338935174613139,
+      0.5338656824647879,
+      1.4505817587074594
+    ]
+  },
+  "accepted": false
+}

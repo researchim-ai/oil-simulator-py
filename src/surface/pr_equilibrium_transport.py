@@ -371,6 +371,7 @@ class PREquilibriumTransportState:
 
 
 class PREquilibriumTransportNetwork:
+    _prepare_endpoint = True
     _preserve_endpoint_step = True
     _analytic_single_phase_characteristics = True
 
@@ -1710,8 +1711,17 @@ class PREquilibriumTransportNetwork:
         if "port_velocity" in data:
             velocity = data["port_velocity"]
         q = data["q"]
-        concentration = (weights[:, None] * data["x"] / q["molar_volume_m3_mol"][:, None]).sum(0)
-        rho = (weights * q["density_kg_m3"]).sum()
+        if self._prepare_endpoint:
+            concentration_phase = weights[:, None] * data["x"] / q["molar_volume_m3_mol"][:, None]
+            phase_mass_density = weights * q["density_kg_m3"]
+            phase_entropy = weights * q["molar_entropy_j_mol_k"] / q["molar_volume_m3_mol"]
+            concentration = concentration_phase.sum(0)
+            rho = phase_mass_density.sum()
+        else:
+            concentration = (weights[:, None] * data["x"] / q["molar_volume_m3_mol"][:, None]).sum(
+                0
+            )
+            rho = (weights * q["density_kg_m3"]).sum()
         internal = (weights * q["molar_internal_energy_j_mol"] / q["molar_volume_m3_mol"]).sum()
         population = data.get("population")
         surface_phase = weights * 0
@@ -1733,7 +1743,11 @@ class PREquilibriumTransportNetwork:
                 internal
                 + 0.5 * (weights * q["density_kg_m3"] * data["phase_velocity"].square()).sum()
             )
-        entropy = (weights * q["molar_entropy_j_mol_k"] / q["molar_volume_m3_mol"]).sum()
+        entropy = (
+            phase_entropy.sum()
+            if self._prepare_endpoint
+            else (weights * q["molar_entropy_j_mol_k"] / q["molar_volume_m3_mol"]).sum()
+        )
         # Both sides of a link use its physical endpoint potential.
         z = node.elevation_m + (
             h - node.lateral_geometry().height_m / 2
@@ -1758,10 +1772,11 @@ class PREquilibriumTransportNetwork:
         drift = (
             data["drift"] * projection if node.kind == "pipe_cell" else torch.zeros_like(weights)
         )
-        concentration_phase = weights[:, None] * data["x"] / q["molar_volume_m3_mol"][:, None]
-        phase_mass_density = weights * q["density_kg_m3"]
+        if not self._prepare_endpoint:
+            concentration_phase = weights[:, None] * data["x"] / q["molar_volume_m3_mol"][:, None]
+            phase_mass_density = weights * q["density_kg_m3"]
+            phase_entropy = weights * q["molar_entropy_j_mol_k"] / q["molar_volume_m3_mol"]
         phase_mass = (data["x"] * self.fluid.molar_masses).sum(-1)
-        phase_entropy = weights * q["molar_entropy_j_mol_k"] / q["molar_volume_m3_mol"]
         stress = (phase_mass_density * drift.square()).sum()
         u = torch.cat((u[:-1], (u[-1] + 0.5 * stress).reshape(1)))
         flux = torch.cat((flux[:-1], (flux[-1] + 0.5 * stress * velocity).reshape(1)))
@@ -2091,7 +2106,10 @@ class PREquilibriumTransportNetwork:
         pump_connection_seeds=None,
         pump_valve_states=None,
         _batch_phase_eos=True,
+        _continuous=False,
     ):
+        if _continuous and dt != 0:
+            raise ValueError("Continuous PR operators require zero discrete time coefficient")
         f = self.fluid
         old = [s for _, s in state.nodes]
         active = self._active(state, openings) if active_override is None else active_override
@@ -2234,7 +2252,12 @@ class PREquilibriumTransportNetwork:
         )
         dt = f.tensor(dt)
 
-        def evaluate(y, external_fluxes=None):
+        def evaluate(y, external_fluxes=None, runtime_controls=None):
+            live_losses = (
+                losses
+                if runtime_controls is None
+                else runtime_controls.get("loss_coefficients", losses)
+            )
             numbers = population_bundle.numbers(y)
             batched_values = None if phase_batch is None else phase_batch.evaluate(y)
             blocks = []
@@ -2325,7 +2348,7 @@ class PREquilibriumTransportNetwork:
                 i = self.names.index(name)
                 net[i] = net[i] + torch.cat((net[i].new_zeros(len(f.names) + 1), rate.reshape(1)))
             pump_records, pump_forces = {}, {}
-            speeds = rotor_bundle.speeds(y)
+            speeds = rotor_bundle.speeds(y, continuous=_continuous)
             for pump in self._pump_cells:
                 ratio = (
                     speeds[pump.unit.name] / self._drives[pump.unit.name].nominal_speed_rad_s
@@ -2371,8 +2394,17 @@ class PREquilibriumTransportNetwork:
             for i, rate in restriction_net.items():
                 net[i] = net[i] + rate
             valid = valid & restriction_valid
-            rotor_rows, rotor_records, rotor_valid, rotor_heat = rotor_bundle.evaluate(
-                y, {**pump_records, **connection_records}, compressor_records, data
+            rotor_operator = rotor_bundle.instantaneous if _continuous else rotor_bundle.evaluate
+            rotor_rows, rotor_records, rotor_valid, rotor_heat = rotor_operator(
+                y,
+                {**pump_records, **connection_records},
+                compressor_records,
+                data,
+                **(
+                    {"torques": runtime_controls.get("drive_torque_nm", {})}
+                    if _continuous and runtime_controls is not None
+                    else {}
+                ),
             )
             valid = valid & rotor_valid
             for i, rate in rotor_heat.items():
@@ -2459,7 +2491,7 @@ class PREquilibriumTransportNetwork:
                                 node.roughness_m,
                             )[0]
                         )
-                    coefficient = losses.get(node.name, node.local_loss_coefficient)
+                    coefficient = live_losses.get(node.name, node.local_loss_coefficient)
                     force = (
                         force
                         - 0.5

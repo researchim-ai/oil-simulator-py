@@ -19,7 +19,10 @@ def run(
     cuda_graphs=False,
     native_kernels=False,
     maximum_native_kernels=16,
+    integrator="sampled",
 ):
+    if integrator not in ("sampled", "sdirk2-common"):
+        raise ValueError("Unknown controlled surface integrator")
     if native_kernels:
         if device != "cpu" or cuda_graphs:
             raise ValueError("Native CPU kernels cannot be combined with CUDA execution")
@@ -28,23 +31,24 @@ def run(
         with native_kernel_execution(
             maximum_kernels=maximum_native_kernels, progress=progress
         ) as execution:
-            result = _run(config, device=device, progress=progress)
+            result = _run(config, device=device, progress=progress, integrator=integrator)
             result["numerical_policy"]["native_execution"] = execution.statistics()
             return result
     if not cuda_graphs:
-        return _run(config, device=device, progress=progress)
+        return _run(config, device=device, progress=progress, integrator=integrator)
     if device != "cuda":
         raise ValueError("CUDA graphs require the CUDA device")
     from surface.cuda_execution import cuda_graph_execution
 
     with cuda_graph_execution(progress=progress) as execution:
-        result = _run(config, device=device, progress=progress)
+        result = _run(config, device=device, progress=progress, integrator=integrator)
         result["numerical_policy"]["cuda_execution"] = execution.statistics()
         return result
 
 
-def _run(config, *, device="cpu", progress=None):
+def _run(config, *, device="cpu", progress=None, integrator="sampled"):
     from surface.equilibrium_properties import EquilibriumFluid
+    from surface.pr_collocation import PRCollocation
     from surface.pr_equilibrium_transport import PREquilibriumTransportNetwork
     from surface.pr_pump_connection import PumpConnectionBundle
     from surface.pr_surface_control import PRControlledSurface, PRControlledSurfaceState
@@ -90,6 +94,11 @@ def _run(config, *, device="cpu", progress=None):
             physical = model.plant.initialize(ts, columns, spec["wall_temperatures"])
         state = model.initialize(physical, initial["positions"], initial["integrals"])
     first = state
+    solver = model
+    if integrator == "sdirk2-common":
+        from surface.pr_surface_collocation import PRSurfaceCollocation
+
+        solver = PRSurfaceCollocation(model)
     if progress is not None:
         progress({"event": "initialized", "time_s": state.time_s})
     intervals = []
@@ -114,7 +123,7 @@ def _run(config, *, device="cpu", progress=None):
             or "duration_s" not in command
         ):
             raise ValueError("Unknown/missing equilibrium transport command")
-        report = model.advance(state, progress=progress, **command)
+        report = solver.advance(state, progress=progress, **command)
         state = PRControlledSurfaceState.from_dict(report["state"])
         intervals.append(report)
     heat = sum(r["total_heat_j"] for r in intervals)
@@ -129,6 +138,7 @@ def _run(config, *, device="cpu", progress=None):
         "total_work_j": work,
         "runtime": runtime_fingerprint(),
         "numerical_policy": {
+            "surface_integrator": integrator,
             "shared_probe_quadrature": model._share_probe_quadrature,
             "temporal_probe_predictor": model._reuse_temporal_predictor,
             "spatial_probe_predictor": getattr(model.plant, "_reuse_spatial_predictor", False),
@@ -172,6 +182,11 @@ def _run(config, *, device="cpu", progress=None):
                 )
             ],
             "dense_jacobian_mode": TorchNewton._dense_jacobian_mode,
+            "collocation_dense_cpu_jacobian_mode": PRCollocation._dense_cpu_jacobian_mode,
+            "collocation_stage_point_reuse": PRCollocation._reuse_sdirk_points,
+            "collocation_stage_tangent_reuse": PRCollocation._reuse_sdirk_tangent,
+            "collocation_stage_predictor": PRCollocation._predict_sdirk_stage,
+            "surface_command_step_restart": getattr(solver, "_restart_on_command_change", False),
             "fast_time_scheme": getattr(model, "fast_time_scheme", "backward_euler"),
             "fast_jacobian_history": getattr(
                 getattr(model, "fast_integrator", None), "_reuse_step_jacobian", False
@@ -215,6 +230,7 @@ def main():
         help="Reuse bounded CUDA graphs for dense Newton kernels; original physics and tolerances",
     )
     parser.add_argument("--output", type=Path, required=True)
+    parser.add_argument("--integrator", choices=["sampled", "sdirk2-common"], default="sampled")
     parser.add_argument(
         "--native-kernels",
         action="store_true",
@@ -352,6 +368,7 @@ def main():
         cuda_graphs=args.cuda_graphs,
         native_kernels=args.native_kernels,
         maximum_native_kernels=args.maximum_native_kernels,
+        integrator=args.integrator,
         progress=(lambda event: print(json.dumps(event), file=sys.stderr, flush=True))
         if args.progress
         else None,

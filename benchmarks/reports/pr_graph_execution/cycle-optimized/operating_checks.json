@@ -1,0 +1,159 @@
+{
+  "accepted": true,
+  "scope": "complete 16-node three-stage cycle: all five separator ports transfer in startup/restart and have exactly zero component/energy transfer during isolation; momentum reflection is retained",
+  "intervals": [
+    {
+      "from_s": 0.0,
+      "to_s": 0.2,
+      "accepted_records": 45,
+      "rejected_attempts": 5,
+      "collocation_nonlinear_solves": 182,
+      "minimum_record_dt_s": 3.125e-06,
+      "maximum_record_dt_s": 0.019999999999999997,
+      "port_transfers": {
+        "flowline_1_port": {
+          "component_moles": [
+            -8.701899600462581e-07,
+            -4.350951692859507e-06,
+            -3.82883755183214e-05
+          ],
+          "energy_j": 1.7753068353001293
+        },
+        "flowline_2_port": {
+          "component_moles": [
+            -8.701899600402487e-07,
+            -4.350951692829454e-06,
+            -3.8288375518056886e-05
+          ],
+          "energy_j": 1.775306835287867
+        },
+        "gas_takeoff_port": {
+          "component_moles": [
+            9.944096261862383e-06,
+            1.840938070372612e-06,
+            4.880833034583188e-07
+          ],
+          "energy_j": -0.0041374695074283645
+        },
+        "oil_takeoff_port": {
+          "component_moles": [
+            9.578976522752437e-06,
+            0.00026529711151691523,
+            9.236897608867662e-07
+          ],
+          "energy_j": -7.683039289806513
+        },
+        "water_takeoff_port": {
+          "component_moles": [
+            2.3914509833866593e-09,
+            1.8556995984665703e-19,
+            0.003740611808044511
+          ],
+          "energy_j": -161.6895853965972
+        }
+      }
+    },
+    {
+      "from_s": 0.2,
+      "to_s": 0.4,
+      "accepted_records": 44,
+      "rejected_attempts": 12,
+      "collocation_nonlinear_solves": 217,
+      "minimum_record_dt_s": 2.8307829274543117e-06,
+      "maximum_record_dt_s": 0.01999999999999999,
+      "port_transfers": {
+        "flowline_1_port": {
+          "component_moles": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "energy_j": 0.0
+        },
+        "flowline_2_port": {
+          "component_moles": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "energy_j": 0.0
+        },
+        "gas_takeoff_port": {
+          "component_moles": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "energy_j": 0.0
+        },
+        "oil_takeoff_port": {
+          "component_moles": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "energy_j": 0.0
+        },
+        "water_takeoff_port": {
+          "component_moles": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "energy_j": 0.0
+        }
+      }
+    },
+    {
+      "from_s": 0.4,
+      "to_s": 1.0,
+      "accepted_records": 60,
+      "rejected_attempts": 11,
+      "collocation_nonlinear_solves": 273,
+      "minimum_record_dt_s": 5.879207308323586e-06,
+      "maximum_record_dt_s": 0.019999999999999962,
+      "port_transfers": {
+        "flowline_1_port": {
+          "component_moles": [
+            -3.2606330874000346e-06,
+            -1.6303165433449393e-05,
+            -0.00014346785581318718
+          ],
+          "energy_j": 6.652135575456485
+        },
+        "flowline_2_port": {
+          "component_moles": [
+            -3.260633087383682e-06,
+            -1.6303165433367607e-05,
+            -0.0001434678558124677
+          ],
+          "energy_j": 6.652135575423126
+        },
+        "gas_takeoff_port": {
+          "component_moles": [
+            7.814578532930712e-05,
+            1.446708907847784e-05,
+            3.8356243475489854e-06
+          ],
+          "energy_j": -0.03255363407154536
+        },
+        "oil_takeoff_port": {
+          "component_moles": [
+            6.236910858252532e-05,
+            0.0017273678149534563,
+            6.014204941762039e-06
+          ],
+          "energy_j": -50.02611901986368
+        },
+        "water_takeoff_port": {
+          "component_moles": [
+            7.081255481301228e-09,
+            5.494874192198521e-19,
+            0.011076267987281193
+          ],
+          "energy_j": -478.7764274648245
+        }
+      }
+    }
+  ]
+}

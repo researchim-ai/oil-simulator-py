@@ -1,0 +1,335 @@
+{
+  "format": "field_development_numerical_validation_v1",
+  "accepted": true,
+  "scope": "Synthetic production-only 32x32x1 black-oil reservoir, 16 producers, homogeneous gathering and quasi-steady separation/water/gas facility. Numerical qualification, not experimental calibration, full injection infrastructure or Norne with facilities.",
+  "annual_forecast": {
+    "days": 365,
+    "reservoir_cells": 1024,
+    "producing_wells": 16,
+    "solve_wall_s": 43.933762436001416,
+    "accepted_substeps": 37,
+    "operating_events": 6,
+    "audit": {
+      "accepted": true,
+      "checked_substeps": 37,
+      "elapsed_days": 365.0,
+      "minimum_step_s": 432000.0,
+      "maximum_step_s": 864000.0,
+      "capacity_evaluations": 303,
+      "reservoir_evaluations": 303,
+      "accepted_initial_cell_evaluations": 303,
+      "accepted_initial_cell_reuses": 0,
+      "accepted_sensitivity_linear_solves": 0,
+      "accepted_sensitivity_plant_evaluations": 0,
+      "accepted_macro_estimator_reservoir_evaluations": 0,
+      "accepted_macro_estimator_capacity_evaluations": 0,
+      "operating_events": 6,
+      "mass_balance_error_kg": [
+        -7.477356120944023e-07,
+        -2.9103830456733704e-08,
+        -9.70176188275218e-08
+      ],
+      "maximum_surface_component_residual_kg_s": 3.469446951953614e-18,
+      "mass_atol_kg": 0.01,
+      "mass_rtol": 1e-08,
+      "scope": "Audit accepted forecast material and controls without running either solver.\n\nThis is an accounting/constraint audit, not independent validation of the PVT\nor homogeneous gathering closure. The production FIM CNV/MB remain required.\n"
+    },
+    "same_config_as_existing_year_case": true,
+    "final_pressure_range_pa": [
+      2998652.860304499,
+      2999909.069528649
+    ],
+    "withdrawn_component_mass_kg": {
+      "oil": 840047.2990148391,
+      "water": 406433.24700167705,
+      "gas": 62400.81087977455
+    }
+  },
+  "decade": {
+    "days": 3650,
+    "status": "completed_and_time_refined",
+    "maximum_steps_days": [
+      10,
+      5
+    ],
+    "operating_events": 60,
+    "accepted_stages": {
+      "candidate": 370,
+      "reference": 730
+    },
+    "final_field_errors": {
+      "final_pressure_pa": 0.31318899616599083,
+      "final_s_w": 3.2258282545161165e-08,
+      "final_s_g": 1.1901972400696348e-07,
+      "final_rs": 4.6978349459436686e-06,
+      "withdrawal_relative": 9.55662987506387e-06
+    },
+    "well_history_errors": {
+      "bhp_abs_pa": 41.7324487073347,
+      "component_rate_scaled": 0.000343264687421442,
+      "cumulative_mass_relative": 0.00018107755575225438
+    },
+    "mode_mismatches": 0,
+    "evidence": "decade_refinement.json"
+  },
+  "capacity_variant": {
+    "qualified": true,
+    "days": 365,
+    "maximum_steps_days": [
+      5,
+      2.5
+    ],
+    "accepted_stages": {
+      "candidate": 73,
+      "reference": 146
+    },
+    "well_history_errors": {
+      "bhp_abs_pa": 36.77702737040818,
+      "component_rate_scaled": 0.0019392230619364806,
+      "cumulative_mass_relative": 0.0012167686995251796
+    },
+    "evidence": "upgrade_qualified_refinement.json",
+    "rejected_10day_pair": "upgrade_refinement.json",
+    "thresholds_relaxed": false,
+    "comparison": "gas_upgrade_qualified_comparison.json",
+    "oil_cumulative_ratio": 8.933885748100137,
+    "energy_ratio": 9.069057047832777
+  },
+  "source_verification": {
+    "annual_current": {
+      "files": 288,
+      "mismatches": [],
+      "trajectory_sha256": "6c93b773ab127fe33766fe7dd0bedfcfa30273624f1fe6d839253254f3a04569",
+      "solve_wall_s": 43.933762436001416,
+      "audit": {
+        "accepted": true,
+        "checked_substeps": 37,
+        "elapsed_days": 365.0,
+        "minimum_step_s": 432000.0,
+        "maximum_step_s": 864000.0,
+        "capacity_evaluations": 303,
+        "reservoir_evaluations": 303,
+        "accepted_initial_cell_evaluations": 303,
+        "accepted_initial_cell_reuses": 0,
+        "accepted_sensitivity_linear_solves": 0,
+        "accepted_sensitivity_plant_evaluations": 0,
+        "accepted_macro_estimator_reservoir_evaluations": 0,
+        "accepted_macro_estimator_capacity_evaluations": 0,
+        "operating_events": 6,
+        "mass_balance_error_kg": [
+          -7.477356120944023e-07,
+          -2.9103830456733704e-08,
+          -9.70176188275218e-08
+        ],
+        "maximum_surface_component_residual_kg_s": 3.469446951953614e-18,
+        "mass_atol_kg": 0.01,
+        "mass_rtol": 1e-08,
+        "scope": "Audit accepted forecast material and controls without running either solver.\n\nThis is an accounting/constraint audit, not independent validation of the PVT\nor homogeneous gathering closure. The production FIM CNV/MB remain required.\n"
+      }
+    },
+    "decade_10day": {
+      "files": 288,
+      "mismatches": [],
+      "trajectory_sha256": "9754733449961ec060d2078e4c7bc4c9b0a289dde35e082d9009a0d3e8b7a238",
+      "solve_wall_s": 420.2365975649991,
+      "audit": {
+        "accepted": true,
+        "checked_substeps": 370,
+        "elapsed_days": 3650.0,
+        "minimum_step_s": 432000.0,
+        "maximum_step_s": 864000.0,
+        "capacity_evaluations": 2819,
+        "reservoir_evaluations": 2819,
+        "accepted_initial_cell_evaluations": 2819,
+        "accepted_initial_cell_reuses": 0,
+        "accepted_sensitivity_linear_solves": 0,
+        "accepted_sensitivity_plant_evaluations": 0,
+        "accepted_macro_estimator_reservoir_evaluations": 0,
+        "accepted_macro_estimator_capacity_evaluations": 0,
+        "operating_events": 60,
+        "mass_balance_error_kg": [
+          3.557652235031128e-06,
+          2.3492611944675446e-06,
+          3.2887328416109085e-07
+        ],
+        "maximum_surface_component_residual_kg_s": 3.469446951953614e-18,
+        "mass_atol_kg": 0.01,
+        "mass_rtol": 1e-08,
+        "scope": "Audit accepted forecast material and controls without running either solver.\n\nThis is an accounting/constraint audit, not independent validation of the PVT\nor homogeneous gathering closure. The production FIM CNV/MB remain required.\n"
+      }
+    },
+    "decade_5day": {
+      "files": 288,
+      "mismatches": [],
+      "trajectory_sha256": "ca9b6f671c9c59fb3d33997906f87667e762fb347b5f3852828e47732dd0cd16",
+      "solve_wall_s": 665.000822733,
+      "audit": {
+        "accepted": true,
+        "checked_substeps": 730,
+        "elapsed_days": 3650.0,
+        "minimum_step_s": 432000.0,
+        "maximum_step_s": 432000.0,
+        "capacity_evaluations": 4989,
+        "reservoir_evaluations": 4989,
+        "accepted_initial_cell_evaluations": 4989,
+        "accepted_initial_cell_reuses": 0,
+        "accepted_sensitivity_linear_solves": 0,
+        "accepted_sensitivity_plant_evaluations": 0,
+        "accepted_macro_estimator_reservoir_evaluations": 0,
+        "accepted_macro_estimator_capacity_evaluations": 0,
+        "operating_events": 60,
+        "mass_balance_error_kg": [
+          0.005431550554931164,
+          0.0025420882739126682,
+          0.0006696864729747176
+        ],
+        "maximum_surface_component_residual_kg_s": 3.469446951953614e-18,
+        "mass_atol_kg": 0.01,
+        "mass_rtol": 1e-08,
+        "scope": "Audit accepted forecast material and controls without running either solver.\n\nThis is an accounting/constraint audit, not independent validation of the PVT\nor homogeneous gathering closure. The production FIM CNV/MB remain required.\n"
+      }
+    },
+    "annual_gas_upgrade": {
+      "files": 288,
+      "mismatches": [],
+      "trajectory_sha256": "51716e2c1de24b35b9c4fb326941635b7466dd1b347d4d8781208156144fd6d4",
+      "solve_wall_s": 83.54494109100051,
+      "audit": {
+        "accepted": true,
+        "checked_substeps": 65,
+        "elapsed_days": 365.0,
+        "minimum_step_s": 432000.0,
+        "maximum_step_s": 864000.0,
+        "capacity_evaluations": 541,
+        "reservoir_evaluations": 541,
+        "accepted_initial_cell_evaluations": 541,
+        "accepted_initial_cell_reuses": 0,
+        "accepted_sensitivity_linear_solves": 0,
+        "accepted_sensitivity_plant_evaluations": 0,
+        "accepted_macro_estimator_reservoir_evaluations": 0,
+        "accepted_macro_estimator_capacity_evaluations": 0,
+        "operating_events": 6,
+        "mass_balance_error_kg": [
+          0.0002147788181900978,
+          0.00019356608390808105,
+          1.8315622583031654e-06
+        ],
+        "maximum_surface_component_residual_kg_s": 5.551115123125783e-17,
+        "mass_atol_kg": 0.01,
+        "mass_rtol": 1e-08,
+        "scope": "Audit accepted forecast material and controls without running either solver.\n\nThis is an accounting/constraint audit, not independent validation of the PVT\nor homogeneous gathering closure. The production FIM CNV/MB remain required.\n"
+      }
+    },
+    "upgrade_10day": {
+      "files": 288,
+      "mismatches": [],
+      "trajectory_sha256": "7d4676647169822d397a1c9f9d474d55346964fc8997ab27ccb30d234803f581",
+      "solve_wall_s": 86.51876992899997,
+      "audit": {
+        "accepted": true,
+        "checked_substeps": 65,
+        "elapsed_days": 365.0,
+        "minimum_step_s": 432000.0,
+        "maximum_step_s": 864000.0,
+        "capacity_evaluations": 541,
+        "reservoir_evaluations": 541,
+        "accepted_initial_cell_evaluations": 541,
+        "accepted_initial_cell_reuses": 0,
+        "accepted_sensitivity_linear_solves": 0,
+        "accepted_sensitivity_plant_evaluations": 0,
+        "accepted_macro_estimator_reservoir_evaluations": 0,
+        "accepted_macro_estimator_capacity_evaluations": 0,
+        "operating_events": 6,
+        "mass_balance_error_kg": [
+          0.0002147788181900978,
+          0.00019356608390808105,
+          1.8315622583031654e-06
+        ],
+        "maximum_surface_component_residual_kg_s": 5.551115123125783e-17,
+        "mass_atol_kg": 0.01,
+        "mass_rtol": 1e-08,
+        "scope": "Audit accepted forecast material and controls without running either solver.\n\nThis is an accounting/constraint audit, not independent validation of the PVT\nor homogeneous gathering closure. The production FIM CNV/MB remain required.\n"
+      }
+    },
+    "upgrade_5day": {
+      "files": 288,
+      "mismatches": [],
+      "trajectory_sha256": "fe667711f036cf26071f84683281496572fa6e6f52501d2b74a0498620957aaf",
+      "solve_wall_s": 85.86454126900207,
+      "audit": {
+        "accepted": true,
+        "checked_substeps": 73,
+        "elapsed_days": 365.0,
+        "minimum_step_s": 432000.0,
+        "maximum_step_s": 432000.0,
+        "capacity_evaluations": 604,
+        "reservoir_evaluations": 604,
+        "accepted_initial_cell_evaluations": 604,
+        "accepted_initial_cell_reuses": 0,
+        "accepted_sensitivity_linear_solves": 0,
+        "accepted_sensitivity_plant_evaluations": 0,
+        "accepted_macro_estimator_reservoir_evaluations": 0,
+        "accepted_macro_estimator_capacity_evaluations": 0,
+        "operating_events": 6,
+        "mass_balance_error_kg": [
+          0.00027938559651374817,
+          0.00031966716051101685,
+          -6.40947837382555e-06
+        ],
+        "maximum_surface_component_residual_kg_s": 5.551115123125783e-17,
+        "mass_atol_kg": 0.01,
+        "mass_rtol": 1e-08,
+        "scope": "Audit accepted forecast material and controls without running either solver.\n\nThis is an accounting/constraint audit, not independent validation of the PVT\nor homogeneous gathering closure. The production FIM CNV/MB remain required.\n"
+      }
+    },
+    "upgrade_2p5day": {
+      "files": 288,
+      "mismatches": [],
+      "trajectory_sha256": "3d2fcb4d739791a99f909901225f1783a28d8d8374595f5f2507dbeb6af3eb56",
+      "solve_wall_s": 138.38983966300293,
+      "audit": {
+        "accepted": true,
+        "checked_substeps": 146,
+        "elapsed_days": 365.0,
+        "minimum_step_s": 216000.0,
+        "maximum_step_s": 216000.0,
+        "capacity_evaluations": 1162,
+        "reservoir_evaluations": 1162,
+        "accepted_initial_cell_evaluations": 1162,
+        "accepted_initial_cell_reuses": 0,
+        "accepted_sensitivity_linear_solves": 0,
+        "accepted_sensitivity_plant_evaluations": 0,
+        "accepted_macro_estimator_reservoir_evaluations": 0,
+        "accepted_macro_estimator_capacity_evaluations": 0,
+        "operating_events": 6,
+        "mass_balance_error_kg": [
+          0.0010281167924404144,
+          0.000460862647742033,
+          0.0005062294658273458
+        ],
+        "maximum_surface_component_residual_kg_s": 5.551115123125783e-17,
+        "mass_atol_kg": 0.01,
+        "mass_rtol": 1e-08,
+        "scope": "Audit accepted forecast material and controls without running either solver.\n\nThis is an accounting/constraint audit, not independent validation of the PVT\nor homogeneous gathering closure. The production FIM CNV/MB remain required.\n"
+      }
+    }
+  },
+  "regression": {
+    "passed": 25,
+    "warnings": 2,
+    "command": "python -m pytest -q tests/test_export_field_forecast.py tests/test_engineering_modes.py",
+    "elapsed_s": 17.84
+  },
+  "viewer": {
+    "path": "decade-viewer.json",
+    "frames": 225,
+    "field_date_days": 3650,
+    "spatial_fields": "Final snapshot only",
+    "sha256": "e719c6e7720de4bcb9f637ab72a5b01961814dc95a5b25d5c1e6f50c1c285df3"
+  },
+  "physical_calibration": "not_established",
+  "injection_network_coupling": "not_implemented_in_this_block",
+  "ruff": "passed",
+  "git_diff_check": "passed",
+  "timing_scope": "One CPU thread per process on a shared host, partly concurrent; observations, no speedup or CPU/GPU comparison claim."
+}

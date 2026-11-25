@@ -71,6 +71,7 @@ class EquilibriumFluid:
     No compositional inference from oil/water/gas labels is performed.
     """
 
+    _factored_attraction = True
     _lean_allocation = True
     _warm_equilibrium = True
     _analytic_chemical = True
@@ -294,26 +295,31 @@ class EquilibriumFluid:
             raise ValueError("EOS derivative order must be one or two")
         if phase not in ("stable", "liquid", "vapor"):
             raise ValueError("Unknown cubic-root selection")
-        rt = torch.sqrt(t[..., None] / self.tc)
-        m = 1 + self.kappa * (1 - rt)
-        ai = self.a0 * m * m
-        ait = -self.a0 * self.kappa * m / (self.tc * rt)
-        aitt = self.a0 * self.kappa * (1 + self.kappa) / (2 * self.tc**2 * rt**3)
-        aij = torch.sqrt(ai[..., :, None] * ai[..., None, :]) * (1 - self.kij)
-        aijt = (
-            0.5
-            * aij
-            * (ait[..., :, None] / ai[..., :, None] + ait[..., None, :] / ai[..., None, :])
-        )
-        ax = (x[..., None, :] @ aij).squeeze(-2)
-        a = (ax * x).sum(-1)
-        at = ((x[..., None, :] @ aijt).squeeze(-2) * x).sum(-1)
-        ar = ait / ai
-        aijtt = aij * (
-            0.5 * (aitt[..., :, None] / ai[..., :, None] + aitt[..., None, :] / ai[..., None, :])
-            - 0.25 * (ar[..., :, None] - ar[..., None, :]) ** 2
-        )
-        att = ((x[..., None, :] @ aijtt).squeeze(-2) * x).sum(-1)
+        if self._factored_attraction:
+            from .pr_attraction import attraction
+
+            a, at, att, ax, aij = attraction(self, t, x, pair_matrix=_chemical_tangent)
+        else:
+            rt = torch.sqrt(t[..., None] / self.tc)
+            m = 1 + self.kappa * (1 - rt)
+            ai = self.a0 * m * m
+            ait = -self.a0 * self.kappa * m / (self.tc * rt)
+            aitt = self.a0 * self.kappa * (1 + self.kappa) / (2 * self.tc**2 * rt**3)
+            aij = torch.sqrt(ai[..., :, None] * ai[..., None, :]) * (1 - self.kij)
+            aijt = (
+                0.5
+                * aij
+                * (ait[..., :, None] / ai[..., :, None] + ait[..., None, :] / ai[..., None, :])
+            )
+            ax = (x[..., None, :] @ aij).squeeze(-2)
+            a = (ax * x).sum(-1)
+            at = ((x[..., None, :] @ aijt).squeeze(-2) * x).sum(-1)
+            ar = ait / ai
+            aijtt = aij * (
+                0.5 * (aitt[..., :, None] / ai[..., :, None] + aitt[..., None, :] / ai[..., None, :])
+                - 0.25 * (ar[..., :, None] - ar[..., None, :]) ** 2
+            )
+            att = ((x[..., None, :] @ aijtt).squeeze(-2) * x).sum(-1)
         b = (x * self.b).sum(-1)
         A, B = a * p / (R * t) ** 2, b * p / (R * t)
         if _chemical_tangent:

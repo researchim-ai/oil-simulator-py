@@ -1,0 +1,82 @@
+{
+  "accepted": true,
+  "full_cycle_pair_accepted": true,
+  "full_cycle_speedup_single_pair": 1.2385709279705692,
+  "full_cycle_time_reduction_percent": 19.261789743561476,
+  "source_verification": {
+    "release-steady": {
+      "files": 530,
+      "mismatches": []
+    },
+    "release-cycle-reference": {
+      "files": 531,
+      "mismatches": []
+    },
+    "release-cycle-optimized": {
+      "files": 531,
+      "mismatches": []
+    }
+  },
+  "regression": {
+    "passed": 338,
+    "warnings": 3,
+    "elapsed_s": 213.32,
+    "log": "release-regression.log"
+  },
+  "event_replays_accepted": true,
+  "maximum_endpoint_error_in_original_norm": 0.15432355452094093,
+  "maximum_observation_diagnostic_error_in_original_norm": 0.847307096333294,
+  "interpolation_scope": "exact independent manual actuator law and exact-time replay at command initial layers; other fields interpolated observations, not physical state validation",
+  "independent_audits": {
+    "reference": {
+      "accepted": true,
+      "checked_records": {
+        "sdirk2-common": 139,
+        "controlled_backward_euler_fallback": 10
+      },
+      "conservation_residuals": [
+        -5.684341886080801e-13,
+        2.9103830456733704e-11,
+        5.820766091346741e-11,
+        2.2184376291534136e-07
+      ],
+      "scope": "independent stage/BE physics, controller records, clocks, endpoints and global N/E; explicit checkpoint, no walls in common-stage auditor or experimental calibration"
+    },
+    "optimized": {
+      "accepted": true,
+      "checked_records": {
+        "sdirk2-common": 139,
+        "controlled_backward_euler_fallback": 10
+      },
+      "conservation_residuals": [
+        -5.684341886080801e-13,
+        1.2732925824820995e-11,
+        7.275957614183426e-11,
+        1.521739674714695e-06
+      ],
+      "scope": "independent stage/BE physics, controller records, clocks, endpoints and global N/E; explicit checkpoint, no walls in common-stage auditor or experimental calibration"
+    }
+  },
+  "ruff": "passed",
+  "git_diff_check": "passed",
+  "runtime": {
+    "device": "cpu",
+    "threads": 1,
+    "architecture": "x86_64"
+  },
+  "scope": "one sequential identical full 16-node 1 s CPU eager pair; unchanged physics/tolerances; no universal/GPU/Norne/real-time or experimental-calibration claim",
+  "transition_latency": "transition_latency.json",
+  "full_cycle_wall_s": {
+    "reference": 808.3815030949991,
+    "optimized": 652.6727576429985
+  },
+  "rejected_attempts": {
+    "reference": 28,
+    "optimized": 15
+  },
+  "jacobian_builds": {
+    "reference": 1549,
+    "optimized": 1167
+  },
+  "failed_timer_run_excluded": true
+}

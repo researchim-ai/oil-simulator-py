@@ -11,28 +11,20 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 
-def main():
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("config", type=Path)
-    parser.add_argument("--device", choices=["cpu", "cuda"], default="cpu")
-    parser.add_argument("--output", type=Path, required=True)
-    args = parser.parse_args()
-    root = Path(__file__).resolve().parents[1]
-    sources = [Path(__file__), *sorted((root / "src/surface").glob("*.py"))]
-    hashes = {str(p.relative_to(root)): hashlib.sha256(p.read_bytes()).hexdigest() for p in sources}
+def run(cfg, *, device="cpu"):
+    """Reusable runner; physical operators and their tolerances are unchanged."""
     from surface.liquid import _number
     from surface.pr_linepack import PRLinepackNetwork
     from surface.stratified_pr import StratifiedPRState
     from surface.stratified_pr_network import StratifiedNetworkState
     from surface.torch_backend import runtime_fingerprint
 
-    cfg = json.loads(args.config.read_text())
     if set(cfg) != {"model", "initial", "schedule"} or set(cfg["initial"]) != {
         "terminals",
         "pipes",
     }:
         raise ValueError("Unknown/missing linepack config fields")
-    model = PRLinepackNetwork.from_dict(cfg["model"], device=args.device)
+    model = PRLinepackNetwork.from_dict(cfg["model"], device=device)
     if not isinstance(cfg["schedule"], list) or not cfg["schedule"]:
         raise ValueError("Nonempty linepack schedule required")
     for command in cfg["schedule"]:
@@ -56,7 +48,7 @@ def main():
         report = model.advance(state, command["duration_s"], openings=command.get("openings"))
         state = StratifiedNetworkState.from_dict(report["state"])
         intervals.append(report)
-    result = {
+    return {
         "config": cfg,
         "model": model.to_dict(),
         "compiled_network": model.network.to_dict(),
@@ -64,8 +56,20 @@ def main():
         "initial_terminal_profiles": profiles,
         "intervals": intervals,
         "runtime": runtime_fingerprint(),
-        "source_sha256": hashes,
     }
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("config", type=Path)
+    parser.add_argument("--device", choices=["cpu", "cuda"], default="cpu")
+    parser.add_argument("--output", type=Path, required=True)
+    args = parser.parse_args()
+    root = Path(__file__).resolve().parents[1]
+    sources = [Path(__file__).resolve(), *sorted((root / "src/surface").glob("*.py"))]
+    hashes = {str(p.relative_to(root)): hashlib.sha256(p.read_bytes()).hexdigest() for p in sources}
+    result = run(json.loads(args.config.read_text()), device=args.device)
+    result["source_sha256"] = hashes
     for p in sources:
         if hashlib.sha256(p.read_bytes()).hexdigest() != hashes[str(p.relative_to(root))]:
             raise RuntimeError("Sources changed during linepack calculation")

@@ -1,0 +1,21 @@
+{
+  "pytest": {
+    "passed": 116,
+    "failed": 0,
+    "wall_s": 107.69,
+    "files": [
+      "tests/test_surface_pr_driven_collocation.py",
+      "tests/test_surface_pr_collocation.py",
+      "tests/test_surface_pr_open_collocation.py",
+      "tests/test_surface_pr_collocation_walls.py",
+      "tests/test_surface_pr_machine_drive.py",
+      "tests/test_surface_runtime_lifetime.py",
+      "tests/test_surface_newton_history.py"
+    ]
+  },
+  "ruff": "passed",
+  "git_diff_check": "passed",
+  "timed_trajectories_independently_audited": 12,
+  "full_controlled_facility_speedup_measured": false,
+  "gpu_speedup_measured": false
+}

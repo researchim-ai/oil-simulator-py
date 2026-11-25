@@ -1,0 +1,354 @@
+{
+  "schema": "oil_engineering_case_v1",
+  "project": "Integrated field development: production gathering and quasi-steady facilities",
+  "case": "development_3650_days_refined",
+  "mode": "forecast",
+  "purpose": "Reservoir development and production forecast",
+  "backend": "fim_facility",
+  "backend_capabilities": [
+    "reservoir_dynamics",
+    "well_surface_feedback",
+    "facility_limits",
+    "component_conservation",
+    "blackoil",
+    "quasi_steady_hydraulics"
+  ],
+  "required_features": [
+    "reservoir_dynamics",
+    "well_surface_feedback",
+    "facility_limits",
+    "component_conservation",
+    "blackoil"
+  ],
+  "omitted_physics": [
+    "pipe momentum transients",
+    "dynamic vessel levels",
+    "actuator/PI transients"
+  ],
+  "limitations": [
+    "Producing homogeneous gathering tree; one PVT region",
+    "Physical adapter excludes VFP/MSW/groups, perf backflow and zero-flow holdup",
+    "No dynamic thermal/level inventories of the facility"
+  ],
+  "audit_scope": "independent component accounting and facility constraints; no field calibration",
+  "simulation_horizon": {
+    "value": 3650.0,
+    "unit": "day"
+  },
+  "backend_options": {
+    "duration_days": 3650.0,
+    "events": [
+      {
+        "controls": {},
+        "time_days": 0
+      },
+      {
+        "controls": {
+          "gas_valve_max_opening": 0.8
+        },
+        "time_days": 60
+      },
+      {
+        "controls": {},
+        "time_days": 120
+      },
+      {
+        "controls": {
+          "gas_valve_max_opening": 0.65
+        },
+        "time_days": 180
+      },
+      {
+        "controls": {},
+        "time_days": 240
+      },
+      {
+        "controls": {
+          "gas_valve_max_opening": 0.9
+        },
+        "time_days": 300
+      },
+      {
+        "controls": {},
+        "time_days": 365
+      },
+      {
+        "controls": {
+          "gas_valve_max_opening": 0.8
+        },
+        "time_days": 425
+      },
+      {
+        "controls": {},
+        "time_days": 485
+      },
+      {
+        "controls": {
+          "gas_valve_max_opening": 0.65
+        },
+        "time_days": 545
+      },
+      {
+        "controls": {},
+        "time_days": 605
+      },
+      {
+        "controls": {
+          "gas_valve_max_opening": 0.9
+        },
+        "time_days": 665
+      },
+      {
+        "controls": {},
+        "time_days": 730
+      },
+      {
+        "controls": {
+          "gas_valve_max_opening": 0.8
+        },
+        "time_days": 790
+      },
+      {
+        "controls": {},
+        "time_days": 850
+      },
+      {
+        "controls": {
+          "gas_valve_max_opening": 0.65
+        },
+        "time_days": 910
+      },
+      {
+        "controls": {},
+        "time_days": 970
+      },
+      {
+        "controls": {
+          "gas_valve_max_opening": 0.9
+        },
+        "time_days": 1030
+      },
+      {
+        "controls": {},
+        "time_days": 1095
+      },
+      {
+        "controls": {
+          "gas_valve_max_opening": 0.8
+        },
+        "time_days": 1155
+      },
+      {
+        "controls": {},
+        "time_days": 1215
+      },
+      {
+        "controls": {
+          "gas_valve_max_opening": 0.65
+        },
+        "time_days": 1275
+      },
+      {
+        "controls": {},
+        "time_days": 1335
+      },
+      {
+        "controls": {
+          "gas_valve_max_opening": 0.9
+        },
+        "time_days": 1395
+      },
+      {
+        "controls": {},
+        "time_days": 1460
+      },
+      {
+        "controls": {
+          "gas_valve_max_opening": 0.8
+        },
+        "time_days": 1520
+      },
+      {
+        "controls": {},
+        "time_days": 1580
+      },
+      {
+        "controls": {
+          "gas_valve_max_opening": 0.65
+        },
+        "time_days": 1640
+      },
+      {
+        "controls": {},
+        "time_days": 1700
+      },
+      {
+        "controls": {
+          "gas_valve_max_opening": 0.9
+        },
+        "time_days": 1760
+      },
+      {
+        "controls": {},
+        "time_days": 1825
+      },
+      {
+        "controls": {
+          "gas_valve_max_opening": 0.8
+        },
+        "time_days": 1885
+      },
+      {
+        "controls": {},
+        "time_days": 1945
+      },
+      {
+        "controls": {
+          "gas_valve_max_opening": 0.65
+        },
+        "time_days": 2005
+      },
+      {
+        "controls": {},
+        "time_days": 2065
+      },
+      {
+        "controls": {
+          "gas_valve_max_opening": 0.9
+        },
+        "time_days": 2125
+      },
+      {
+        "controls": {},
+        "time_days": 2190
+      },
+      {
+        "controls": {
+          "gas_valve_max_opening": 0.8
+        },
+        "time_days": 2250
+      },
+      {
+        "controls": {},
+        "time_days": 2310
+      },
+      {
+        "controls": {
+          "gas_valve_max_opening": 0.65
+        },
+        "time_days": 2370
+      },
+      {
+        "controls": {},
+        "time_days": 2430
+      },
+      {
+        "controls": {
+          "gas_valve_max_opening": 0.9
+        },
+        "time_days": 2490
+      },
+      {
+        "controls": {},
+        "time_days": 2555
+      },
+      {
+        "controls": {
+          "gas_valve_max_opening": 0.8
+        },
+        "time_days": 2615
+      },
+      {
+        "controls": {},
+        "time_days": 2675
+      },
+      {
+        "controls": {
+          "gas_valve_max_opening": 0.65
+        },
+        "time_days": 2735
+      },
+      {
+        "controls": {},
+        "time_days": 2795
+      },
+      {
+        "controls": {
+          "gas_valve_max_opening": 0.9
+        },
+        "time_days": 2855
+      },
+      {
+        "controls": {},
+        "time_days": 2920
+      },
+      {
+        "controls": {
+          "gas_valve_max_opening": 0.8
+        },
+        "time_days": 2980
+      },
+      {
+        "controls": {},
+        "time_days": 3040
+      },
+      {
+        "controls": {
+          "gas_valve_max_opening": 0.65
+        },
+        "time_days": 3100
+      },
+      {
+        "controls": {},
+        "time_days": 3160
+      },
+      {
+        "controls": {
+          "gas_valve_max_opening": 0.9
+        },
+        "time_days": 3220
+      },
+      {
+        "controls": {},
+        "time_days": 3285
+      },
+      {
+        "controls": {
+          "gas_valve_max_opening": 0.8
+        },
+        "time_days": 3345
+      },
+      {
+        "controls": {},
+        "time_days": 3405
+      },
+      {
+        "controls": {
+          "gas_valve_max_opening": 0.65
+        },
+        "time_days": 3465
+      },
+      {
+        "controls": {},
+        "time_days": 3525
+      },
+      {
+        "controls": {
+          "gas_valve_max_opening": 0.9
+        },
+        "time_days": 3585
+      }
+    ],
+    "outlet_pressure_pa": 1000000.0,
+    "report_days": 10.0
+  },
+  "fingerprint": "c1e3e77fc0eae4208a53564d55f5c108f17e8110204cbf9eff5adaf950cff972",
+  "input_sha256": {
+    "/home/user/workspace/oil-simulator-py-impes/configs/field_development_project.json": "d32bb91e7cfd874683943e69741881df891ad5b679649010df9c7d3473811783",
+    "/home/user/workspace/oil-simulator-py-impes/configs/field_development_5day.json": "18c8c6828f2458908b39d8029f328aadf786b87a28ef9eef42529021317cebf9",
+    "/home/user/workspace/oil-simulator-py-impes/configs/pvt/pvt_surface_coupled.json": "6b6f03d628d4fb96c035c5e8d796f28aa1409b140febace1bcaf664f4341afa7",
+    "/home/user/workspace/oil-simulator-py-impes/configs/field_development_decade_schedule.json": "14a59e7de23f48dff2f74c6c61cbca28e3dd17cebb087824307d13253d51abdb"
+  },
+  "initialization": "backend input; no automatic cross-mode state conversion",
+  "validation": "configuration_only; no solve or physical qualification performed"
+}

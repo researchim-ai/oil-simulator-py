@@ -266,11 +266,101 @@ class RotorBundle:
         if previous_checks and not bool(torch.stack(previous_checks).all().cpu()):
             raise EquipmentOperatingError("Machine inlet is outside its liquid/dry-gas envelope")
 
-    def speeds(self, y):
+    def speeds(self, y, *, continuous=False):
         return {
-            d.machine: (old + y[offset] * d.nominal_speed_rad_s) / 2
+            d.machine: y[offset] * d.nominal_speed_rad_s
+            if continuous
+            else (old + y[offset] * d.nominal_speed_rad_s) / 2
             for d, offset, old, *_ in self.entries
         }
+
+    def instantaneous(self, y, pumps, compressors, data, *, torques=None):
+        """Continuous angular-momentum storage and powers, without a time step.
+
+        This is an operator for a DAE integrator, not a discrete work ledger.
+        In particular, shaft energy must be stored together with its receiving
+        fluid inventory: applying RK independently to omega and fluid energy
+        does not conserve the quadratic rotor kinetic energy.
+        """
+        rows, records, heat_sources = [], {}, {}
+        valid = y.new_ones((), dtype=torch.bool)
+        for d, offset, old, torque, enabled, unit in self.entries:
+            physics = d.drive
+            torque = torque if torques is None else torques.get(d.machine, torque)
+            valid = (
+                valid
+                & (torque >= -physics.max_braking_torque_nm)
+                & (torque <= physics.max_motor_torque_nm)
+            )
+            signed = d.machine in self.signed_names
+            speed = y[offset] * d.nominal_speed_rad_s
+            machine = (pumps if d.machine in pumps else compressors)[d.machine]
+            closed = machine.get("valve_closed", speed.new_zeros((), dtype=torch.bool))
+            running = torch.as_tensor(enabled, device=y.device) & ~closed
+            power = torch.where(running, machine["shaft_power_w"], speed * 0)
+            # Signed maps supply torque directly, including the rest limit.
+            # Unsigned open machines retain their strictly-positive-speed domain.
+            load = machine.get("load_torque_nm")
+            if load is None:
+                load = power / speed.clamp_min(1e-30)
+            load = torch.where(running, load, speed * 0)
+            drag = physics.viscous_drag_nm_s * speed
+            net_torque = torque - load - drag
+            # Legacy unsigned shafts stop at rest rather than reverse.
+            if not signed:
+                net_torque = torch.where((speed <= 0) & (net_torque < 0), speed * 0, net_torque)
+                valid = valid & (~running | (speed > 0))
+            motor = torque * speed
+            electrical = torch.where(
+                motor >= 0,
+                motor / physics.motor_efficiency,
+                motor * physics.regeneration_efficiency,
+            )
+            drag_heat = drag * speed
+            losses = electrical - motor + drag_heat
+            draw, export = electrical.clamp_min(0), (-electrical).clamp_min(0)
+            if physics.max_electrical_draw_w is not None:
+                valid = valid & (draw <= physics.max_electrical_draw_w)
+            if physics.max_electrical_export_w is not None:
+                valid = valid & (export <= physics.max_electrical_export_w)
+            valid = (
+                valid
+                & torch.isfinite(net_torque)
+                & (speed >= (-physics.max_speed_rad_s if signed else 0))
+                & (speed <= physics.max_speed_rad_s)
+            )
+            if enabled and signed:
+                valid = valid & (speed.abs() <= unit.signed_map.maximum_speed_rad_s)
+            if enabled and d.machine in self.compressor_names and not signed:
+                theta = (
+                    data[self.source_indices[d.machine]]["t"] / unit.card.reference_temperature_k
+                )
+                corrected = speed / theta.sqrt()
+                valid = (
+                    valid
+                    & (corrected >= unit.card.corrected_speed_rad_s[0])
+                    & (corrected <= unit.card.corrected_speed_rad_s[-1])
+                )
+            if d.heat_sink_node is not None:
+                index = self.heat_indices[d.machine]
+                heat_sources[index] = heat_sources.get(index, 0) + losses
+            records[d.machine] = {
+                "speed_rad_s": speed,
+                "angular_momentum_kg_m2_s": physics.inertia_kg_m2 * speed,
+                "kinetic_energy_j": 0.5 * physics.inertia_kg_m2 * speed.square(),
+                "angular_momentum_rate_nm": net_torque,
+                "kinetic_energy_rate_w": speed * net_torque,
+                "shaft_power_w": power,
+                "motor_power_w": motor,
+                "electrical_power_w": electrical,
+                "drag_heat_w": drag_heat,
+                "motor_heat_w": electrical - motor,
+                "heat_to_environment_w": losses if d.heat_sink_node is None else losses * 0,
+                "heat_to_node_w": losses if d.heat_sink_node is not None else losses * 0,
+                "power_residual_w": motor - power - drag_heat - speed * net_torque,
+            }
+            rows.append(((speed - old) / d.nominal_speed_rad_s).reshape(1))
+        return rows, records, valid, heat_sources
 
     def evaluate(self, y, pumps, compressors, data):
         rows, records = [], {}

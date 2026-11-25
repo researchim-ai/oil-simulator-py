@@ -1,0 +1,39 @@
+{
+  "accepted": true,
+  "graphs": [
+    {
+      "unknowns": 295,
+      "declared_coordinates": 15980,
+      "reverse_directions": 177,
+      "maximum_absolute_errors": [
+        0.0,
+        0.0
+      ],
+      "support_sha256": "dd287d1e6a189c1693c582a2f6894ab0b30ffa74c50f9621bcf57999f1fb9aa6"
+    },
+    {
+      "unknowns": 403,
+      "declared_coordinates": 34610,
+      "reverse_directions": 285,
+      "maximum_absolute_errors": [
+        0.0,
+        0.0
+      ],
+      "support_sha256": "c2ac9c11d22872108b4f9d16ef8925435a91c9b0bee36155ba5526e1ffc21b34"
+    }
+  ],
+  "independent_audit": {
+    "accepted": true,
+    "checked_records": {
+      "sdirk2-common": 1,
+      "controlled_backward_euler_fallback": 0
+    },
+    "conservation_residuals": [
+      1.1368683772161603e-13,
+      1.8189894035458565e-12,
+      -2.9103830456733704e-11,
+      -1.8033670667882973e-08
+    ],
+    "scope": "independent stage/BE physics, controller records, clocks, endpoints and global N/E; explicit checkpoint, no walls in common-stage auditor or experimental calibration"
+  }
+}

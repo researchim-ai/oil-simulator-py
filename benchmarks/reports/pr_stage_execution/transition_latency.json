@@ -1,0 +1,30 @@
+{
+  "accepted": true,
+  "samples": {
+    "reference": [
+      {
+        "command_time_s": 0.2,
+        "wall_s_to_first_accept": 31.976891367999997,
+        "first_accepted_dt_s": 2.8307829274543117e-06
+      },
+      {
+        "command_time_s": 0.4,
+        "wall_s_to_first_accept": 128.815678975001,
+        "first_accepted_dt_s": 5.879207308323586e-06
+      }
+    ],
+    "optimized": [
+      {
+        "command_time_s": 0.2,
+        "wall_s_to_first_accept": 13.508584037999753,
+        "first_accepted_dt_s": 3.124999999992717e-06
+      },
+      {
+        "command_time_s": 0.4,
+        "wall_s_to_first_accept": 17.228477492999446,
+        "first_accepted_dt_s": 6.249999999985434e-06
+      }
+    ]
+  },
+  "scope": "elapsed callback-to-callback delay including checkpoint journal between command intervals; not whole-scenario time"
+}

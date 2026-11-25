@@ -232,3 +232,28 @@ def test_horizontal_pipe_gravity_energy_and_port_elevations():
     expected = 0.001 * (fluxes[0]["total_energy_rate_w"] - fluxes[-1]["total_energy_rate_w"])
     assert new["total_energy_j"] - old["total_energy_j"] == pytest.approx(expected, abs=1e-6)
     assert abs(report["energy_residual_j"]) < 1e-6
+
+
+def test_darcy_velocity_guess_does_not_change_predictor_or_closed_face():
+    model, state = setup()
+    network = model.network
+    final, _report = network._step(state, 0.001, network._commands(None))
+    assert any(abs(v) > 0 for v in network._darcy_guesses.values())
+    states = dict(final.vessels)
+    seeds = network._seeds(states)
+    commands = network._commands(None)
+    guess, _lo, _hi, evaluate, _bodies = network._problem(states, seeds, 0.001, 4, commands)
+    data = evaluate(guess)[1]
+    for name, row in data["hydraulic"].items():
+        assert float(row["velocity"].cpu()) == network._darcy_guesses[name]
+    guess, _lo, _hi, evaluate, _bodies = network._problem(
+        states, seeds, 0.001, 4, commands, _warm_velocity=False
+    )
+    assert all(
+        float(row["velocity"].cpu()) == 0 for row in evaluate(guess)[1]["hydraulic"].values()
+    )
+    closed = network._commands({name: 0.0 for name in network._darcy_guesses})
+    guess, _lo, _hi, evaluate, _bodies = network._problem(states, seeds, 0.001, 4, closed)
+    assert all(
+        float(row["velocity"].cpu()) == 0 for row in evaluate(guess)[1]["hydraulic"].values()
+    )

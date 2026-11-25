@@ -261,6 +261,72 @@ class ColoredJacobian:
         return torch.cat(values).index_select(0, self.extraction_order)
 
 
+class ReverseColoredJacobian:
+    """Exact sparse VJP recovery using the existing column-color planner on J.T.
+
+    Rows with disjoint column support share one reverse direction. One primal
+    tape is built per values() call; bounded batches reuse it without replaying
+    the physical residual. Coordinates retain the caller's order, including
+    duplicates. The supplied pattern must cover every structural dependency.
+    """
+
+    def __init__(self, size, rows, cols, device, **kwargs):
+        self.plan = ColoredJacobian(size, cols, rows, device, **kwargs)
+        self.color_count = self.plan.color_count
+
+    def values(self, function, x):
+        plan = self.plan
+        if not plan.packs:
+            return x.new_empty(0)
+        _, pullback = torch.func.vjp(function, x)
+        values = []
+        for directions, local_color, column in plan.packs:
+            seeds = (directions[:, None] == plan.color[None, :]).to(x.dtype)
+            compressed = torch.vmap(lambda seed: pullback(seed)[0])(seeds)
+            values.append(compressed[local_color, column])
+        return torch.cat(values).index_select(0, plan.extraction_order)
+
+    def dense(self, function, x):
+        values = self.values(function, x)
+        result = x.new_zeros((self.plan.size, self.plan.size))
+        # A duplicate coordinate describes one derivative, not additive terms.
+        result[self.plan.c, self.plan.r] = values
+        return result
+
+
+def sparse_jacobian_plan(size, rows, cols, device, *, reverse=False, **kwargs):
+    """Select compressed AD orientation from exact structural support.
+
+    A dense balance row makes every forward column conflict, even if the
+    remaining network is local. Its width is a lower bound on forward colors:
+    a cheaper reverse plan can then be selected without building the expensive
+    forward conflict graph at all. No numerical entry is dropped or thresholded.
+    """
+    rows, cols = list(rows), list(cols)
+    if not reverse:
+        return ColoredJacobian(size, rows, cols, device, **kwargs)
+    widths, heights = {}, {}
+    for row, col in set(zip(rows, cols)):
+        widths[row] = widths.get(row, 0) + 1
+        heights[col] = heights.get(col, 0) + 1
+    forward_bound = max(widths.values(), default=0)
+    reverse_bound = max(heights.values(), default=0)
+    # Try the less conflicted orientation first. A global sensor column is
+    # the transpose of a global balance row: do not merely move the quadratic
+    # planning work from one of these topologies to the other.
+    forward = None
+    if reverse_bound > forward_bound:
+        forward = ColoredJacobian(size, rows, cols, device, **kwargs)
+        if forward.color_count < 0.75 * reverse_bound:
+            return forward
+    candidate = ReverseColoredJacobian(size, rows, cols, device, **kwargs)
+    if candidate.color_count < 0.75 * forward_bound:
+        return candidate
+    if forward is None:
+        forward = ColoredJacobian(size, rows, cols, device, **kwargs)
+    return candidate if candidate.color_count < 0.75 * forward.color_count else forward
+
+
 class TorchNewton:
     def __init__(self, device="cpu", maximum_iterations=16, dense_limit=128):
         self.device = checked_device(device)

@@ -592,6 +592,7 @@ def audit(config, report, *, external_exchange=None, external_stage_exchange=Non
                 maximum = np.maximum(maximum, checked_row["maximum_local_residuals"])
                 interval_heat += checked_row["ambient_heat_j"] + checked_row["external_heat_j"]
                 interval_entropy += checked_row["entropy_production_j_k"]
+                interval_work += checked_row.get("external_work_j", 0.0)
                 if checked_row["material_component_moles"] is not None:
                     interval_exchange_n += checked_row["material_component_moles"]
                     interval_exchange_e += checked_row["material_energy_j"]

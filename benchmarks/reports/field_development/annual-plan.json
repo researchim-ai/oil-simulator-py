@@ -1,0 +1,84 @@
+{
+  "schema": "oil_engineering_case_v1",
+  "project": "Integrated field development: production gathering and quasi-steady facilities",
+  "case": "annual_baseline",
+  "mode": "forecast",
+  "purpose": "Reservoir development and production forecast",
+  "backend": "fim_facility",
+  "backend_capabilities": [
+    "reservoir_dynamics",
+    "well_surface_feedback",
+    "facility_limits",
+    "component_conservation",
+    "blackoil",
+    "quasi_steady_hydraulics"
+  ],
+  "required_features": [
+    "reservoir_dynamics",
+    "well_surface_feedback",
+    "facility_limits",
+    "component_conservation",
+    "blackoil"
+  ],
+  "omitted_physics": [
+    "pipe momentum transients",
+    "dynamic vessel levels",
+    "actuator/PI transients"
+  ],
+  "limitations": [
+    "Producing homogeneous gathering tree; one PVT region",
+    "Physical adapter excludes VFP/MSW/groups, perf backflow and zero-flow holdup",
+    "No dynamic thermal/level inventories of the facility"
+  ],
+  "audit_scope": "independent component accounting and facility constraints; no field calibration",
+  "simulation_horizon": {
+    "value": 365.0,
+    "unit": "day"
+  },
+  "backend_options": {
+    "duration_days": 365.0,
+    "events": [
+      {
+        "controls": {},
+        "time_days": 0
+      },
+      {
+        "controls": {
+          "gas_valve_max_opening": 0.8
+        },
+        "time_days": 60
+      },
+      {
+        "controls": {},
+        "time_days": 120
+      },
+      {
+        "controls": {
+          "gas_valve_max_opening": 0.65
+        },
+        "time_days": 180
+      },
+      {
+        "controls": {},
+        "time_days": 240
+      },
+      {
+        "controls": {
+          "gas_valve_max_opening": 0.9
+        },
+        "time_days": 300
+      }
+    ],
+    "outlet_pressure_pa": 1000000.0,
+    "report_days": 10.0
+  },
+  "fingerprint": "8893f426163264d583c7a2c39d104d5fd084fe82ab53c2d29be425b85b48e4bb",
+  "input_sha256": {
+    "/home/user/workspace/oil-simulator-py-impes/configs/field_development_project.json": "e3ae178727e52ded7482f2ee708deba09961f418abaf3976a2ad44efe6023c01",
+    "/home/user/workspace/oil-simulator-py-impes/configs/field_development_reference.json": "5650584e5c5cfb0eb427a6d9ab60ea573ba77209c4b751c63492365b6186f386",
+    "/home/user/workspace/oil-simulator-py-impes/configs/pvt/pvt_surface_coupled.json": "6b6f03d628d4fb96c035c5e8d796f28aa1409b140febace1bcaf664f4341afa7",
+    "/home/user/workspace/oil-simulator-py-impes/configs/field_development_year_schedule.json": "9561b77c2e7e33b70dd9e966fbd03a41d398f5539a84476fdeba72b57c940f5c"
+  },
+  "initialization": "backend input; no automatic cross-mode state conversion",
+  "validation": "configuration_only; no solve or physical qualification performed"
+}

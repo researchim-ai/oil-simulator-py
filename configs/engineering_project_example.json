@@ -1,0 +1,27 @@
+{
+  "schema": "oil_engineering_project_v1",
+  "name": "Engineering mode contract examples (separate physical systems)",
+  "root": "..",
+  "cases": {
+    "development": {
+      "mode": "forecast",
+      "backend": "fim_facility",
+      "input": "configs/fim_blackoil_facility_coupled.json",
+      "options": {"duration_days": 1.0, "report_days": 0.5},
+      "required_features": ["reservoir_dynamics", "well_surface_feedback", "facility_limits"]
+    },
+    "linepack": {
+      "mode": "operations",
+      "backend": "pr_linepack",
+      "input": "configs/surface_pr_linepack.json",
+      "required_features": ["pipe_storage", "energy_conservation", "quasi_steady_hydraulics"]
+    },
+    "controlled_plant": {
+      "mode": "transient",
+      "backend": "pr_controlled",
+      "input": "configs/surface_pr_controlled_surface.json",
+      "options": {"integrator": "sampled"},
+      "required_features": ["axial_momentum", "actuator_dynamics", "pi_control"]
+    }
+  }
+}

@@ -1,0 +1,98 @@
+[
+  {
+    "repeat": 0,
+    "method": "reference",
+    "wall_s": 15.225049410999418,
+    "audit": {
+      "accepted": true,
+      "checked_substeps": 14,
+      "reference_connector_quadrature": 32,
+      "maximum_energy_residual_j": 1.5970726754423702e-09,
+      "checked_pipes": 1,
+      "maximum_pipe_energy_residual_j": 1.2811973704174306e-13,
+      "compiled_geometry_verified": true
+    },
+    "trajectory": "repeat-0-reference.json.gz",
+    "accepted_substeps": 14,
+    "nonlinear_solves": 46,
+    "embedded_steps": 4,
+    "probe_failures": 0,
+    "jacobian_builds": 31,
+    "jacobian_reuses": 56,
+    "jacobian_counter_scope": "accepted physical steps only; null when unsupported",
+    "accepted_cross_solve_reuses": 16,
+    "accepted_cross_solve_refreshes": 0
+  },
+  {
+    "repeat": 0,
+    "method": "prepared",
+    "wall_s": 10.261090050000348,
+    "audit": {
+      "accepted": true,
+      "checked_substeps": 14,
+      "reference_connector_quadrature": 32,
+      "maximum_energy_residual_j": 1.5970726754423702e-09,
+      "checked_pipes": 1,
+      "maximum_pipe_energy_residual_j": 1.2811973704174306e-13,
+      "compiled_geometry_verified": true
+    },
+    "trajectory": "repeat-0-prepared.json.gz",
+    "accepted_substeps": 14,
+    "nonlinear_solves": 46,
+    "embedded_steps": 4,
+    "probe_failures": 0,
+    "jacobian_builds": 31,
+    "jacobian_reuses": 56,
+    "jacobian_counter_scope": "accepted physical steps only; null when unsupported",
+    "accepted_cross_solve_reuses": 16,
+    "accepted_cross_solve_refreshes": 0
+  },
+  {
+    "repeat": 1,
+    "method": "prepared",
+    "wall_s": 10.267538781999974,
+    "audit": {
+      "accepted": true,
+      "checked_substeps": 14,
+      "reference_connector_quadrature": 32,
+      "maximum_energy_residual_j": 1.5970726754423702e-09,
+      "checked_pipes": 1,
+      "maximum_pipe_energy_residual_j": 1.2811973704174306e-13,
+      "compiled_geometry_verified": true
+    },
+    "trajectory": "repeat-1-prepared.json.gz",
+    "accepted_substeps": 14,
+    "nonlinear_solves": 46,
+    "embedded_steps": 4,
+    "probe_failures": 0,
+    "jacobian_builds": 31,
+    "jacobian_reuses": 56,
+    "jacobian_counter_scope": "accepted physical steps only; null when unsupported",
+    "accepted_cross_solve_reuses": 16,
+    "accepted_cross_solve_refreshes": 0
+  },
+  {
+    "repeat": 1,
+    "method": "reference",
+    "wall_s": 14.772511758999826,
+    "audit": {
+      "accepted": true,
+      "checked_substeps": 14,
+      "reference_connector_quadrature": 32,
+      "maximum_energy_residual_j": 1.5970726754423702e-09,
+      "checked_pipes": 1,
+      "maximum_pipe_energy_residual_j": 1.2811973704174306e-13,
+      "compiled_geometry_verified": true
+    },
+    "trajectory": "repeat-1-reference.json.gz",
+    "accepted_substeps": 14,
+    "nonlinear_solves": 46,
+    "embedded_steps": 4,
+    "probe_failures": 0,
+    "jacobian_builds": 31,
+    "jacobian_reuses": 56,
+    "jacobian_counter_scope": "accepted physical steps only; null when unsupported",
+    "accepted_cross_solve_reuses": 16,
+    "accepted_cross_solve_refreshes": 0
+  }
+]

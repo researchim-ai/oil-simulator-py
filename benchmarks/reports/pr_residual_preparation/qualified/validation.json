@@ -1,0 +1,17 @@
+{
+  "accepted": true,
+  "paired_benchmark_accepted": true,
+  "sensitivity_check_accepted": true,
+  "sensitivity_scope": "time refinement at max macro dt 0.00025 s, no timing claim",
+  "source_files_verified": 525,
+  "source_mismatches": [],
+  "regression": {
+    "passed": 177,
+    "warnings": 2,
+    "elapsed_s": 142.36,
+    "log": "regression.log"
+  },
+  "ruff": "passed for changed preparation source/scripts/tests",
+  "git_diff_check": "passed",
+  "scope": "CPU eager synthetic cases; exact operator preparation; no GPU/Norne/field calibration or universal speedup claim"
+}

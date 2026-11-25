@@ -1,0 +1,92 @@
+{
+  "schema": "oil_engineering_project_v1",
+  "name": "Integrated field development: production gathering and quasi-steady facilities",
+  "root": "..",
+  "cases": {
+    "annual_baseline": {
+      "mode": "forecast",
+      "backend": "fim_facility",
+      "input": "configs/field_development_reference.json",
+      "options": {
+        "duration_days": 365,
+        "report_days": 10,
+        "events_file": "configs/field_development_year_schedule.json"
+      },
+      "required_features": [
+        "reservoir_dynamics",
+        "well_surface_feedback",
+        "facility_limits",
+        "component_conservation",
+        "blackoil"
+      ]
+    },
+    "development_3650_days": {
+      "mode": "forecast",
+      "backend": "fim_facility",
+      "input": "configs/field_development_10day.json",
+      "options": {
+        "duration_days": 3650,
+        "report_days": 10,
+        "events_file": "configs/field_development_decade_schedule.json"
+      },
+      "required_features": [
+        "reservoir_dynamics",
+        "well_surface_feedback",
+        "facility_limits",
+        "component_conservation",
+        "blackoil"
+      ]
+    },
+    "development_3650_days_refined": {
+      "mode": "forecast",
+      "backend": "fim_facility",
+      "input": "configs/field_development_5day.json",
+      "options": {
+        "duration_days": 3650,
+        "report_days": 10,
+        "events_file": "configs/field_development_decade_schedule.json"
+      },
+      "required_features": [
+        "reservoir_dynamics",
+        "well_surface_feedback",
+        "facility_limits",
+        "component_conservation",
+        "blackoil"
+      ]
+    },
+    "annual_gas_export_upgrade": {
+      "mode": "forecast",
+      "backend": "fim_facility",
+      "input": "configs/field_development_gas_upgrade_5day.json",
+      "options": {
+        "duration_days": 365,
+        "report_days": 10,
+        "events_file": "configs/field_development_year_schedule.json"
+      },
+      "required_features": [
+        "reservoir_dynamics",
+        "well_surface_feedback",
+        "facility_limits",
+        "component_conservation",
+        "blackoil"
+      ]
+    },
+    "annual_gas_export_upgrade_refined": {
+      "mode": "forecast",
+      "backend": "fim_facility",
+      "input": "configs/field_development_gas_upgrade_2p5day.json",
+      "options": {
+        "duration_days": 365,
+        "report_days": 10,
+        "events_file": "configs/field_development_year_schedule.json"
+      },
+      "required_features": [
+        "reservoir_dynamics",
+        "well_surface_feedback",
+        "facility_limits",
+        "component_conservation",
+        "blackoil"
+      ]
+    }
+  }
+}

@@ -62,6 +62,8 @@ class Simulator:
             )
         
         self.facility_coupling = None
+        if sum(sim_params.get(key) is not None for key in ('coupled_facility', 'dynamic_receiver', 'coupled_waterflood')) > 1:
+            raise ValueError('Only one coupled facility driver may own a FIM step')
         if (sim_params.get('coupled_facility') is not None and
                 sim_params.get('dynamic_receiver') is not None):
             raise ValueError('Choose coupled_facility or dynamic_receiver; two drivers cannot own one FIM step')
@@ -93,6 +95,13 @@ class Simulator:
                 time_control=spec.get('time_control'), temporal_control=spec.get('temporal_control'))
 
         self.reservoir_time_control = None
+        if sim_params.get('coupled_waterflood') is not None:
+            if self.solver_type != 'fully_implicit':
+                raise ValueError('coupled_waterflood requires black-oil FIM')
+            from .waterflood_coupling import WaterfloodCoupledFIM
+            self.facility_coupling = WaterfloodCoupledFIM(self.fim_solver, sim_params['coupled_waterflood'])
+        elif (sim_params.get('physical_surface_network') or {}).get('injection_network') is not None:
+            raise ValueError('Mixed injection/production requires coupled_waterflood material closure')
         if sim_params.get('reservoir_time_control') is not None:
             if self.solver_type != 'fully_implicit' or self.facility_coupling is not None:
                 raise ValueError('reservoir_time_control requires uncoupled black-oil FIM')

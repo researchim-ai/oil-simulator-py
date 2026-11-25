@@ -1,0 +1,50 @@
+{
+  "accepted": true,
+  "steady_paired_accepted": true,
+  "steady_speedup": 1.5332147350486909,
+  "complete_original_cycle_accepted": true,
+  "complete_cycle_model_duration_s": 1.0,
+  "cycle_operating_checks_accepted": true,
+  "cycle_audit": {
+    "accepted": true,
+    "checked_records": {
+      "sdirk2-common": 139,
+      "controlled_backward_euler_fallback": 10
+    },
+    "conservation_residuals": [
+      -5.684341886080801e-13,
+      2.9103830456733704e-11,
+      5.820766091346741e-11,
+      2.2184376291534136e-07
+    ],
+    "scope": "independent stage/BE physics, controller records, clocks, endpoints and global N/E; explicit checkpoint, no walls in common-stage auditor or experimental calibration"
+  },
+  "cycle_integration_wall_s": 829.6989874800001,
+  "cycle_timing_scope": "verification concurrent with regression; excludes independent audit and serialization; not a paired benchmark or real-time claim",
+  "regression": {
+    "passed": 314,
+    "warnings": 5,
+    "elapsed_s": 227.44,
+    "log": "regression.log"
+  },
+  "ruff": "passed",
+  "git_diff_check": "passed",
+  "sources_verified": {
+    "steady": {
+      "files": 530,
+      "mismatches": []
+    },
+    "cycle-optimized": {
+      "files": 531,
+      "mismatches": []
+    }
+  },
+  "runtime": {
+    "torch": "2.7.0+cu126",
+    "device": "cpu",
+    "architecture": "x86_64",
+    "OMP_NUM_THREADS": "1",
+    "MKL_NUM_THREADS": "1"
+  },
+  "scope": "CPU bounded dense reverse AD and exact within-step point reuse; large sparse and CUDA/native derivative policy preserved; no tolerance/physics changes or universal 50x speedup"
+}

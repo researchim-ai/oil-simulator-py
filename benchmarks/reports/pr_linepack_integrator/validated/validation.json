@@ -1,0 +1,12 @@
+{
+  "accepted": true,
+  "timed_trajectories_audited": 6,
+  "maximum_refinement_difference_in_original_norm": 0.7075247430016468,
+  "source_hashes_match_current": true,
+  "regression": {
+    "passed": 73,
+    "skipped": 1,
+    "command": "OMP_NUM_THREADS=1 MKL_NUM_THREADS=1 CUDA_VISIBLE_DEVICES= PYTHONPATH=src:scripts:tests python -m pytest tests/test_surface_stratified_pr_error.py tests/test_surface_stratified_pr_network.py tests/test_surface_pr_linepack.py tests/test_benchmark_pr_linepack_eos.py tests/test_engineering_modes.py tests/test_surface_newton_history.py tests/test_surface_newton_reuse.py -q"
+  },
+  "scope": "CPU synthetic linepack; numerical audit and temporal refinement, no field calibration or GPU/large-network qualification"
+}

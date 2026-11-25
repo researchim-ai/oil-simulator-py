@@ -1,0 +1,28 @@
+{
+  "pytest": {
+    "passed": 152,
+    "failed": 0,
+    "wall_s": 143.39,
+    "files": [
+      "tests/test_surface_pr_surface_collocation.py",
+      "tests/test_surface_pr_gravity_collocation.py",
+      "tests/test_surface_pr_driven_collocation.py",
+      "tests/test_surface_pr_collocation.py",
+      "tests/test_surface_pr_open_collocation.py",
+      "tests/test_surface_pr_collocation_walls.py",
+      "tests/test_surface_pr_gravity_transport.py",
+      "tests/test_surface_pr_surface_control.py",
+      "tests/test_surface_pr_motor_control.py",
+      "tests/test_surface_runtime_lifetime.py",
+      "tests/test_surface_newton_history.py"
+    ]
+  },
+  "ruff": "passed",
+  "git_diff_check": "passed",
+  "measured_trajectories_audited": 6,
+  "preparation_trajectories_audited": 2,
+  "full_startup_qualified": false,
+  "wall_network_independent_audit": false,
+  "gpu_qualified": false,
+  "native_timing_qualified": false
+}

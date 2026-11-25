@@ -1,0 +1,13 @@
+{
+  "repeat-0-factored.json.gz": "5246f58a8d7b0ca0ed7e7e4bef6014d862f290e3f9bbe705cc10b35b15fb8b4c",
+  "repeat-0-reference.json.gz": "942ee0ee648d49cf172a26d3cb16dadcd3ddc5fa5ec42fc886ae7a4ccd2e7084",
+  "repeat-1-factored.json.gz": "7d268464c6e566d26481559d566474bf1ad823d4f088498e5ec1333e261357b4",
+  "repeat-1-reference.json.gz": "e80e43ff24aece9759cfaf0b0ffb92103d624460709cefb0f16101252c708291",
+  "request.json": "fd130f1cc6c300fb9ff7015fc2f8de8476bb01f8b2fd12ad88119cd6ee9177c8",
+  "samples.json": "57f56afd53b8a882408507e5240445950ebd86b69055d7b86f326f95c1809784",
+  "sources.tar.gz": "7a78850b34ac39ea10e01ed316da328c299ac0a958048b44a9572342eb114949",
+  "status.json": "780db1d8f8a8262a812fec1fc6cdc2953012fd0122cec3248d7aa82ff0703cf4",
+  "summary.json": "9555ff1870d67a1fa0ef7d40017238acede146f1ffd8caa81e3735bcea496742",
+  "warm-factored.json.gz": "403b94e4b821916e9ed0d3075fe047f3b4bd29fc77256d656787da64d81c4933",
+  "warm-reference.json.gz": "179e484b2e2013325cd653a4b9a0792ae593adbc0a6e11369ffc4a27e4acb98f"
+}

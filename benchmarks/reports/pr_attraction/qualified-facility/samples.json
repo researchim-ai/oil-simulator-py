@@ -1,0 +1,46 @@
+[
+  {
+    "method": "reference",
+    "wall_s": 9.069092615000045,
+    "audit": {
+      "accepted": true,
+      "steps": 1,
+      "scope": "independent staged EOS/profile, HLLC, cards, PI, ideal limiter and N/E equations; no walls/fallback or experimental calibration"
+    },
+    "trajectory": "repeat-0-reference.json.gz",
+    "repeat": 0
+  },
+  {
+    "method": "factored",
+    "wall_s": 9.0936618679998,
+    "audit": {
+      "accepted": true,
+      "steps": 1,
+      "scope": "independent staged EOS/profile, HLLC, cards, PI, ideal limiter and N/E equations; no walls/fallback or experimental calibration"
+    },
+    "trajectory": "repeat-0-factored.json.gz",
+    "repeat": 0
+  },
+  {
+    "method": "factored",
+    "wall_s": 8.758562181000343,
+    "audit": {
+      "accepted": true,
+      "steps": 1,
+      "scope": "independent staged EOS/profile, HLLC, cards, PI, ideal limiter and N/E equations; no walls/fallback or experimental calibration"
+    },
+    "trajectory": "repeat-1-factored.json.gz",
+    "repeat": 1
+  },
+  {
+    "method": "reference",
+    "wall_s": 9.489753778000704,
+    "audit": {
+      "accepted": true,
+      "steps": 1,
+      "scope": "independent staged EOS/profile, HLLC, cards, PI, ideal limiter and N/E equations; no walls/fallback or experimental calibration"
+    },
+    "trajectory": "repeat-1-reference.json.gz",
+    "repeat": 1
+  }
+]

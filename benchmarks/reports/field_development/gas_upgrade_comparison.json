@@ -1,0 +1,128 @@
+{
+  "scope": "Synthetic physical capacity what-if with unchanged model except valve area; both material/constraint audited. Upgrade not independently time-refined or experimentally calibrated; no timing speedup claim.",
+  "same_python": true,
+  "same_schedule": true,
+  "only_changed_physical_parameter": "simulation.coupled_facility.facility.gas_export.export_valve.throat_area_m2",
+  "valve_area_m2": [
+    2e-07,
+    2e-06
+  ],
+  "baseline": {
+    "oil_cumulative_stock_m3": 988.2909400174577,
+    "water_cumulative_stock_m3": 406.43324700167705,
+    "gas_cumulative_stock_m3": 52000.675733145465,
+    "equipment_drive_energy_kwh": 6370.585879478237,
+    "final_production_cap_fraction": 0.0027443858807449217,
+    "final_gas_valve_utilization": 0.9999742725772189,
+    "final_maximum_limit_utilizations": [
+      {
+        "name": "water_pumps",
+        "metric": "shaft_power_total_w",
+        "unit": "W",
+        "value": 3.9098290565826166,
+        "maximum": 1000,
+        "utilization": 0.003909829056582616
+      },
+      {
+        "name": "first_stage_gas",
+        "metric": "separator:high_pressure:gas_m3_s",
+        "unit": "m3/s",
+        "value": 0.00010322756473278951,
+        "maximum": 0.001,
+        "utilization": 0.1032275647327895
+      },
+      {
+        "name": "water_capacity",
+        "metric": "water_handoff_mass_kg_s",
+        "unit": "kg/s",
+        "value": 0.012993788037828576,
+        "maximum": 2.5,
+        "utilization": 0.005197515215131431
+      },
+      {
+        "name": "header_rating",
+        "metric": "pressure:header",
+        "unit": "Pa",
+        "value": 400004.0062045698,
+        "maximum": 1000000,
+        "utilization": 0.40000400620456983
+      },
+      {
+        "name": "total_utilities",
+        "metric": "facility_drive_power_total_w",
+        "unit": "W",
+        "value": 733.7134071613593,
+        "maximum": 50000,
+        "utilization": 0.014674268143227186
+      },
+      {
+        "name": "gas_cooling",
+        "metric": "gas_cooling_duty_w",
+        "unit": "W",
+        "value": 693.3133991995378,
+        "maximum": 50000,
+        "utilization": 0.013866267983990757
+      }
+    ]
+  },
+  "upgrade": {
+    "oil_cumulative_stock_m3": 8829.243631570242,
+    "water_cumulative_stock_m3": 3630.4693953786186,
+    "gas_cumulative_stock_m3": 475478.4586536772,
+    "equipment_drive_energy_kwh": 57775.13757196106,
+    "final_production_cap_fraction": 0.02541794676749474,
+    "final_gas_valve_utilization": 0.9517297920703441,
+    "final_maximum_limit_utilizations": [
+      {
+        "name": "water_pumps",
+        "metric": "shaft_power_total_w",
+        "unit": "W",
+        "value": 35.2987847148461,
+        "maximum": 1000,
+        "utilization": 0.0352987847148461
+      },
+      {
+        "name": "first_stage_gas",
+        "metric": "separator:high_pressure:gas_m3_s",
+        "unit": "m3/s",
+        "value": 0.0009999999478096462,
+        "maximum": 0.001,
+        "utilization": 0.9999999478096462
+      },
+      {
+        "name": "water_capacity",
+        "metric": "water_handoff_mass_kg_s",
+        "unit": "kg/s",
+        "value": 0.12004434133186953,
+        "maximum": 2.5,
+        "utilization": 0.04801773653274781
+      },
+      {
+        "name": "header_rating",
+        "metric": "pressure:header",
+        "unit": "Pa",
+        "value": 400301.6407488487,
+        "maximum": 1000000,
+        "utilization": 0.40030164074884866
+      },
+      {
+        "name": "total_utilities",
+        "metric": "facility_drive_power_total_w",
+        "unit": "W",
+        "value": 6910.740290456671,
+        "maximum": 50000,
+        "utilization": 0.13821480580913342
+      },
+      {
+        "name": "gas_cooling",
+        "metric": "gas_cooling_duty_w",
+        "unit": "W",
+        "value": 6531.669430454733,
+        "maximum": 50000,
+        "utilization": 0.13063338860909465
+      }
+    ]
+  },
+  "oil_cumulative_ratio": 8.93385062440649,
+  "energy_ratio": 9.069046185857705
+}

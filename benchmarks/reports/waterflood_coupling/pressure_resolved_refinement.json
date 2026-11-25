@@ -1,0 +1,29 @@
+{
+  "accepted": true,
+  "errors": {
+    "pressure_pa": 57.13176377117634,
+    "s_w": 1.1423398559418096e-05,
+    "s_g": 4.284812808036387e-05,
+    "bhp_pa": 88.95106230210513,
+    "component_rate_scaled": 0.0003963113064719162,
+    "cumulative_transfer_mass_relative": 0.0005823407805242851,
+    "cumulative_drive_energy_relative": 8.734595710263357e-05
+  },
+  "budgets": {
+    "pressure_pa": 1000,
+    "s_w": 0.0002,
+    "s_g": 0.0002,
+    "bhp_pa": 100,
+    "component_rate_scaled": 0.002,
+    "cumulative_transfer_mass_relative": 0.002,
+    "cumulative_drive_energy_relative": 0.002
+  },
+  "mode_mismatches": 0,
+  "report_dates": 10,
+  "days": 5.0,
+  "accepted_stages": [
+    22,
+    42
+  ],
+  "scope": "Matched report fields, actual well rates/BHP and external product integrals; refinement, not experimental truth or a global dispatch optimum."
+}

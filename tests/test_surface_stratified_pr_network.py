@@ -91,6 +91,33 @@ def test_joint_jacobian_matches_directional_difference_and_has_cross_blocks():
     assert jac[:first, first + second :].abs().max() > 1e-8
 
 
+@pytest.mark.parametrize("two", [False, True])
+def test_grouped_connector_eos_preserves_residual_and_jacobian(two):
+    model, state = setup(two=two)
+    states = dict(state.vessels)
+    seeds = model._seeds(states)
+    model._batch_connector_eos = False
+    original = model._problem(states, seeds, 0.02, 4, model._commands(None))
+    model._batch_connector_eos = True
+    grouped = model._problem(states, seeds, 0.02, 4, model._commands(None))
+    y = original[0].clone()
+    # Unequal vessel temperatures and off-equilibrium compositions exercise
+    # the vector-temperature EOS, not just duplicated isothermal points.
+    second = len(original[4]["a"][0])
+    temperature = second + len(original[4]["b"][0]) - len(seeds["b"][1])
+    y[temperature] += 0.003
+    y += torch.linspace(-1e-5, 1e-5, len(y), dtype=y.dtype)
+    residual_old, data_old = original[3](y)
+    residual_new, data_new = grouped[3](y)
+    torch.testing.assert_close(residual_new, residual_old, rtol=2e-12, atol=2e-12)
+    jac_old = torch.func.jacfwd(lambda z: original[3](z)[0])(y)
+    jac_new = torch.func.jacfwd(lambda z: grouped[3](z)[0])(y)
+    torch.testing.assert_close(jac_new, jac_old, rtol=2e-10, atol=2e-10)
+    for old, new in zip(data_old["transfers"], data_new["transfers"]):
+        for key in ("component_rates", "total_energy_rate", "entropy_rate", "area"):
+            torch.testing.assert_close(new[key], old[key], rtol=2e-12, atol=2e-12)
+
+
 def test_check_valve_and_commanded_stop_are_exactly_closed():
     m, s = setup(reverse=True, allow_reverse=False)
     final, report = m._step(s, 0.02, m._commands(None))

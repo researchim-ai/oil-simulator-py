@@ -1,0 +1,1 @@
+{"accepted":false,"signal":"SIGSEGV","last_reported_time_s":0.4,"stage_reuse_enabled":false,"diagnostic_traceback_timer_enabled":true,"scope":"partial diagnostic run; crash occurred during timed traceback dump; timer removed in release driver; not a physical or timing qualification"}

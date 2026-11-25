@@ -1,0 +1,330 @@
+{
+  "scope": "Exact scalar decomposition of the observed one-perforation water-injector drawdown at common report dates, not a new physical model",
+  "observations": [
+    {
+      "t": 4.0,
+      "well": "I1",
+      "delta_bhp": 211.73663893854246,
+      "modes": [
+        "rate",
+        "rate"
+      ],
+      "delta_cell": -23.79408821137622,
+      "delta_flow": 292.23439285018486,
+      "delta_injectivity": -56.70366570022071,
+      "unused_water_gaps": [
+        3.2568993267034774e-06,
+        6.312497380339677e-05
+      ],
+      "bhp_due_dispatch_gap": 247.66252616831707
+    },
+    {
+      "t": 5.0,
+      "well": "I1",
+      "delta_bhp": -85.71920573804528,
+      "modes": [
+        "rate",
+        "rate"
+      ],
+      "delta_cell": -29.983187844976783,
+      "delta_flow": 2.315270550846449e-10,
+      "delta_injectivity": -55.736017893334065,
+      "unused_water_gaps": [
+        2.391690333486407e-05,
+        1.114322998874151e-05
+      ],
+      "bhp_due_dispatch_gap": -53.2767003898068
+    },
+    {
+      "t": 4.5,
+      "well": "I1",
+      "delta_bhp": -85.46330344956368,
+      "modes": [
+        "rate",
+        "rate"
+      ],
+      "delta_cell": -27.445008448325098,
+      "delta_flow": 2.306915025828709e-10,
+      "delta_injectivity": -58.01829500153966,
+      "unused_water_gaps": [
+        4.152706796531347e-05,
+        2.9707078417068322e-05
+      ],
+      "bhp_due_dispatch_gap": -49.12114212942285
+    },
+    {
+      "t": 3.5,
+      "well": "I1",
+      "delta_bhp": -70.52232642332092,
+      "modes": [
+        "rate",
+        "rate"
+      ],
+      "delta_cell": -19.262315307278186,
+      "delta_flow": 3.424871152284991e-10,
+      "delta_injectivity": -51.260011116405984,
+      "unused_water_gaps": [
+        4.97488900334242e-05,
+        4.011129981976169e-05
+      ],
+      "bhp_due_dispatch_gap": -39.64068956500718
+    },
+    {
+      "t": 1.0,
+      "well": "I1",
+      "delta_bhp": -66.26362160220742,
+      "modes": [
+        "rate",
+        "rate"
+      ],
+      "delta_cell": -15.893094653263688,
+      "delta_flow": 2.2555476809707068e-10,
+      "delta_injectivity": -50.370526949134536,
+      "unused_water_gaps": [
+        3.0242181235234922e-05,
+        2.7539008009391797e-05
+      ],
+      "bhp_due_dispatch_gap": -10.983623948658668
+    },
+    {
+      "t": 2.5,
+      "well": "I1",
+      "delta_bhp": -49.93188213882968,
+      "modes": [
+        "rate",
+        "rate"
+      ],
+      "delta_cell": -17.76971894176677,
+      "delta_flow": 2.27190762006069e-10,
+      "delta_injectivity": -32.162163197281714,
+      "unused_water_gaps": [
+        5.501795677294308e-05,
+        4.792012212977148e-05
+      ],
+      "bhp_due_dispatch_gap": -29.04934279704166
+    },
+    {
+      "t": 2.0,
+      "well": "I1",
+      "delta_bhp": -44.40474742511287,
+      "modes": [
+        "rate",
+        "rate"
+      ],
+      "delta_cell": -15.240908541250974,
+      "delta_flow": 1.6968520911912011e-10,
+      "delta_injectivity": -29.163838884002658,
+      "unused_water_gaps": [
+        6.699313592038736e-05,
+        6.128995439731721e-05
+      ],
+      "bhp_due_dispatch_gap": -23.24447197656701
+    },
+    {
+      "t": 0.5,
+      "well": "I1",
+      "delta_bhp": -33.38036786671728,
+      "modes": [
+        "rate",
+        "rate"
+      ],
+      "delta_cell": -7.482890808023512,
+      "delta_flow": -4.466140598807409e-10,
+      "delta_injectivity": -25.89747705825591,
+      "unused_water_gaps": [
+        6.241496734893381e-05,
+        6.129101284382821e-05
+      ],
+      "bhp_due_dispatch_gap": -4.52137879968707
+    },
+    {
+      "t": 5.0,
+      "well": "P1",
+      "delta_bhp": -20.90153685817495,
+      "modes": [
+        "surface",
+        "surface"
+      ]
+    },
+    {
+      "t": 5.0,
+      "well": "P2",
+      "delta_bhp": -20.89902468258515,
+      "modes": [
+        "surface",
+        "surface"
+      ]
+    },
+    {
+      "t": 4.5,
+      "well": "P1",
+      "delta_bhp": -17.72221051249653,
+      "modes": [
+        "surface",
+        "surface"
+      ]
+    },
+    {
+      "t": 4.5,
+      "well": "P2",
+      "delta_bhp": -17.720638257917017,
+      "modes": [
+        "surface",
+        "surface"
+      ]
+    },
+    {
+      "t": 4.0,
+      "well": "P1",
+      "delta_bhp": -14.402552908286452,
+      "modes": [
+        "surface",
+        "surface"
+      ]
+    },
+    {
+      "t": 4.0,
+      "well": "P2",
+      "delta_bhp": -14.401627837214619,
+      "modes": [
+        "surface",
+        "surface"
+      ]
+    },
+    {
+      "t": 3.5,
+      "well": "P1",
+      "delta_bhp": -11.030571238137782,
+      "modes": [
+        "surface",
+        "surface"
+      ]
+    },
+    {
+      "t": 3.5,
+      "well": "P2",
+      "delta_bhp": -11.030067440588027,
+      "modes": [
+        "surface",
+        "surface"
+      ]
+    },
+    {
+      "t": 3.0,
+      "well": "P1",
+      "delta_bhp": -7.720644116401672,
+      "modes": [
+        "surface",
+        "surface"
+      ]
+    },
+    {
+      "t": 3.0,
+      "well": "P2",
+      "delta_bhp": -7.720394808799028,
+      "modes": [
+        "surface",
+        "surface"
+      ]
+    },
+    {
+      "t": 2.5,
+      "well": "P1",
+      "delta_bhp": -4.619580726139247,
+      "modes": [
+        "surface",
+        "surface"
+      ]
+    },
+    {
+      "t": 2.5,
+      "well": "P2",
+      "delta_bhp": -4.619470539968461,
+      "modes": [
+        "surface",
+        "surface"
+      ]
+    },
+    {
+      "t": 2.0,
+      "well": "P1",
+      "delta_bhp": -1.914153735153377,
+      "modes": [
+        "surface",
+        "surface"
+      ]
+    },
+    {
+      "t": 2.0,
+      "well": "P2",
+      "delta_bhp": -1.9141100817359984,
+      "modes": [
+        "surface",
+        "surface"
+      ]
+    },
+    {
+      "t": 1.0,
+      "well": "P2",
+      "delta_bhp": 1.3041960946284235,
+      "modes": [
+        "surface",
+        "surface"
+      ]
+    },
+    {
+      "t": 1.0,
+      "well": "P1",
+      "delta_bhp": 1.304187584668398,
+      "modes": [
+        "surface",
+        "surface"
+      ]
+    },
+    {
+      "t": 0.5,
+      "well": "P2",
+      "delta_bhp": 1.1468339478597045,
+      "modes": [
+        "surface",
+        "surface"
+      ]
+    },
+    {
+      "t": 0.5,
+      "well": "P1",
+      "delta_bhp": 1.1468284004367888,
+      "modes": [
+        "surface",
+        "surface"
+      ]
+    },
+    {
+      "t": 1.5,
+      "well": "P2",
+      "delta_bhp": 0.15952703496441245,
+      "modes": [
+        "surface",
+        "surface"
+      ]
+    },
+    {
+      "t": 1.5,
+      "well": "P1",
+      "delta_bhp": 0.15950993169099092,
+      "modes": [
+        "surface",
+        "surface"
+      ]
+    },
+    {
+      "t": 3.0,
+      "well": "I1",
+      "delta_bhp": 0.0,
+      "modes": [
+        "no_head",
+        "no_head"
+      ]
+    }
+  ]
+}
