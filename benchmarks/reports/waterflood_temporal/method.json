@@ -1,0 +1,26 @@
+{
+  "method": "existing transactional backward-Euler full-step / two-half-step defect controller",
+  "accepted_state": "two independently converged half steps; full probe rolled back",
+  "field_errors": [
+    "pressure",
+    "water saturation",
+    "gas saturation"
+  ],
+  "component_inventory_scale": "absolute_kg + relative * max(abs(coarse_component_cell_mass), abs(fine_component_cell_mass))",
+  "withdrawal_scale": "absolute_kg + relative * max(abs(coarse_increment), abs(fine_increment)) for each well and component separately",
+  "resource_transfers": [
+    "external in x3",
+    "external out x3",
+    "produced water",
+    "injected water",
+    "recycled water",
+    "external makeup water",
+    "disposed water"
+  ],
+  "drive_energy": "actual shaft power integrated over each accepted half step; not a thermal energy balance",
+  "physical_bhp": "all connected well BHP; isolated gauges excluded",
+  "reference_policy": "same physics and macro maximum step, half the P/Sw/Sg/BHP/component-relative local tolerances",
+  "global_budgets": "budgets.json copied unchanged from the previously rejected 6/3-hour test",
+  "source_guard": "all src Python, top-level scripts Python, case config, PVT and event schedule",
+  "evidence_status": "both full-month studies complete; unchanged global and completion refinement gates passed"
+}

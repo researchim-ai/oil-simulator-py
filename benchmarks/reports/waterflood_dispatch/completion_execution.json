@@ -1,0 +1,15 @@
+{
+  "accepted": true,
+  "errors": {
+    "connected_pressure_pa": 0.0912890019826591,
+    "component_rate_scaled": 7.338680406416478e-07,
+    "valve_state_mismatches": 0
+  },
+  "budgets": {
+    "connected_pressure_pa": 1.0,
+    "component_rate_scaled": 1e-05,
+    "valve_state_mismatches": 0
+  },
+  "report_dates": 60,
+  "scope": "Actual completion execution differences against the same archived baseline as month_execution.json; isolated BHP gauges excluded."
+}

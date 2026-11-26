@@ -1,0 +1,22 @@
+[
+  {
+    "name": "baseline_first",
+    "kind": "baseline",
+    "wall_s": 20.936230855999383
+  },
+  {
+    "name": "fast_second",
+    "kind": "fast",
+    "wall_s": 3.9227202419988316
+  },
+  {
+    "name": "fast_first",
+    "kind": "fast",
+    "wall_s": 3.831715380998503
+  },
+  {
+    "name": "baseline_second",
+    "kind": "baseline",
+    "wall_s": 21.08168515699981
+  }
+]

@@ -9,6 +9,89 @@ import math
 from surface.water_injection import WaterInjectionTree
 
 
+def _audit_temporal(config, stages, close):
+    options = config["simulation"]["coupled_waterflood"].get("temporal_control")
+    if options is None:
+        if any("temporal_control" in s["coupling"] for s in stages):
+            raise ValueError("Unexpected temporal control without a configured policy")
+        return
+    if len(stages) % 2:
+        raise ValueError("Missing accepted temporal half stage")
+    atol = options.get("withdrawal_absolute_tolerance_kg", 1e-5)
+    rtol = options.get("withdrawal_relative_tolerance", .002)
+    def defect(a, b, absolute=atol, relative=rtol):
+        if len(a) != len(b):
+            raise ValueError("Different temporal evidence dimensions")
+        if any(isinstance(x, bool) or not math.isfinite(x) for x in [*a, *b]):
+            raise ValueError("Nonfinite temporal evidence")
+        return max((abs(x - y) / (absolute + relative * max(abs(x), abs(y)))
+                    for x, y in zip(a, b)), default=0.)
+    def transfers(stage):
+        r = stage["coupling"]
+        return (r["material_account"]["external_in_kg"]
+                + r["material_account"]["external_out_kg"]
+                + [r["water_rates_kg_s"][n] * r["dt_s"]
+                   for n in ["produced", "injected", "recycled", "makeup", "disposed"]])
+    previous = None
+    for index in range(0, len(stages), 2):
+        first, second = stages[index:index + 2]
+        a, b = first["coupling"], second["coupling"]
+        if "temporal_control" in a or "temporal_control" not in b:
+            raise ValueError("Invalid accepted temporal stage pair")
+        row, probe = b["temporal_control"], b["temporal_probe"]
+        errors = row["errors"]
+        required = {"pressure", "s_w", "s_g", "withdrawal", "component_inventory",
+                    "resource_transfers", "drive_energy"}
+        if options.get("well_bhp_tolerance_pa") is not None:
+            required.add("well_bhp")
+        if set(errors) != required or any(not math.isfinite(x) or not 0 <= x <= 1 for x in errors.values()):
+            raise ValueError("Unresolved accepted waterflood temporal defect")
+        close(row["indicator"], max(errors.values()), atol=1e-12)
+        close(row["macro_dt_s"], a["dt_s"] + b["dt_s"], atol=1e-7)
+        close(a["dt_s"], b["dt_s"], atol=1e-7)
+        maximum = config["simulation"].get("max_time_step_days", math.inf) * 86400
+        if row["macro_dt_s"] > maximum + 1e-7:
+            raise ValueError("Temporal macro step exceeds configured maximum")
+        if a["operator_controls"] != b["operator_controls"]:
+            raise ValueError("Temporal macro step crossed a control change")
+        if (config["simulation"].get("coupled_time_control", True)
+                and previous != a["operator_controls"]
+                and row["macro_dt_s"] > options.get("startup_step_days", .25) * 86400 + 1e-7):
+            raise ValueError("Temporal startup or event step exceeds policy")
+        previous = b["operator_controls"]
+        fine_work = len(a["trace"]) + len(b["trace"])
+        if row["total_capacity_evaluations"] <= fine_work:
+            raise ValueError("Missing coarse temporal solve evidence")
+        order = probe["well_order"]
+        if order != list(first["surface"]["wells"]) or order != list(second["surface"]["wells"]):
+            raise ValueError("Different temporal well ordering")
+        coarse = probe["coarse_well_withdrawal_kg"]
+        if len(coarse) != len(order) or any(len(x) != 3 for x in coarse):
+            raise ValueError("Missing per-well temporal mass evidence")
+        fine = [[sum(stage["surface"]["wells"][name]["component_mass_rates_kg_s"][j]
+                     * stage["coupling"]["dt_s"] for stage in [first, second])
+                 for j in range(3)] for name in order]
+        close(errors["withdrawal"], defect(
+            [x for row in coarse for x in row], [x for row in fine for x in row]), atol=1e-9)
+        total = [x + y for x, y in zip(transfers(first), transfers(second))]
+        close(errors["resource_transfers"], defect(probe["coarse_transfers_kg"], total), atol=1e-9)
+        energy = sum(x["coupling"]["total_drive_power_w"] * x["coupling"]["dt_s"] for x in [first, second])
+        close(errors["drive_energy"], defect(
+            [probe["coarse_drive_energy_j"]], [energy],
+            options.get("drive_energy_absolute_tolerance_j", 1.),
+            options.get("drive_energy_relative_tolerance", .002)), atol=1e-9)
+        if "well_bhp" in errors:
+            bhp = {name: w["bhp_pa"] for name, w in second["surface"]["wells"].items()
+                   if w.get("bhp_status") != "isolated_gauge"}
+            coarse = probe["coarse_well_bhp_pa"]
+            if set(coarse) != set(bhp):
+                raise ValueError("Different temporal physical pressure status")
+            if any(not math.isfinite(x) for x in [*coarse.values(), *bhp.values()]):
+                raise ValueError("Nonfinite temporal BHP evidence")
+            close(errors["well_bhp"], max((abs(coarse[n] - bhp[n]) for n in bhp), default=0.)
+                  / options["well_bhp_tolerance_pa"], atol=1e-9)
+
+
 def audit(config, result):
     def close(a, b, atol=1e-9, rtol=1e-10):
         if (
@@ -32,6 +115,7 @@ def audit(config, result):
     stages = result["accepted_substeps"]
     if not stages:
         raise ValueError("No accepted waterflood stages")
+    _audit_temporal(config, stages, close)
     controls = {
         "injection_enabled": True,
         "pump_speed_ratios": {},
@@ -56,6 +140,33 @@ def audit(config, result):
         if index < len(events) and events[index]["time_days"] * 86400 < end - 1e-7:
             raise ValueError("Accepted waterflood stage crossed an event")
         report = step["coupling"]
+        if report.get("model") == "coupled_waterflood_v2":
+            commit = report["dispatch_commit"]
+            trace = report["trace"]
+            selected = commit["solved_trace_index"]
+            if type(selected) is not int or not 0 <= selected < len(trace):
+                raise ValueError("Invalid solved waterflood state reference")
+            chosen = trace[selected]
+            if (chosen["feasible"] is not True
+                    or chosen["production_fraction"] != report["production_fraction"]
+                    or chosen["injection_fraction"] != report["injection_fraction"]):
+                raise ValueError("Waterflood commit does not reference the chosen solved controls")
+            options = spec.get("dispatch_solver", {})
+            if commit["method"] != options.get("commit", "state_restore"):
+                raise ValueError("Wrong waterflood commit policy")
+            points = [(r["production_fraction"], r["injection_fraction"]) for r in trace]
+            if commit["method"] == "state_restore" and len(set(points)) != len(points):
+                raise ValueError("Repeated FIM capacity point in state-restore dispatch")
+            if report["reservoir_evaluations"] != len(trace):
+                raise ValueError("Inconsistent waterflood FIM evaluation count")
+            for name, value in report["water_rates_kg_s"].items():
+                close(value, chosen["water_rates_kg_s"][name])
+            from simulator.fim_initial_cell_cache import audit_initial_cell_cache
+            audit_initial_cell_cache(
+                {**report, "evaluations": len(trace)},
+                {"reuse_initial_cell_state": options.get("reuse_initial_cell_state", True),
+                 "initial_cell_state_cache_bytes": options.get("initial_cell_state_cache_bytes", 64 * 1024**2)},
+            )
         resolution = report.get("dispatch_resolution")
         if resolution is not None:
             for name in ["production", "injection"]:
@@ -114,6 +225,45 @@ def audit(config, result):
                     raise ValueError("Injecting BHP exceeds declared maximum")
                 close(row["standard_control_rate_m3_s"], -rates[1] / rho[1])
         water = report["water_rates_kg_s"]
+        # Optional for historical trajectories. New reports expose the exact
+        # incompressible column and each nonreturn completion's actual flux.
+        injection = report["injection_network"]
+        if "perforations" in injection:
+            totals = {name: [0.0] * 3 for name in injection_spec["well_nodes"]}
+            counts = dict.fromkeys(totals, 0)
+            flags = []
+            for perf in injection["perforations"]:
+                name = perf["well"]
+                row = injection["wells"][name]
+                counts[name] += 1
+                head = rho[1] * 9.80665 * (perf["depth_m"] - row["reference_depth_m"])
+                close(head, perf["hydrostatic_head_pa"], atol=1e-6)
+                close(row["bhp_pa"] + head, perf["well_pressure_pa"], atol=1e-6)
+                if (
+                    row["mode"] != "shut"
+                    and perf["well_pressure_pa"] <= tree.fluid.vapor_pressure_pa
+                ):
+                    raise ValueError("Connected water column crosses vapor pressure")
+                flags.append(perf["valve_open"])
+                if perf["valve_open"] and (
+                    row["mode"] == "shut"
+                    or perf["well_pressure_pa"] < perf["reservoir_pressure_pa"] - 1e-6
+                ):
+                    raise ValueError("Open injection valve has reverse pressure or isolated well")
+                for j, mass in enumerate(perf["component_mass_rates_kg_s"]):
+                    if (j != 1 and abs(mass) > 1e-10) or mass > 1e-10:
+                        raise ValueError("Invalid nonreturn perforation component flux")
+                    if not perf["valve_open"]:
+                        close(mass, 0.0)
+                    totals[name][j] += mass
+            if flags != injection["perforation_valves_open"]:
+                raise ValueError("Inconsistent perforation valve registry")
+            for name, total in totals.items():
+                expected = len(wells[name].get("perforations", [None]))
+                if counts[name] != expected:
+                    raise ValueError("Incomplete injection perforation registry")
+                for j in range(3):
+                    close(total[j], injection["wells"][name]["component_mass_rates_kg_s"][j])
         for key, value in [
             ("produced", produced[1]),
             ("injected", injected[1]),

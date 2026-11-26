@@ -1,0 +1,9 @@
+{
+  "pressure_pa": 1.0,
+  "s_w": 1e-07,
+  "s_g": 1e-07,
+  "bhp_pa": 1.0,
+  "component_rate_scaled": 1e-05,
+  "cumulative_transfer_mass_relative": 1e-05,
+  "cumulative_drive_energy_relative": 1e-05
+}

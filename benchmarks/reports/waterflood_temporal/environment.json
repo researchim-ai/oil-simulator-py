@@ -1,0 +1,11 @@
+{
+  "python": "3.12.9",
+  "machine": "x86_64",
+  "torch": "2.7.0+cu126",
+  "numpy": "2.2.6",
+  "scipy": "1.15.2",
+  "reservoir_device": "cpu",
+  "torch_threads_per_run": 1,
+  "concurrency": "two main studies; test and pilot processes overlap parts of the shared-host execution",
+  "performance_scope": "wall times are not clean performance or GPU benchmarks"
+}

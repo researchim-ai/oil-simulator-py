@@ -126,15 +126,18 @@ def _stage(coupled, duration, end):
             'facility_controls': deepcopy(coupled.controls)}
 
 
-def temporal_step(coupled, dt, current_time=None):
+def temporal_step(coupled, dt, current_time=None, *, stage_factory=None,
+                  field_factory=None, defect_evaluator=None):
     """Three whole-system solves, transactional acceptance of fine stages only."""
     policy, s = coupled.temporal_control, coupled.solver
+    stage_factory = _stage if stage_factory is None else stage_factory
+    field_factory = _fields if field_factory is None else field_factory
     if isinstance(dt, bool) or not math.isfinite(dt) or dt <= 0:
         raise ValueError('dt must be positive and finite')
     start = 0. if current_time is None else current_time
     a, b = split_step_s(start, dt)
     initial, previous = _StepState(s), coupled.report
-    old_fields = _fields(s)
+    old_fields = field_factory(s)
     old_metrics = {k: getattr(s, k) for k in ('last_newton_iters', 'last_max_dp', 'last_max_dsw') if hasattr(s, k)}
     accepted, total_evaluations, solves = False, 0, 0
     reservoir_evaluations = 0
@@ -162,28 +165,29 @@ def temporal_step(coupled, dt, current_time=None):
             raise HydraulicConvergenceError((coupled.last_attempt or {}).get('reason', 'Coupled step failed'))
     try:
         solve(dt, start)
-        coarse_fields = _fields(s)
-        coarse = _stage(coupled, dt, start + dt)
+        coarse_fields = field_factory(s)
+        coarse = stage_factory(coupled, dt, start + dt)
         initial.restore()
         initial = _StepState(s)  # restored well arrays become live mutable bindings
         coupled.report = previous
         solve(a, start)
-        first = _stage(coupled, a, start + a)
+        first = stage_factory(coupled, a, start + a)
         solve(b, start + a)
-        second = _stage(coupled, b, start + dt)
+        second = stage_factory(coupled, b, start + dt)
         fine_mass = torch.tensor(first['withdrawn_component_mass_kg'], dtype=torch.float64) + torch.tensor(
             second['withdrawn_component_mass_kg'], dtype=torch.float64)
         coarse_total = fine_total = None
-        if policy.withdrawal_error_scale == 'cumulative':
+        if defect_evaluator is None and policy.withdrawal_error_scale == 'cumulative':
             coarse_total, fine_total = [torch.tensor([
                 stage['facility_coupling']['material_account']['produced_kg'][k]
                 for k in ('oil', 'water', 'gas')], dtype=torch.float64)
                 for stage in (coarse, second)]
-        errors = policy.defect(coarse_fields, _fields(s),
+        errors = (defect_evaluator(coarse_fields, field_factory(s), coarse, first, second)
+                  if defect_evaluator is not None else policy.defect(coarse_fields, field_factory(s),
                                torch.tensor(coarse['withdrawn_component_mass_kg'], dtype=torch.float64), fine_mass,
-                               coarse_total_mass=coarse_total, fine_total_mass=fine_total)
+                               coarse_total_mass=coarse_total, fine_total_mass=fine_total))
         coarse_bhp = None
-        if policy.well_bhp_tolerance_pa is not None:
+        if defect_evaluator is None and policy.well_bhp_tolerance_pa is not None:
             coarse_bhp = {k: w['bhp_pa'] for k, w in coarse['surface']['wells'].items()}
             fine_bhp = {k: w['bhp_pa'] for k, w in second['surface']['wells'].items()}
             errors.update(policy.well_defect(coarse_bhp, fine_bhp))

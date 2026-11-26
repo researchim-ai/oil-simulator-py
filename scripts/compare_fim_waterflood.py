@@ -6,12 +6,54 @@ import gzip
 import hashlib
 import json
 import math
+import tarfile
+from dataclasses import asdict
 from pathlib import Path
 
 from check_fim_waterflood import audit
 
+from simulator.facility_temporal_control import FacilityTemporalControl
 
-def qualify(candidate, reference, budgets):
+
+def check_time_refinement(configs):
+    cfg = copy.deepcopy(configs)
+    maximum = [c["simulation"].pop("max_time_step_days") for c in cfg]
+    policies = []
+    for c in cfg:
+        c["simulation"].pop("initial_time_step_days", None)
+        policies.append(c["simulation"]["coupled_waterflood"].pop("temporal_control", None))
+    if cfg[0] != cfg[1] or not 0 < maximum[1] <= maximum[0]:
+        raise ValueError("Only stricter numerical time-step settings may differ")
+    if policies == [None, None]:
+        if maximum[0] == maximum[1]:
+            raise ValueError("Reference maximum time step must decrease")
+        return "maximum_step"
+    if any(p is None for p in policies):
+        raise ValueError("Both studies must use the same temporal-control model")
+    normalized = []
+    extras = {"component_relative_tolerance": 1e-3, "component_absolute_tolerance_kg": 1e-6,
+              "drive_energy_relative_tolerance": .002, "drive_energy_absolute_tolerance_j": 1.}
+    for raw in policies:
+        raw = dict(raw)
+        extra = {key: raw.pop(key, value) for key, value in extras.items()}
+        normalized.append({**asdict(FacilityTemporalControl(**raw)), **extra})
+    fixed = {"startup_step_days", "safety_factor", "maximum_growth", "withdrawal_error_scale"}
+    stricter = maximum[1] < maximum[0]
+    for key, a in normalized[0].items():
+        b = normalized[1][key]
+        if key in fixed or a is None or b is None:
+            if a != b:
+                raise ValueError("Different temporal-control definitions")
+        elif (isinstance(b, bool) or not math.isfinite(b) or b <= 0 or b > a):
+            raise ValueError("Reference temporal budgets must not be relaxed")
+        else:
+            stricter |= b < a
+    if not stricter:
+        raise ValueError("Reference temporal resolution must increase")
+    return "temporal_tolerances_and_maximum_step"
+
+
+def qualify(candidate, reference, budgets, *, execution=False, reference_source_archive=None):
     pairs = []
     metadata = []
     for directory in map(Path, (candidate, reference)):
@@ -30,15 +72,27 @@ def qualify(candidate, reference, budgets):
         audit(bundle["config"], bundle["result"])
         pairs.append(bundle)
         metadata.append(summary)
-    cfg = [copy.deepcopy(b["config"]) for b in pairs]
-    maximum = [c["simulation"].pop("max_time_step_days") for c in cfg]
-    for c in cfg:
-        c["simulation"].pop("initial_time_step_days", None)
-    if not 0 < maximum[1] < maximum[0] or cfg[0] != cfg[1]:
-        raise ValueError("Only stricter numerical time-step settings may differ")
+    if execution:
+        cfg = [copy.deepcopy(b["config"]) for b in pairs]
+        for c in cfg:
+            c["simulation"]["coupled_waterflood"].pop("dispatch_solver", None)
+        if cfg[0] != cfg[1]:
+            raise ValueError("Execution comparison requires identical physics and temporal settings")
+        refinement_axis = "dispatch_execution"
+    else:
+        refinement_axis = check_time_refinement([b["config"] for b in pairs])
     python = lambda s: {k: v for k, v in s["source_sha256"].items() if k.endswith(".py")}
-    if python(metadata[0]) != python(metadata[1]):
+    versions_identical = python(metadata[0]) == python(metadata[1])
+    if not versions_identical and not execution:
         raise ValueError("Different numerical sources")
+    if not versions_identical:
+        if reference_source_archive is None:
+            raise ValueError("Cross-version execution comparison requires the exact archived reference sources")
+        with tarfile.open(reference_source_archive, "r:gz") as archive:
+            for key, digest in metadata[1]["source_sha256"].items():
+                with archive.extractfile(key) as stream:
+                    if hashlib.sha256(stream.read()).hexdigest() != digest:
+                        raise ValueError("Archived reference source/input mismatch")
     pvt = pairs[0]["config"]["fluid"]["pvt_path"]
     pvt_key = next(
         k
@@ -53,7 +107,7 @@ def qualify(candidate, reference, budgets):
         or results[0]["requested_days"] != results[1]["requested_days"]
     ):
         raise ValueError("Different operating studies")
-    if len(results[1]["accepted_substeps"]) <= len(results[0]["accepted_substeps"]):
+    if not execution and len(results[1]["accepted_substeps"]) <= len(results[0]["accepted_substeps"]):
         raise ValueError("Reference did not increase actual resolution")
 
     def series(result):
@@ -140,6 +194,12 @@ def qualify(candidate, reference, budgets):
         "errors": errors,
         "budgets": budgets,
         "mode_mismatches": mismatches,
+        "refinement_axis": refinement_axis,
+        "source_versions_identical": versions_identical,
+        "source_fingerprints": [hashlib.sha256(json.dumps(python(s), sort_keys=True).encode()).hexdigest()
+                                for s in metadata],
+        "reference_source_archive_sha256": (hashlib.sha256(Path(reference_source_archive).read_bytes()).hexdigest()
+                                            if reference_source_archive is not None else None),
         "report_dates": len(fields[0]),
         "days": results[0]["requested_days"],
         "accepted_stages": [len(r["accepted_substeps"]) for r in results],
@@ -153,8 +213,11 @@ if __name__ == "__main__":
     p.add_argument("reference", type=Path)
     p.add_argument("--budgets", type=Path, required=True)
     p.add_argument("--output", type=Path, required=True)
+    p.add_argument("--execution", action="store_true", help="Compare dispatch implementations at identical physics/time settings")
+    p.add_argument("--reference-source-archive", type=Path)
     args = p.parse_args()
-    result = qualify(args.candidate, args.reference, json.loads(args.budgets.read_text()))
+    result = qualify(args.candidate, args.reference, json.loads(args.budgets.read_text()),
+                     execution=args.execution, reference_source_archive=args.reference_source_archive)
     with args.output.open("x") as stream:
         json.dump(result, stream, indent=2, allow_nan=False)
     print(json.dumps(result, indent=2))

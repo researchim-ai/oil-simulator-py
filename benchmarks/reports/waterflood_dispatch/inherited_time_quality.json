@@ -1,0 +1,28 @@
+{
+  "accepted": true,
+  "upper_error_bounds": {
+    "pressure_pa": 111.05465869093314,
+    "s_w": 5.151536964398407e-06,
+    "s_g": 2.0399446514871022e-05,
+    "bhp_pa": 83.70008860202506,
+    "component_rate_scaled": 0.00024986982411752184,
+    "cumulative_transfer_mass_relative": 0.00026082903040672864,
+    "cumulative_drive_energy_relative": 6.181315604980578e-05
+  },
+  "budgets": {
+    "pressure_pa": 1000,
+    "s_w": 0.0002,
+    "s_g": 0.0002,
+    "bhp_pa": 100,
+    "component_rate_scaled": 0.002,
+    "cumulative_transfer_mass_relative": 0.002,
+    "cumulative_drive_energy_relative": 0.002
+  },
+  "mode_mismatches": 0,
+  "method": "Triangle inequality for absolute errors; e_fast_fine <= e_old_fine + e_fast_old*(1+e_old_fine) for identical floored relative norms. Both comparisons cover the same 60 report dates.",
+  "scope": "Inherited numerical time-refinement certificate using two archived comparisons; not a new independent time-refinement run or an absolute-error guarantee.",
+  "input_sha256": {
+    "benchmarks/reports/waterflood_dispatch/month_execution.json": "bedd95901f101b728747b32b53153d137e5fb2c4ed13098c8948c970390f32da",
+    "benchmarks/reports/waterflood_temporal/refinement.json": "9626c992ab8705bd757ebf3003eb205a91ca8551c755f1baf6e246caaca640d9"
+  }
+}

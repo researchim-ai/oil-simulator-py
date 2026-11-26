@@ -1,0 +1,38 @@
+{
+  "scope": "Pointwise same-operation diagnostic at day 1; not a separate full-trajectory qualification.",
+  "pairs": [
+    {
+      "candidate": "coarse",
+      "reference": "reference",
+      "time_days": 1,
+      "bhp_difference_pa": {
+        "P1": 225.26467692758888,
+        "P2": 225.2646772689186,
+        "I1": 0.07344373827800155
+      },
+      "max_bhp_difference_pa": 225.2646772689186
+    },
+    {
+      "candidate": "reference",
+      "reference": "fine_day",
+      "time_days": 1,
+      "bhp_difference_pa": {
+        "P1": 135.11735653877258,
+        "P2": 135.1173567418009,
+        "I1": 1.4086172743700445
+      },
+      "max_bhp_difference_pa": 135.1173567418009
+    },
+    {
+      "candidate": "fine_day",
+      "reference": "finest_day",
+      "time_days": 1,
+      "bhp_difference_pa": {
+        "P1": 73.09604063164443,
+        "P2": 73.09604067029431,
+        "I1": 3.1919919289648533
+      },
+      "max_bhp_difference_pa": 73.09604067029431
+    }
+  ]
+}

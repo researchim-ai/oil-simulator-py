@@ -1,0 +1,283 @@
+{
+  "accepted": false,
+  "scope": "Mixed waterflood multi-depth implementation and numerical verification. The strict monthly time-accuracy gate is NOT passed.",
+  "implementation_tests_passed": true,
+  "regression": {
+    "passed": 79,
+    "skipped": 2,
+    "warnings": 2,
+    "log": "regression.log",
+    "skip_scope": "CUDA-required checks"
+  },
+  "model": {
+    "cells": 192,
+    "dimensions": [
+      8,
+      8,
+      3
+    ],
+    "producer_count": 2,
+    "water_injector_count": 1,
+    "injection_depths_m": [
+      10,
+      35,
+      75
+    ],
+    "injection_bhp_reference_depth_m": 40,
+    "layer_thicknesses_m": [
+      20,
+      30,
+      50
+    ]
+  },
+  "monthly_material_equipment_control_audits_passed": true,
+  "monthly_strict_time_refinement": {
+    "accepted": false,
+    "errors": {
+      "pressure_pa": 1244.5961380894296,
+      "s_w": 7.88706538518702e-05,
+      "s_g": 0.0003052102355278405,
+      "bhp_pa": 1085.8872802443802,
+      "component_rate_scaled": 0.0038725795027505605,
+      "cumulative_transfer_mass_relative": 0.003340214797492731,
+      "cumulative_drive_energy_relative": 0.0007443085455395734
+    },
+    "budgets": {
+      "pressure_pa": 1000,
+      "s_w": 0.0002,
+      "s_g": 0.0002,
+      "bhp_pa": 100,
+      "component_rate_scaled": 0.002,
+      "cumulative_transfer_mass_relative": 0.002,
+      "cumulative_drive_energy_relative": 0.002
+    },
+    "mode_mismatches": 0,
+    "report_dates": 60,
+    "days": 30.0,
+    "accepted_stages": [
+      122,
+      242
+    ],
+    "scope": "Matched report fields, actual well rates/BHP and external product integrals; refinement, not experimental truth or a global dispatch optimum."
+  },
+  "monthly_perforation_refinement": {
+    "accepted": false,
+    "errors": {
+      "connected_pressure_pa": 252.4199027554132,
+      "component_rate_scaled": 0.0034001604211487944,
+      "valve_state_mismatches": 0
+    },
+    "budgets": {
+      "connected_pressure_pa": 100,
+      "component_rate_scaled": 0.002,
+      "valve_state_mismatches": 0
+    },
+    "report_dates": 60,
+    "scope": "Actual individual completion pressures/fluxes/valves at common report dates; isolated pressure gauges excluded."
+  },
+  "one_day_strict_time_refinement": {
+    "accepted": true,
+    "errors": {
+      "pressure_pa": 13.559376327320933,
+      "s_w": 5.908222759698489e-06,
+      "s_g": 2.1434181103341388e-05,
+      "bhp_pa": 73.09604067029431,
+      "component_rate_scaled": 0.00019716178779417734,
+      "cumulative_transfer_mass_relative": 0.000827673868846605,
+      "cumulative_drive_energy_relative": 4.1493510574927725e-05
+    },
+    "budgets": {
+      "pressure_pa": 1000,
+      "s_w": 0.0002,
+      "s_g": 0.0002,
+      "bhp_pa": 100,
+      "component_rate_scaled": 0.002,
+      "cumulative_transfer_mass_relative": 0.002,
+      "cumulative_drive_energy_relative": 0.002
+    },
+    "mode_mismatches": 0,
+    "report_dates": 2,
+    "days": 1.0,
+    "accepted_stages": [
+      18,
+      34
+    ],
+    "scope": "Matched report fields, actual well rates/BHP and external product integrals; refinement, not experimental truth or a global dispatch optimum."
+  },
+  "one_day_perforation_refinement": {
+    "accepted": true,
+    "errors": {
+      "connected_pressure_pa": 5.365642717573792,
+      "component_rate_scaled": 0.0001683347837067737,
+      "valve_state_mismatches": 0
+    },
+    "budgets": {
+      "connected_pressure_pa": 100,
+      "component_rate_scaled": 0.002,
+      "valve_state_mismatches": 0
+    },
+    "report_dates": 2,
+    "scope": "Actual individual completion pressures/fluxes/valves at common report dates; isolated pressure gauges excluded."
+  },
+  "runs": {
+    "coarse": {
+      "audit": {
+        "accepted": true,
+        "days": 30.0,
+        "accepted_stages": 122,
+        "operating_events": 7,
+        "external_in_kg": [
+          0.0,
+          120954.8010705987,
+          0.0
+        ],
+        "external_out_kg": [
+          369844.2576371086,
+          6989.140595553746,
+          42687.91559069303
+        ],
+        "residual_kg": [
+          6.352609489113092e-06,
+          2.5661359359219205e-05,
+          -1.263593730982393e-06
+        ],
+        "maximum_stage_component_residual_kg": 1.5348196029663086e-05,
+        "scope": "Independent accepted-clock, stock-mass, water-resource and control audit.\n\nHydraulic closure is checked by derivative tests and existing equipment-law\nregressions. This accounting audit is not experimental physical validation.\n"
+      },
+      "solve_wall_s": 312.9542502649999,
+      "execution": {
+        "reservoir_device": "cpu",
+        "injection_tangents": "Torch float64",
+        "injection_equipment_properties": "host scalar laws",
+        "production_facility": "existing host model",
+        "torch_threads": 1
+      },
+      "trajectory_sha256": "cca66fb72b7dda3164ee74ba38eb0585376aeeb05a11840e6dfac2cca818a514"
+    },
+    "reference": {
+      "audit": {
+        "accepted": true,
+        "days": 30.0,
+        "accepted_stages": 242,
+        "operating_events": 7,
+        "external_in_kg": [
+          0.0,
+          120954.56889847064,
+          0.0
+        ],
+        "external_out_kg": [
+          369803.1784082863,
+          7005.685897533112,
+          42705.27798451538
+        ],
+        "residual_kg": [
+          -0.00021629664115607738,
+          0.0005981286230962723,
+          -1.2305179552640766e-05
+        ],
+        "maximum_stage_component_residual_kg": 4.175305366516113e-05,
+        "scope": "Independent accepted-clock, stock-mass, water-resource and control audit.\n\nHydraulic closure is checked by derivative tests and existing equipment-law\nregressions. This accounting audit is not experimental physical validation.\n"
+      },
+      "solve_wall_s": 586.8781533599999,
+      "execution": {
+        "reservoir_device": "cpu",
+        "injection_tangents": "Torch float64",
+        "injection_equipment_properties": "host scalar laws",
+        "production_facility": "existing host model",
+        "torch_threads": 1
+      },
+      "trajectory_sha256": "7cb83a3dec9e752c3328a8949fee07e24e17abbeffec09b56a66878d4cfe53e5"
+    },
+    "fine_day": {
+      "audit": {
+        "accepted": true,
+        "days": 1.0,
+        "accepted_stages": 18,
+        "operating_events": 0,
+        "external_in_kg": [
+          0.0,
+          4319.822104222639,
+          0.0
+        ],
+        "external_out_kg": [
+          15988.880254341522,
+          0.0,
+          1247.842500056848
+        ],
+        "residual_kg": [
+          -7.28759914636612e-08,
+          3.674626350402832e-05,
+          -7.80075879447395e-08
+        ],
+        "maximum_stage_component_residual_kg": 2.8014183044433594e-06,
+        "scope": "Independent accepted-clock, stock-mass, water-resource and control audit.\n\nHydraulic closure is checked by derivative tests and existing equipment-law\nregressions. This accounting audit is not experimental physical validation.\n"
+      },
+      "solve_wall_s": 40.85279394899999,
+      "execution": {
+        "reservoir_device": "cpu",
+        "injection_tangents": "Torch float64",
+        "injection_equipment_properties": "host scalar laws",
+        "production_facility": "existing host model",
+        "torch_threads": 1
+      },
+      "trajectory_sha256": "9a73e61a9b0542002268fe351b95ce19d0be77665a87eaca0600e044337d75de"
+    },
+    "finest_day": {
+      "audit": {
+        "accepted": true,
+        "days": 1.0,
+        "accepted_stages": 34,
+        "operating_events": 0,
+        "external_in_kg": [
+          0.0,
+          4319.851448558213,
+          0.0
+        ],
+        "external_out_kg": [
+          16001.657809094631,
+          0.0,
+          1247.0692365637353
+        ],
+        "residual_kg": [
+          -4.574030754156411e-08,
+          5.990266799926758e-06,
+          -1.32552031573141e-08
+        ],
+        "maximum_stage_component_residual_kg": 8.940696716308594e-07,
+        "scope": "Independent accepted-clock, stock-mass, water-resource and control audit.\n\nHydraulic closure is checked by derivative tests and existing equipment-law\nregressions. This accounting audit is not experimental physical validation.\n"
+      },
+      "solve_wall_s": 74.46103632400036,
+      "execution": {
+        "reservoir_device": "cpu",
+        "injection_tangents": "Torch float64",
+        "injection_equipment_properties": "host scalar laws",
+        "production_facility": "existing host model",
+        "torch_threads": 1
+      },
+      "trajectory_sha256": "b5cee381cf1542d70bfabe4ef86cb7a3dcdf41884804696dc7eab2b806034856"
+    }
+  },
+  "monthly_water_volumes_stock_m3": {
+    "produced": 181.66540489522842,
+    "injected": 295.63106537027335,
+    "recycled": 174.6762642996747,
+    "makeup": 120.95480107059869,
+    "disposed": 6.989140595553746
+  },
+  "monthly_newton_iterations_histogram": {
+    "3": 117,
+    "2": 4,
+    "5": 1
+  },
+  "limitations": [
+    "Pure incompressible water Bw=1 and explicit nonreturn completions.",
+    "Standard hydrostatic column; no distributed wellbore friction, storage or acceleration.",
+    "Connected liquid-column vapor-pressure violation is rejected; vapor formation is not solved.",
+    "Producer multi-depth restriction remains; no bare-completion reverse oil/gas flow, MSW or VFP added.",
+    "Directed injection tree, common PVT, ideal treated-water handoff without storage or thermal dynamics.",
+    "No experimental calibration or long-term field-history validation.",
+    "Monthly 6/3-hour pair fails strict time accuracy; one-day refined acceptance must not be generalized to the month.",
+    "CPU one thread per run on a partly concurrent shared host; wall times are not performance benchmarks."
+  ],
+  "next_required_work": "Reuse/extend the existing verified temporal-error control for the mixed driver; then requalify the complete monthly event study before long-term mixed forecasts."
+}

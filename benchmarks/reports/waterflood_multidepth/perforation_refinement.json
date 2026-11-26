@@ -1,0 +1,15 @@
+{
+  "accepted": false,
+  "errors": {
+    "connected_pressure_pa": 252.4199027554132,
+    "component_rate_scaled": 0.0034001604211487944,
+    "valve_state_mismatches": 0
+  },
+  "budgets": {
+    "connected_pressure_pa": 100,
+    "component_rate_scaled": 0.002,
+    "valve_state_mismatches": 0
+  },
+  "report_dates": 60,
+  "scope": "Actual individual completion pressures/fluxes/valves at common report dates; isolated pressure gauges excluded."
+}

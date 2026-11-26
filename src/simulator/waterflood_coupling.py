@@ -9,6 +9,7 @@ import math
 from copy import copy, deepcopy
 
 import numpy as np
+import torch
 
 try:
     from ..surface import ComponentStream, SurfaceFacility
@@ -29,6 +30,7 @@ except ImportError:
         Pump,
     )
 
+from .facility_temporal_control import FacilityTemporalControl, temporal_step
 from .fim_transaction import _StepState
 from .mixed_surface_wells import MixedSurfaceBlackOilWells
 
@@ -43,6 +45,8 @@ class WaterfloodCoupledFIM:
             "min_production_fraction",
             "max_evaluations",
             "max_total_drive_power_w",
+            "temporal_control",
+            "dispatch_solver",
         }:
             raise ValueError("Unknown coupled_waterflood fields")
         if not isinstance(solver.wells, MixedSurfaceBlackOilWells):
@@ -61,6 +65,11 @@ class WaterfloodCoupledFIM:
         self.min_production = spec.get("min_production_fraction", 1e-6)
         self.maximum_evaluations = spec.get("max_evaluations", 90)
         self.max_power = spec.get("max_total_drive_power_w", math.inf)
+        try:
+            from ..surface.waterflood_search import WaterfloodDispatchControl
+        except ImportError:
+            from surface.waterflood_search import WaterfloodDispatchControl
+        self.dispatch = WaterfloodDispatchControl(**spec.get("dispatch_solver", {}))
         if (
             any(
                 isinstance(v, bool) or not math.isfinite(v)
@@ -122,6 +131,123 @@ class WaterfloodCoupledFIM:
         }
         self.report = None
         self.last_attempt = None
+        self.accepted_stages = ()
+        options = spec.get("temporal_control")
+        self.temporal_control = None
+        if options is not None:
+            options = dict(options)
+            if "solution_ratio_tolerance" in options:
+                raise ValueError("Use component inventory tolerances across phase changes, not solution ratios")
+            self.component_rtol = options.pop("component_relative_tolerance", 1e-3)
+            self.component_atol = options.pop("component_absolute_tolerance_kg", 1e-6)
+            self.energy_rtol = options.pop("drive_energy_relative_tolerance", .002)
+            self.energy_atol = options.pop("drive_energy_absolute_tolerance_j", 1.0)
+            for value in [self.component_rtol, self.component_atol, self.energy_rtol, self.energy_atol]:
+                if isinstance(value, bool) or not math.isfinite(value) or value <= 0:
+                    raise ValueError("Positive finite waterflood temporal tolerances required")
+            if self.component_rtol >= 1 or self.energy_rtol >= 1:
+                raise ValueError("Relative temporal tolerances must be below one")
+            self.temporal_control = FacilityTemporalControl(**options)
+            if self.temporal_control.withdrawal_error_scale != "increment":
+                raise ValueError("Waterflood temporal control requires increment scaling")
+            bhp = self.temporal_control.well_bhp_tolerance_pa
+            if bhp is not None and self.bhp_tolerance > .1 * bhp:
+                raise ValueError("Dispatch BHP resolution must be <= one tenth of temporal BHP tolerance")
+
+    def limit_initial_time_step_s(self, proposed_s, *, clipped=False):
+        return self._limit_time_step_s(proposed_s, clipped=clipped)
+
+    @property
+    def limit_next_time_step_s(self):
+        return self._limit_time_step_s if self.temporal_control is not None else None
+
+    def _limit_time_step_s(self, proposed_s, *, clipped=False):
+        if self.temporal_control is None:
+            return proposed_s
+        row = (self.report or {}).get("temporal_control") if (
+            self.report is not None and self.report["operator_controls"] == self.controls
+        ) else None
+        return self.temporal_control.limit(
+            proposed_s, None if row is None else row["macro_dt_s"],
+            None if row is None else row["indicator"], clipped=clipped,
+        )
+
+    def limit_rejected_time_step_s(self, proposed_s, *, failed_dt_s):
+        errors = (self.last_attempt or {}).get("temporal_errors")
+        if self.temporal_control is None or not errors:
+            return proposed_s
+        return self.temporal_control.rejected_step(proposed_s, failed_dt_s, max(errors.values()))
+
+    @staticmethod
+    def _temporal_fields(solver):
+        f = solver.fluid
+        return {
+            "pressure": f.pressure.detach().clone(),
+            "s_w": f.s_w.detach().clone(),
+            "s_g": f.s_g.detach().clone(),
+            "component_mass": solver.masses(
+                f.pressure.flatten(), f.s_w.flatten(), solver.x, solver.sat, solver.ug
+            ).detach().clone(),
+        }
+
+    @staticmethod
+    def _temporal_stage(coupled, duration, end):
+        surface = deepcopy(coupled.solver.wells.surface_report)
+        # Preserve well AND component identity. Production must not cancel
+        # injection when estimating time integration of the internal recycle.
+        rates = torch.tensor([
+            row["component_mass_rates_kg_s"] for row in surface["wells"].values()
+        ], dtype=torch.float64)
+        return {
+            "time_days": end / 86400, "dt_s": duration,
+            "withdrawn_component_mass_kg": (duration * rates).tolist(),
+            "newton_iterations": coupled.solver.last_newton_iters,
+            "surface": surface, "facility_coupling": deepcopy(coupled.report),
+            "well_order": list(surface["wells"]),
+        }
+
+    @staticmethod
+    def _transfers(stage):
+        r = stage["facility_coupling"]
+        account = r["material_account"]
+        return torch.tensor(
+            account["external_in_kg"] + account["external_out_kg"]
+            + [r["water_rates_kg_s"][name] * stage["dt_s"]
+               for name in ["produced", "injected", "recycled", "makeup", "disposed"]],
+            dtype=torch.float64,
+        )
+
+    def _temporal_defect(self, coarse_fields, fine_fields, coarse, first, second):
+        policy = self.temporal_control
+        cm = torch.tensor(coarse["withdrawn_component_mass_kg"], dtype=torch.float64)
+        fm = (torch.tensor(first["withdrawn_component_mass_kg"], dtype=torch.float64)
+              + torch.tensor(second["withdrawn_component_mass_kg"], dtype=torch.float64))
+        errors = policy.defect(coarse_fields, fine_fields, cm, fm)
+        c, f = coarse_fields["component_mass"], fine_fields["component_mass"]
+        scale = self.component_atol + self.component_rtol * torch.maximum(c.abs(), f.abs())
+        errors["component_inventory"] = float(((c - f).abs() / scale).max().cpu())
+        ct, ft = self._transfers(coarse), self._transfers(first) + self._transfers(second)
+        scale = policy.withdrawal_absolute_tolerance_kg + policy.withdrawal_relative_tolerance * torch.maximum(ct.abs(), ft.abs())
+        errors["resource_transfers"] = float(((ct - ft).abs() / scale).max())
+        ce = coarse["facility_coupling"]["total_drive_power_w"] * coarse["dt_s"]
+        fe = sum(stage["facility_coupling"]["total_drive_power_w"] * stage["dt_s"] for stage in [first, second])
+        errors["drive_energy"] = abs(ce - fe) / (self.energy_atol + self.energy_rtol * max(abs(ce), abs(fe)))
+        def bhp(stage):
+            return {name: row["bhp_pa"] for name, row in stage["surface"]["wells"].items()
+                    if row.get("bhp_status") != "isolated_gauge"}
+        errors.update(policy.well_defect(bhp(coarse), bhp(second)))
+        if any(not math.isfinite(v) for v in errors.values()):
+            raise HydraulicConvergenceError("Nonfinite waterflood temporal defect")
+        probe = {
+            "well_order": coarse["well_order"],
+            "coarse_well_withdrawal_kg": cm.tolist(),
+            "coarse_transfers_kg": ct.tolist(),
+            "coarse_drive_energy_j": ce,
+            "coarse_well_bhp_pa": bhp(coarse),
+        }
+        second["facility_coupling"]["temporal_probe"] = probe
+        self.report["temporal_probe"] = probe
+        return errors
 
     def set_controls(self, **controls):
         if set(controls) - set(self.controls):
@@ -166,6 +292,33 @@ class WaterfloodCoupledFIM:
         )
 
     def step(self, dt, current_time=None):
+        self.accepted_stages = ()
+        if self.temporal_control is not None:
+            s = self.solver
+            settings = {name: getattr(s, name) for name in (
+                "tol_cnv", "tol_mb", "min_newton", "lin_tol_max", "lin_tol_min",
+                "lin_accept", "relaxed_max_pv_fraction", "tol_well_bhp",
+            )}
+            s.tol_cnv = min(s.tol_cnv, .1 * self.temporal_control.saturation_tolerance,
+                            .1 * self.component_rtol)
+            s.tol_mb = min(s.tol_mb, 1e-8)
+            s.min_newton = max(s.min_newton, 1)
+            s.lin_tol_max, s.lin_tol_min = min(s.lin_tol_max, 1e-8), min(s.lin_tol_min, 1e-9)
+            s.lin_accept = min(s.lin_accept, 1e-7)
+            s.relaxed_max_pv_fraction = 0.
+            if self.temporal_control.well_bhp_tolerance_pa is not None:
+                s.tol_well_bhp = min(s.tol_well_bhp, .1 * self.temporal_control.well_bhp_tolerance_pa)
+            try:
+                return temporal_step(
+                    self, dt, current_time, stage_factory=self._temporal_stage,
+                    field_factory=self._temporal_fields, defect_evaluator=self._temporal_defect,
+                )
+            finally:
+                for name, value in settings.items():
+                    setattr(s, name, value)
+        return self._step_once(dt, current_time)
+
+    def _step_once(self, dt, current_time=None):
         if isinstance(dt, bool) or not math.isfinite(dt) or dt <= 0:
             raise ValueError("Positive finite waterflood dt required")
         s = self.solver
@@ -185,18 +338,37 @@ class WaterfloodCoupledFIM:
             )
         before = self._inventory()
         trace = []
+        reservoir_evaluations = 0
+        selected_state = None
+        from .fim_initial_cell_cache import InitialCellStateCache
+        try:
+            from ..surface.capacity_bracket import facility_constraint_margins
+            from ..surface.waterflood_search import pressure_span, resolve_boundary
+        except ImportError:
+            from surface.capacity_bracket import facility_constraint_margins
+            from surface.waterflood_search import pressure_span, resolve_boundary
+        cells = InitialCellStateCache(
+            s, dt, current_time, self.dispatch.initial_cell_state_cache_bytes
+        ) if self.dispatch.reuse_initial_cell_state else None
+        water_scale = max(sum(caps[i] for i in w.injection_well_indices)
+                          * self.facility.densities.water_kg_m3 / 86400, 1e-8)
         success = False
         w.injection.enabled = self.controls["injection_enabled"]
         w.injection.speed_ratios = dict(self.controls["pump_speed_ratios"])
         w.injection.allow_infeasible_trial = True
 
         def trial(pfrac, ifrac):
+            nonlocal reservoir_evaluations, selected_state
             if len(trace) >= self.maximum_evaluations:
                 raise HydraulicConvergenceError("Waterflood dispatch evaluation budget exhausted")
             initial.restore(reusable=True)
             for i, well in enumerate(w.wells):
                 well.control_value = caps[i] * (pfrac if well.type == "producer" else ifrac)
-            if not s.step(dt, current_time=current_time):
+            reservoir_evaluations += 1
+            from contextlib import nullcontext
+            with cells.installed() if cells is not None else nullcontext():
+                converged = s.step(dt, current_time=current_time)
+            if not converged:
                 raise HydraulicConvergenceError("FIM failed inside waterflood trial")
             pressures = {
                 name: row["bhp_pa"]
@@ -216,15 +388,22 @@ class WaterfloodCoupledFIM:
             except PropertyModelError:
                 raise
             except EquipmentOperatingError as error:
+                try:
+                    from ..surface.gas_valve import GasValveCapacityError
+                except ImportError:
+                    from surface.gas_valve import GasValveCapacityError
+                margins = ({"facility:gas_export.valve": error.normalized_margin}
+                           if isinstance(error, GasValveCapacityError) else {})
                 trace.append(
                     {
                         "production_fraction": pfrac,
                         "injection_fraction": ifrac,
                         "feasible": False,
                         "reason": str(error),
+                        "constraint_margins": margins,
                     }
                 )
-                return False, {"well_bhp_pa": pressures}
+                return False, {"well_bhp_pa": pressures, "constraint_margins": margins}
             injection = w.injection.injection_report
             available = ComponentStream(**result["products"]["water"]).mass_rates(
                 self.facility.densities
@@ -258,6 +437,19 @@ class WaterfloodCoupledFIM:
                 },
                 "total_drive_power_w": power,
             }
+            margins = {"facility:" + key: value for key, value in facility_constraint_margins(result).items()}
+            if self.controls["injection_enabled"]:
+                margins.update({"injection:" + key: value for key, value in injection.get("constraint_margins", {}).items()})
+            margins["water_resource"] = (
+                injected - produced - self.controls["makeup_water_max_kg_s"] - 1e-12
+            ) / water_scale
+            if math.isfinite(self.max_power):
+                margins["shared_drive_power"] = (power - self.max_power) / self.max_power
+            # An infeasible opaque equipment state must not borrow the sign
+            # of unrelated feasible facets for a capacity proposal.
+            if not feasible and max((v for v in margins.values() if v is not None), default=-1) <= 0:
+                margins = {}
+            data["constraint_margins"] = margins
             trace.append(
                 {
                     "production_fraction": pfrac,
@@ -267,15 +459,15 @@ class WaterfloodCoupledFIM:
                     "total_drive_power_w": power,
                     "facility_violations": result["violations"],
                     "injection_violations": injection["violations"],
+                    "constraint_margins": margins,
                 }
             )
+            if feasible and self.dispatch.commit == "state_restore":
+                selected_state = (
+                    (pfrac, ifrac), _StepState(s), data, len(trace) - 1,
+                    getattr(getattr(s, "debug", None), "step_rec", None),
+                )
             return bool(feasible), data
-
-        def pressure_span(a, b):
-            left, right = a["well_bhp_pa"], b["well_bhp_pa"]
-            return max(
-                (abs(left[name] - right[name]) for name in left.keys() & right.keys()), default=0.0
-            )
 
         def bracket(low, high, a, b):
             return {
@@ -297,18 +489,10 @@ class WaterfloodCoupledFIM:
                     raise HydraulicConvergenceError(
                         "No feasible production anchor for waterflood dispatch"
                     )
-                low, high = self.min_production, 1.0
-                high_data = full_data
-                while (
-                    high - low > self.tolerance
-                    or pressure_span(low_data, high_data) > self.bhp_tolerance
-                ):
-                    middle = (low + high) / 2
-                    feasible, middle_data = trial(middle, 0.0)
-                    if feasible:
-                        low, low_data = middle, middle_data
-                    else:
-                        high, high_data = middle, middle_data
+                low, high, low_data, high_data = resolve_boundary(
+                    lambda point: trial(point, 0.), self.min_production, 1., low_data,
+                    full_data, self.tolerance, self.bhp_tolerance, self.dispatch.method,
+                )
                 pfrac = low
                 data = low_data
                 production_bracket = bracket(low, high, low_data, high_data)
@@ -323,23 +507,25 @@ class WaterfloodCoupledFIM:
                     ifrac = 1.0
                     injection_bracket = bracket(1.0, 1.0, data, data)
                 else:
-                    low, high = 0.0, 1.0
-                    low_data, high_data = injection_anchor, data
-                    while (
-                        high - low > self.tolerance
-                        or pressure_span(low_data, high_data) > self.bhp_tolerance
-                    ):
-                        middle = (low + high) / 2
-                        feasible, middle_data = trial(pfrac, middle)
-                        if feasible:
-                            low, low_data = middle, middle_data
-                        else:
-                            high, high_data = middle, middle_data
+                    low, high, low_data, high_data = resolve_boundary(
+                        lambda point: trial(pfrac, point), 0., 1., injection_anchor,
+                        data, self.tolerance, self.bhp_tolerance, self.dispatch.method,
+                    )
                     ifrac = low
                     injection_bracket = bracket(low, high, low_data, high_data)
-            feasible, data = trial(pfrac, ifrac)
-            if not feasible:
-                raise HydraulicConvergenceError("Final waterflood dispatch failed certification")
+            if self.dispatch.commit == "state_restore":
+                if selected_state is None or selected_state[0] != (pfrac, ifrac):
+                    raise RuntimeError("Missing solved state for selected waterflood controls")
+                selected_state[1].restore()
+                data = selected_state[2]
+                if getattr(s, "debug", None) is not None:
+                    s.debug.step_rec = selected_state[4]
+                commit = {"method": "state_restore", "solved_trace_index": selected_state[3]}
+            else:
+                feasible, data = trial(pfrac, ifrac)
+                if not feasible:
+                    raise HydraulicConvergenceError("Final waterflood dispatch failed certification")
+                commit = {"method": "replay", "solved_trace_index": len(trace) - 1}
             after = self._inventory()
             products = {
                 name: ComponentStream(**stream).mass_rates(self.facility.densities)
@@ -362,7 +548,7 @@ class WaterfloodCoupledFIM:
                     "Accepted waterflood step violates external component accounting"
                 )
             report = {
-                "model": "coupled_waterflood_v1",
+                "model": "coupled_waterflood_v2",
                 "dt_s": dt,
                 "production_fraction": pfrac,
                 "injection_fraction": ifrac,
@@ -375,6 +561,8 @@ class WaterfloodCoupledFIM:
                 },
                 "operator_controls": deepcopy(self.controls),
                 "trace": trace,
+                "dispatch_commit": commit,
+                "reservoir_evaluations": reservoir_evaluations,
                 **data,
                 "material_account": {
                     "component_order": ["oil", "water", "gas"],
@@ -387,6 +575,8 @@ class WaterfloodCoupledFIM:
                 },
                 "scope": "Isothermal black-oil, producer tree, ideal separation/treated-water manifold, external makeup at handoff pressure, incompressible-water injection tree. No surface storage/thermal reservoir, experimental calibration or global dispatch optimum.",
             }
+            if cells is not None:
+                report["initial_cell_state_cache"] = cells.report()
             if (
                 abs(water["produced"] + water["makeup"] - water["injected"] - water["disposed"])
                 > 1e-10
@@ -407,6 +597,8 @@ class WaterfloodCoupledFIM:
             }
             raise
         finally:
+            if self.last_attempt is not None:
+                self.last_attempt["reservoir_evaluations"] = reservoir_evaluations
             if not success:
                 initial.restore()
                 self.report = previous

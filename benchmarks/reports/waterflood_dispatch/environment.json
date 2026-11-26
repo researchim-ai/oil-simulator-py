@@ -1,0 +1,11 @@
+{
+  "python": "3.12.9",
+  "machine": "x86_64",
+  "torch": "2.7.0+cu126",
+  "numpy": "2.2.6",
+  "scipy": "1.15.2",
+  "reservoir_device": "cpu",
+  "torch_threads_per_run": 1,
+  "concurrency": "month initially overlaps the regression, day and short studies; opposite-order pairs run sequentially while the month continues",
+  "performance_scope": "wall times are not clean performance or GPU benchmarks"
+}

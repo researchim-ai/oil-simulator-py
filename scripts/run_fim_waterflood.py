@@ -61,15 +61,25 @@ def run(config, days, report_days, events=(), device="cpu", progress=None, save_
         initial = driver._inventory()
 
         def accepted(time_days):
-            stage = {
+            fine_stages = getattr(driver, "accepted_stages", ())
+            stages = [
+                {
+                    "time_days": item["time_days"],
+                    "newton_iterations": item["newton_iterations"],
+                    "coupling": copy.deepcopy(item["facility_coupling"]),
+                    "surface": copy.deepcopy(item["surface"]),
+                }
+                for item in fine_stages
+            ] if fine_stages else [{
                 "time_days": time_days,
                 "newton_iterations": sim.fim_solver.last_newton_iters,
                 "coupling": copy.deepcopy(driver.report),
                 "surface": copy.deepcopy(sim.fim_solver.wells.surface_report),
-            }
-            records.append(stage)
-            if progress is not None:
-                progress(stage, time.perf_counter() - started)
+            }]
+            for stage in stages:
+                records.append(stage)
+                if progress is not None:
+                    progress(stage, time.perf_counter() - started)
 
         sim.substep_hook = accepted
         index = 0
@@ -116,6 +126,7 @@ def run(config, days, report_days, events=(), device="cpu", progress=None, save_
             "torch_threads": torch.get_num_threads(),
         },
         "solver_log": log.getvalue(),
+        "temporal_work": copy.deepcopy(getattr(driver, "temporal_work", {})),
     }
 
 

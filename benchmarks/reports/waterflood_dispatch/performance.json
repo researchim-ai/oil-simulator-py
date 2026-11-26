@@ -1,0 +1,14 @@
+{
+  "month_baseline_wall_s": 2434.4809782970005,
+  "month_fast_wall_s": 432.38359648000005,
+  "month_observed_speedup": 5.6303731180274035,
+  "old_fim_calls": 25548,
+  "new_fim_calls": 4384,
+  "fim_call_reduction_factor": 5.827554744525547,
+  "matched_opposite_order_speedups": [
+    5.337171545358859,
+    5.501892249498488
+  ],
+  "matched_speedup_median": 5.419531897428674,
+  "scope": "CPU, one thread per process, shared host. Matched short same-code pairs supplement the archived cross-version month comparison; observed wall ratios are not clean-device or GPU guarantees."
+}

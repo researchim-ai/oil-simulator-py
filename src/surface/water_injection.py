@@ -69,6 +69,7 @@ class WaterInjectionTree:
             raise ValueError("Disconnected injection tree")
         self.paths = paths
         self.leaves = tuple(n for n in queue if not self.children[n])
+        self._path_matrices = {}
         if not self.leaves or self.root in self.leaves:
             raise ValueError("Injection tree needs delivery leaves")
 
@@ -82,17 +83,24 @@ class WaterInjectionTree:
         if any(not math.isfinite(q) or q < -1e-10 for q in mass_rates.values()):
             raise PropertyModelError("Injection tree does not admit reverse well flow")
         rho = self.fluid.density_kg_m3
-        paths = torch.tensor(
-            [[float(e in self.paths[n]) for e in range(len(self.order))] for n in self.leaves],
-            dtype=torch.float64,
-            device=device,
-        )
+        dev = torch.device(device)
+        if dev.type == "cuda" and dev.index is None:
+            dev = torch.device("cuda", torch.cuda.current_device())
+        paths = self._path_matrices.get(dev)
+        if paths is None:
+            paths = torch.tensor(
+                [[float(e in self.paths[n]) for e in range(len(self.order))] for n in self.leaves],
+                dtype=torch.float64, device=dev,
+            )
+            self._path_matrices[dev] = paths
         rates = torch.tensor(
-            [mass_rates[n] for n in self.leaves], dtype=torch.float64, device=device
+            [mass_rates[n] for n in self.leaves], dtype=torch.float64, device=dev
         )
         flows = (paths.T @ rates / rho).detach().cpu().tolist()
         pressure = {self.root: self.by_name[self.root].pressure_pa}
         losses, slopes, branches, violations = [], [], {}, []
+        margins = {}
+        pressure_scale = max(pressure[self.root], 1e5)
         shaft = 0.0
         for branch, q in zip(self.order, flows):
             if isinstance(branch, Pump):
@@ -121,9 +129,31 @@ class WaterInjectionTree:
                     # A finite extrapolated trial curve is allowed in Newton;
                     # the dispatch must reject it before accepting the FIM step.
                     violations.append({"equipment": branch.name, "reason": str(error)})
+                # Signed proposal facets do not alter operating_state or its
+                # admissible maps. Out-of-domain properties stay opaque and
+                # force the caller's safeguarded fallback.
+                margins[f"pump:{branch.name}:flow"] = q / (branch.speed_ratio * branch.max_flow_m3_s) - 1
+                try:
+                    power_value = item.get("shaft_power_w")
+                    if power_value is None:
+                        power_value = -q * loss / branch.efficiency_at(q)
+                    if branch.max_shaft_power_w is not None:
+                        margins[f"pump:{branch.name}:power"] = power_value / branch.max_shaft_power_w - 1
+                    required = branch.required_npsh_at(q)
+                    if required is not None:
+                        available = item.get("npsh_available_m")
+                        if available is None:
+                            velocity = q / (math.pi * branch.inlet_diameter_m**2 / 4)
+                            available = (pressure[branch.start] - self.fluid.vapor_pressure_pa) / (rho * G) + velocity**2 / (2 * G)
+                        margins[f"pump:{branch.name}:npsh"] = (required - available) / max(required, 1.)
+                except ValueError:
+                    margins[f"pump:{branch.name}:map_domain"] = None
             if pressure[branch.end] < self.fluid.vapor_pressure_pa:
                 violations.append({"node": branch.end, "reason": "below water vapor pressure"})
             branches[branch.name] = item
+            margins[f"node:{branch.end}:vapor_pressure"] = (
+                self.fluid.vapor_pressure_pa - pressure[branch.end]
+            ) / pressure_scale
         tangent = -(paths * rates.new_tensor(slopes)[None, :]) @ paths.T / rho
         return {
             "model": "incompressible_water_injection_tree_v1",
@@ -135,5 +165,6 @@ class WaterInjectionTree:
             "shaft_power_w": shaft,
             "feasible": not violations,
             "violations": violations,
+            "constraint_margins": margins,
             "scope": "Quasi-steady water tree, prescribed source pressure, no surface storage, slip, thermal equation or calibrated equipment claim",
         }

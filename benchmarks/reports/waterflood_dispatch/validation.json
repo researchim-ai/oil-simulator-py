@@ -1,0 +1,699 @@
+{
+  "accepted": true,
+  "scope": "Execution reduction for the same 192-cell, 30-day, seven-event mixed waterflood model and strict time policy. Numerical agreement, material/equipment/control audits and inherited temporal-quality budgets pass; not external physical calibration or commercial-simulator speed parity.",
+  "performance": {
+    "month_baseline_wall_s": 2434.4809782970005,
+    "month_fast_wall_s": 432.38359648000005,
+    "month_observed_speedup": 5.6303731180274035,
+    "old_fim_calls": 25548,
+    "new_fim_calls": 4384,
+    "fim_call_reduction_factor": 5.827554744525547,
+    "matched_opposite_order_speedups": [
+      5.337171545358859,
+      5.501892249498488
+    ],
+    "matched_speedup_median": 5.419531897428674,
+    "scope": "CPU, one thread per process, shared host. Matched short same-code pairs supplement the archived cross-version month comparison; observed wall ratios are not clean-device or GPU guarantees."
+  },
+  "gates": {
+    "short_execution.json": {
+      "accepted": true,
+      "errors": {
+        "pressure_pa": 6.330665200948715e-06,
+        "s_w": 3.204381204824358e-12,
+        "s_g": 3.279022886548688e-12,
+        "bhp_pa": 0.003057973925024271,
+        "component_rate_scaled": 1.6769369578268395e-08,
+        "cumulative_transfer_mass_relative": 4.832174456955771e-08,
+        "cumulative_drive_energy_relative": 4.0377923815227525e-09
+      },
+      "budgets": {
+        "pressure_pa": 1.0,
+        "s_w": 1e-07,
+        "s_g": 1e-07,
+        "bhp_pa": 1.0,
+        "component_rate_scaled": 1e-05,
+        "cumulative_transfer_mass_relative": 1e-05,
+        "cumulative_drive_energy_relative": 1e-05
+      },
+      "mode_mismatches": 0,
+      "refinement_axis": "dispatch_execution",
+      "source_versions_identical": true,
+      "source_fingerprints": [
+        "d947443f5abc63bb72f96cc608b6d3a6899c965e9adc5bdc7d6b276245071710",
+        "d947443f5abc63bb72f96cc608b6d3a6899c965e9adc5bdc7d6b276245071710"
+      ],
+      "reference_source_archive_sha256": null,
+      "report_dates": 2,
+      "days": 0.1,
+      "accepted_stages": [
+        4,
+        4
+      ],
+      "scope": "Matched report fields, actual well rates/BHP and external product integrals; refinement, not experimental truth or a global dispatch optimum."
+    },
+    "day_execution.json": {
+      "accepted": true,
+      "errors": {
+        "pressure_pa": 5.7194847613573074e-05,
+        "s_w": 3.0901003977845676e-11,
+        "s_g": 2.9756037911443656e-11,
+        "bhp_pa": 0.001071298960596323,
+        "component_rate_scaled": 5.555784758231392e-09,
+        "cumulative_transfer_mass_relative": 3.674664131642493e-08,
+        "cumulative_drive_energy_relative": 3.0763631087891063e-09
+      },
+      "budgets": {
+        "pressure_pa": 1.0,
+        "s_w": 1e-07,
+        "s_g": 1e-07,
+        "bhp_pa": 1.0,
+        "component_rate_scaled": 1e-05,
+        "cumulative_transfer_mass_relative": 1e-05,
+        "cumulative_drive_energy_relative": 1e-05
+      },
+      "mode_mismatches": 0,
+      "refinement_axis": "dispatch_execution",
+      "source_versions_identical": false,
+      "source_fingerprints": [
+        "d947443f5abc63bb72f96cc608b6d3a6899c965e9adc5bdc7d6b276245071710",
+        "0247f358623146303dc75e07ed264eb54f00c66ddeb8dc32ca6d5a74f4a25405"
+      ],
+      "reference_source_archive_sha256": "efeb5c6b6f761e9ba1288f87140f2e163daeaec80c9453d65d369b1d91145c5e",
+      "report_dates": 2,
+      "days": 1.0,
+      "accepted_stages": [
+        36,
+        36
+      ],
+      "scope": "Matched report fields, actual well rates/BHP and external product integrals; refinement, not experimental truth or a global dispatch optimum."
+    },
+    "month_execution.json": {
+      "accepted": true,
+      "errors": {
+        "pressure_pa": 0.13293347507715225,
+        "s_w": 2.199415055637033e-08,
+        "s_g": 8.117649093891677e-08,
+        "bhp_pa": 0.38166033662855625,
+        "component_rate_scaled": 1.0501152375654244e-06,
+        "cumulative_transfer_mass_relative": 1.9100635600819027e-06,
+        "cumulative_drive_energy_relative": 2.099517118392456e-07
+      },
+      "budgets": {
+        "pressure_pa": 1.0,
+        "s_w": 1e-07,
+        "s_g": 1e-07,
+        "bhp_pa": 1.0,
+        "component_rate_scaled": 1e-05,
+        "cumulative_transfer_mass_relative": 1e-05,
+        "cumulative_drive_energy_relative": 1e-05
+      },
+      "mode_mismatches": 0,
+      "refinement_axis": "dispatch_execution",
+      "source_versions_identical": false,
+      "source_fingerprints": [
+        "d947443f5abc63bb72f96cc608b6d3a6899c965e9adc5bdc7d6b276245071710",
+        "149bdd500b7e20b5297eb4d6950bdb676a1d4c1406c08fd4e2606d650eb93bdc"
+      ],
+      "reference_source_archive_sha256": "420c266cdb3f041d57e68d488ebba7b3d53a8ff261b2fca5666c57ef63e79d38",
+      "report_dates": 60,
+      "days": 30.0,
+      "accepted_stages": [
+        588,
+        588
+      ],
+      "scope": "Matched report fields, actual well rates/BHP and external product integrals; refinement, not experimental truth or a global dispatch optimum."
+    },
+    "completion_execution.json": {
+      "accepted": true,
+      "errors": {
+        "connected_pressure_pa": 0.0912890019826591,
+        "component_rate_scaled": 7.338680406416478e-07,
+        "valve_state_mismatches": 0
+      },
+      "budgets": {
+        "connected_pressure_pa": 1.0,
+        "component_rate_scaled": 1e-05,
+        "valve_state_mismatches": 0
+      },
+      "report_dates": 60,
+      "scope": "Actual completion execution differences against the same archived baseline as month_execution.json; isolated BHP gauges excluded."
+    },
+    "matched_pair_first.json": {
+      "accepted": true,
+      "errors": {
+        "pressure_pa": 6.330665200948715e-06,
+        "s_w": 3.204381204824358e-12,
+        "s_g": 3.279022886548688e-12,
+        "bhp_pa": 0.003057973925024271,
+        "component_rate_scaled": 1.6769369578268395e-08,
+        "cumulative_transfer_mass_relative": 4.832174456955771e-08,
+        "cumulative_drive_energy_relative": 4.0377923815227525e-09
+      },
+      "budgets": {
+        "pressure_pa": 1.0,
+        "s_w": 1e-07,
+        "s_g": 1e-07,
+        "bhp_pa": 1.0,
+        "component_rate_scaled": 1e-05,
+        "cumulative_transfer_mass_relative": 1e-05,
+        "cumulative_drive_energy_relative": 1e-05
+      },
+      "mode_mismatches": 0,
+      "refinement_axis": "dispatch_execution",
+      "source_versions_identical": true,
+      "source_fingerprints": [
+        "d947443f5abc63bb72f96cc608b6d3a6899c965e9adc5bdc7d6b276245071710",
+        "d947443f5abc63bb72f96cc608b6d3a6899c965e9adc5bdc7d6b276245071710"
+      ],
+      "reference_source_archive_sha256": null,
+      "report_dates": 2,
+      "days": 0.1,
+      "accepted_stages": [
+        4,
+        4
+      ],
+      "scope": "Matched report fields, actual well rates/BHP and external product integrals; refinement, not experimental truth or a global dispatch optimum."
+    },
+    "matched_pair_second.json": {
+      "accepted": true,
+      "errors": {
+        "pressure_pa": 6.330665200948715e-06,
+        "s_w": 3.204381204824358e-12,
+        "s_g": 3.279022886548688e-12,
+        "bhp_pa": 0.003057973925024271,
+        "component_rate_scaled": 1.6769369578268395e-08,
+        "cumulative_transfer_mass_relative": 4.832174456955771e-08,
+        "cumulative_drive_energy_relative": 4.0377923815227525e-09
+      },
+      "budgets": {
+        "pressure_pa": 1.0,
+        "s_w": 1e-07,
+        "s_g": 1e-07,
+        "bhp_pa": 1.0,
+        "component_rate_scaled": 1e-05,
+        "cumulative_transfer_mass_relative": 1e-05,
+        "cumulative_drive_energy_relative": 1e-05
+      },
+      "mode_mismatches": 0,
+      "refinement_axis": "dispatch_execution",
+      "source_versions_identical": true,
+      "source_fingerprints": [
+        "d947443f5abc63bb72f96cc608b6d3a6899c965e9adc5bdc7d6b276245071710",
+        "d947443f5abc63bb72f96cc608b6d3a6899c965e9adc5bdc7d6b276245071710"
+      ],
+      "reference_source_archive_sha256": null,
+      "report_dates": 2,
+      "days": 0.1,
+      "accepted_stages": [
+        4,
+        4
+      ],
+      "scope": "Matched report fields, actual well rates/BHP and external product integrals; refinement, not experimental truth or a global dispatch optimum."
+    },
+    "inherited_time_quality.json": {
+      "accepted": true,
+      "upper_error_bounds": {
+        "pressure_pa": 111.05465869093314,
+        "s_w": 5.151536964398407e-06,
+        "s_g": 2.0399446514871022e-05,
+        "bhp_pa": 83.70008860202506,
+        "component_rate_scaled": 0.00024986982411752184,
+        "cumulative_transfer_mass_relative": 0.00026082903040672864,
+        "cumulative_drive_energy_relative": 6.181315604980578e-05
+      },
+      "budgets": {
+        "pressure_pa": 1000,
+        "s_w": 0.0002,
+        "s_g": 0.0002,
+        "bhp_pa": 100,
+        "component_rate_scaled": 0.002,
+        "cumulative_transfer_mass_relative": 0.002,
+        "cumulative_drive_energy_relative": 0.002
+      },
+      "mode_mismatches": 0,
+      "method": "Triangle inequality for absolute errors; e_fast_fine <= e_old_fine + e_fast_old*(1+e_old_fine) for identical floored relative norms. Both comparisons cover the same 60 report dates.",
+      "scope": "Inherited numerical time-refinement certificate using two archived comparisons; not a new independent time-refinement run or an absolute-error guarantee.",
+      "input_sha256": {
+        "benchmarks/reports/waterflood_dispatch/month_execution.json": "bedd95901f101b728747b32b53153d137e5fb2c4ed13098c8948c970390f32da",
+        "benchmarks/reports/waterflood_temporal/refinement.json": "9626c992ab8705bd757ebf3003eb205a91ca8551c755f1baf6e246caaca640d9"
+      }
+    }
+  },
+  "regression": {
+    "passed": 194,
+    "skipped": 6,
+    "warnings": 2,
+    "log": "regression.log",
+    "skip_scope": "CUDA-required checks; all numerical/performance studies here use CPU"
+  },
+  "runs": {
+    "fast_month": {
+      "audit": {
+        "accepted": true,
+        "days": 30.0,
+        "accepted_stages": 588,
+        "operating_events": 7,
+        "external_in_kg": [
+          0.0,
+          120959.99902093843,
+          0.0
+        ],
+        "external_out_kg": [
+          369775.6051800884,
+          7018.858268792655,
+          42716.13647748421
+        ],
+        "residual_kg": [
+          1.3317971024662256e-05,
+          3.6237088352208957e-07,
+          -3.046196070499718e-06
+        ],
+        "maximum_stage_component_residual_kg": 4.289577320903959e-06,
+        "scope": "Independent accepted-clock, stock-mass, water-resource and control audit.\n\nHydraulic closure is checked by derivative tests and existing equipment-law\nregressions. This accounting audit is not experimental physical validation.\n"
+      },
+      "solve_wall_s": 432.38359648000005,
+      "trajectory_sha256": "e5d31c2701feffc99fbeee42b0ca6a9febf04dde1958420308547c2bba24809f",
+      "execution": {
+        "reservoir_device": "cpu",
+        "injection_tangents": "Torch float64",
+        "injection_equipment_properties": "host scalar laws",
+        "production_facility": "existing host model",
+        "torch_threads": 1
+      },
+      "temporal_work": {
+        "macro_attempts": 294,
+        "rejected_macro_steps": 0,
+        "coupled_solves": 882,
+        "capacity_evaluations": 4384,
+        "reservoir_evaluations": 4384,
+        "capacity_amg_work": {
+          "fresh_requests": 0,
+          "reuse_requests": 0,
+          "retries": 0,
+          "builds": 0,
+          "updates": 0,
+          "linear_attempts": 0
+        },
+        "sensitivity_linear_solves": 0,
+        "sensitivity_plant_evaluations": 0
+      }
+    },
+    "fast_day": {
+      "audit": {
+        "accepted": true,
+        "days": 1.0,
+        "accepted_stages": 36,
+        "operating_events": 0,
+        "external_in_kg": [
+          0.0,
+          4319.99999421926,
+          0.0
+        ],
+        "external_out_kg": [
+          16001.860562336715,
+          0.0,
+          1247.0379006370808
+        ],
+        "residual_kg": [
+          -4.199318937025964e-08,
+          2.980232238769531e-07,
+          1.199637154059019e-07
+        ],
+        "maximum_stage_component_residual_kg": 8.940696716308594e-08,
+        "scope": "Independent accepted-clock, stock-mass, water-resource and control audit.\n\nHydraulic closure is checked by derivative tests and existing equipment-law\nregressions. This accounting audit is not experimental physical validation.\n"
+      },
+      "solve_wall_s": 28.974577645001773,
+      "trajectory_sha256": "3e5697290273a3bf7329691f9567a93b7c48d15917ddb403992b809556365cac",
+      "execution": {
+        "reservoir_device": "cpu",
+        "injection_tangents": "Torch float64",
+        "injection_equipment_properties": "host scalar laws",
+        "production_facility": "existing host model",
+        "torch_threads": 1
+      },
+      "temporal_work": {
+        "macro_attempts": 18,
+        "rejected_macro_steps": 0,
+        "coupled_solves": 54,
+        "capacity_evaluations": 270,
+        "reservoir_evaluations": 270,
+        "capacity_amg_work": {
+          "fresh_requests": 0,
+          "reuse_requests": 0,
+          "retries": 0,
+          "builds": 0,
+          "updates": 0,
+          "linear_attempts": 0
+        },
+        "sensitivity_linear_solves": 0,
+        "sensitivity_plant_evaluations": 0
+      }
+    },
+    "fast_short": {
+      "audit": {
+        "accepted": true,
+        "days": 0.1,
+        "accepted_stages": 4,
+        "operating_events": 0,
+        "external_in_kg": [
+          0.0,
+          431.99999964446295,
+          0.0
+        ],
+        "external_out_kg": [
+          1642.345185526306,
+          0.0,
+          122.17902785843738
+        ],
+        "residual_kg": [
+          -3.784361979342066e-08,
+          1.1920928955078125e-07,
+          -3.0411086981985136e-09
+        ],
+        "maximum_stage_component_residual_kg": 8.940696716308594e-08,
+        "scope": "Independent accepted-clock, stock-mass, water-resource and control audit.\n\nHydraulic closure is checked by derivative tests and existing equipment-law\nregressions. This accounting audit is not experimental physical validation.\n"
+      },
+      "solve_wall_s": 3.9886883800008945,
+      "trajectory_sha256": "cff5a178cb8e37aeb427435eba9b874ffb301b10e87dd3e3c6377a3f149fe78d",
+      "execution": {
+        "reservoir_device": "cpu",
+        "injection_tangents": "Torch float64",
+        "injection_equipment_properties": "host scalar laws",
+        "production_facility": "existing host model",
+        "torch_threads": 1
+      },
+      "temporal_work": {
+        "macro_attempts": 2,
+        "rejected_macro_steps": 0,
+        "coupled_solves": 6,
+        "capacity_evaluations": 30,
+        "reservoir_evaluations": 30,
+        "capacity_amg_work": {
+          "fresh_requests": 0,
+          "reuse_requests": 0,
+          "retries": 0,
+          "builds": 0,
+          "updates": 0,
+          "linear_attempts": 0
+        },
+        "sensitivity_linear_solves": 0,
+        "sensitivity_plant_evaluations": 0
+      }
+    },
+    "baseline_short": {
+      "audit": {
+        "accepted": true,
+        "days": 0.1,
+        "accepted_stages": 4,
+        "operating_events": 0,
+        "external_in_kg": [
+          0.0,
+          431.99998364392366,
+          0.0
+        ],
+        "external_out_kg": [
+          1642.345185526306,
+          0.0,
+          122.17902785843738
+        ],
+        "residual_kg": [
+          -8.041297405725345e-09,
+          8.940696716308594e-08,
+          6.841816002634005e-10
+        ],
+        "maximum_stage_component_residual_kg": 1.1920928955078125e-07,
+        "scope": "Independent accepted-clock, stock-mass, water-resource and control audit.\n\nHydraulic closure is checked by derivative tests and existing equipment-law\nregressions. This accounting audit is not experimental physical validation.\n"
+      },
+      "solve_wall_s": 21.737774963999982,
+      "trajectory_sha256": "f878284e6bcebf2a0e83a55ed2768f4becf5d42b2c55d1e8673919e41124bcf0",
+      "execution": {
+        "reservoir_device": "cpu",
+        "injection_tangents": "Torch float64",
+        "injection_equipment_properties": "host scalar laws",
+        "production_facility": "existing host model",
+        "torch_threads": 1
+      },
+      "temporal_work": {
+        "macro_attempts": 2,
+        "rejected_macro_steps": 0,
+        "coupled_solves": 6,
+        "capacity_evaluations": 186,
+        "reservoir_evaluations": 186,
+        "capacity_amg_work": {
+          "fresh_requests": 0,
+          "reuse_requests": 0,
+          "retries": 0,
+          "builds": 0,
+          "updates": 0,
+          "linear_attempts": 0
+        },
+        "sensitivity_linear_solves": 0,
+        "sensitivity_plant_evaluations": 0
+      }
+    },
+    "matched_pairs/baseline_first": {
+      "audit": {
+        "accepted": true,
+        "days": 0.1,
+        "accepted_stages": 4,
+        "operating_events": 0,
+        "external_in_kg": [
+          0.0,
+          431.99998364392366,
+          0.0
+        ],
+        "external_out_kg": [
+          1642.345185526306,
+          0.0,
+          122.17902785843738
+        ],
+        "residual_kg": [
+          -8.041297405725345e-09,
+          8.940696716308594e-08,
+          6.841816002634005e-10
+        ],
+        "maximum_stage_component_residual_kg": 1.1920928955078125e-07,
+        "scope": "Independent accepted-clock, stock-mass, water-resource and control audit.\n\nHydraulic closure is checked by derivative tests and existing equipment-law\nregressions. This accounting audit is not experimental physical validation.\n"
+      },
+      "solve_wall_s": 20.936230855999383,
+      "trajectory_sha256": "8945b48b4403e53df0fb63ef38a6bd8accc5f20f05851628f7ccc4463cbe6183",
+      "execution": {
+        "reservoir_device": "cpu",
+        "injection_tangents": "Torch float64",
+        "injection_equipment_properties": "host scalar laws",
+        "production_facility": "existing host model",
+        "torch_threads": 1
+      },
+      "temporal_work": {
+        "macro_attempts": 2,
+        "rejected_macro_steps": 0,
+        "coupled_solves": 6,
+        "capacity_evaluations": 186,
+        "reservoir_evaluations": 186,
+        "capacity_amg_work": {
+          "fresh_requests": 0,
+          "reuse_requests": 0,
+          "retries": 0,
+          "builds": 0,
+          "updates": 0,
+          "linear_attempts": 0
+        },
+        "sensitivity_linear_solves": 0,
+        "sensitivity_plant_evaluations": 0
+      }
+    },
+    "matched_pairs/fast_second": {
+      "audit": {
+        "accepted": true,
+        "days": 0.1,
+        "accepted_stages": 4,
+        "operating_events": 0,
+        "external_in_kg": [
+          0.0,
+          431.99999964446295,
+          0.0
+        ],
+        "external_out_kg": [
+          1642.345185526306,
+          0.0,
+          122.17902785843738
+        ],
+        "residual_kg": [
+          -3.784361979342066e-08,
+          1.1920928955078125e-07,
+          -3.0411086981985136e-09
+        ],
+        "maximum_stage_component_residual_kg": 8.940696716308594e-08,
+        "scope": "Independent accepted-clock, stock-mass, water-resource and control audit.\n\nHydraulic closure is checked by derivative tests and existing equipment-law\nregressions. This accounting audit is not experimental physical validation.\n"
+      },
+      "solve_wall_s": 3.9227202419988316,
+      "trajectory_sha256": "d87d5f58114444d179cf508a0f4ae683a742c730209300254e85edeb1b1b4a41",
+      "execution": {
+        "reservoir_device": "cpu",
+        "injection_tangents": "Torch float64",
+        "injection_equipment_properties": "host scalar laws",
+        "production_facility": "existing host model",
+        "torch_threads": 1
+      },
+      "temporal_work": {
+        "macro_attempts": 2,
+        "rejected_macro_steps": 0,
+        "coupled_solves": 6,
+        "capacity_evaluations": 30,
+        "reservoir_evaluations": 30,
+        "capacity_amg_work": {
+          "fresh_requests": 0,
+          "reuse_requests": 0,
+          "retries": 0,
+          "builds": 0,
+          "updates": 0,
+          "linear_attempts": 0
+        },
+        "sensitivity_linear_solves": 0,
+        "sensitivity_plant_evaluations": 0
+      }
+    },
+    "matched_pairs/fast_first": {
+      "audit": {
+        "accepted": true,
+        "days": 0.1,
+        "accepted_stages": 4,
+        "operating_events": 0,
+        "external_in_kg": [
+          0.0,
+          431.99999964446295,
+          0.0
+        ],
+        "external_out_kg": [
+          1642.345185526306,
+          0.0,
+          122.17902785843738
+        ],
+        "residual_kg": [
+          -3.784361979342066e-08,
+          1.1920928955078125e-07,
+          -3.0411086981985136e-09
+        ],
+        "maximum_stage_component_residual_kg": 8.940696716308594e-08,
+        "scope": "Independent accepted-clock, stock-mass, water-resource and control audit.\n\nHydraulic closure is checked by derivative tests and existing equipment-law\nregressions. This accounting audit is not experimental physical validation.\n"
+      },
+      "solve_wall_s": 3.831715380998503,
+      "trajectory_sha256": "75ab277abf387b1a99e0964f3abc2ca031fa194b205e50ad341b7fc7df7464ef",
+      "execution": {
+        "reservoir_device": "cpu",
+        "injection_tangents": "Torch float64",
+        "injection_equipment_properties": "host scalar laws",
+        "production_facility": "existing host model",
+        "torch_threads": 1
+      },
+      "temporal_work": {
+        "macro_attempts": 2,
+        "rejected_macro_steps": 0,
+        "coupled_solves": 6,
+        "capacity_evaluations": 30,
+        "reservoir_evaluations": 30,
+        "capacity_amg_work": {
+          "fresh_requests": 0,
+          "reuse_requests": 0,
+          "retries": 0,
+          "builds": 0,
+          "updates": 0,
+          "linear_attempts": 0
+        },
+        "sensitivity_linear_solves": 0,
+        "sensitivity_plant_evaluations": 0
+      }
+    },
+    "matched_pairs/baseline_second": {
+      "audit": {
+        "accepted": true,
+        "days": 0.1,
+        "accepted_stages": 4,
+        "operating_events": 0,
+        "external_in_kg": [
+          0.0,
+          431.99998364392366,
+          0.0
+        ],
+        "external_out_kg": [
+          1642.345185526306,
+          0.0,
+          122.17902785843738
+        ],
+        "residual_kg": [
+          -8.041297405725345e-09,
+          8.940696716308594e-08,
+          6.841816002634005e-10
+        ],
+        "maximum_stage_component_residual_kg": 1.1920928955078125e-07,
+        "scope": "Independent accepted-clock, stock-mass, water-resource and control audit.\n\nHydraulic closure is checked by derivative tests and existing equipment-law\nregressions. This accounting audit is not experimental physical validation.\n"
+      },
+      "solve_wall_s": 21.08168515699981,
+      "trajectory_sha256": "56c54f8cb1fefb41030d941343d96c89bcf0615a3bfb536d17f035880d4f6c4b",
+      "execution": {
+        "reservoir_device": "cpu",
+        "injection_tangents": "Torch float64",
+        "injection_equipment_properties": "host scalar laws",
+        "production_facility": "existing host model",
+        "torch_threads": 1
+      },
+      "temporal_work": {
+        "macro_attempts": 2,
+        "rejected_macro_steps": 0,
+        "coupled_solves": 6,
+        "capacity_evaluations": 186,
+        "reservoir_evaluations": 186,
+        "capacity_amg_work": {
+          "fresh_requests": 0,
+          "reuse_requests": 0,
+          "retries": 0,
+          "builds": 0,
+          "updates": 0,
+          "linear_attempts": 0
+        },
+        "sensitivity_linear_solves": 0,
+        "sensitivity_plant_evaluations": 0
+      }
+    }
+  },
+  "reference": {
+    "directory": "benchmarks/reports/waterflood_temporal/controlled",
+    "trajectory_sha256": "f89228878bfba8e46780212eac0cd9479b73ee437e4ba61ea3a4606cd9d82818",
+    "source_archive": "../waterflood_temporal/sources.tar.gz",
+    "source_archive_sha256": "420c266cdb3f041d57e68d488ebba7b3d53a8ff261b2fca5666c57ef63e79d38",
+    "scope": "Previously completed guarded reference reused; not rerun for this month test"
+  },
+  "same_accepted_half_stages": true,
+  "same_coupled_temporal_solve_count": true,
+  "accepted_stage_fim_calls_histogram": {
+    "5": 405,
+    "1": 20,
+    "2": 22,
+    "6": 141
+  },
+  "accepted_points_recomputed": 0,
+  "old_state_property_evaluations_per_search": 1,
+  "old_state_property_cache_bytes": 122880,
+  "water_cumulative_stock_m3": {
+    "produced": 181.63643573867785,
+    "injected": 295.57757649082356,
+    "recycled": 174.61757746988513,
+    "makeup": 120.95999902093843,
+    "disposed": 7.018858268792655
+  },
+  "shaft_energy_kwh": 4775.312531291092,
+  "artifacts": {
+    "engineering": "engineering.csv",
+    "perforations": "perforations.csv",
+    "source_manifest": "source_manifest.json",
+    "source_archive": "sources.tar.gz"
+  },
+  "limitations": [
+    "Distinct capacity trial points remain physical nonlinear solves; none are replaced by interpolated states or scaled flows.",
+    "Full-step/two-half-step temporal estimation remains intact and opt-in.",
+    "Pure incompressible injected water, explicit nonreturn completions and quasi-steady surface scope are unchanged.",
+    "No claim of globally optimal dispatch, industrial completeness, GPU speed or matched ECLIPSE/OPM performance.",
+    "Inherited temporal-quality bounds combine the old accepted time-refinement gate and the new tight execution gate; no new stricter temporal month is claimed."
+  ]
+}

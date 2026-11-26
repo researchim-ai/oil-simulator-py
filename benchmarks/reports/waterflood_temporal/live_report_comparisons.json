@@ -1,0 +1,3281 @@
+{
+  "scope": "Live common-date well reports only; not the final whole-trajectory refinement gate.",
+  "latest_days": {
+    "controlled": 30.0,
+    "reference": 30.0
+  },
+  "comparisons": [
+    {
+      "time_days": 4.5,
+      "bhp_difference_pa": 67.18632376845926,
+      "rate_scaled_difference": 0.0002385493061389518
+    },
+    {
+      "time_days": 5.0,
+      "bhp_difference_pa": 62.82036148151383,
+      "rate_scaled_difference": 0.00024320305074792636
+    },
+    {
+      "time_days": 5.5,
+      "bhp_difference_pa": 57.761877961456776,
+      "rate_scaled_difference": 0.0002481312769235876
+    },
+    {
+      "time_days": 6.0,
+      "bhp_difference_pa": 50.7931740260683,
+      "rate_scaled_difference": 0.0002488194475908631
+    },
+    {
+      "time_days": 6.5,
+      "bhp_difference_pa": 42.52103222999722,
+      "rate_scaled_difference": 0.00024860567418761144
+    },
+    {
+      "time_days": 7.0,
+      "bhp_difference_pa": 31.89067861298099,
+      "rate_scaled_difference": 0.0002484354197355973
+    },
+    {
+      "time_days": 8.5,
+      "bhp_difference_pa": 13.91154074203223,
+      "rate_scaled_difference": 0.0002208354580651884
+    },
+    {
+      "time_days": 9.0,
+      "bhp_difference_pa": 25.841378786135465,
+      "rate_scaled_difference": 0.00019963249947830926
+    },
+    {
+      "time_days": 9.5,
+      "bhp_difference_pa": 39.97336937719956,
+      "rate_scaled_difference": 0.00017461450627348688
+    },
+    {
+      "time_days": 10.0,
+      "bhp_difference_pa": 52.80085305077955,
+      "rate_scaled_difference": 0.0001471109429242107
+    },
+    {
+      "time_days": 10.5,
+      "bhp_difference_pa": 63.543745055794716,
+      "rate_scaled_difference": 0.00011786703245979977
+    },
+    {
+      "time_days": 11.0,
+      "bhp_difference_pa": 72.42511513503268,
+      "rate_scaled_difference": 8.870395541548052e-05
+    },
+    {
+      "time_days": 11.5,
+      "bhp_difference_pa": 77.44701368594542,
+      "rate_scaled_difference": 6.008238277084472e-05
+    },
+    {
+      "time_days": 12.0,
+      "bhp_difference_pa": 79.70344868861139,
+      "rate_scaled_difference": 6.40875323097609e-05
+    },
+    {
+      "time_days": 12.5,
+      "bhp_difference_pa": 82.0971516133286,
+      "rate_scaled_difference": 8.675622787572657e-05
+    },
+    {
+      "time_days": 13.0,
+      "bhp_difference_pa": 83.3184282653965,
+      "rate_scaled_difference": 0.00010603963989150646
+    },
+    {
+      "time_days": 13.5,
+      "bhp_difference_pa": 81.8336659250781,
+      "rate_scaled_difference": 0.00011910348312425222
+    },
+    {
+      "time_days": 14.0,
+      "bhp_difference_pa": 79.52595599088818,
+      "rate_scaled_difference": 0.000128792078360864
+    },
+    {
+      "time_days": 14.5,
+      "bhp_difference_pa": 74.883458126802,
+      "rate_scaled_difference": 0.0001319472054770158
+    },
+    {
+      "time_days": 15.0,
+      "bhp_difference_pa": 71.36599753517658,
+      "rate_scaled_difference": 0.00013562296657410337
+    },
+    {
+      "time_days": 15.5,
+      "bhp_difference_pa": 66.68509861920029,
+      "rate_scaled_difference": 0.00013509883030278982
+    },
+    {
+      "time_days": 16.0,
+      "bhp_difference_pa": 60.91451944084838,
+      "rate_scaled_difference": 0.00013026138790329673
+    },
+    {
+      "time_days": 16.5,
+      "bhp_difference_pa": 53.918433744926006,
+      "rate_scaled_difference": 0.00012046907806241902
+    },
+    {
+      "time_days": 17.0,
+      "bhp_difference_pa": 48.582148300949484,
+      "rate_scaled_difference": 0.00011325432088649756
+    },
+    {
+      "time_days": 17.5,
+      "bhp_difference_pa": 43.284146978054196,
+      "rate_scaled_difference": 0.00010461065260307301
+    },
+    {
+      "time_days": 18.0,
+      "bhp_difference_pa": 36.57695899019018,
+      "rate_scaled_difference": 9.031355432867857e-05
+    },
+    {
+      "time_days": 18.5,
+      "bhp_difference_pa": 30.71133390115574,
+      "rate_scaled_difference": 7.681835586376835e-05
+    },
+    {
+      "time_days": 19.0,
+      "bhp_difference_pa": 24.88380042789504,
+      "rate_scaled_difference": 6.196809104527486e-05
+    },
+    {
+      "time_days": 19.5,
+      "bhp_difference_pa": 20.76091364212334,
+      "rate_scaled_difference": 5.0902208766415865e-05
+    },
+    {
+      "time_days": 20.0,
+      "bhp_difference_pa": 15.759601118508726,
+      "rate_scaled_difference": 3.649304719889714e-05
+    },
+    {
+      "time_days": 20.5,
+      "bhp_difference_pa": 12.675778654403985,
+      "rate_scaled_difference": 2.6781290376630716e-05
+    },
+    {
+      "time_days": 21.0,
+      "bhp_difference_pa": 10.080941495951265,
+      "rate_scaled_difference": 1.779640392378367e-05
+    },
+    {
+      "time_days": 21.5,
+      "bhp_difference_pa": 7.6883838144131005,
+      "rate_scaled_difference": 1.0019638915379636e-05
+    },
+    {
+      "time_days": 22.0,
+      "bhp_difference_pa": 6.078794647939503,
+      "rate_scaled_difference": 4.368903299075525e-06
+    },
+    {
+      "time_days": 22.5,
+      "bhp_difference_pa": 4.892975039314479,
+      "rate_scaled_difference": 8.738962632358852e-06
+    },
+    {
+      "time_days": 23.0,
+      "bhp_difference_pa": 4.0670353402383626,
+      "rate_scaled_difference": 1.238574977479305e-05
+    },
+    {
+      "time_days": 23.5,
+      "bhp_difference_pa": 3.542474393732846,
+      "rate_scaled_difference": 1.535569896689517e-05
+    },
+    {
+      "time_days": 24.0,
+      "bhp_difference_pa": 3.2663746220059693,
+      "rate_scaled_difference": 1.7702065427321727e-05
+    },
+    {
+      "time_days": 24.5,
+      "bhp_difference_pa": 3.1914189006201923,
+      "rate_scaled_difference": 1.9482096666458266e-05
+    },
+    {
+      "time_days": 25.0,
+      "bhp_difference_pa": 3.275771022308618,
+      "rate_scaled_difference": 2.0754753518785855e-05
+    },
+    {
+      "time_days": 25.5,
+      "bhp_difference_pa": 3.482852566521615,
+      "rate_scaled_difference": 2.1578907976130083e-05
+    },
+    {
+      "time_days": 26.0,
+      "bhp_difference_pa": 3.781045960728079,
+      "rate_scaled_difference": 2.2011951437887138e-05
+    },
+    {
+      "time_days": 26.5,
+      "bhp_difference_pa": 4.143347821664065,
+      "rate_scaled_difference": 2.2108752024653947e-05
+    },
+    {
+      "time_days": 27.0,
+      "bhp_difference_pa": 4.546991633716971,
+      "rate_scaled_difference": 2.1920905270733474e-05
+    },
+    {
+      "time_days": 27.5,
+      "bhp_difference_pa": 4.973055430222303,
+      "rate_scaled_difference": 2.149622887739474e-05
+    },
+    {
+      "time_days": 28.0,
+      "bhp_difference_pa": 5.406066951807588,
+      "rate_scaled_difference": 2.0878457853248047e-05
+    },
+    {
+      "time_days": 28.5,
+      "bhp_difference_pa": 5.833616043440998,
+      "rate_scaled_difference": 2.010710193694819e-05
+    },
+    {
+      "time_days": 29.0,
+      "bhp_difference_pa": 6.2459816206246614,
+      "rate_scaled_difference": 1.921743208082033e-05
+    },
+    {
+      "time_days": 29.5,
+      "bhp_difference_pa": 6.635778612457216,
+      "rate_scaled_difference": 1.8240567497039746e-05
+    },
+    {
+      "time_days": 30.0,
+      "bhp_difference_pa": 6.997628613840789,
+      "rate_scaled_difference": 1.720363878173553e-05
+    }
+  ],
+  "reports": {
+    "controlled": {
+      "4.5": {
+        "P1": {
+          "bhp_pa": 2273794.272482714,
+          "bhp_status": null,
+          "component_mass_rates_kg_s": [
+            0.07348188032551732,
+            0.03558111849737559,
+            0.008770524245135553
+          ]
+        },
+        "P2": {
+          "bhp_pa": 2273794.2709004954,
+          "bhp_status": null,
+          "component_mass_rates_kg_s": [
+            0.07348188156303762,
+            0.03558111914883361,
+            0.008770523811387626
+          ]
+        },
+        "I1": {
+          "bhp_pa": 3415687.024588948,
+          "bhp_status": "connected_water_column",
+          "component_mass_rates_kg_s": [
+            0.0,
+            -0.12116223427826067,
+            0.0
+          ]
+        }
+      },
+      "5.0": {
+        "P1": {
+          "bhp_pa": 2270027.8353442056,
+          "bhp_status": null,
+          "component_mass_rates_kg_s": [
+            0.07216106519153116,
+            0.03499768759864703,
+            0.00886697689151604
+          ]
+        },
+        "P2": {
+          "bhp_pa": 2270027.8323032656,
+          "bhp_status": null,
+          "component_mass_rates_kg_s": [
+            0.07216106737416682,
+            0.0349976887589939,
+            0.008866976055537858
+          ]
+        },
+        "I1": {
+          "bhp_pa": 3415374.845060326,
+          "bhp_status": "connected_water_column",
+          "component_mass_rates_kg_s": [
+            0.0,
+            -0.1199953732322212,
+            0.0
+          ]
+        }
+      },
+      "5.5": {
+        "P1": {
+          "bhp_pa": 2265252.264385051,
+          "bhp_status": null,
+          "component_mass_rates_kg_s": [
+            0.07107424892693333,
+            0.03452972296240089,
+            0.00893333660207155
+          ]
+        },
+        "P2": {
+          "bhp_pa": 2265252.2589042494,
+          "bhp_status": null,
+          "component_mass_rates_kg_s": [
+            0.07107425252490399,
+            0.034529724897506484,
+            0.008933335098637515
+          ]
+        },
+        "I1": {
+          "bhp_pa": 3415201.269283593,
+          "bhp_status": "connected_water_column",
+          "component_mass_rates_kg_s": [
+            0.0,
+            -0.11905944578487562,
+            0.0
+          ]
+        }
+      },
+      "6.0": {
+        "P1": {
+          "bhp_pa": 2259680.036917187,
+          "bhp_status": null,
+          "component_mass_rates_kg_s": [
+            0.070200052715829,
+            0.03416550480826953,
+            0.008971834928670736
+          ]
+        },
+        "P2": {
+          "bhp_pa": 2259680.0275395955,
+          "bhp_status": null,
+          "component_mass_rates_kg_s": [
+            0.07020005832783523,
+            0.034165507867233526,
+            0.008971832372618213
+          ]
+        },
+        "I1": {
+          "bhp_pa": 3415166.711603995,
+          "bhp_status": "connected_water_column",
+          "component_mass_rates_kg_s": [
+            0.0,
+            -0.11833100924613305,
+            0.0
+          ]
+        }
+      },
+      "6.5": {
+        "P1": {
+          "bhp_pa": 2253520.297052806,
+          "bhp_status": null,
+          "component_mass_rates_kg_s": [
+            0.06951662352928784,
+            0.03389329919285344,
+            0.008985411774800221
+          ]
+        },
+        "P2": {
+          "bhp_pa": 2253520.2816811264,
+          "bhp_status": null,
+          "component_mass_rates_kg_s": [
+            0.06951663189196362,
+            0.03389330382072821,
+            0.008985407625275384
+          ]
+        },
+        "I1": {
+          "bhp_pa": 3415264.8176973984,
+          "bhp_status": "connected_water_column",
+          "component_mass_rates_kg_s": [
+            0.0,
+            -0.11778659946112718,
+            0.0
+          ]
+        }
+      },
+      "7.0": {
+        "P1": {
+          "bhp_pa": 2246971.5353542813,
+          "bhp_status": null,
+          "component_mass_rates_kg_s": [
+            0.06900192988738213,
+            0.03370146059668064,
+            0.008977487030241439
+          ]
+        },
+        "P2": {
+          "bhp_pa": 2246971.511057787,
+          "bhp_status": null,
+          "component_mass_rates_kg_s": [
+            0.06900194188414346,
+            0.03370146734844217,
+            0.008977480550126326
+          ]
+        },
+        "I1": {
+          "bhp_pa": 3415484.3588631377,
+          "bhp_status": "connected_water_column",
+          "component_mass_rates_kg_s": [
+            0.0,
+            -0.11740292474213598,
+            0.0
+          ]
+        }
+      },
+      "8.5": {
+        "P1": {
+          "bhp_pa": 2226691.2080711266,
+          "bhp_status": null,
+          "component_mass_rates_kg_s": [
+            0.06824919630392304,
+            0.033493774085196666,
+            0.008861868407605857
+          ]
+        },
+        "P2": {
+          "bhp_pa": 2226691.128272021,
+          "bhp_status": null,
+          "component_mass_rates_kg_s": [
+            0.06824922600091503,
+            0.03349379180125543,
+            0.008861848000912692
+          ]
+        },
+        "I1": {
+          "bhp_pa": 3416711.8799869544,
+          "bhp_status": "connected_water_column",
+          "component_mass_rates_kg_s": [
+            0.0,
+            -0.11698756349721443,
+            0.0
+          ]
+        }
+      },
+      "9.0": {
+        "P1": {
+          "bhp_pa": 2220165.9740541363,
+          "bhp_status": null,
+          "component_mass_rates_kg_s": [
+            0.06819573615818811,
+            0.0335132540411258,
+            0.008804178521651362
+          ]
+        },
+        "P2": {
+          "bhp_pa": 2220165.861355268,
+          "bhp_status": null,
+          "component_mass_rates_kg_s": [
+            0.06819577461392422,
+            0.033513277468169754,
+            0.008804150104784792
+          ]
+        },
+        "I1": {
+          "bhp_pa": 3417253.9491126556,
+          "bhp_status": "connected_water_column",
+          "component_mass_rates_kg_s": [
+            0.0,
+            -0.11702652813659781,
+            0.0
+          ]
+        }
+      },
+      "9.5": {
+        "P1": {
+          "bhp_pa": 2213922.7561576553,
+          "bhp_status": null,
+          "component_mass_rates_kg_s": [
+            0.06821070913986821,
+            0.03356183003349592,
+            0.00874197546280333
+          ]
+        },
+        "P2": {
+          "bhp_pa": 2213922.600436179,
+          "bhp_status": null,
+          "component_mass_rates_kg_s": [
+            0.06821075815751901,
+            0.033561860528205624,
+            0.008741936722894122
+          ]
+        },
+        "I1": {
+          "bhp_pa": 3417833.7567977468,
+          "bhp_status": "connected_water_column",
+          "component_mass_rates_kg_s": [
+            0.0,
+            -0.11712368750185895,
+            0.0
+          ]
+        }
+      },
+      "10.0": {
+        "P1": {
+          "bhp_pa": 2208024.9300999185,
+          "bhp_status": null,
+          "component_mass_rates_kg_s": [
+            0.06827786089798538,
+            0.03363146346014142,
+            0.00867774942700119
+          ]
+        },
+        "P2": {
+          "bhp_pa": 2208024.719256566,
+          "bhp_status": null,
+          "component_mass_rates_kg_s": [
+            0.06827792256603858,
+            0.033631502619170896,
+            0.008677697630346471
+          ]
+        },
+        "I1": {
+          "bhp_pa": 3418435.0243928176,
+          "bhp_status": "connected_water_column",
+          "component_mass_rates_kg_s": [
+            0.0,
+            -0.11726296334354977,
+            0.0
+          ]
+        }
+      },
+      "10.5": {
+        "P1": {
+          "bhp_pa": 2202515.694254293,
+          "bhp_status": null,
+          "component_mass_rates_kg_s": [
+            0.06838272259967998,
+            0.03371507791412649,
+            0.00861356342351246
+          ]
+        },
+        "P2": {
+          "bhp_pa": 2202515.4140559286,
+          "bhp_status": null,
+          "component_mass_rates_kg_s": [
+            0.06838279935283353,
+            0.033715127612381914,
+            0.008613495381261937
+          ]
+        },
+        "I1": {
+          "bhp_pa": 3419042.949121636,
+          "bhp_status": "connected_water_column",
+          "component_mass_rates_kg_s": [
+            0.0,
+            -0.11743020473255068,
+            0.0
+          ]
+        }
+      },
+      "11.0": {
+        "P1": {
+          "bhp_pa": 2197419.4741881182,
+          "bhp_status": null,
+          "component_mass_rates_kg_s": [
+            0.06851249150851708,
+            0.03380650514300147,
+            0.008551071822724231
+          ]
+        },
+        "P2": {
+          "bhp_pa": 2197419.108169432,
+          "bhp_status": null,
+          "component_mass_rates_kg_s": [
+            0.06851258619051853,
+            0.033806567569657296,
+            0.008550983867298632
+          ]
+        },
+        "I1": {
+          "bhp_pa": 3419644.3581806943,
+          "bhp_status": "connected_water_column",
+          "component_mass_rates_kg_s": [
+            0.0,
+            -0.11761307166549266,
+            0.0
+          ]
+        }
+      },
+      "11.5": {
+        "P1": {
+          "bhp_pa": 2192741.946198752,
+          "bhp_status": null,
+          "component_mass_rates_kg_s": [
+            0.06865609183343721,
+            0.03390052778969997,
+            0.00849151616160582
+          ]
+        },
+        "P2": {
+          "bhp_pa": 2192741.4757212205,
+          "bhp_status": null,
+          "component_mass_rates_kg_s": [
+            0.06865620772900716,
+            0.03390060546152263,
+            0.008491404157596909
+          ]
+        },
+        "I1": {
+          "bhp_pa": 3420228.106314218,
+          "bhp_status": "connected_water_column",
+          "component_mass_rates_kg_s": [
+            0.0,
+            -0.11780112981796251,
+            0.0
+          ]
+        }
+      },
+      "12.0": {
+        "P1": {
+          "bhp_pa": 2188480.630099761,
+          "bhp_status": null,
+          "component_mass_rates_kg_s": [
+            0.06880438594710055,
+            0.03399288916134733,
+            0.008435816008653734
+          ]
+        },
+        "P2": {
+          "bhp_pa": 2188480.0340526165,
+          "bhp_status": null,
+          "component_mass_rates_kg_s": [
+            0.06880452688313982,
+            0.033992984984818765,
+            0.008435675277464505
+          ]
+        },
+        "I1": {
+          "bhp_pa": 3420784.8938016845,
+          "bhp_status": "connected_water_column",
+          "component_mass_rates_kg_s": [
+            0.0,
+            -0.11798587231034488,
+            0.0
+          ]
+        }
+      },
+      "12.5": {
+        "P1": {
+          "bhp_pa": 2184622.584343017,
+          "bhp_status": null,
+          "component_mass_rates_kg_s": [
+            0.068949759266105,
+            0.03408013248703859,
+            0.008384600547950203
+          ]
+        },
+        "P2": {
+          "bhp_pa": 2184621.838996895,
+          "bhp_status": null,
+          "component_mass_rates_kg_s": [
+            0.06894992968192865,
+            0.03408024979794369,
+            0.0083844258260957
+          ]
+        },
+        "I1": {
+          "bhp_pa": 3421307.179019101,
+          "bhp_status": "connected_water_column",
+          "component_mass_rates_kg_s": [
+            0.0,
+            -0.11816037887776346,
+            0.0
+          ]
+        }
+      },
+      "13.0": {
+        "P1": {
+          "bhp_pa": 2181140.725866458,
+          "bhp_status": null,
+          "component_mass_rates_kg_s": [
+            0.06908633170066195,
+            0.03415974344786106,
+            0.00833816257935947
+          ]
+        },
+        "P2": {
+          "bhp_pa": 2181139.8052003887,
+          "bhp_status": null,
+          "component_mass_rates_kg_s": [
+            0.069086536618984,
+            0.03415988598073372,
+            0.008337948085913392
+          ]
+        },
+        "I1": {
+          "bhp_pa": 3421789.901356062,
+          "bhp_status": "connected_water_column",
+          "component_mass_rates_kg_s": [
+            0.0,
+            -0.11831962641466551,
+            0.0
+          ]
+        }
+      },
+      "13.5": {
+        "P1": {
+          "bhp_pa": 2178005.6877729846,
+          "bhp_status": null,
+          "component_mass_rates_kg_s": [
+            0.06920979488444129,
+            0.03422996574150074,
+            0.008296602487114564
+          ]
+        },
+        "P2": {
+          "bhp_pa": 2178004.5632417253,
+          "bhp_status": null,
+          "component_mass_rates_kg_s": [
+            0.06921003996683293,
+            0.03423013766493747,
+            0.008296341861187823
+          ]
+        },
+        "I1": {
+          "bhp_pa": 3422229.655546087,
+          "bhp_status": "connected_water_column",
+          "component_mass_rates_kg_s": [
+            0.0,
+            -0.11846010090300327,
+            0.0
+          ]
+        }
+      },
+      "14.0": {
+        "P1": {
+          "bhp_pa": 2175184.756295718,
+          "bhp_status": null,
+          "component_mass_rates_kg_s": [
+            0.06931721535040633,
+            0.03428972282165052,
+            0.008259846368516276
+          ]
+        },
+        "P2": {
+          "bhp_pa": 2175183.3967578397,
+          "bhp_status": null,
+          "component_mass_rates_kg_s": [
+            0.06931750692152343,
+            0.034289928750986354,
+            0.008259532643635005
+          ]
+        },
+        "I1": {
+          "bhp_pa": 3422624.6857842533,
+          "bhp_status": "connected_water_column",
+          "component_mass_rates_kg_s": [
+            0.0,
+            -0.11857965081516231,
+            0.0
+          ]
+        }
+      },
+      "14.5": {
+        "P1": {
+          "bhp_pa": 2172642.072394373,
+          "bhp_status": null,
+          "component_mass_rates_kg_s": [
+            0.06940697831483653,
+            0.034338591279032035,
+            0.008227660120537146
+          ]
+        },
+        "P2": {
+          "bhp_pa": 2172640.4442701815,
+          "bhp_status": null,
+          "component_mass_rates_kg_s": [
+            0.06940732333388877,
+            0.034338836252970704,
+            0.008227285753221378
+          ]
+        },
+        "I1": {
+          "bhp_pa": 3422974.9213430802,
+          "bhp_status": "connected_water_column",
+          "component_mass_rates_kg_s": [
+            0.0,
+            -0.11867742675046117,
+            0.0
+          ]
+        }
+      },
+      "15.0": {
+        "P1": {
+          "bhp_pa": 2170345.132421752,
+          "bhp_status": null,
+          "component_mass_rates_kg_s": [
+            0.06947825260902178,
+            0.03437648846661642,
+            0.008199770053890013
+          ]
+        },
+        "P2": {
+          "bhp_pa": 2170343.199148221,
+          "bhp_status": null,
+          "component_mass_rates_kg_s": [
+            0.06947865878500961,
+            0.034376778025849555,
+            0.008199326788737752
+          ]
+        },
+        "I1": {
+          "bhp_pa": 3423280.9550210214,
+          "bhp_status": "connected_water_column",
+          "component_mass_rates_kg_s": [
+            0.0,
+            -0.11875326486511369,
+            0.0
+          ]
+        }
+      },
+      "15.5": {
+        "P1": {
+          "bhp_pa": 2168258.993017363,
+          "bhp_status": null,
+          "component_mass_rates_kg_s": [
+            0.06953128741973562,
+            0.0344038662378461,
+            0.008175779002155145
+          ]
+        },
+        "P2": {
+          "bhp_pa": 2168256.7154825535,
+          "bhp_status": null,
+          "component_mass_rates_kg_s": [
+            0.06953176313457916,
+            0.03440420636611989,
+            0.00817525796616282
+          ]
+        },
+        "I1": {
+          "bhp_pa": 3423544.8973381626,
+          "bhp_status": "connected_water_column",
+          "component_mass_rates_kg_s": [
+            0.0,
+            -0.1188080706116226,
+            0.0
+          ]
+        }
+      },
+      "16.0": {
+        "P1": {
+          "bhp_pa": 2166352.150400769,
+          "bhp_status": null,
+          "component_mass_rates_kg_s": [
+            0.06956687842597967,
+            0.03442140365722236,
+            0.008155277142196948
+          ]
+        },
+        "P2": {
+          "bhp_pa": 2166349.4866793323,
+          "bhp_status": null,
+          "component_mass_rates_kg_s": [
+            0.06956743280714126,
+            0.03442180082720595,
+            0.008154668776873743
+          ]
+        },
+        "I1": {
+          "bhp_pa": 3423769.3370093103,
+          "bhp_status": "connected_water_column",
+          "component_mass_rates_kg_s": [
+            0.0,
+            -0.11884320216874289,
+            0.0
+          ]
+        }
+      },
+      "16.5": {
+        "P1": {
+          "bhp_pa": 2164594.6600920353,
+          "bhp_status": null,
+          "component_mass_rates_kg_s": [
+            0.06958640729134588,
+            0.03443004186700288,
+            0.008137819362469883
+          ]
+        },
+        "P2": {
+          "bhp_pa": 2164591.565735944,
+          "bhp_status": null,
+          "component_mass_rates_kg_s": [
+            0.06958705018082821,
+            0.034430503010778137,
+            0.00813711348611972
+          ]
+        },
+        "I1": {
+          "bhp_pa": 3423957.5859019607,
+          "bhp_status": "connected_water_column",
+          "component_mass_rates_kg_s": [
+            0.0,
+            -0.1188605437400165,
+            0.0
+          ]
+        }
+      },
+      "17.0": {
+        "P1": {
+          "bhp_pa": 2162961.8478041375,
+          "bhp_status": null,
+          "component_mass_rates_kg_s": [
+            0.0695913077939172,
+            0.034430698673908654,
+            0.008123012645801345
+          ]
+        },
+        "P2": {
+          "bhp_pa": 2162958.274926195,
+          "bhp_status": null,
+          "component_mass_rates_kg_s": [
+            0.06959204999510911,
+            0.03443123134448451,
+            0.008122198234696934
+          ]
+        },
+        "I1": {
+          "bhp_pa": 3424112.6719458797,
+          "bhp_status": "connected_water_column",
+          "component_mass_rates_kg_s": [
+            0.0,
+            -0.11886192778884247,
+            0.0
+          ]
+        }
+      },
+      "17.5": {
+        "P1": {
+          "bhp_pa": 2161429.6072228276,
+          "bhp_status": null,
+          "component_mass_rates_kg_s": [
+            0.06958348737921217,
+            0.03442450818208373,
+            0.008110427918686589
+          ]
+        },
+        "P2": {
+          "bhp_pa": 2161425.505256167,
+          "bhp_status": null,
+          "component_mass_rates_kg_s": [
+            0.06958434055851877,
+            0.03442512047034981,
+            0.008109493279859764
+          ]
+        },
+        "I1": {
+          "bhp_pa": 3424238.3398504294,
+          "bhp_status": "connected_water_column",
+          "component_mass_rates_kg_s": [
+            0.0,
+            -0.11884962656983608,
+            0.0
+          ]
+        }
+      },
+      "18.0": {
+        "P1": {
+          "bhp_pa": 2159977.009953932,
+          "bhp_status": null,
+          "component_mass_rates_kg_s": [
+            0.06956495551388378,
+            0.03441262096258917,
+            0.008099660636770256
+          ]
+        },
+        "P2": {
+          "bhp_pa": 2159972.326013395,
+          "bhp_status": null,
+          "component_mass_rates_kg_s": [
+            0.06956593219197023,
+            0.03441332147601198,
+            0.00809859348815314
+          ]
+        },
+        "I1": {
+          "bhp_pa": 3424338.3632699028,
+          "bhp_status": "connected_water_column",
+          "component_mass_rates_kg_s": [
+            0.0,
+            -0.11882593820768378,
+            0.0
+          ]
+        }
+      },
+      "18.5": {
+        "P1": {
+          "bhp_pa": 2158587.3245992986,
+          "bhp_status": null,
+          "component_mass_rates_kg_s": [
+            0.06953755847498536,
+            0.03439607131128875,
+            0.008090365369486699
+          ]
+        },
+        "P2": {
+          "bhp_pa": 2158582.0027442113,
+          "bhp_status": null,
+          "component_mass_rates_kg_s": [
+            0.06953867227815731,
+            0.03439686933049772,
+            0.008089152664954873
+          ]
+        },
+        "I1": {
+          "bhp_pa": 3424416.059925162,
+          "bhp_status": "connected_water_column",
+          "component_mass_rates_kg_s": [
+            0.0,
+            -0.11879293661978518,
+            0.0
+          ]
+        }
+      },
+      "19.0": {
+        "P1": {
+          "bhp_pa": 2157245.5743746175,
+          "bhp_status": null,
+          "component_mass_rates_kg_s": [
+            0.0695032209360473,
+            0.03437591045715036,
+            0.008082207672316495
+          ]
+        },
+        "P2": {
+          "bhp_pa": 2157239.5568310632,
+          "bhp_status": null,
+          "component_mass_rates_kg_s": [
+            0.06950448638799638,
+            0.03437681577822121,
+            0.00808083588503097
+          ]
+        },
+        "I1": {
+          "bhp_pa": 3424474.8995544384,
+          "bhp_status": "connected_water_column",
+          "component_mass_rates_kg_s": [
+            0.0,
+            -0.11875272590529051,
+            0.0
+          ]
+        }
+      },
+      "19.5": {
+        "P1": {
+          "bhp_pa": 2155941.041008877,
+          "bhp_status": null,
+          "component_mass_rates_kg_s": [
+            0.06946350784206246,
+            0.034352983644236744,
+            0.00807493030447174
+          ]
+        },
+        "P2": {
+          "bhp_pa": 2155934.265459097,
+          "bhp_status": null,
+          "component_mass_rates_kg_s": [
+            0.06946494114928488,
+            0.034354007087312975,
+            0.008073384791029562
+          ]
+        },
+        "I1": {
+          "bhp_pa": 3424517.435905838,
+          "bhp_status": "connected_water_column",
+          "component_mass_rates_kg_s": [
+            0.0,
+            -0.11870698761884821,
+            0.0
+          ]
+        }
+      },
+      "20.0": {
+        "P1": {
+          "bhp_pa": 2154662.2621750883,
+          "bhp_status": null,
+          "component_mass_rates_kg_s": [
+            0.06942026332370665,
+            0.034328261337140946,
+            0.008068242270749343
+          ]
+        },
+        "P2": {
+          "bhp_pa": 2154654.6686867177,
+          "bhp_status": null,
+          "component_mass_rates_kg_s": [
+            0.06942188064373352,
+            0.03432941358217317,
+            0.008066508894101636
+          ]
+        },
+        "I1": {
+          "bhp_pa": 3424547.251980817,
+          "bhp_status": "connected_water_column",
+          "component_mass_rates_kg_s": [
+            0.0,
+            -0.11865767063917945,
+            0.0
+          ]
+        }
+      },
+      "20.5": {
+        "P1": {
+          "bhp_pa": 2153403.861934207,
+          "bhp_status": null,
+          "component_mass_rates_kg_s": [
+            0.06937462080125845,
+            0.03430233926227184,
+            0.008061980684907821
+          ]
+        },
+        "P2": {
+          "bhp_pa": 2153395.3824170846,
+          "bhp_status": null,
+          "component_mass_rates_kg_s": [
+            0.06937644115321046,
+            0.03430363275630162,
+            0.008060043342857776
+          ]
+        },
+        "I1": {
+          "bhp_pa": 3424565.8257465158,
+          "bhp_status": "connected_water_column",
+          "component_mass_rates_kg_s": [
+            0.0,
+            -0.11860596930125261,
+            0.0
+          ]
+        }
+      },
+      "21.0": {
+        "P1": {
+          "bhp_pa": 2152158.9096400677,
+          "bhp_status": null,
+          "component_mass_rates_kg_s": [
+            0.06932796375147031,
+            0.03427592714511763,
+            0.008055943562346032
+          ]
+        },
+        "P2": {
+          "bhp_pa": 2152149.478130782,
+          "bhp_status": null,
+          "component_mass_rates_kg_s": [
+            0.06933000630311045,
+            0.034277374304427184,
+            0.008053786601444107
+          ]
+        },
+        "I1": {
+          "bhp_pa": 3424575.8675293503,
+          "bhp_status": "connected_water_column",
+          "component_mass_rates_kg_s": [
+            0.0,
+            -0.11855329783564357,
+            0.0
+          ]
+        }
+      },
+      "21.5": {
+        "P1": {
+          "bhp_pa": 2150923.616847076,
+          "bhp_status": null,
+          "component_mass_rates_kg_s": [
+            0.0692813216899387,
+            0.034249547831366314,
+            0.008049993624792064
+          ]
+        },
+        "P2": {
+          "bhp_pa": 2150913.163579138,
+          "bhp_status": null,
+          "component_mass_rates_kg_s": [
+            0.06928360748653044,
+            0.034251162159071355,
+            0.008047600449251298
+          ]
+        },
+        "I1": {
+          "bhp_pa": 3424579.016759613,
+          "bhp_status": "connected_water_column",
+          "component_mass_rates_kg_s": [
+            0.0,
+            -0.11850070829192802,
+            0.0
+          ]
+        }
+      },
+      "22.0": {
+        "P1": {
+          "bhp_pa": 2149695.1338636526,
+          "bhp_status": null,
+          "component_mass_rates_kg_s": [
+            0.06923566345697528,
+            0.034223686067092876,
+            0.008044008531722265
+          ]
+        },
+        "P2": {
+          "bhp_pa": 2149683.5851235506,
+          "bhp_status": null,
+          "component_mass_rates_kg_s": [
+            0.06923821564545542,
+            0.03422548226838213,
+            0.008041361566287273
+          ]
+        },
+        "I1": {
+          "bhp_pa": 3424576.795746979,
+          "bhp_status": "connected_water_column",
+          "component_mass_rates_kg_s": [
+            0.0,
+            -0.11844916648610876,
+            0.0
+          ]
+        }
+      },
+      "22.5": {
+        "P1": {
+          "bhp_pa": 2148471.4212084,
+          "bhp_status": null,
+          "component_mass_rates_kg_s": [
+            0.06919171440606733,
+            0.03419869689760827,
+            0.008037897694016603
+          ]
+        },
+        "P2": {
+          "bhp_pa": 2148458.7040513502,
+          "bhp_status": null,
+          "component_mass_rates_kg_s": [
+            0.06919455684506325,
+            0.034200689984765886,
+            0.008034979499312419
+          ]
+        },
+        "I1": {
+          "bhp_pa": 3424570.6741311857,
+          "bhp_status": "connected_water_column",
+          "component_mass_rates_kg_s": [
+            0.0,
+            -0.11839938384515258,
+            0.0
+          ]
+        }
+      },
+      "23.0": {
+        "P1": {
+          "bhp_pa": 2147251.596837196,
+          "bhp_status": null,
+          "component_mass_rates_kg_s": [
+            0.06915005529349687,
+            0.034174859720627046,
+            0.008031595780149574
+          ]
+        },
+        "P2": {
+          "bhp_pa": 2147237.6369266664,
+          "bhp_status": null,
+          "component_mass_rates_kg_s": [
+            0.06915321325415424,
+            0.034177065454391566,
+            0.008028388545855187
+          ]
+        },
+        "I1": {
+          "bhp_pa": 3424561.7096814755,
+          "bhp_status": "connected_water_column",
+          "component_mass_rates_kg_s": [
+            0.0,
+            -0.11835192088727618,
+            0.0
+          ]
+        }
+      },
+      "23.5": {
+        "P1": {
+          "bhp_pa": 2146035.473081653,
+          "bhp_status": null,
+          "component_mass_rates_kg_s": [
+            0.0691111312967721,
+            0.03415238329753173,
+            0.008025057480594172
+          ]
+        },
+        "P2": {
+          "bhp_pa": 2146020.194879298,
+          "bhp_status": null,
+          "component_mass_rates_kg_s": [
+            0.06911463145342314,
+            0.034154818173446906,
+            0.008021543072497129
+          ]
+        },
+        "I1": {
+          "bhp_pa": 3424550.7495700917,
+          "bhp_status": "connected_water_column",
+          "component_mass_rates_kg_s": [
+            0.0,
+            -0.11830720015698012,
+            0.0
+          ]
+        }
+      },
+      "24.0": {
+        "P1": {
+          "bhp_pa": 2144823.4035245012,
+          "bhp_status": null,
+          "component_mass_rates_kg_s": [
+            0.06907526601422133,
+            0.034131413888918105,
+            0.008018254693739126
+          ]
+        },
+        "P2": {
+          "bhp_pa": 2144806.7304789964,
+          "bhp_status": null,
+          "component_mass_rates_kg_s": [
+            0.06907913642614323,
+            0.03413409511913183,
+            0.008014414700362455
+          ]
+        },
+        "I1": {
+          "bhp_pa": 3424538.431636226,
+          "bhp_status": "connected_water_column",
+          "component_mass_rates_kg_s": [
+            0.0,
+            -0.11826550622505164,
+            0.0
+          ]
+        }
+      },
+      "24.5": {
+        "P1": {
+          "bhp_pa": 2143616.1491140095,
+          "bhp_status": null,
+          "component_mass_rates_kg_s": [
+            0.06904267581949332,
+            0.03411204335579985,
+            0.008011173850131944
+          ]
+        },
+        "P2": {
+          "bhp_pa": 2143598.003846885,
+          "bhp_status": null,
+          "component_mass_rates_kg_s": [
+            0.06904694590477621,
+            0.03411498884689031,
+            0.008006989628359808
+          ]
+        },
+        "I1": {
+          "bhp_pa": 3424525.243837454,
+          "bhp_status": "connected_water_column",
+          "component_mass_rates_kg_s": [
+            0.0,
+            -0.11822702880534865,
+            0.0
+          ]
+        }
+      },
+      "25.0": {
+        "P1": {
+          "bhp_pa": 2142414.7626871984,
+          "bhp_status": null,
+          "component_mass_rates_kg_s": [
+            0.06901348407090918,
+            0.0340943170013571,
+            0.008003813415070617
+          ]
+        },
+        "P2": {
+          "bhp_pa": 2142395.0671737515,
+          "bhp_status": null,
+          "component_mass_rates_kg_s": [
+            0.06901818457312253,
+            0.0340975453286299,
+            0.007999266134254938
+          ]
+        },
+        "I1": {
+          "bhp_pa": 3424511.519864683,
+          "bhp_status": "connected_water_column",
+          "component_mass_rates_kg_s": [
+            0.0,
+            -0.11819185844312124,
+            0.0
+          ]
+        }
+      },
+      "25.5": {
+        "P1": {
+          "bhp_pa": 2141220.49082073,
+          "bhp_status": null,
+          "component_mass_rates_kg_s": [
+            0.06898773480754679,
+            0.03407824099282946,
+            0.00799618159615585
+          ]
+        },
+        "P2": {
+          "bhp_pa": 2141199.1665658355,
+          "bhp_status": null,
+          "component_mass_rates_kg_s": [
+            0.06899289775710712,
+            0.03408177137200021,
+            0.00799125228049534
+          ]
+        },
+        "I1": {
+          "bhp_pa": 3424497.4696121095,
+          "bhp_status": "connected_water_column",
+          "component_mass_rates_kg_s": [
+            0.0,
+            -0.11816000807340485,
+            0.0
+          ]
+        }
+      },
+      "26.0": {
+        "P1": {
+          "bhp_pa": 2140034.69181122,
+          "bhp_status": null,
+          "component_mass_rates_kg_s": [
+            0.06896540567190296,
+            0.03406378925479569,
+            0.007988294272195877
+          ]
+        },
+        "P2": {
+          "bhp_pa": 2140011.6600193945,
+          "bhp_status": null,
+          "component_mass_rates_kg_s": [
+            0.06897106434292116,
+            0.0340676415114897,
+            0.007982963841205407
+          ]
+        },
+        "I1": {
+          "bhp_pa": 3424483.203815594,
+          "bhp_status": "connected_water_column",
+          "component_mass_rates_kg_s": [
+            0.0,
+            -0.11813143026773565,
+            0.0
+          ]
+        }
+      },
+      "26.5": {
+        "P1": {
+          "bhp_pa": 2138858.7683063014,
+          "bhp_status": null,
+          "component_mass_rates_kg_s": [
+            0.06894641988035874,
+            0.03405090976619664,
+            0.007980173149641027
+          ]
+        },
+        "P2": {
+          "bhp_pa": 2138833.950045294,
+          "bhp_status": null,
+          "component_mass_rates_kg_s": [
+            0.06895260874341502,
+            0.03405510430356116,
+            0.007974422456573885
+          ]
+        },
+        "I1": {
+          "bhp_pa": 3424468.7296340577,
+          "bhp_status": "connected_water_column",
+          "component_mass_rates_kg_s": [
+            0.0,
+            -0.11810601292247021,
+            0.0
+          ]
+        }
+      },
+      "27.0": {
+        "P1": {
+          "bhp_pa": 2137694.11308947,
+          "bhp_status": null,
+          "component_mass_rates_kg_s": [
+            0.06893065713513363,
+            0.03403953022732618,
+            0.007971844145437048
+          ]
+        },
+        "P2": {
+          "bhp_pa": 2137667.4294471834,
+          "bhp_status": null,
+          "component_mass_rates_kg_s": [
+            0.06893741180657756,
+            0.03404408799209269,
+            0.007965654013645705
+          ]
+        },
+        "I1": {
+          "bhp_pa": 3424454.0042986963,
+          "bhp_status": "connected_water_column",
+          "component_mass_rates_kg_s": [
+            0.0,
+            -0.11808361806389374,
+            0.0
+          ]
+        }
+      },
+      "27.5": {
+        "P1": {
+          "bhp_pa": 2136542.0665293164,
+          "bhp_status": null,
+          "component_mass_rates_kg_s": [
+            0.06891796342693425,
+            0.03402956308866346,
+            0.00796333598958035
+          ]
+        },
+        "P2": {
+          "bhp_pa": 2136513.4387640045,
+          "bhp_status": null,
+          "component_mass_rates_kg_s": [
+            0.06892532061515294,
+            0.03403450553592118,
+            0.007956687246865459
+          ]
+        },
+        "I1": {
+          "bhp_pa": 3424438.9131668275,
+          "bhp_status": "connected_water_column",
+          "component_mass_rates_kg_s": [
+            0.0,
+            -0.11806406460150548,
+            0.0
+          ]
+        }
+      },
+      "28.0": {
+        "P1": {
+          "bhp_pa": 2135403.8842376573,
+          "bhp_status": null,
+          "component_mass_rates_kg_s": [
+            0.06890815971973104,
+            0.03402090995261503,
+            0.007954679036390175
+          ]
+        },
+        "P2": {
+          "bhp_pa": 2135373.233921458,
+          "bhp_status": null,
+          "component_mass_rates_kg_s": [
+            0.06891615716866673,
+            0.03402625900947937,
+            0.007947552547436003
+          ]
+        },
+        "I1": {
+          "bhp_pa": 3424423.323188026,
+          "bhp_status": "connected_water_column",
+          "component_mass_rates_kg_s": [
+            0.0,
+            -0.11804716713312588,
+            0.0
+          ]
+        }
+      },
+      "28.5": {
+        "P1": {
+          "bhp_pa": 2134280.7135449713,
+          "bhp_status": null,
+          "component_mass_rates_kg_s": [
+            0.0689010495408457,
+            0.03401346537326378,
+            0.007945904270481401
+          ]
+        },
+        "P2": {
+          "bhp_pa": 2134247.9627008415,
+          "bhp_status": null,
+          "component_mass_rates_kg_s": [
+            0.06890972597093255,
+            0.03401924340156653,
+            0.007938280967501543
+          ]
+        },
+        "I1": {
+          "bhp_pa": 3424407.0435216576,
+          "bhp_status": "connected_water_column",
+          "component_mass_rates_kg_s": [
+            0.0,
+            -0.11803270576314816,
+            0.0
+          ]
+        }
+      },
+      "29.0": {
+        "P1": {
+          "bhp_pa": 2133173.5774867716,
+          "bhp_status": null,
+          "component_mass_rates_kg_s": [
+            0.06889642552277554,
+            0.03400712008908666,
+            0.007937042491428606
+          ]
+        },
+        "P2": {
+          "bhp_pa": 2133138.648718925,
+          "bhp_status": null,
+          "component_mass_rates_kg_s": [
+            0.0689058205693471,
+            0.03401334984715951,
+            0.0079289034031608
+          ]
+        },
+        "I1": {
+          "bhp_pa": 3424389.8846486504,
+          "bhp_status": "connected_water_column",
+          "component_mass_rates_kg_s": [
+            0.0,
+            -0.11802046921932038,
+            0.0
+          ]
+        }
+      },
+      "29.5": {
+        "P1": {
+          "bhp_pa": 2132083.3650942557,
+          "bhp_status": null,
+          "component_mass_rates_kg_s": [
+            0.06889407495941535,
+            0.034001763730097896,
+            0.007928123659992228
+          ]
+        },
+        "P2": {
+          "bhp_pa": 2132046.181712143,
+          "bhp_status": null,
+          "component_mass_rates_kg_s": [
+            0.06890422910857842,
+            0.034008468333693594,
+            0.007919449939175077
+          ]
+        },
+        "I1": {
+          "bhp_pa": 3424371.624632,
+          "bhp_status": "connected_water_column",
+          "component_mass_rates_kg_s": [
+            0.0,
+            -0.11801022898267804,
+            0.0
+          ]
+        }
+      },
+      "30.0": {
+        "P1": {
+          "bhp_pa": 2131010.826890719,
+          "bhp_status": null,
+          "component_mass_rates_kg_s": [
+            0.06889378445000521,
+            0.03399728704471632,
+            0.007919176388358826
+          ]
+        },
+        "P2": {
+          "bhp_pa": 2130971.3130265498,
+          "bhp_status": null,
+          "component_mass_rates_kg_s": [
+            0.06890473897193783,
+            0.034004489927093054,
+            0.007909949337812732
+          ]
+        },
+        "I1": {
+          "bhp_pa": 3424352.0565531375,
+          "bhp_status": "connected_water_column",
+          "component_mass_rates_kg_s": [
+            0.0,
+            -0.1180017737809706,
+            0.0
+          ]
+        }
+      }
+    },
+    "reference": {
+      "3.5": {
+        "P1": {
+          "bhp_pa": 2277603.912986735,
+          "bhp_status": null,
+          "component_mass_rates_kg_s": [
+            0.07688469333911471,
+            0.03712943722757809,
+            0.008486251555870822
+          ]
+        },
+        "P2": {
+          "bhp_pa": 2277603.9126713057,
+          "bhp_status": null,
+          "component_mass_rates_kg_s": [
+            0.07688469363051241,
+            0.03712943737877304,
+            0.008486251471278732
+          ]
+        },
+        "I1": {
+          "bhp_pa": 3416655.9839529498,
+          "bhp_status": "connected_water_column",
+          "component_mass_rates_kg_s": [
+            0.0,
+            -0.12425887312188211,
+            0.0
+          ]
+        }
+      },
+      "4.0": {
+        "P1": {
+          "bhp_pa": 2276422.173032319,
+          "bhp_status": null,
+          "component_mass_rates_kg_s": [
+            0.07504152633955184,
+            0.036283633092115644,
+            0.008644879950854577
+          ]
+        },
+        "P2": {
+          "bhp_pa": 2276422.172294464,
+          "bhp_status": null,
+          "component_mass_rates_kg_s": [
+            0.07504152696577597,
+            0.036283633419173095,
+            0.008644879750280172
+          ]
+        },
+        "I1": {
+          "bhp_pa": 3416113.0665193456,
+          "bhp_status": "connected_water_column",
+          "component_mass_rates_kg_s": [
+            0.0,
+            -0.1225672636388076,
+            0.0
+          ]
+        }
+      },
+      "4.5": {
+        "P1": {
+          "bhp_pa": 2273861.4587708106,
+          "bhp_status": null,
+          "component_mass_rates_kg_s": [
+            0.07346706816317172,
+            0.035573660083797025,
+            0.008772616936836309
+          ]
+        },
+        "P2": {
+          "bhp_pa": 2273861.457224264,
+          "bhp_status": null,
+          "component_mass_rates_kg_s": [
+            0.07346706936994928,
+            0.035573660719230196,
+            0.008772616512969818
+          ]
+        },
+        "I1": {
+          "bhp_pa": 3415672.468373541,
+          "bhp_status": "connected_water_column",
+          "component_mass_rates_kg_s": [
+            0.0,
+            -0.12114732008841318,
+            0.0
+          ]
+        }
+      },
+      "5.0": {
+        "P1": {
+          "bhp_pa": 2270090.655646307,
+          "bhp_status": null,
+          "component_mass_rates_kg_s": [
+            0.07214577799760659,
+            0.03499005924040362,
+            0.008869133875215745
+          ]
+        },
+        "P2": {
+          "bhp_pa": 2270090.652664747,
+          "bhp_status": null,
+          "component_mass_rates_kg_s": [
+            0.07214578013239237,
+            0.034990060375631384,
+            0.008869133055754506
+          ]
+        },
+        "I1": {
+          "bhp_pa": 3415359.6868029153,
+          "bhp_status": "connected_water_column",
+          "component_mass_rates_kg_s": [
+            0.0,
+            -0.11998011851338326,
+            0.0
+          ]
+        }
+      },
+      "5.5": {
+        "P1": {
+          "bhp_pa": 2265310.0261664125,
+          "bhp_status": null,
+          "component_mass_rates_kg_s": [
+            0.07105836915650626,
+            0.03452187141510695,
+            0.008935553765282898
+          ]
+        },
+        "P2": {
+          "bhp_pa": 2265310.020782211,
+          "bhp_status": null,
+          "component_mass_rates_kg_s": [
+            0.07105837268251282,
+            0.034521873312075874,
+            0.008935552288636912
+          ]
+        },
+        "I1": {
+          "bhp_pa": 3415185.464200765,
+          "bhp_status": "connected_water_column",
+          "component_mass_rates_kg_s": [
+            0.0,
+            -0.11904374265146486,
+            0.0
+          ]
+        }
+      },
+      "6.0": {
+        "P1": {
+          "bhp_pa": 2259730.829939492,
+          "bhp_status": null,
+          "component_mass_rates_kg_s": [
+            0.07018373260768189,
+            0.03415751348962662,
+            0.00897406780881439
+          ]
+        },
+        "P2": {
+          "bhp_pa": 2259730.8207136216,
+          "bhp_status": null,
+          "component_mass_rates_kg_s": [
+            0.07018373811493368,
+            0.034157516492515604,
+            0.008974065294587457
+          ]
+        },
+        "I1": {
+          "bhp_pa": 3415150.4419008037,
+          "bhp_status": "connected_water_column",
+          "component_mass_rates_kg_s": [
+            0.0,
+            -0.11831502585361384,
+            0.0
+          ]
+        }
+      },
+      "6.5": {
+        "P1": {
+          "bhp_pa": 2253562.81784859,
+          "bhp_status": null,
+          "component_mass_rates_kg_s": [
+            0.0694997807743361,
+            0.03388513916338046,
+            0.008987646089092274
+          ]
+        },
+        "P2": {
+          "bhp_pa": 2253562.8027133564,
+          "bhp_status": null,
+          "component_mass_rates_kg_s": [
+            0.06949978898695895,
+            0.03388514370995774,
+            0.008987642004075164
+          ]
+        },
+        "I1": {
+          "bhp_pa": 3415248.1010031174,
+          "bhp_status": "connected_water_column",
+          "component_mass_rates_kg_s": [
+            0.0,
+            -0.11777027975767852,
+            0.0
+          ]
+        }
+      },
+      "7.0": {
+        "P1": {
+          "bhp_pa": 2247003.425672961,
+          "bhp_status": null,
+          "component_mass_rates_kg_s": [
+            0.06898479182926286,
+            0.03369325640836378,
+            0.008979665135632258
+          ]
+        },
+        "P2": {
+          "bhp_pa": 2247003.4017364,
+          "bhp_status": null,
+          "component_mass_rates_kg_s": [
+            0.06898480361550187,
+            0.0336932630446225,
+            0.00897965875257883
+          ]
+        },
+        "I1": {
+          "bhp_pa": 3415467.499724198,
+          "bhp_status": "connected_water_column",
+          "component_mass_rates_kg_s": [
+            0.0,
+            -0.1173865188051151,
+            0.0
+          ]
+        }
+      },
+      "7.5": {
+        "P1": {
+          "bhp_pa": 2240235.017281038,
+          "bhp_status": null,
+          "component_mass_rates_kg_s": [
+            0.06861606471731946,
+            0.033570064229847485,
+            0.008953889970612673
+          ]
+        },
+        "P2": {
+          "bhp_pa": 2240234.9806518783,
+          "bhp_status": null,
+          "component_mass_rates_kg_s": [
+            0.06861608108719418,
+            0.03357007361815091,
+            0.008953880334030589
+          ]
+        },
+        "I1": {
+          "bhp_pa": 3415793.3697460676,
+          "bhp_status": "connected_water_column",
+          "component_mass_rates_kg_s": [
+            0.0,
+            -0.11714013655566519,
+            0.0
+          ]
+        }
+      },
+      "8.0": {
+        "P1": {
+          "bhp_pa": 2233415.706159274,
+          "bhp_status": null,
+          "component_mass_rates_kg_s": [
+            0.06837245726388745,
+            0.03350466292458627,
+            0.008913977710020643
+          ]
+        },
+        "P2": {
+          "bhp_pa": 2233415.6517289984,
+          "bhp_status": null,
+          "component_mass_rates_kg_s": [
+            0.06837247937930366,
+            0.03350467586003368,
+            0.008913963593069223
+          ]
+        },
+        "I1": {
+          "bhp_pa": 3416209.244382448,
+          "bhp_status": "connected_water_column",
+          "component_mass_rates_kg_s": [
+            0.0,
+            -0.11700933747407471,
+            0.0
+          ]
+        }
+      },
+      "8.5": {
+        "P1": {
+          "bhp_pa": 2226680.3270728625,
+          "bhp_status": null,
+          "component_mass_rates_kg_s": [
+            0.06823412828315849,
+            0.03348690411133336,
+            0.008863399900317502
+          ]
+        },
+        "P2": {
+          "bhp_pa": 2226680.2482843106,
+          "bhp_status": null,
+          "component_mass_rates_kg_s": [
+            0.06823415747949235,
+            0.03348692154452413,
+            0.00886337975890197
+          ]
+        },
+        "I1": {
+          "bhp_pa": 3416697.9684462124,
+          "bhp_status": "connected_water_column",
+          "component_mass_rates_kg_s": [
+            0.0,
+            -0.11697382217756029,
+            0.0
+          ]
+        }
+      },
+      "9.0": {
+        "P1": {
+          "bhp_pa": 2220140.13267535,
+          "bhp_status": null,
+          "component_mass_rates_kg_s": [
+            0.06818212542682088,
+            0.03350719466951832,
+            0.008805395294442207
+          ]
+        },
+        "P2": {
+          "bhp_pa": 2220140.0213209577,
+          "bhp_status": null,
+          "component_mass_rates_kg_s": [
+            0.06818216323825713,
+            0.03350721773006973,
+            0.00880536722818663
+          ]
+        },
+        "I1": {
+          "bhp_pa": 3417241.959429131,
+          "bhp_status": "connected_water_column",
+          "component_mass_rates_kg_s": [
+            0.0,
+            -0.11701441231977051,
+            0.0
+          ]
+        }
+      },
+      "9.5": {
+        "P1": {
+          "bhp_pa": 2213882.782788278,
+          "bhp_status": null,
+          "component_mass_rates_kg_s": [
+            0.06819880144973409,
+            0.033556690679790814,
+            0.008742859138294388
+          ]
+        },
+        "P2": {
+          "bhp_pa": 2213882.62881587,
+          "bhp_status": null,
+          "component_mass_rates_kg_s": [
+            0.06819884964905912,
+            0.033556720706583894,
+            0.008742820852025695
+          ]
+        },
+        "I1": {
+          "bhp_pa": 3417823.9904872063,
+          "bhp_status": "connected_water_column",
+          "component_mass_rates_kg_s": [
+            0.0,
+            -0.11711340846010922,
+            0.0
+          ]
+        }
+      },
+      "10.0": {
+        "P1": {
+          "bhp_pa": 2207972.1292468677,
+          "bhp_status": null,
+          "component_mass_rates_kg_s": [
+            0.06826781897376966,
+            0.0336273106280466,
+            0.008678297462543151
+          ]
+        },
+        "P2": {
+          "bhp_pa": 2207971.9206349994,
+          "bhp_status": null,
+          "component_mass_rates_kg_s": [
+            0.06826787961389714,
+            0.03362734919713702,
+            0.008678246242176769
+          ]
+        },
+        "I1": {
+          "bhp_pa": 3418427.6982279797,
+          "bhp_status": "connected_water_column",
+          "component_mass_rates_kg_s": [
+            0.0,
+            -0.11725465905059287,
+            0.0
+          ]
+        }
+      },
+      "10.5": {
+        "P1": {
+          "bhp_pa": 2202452.1505092373,
+          "bhp_status": null,
+          "component_mass_rates_kg_s": [
+            0.06837466474524412,
+            0.033711949757782377,
+            0.008613787235350261
+          ]
+        },
+        "P2": {
+          "bhp_pa": 2202451.873092298,
+          "bhp_status": null,
+          "component_mass_rates_kg_s": [
+            0.06837474022510799,
+            0.03371199872387093,
+            0.008613719909358077
+          ]
+        },
+        "I1": {
+          "bhp_pa": 3419038.169153715,
+          "bhp_status": "connected_water_column",
+          "component_mass_rates_kg_s": [
+            0.0,
+            -0.11742394417524321,
+            0.0
+          ]
+        }
+      },
+      "11.0": {
+        "P1": {
+          "bhp_pa": 2197347.049072983,
+          "bhp_status": null,
+          "component_mass_rates_kg_s": [
+            0.06850641627225933,
+            0.033804385702519556,
+            0.008550994061140346
+          ]
+        },
+        "P2": {
+          "bhp_pa": 2197346.686475527,
+          "bhp_status": null,
+          "component_mass_rates_kg_s": [
+            0.06850650939216374,
+            0.0338044472299159,
+            0.008550906984768028
+          ]
+        },
+        "I1": {
+          "bhp_pa": 3419642.1351600443,
+          "bhp_status": "connected_water_column",
+          "component_mass_rates_kg_s": [
+            0.0,
+            -0.1176088289530188,
+            0.0
+          ]
+        }
+      },
+      "11.5": {
+        "P1": {
+          "bhp_pa": 2192664.499185066,
+          "bhp_status": null,
+          "component_mass_rates_kg_s": [
+            0.06865196893142739,
+            0.033899367737315736,
+            0.008491182234670911
+          ]
+        },
+        "P2": {
+          "bhp_pa": 2192664.032764798,
+          "bhp_status": null,
+          "component_mass_rates_kg_s": [
+            0.06865208294828144,
+            0.033899444329753406,
+            0.008491071273656928
+          ]
+        },
+        "I1": {
+          "bhp_pa": 3420228.274006405,
+          "bhp_status": "connected_water_column",
+          "component_mass_rates_kg_s": [
+            0.0,
+            -0.11779881013488314,
+            0.0
+          ]
+        }
+      },
+      "12.0": {
+        "P1": {
+          "bhp_pa": 2188400.926651072,
+          "bhp_status": null,
+          "component_mass_rates_kg_s": [
+            0.06880203691775189,
+            0.03399257976344621,
+            0.008435275412668183
+          ]
+        },
+        "P2": {
+          "bhp_pa": 2188400.3353232457,
+          "bhp_status": null,
+          "component_mass_rates_kg_s": [
+            0.06880217562442588,
+            0.03399267431009413,
+            0.008435135896626377
+          ]
+        },
+        "I1": {
+          "bhp_pa": 3420787.1663258183,
+          "bhp_status": "connected_water_column",
+          "component_mass_rates_kg_s": [
+            0.0,
+            -0.11798525142862842,
+            0.0
+          ]
+        }
+      },
+      "12.5": {
+        "P1": {
+          "bhp_pa": 2184540.4871914038,
+          "bhp_status": null,
+          "component_mass_rates_kg_s": [
+            0.06894900815950906,
+            0.03408059341600379,
+            0.00838387319473684
+          ]
+        },
+        "P2": {
+          "bhp_pa": 2184539.747430393,
+          "bhp_status": null,
+          "component_mass_rates_kg_s": [
+            0.06894917592485665,
+            0.03408070920972334,
+            0.008383699910096524
+          ]
+        },
+        "I1": {
+          "bhp_pa": 3421311.4659074433,
+          "bhp_status": "connected_water_column",
+          "component_mass_rates_kg_s": [
+            0.0,
+            -0.11816130161501301,
+            0.0
+          ]
+        }
+      },
+      "13.0": {
+        "P1": {
+          "bhp_pa": 2181057.4074381925,
+          "bhp_status": null,
+          "component_mass_rates_kg_s": [
+            0.06908702109703804,
+            0.03416088982918887,
+            0.008337278497349936
+          ]
+        },
+        "P2": {
+          "bhp_pa": 2181056.4933714564,
+          "bhp_status": null,
+          "component_mass_rates_kg_s": [
+            0.06908722287590009,
+            0.03416103056542177,
+            0.008337065700858362
+          ]
+        },
+        "I1": {
+          "bhp_pa": 3421796.0202858797,
+          "bhp_status": "connected_water_column",
+          "component_mass_rates_kg_s": [
+            0.0,
+            -0.11832192022767346,
+            0.0
+          ]
+        }
+      },
+      "13.5": {
+        "P1": {
+          "bhp_pa": 2177923.8541070595,
+          "bhp_status": null,
+          "component_mass_rates_kg_s": [
+            0.06921168174491911,
+            0.034231657416686205,
+            0.008295614450538849
+          ]
+        },
+        "P2": {
+          "bhp_pa": 2177922.737198477,
+          "bhp_status": null,
+          "component_mass_rates_kg_s": [
+            0.06921192315688333,
+            0.03423182724382175,
+            0.008295355786566223
+          ]
+        },
+        "I1": {
+          "bhp_pa": 3422237.200974371,
+          "bhp_status": "connected_water_column",
+          "component_mass_rates_kg_s": [
+            0.0,
+            -0.11846348125901486,
+            0.0
+          ]
+        }
+      },
+      "14.0": {
+        "P1": {
+          "bhp_pa": 2175105.230339727,
+          "bhp_status": null,
+          "component_mass_rates_kg_s": [
+            0.06932010825414794,
+            0.03429186158457969,
+            0.008258782702727261
+          ]
+        },
+        "P2": {
+          "bhp_pa": 2175103.879607772,
+          "bhp_status": null,
+          "component_mass_rates_kg_s": [
+            0.0693203955499763,
+            0.034292065075447034,
+            0.008258471245356022
+          ]
+        },
+        "I1": {
+          "bhp_pa": 3422633.4357546447,
+          "bhp_status": "connected_water_column",
+          "component_mass_rates_kg_s": [
+            0.0,
+            -0.11858392368864129,
+            0.0
+          ]
+        }
+      },
+      "14.5": {
+        "P1": {
+          "bhp_pa": 2172567.188936246,
+          "bhp_status": null,
+          "component_mass_rates_kg_s": [
+            0.06941057067789873,
+            0.03434101037765083,
+            0.008226574647001826
+          ]
+        },
+        "P2": {
+          "bhp_pa": 2172565.5707349703,
+          "bhp_status": null,
+          "component_mass_rates_kg_s": [
+            0.06941091078566608,
+            0.034341252559497874,
+            0.008226202840657212
+          ]
+        },
+        "I1": {
+          "bhp_pa": 3422984.3867842476,
+          "bhp_status": "connected_water_column",
+          "component_mass_rates_kg_s": [
+            0.0,
+            -0.11868226014215627,
+            0.0
+          ]
+        }
+      },
+      "15.0": {
+        "P1": {
+          "bhp_pa": 2170273.766424217,
+          "bhp_status": null,
+          "component_mass_rates_kg_s": [
+            0.06948248218610525,
+            0.0343791685267534,
+            0.008198658127552827
+          ]
+        },
+        "P2": {
+          "bhp_pa": 2170271.8446214153,
+          "bhp_status": null,
+          "component_mass_rates_kg_s": [
+            0.06948288267841013,
+            0.03437945485503497,
+            0.008198217820889168
+          ]
+        },
+        "I1": {
+          "bhp_pa": 3423291.1871297187,
+          "bhp_status": "connected_water_column",
+          "component_mass_rates_kg_s": [
+            0.0,
+            -0.11875861996991763,
+            0.0
+          ]
+        }
+      },
+      "15.5": {
+        "P1": {
+          "bhp_pa": 2168192.3079187437,
+          "bhp_status": null,
+          "component_mass_rates_kg_s": [
+            0.06953592365965708,
+            0.03440668720966258,
+            0.008174674613176799
+          ]
+        },
+        "P2": {
+          "bhp_pa": 2168190.043496009,
+          "bhp_status": null,
+          "component_mass_rates_kg_s": [
+            0.06953639284315603,
+            0.034407023627920585,
+            0.008174156958864764
+          ]
+        },
+        "I1": {
+          "bhp_pa": 3423555.564888071,
+          "bhp_status": "connected_water_column",
+          "component_mass_rates_kg_s": [
+            0.0,
+            -0.11881371028721345,
+            0.0
+          ]
+        }
+      },
+      "16.0": {
+        "P1": {
+          "bhp_pa": 2166291.235881328,
+          "bhp_status": null,
+          "component_mass_rates_kg_s": [
+            0.06957167343340452,
+            0.03442423831768266,
+            0.008154214962838626
+          ]
+        },
+        "P2": {
+          "bhp_pa": 2166288.586914961,
+          "bhp_status": null,
+          "component_mass_rates_kg_s": [
+            0.06957222037413426,
+            0.034424631269356534,
+            0.008153610406841084
+          ]
+        },
+        "I1": {
+          "bhp_pa": 3423780.0620505214,
+          "bhp_status": "connected_water_column",
+          "component_mass_rates_kg_s": [
+            0.0,
+            -0.11884886771440525,
+            0.0
+          ]
+        }
+      },
+      "16.5": {
+        "P1": {
+          "bhp_pa": 2164540.7416582904,
+          "bhp_status": null,
+          "component_mass_rates_kg_s": [
+            0.06959107298476125,
+            0.03443274342856801,
+            0.008136839124962157
+          ]
+        },
+        "P2": {
+          "bhp_pa": 2164537.6634376156,
+          "bhp_status": null,
+          "component_mass_rates_kg_s": [
+            0.06959170751675886,
+            0.03443319985472986,
+            0.008136137428545274
+          ]
+        },
+        "I1": {
+          "bhp_pa": 3423967.9021785296,
+          "bhp_status": "connected_water_column",
+          "component_mass_rates_kg_s": [
+            0.0,
+            -0.11886594196160619,
+            0.0
+          ]
+        }
+      },
+      "17.0": {
+        "P1": {
+          "bhp_pa": 2162913.2656558366,
+          "bhp_status": null,
+          "component_mass_rates_kg_s": [
+            0.06959589596657023,
+            0.03443330609498246,
+            0.00812209278369895
+          ]
+        },
+        "P2": {
+          "bhp_pa": 2162909.7110849195,
+          "bhp_status": null,
+          "component_mass_rates_kg_s": [
+            0.06959662864890143,
+            0.03443383339416682,
+            0.008121283112174311
+          ]
+        },
+        "I1": {
+          "bhp_pa": 3424122.8093202957,
+          "bhp_status": "connected_water_column",
+          "component_mass_rates_kg_s": [
+            0.0,
+            -0.11886713629657472,
+            0.0
+          ]
+        }
+      },
+      "17.5": {
+        "P1": {
+          "bhp_pa": 2161386.3230758496,
+          "bhp_status": null,
+          "component_mass_rates_kg_s": [
+            0.06958787714349118,
+            0.03442696457334484,
+            0.008109579570275405
+          ]
+        },
+        "P2": {
+          "bhp_pa": 2161382.2419106285,
+          "bhp_status": null,
+          "component_mass_rates_kg_s": [
+            0.06958871948570379,
+            0.03442757074599218,
+            0.008108650310811713
+          ]
+        },
+        "I1": {
+          "bhp_pa": 3424248.1621481106,
+          "bhp_status": "connected_water_column",
+          "component_mass_rates_kg_s": [
+            0.0,
+            -0.1188545332600674,
+            0.0
+          ]
+        }
+      },
+      "18.0": {
+        "P1": {
+          "bhp_pa": 2159940.4329949417,
+          "bhp_status": null,
+          "component_mass_rates_kg_s": [
+            0.06956881884052961,
+            0.03441476087198803,
+            0.008098929193688518
+          ]
+        },
+        "P2": {
+          "bhp_pa": 2159935.771293642,
+          "bhp_status": null,
+          "component_mass_rates_kg_s": [
+            0.06956978351532626,
+            0.03441545464952705,
+            0.008097867823232109
+          ]
+        },
+        "I1": {
+          "bhp_pa": 3424347.2530739433,
+          "bhp_status": "connected_water_column",
+          "component_mass_rates_kg_s": [
+            0.0,
+            -0.11883021539284117,
+            0.0
+          ]
+        }
+      },
+      "18.5": {
+        "P1": {
+          "bhp_pa": 2158556.6132653975,
+          "bhp_status": null,
+          "component_mass_rates_kg_s": [
+            0.06954088039045654,
+            0.034397895764110266,
+            0.00808974392865874
+          ]
+        },
+        "P2": {
+          "bhp_pa": 2158551.315311385,
+          "bhp_status": null,
+          "component_mass_rates_kg_s": [
+            0.06954198088360644,
+            0.03439868634959348,
+            0.008088537458914332
+          ]
+        },
+        "I1": {
+          "bhp_pa": 3424424.041239996,
+          "bhp_status": "connected_water_column",
+          "component_mass_rates_kg_s": [
+            0.0,
+            -0.11879657998819054,
+            0.0
+          ]
+        }
+      },
+      "19.0": {
+        "P1": {
+          "bhp_pa": 2157220.6905741896,
+          "bhp_status": null,
+          "component_mass_rates_kg_s": [
+            0.06950588704241571,
+            0.03437736827288221,
+            0.008081706864369723
+          ]
+        },
+        "P2": {
+          "bhp_pa": 2157214.6975957816,
+          "bhp_status": null,
+          "component_mass_rates_kg_s": [
+            0.06950713804568114,
+            0.03437826559170472,
+            0.008080341540294172
+          ]
+        },
+        "I1": {
+          "bhp_pa": 3424481.7217551963,
+          "bhp_status": "connected_water_column",
+          "component_mass_rates_kg_s": [
+            0.0,
+            -0.11875563197665745,
+            0.0
+          ]
+        }
+      },
+      "19.5": {
+        "P1": {
+          "bhp_pa": 2155920.280095235,
+          "bhp_status": null,
+          "component_mass_rates_kg_s": [
+            0.06946566491373474,
+            0.03435415715268886,
+            0.008074519293604969
+          ]
+        },
+        "P2": {
+          "bhp_pa": 2155913.531681142,
+          "bhp_status": null,
+          "component_mass_rates_kg_s": [
+            0.06946708206361848,
+            0.034355171660113315,
+            0.008072980922776236
+          ]
+        },
+        "I1": {
+          "bhp_pa": 3424523.5364454514,
+          "bhp_status": "connected_water_column",
+          "component_mass_rates_kg_s": [
+            0.0,
+            -0.118709324548642,
+            0.0
+          ]
+        }
+      },
+      "20.0": {
+        "P1": {
+          "bhp_pa": 2154646.50257397,
+          "bhp_status": null,
+          "component_mass_rates_kg_s": [
+            0.0694217222264373,
+            0.03432906145518065,
+            0.008067947846747773
+          ]
+        },
+        "P2": {
+          "bhp_pa": 2154638.934279573,
+          "bhp_status": null,
+          "component_mass_rates_kg_s": [
+            0.06942332282438778,
+            0.034330204598739436,
+            0.008066221238262183
+          ]
+        },
+        "I1": {
+          "bhp_pa": 3424551.9682177105,
+          "bhp_status": "connected_water_column",
+          "component_mass_rates_kg_s": [
+            0.0,
+            -0.11865926596025608,
+            0.0
+          ]
+        }
+      },
+      "20.5": {
+        "P1": {
+          "bhp_pa": 2153391.1861555525,
+          "bhp_status": null,
+          "component_mass_rates_kg_s": [
+            0.0693755826636169,
+            0.034302873032708465,
+            0.008061764780444288
+          ]
+        },
+        "P2": {
+          "bhp_pa": 2153382.7334298566,
+          "bhp_status": null,
+          "component_mass_rates_kg_s": [
+            0.06937738471954087,
+            0.034304156604605,
+            0.008059834665177072
+          ]
+        },
+        "I1": {
+          "bhp_pa": 3424569.786941856,
+          "bhp_status": "connected_water_column",
+          "component_mass_rates_kg_s": [
+            0.0,
+            -0.11860702566250605,
+            0.0
+          ]
+        }
+      },
+      "21.0": {
+        "P1": {
+          "bhp_pa": 2152148.828698572,
+          "bhp_status": null,
+          "component_mass_rates_kg_s": [
+            0.06932844154601535,
+            0.03427620563145293,
+            0.008055800198071778
+          ]
+        },
+        "P2": {
+          "bhp_pa": 2152139.425613457,
+          "bhp_status": null,
+          "component_mass_rates_kg_s": [
+            0.06933046414967307,
+            0.03427764200927923,
+            0.00805365093420828
+          ]
+        },
+        "I1": {
+          "bhp_pa": 3424579.1162951523,
+          "bhp_status": "connected_water_column",
+          "component_mass_rates_kg_s": [
+            0.0,
+            -0.11855384541882402,
+            0.0
+          ]
+        }
+      },
+      "21.5": {
+        "P1": {
+          "bhp_pa": 2150915.9284632616,
+          "bhp_status": null,
+          "component_mass_rates_kg_s": [
+            0.06928139485406959,
+            0.03424961661052359,
+            0.008049912967570828
+          ]
+        },
+        "P2": {
+          "bhp_pa": 2150905.5013939184,
+          "bhp_status": null,
+          "component_mass_rates_kg_s": [
+            0.0692836601827746,
+            0.0342512200280863,
+            0.00804752705125088
+          ]
+        },
+        "I1": {
+          "bhp_pa": 3424581.3947867923,
+          "bhp_status": "connected_water_column",
+          "component_mass_rates_kg_s": [
+            0.0,
+            -0.11850083333060678,
+            0.0
+          ]
+        }
+      },
+      "22.0": {
+        "P1": {
+          "bhp_pa": 2149689.0550690047,
+          "bhp_status": null,
+          "component_mass_rates_kg_s": [
+            0.06923538262942444,
+            0.03422357295654273,
+            0.008043978149719818
+          ]
+        },
+        "P2": {
+          "bhp_pa": 2149677.5325309616,
+          "bhp_status": null,
+          "component_mass_rates_kg_s": [
+            0.06923791315170823,
+            0.03422535768582628,
+            0.008041338531320417
+          ]
+        },
+        "I1": {
+          "bhp_pa": 3424578.5742018274,
+          "bhp_status": "connected_water_column",
+          "component_mass_rates_kg_s": [
+            0.0,
+            -0.1184489293437865,
+            0.0
+          ]
+        }
+      },
+      "22.5": {
+        "P1": {
+          "bhp_pa": 2148466.5282333605,
+          "bhp_status": null,
+          "component_mass_rates_kg_s": [
+            0.06919113255712152,
+            0.034198431089646444,
+            0.008037908312593399
+          ]
+        },
+        "P2": {
+          "bhp_pa": 2148453.8371638684,
+          "bhp_status": null,
+          "component_mass_rates_kg_s": [
+            0.06919395216170092,
+            0.03420041216345153,
+            0.008034997524720453
+          ]
+        },
+        "I1": {
+          "bhp_pa": 3424571.9355307594,
+          "bhp_status": "connected_water_column",
+          "component_mass_rates_kg_s": [
+            0.0,
+            -0.11839884057365069,
+            0.0
+          ]
+        }
+      },
+      "23.0": {
+        "P1": {
+          "bhp_pa": 2147247.529801856,
+          "bhp_status": null,
+          "component_mass_rates_kg_s": [
+            0.06914922275505414,
+            0.03417446851027396,
+            0.008031638991369265
+          ]
+        },
+        "P2": {
+          "bhp_pa": 2147233.595749732,
+          "bhp_status": null,
+          "component_mass_rates_kg_s": [
+            0.0691523567503672,
+            0.034176661713149745,
+            0.00802843919597881
+          ]
+        },
+        "I1": {
+          "bhp_pa": 3424562.5363574964,
+          "bhp_status": "connected_water_column",
+          "component_mass_rates_kg_s": [
+            0.0,
+            -0.11835112753841592,
+            0.0
+          ]
+        }
+      },
+      "23.5": {
+        "P1": {
+          "bhp_pa": 2146031.9306072593,
+          "bhp_status": null,
+          "component_mass_rates_kg_s": [
+            0.06911009506235832,
+            0.03415189181040338,
+            0.008025125760881963
+          ]
+        },
+        "P2": {
+          "bhp_pa": 2146016.6779236374,
+          "bhp_status": null,
+          "component_mass_rates_kg_s": [
+            0.06911357016624514,
+            0.0341543136644922,
+            0.00802161879660156
+          ]
+        },
+        "I1": {
+          "bhp_pa": 3424551.211959594,
+          "bhp_status": "connected_water_column",
+          "component_mass_rates_kg_s": [
+            0.0,
+            -0.1183062041592266,
+            0.0
+          ]
+        }
+      },
+      "24.0": {
+        "P1": {
+          "bhp_pa": 2144820.1371498792,
+          "bhp_status": null,
+          "component_mass_rates_kg_s": [
+            0.06907406928386481,
+            0.03413084492604077,
+            0.008018341396646802
+          ]
+        },
+        "P2": {
+          "bhp_pa": 2144803.489177651,
+          "bhp_status": null,
+          "component_mass_rates_kg_s": [
+            0.06907791360439702,
+            0.034133512672406274,
+            0.008014508825618015
+          ]
+        },
+        "I1": {
+          "bhp_pa": 3424538.599882742,
+          "bhp_status": "connected_water_column",
+          "component_mass_rates_kg_s": [
+            0.0,
+            -0.11826435500686905,
+            0.0
+          ]
+        }
+      },
+      "24.5": {
+        "P1": {
+          "bhp_pa": 2143612.957695109,
+          "bhp_status": null,
+          "component_mass_rates_kg_s": [
+            0.06904135774322052,
+            0.03411141733167147,
+            0.008011273179865896
+          ]
+        },
+        "P2": {
+          "bhp_pa": 2143594.836955211,
+          "bhp_status": null,
+          "component_mass_rates_kg_s": [
+            0.06904560075170797,
+            0.034114348907690946,
+            0.008007096333537932
+          ]
+        },
+        "I1": {
+          "bhp_pa": 3424525.1819895175,
+          "bhp_status": "connected_water_column",
+          "component_mass_rates_kg_s": [
+            0.0,
+            -0.11822576548352276,
+            0.0
+          ]
+        }
+      },
+      "25.0": {
+        "P1": {
+          "bhp_pa": 2142411.486916176,
+          "bhp_status": null,
+          "component_mass_rates_kg_s": [
+            0.06901207965056641,
+            0.034093651954859305,
+            0.008003920385621243
+          ]
+        },
+        "P2": {
+          "bhp_pa": 2142391.81528881,
+          "bhp_status": null,
+          "component_mass_rates_kg_s": [
+            0.06901675214744304,
+            0.034096865968130725,
+            0.007999380408983636
+          ]
+        },
+        "I1": {
+          "bhp_pa": 3424511.280034262,
+          "bhp_status": "connected_water_column",
+          "component_mass_rates_kg_s": [
+            0.0,
+            -0.11819051751108095,
+            0.0
+          ]
+        }
+      },
+      "25.5": {
+        "P1": {
+          "bhp_pa": 2141217.0079681636,
+          "bhp_status": null,
+          "component_mass_rates_kg_s": [
+            0.06898627492234947,
+            0.03407755265366565,
+            0.007996291980143622
+          ]
+        },
+        "P2": {
+          "bhp_pa": 2141195.7068687943,
+          "bhp_status": null,
+          "component_mass_rates_kg_s": [
+            0.06899140899784122,
+            0.03408106835334145,
+            0.007991369874193358
+          ]
+        },
+        "I1": {
+          "bhp_pa": 3424497.097776577,
+          "bhp_status": "connected_water_column",
+          "component_mass_rates_kg_s": [
+            0.0,
+            -0.11815861971289998,
+            0.0
+          ]
+        }
+      },
+      "26.0": {
+        "P1": {
+          "bhp_pa": 2140030.910765259,
+          "bhp_status": null,
+          "component_mass_rates_kg_s": [
+            0.06896391719826507,
+            0.034063091150891574,
+            0.007988404542879841
+          ]
+        },
+        "P2": {
+          "bhp_pa": 2140007.9013147755,
+          "bhp_status": null,
+          "component_mass_rates_kg_s": [
+            0.06896954618861977,
+            0.03406692839687254,
+            0.007983081205146866
+          ]
+        },
+        "I1": {
+          "bhp_pa": 3424482.733988293,
+          "bhp_status": "connected_water_column",
+          "component_mass_rates_kg_s": [
+            0.0,
+            -0.11813001603715954,
+            0.0
+          ]
+        }
+      },
+      "26.5": {
+        "P1": {
+          "bhp_pa": 2138854.62495848,
+          "bhp_status": null,
+          "component_mass_rates_kg_s": [
+            0.06894492588126556,
+            0.03405021335998531,
+            0.007980280418937087
+          ]
+        },
+        "P2": {
+          "bhp_pa": 2138829.8281468092,
+          "bhp_status": null,
+          "component_mass_rates_kg_s": [
+            0.06895108432098994,
+            0.03405439259026582,
+            0.007974536681937195
+          ]
+        },
+        "I1": {
+          "bhp_pa": 3424468.2071043006,
+          "bhp_status": "connected_water_column",
+          "component_mass_rates_kg_s": [
+            0.0,
+            -0.11810460300357256,
+            0.0
+          ]
+        }
+      },
+      "27.0": {
+        "P1": {
+          "bhp_pa": 2137689.5660978365,
+          "bhp_status": null,
+          "component_mass_rates_kg_s": [
+            0.06892917709853649,
+            0.03403884507102026,
+            0.007971946100265418
+          ]
+        },
+        "P2": {
+          "bhp_pa": 2137662.902940834,
+          "bhp_status": null,
+          "component_mass_rates_kg_s": [
+            0.06893590066922924,
+            0.0340433872675204,
+            0.007965762767870373
+          ]
+        },
+        "I1": {
+          "bhp_pa": 3424453.456585779,
+          "bhp_status": "connected_water_column",
+          "component_mass_rates_kg_s": [
+            0.0,
+            -0.11808222970338879,
+            0.0
+          ]
+        }
+      },
+      "27.5": {
+        "P1": {
+          "bhp_pa": 2136537.093473886,
+          "bhp_status": null,
+          "component_mass_rates_kg_s": [
+            0.06891651353631956,
+            0.03402889699050418,
+            0.007963430828394166
+          ]
+        },
+        "P2": {
+          "bhp_pa": 2136508.485163468,
+          "bhp_status": null,
+          "component_mass_rates_kg_s": [
+            0.06892383901253442,
+            0.034033823643643484,
+            0.007956788710175052
+          ]
+        },
+        "I1": {
+          "bhp_pa": 3424438.3732679416,
+          "bhp_status": "connected_water_column",
+          "component_mass_rates_kg_s": [
+            0.0,
+            -0.11806271935778628,
+            0.0
+          ]
+        }
+      },
+      "28.0": {
+        "P1": {
+          "bhp_pa": 2135398.4781707055,
+          "bhp_status": null,
+          "component_mass_rates_kg_s": [
+            0.06890675314320593,
+            0.03402026914770923,
+            0.00795476540732957
+          ]
+        },
+        "P2": {
+          "bhp_pa": 2135367.846218282,
+          "bhp_status": null,
+          "component_mass_rates_kg_s": [
+            0.06891471833562449,
+            0.034025602219904603,
+            0.007947645350974104
+          ]
+        },
+        "I1": {
+          "bhp_pa": 3424422.800621088,
+          "bhp_status": "connected_water_column",
+          "component_mass_rates_kg_s": [
+            0.0,
+            -0.11804586931787159,
+            0.0
+          ]
+        }
+      },
+      "28.5": {
+        "P1": {
+          "bhp_pa": 2134274.879928928,
+          "bhp_status": null,
+          "component_mass_rates_kg_s": [
+            0.0688996967278428,
+            0.0340128546940045,
+            0.007945981212242246
+          ]
+        },
+        "P2": {
+          "bhp_pa": 2134242.1463022307,
+          "bhp_status": null,
+          "component_mass_rates_kg_s": [
+            0.06890834042390734,
+            0.03401861658221217,
+            0.007938364134176078
+          ]
+        },
+        "I1": {
+          "bhp_pa": 3424406.5590530294,
+          "bhp_status": "connected_water_column",
+          "component_mass_rates_kg_s": [
+            0.0,
+            -0.11803146831139363,
+            0.0
+          ]
+        }
+      },
+      "29.0": {
+        "P1": {
+          "bhp_pa": 2133167.331505151,
+          "bhp_status": null,
+          "component_mass_rates_kg_s": [
+            0.06889513449980748,
+            0.03400654313131669,
+            0.007937109377635261
+          ]
+        },
+        "P2": {
+          "bhp_pa": 2133132.4187585497,
+          "bhp_status": null,
+          "component_mass_rates_kg_s": [
+            0.06890449640186744,
+            0.0340127566286872,
+            0.007928976291986762
+          ]
+        },
+        "I1": {
+          "bhp_pa": 3424389.447114923,
+          "bhp_status": "connected_water_column",
+          "component_mass_rates_kg_s": [
+            0.0,
+            -0.11801929644274478,
+            0.0
+          ]
+        }
+      },
+      "29.5": {
+        "P1": {
+          "bhp_pa": 2132076.729315643,
+          "bhp_status": null,
+          "component_mass_rates_kg_s": [
+            0.06889285161830898,
+            0.03400122301215476,
+            0.007928180147607593
+          ]
+        },
+        "P2": {
+          "bhp_pa": 2132039.560714003,
+          "bhp_status": null,
+          "component_mass_rates_kg_s": [
+            0.06890297227926181,
+            0.0340079112688414,
+            0.00791951219365294
+          ]
+        },
+        "I1": {
+          "bhp_pa": 3424371.25417263,
+          "bhp_status": "connected_water_column",
+          "component_mass_rates_kg_s": [
+            0.0,
+            -0.11800913381631717,
+            0.0
+          ]
+        }
+      },
+      "30.0": {
+        "P1": {
+          "bhp_pa": 2131003.8292621053,
+          "bhp_status": null,
+          "component_mass_rates_kg_s": [
+            0.06889263282371175,
+            0.033996784157313144,
+            0.007919222370453227
+          ]
+        },
+        "P2": {
+          "bhp_pa": 2130964.3288981807,
+          "bhp_status": null,
+          "component_mass_rates_kg_s": [
+            0.06890355358009126,
+            0.03400397064045546,
+            0.007910000838665098
+          ]
+        },
+        "I1": {
+          "bhp_pa": 3424351.7499420126,
+          "bhp_status": "connected_water_column",
+          "component_mass_rates_kg_s": [
+            0.0,
+            -0.11800075191314574,
+            0.0
+          ]
+        }
+      }
+    }
+  }
+}

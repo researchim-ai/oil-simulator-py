@@ -169,7 +169,7 @@ class CapacityBracket:
     endpoint_probe_used: bool = False
 
     def __post_init__(self):
-        if not (0 < self.low < self.high <= 1 and 0 < self.tolerance < 1):
+        if not (0 <= self.low < self.high <= 1 and 0 < self.tolerance < 1):
             raise ValueError("Ordered finite capacity bracket required")
         self.low_margin = self._margin(self.low_margin, True)
         self.high_margin = self._margin(self.high_margin, False)

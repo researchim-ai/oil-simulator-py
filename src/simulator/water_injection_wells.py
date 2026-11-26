@@ -51,10 +51,6 @@ class WaterInjectionWells(FullWellSchur, BlackOilWells):
                 raise PropertyModelError(
                     "Water tree supports water-injection rate caps/shut and BHP maxima, without MSW/VFP"
                 )
-            if bool((self.conn_dz[self.conn_well == i].abs() > 1e-6).any()):
-                raise PropertyModelError(
-                    "Injection perforations must be at the BHP reference elevation"
-                )
             if not math.isclose(
                 self.tree.by_name[self.nodes[i]].elevation_m, -self.ref_depth[i], abs_tol=1e-6
             ):
@@ -65,6 +61,10 @@ class WaterInjectionWells(FullWellSchur, BlackOilWells):
         self.speed_ratios = {}
         self.allow_infeasible_trial = False
         self._nominal_schedule = self.conn_sched.clone()
+        self._connection_geometry = [
+            (int(owner), float(dz))
+            for owner, dz in zip(self.conn_well.cpu().tolist(), self.conn_dz.cpu().tolist())
+        ]
         self.injection_report = None
         # Each completion is explicitly non-return: there is no incoming
         # reservoir stream to mix back into other perforations.
@@ -170,6 +170,7 @@ class WaterInjectionWells(FullWellSchur, BlackOilWells):
                 "mode": mode,
                 "bhp_pa": p_host[i],
                 "bhp_status": "isolated_gauge" if self.closed[i] else "connected_water_column",
+                "reference_depth_m": self.ref_depth[i],
                 "network_reference_pressure_pa": network_p,
                 "component_mass_rates_kg_s": host[i],
                 "standard_control_rate_m3_s": qr[i],
@@ -197,6 +198,41 @@ class WaterInjectionWells(FullWellSchur, BlackOilWells):
         self.injection_report["perforation_valves_open"] = (
             self._injection_valve_open.detach().cpu().tolist()
         )
+        # For Bw=1 and pure-water nonreturn completions the inherited
+        # hydrostatic law is exact: rho*g*(depth - BHP datum). No frozen
+        # mixture-density approximation or extra Newton unknown is needed.
+        # One device-to-host transfer for all dynamic completion diagnostics;
+        # immutable ownership and geometry were prepared at construction.
+        connection_rows = torch.cat(
+            (
+                self.conn_head[:, None],
+                v[I_P][self.conn_cell, None],
+                self._injection_valve_open[:, None].to(q.dtype),
+                q,
+            ),
+            dim=1,
+        ).detach().cpu().tolist()
+        self.injection_report["perforations"] = [
+            {
+                "well": self.wells[owner].name,
+                "depth_m": self.ref_depth[owner] + dz,
+                "hydrostatic_head_pa": values[0],
+                "well_pressure_pa": p_host[owner] + values[0],
+                "reservoir_pressure_pa": values[1],
+                "valve_open": bool(values[2]),
+                "component_mass_rates_kg_s": values[3:],
+            }
+            for (owner, dz), values in zip(self._connection_geometry, connection_rows)
+        ]
+        for perf in self.injection_report["perforations"]:
+            if (
+                states[perf["well"]]["mode"] != "shut"
+                and perf["well_pressure_pa"] <= self.tree.fluid.vapor_pressure_pa
+            ):
+                self.injection_report["feasible"] = False
+                violation = f"water_column_vapor_pressure:{perf['well']}"
+                if violation not in self.injection_report["violations"]:
+                    self.injection_report["violations"].append(violation)
         self.injection_report["well_boundary_model"] = (
             "Ideal rate choke and explicitly configured non-return perforation valves"
         )
